@@ -202,6 +202,9 @@ and present only when a weight was applied to that slot, so an
 unweighted response is unchanged. `n` and `n_null` keep their
 value-presence meaning.
 
+Which operators honour, skip or refuse a weight, the invalid-weight
+rules and the unweighted-base recipe: [Row Weighting](../library/weighting.md).
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a

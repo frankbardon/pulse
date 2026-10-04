@@ -8452,6 +8452,10 @@
         "description": "1-byte unsigned integer; fits cardinals through 255."
       },
       {
+        "name": "weighting",
+        "description": "Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, the unweighted-base recipe and the weighted floor keys."
+      },
+      {
         "name": "window-design",
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
@@ -11382,4 +11386,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b30c946ab2a1e4575f84c5414e6b2b185e1f4b1e9e4ef3887e46b26dc8b97469
+// golden-hash: f717ba998e0c1d974da7bb7515ed657dcc57cbdcd97a2e59c6a4921e11f2f2e6

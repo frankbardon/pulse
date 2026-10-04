@@ -145,7 +145,8 @@ accepted at `pulse.New`, but a request in which it reaches a `datetime`
 field is refused with `PROCESSING_CONFIG` (it is never silently
 ignored). It does not apply to `date` fields at all. Predict reports the
 resolved zone per slot under `time_zones`, with `source: "options"` when
-this field supplied it. There is no env var or CLI flag for it.
+this field supplied it. There is no env var or CLI flag for it. Full
+guide: [Row Weighting](weighting.md).
 
 ```go
 p, err := pulse.New(pulse.Options{DefaultTimeZone: "UTC"})
@@ -165,7 +166,8 @@ default actually applies: there it must exist in the cohort and be an
 unsigned-integer or float column. It reaches Process, Compose slots and
 ProcessChain stages, never `Facet` / `FacetSchema`. Predict reports the
 resolved weight per slot under `weights`, with `source: "options"` when
-this field supplied it. There is no env var or CLI flag for it.
+this field supplied it. There is no env var or CLI flag for it. Full
+guide: [Row Weighting](weighting.md).
 
 ```go
 p, err := pulse.New(pulse.Options{DefaultWeight: &types.WeightSpec{Field: "wt"}})

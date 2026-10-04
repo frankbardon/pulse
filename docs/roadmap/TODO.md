@@ -129,15 +129,15 @@ Theme documents: see the [roadmap index](README.md).
 ## 4. Statistical integrity
 
 ### Weighting ([statistical-integrity 01](v1.0.0-statistical-integrity/01-weighting.md))
-- [ ] **#50** `Request.Weight`, per-slot `weight` (incl. `null`), `Options.DefaultWeight`, `kind` frequency / probability · [U11](units/U11-weighting-descriptive.md)
-- [ ] **#51** Weight validation, `n_weight_invalid`, `PULSE_WEIGHT_INVALID_ROWS` · [U11](units/U11-weighting-descriptive.md)
-- [ ] **#52** Weighted aggregators incl. percentiles; `AGG_WEIGHTED_MEAN` alias · [U11](units/U11-weighting-descriptive.md)
-- [ ] **#53** Weighted crosstab cells and margins; unweighted base via `margin_aggregations` · [U11](units/U11-weighting-descriptive.md)
-- [ ] **#54** Weighted share / index overlays · [U11](units/U11-weighting-descriptive.md)
+- [x] **#50** `Request.Weight`, per-slot `weight` (incl. `null`), `Options.DefaultWeight`, `kind` frequency / probability · [U11](units/U11-weighting-descriptive.md)
+- [x] **#51** Weight validation, `n_weight_invalid`, `PULSE_WEIGHT_INVALID_ROWS` · [U11](units/U11-weighting-descriptive.md)
+- [x] **#52** Weighted aggregators incl. percentiles; `AGG_WEIGHTED_MEAN` alias · [U11](units/U11-weighting-descriptive.md)
+- [x] **#53** Weighted crosstab cells and margins; unweighted base via `margin_aggregations` · [U11](units/U11-weighting-descriptive.md)
+- [x] **#54** Weighted share / index overlays · [U11](units/U11-weighting-descriptive.md)
 - [ ] **#55** Weighted tests and significance overlays with Kish `n_eff` (partly shipped in v0.39.1: `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` with `n_basis`) · [U12](units/U12-weighting-inferential.md)
 - [ ] **#56** Weighted attributes, `GROUP_QUANTILE`, regressions · [U12](units/U12-weighting-inferential.md)
-- [ ] **#57** Components `w_sum` / `n_eff`; manifest `weight_aware`; predict reporting; extension `WeightAware` (`n_eff`, `sum_weights_sq`, `m2_weighted`, `weighted_variance` already ship on `AGG_WEIGHTED_MEAN` as of v0.39.1; `sum_weights` vs `w_sum` naming is U11's to reconcile) · [U11](units/U11-weighting-descriptive.md)
-- [ ] **#58** SPSS weight-variable capture and suggestion · [U11](units/U11-weighting-descriptive.md)
+- [x] **#57** Components `w_sum` / `n_eff`; manifest `weight_aware`; predict reporting; extension `WeightAware` (`n_eff`, `sum_weights_sq`, `m2_weighted`, `weighted_variance` already ship on `AGG_WEIGHTED_MEAN` as of v0.39.1; `sum_weights` vs `w_sum` naming is U11's to reconcile — shipped as `sum_weights`, no `w_sum` alias) · [U11](units/U11-weighting-descriptive.md)
+- [x] **#58** SPSS weight-variable capture and suggestion · [U11](units/U11-weighting-descriptive.md)
 - [ ] **#59** `TestWeightUnityParity`, `TestWeightFrequencyExpansionParity`, reference fixtures; `weighting.md` skill · [U12](units/U12-weighting-inferential.md)
 
 ### Multiple comparisons ([statistical-integrity 02](v1.0.0-statistical-integrity/02-multiple-comparisons.md))

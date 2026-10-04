@@ -22,7 +22,7 @@ branch: weighting-inferential
 
 Extend weighting to inference: weighted `TEST_*` and significance overlays using Kish `n_eff` for probability weights, weighted attributes (`ATTR_ZSCORE`/`PERCENTILE`/`NORMALIZED`), weighted `GROUP_QUANTILE`, and weighted regressions (WLS / weighted IRLS). Completes the weighting gates and fixtures.
 
-> **Already shipped (v0.39.1, forward-ported to `main`; status unchanged, nothing ticked here).** The weighted pairwise two-means z overlay `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` exists, with a required `n_basis` param: `weights` (`n = Σw`) or `kish` (`n = n_eff`). It reads `m2_weighted`, `sum_weights_sq`, `weighted_variance` and `n_eff` off `AGG_WEIGHTED_MEAN` cell Components. The remaining overlays, tests, attributes and regressions in this unit are not started. The existing `sum_weights` key versus the planned `w_sum` naming is U11's to reconcile.
+> **Already shipped (v0.39.1, forward-ported to `main`; status unchanged, nothing ticked here).** The weighted pairwise two-means z overlay `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` exists, with a required `n_basis` param: `weights` (`n = Σw`) or `kish` (`n = n_eff`). It reads `m2_weighted`, `sum_weights_sq`, `weighted_variance` and `n_eff` off `AGG_WEIGHTED_MEAN` cell Components. The remaining overlays, tests, attributes and regressions in this unit are not started. The existing `sum_weights` key versus the planned `w_sum` naming is U11's to reconcile — **resolved by U11: the spelling is `sum_weights`, no `w_sum` alias**; read `w_sum` below as `sum_weights`.
 
 ## References
 
@@ -80,3 +80,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(weighting-inferen
 ## Human inputs & decisions
 
 - Reviewer glance at the `n_eff` semantics (the statistics reviewer who signs off U08's guidance at [U33](U33-v1-release.md), #206)
+
+## Inherited from U11
+
+U11 shipped the weight surface, the resolver, validation, the weighted descriptive aggregators, crosstabs and share / index overlays. Contract: `.claude/reference/weighting.md` (Refusal rules is the list below); skill `skills/weighting.md`.
+
+- **The refusal list this unit lifts.** While a weight is in force on the slot (its own `weight`, the request's, or `Options.DefaultWeight`), each of these is `PULSE_WEIGHT_UNSUPPORTED` at predict and runtime, raised by `ResolveWeights` (`internal/descriptor/weight_resolve.go`) and classed in `internal/weighting` (`ClassRefuse`): every built-in `TEST_*` (`tests` and `post_tests`); every `REG_*`; `ATTR_ZSCORE`, `ATTR_TSCORE`, `ATTR_PERCENTILE`, `ATTR_NORMALIZED`; `GROUP_QUANTILE` (groups and crosstab axes); `AGG_CI_LOWER` / `AGG_CI_UPPER`; every overlay kind declared `Inferential: true` (keyed off the flag, sole exemption `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` in `weightExemptOverlays`), on `Request.Overlays` and on Compose (`ComposeOverlayWeightRefusal`). Lifting an entry means moving it to `ClassAware`, adding its unity / frequency-expansion parity row and reference value, and updating the skill and `weighting.md`.
+- **Not in the list:** windows stay not-weightable (a REQUEST weight is already `PROCESSING_CONFIG`, the default skipped — this unit's "windows refuse" scope item has shipped). Weight-aware aggregators over `decimal128` stay refused (no weighted decimal path).
+- **Spelling.** The floor key is `sum_weights`; `n_eff` (Kish, `probability` only) is on every weighted aggregator slot and crosstab cell / margin map already — the overlays here read it rather than recomputing.
+- **#59 is largely in place.** `TestWeightUnityParity`, `TestWeightFrequencyExpansionParity`, the external reference fixtures (`TestWeightReferenceValues`, generator under `internal/service/testdata/weight_reference/`) and `skills/weighting.md` shipped with U11 for the descriptive operators; this unit extends each to the operators it makes weight-aware (their `coverage` subtests demand a row per manifest `weight_aware` operator).
+- **Extension precedent.** A WeightAware extension TEST already runs weighted; keep that consistent when the built-in tests become weight-aware.

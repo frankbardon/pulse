@@ -16,7 +16,7 @@ Schema-only output without running a request: listing fields, debugging dictiona
 
 ## Output
 
-`descriptor.Envelope` wrapping `InspectResult`: fields (name, type, description, categorical dictionary), `record_count`, `shards`, `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` from the SPSS sidecar's weighting variable. Dictionaries truncated to 100 unless `FullDict: true`. A `0x02` cohort adds `layout` (physical/logical stride), `groups` (`fields`, `entry_count`, resident `dictionary_bytes`, `ratio`, `byte_delta`, `verdict`) and a per-field `group` marker (`kind: constant` = elided); a grouped archive reports canonical groups over its whole `record_count`.
+`descriptor.Envelope` wrapping `InspectResult`: fields (name, type, description, categorical dictionary), `record_count`, `shards`, `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` from the SPSS sidecar's weight variable. Dictionaries truncated to 100 unless `FullDict: true`. A `0x02` cohort adds `layout` (physical/logical stride), `groups` (`fields`, `entry_count`, resident `dictionary_bytes`, `ratio`, `byte_delta`, `verdict`) and a per-field `group` marker (`kind: constant` = elided); a grouped archive reports canonical groups over its whole `record_count`.
 
 MCP (`pulse_inspect`) returns those keys at top level plus a `warnings` array of coded `{code, message, details}` entries, omitted on a clean read.
 
