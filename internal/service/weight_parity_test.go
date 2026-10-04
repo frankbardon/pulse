@@ -40,7 +40,10 @@ import (
 // never streams is not run on the streaming arms; one that never merges
 // not on the parallel arms) and then asserts the WEIGHTED request
 // engaged the same arm, so a weight can never silently knock a request
-// off its execution path. The crosstab arms join at E3.
+// off its execution path. The crosstab arms (buffered and fused) run
+// the same parityOps table through their own harness in
+// weight_crosstab_test.go (runCrosstabOn), because a crosstab request
+// is not a parityRequest.
 
 // parityOp is one weight-aware aggregator's row.
 type parityOp struct {

@@ -16,28 +16,73 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Weighted crosstabs on the BUFFERED arm (weighting-descriptive E3-S1,
-// .claude/reference/weighting.md "Crosstab"):
+// Weighted crosstabs on BOTH arms (weighting-descriptive E3-S1 buffered,
+// E3-S2 fused; .claude/reference/weighting.md "Crosstab"):
 //
 //   - TestWeightCrosstabUnityParity — an all-1.0 weight answers
 //     byte-identically to no weight for every weight-aware cell
-//     aggregator × weight source, cells, row / column / grand margins
-//     and auxiliary margins alike, once the weighted floor keys
+//     aggregator × weight source × arm, cells, row / column / grand
+//     margins and auxiliary margins alike, once the weighted floor keys
 //     (pinned to their unity values) are shed;
 //   - TestWeightCrosstabFrequencyExpansion — integer weights equal the
-//     physically duplicated rows run unweighted, for cells, every
-//     margin class and normalization (row at a partial depth, column
-//     within a row prefix, total), while CellCounts and margin counts
-//     stay the RAW row counts and a `weight: null` auxiliary is the
-//     unweighted base;
+//     physically duplicated rows run unweighted on the same arm, for
+//     cells, every margin class and normalization (row at a partial
+//     depth, column within a row prefix, total), while CellCounts and
+//     margin counts stay the RAW row counts and a `weight: null`
+//     auxiliary is the unweighted base;
+//   - TestWeightCrosstabFusedMatchesBuffered — one weighted request,
+//     both arms, the same figures and floor keys;
 //   - TestWeightCrosstabProbabilityQuantileScaleInvariance — scaled
 //     probability weights leave a weighted median / percentile crosstab
 //     unchanged;
 //   - TestWeightCrosstabAuxSlotOverride, TestWeightCrosstabInvalidRows,
 //     TestWeightCrosstabFusionDecision.
 //
-// The fused arm's weighted parity is E3-S2's; these tests force the
-// buffered arm (crosstabBufferedSteer) and assert it engaged.
+// Each arm is forced (crosstabBufferedSteer keeps the buffered arm; the
+// fused arm drops it) and asserted engaged. An operator the fused arm
+// never takes unweighted (non-mergeable cells) is not run there, and a
+// weighted request must take the arm its unweighted twin takes.
+
+// crosstabArm is one crosstab dispatch arm.
+type crosstabArm struct {
+	name  string
+	fused bool
+}
+
+func crosstabArms() []crosstabArm {
+	return []crosstabArm{{name: "buffered"}, {name: "fused", fused: true}}
+}
+
+// runCrosstabOn runs req on arm: the buffered arm keeps
+// crosstabBufferedSteer, the fused arm drops it. A nil result means the
+// UNWEIGHTED request (src nil) never takes the fused arm; a weighted
+// request that leaves the arm its twin takes is fatal.
+func runCrosstabOn(t *testing.T, store *parityStore, req *types.Request, src *paritySource, arm crosstabArm) *types.Response {
+	t.Helper()
+	if arm.fused {
+		req.Filterers = nil
+	}
+	svc := New(store.mem)
+	svc.SetShardWorkers(1)
+	svc.SetDecodeWorkers(1)
+	var def *types.WeightSpec
+	if src != nil {
+		def = src.apply(req, svc, types.WeightSpec{Field: "w", Kind: src.kind})
+	}
+	ok, why := processing.CanFuseCrosstab(processing.StampWeights(req, def), paritySchema(), svc.extensions)
+	switch {
+	case ok == arm.fused:
+	case arm.fused && src == nil:
+		return nil
+	default:
+		t.Fatalf("the request does not take the %s arm (fusable=%v, %q)", arm.name, ok, why)
+	}
+	resp, err := svc.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Process (%s): %v", arm.name, err)
+	}
+	return resp
+}
 
 // crosstabBufferedSteer is a FILTER_EXPRESSION that keeps every row:
 // the fusion rule declines any FILTER_EXPRESSION, so it pins a
@@ -116,28 +161,47 @@ func runCrosstab(t *testing.T, store *parityStore, req *types.Request, src *pari
 	return resp
 }
 
-// TestWeightCrosstabUnityParity: unity weights are invisible on the
-// buffered crosstab arm.
+// TestWeightCrosstabUnityParity: unity weights are invisible on both
+// crosstab arms.
 func TestWeightCrosstabUnityParity(t *testing.T) {
 	t.Run("coverage", assertParityCoverage)
 	aware := manifestAware()
 	store := newParityStore(t, "xt_unity", func(n int) []parityRow { return parityRows(n, unityWeight) })
 	path := store.paths[paritySingleFile]
-	for _, row := range parityOps {
-		t.Run(string(row.op), func(t *testing.T) {
-			base := runCrosstab(t, store, crosstabParityRequest(path, row, row.baselineOp()), nil, true)
-			assertNoWeightFloor(t, base)
-			want := mustMarshal(t, base)
-			for _, src := range crosstabSources() {
-				t.Run(src.name, func(t *testing.T) {
-					got := runCrosstab(t, store, crosstabParityRequest(path, row, row.op), &src, true)
-					shedCrosstabUnity(t, got, row, aware, src.kind)
-					if g := mustMarshal(t, got); !bytes.Equal(g, want) {
-						t.Errorf("unity weight changed the crosstab:\n weighted   %s\n unweighted %s", g, want)
-					}
-				})
-			}
-		})
+	ran := map[string]int{}
+	for _, arm := range crosstabArms() {
+		for _, row := range parityOps {
+			t.Run(arm.name+"/"+string(row.op), func(t *testing.T) {
+				base := runCrosstabOn(t, store, crosstabParityRequest(path, row, row.baselineOp()), nil, arm)
+				if base == nil {
+					t.Skipf("%s never takes the %s arm unweighted", row.baselineOp(), arm.name)
+				}
+				ran[arm.name]++
+				assertNoWeightFloor(t, base)
+				want := mustMarshal(t, base)
+				for _, src := range crosstabSources() {
+					t.Run(src.name, func(t *testing.T) {
+						got := runCrosstabOn(t, store, crosstabParityRequest(path, row, row.op), &src, arm)
+						shedCrosstabUnity(t, got, row, aware, src.kind)
+						if g := mustMarshal(t, got); !bytes.Equal(g, want) {
+							t.Errorf("unity weight changed the crosstab:\n weighted   %s\n unweighted %s", g, want)
+						}
+					})
+				}
+			})
+		}
+	}
+	assertArmsRan(t, ran)
+}
+
+// assertArmsRan: a gate whose fused arm skipped every operator would
+// pass vacuously.
+func assertArmsRan(t *testing.T, ran map[string]int) {
+	t.Helper()
+	for _, arm := range crosstabArms() {
+		if ran[arm.name] < 3 {
+			t.Errorf("the %s arm ran %d operators; the gate is near-vacuous there", arm.name, ran[arm.name])
+		}
 	}
 }
 
@@ -306,67 +370,83 @@ func TestWeightCrosstabFrequencyExpansion(t *testing.T) {
 			ops = append(ops, r)
 		}
 	}
-	for _, v := range crosstabVariants() {
-		for _, row := range ops {
-			if v.scalarOnly && row.op.MapValued() {
-				continue
+	ran := map[string]int{}
+	for _, arm := range crosstabArms() {
+		for _, v := range crosstabVariants() {
+			for _, row := range ops {
+				if v.scalarOnly && row.op.MapValued() {
+					continue
+				}
+				t.Run(arm.name+"/"+v.name+"/"+string(row.op), func(t *testing.T) {
+					build := func(store *parityStore) *types.Request {
+						req := crosstabParityRequest(store.paths[paritySingleFile], row, row.op)
+						v.shape(req.Crosstab)
+						return req
+					}
+					want := runCrosstabOn(t, expanded, build(expanded), nil, arm)
+					if want == nil {
+						t.Skipf("%s never takes the %s arm unweighted", row.op, arm.name)
+					}
+					ran[arm.name]++
+					raw := runCrosstabOn(t, weighted, build(weighted), nil, arm)
+					got := runCrosstabOn(t, weighted, build(weighted), &src, arm)
+					assertExpandedCrosstab(t, got, want, raw)
+				})
 			}
-			t.Run(v.name+"/"+string(row.op), func(t *testing.T) {
-				build := func(store *parityStore) *types.Request {
-					req := crosstabParityRequest(store.paths[paritySingleFile], row, row.op)
-					v.shape(req.Crosstab)
-					return req
-				}
-				want := runCrosstab(t, expanded, build(expanded), nil, true)
-				raw := runCrosstab(t, weighted, build(weighted), nil, true)
-				got := runCrosstab(t, weighted, build(weighted), &src, true)
-
-				// Cells, every margin and normalization: the weighted
-				// figures ARE the expanded figures.
-				compareJSONClose(t, "crosstab", toJSONValue(t, got.Crosstab), toJSONValue(t, want.Crosstab))
-
-				gc, wc, rc := got.Components.Crosstab, want.Components.Crosstab, raw.Components.Crosstab
-				// Counts stay raw ints: equal to the unweighted run
-				// over the SAME (weighted) cohort.
-				for name, pair := range map[string][2]any{
-					"cell_counts":          {gc.CellCounts, rc.CellCounts},
-					"row_margin_counts":    {gc.RowMarginCounts, rc.RowMarginCounts},
-					"column_margin_counts": {gc.ColumnMarginCounts, rc.ColumnMarginCounts},
-					"grand_total_count":    {gc.GrandTotalCount, rc.GrandTotalCount},
-				} {
-					if g, r := mustMarshal(t, pair[0]), mustMarshal(t, pair[1]); !bytes.Equal(g, r) {
-						t.Errorf("%s = %s, want the raw counts %s", name, g, r)
-					}
-				}
-				// The floor: each weighted map's sum_weights is the
-				// expanded map's n.
-				wantN := map[string]int{}
-				forEachCrosstabMap(t, want, func(where, label string, m map[string]any) {
-					if label != "base" {
-						wantN[where], _ = m["n"].(int)
-					}
-				})
-				forEachCrosstabMap(t, got, func(where, label string, m map[string]any) {
-					if label == "base" {
-						return
-					}
-					sw, ok := m["sum_weights"].(float64)
-					if !ok {
-						t.Errorf("%s: no sum_weights on a weighted map", where)
-						return
-					}
-					if n, ok := wantN[where]; !ok || sw != float64(n) {
-						t.Errorf("%s: sum_weights %v, expanded n %d", where, sw, n)
-					}
-				})
-				// Auxiliaries: the inheriting aux_sum is the expanded
-				// figure; `base` (weight: null) the raw unweighted one.
-				compareJSONClose(t, "aux_sum", auxValues(t, gc, "aux_sum"), auxValues(t, wc, "aux_sum"))
-				if g, r := mustMarshal(t, auxValues(t, gc, "base")), mustMarshal(t, auxValues(t, rc, "base")); !bytes.Equal(g, r) {
-					t.Errorf("weight: null base = %s, want the unweighted %s", g, r)
-				}
-			})
 		}
+	}
+	assertArmsRan(t, ran)
+}
+
+// assertExpandedCrosstab: got (weighted) equals want (expanded,
+// unweighted) on every figure, while its counts equal raw (the
+// unweighted run over the weighted cohort).
+func assertExpandedCrosstab(t *testing.T, got, want, raw *types.Response) {
+	t.Helper()
+
+	// Cells, every margin and normalization: the weighted
+	// figures ARE the expanded figures.
+	compareJSONClose(t, "crosstab", toJSONValue(t, got.Crosstab), toJSONValue(t, want.Crosstab))
+
+	gc, wc, rc := got.Components.Crosstab, want.Components.Crosstab, raw.Components.Crosstab
+	// Counts stay raw ints: equal to the unweighted run
+	// over the SAME (weighted) cohort.
+	for name, pair := range map[string][2]any{
+		"cell_counts":          {gc.CellCounts, rc.CellCounts},
+		"row_margin_counts":    {gc.RowMarginCounts, rc.RowMarginCounts},
+		"column_margin_counts": {gc.ColumnMarginCounts, rc.ColumnMarginCounts},
+		"grand_total_count":    {gc.GrandTotalCount, rc.GrandTotalCount},
+	} {
+		if g, r := mustMarshal(t, pair[0]), mustMarshal(t, pair[1]); !bytes.Equal(g, r) {
+			t.Errorf("%s = %s, want the raw counts %s", name, g, r)
+		}
+	}
+	// The floor: each weighted map's sum_weights is the
+	// expanded map's n.
+	wantN := map[string]int{}
+	forEachCrosstabMap(t, want, func(where, label string, m map[string]any) {
+		if label != "base" {
+			wantN[where], _ = m["n"].(int)
+		}
+	})
+	forEachCrosstabMap(t, got, func(where, label string, m map[string]any) {
+		if label == "base" {
+			return
+		}
+		sw, ok := m["sum_weights"].(float64)
+		if !ok {
+			t.Errorf("%s: no sum_weights on a weighted map", where)
+			return
+		}
+		if n, ok := wantN[where]; !ok || sw != float64(n) {
+			t.Errorf("%s: sum_weights %v, expanded n %d", where, sw, n)
+		}
+	})
+	// Auxiliaries: the inheriting aux_sum is the expanded
+	// figure; `base` (weight: null) the raw unweighted one.
+	compareJSONClose(t, "aux_sum", auxValues(t, gc, "aux_sum"), auxValues(t, wc, "aux_sum"))
+	if g, r := mustMarshal(t, auxValues(t, gc, "base")), mustMarshal(t, auxValues(t, rc, "base")); !bytes.Equal(g, r) {
+		t.Errorf("weight: null base = %s, want the unweighted %s", g, r)
 	}
 }
 
@@ -643,5 +723,120 @@ func TestWeightCrosstabFusionDecision(t *testing.T) {
 				t.Errorf("a weight changed the fusion answer: weighted %v, unweighted %v", ok, ok2)
 			}
 		})
+	}
+}
+
+// --- fused vs buffered --------------------------------------------------
+
+// mixedWeight: fractional probability weights with a negative, a NaN
+// and a zero sprinkled in, so the invalid tally and the zero-skip run
+// on both arms.
+func mixedWeight(i int) float64 {
+	switch {
+	case i%17 == 5:
+		return -1
+	case i%19 == 7:
+		return math.NaN()
+	case i%23 == 11:
+		return 0
+	}
+	return fracWeight(i)
+}
+
+// mixedFreqWeight: integer weights 0..3 with the same invalid rows.
+func mixedFreqWeight(i int) float64 {
+	if w := mixedWeight(i); w < 0 || math.IsNaN(w) {
+		return w
+	}
+	return freqWeight(i)
+}
+
+// fuseExact are the cell operators whose weighted figures are plain
+// Σw-sums folded in row order by one statement shape on both arms, so
+// fused and buffered must agree BYTE for byte. The rest (means, ratios
+// and AGG_WEIGHTED_MEAN's running m2) fold through separately inlined
+// running and slice forms an FMA-contracting backend may round apart at
+// the last ulp (the policy of crosstab_fused_weighted_z_test.go), so
+// they compare within 1e-12 relative — keys, presence and shape still
+// exactly.
+var fuseExact = map[types.AggregationType]bool{
+	types.AGG_COUNT: true, types.AGG_SUM: true, types.AGG_MODE_COUNT: true, types.AGG_FREQUENCY: true,
+	types.AGG_SET_FREQUENCY: true, types.AGG_SET_CARDINALITY_SUM: true,
+}
+
+// TestWeightCrosstabFusedMatchesBuffered: one weighted crosstab request
+// answers the same on the fused arm and the buffered arm — every cell,
+// margin class (row / column / grand, and through normalization the
+// partial-depth and within-prefix denominators), auxiliary margin, flat
+// component map (floor keys included) and the invalid-row warning — for
+// every weight-aware cell aggregator the fused arm takes, every weight
+// source, both kinds, over fractional (probability) or integer
+// (frequency) weights with negative, NaN and zero rows mixed in. Exact
+// for the fuseExact sums, 1e-12 relative otherwise. (The non-mergeable
+// moment / quantile cells never fuse.)
+func TestWeightCrosstabFusedMatchesBuffered(t *testing.T) {
+	stores := map[types.WeightKind]*parityStore{
+		types.WeightKindProbability: newParityStore(t, "xt_mixed", func(n int) []parityRow { return parityRows(n, mixedWeight) }),
+		types.WeightKindFrequency:   newParityStore(t, "xt_mixed_freq", func(n int) []parityRow { return parityRows(n, mixedFreqWeight) }),
+	}
+	buffered, fused := crosstabArms()[0], crosstabArms()[1]
+	ran := 0
+	for _, v := range crosstabVariants() {
+		for _, row := range parityOps {
+			if v.scalarOnly && row.op.MapValued() {
+				continue
+			}
+			t.Run(v.name+"/"+string(row.op), func(t *testing.T) {
+				for _, src := range crosstabSources() {
+					t.Run(src.name, func(t *testing.T) {
+						if row.op == types.AGG_RATIO && src.kind == types.WeightKindFrequency && v.name != "margins" && v.name != "normalize_total" {
+							// A partial-depth cell holding only zero-weight
+							// rows has Σw·den = 0, and AGG_RATIO answers 0/0 =
+							// NaN — exactly as an unweighted all-zero
+							// denominator does — which encoding/json refuses
+							// on BOTH arms. A pre-existing wire hazard, not an
+							// arm divergence; the probability arms cover it.
+							t.Skip("AGG_RATIO 0/0 partial-depth cell is NaN on both arms and does not marshal")
+						}
+						store := stores[src.kind]
+						build := func(op types.AggregationType) *types.Request {
+							req := crosstabParityRequest(store.paths[paritySingleFile], row, op)
+							v.shape(req.Crosstab)
+							return req
+						}
+						if runCrosstabOn(t, store, build(row.baselineOp()), nil, fused) == nil {
+							t.Skipf("%s never takes the fused arm", row.baselineOp())
+						}
+						ran++
+						f := runCrosstabOn(t, store, build(row.op), &src, fused)
+						b := runCrosstabOn(t, store, build(row.op), &src, buffered)
+						for what, pair := range map[string][2]any{
+							"crosstab":   {f.Crosstab, b.Crosstab},
+							"components": {f.Components.Crosstab, b.Components.Crosstab},
+						} {
+							if !fuseExact[row.op] {
+								compareJSONClose(t, what, toJSONValue(t, pair[0]), toJSONValue(t, pair[1]))
+							} else if g, w := mustMarshal(t, pair[0]), mustMarshal(t, pair[1]); !bytes.Equal(g, w) {
+								t.Errorf("%s:\n fused    %s\n buffered %s", what, g, w)
+							}
+						}
+						if g, w := mustMarshal(t, f.Warnings), mustMarshal(t, b.Warnings); !bytes.Equal(g, w) {
+							t.Errorf("warnings:\n fused    %s\n buffered %s", g, w)
+						}
+						var weighted bool
+						forEachCrosstabMap(t, f, func(_, label string, m map[string]any) {
+							_, has := m["sum_weights"]
+							weighted = weighted || (has && label == "")
+						})
+						if !weighted {
+							t.Error("no cell-aggregator map carries sum_weights: the weight did not apply")
+						}
+					})
+				}
+			})
+		}
+	}
+	if ran < 20 {
+		t.Errorf("fused arm ran %d cases; the gate is near-vacuous", ran)
 	}
 }
