@@ -285,34 +285,36 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 //	internal/temporal/    >= 90%
 //	internal/statdist/    >= 90%
 //	internal/mergegate/   >= 100%
+//	internal/crosstabfuse/ >= 90%
 //	cmd/pulse/   >= 75%
 //
 // Aggregate across core packages >= 80%.
 func TestPerPackageCoverageFloors(t *testing.T) {
 	floors := map[string]int{
-		"encoding":            95,
-		"internal/encoding":   95,
-		"descriptor":          95,
-		"internal/descriptor": 95,
-		"internal/skills":     95,
-		"errors":              90,
-		"internal/processing": 85,
-		"extend":              85,
-		"internal/io/csv":     85,
-		"internal/io/tsv":     85,
-		"internal/io/ndjson":  85,
-		"internal/io/parquet": 85,
-		"internal/io/excel":   85,
-		"internal/service":    80,
-		"internal/temporal":   90,
-		"internal/statdist":   90,
-		"internal/mergegate":  100,
-		"cmd/pulse":           75,
+		"encoding":              95,
+		"internal/encoding":     95,
+		"descriptor":            95,
+		"internal/descriptor":   95,
+		"internal/skills":       95,
+		"errors":                90,
+		"internal/processing":   85,
+		"extend":                85,
+		"internal/io/csv":       85,
+		"internal/io/tsv":       85,
+		"internal/io/ndjson":    85,
+		"internal/io/parquet":   85,
+		"internal/io/excel":     85,
+		"internal/service":      80,
+		"internal/temporal":     90,
+		"internal/statdist":     90,
+		"internal/mergegate":    100,
+		"internal/crosstabfuse": 90,
+		"cmd/pulse":             75,
 	}
 
 	// Verify the floor map is non-empty (structural sanity check).
-	if len(floors) != 18 {
-		t.Errorf("expected 18 coverage floor entries, got %d", len(floors))
+	if len(floors) != 19 {
+		t.Errorf("expected 19 coverage floor entries, got %d", len(floors))
 	}
 
 	// Verify each package directory exists.
