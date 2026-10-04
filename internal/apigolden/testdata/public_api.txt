@@ -86,6 +86,20 @@ pulse: type Cohort method (*Cohort) Reader() (*pulse.CohortReader, error)
 pulse: type Cohort method (*Cohort) RecordCount() (int64, error)
 pulse: type Cohort method (*Cohort) Schema() *pulse/encoding.Schema
 pulse: type Cohort method (*Cohort) Shards() []pulse.ShardEntry
+pulse: type CohortBuildResult struct
+pulse: type CohortBuildResult field FormatVersion byte "json:\"cohort_format_version\""
+pulse: type CohortBuildResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
+pulse: type CohortBuildResult field Records int64 "json:\"records\""
+pulse: type CohortBuildResult field Schema *pulse/encoding.Schema "json:\"-\""
+pulse: type CohortBuildResult field Target string "json:\"target\""
+pulse: type CohortBuildResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
+pulse: type CohortBuilder struct
+pulse: type CohortBuilder method (*CohortBuilder) Abort() error
+pulse: type CohortBuilder method (*CohortBuilder) Append(row pulse.CohortRow) error
+pulse: type CohortBuilder method (*CohortBuilder) Close() (*pulse.CohortBuildResult, error)
+pulse: type CohortBuilderOptions struct
+pulse: type CohortBuilderOptions field Overwrite bool
+pulse: type CohortBuilderOptions field Strict bool
 pulse: type CohortFingerprint = pulse/internal/encoding.Fingerprint
 pulse: type CohortFingerprint underlying [32]byte
 pulse: type CohortReader struct
@@ -606,6 +620,7 @@ pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath st
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
 pulse: type Pulse method (*Pulse) Manifest(_ context.Context) *pulse/descriptor.Manifest
+pulse: type Pulse method (*Pulse) NewCohortBuilder(ctx context.Context, target string, schema pulse/encoding.Schema, opts pulse.CohortBuilderOptions) (*pulse.CohortBuilder, error)
 pulse: type Pulse method (*Pulse) Ontology() pulse/descriptor.Ontology
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
 pulse: type Pulse method (*Pulse) PayloadSchema() ([]byte, error)
@@ -3733,4 +3748,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7653e96849d7c9b2a726042db53a7c98c310ca2e9d4d6da4123388c02817a565
+// golden-hash: 425f9502d3f3c01f281300202601d04308f04a6ffbc39d83aa8ff80ea9b55b51

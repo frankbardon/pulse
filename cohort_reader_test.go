@@ -104,12 +104,17 @@ func writeReaderFixture(t *testing.T, cols []readerColumn) ([]byte, *encoding.Sc
 	t.Helper()
 	schema := &encoding.Schema{}
 	off := 0
-	for _, c := range cols {
-		f := encoding.Field{Name: c.name, Type: c.typ, Nullable: true, ByteOffset: off}
+	for fi, c := range cols {
+		// CsvColumnIdx = field index and a full-precision decimal: the
+		// layout an explicit-schema import (and the cohort builder)
+		// writes, so the builder's byte-identity test compares against
+		// this oracle unchanged.
+		f := encoding.Field{Name: c.name, Type: c.typ, Nullable: true, ByteOffset: off, CsvColumnIdx: fi}
 		if c.dict > 0 {
 			f.Dictionary = readerDict(c.name, c.dict)
 		}
 		if c.typ == encoding.FieldTypeDecimal128 {
+			f.Precision = encoding.MaxDecimalPrecision
 			f.Scale = readerDecimalScale
 		}
 		schema.Fields = append(schema.Fields, f)

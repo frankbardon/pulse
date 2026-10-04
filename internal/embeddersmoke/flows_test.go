@@ -339,6 +339,86 @@ func TestRawUngroupedWrite(t *testing.T) {
 	}
 }
 
+// TestCohortBuilderFlow builds a cohort row by row through the public
+// builder, checks it is byte-identical to the raw-primitive write of
+// the same rows, reads it back record by record and processes it.
+func TestCohortBuilderFlow(t *testing.T) {
+	schema := encoding.Schema{Fields: []encoding.Field{
+		{Name: "a", Type: encoding.FieldTypeU16, ByteOffset: 0, CsvColumnIdx: 0, Description: "Small counter a."},
+		{Name: "b", Type: encoding.FieldTypeU32, ByteOffset: 2, CsvColumnIdx: 1, Description: "Wider counter b."},
+	}}
+	rows := []pulse.CohortRow{{uint64(1), uint64(100)}, {uint64(2), uint64(200)}, {uint64(3), uint64(300)}}
+
+	var raw bytes.Buffer
+	if err := encoding.WriteHeader(&raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := encoding.WriteSchema(&raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rows {
+		if err := encoding.WriteFieldValue(&raw, encoding.FieldTypeU16, r[0].(uint64)); err != nil {
+			t.Fatal(err)
+		}
+		if err := encoding.WriteFieldValue(&raw, encoding.FieldTypeU32, r[1].(uint64)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p, fs := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	b, err := p.NewCohortBuilder(ctx, "built.pulse", schema, pulse.CohortBuilderOptions{Strict: true})
+	if err != nil {
+		t.Fatalf("NewCohortBuilder: %v", err)
+	}
+	for _, r := range rows {
+		if err := b.Append(r); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+	// A rejected row returns the import row code and is not written.
+	if err := b.Append(pulse.CohortRow{uint64(70000), uint64(1)}); !perrors.HasCode(err, perrors.PULSE_IMPORT_ROW_ERROR) {
+		t.Fatalf("overflowing row = %v, want PULSE_IMPORT_ROW_ERROR", err)
+	}
+	res, err := b.Close()
+	if err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if res.Records != 3 || res.FormatVersion != encoding.FormatVersionV1 {
+		t.Fatalf("result = %+v", res)
+	}
+	built, err := afero.ReadFile(fs, "built.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(built, raw.Bytes()) {
+		t.Fatalf("builder bytes differ from the raw-primitive write")
+	}
+
+	c, err := p.Open(ctx, "built.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.Reader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	for i, want := range rows {
+		got, err := r.RecordAt(int64(i))
+		if err != nil || got[0] != want[0] || got[1] != want[1] {
+			t.Fatalf("RecordAt(%d) = %v, %v; want %v", i, got, err, want)
+		}
+	}
+	resp, err := p.Process(ctx, &pulse.Request{
+		Cohort:       &types.Cohort{Filename: "built.pulse"},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "b", Label: "total"}},
+	})
+	if err != nil || len(resp.Data) != 1 || resp.Data[0]["total"] != float64(600) {
+		t.Fatalf("Process(built) = %v, %v; want total 600", resp, err)
+	}
+}
+
 func TestSynthFixture(t *testing.T) {
 	p, fs := newEngine(t, pulse.Options{})
 	spec := &synth.Spec{RowCount: 25, Fields: []synth.FieldSpec{
