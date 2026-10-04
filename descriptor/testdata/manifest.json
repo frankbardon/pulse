@@ -1004,12 +1004,12 @@
               {
                 "name": "position_low",
                 "type": "int",
-                "description": "Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1))."
+                "description": "Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."
               },
               {
                 "name": "position_high",
                 "type": "int",
-                "description": "Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1))."
+                "description": "Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."
               },
               {
                 "name": "median",
@@ -1341,7 +1341,7 @@
               {
                 "name": "position",
                 "type": "int",
-                "description": "Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1))."
+                "description": "Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1), probability weights rescaled to Σw = n)."
               },
               {
                 "name": "lower",
@@ -10008,12 +10008,12 @@
             {
               "name": "position_low",
               "type": "int",
-              "description": "Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1))."
+              "description": "Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."
             },
             {
               "name": "position_high",
               "type": "int",
-              "description": "Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1))."
+              "description": "Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."
             },
             {
               "name": "median",
@@ -10197,7 +10197,7 @@
             {
               "name": "position",
               "type": "int",
-              "description": "Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1))."
+              "description": "Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1), probability weights rescaled to Σw = n)."
             },
             {
               "name": "lower",
@@ -11382,4 +11382,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 67dadad7178a6f7c7013fe821802995b0167fbb3933b08aecb9c690f2e8fee4f
+// golden-hash: f1b3e782e099f71df243554dbe1d0786a04b0707d175c33c0f4d2e4751b0e179

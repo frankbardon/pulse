@@ -13,8 +13,8 @@ import (
 // classification"):
 //
 //   - AGG_MEDIAN / AGG_PERCENTILE — expanded-index Hyndman-Fan type 7
-//     over a paired (value, weight) collector; buffered only, exactly as
-//     unweighted.
+//     over a paired (value, weight) collector, probability weights
+//     rescaled to sum to n; buffered only, exactly as unweighted.
 //   - AGG_MODE / AGG_MODE_COUNT — the value with the largest Σw (ties to
 //     the smallest value) and that Σw; streamable and mergeable, exactly
 //     as unweighted.
@@ -78,17 +78,20 @@ func collectWeightedPairs(records []*Record, field string, spec *types.WeightSpe
 // h = p·(W − 1) — the unweighted rank p·(n − 1) at w = 1 — and the
 // figure interpolates linearly between x₍⌊h⌋₎ and x₍⌈h⌉₎.
 //
-// Clamp rule (non-integer W): h is clamped below at 0, so Σw < 1 answers
-// the smallest value; above, h ≤ W − 1 < W keeps x₍⌈h⌉₎ inside the data
-// (a lookup past the last cumulative weight would answer the largest
-// value). With a fractional W the expanded index stops at W − 1, so p100
-// is the interpolation toward the largest value rather than the largest
-// value itself — the convention of Hmisc wtd.quantile without weight
-// normalization.
+// Scale rule: kind probability (the default) rescales the cumulative
+// weights so W = n, the contributing row count, before the rank is
+// taken — the normalization of Hmisc wtd.quantile(normwt = TRUE) — so
+// multiplying every weight by a constant leaves the figure unchanged
+// and h = p·(n − 1) always. Kind frequency keeps the raw weights (W is
+// the expanded row count), so it equals type 7 on the physically
+// expanded data. h is clamped below at 0 as a guard; above, h ≤ W − 1
+// < W keeps x₍⌈h⌉₎ inside the data (a lookup past the last cumulative
+// weight answers the largest value).
 //
 // Components keep the unweighted keys and types: position /
 // position_low / position_high are the EXPANDED-space indices ⌊h⌋ / ⌈h⌉
-// (integers; equal to the sorted-row indices at w = 1).
+// (integers; equal to the sorted-row indices at w = 1; in the
+// normalized space for probability weights).
 type weightedQuantileAggregator struct {
 	op         types.AggregationType
 	weight     types.WeightSpec
@@ -126,6 +129,18 @@ func (a *weightedQuantileAggregator) Aggregate(records []*Record, field string) 
 		total += p.w
 		cum[i] = total
 	}
+	// Probability weights are rescaled to sum to the contributing row
+	// count n (Hmisc wtd.quantile normwt = TRUE), so the figure does not
+	// depend on the weights' scale; frequency weights stay raw — they
+	// ARE the replication counts. Skipped when Σw is already n (always
+	// at w ≡ 1), though (cum·n)/n would be exact there anyway: cum is an
+	// integer and cum·n < 2⁵³.
+	if n := float64(len(pairs)); a.weight.Kind == types.WeightKindProbability && total != n {
+		for i := range cum {
+			cum[i] = cum[i] * n / total
+		}
+		total = n
+	}
 	at := func(k int) float64 {
 		i := sort.Search(len(cum), func(i int) bool { return cum[i] > float64(k) })
 		if i == len(cum) {
@@ -133,15 +148,21 @@ func (a *weightedQuantileAggregator) Aggregate(records []*Record, field string) 
 		}
 		return pairs[i].x
 	}
-	var rank float64
+	// W ≥ 1 here (W = n ≥ 1 for probability; a sum of positive integers
+	// for frequency), so h ≥ 0 needs no clamp.
 	if a.op == types.AGG_MEDIAN {
-		rank = 0.5 * (total - 1)
+		a.median(total, at)
 	} else {
-		rank = a.percentile / 100.0 * (total - 1)
+		a.interpolate(total, at)
 	}
-	if rank < 0 {
-		rank = 0
-	}
+	return a.frozenValue, nil
+}
+
+// median is h = 0.5·(W − 1): an integer W gives an integer or
+// half-integer h, and the half case is the unweighted median's mean of
+// the two middles, (lo + hi) / 2, in its operation order.
+func (a *weightedQuantileAggregator) median(total float64, at func(int) float64) {
+	rank := 0.5 * (total - 1)
 	low := int(math.Floor(rank))
 	high := int(math.Ceil(rank))
 	a.frozenLow, a.frozenHigh = low, high
@@ -149,14 +170,32 @@ func (a *weightedQuantileAggregator) Aggregate(records []*Record, field string) 
 	switch {
 	case low == high:
 		a.frozenValue = a.frozenLower
-	case a.op == types.AGG_MEDIAN && rank-float64(low) == 0.5:
-		// The unweighted median's mean of the two middles — the same
-		// number as the interpolation, in its operation order.
+	case rank-float64(low) == 0.5:
 		a.frozenValue = (a.frozenLower + a.frozenUpper) / 2
 	default:
 		a.frozenValue = a.frozenLower + (rank-float64(low))*(a.frozenUpper-a.frozenLower)
 	}
-	return a.frozenValue, nil
+}
+
+// interpolate is the percentile, h = p·(W − 1), written in the
+// unweighted percentileAggregator's exact statement shape — in
+// particular no clamp reassigning rank: the compiler may fuse the rank
+// product into rank − lower (FMA, on arm64), a reassignment blocks that,
+// and unity parity needs both forms to fuse identically, bit for bit
+// (TestWeightedShape_FrequencyQuantileRaw p95: 37 vs 36.99999999999999).
+func (a *weightedQuantileAggregator) interpolate(total float64, at func(int) float64) {
+	rank := a.percentile / 100.0 * (total - 1)
+	lower := int(math.Floor(rank))
+	upper := int(math.Ceil(rank))
+	a.frozenLow, a.frozenHigh = lower, upper
+	lo, hi := at(lower), at(upper)
+	a.frozenLower = lo
+	a.frozenUpper = hi
+	if lower == upper {
+		a.frozenValue = lo
+		return
+	}
+	a.frozenValue = lo + (rank-float64(lower))*(hi-lo)
 }
 
 // Components mirrors the unweighted median / percentile maps (empty

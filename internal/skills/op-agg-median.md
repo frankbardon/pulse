@@ -11,7 +11,7 @@ examples_tags: [distribution-shape, buffered-pipeline]
 
 ## Params
 
-Weight-aware (`"weight": null` opts out): expanded-index type 7 — sort by value; x(k) = first value with cumulative Σw > k; h = 0.5·(Σw−1), clamped ≥ 0; interpolate x(⌊h⌋)..x(⌈h⌉). Integer weights = duplicated rows. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
+Weight-aware (`"weight": null` opts out): expanded-index type 7 — sort by value; x(k) = first value with cumulative Σw > k; h = 0.5·(Σw−1); interpolate x(⌊h⌋)..x(⌈h⌉). `probability` weights are first rescaled to Σw = n (rows used) — scale-invariant; `frequency` weights stay raw = duplicated rows. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
 
 ## Inputs
 

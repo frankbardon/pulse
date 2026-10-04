@@ -208,47 +208,59 @@ func TestWeightedShape_Oracle(t *testing.T) {
 	median := wshapeSpec{op: types.AGG_MEDIAN}
 	mode := wshapeSpec{op: types.AGG_MODE}
 	modeCount := wshapeSpec{op: types.AGG_MODE_COUNT}
+	freq, prob := types.WeightKindFrequency, types.WeightKindProbability
 	cases := []struct {
 		name  string
 		spec  wshapeSpec
+		kind  types.WeightKind
 		xs    []float64
 		ws    []float64
 		want  float64
 		comps map[string]any
 	}{
-		// Expanded [10 20 20 20 30 30 40], W = 7 (numpy type 7 on np.repeat).
-		{"p90 integer W", pct("90"), []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 34,
+		// Frequency (raw) weights: expanded [10 20 20 20 30 30 40], W = 7
+		// (numpy type 7 on np.repeat).
+		{"p90 frequency", pct("90"), freq, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 34,
 			map[string]any{"p": 90.0, "position": 5.0, "lower": 30.0, "upper": 40.0, "method": "linear", "value": 34.0}},
-		{"p25 integer W", pct("25"), []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 20, nil},
-		{"median integer W", median, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 20,
+		{"p25 frequency", pct("25"), freq, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 20, nil},
+		{"median frequency", median, freq, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 20,
 			map[string]any{"position_low": 3.0, "position_high": 3.0, "median": 20.0}},
 		// Even expanded n: [1 2 2 3], h = 1.5 → (2+2)/2.
-		{"median even W", median, []float64{1, 2, 3}, []float64{1, 2, 1}, 2,
+		{"median even frequency", median, freq, []float64{1, 2, 3}, []float64{1, 2, 1}, 2,
 			map[string]any{"position_low": 1.0, "position_high": 2.0, "median": 2.0}},
-		// Non-integer W = 2.5, cum = [0.5 1.5 2.5]: h = 0.5·1.5 = 0.75,
-		// x(0) = 1, x(1) = 2 → 1.75.
-		{"median fractional W", median, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 1.75,
-			map[string]any{"position_low": 0.0, "position_high": 1.0, "median": 1.75}},
-		// p100 at W = 2.5: h = 1.5 → x(1) = 2, x(2) = 3 → 2.5 (the
-		// expanded index stops at Σw − 1, as Hmisc wtd.quantile).
-		{"p100 fractional W", pct("100"), []float64{3, 1, 2}, []float64{1, 0.5, 1}, 2.5, nil},
-		{"p0 fractional W", pct("0"), []float64{3, 1, 2}, []float64{1, 0.5, 1}, 1, nil},
-		// Σw < 1: h clamps to 0 → the smallest value.
-		{"p95 W below one", pct("95"), []float64{5, 2, 9}, []float64{0.25, 0.25, 0.25}, 2,
-			map[string]any{"p": 95.0, "position": 0.0, "lower": 2.0, "upper": 2.0, "method": "linear", "value": 2.0}},
+		// Probability weights rescale to Σw = n = 4: sorted 10 20 30 40,
+		// cum 1 4 6 7 → 4/7 16/7 24/7 4. p90: h = 0.9·3 = 2.7 →
+		// x(2) = 20, x(3) = 30.
+		{"p90 probability", pct("90"), prob, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 20 + (0.9*3-2)*(30-20),
+			map[string]any{"p": 90.0, "position": 2.0, "lower": 20.0, "upper": 30.0, "method": "linear", "value": 20 + (0.9*3-2)*(30-20)}},
+		// Median h = 1.5 → x(1) = x(2) = 20.
+		{"median probability", median, prob, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 20,
+			map[string]any{"position_low": 1.0, "position_high": 2.0, "median": 20.0}},
+		// W = 2.5, n = 3: cum 0.5 1.5 2.5 → 0.6 1.8 3. Median h = 1 →
+		// x(1) = 2.
+		{"median fractional probability", median, prob, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 2,
+			map[string]any{"position_low": 1.0, "position_high": 1.0, "median": 2.0}},
+		// p100 h = n − 1 = 2 → the largest value (normalized, the
+		// expanded index reaches it).
+		{"p100 fractional probability", pct("100"), prob, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 3, nil},
+		{"p0 fractional probability", pct("0"), prob, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 1, nil},
+		// Σw = 0.75 < 1 no longer collapses to the minimum: cum → 1 2 3,
+		// h = 0.95·2 = 1.9 → x(1) = 5, x(2) = 9.
+		{"p95 W below one", pct("95"), prob, []float64{5, 2, 9}, []float64{0.25, 0.25, 0.25}, 5 + (0.95*2-1)*(9-5),
+			map[string]any{"p": 95.0, "position": 1.0, "lower": 5.0, "upper": 9.0, "method": "linear", "value": 5 + (0.95*2-1)*(9-5)}},
 		// A zero weight contributes nothing (the 1 vanishes).
-		{"median zero weight", median, []float64{1, 5, 7}, []float64{0, 1, 1}, 6, nil},
-		{"mode", mode, []float64{1, 2, 2, 3}, []float64{2.5, 1, 1, 0.4}, 1,
+		{"median zero weight", median, prob, []float64{1, 5, 7}, []float64{0, 1, 1}, 6, nil},
+		{"mode", mode, prob, []float64{1, 2, 2, 3}, []float64{2.5, 1, 1, 0.4}, 1,
 			map[string]any{"value": 1.0, "count": 2.5, "distinct_count": 3.0, "tie_count": 1.0}},
 		// Weighted tie (1: 2, 2: 1+1) → smallest value, tie_count 2.
-		{"mode tie", mode, []float64{2, 1, 2, 3}, []float64{1, 2, 1, 0.5}, 1,
+		{"mode tie", mode, prob, []float64{2, 1, 2, 3}, []float64{1, 2, 1, 0.5}, 1,
 			map[string]any{"value": 1.0, "count": 2.0, "distinct_count": 3.0, "tie_count": 2.0}},
-		{"mode_count", modeCount, []float64{1, 2, 2, 3}, []float64{2.5, 1, 1.75, 0.4}, 2.75,
+		{"mode_count", modeCount, prob, []float64{1, 2, 2, 3}, []float64{2.5, 1, 1.75, 0.4}, 2.75,
 			map[string]any{"distinct_count": 3.0, "mode_value": 2.0, "mode_count": 2.75}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			agg := wcoreNew(t, tc.spec.weighted(types.WeightKindProbability))
+			agg := wcoreNew(t, tc.spec.weighted(tc.kind))
 			got := mustAggregate(t, agg, wvRecords(tc.xs, tc.ws))
 			if got != tc.want {
 				t.Errorf("scalar = %v, want %v", got, tc.want)
@@ -263,9 +275,95 @@ func TestWeightedShape_Oracle(t *testing.T) {
 				}
 			}
 			if _, ok := agg.(OnlineAggregator); ok {
-				if s := wcoreStream(t, wcoreNew(t, tc.spec.weighted(types.WeightKindProbability)), wvRecords(tc.xs, tc.ws)); s != tc.want {
+				if s := wcoreStream(t, wcoreNew(t, tc.spec.weighted(tc.kind)), wvRecords(tc.xs, tc.ws)); s != tc.want {
 					t.Errorf("streamed = %v, want %v", s, tc.want)
 				}
+			}
+		})
+	}
+}
+
+// wshapeQuantiles: the median / percentile rows of wshapeSpecs.
+func wshapeQuantiles() []wshapeSpec {
+	var out []wshapeSpec
+	for _, s := range wshapeSpecs {
+		if s.op == types.AGG_MEDIAN || s.op == types.AGG_PERCENTILE {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// wshapeFractionalWeights: 400 deterministic weights in (0, 4), so no
+// normalized cumulative weight sits on an integer boundary.
+func wshapeFractionalWeights() []float64 {
+	ws := make([]float64, 400)
+	seed := uint64(0x2545f4914f6cdd1d)
+	for i := range ws {
+		seed ^= seed << 13
+		seed ^= seed >> 7
+		seed ^= seed << 17
+		ws[i] = float64(seed%1_000_000+1) / 250_001.0
+	}
+	return ws
+}
+
+// TestWeightedShape_ProbabilityQuantileScaleInvariant: probability
+// weights are rescaled to Σw = n before the quantile math, so scaling
+// every weight by any constant — Σw = 1 included — leaves the median and
+// every percentile, and their components, unchanged; and the figure is
+// NOT the raw expanded-index one (the rescale engaged).
+func TestWeightedShape_ProbabilityQuantileScaleInvariant(t *testing.T) {
+	xs := wshapeValues(false)
+	ws := wshapeFractionalWeights()
+	sum := 0.0
+	for _, w := range ws {
+		sum += w
+	}
+	scaled := func(c float64) []float64 {
+		out := make([]float64, len(ws))
+		for i, w := range ws {
+			out[i] = w * c
+		}
+		return out
+	}
+	scales := map[string]float64{"x1/1024": 1.0 / 1024, "x8": 8, "x1/3": 1.0 / 3, "x1e-6": 1e-6, "x7.3": 7.3, "sum_one": 1 / sum}
+	for _, s := range wshapeQuantiles() {
+		base := wshapeRun(t, s.weighted(types.WeightKindProbability), wvRecords(xs, ws))
+		for name, c := range scales {
+			t.Run(s.name+"/"+name, func(t *testing.T) {
+				got := wshapeRun(t, s.weighted(types.WeightKindProbability), wvRecords(xs, scaled(c)))
+				if !reflect.DeepEqual(got, base) {
+					t.Errorf("scaled by %v: %v, unscaled %v", c, got, base)
+				}
+			})
+		}
+	}
+	// Σw = 1 on a tiny set: the raw rank 0.5·(Σw − 1) clamps to the
+	// minimum; normalized (cum 0.75 2.25 3), the median is 20.
+	records := wvRecords([]float64{30, 10, 20}, []float64{0.25, 0.25, 0.5})
+	if got := mustAggregate(t, wcoreNew(t, wshapeSpec{op: types.AGG_MEDIAN}.weighted(types.WeightKindProbability)), records); got != 20 {
+		t.Errorf("Σw = 1 median = %v, want 20 (not the clamped minimum 10)", got)
+	}
+}
+
+// TestWeightedShape_FrequencyQuantileRaw: frequency weights are NOT
+// rescaled — integer weights equal type 7 on the expanded data BIT FOR
+// BIT, which a normalized rank would not reproduce on this fixture
+// (Σw ≠ n). p95 also pins the interpolation's statement shape: with a
+// clamp reassigning the rank (E2-S1's original form) it fuses
+// differently from the unweighted twin on arm64 and answers
+// 36.99999999999999 instead of 37.
+func TestWeightedShape_FrequencyQuantileRaw(t *testing.T) {
+	xs := []float64{40, 10, 30, 20}
+	ws := []float64{1, 1, 2, 3}
+	expanded := unitRecords([]float64{40, 10, 30, 30, 20, 20, 20})
+	for _, s := range wshapeQuantiles() {
+		t.Run(s.name, func(t *testing.T) {
+			want := mustAggregate(t, wcoreNew(t, s.agg(types.SlotWeight{})), expanded)
+			got := mustAggregate(t, wcoreNew(t, s.weighted(types.WeightKindFrequency)), wvRecords(xs, ws))
+			if got != want {
+				t.Errorf("frequency = %v, expanded %v", got, want)
 			}
 		})
 	}

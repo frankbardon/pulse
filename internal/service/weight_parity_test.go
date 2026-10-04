@@ -65,6 +65,12 @@ type parityOp struct {
 	// RAW row count by contract and so do not expand (AGG_WELFORD's n
 	// stays the contributing-row count; Σw rides sum_weights).
 	expandSkipKeys []string
+	// scaleNormalized marks an operator whose PROBABILITY weights are
+	// rescaled to sum to the contributing row count (AGG_MEDIAN /
+	// AGG_PERCENTILE): expansion equivalence is a frequency-weight
+	// property for it, and the probability contract is scale invariance
+	// (TestWeightProbabilityQuantileScaleInvariance) instead.
+	scaleNormalized bool
 }
 
 func (o parityOp) baselineOp() types.AggregationType {
@@ -87,9 +93,11 @@ var parityOps = []parityOp{
 	{op: types.AGG_STDDEV, fields: []string{"x", "y"}},
 	{op: types.AGG_WELFORD, fields: []string{"x", "y"}, expandSkipKeys: []string{"n"}},
 	// E2-S1 shape operators: median / percentile / mode answer a data
-	// value and mode count a weight sum, so all are exact on expansion.
-	{op: types.AGG_MEDIAN, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
-	{op: types.AGG_PERCENTILE, fields: []string{"x", "y"}, params: json.RawMessage(`{"percentile":37.5}`), expandExact: []string{"x", "y"}},
+	// value and mode count a weight sum, so all are exact on expansion
+	// (median / percentile under frequency weights only: probability
+	// weights are scale-normalized for them).
+	{op: types.AGG_MEDIAN, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}, scaleNormalized: true},
+	{op: types.AGG_PERCENTILE, fields: []string{"x", "y"}, params: json.RawMessage(`{"percentile":37.5}`), expandExact: []string{"x", "y"}, scaleNormalized: true},
 	{op: types.AGG_MODE, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
 	{op: types.AGG_MODE_COUNT, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
 	{op: types.AGG_SKEWNESS, fields: []string{"x", "y"}},
@@ -613,7 +621,9 @@ func mustMarshal(t *testing.T, v any) []byte {
 // integer data exactly, and each weighted slot's sum_weights exactly
 // the expanded slot's n. Both kinds: a frequency weight is the
 // replication count by definition, and the descriptive figures of an
-// integer probability weight are the same numbers.
+// integer probability weight are the same numbers — except median /
+// percentile (scaleNormalized), whose probability weights are rescaled
+// to sum to n, so only their frequency arm expands.
 func TestWeightFrequencyExpansionParity(t *testing.T) {
 	t.Run("coverage", assertParityCoverage)
 	weighted := newParityStore(t, "weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
@@ -630,6 +640,9 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 				stripSteer(base)
 				for _, src := range kinds {
 					t.Run(src.name, func(t *testing.T) {
+						if row.scaleNormalized && src.kind == types.WeightKindProbability {
+							t.Skip("probability weights are scale-normalized for this operator; see TestWeightProbabilityQuantileScaleInvariance")
+						}
 						got := runArm(t, weighted, mode, weighted.paths[mode.cohort], row, row.op, &src)
 						stripSteer(got)
 						assertExpanded(t, got, base, row)
@@ -637,6 +650,61 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// --- TestWeightProbabilityQuantileScaleInvariance -------------------------
+
+// fracWeight: fractional weights in (0, 3], so a normalized cumulative
+// weight never sits on an integer boundary and Σw ≠ n.
+func fracWeight(i int) float64 { return float64((i*7919)%997+1) / 331.0 }
+
+// TestWeightProbabilityQuantileScaleInvariance: probability weights are
+// rescaled to sum to the contributing row count before AGG_MEDIAN /
+// AGG_PERCENTILE take a rank, so multiplying every weight by a constant
+// — dyadic, non-dyadic, tiny — answers BYTE-identically (Data and the
+// operator components) on every arm the operator runs on.
+func TestWeightProbabilityQuantileScaleInvariance(t *testing.T) {
+	base := newParityStore(t, "base", func(n int) []parityRow { return parityRows(n, fracWeight) })
+	scales := map[string]float64{"x1/1024": 1.0 / 1024, "x1/3": 1.0 / 3, "x1e-6": 1e-6, "x7.3": 7.3}
+	stores := map[string]*parityStore{}
+	for name, c := range scales {
+		stores[name] = newParityStore(t, "scaled", func(n int) []parityRow {
+			return parityRows(n, func(i int) float64 { return fracWeight(i) * c })
+		})
+	}
+	src := paritySources()[0] // request_probability
+	ran := 0
+	for _, mode := range parityModes() {
+		for _, row := range parityOps {
+			if !row.scaleNormalized {
+				continue
+			}
+			t.Run(mode.name+"/"+string(row.op), func(t *testing.T) {
+				if runArm(t, base, mode, base.paths[mode.cohort], row, row.op, nil) == nil {
+					t.Skipf("%s does not run on the %s arm", row.op, mode.name)
+				}
+				ran++
+				want := runArm(t, base, mode, base.paths[mode.cohort], row, row.op, &src)
+				stripSteer(want)
+				for name, store := range stores {
+					got := runArm(t, store, mode, store.paths[mode.cohort], row, row.op, &src)
+					stripSteer(got)
+					if g, w := mustMarshal(t, got.Data), mustMarshal(t, want.Data); string(g) != string(w) {
+						t.Errorf("%s: data %s, unscaled %s", name, g, w)
+					}
+					for i := range want.Components.Aggregations {
+						g, w := got.Components.Aggregations[i].Operator, want.Components.Aggregations[i].Operator
+						if string(mustMarshal(t, g)) != string(mustMarshal(t, w)) {
+							t.Errorf("%s slot %d: components %v, unscaled %v", name, i, g, w)
+						}
+					}
+				}
+			})
+		}
+	}
+	if ran == 0 {
+		t.Fatal("no arm ran a scale-normalized operator: the gate is vacuous")
 	}
 }
 
