@@ -82,11 +82,18 @@ pulse: type CohesionWarning field Message string
 pulse: type Cohort struct
 pulse: type Cohort method (*Cohort) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse: type Cohort method (*Cohort) Field(name string) *pulse/encoding.Field
+pulse: type Cohort method (*Cohort) Reader() (*pulse.CohortReader, error)
 pulse: type Cohort method (*Cohort) RecordCount() (int64, error)
 pulse: type Cohort method (*Cohort) Schema() *pulse/encoding.Schema
 pulse: type Cohort method (*Cohort) Shards() []pulse.ShardEntry
 pulse: type CohortFingerprint = pulse/internal/encoding.Fingerprint
 pulse: type CohortFingerprint underlying [32]byte
+pulse: type CohortReader struct
+pulse: type CohortReader method (*CohortReader) Close() error
+pulse: type CohortReader method (*CohortReader) Len() int64
+pulse: type CohortReader method (*CohortReader) RecordAt(i int64) (pulse.CohortRow, error)
+pulse: type CohortReader method (*CohortReader) Schema() *pulse/encoding.Schema
+pulse: type CohortRow []any
 pulse: type ComposeOptions = pulse/internal/service.ComposeOptions
 pulse: type ComposeOptions underlying struct
 pulse: type ComposeOptions field FailFast bool
@@ -3726,4 +3733,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 736f7668104527f5d9d39bef6959991701fe3d112a07134f67ed7869fc5c96f2
+// golden-hash: 7653e96849d7c9b2a726042db53a7c98c310ca2e9d4d6da4123388c02817a565

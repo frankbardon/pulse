@@ -39,6 +39,16 @@ var (
 	_ func(io.Reader, *encoding.Schema, string) (pulse.LoadMemberSetResult, error)                                       = pulse.LoadMemberSetFromReader
 )
 
+// Record-by-record reader: Cohort.Reader and the exact-typed CohortRow.
+var (
+	_ func(*pulse.Cohort) (*pulse.CohortReader, error)          = (*pulse.Cohort).Reader
+	_ func(*pulse.CohortReader) *encoding.Schema                = (*pulse.CohortReader).Schema
+	_ func(*pulse.CohortReader) int64                           = (*pulse.CohortReader).Len
+	_ func(*pulse.CohortReader, int64) (pulse.CohortRow, error) = (*pulse.CohortReader).RecordAt
+	_ func(*pulse.CohortReader) error                           = (*pulse.CohortReader).Close
+	_ []any                                                     = pulse.CohortRow(nil)
+)
+
 // Options carries the crosstab-fusion switch that replaced mutating the
 // service, alongside the filesystem an embedder supplies.
 var _ = pulse.Options{

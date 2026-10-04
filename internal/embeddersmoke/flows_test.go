@@ -310,6 +310,33 @@ func TestRawUngroupedWrite(t *testing.T) {
 	if len(resp.Data) != 1 || resp.Data[0]["total"] != float64(600) {
 		t.Fatalf("raw sum = %v, want 600", resp.Data)
 	}
+
+	// Read the same cohort back record by record: exact uint64 values in
+	// schema field order.
+	c, err := p.Open(context.Background(), "raw.pulse")
+	if err != nil {
+		t.Fatalf("Open(raw): %v", err)
+	}
+	r, err := c.Reader()
+	if err != nil {
+		t.Fatalf("Reader(raw): %v", err)
+	}
+	defer r.Close()
+	if r.Len() != int64(len(rows)) || len(r.Schema().Fields) != 2 {
+		t.Fatalf("reader Len %d fields %d", r.Len(), len(r.Schema().Fields))
+	}
+	for i, want := range rows {
+		row, err := r.RecordAt(int64(i))
+		if err != nil {
+			t.Fatalf("RecordAt(%d): %v", i, err)
+		}
+		if row[0] != want[0] || row[1] != want[1] {
+			t.Fatalf("RecordAt(%d) = %#v, want %v", i, row, want)
+		}
+	}
+	if _, err := r.RecordAt(int64(len(rows))); !perrors.HasCode(err, perrors.SERVICE_VALIDATION) {
+		t.Fatalf("out-of-range RecordAt error = %v, want SERVICE_VALIDATION", err)
+	}
 }
 
 func TestSynthFixture(t *testing.T) {

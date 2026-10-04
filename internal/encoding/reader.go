@@ -16,6 +16,13 @@ type RecordReader struct {
 	// cohort's physical rows; nil for an ungrouped schema. schema is
 	// then the grouped schema's Logical() view.
 	groups *logicalReader
+	// raw, when non-nil, receives the exact on-wire word of every field
+	// the map decoder reads through ReadFieldValue (every type except
+	// u4, packed_bool, decimal128 and the wide set rungs) — the value the
+	// float64 echo in the values map cannot carry losslessly (u64 above
+	// 2^53, datetime beyond 2^53 seconds, a categorical's dictionary ID).
+	// Set only by ReadRecordAtRaw; nil on every engine path.
+	raw map[string]uint64
 	// gd decodes a grouped cohort's PHYSICAL rows straight into a reuse
 	// record (group_decode.go): the reuse paths never expand a row. nil
 	// for an ungrouped schema.
@@ -175,6 +182,9 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 	for k := range wide {
 		delete(wide, k)
 	}
+	for k := range rr.raw {
+		delete(rr.raw, k)
+	}
 
 	for _, field := range rr.schema.Fields {
 		keepField := keep == nil || keep(field.Name)
@@ -257,6 +267,9 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 				continue
 			}
 			values[field.Name] = rawToFloat64(field.Type, raw)
+			if rr.raw != nil {
+				rr.raw[field.Name] = raw
+			}
 			// Set types: expose the full uint64 mask via the wide map so
 			// operators that need bit-level precision (everything beyond
 			// the 2^53 float64 limit, plus set_u64 generally) can read
@@ -293,6 +306,7 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 			if wide != nil {
 				delete(wide, field.Name)
 			}
+			delete(rr.raw, field.Name)
 		}
 	}
 
