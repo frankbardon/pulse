@@ -2,7 +2,7 @@
 
 Long form of the row-weighting contract. CLAUDE.md keeps only a pointer (Reference Docs index), the Update Demand row and the Components floor note in "Output Format Contract". **Load this file before touching ANY weight surface**: `types.Request.Weight`, a per-slot `weight`, `pulse.Options.DefaultWeight`, the resolver, the validation pass, an aggregator's weight classification, a refusal, the `sum_weights` / `n_eff` / `n_weight_invalid` floor keys, the extension `WeightAware` contract, the SPSS weight suggestion, or the `capability:weighting` feature.
 
-**Status: skeleton.** Written at weighting-descriptive E1-S1 from the resolved interview so every later story has a contract home; each section is refined by the story that ships it, and anything marked *(planned)* does not exist in code yet. When code and this file disagree, the story that changed the code owes the fix here in the same PR.
+**Status: skeleton.** Written at weighting-descriptive E1-S1 from the resolved interview so every later story has a contract home; each section is refined by the story that ships it, and anything marked *(planned)* does not exist in code yet. **Shipped (E1-S2): Surface, Resolution order, the weight-field rules and the three error codes** — no operator weights anything yet: `weightAwareOperators` (`internal/descriptor/weight_resolve.go`) is empty, so every resolved weight reports `skipped_not_weight_aware` until the operator stories list their operators there. When code and this file disagree, the story that changed the code owes the fix here in the same PR.
 
 `format_version` stays `"1.1"` for every weight surface: each addition is additive `omitempty` / `omitzero`, and a request that carries no weight produces byte-identical output.
 
@@ -11,25 +11,27 @@ Long form of the row-weighting contract. CLAUDE.md keeps only a pointer (Referen
 | Slot | Shape | Notes |
 |---|---|---|
 | `types.Request.Weight` (`weight`) | `{field, kind}` (`types.WeightSpec`) | `omitempty`. `kind` ∈ `probability` (default) \| `frequency`. |
-| Per-slot `weight` | a field-name string, a `{field, kind}` object, or `null` | On aggregations, the crosstab cell, `crosstab.margin_aggregations[i]`, tests, overlays and attributes (the last three mainly to opt OUT). |
+| Per-slot `weight` (`types.SlotWeight`, `omitzero`) | a field-name string, a `{field, kind}` object, or `null` | On `Aggregation` (so also the crosstab cell and `crosstab.margin_aggregations[i]`), `Test` (`tests` and `post_tests`), `RegressionSpec`, `Attribute` and `OverlaySpec` (tests, regressions, overlays and attributes mainly to opt OUT). Go spellings: `SlotWeightField(f)`, `SlotWeightOf(spec)`, `NullSlotWeight()`; zero value = absent. |
 | `pulse.Options.DefaultWeight` | `*WeightSpec` | Validated at `pulse.New`; applies to Process / Compose / ProcessChain inner requests, never to `Facet` / `FacetSchema`. |
 
-**Null ≠ absent.** An ABSENT per-slot `weight` inherits; an explicit `null` opts that slot out. The per-slot type is new to `types/` (no precedent): it carries its own `UnmarshalJSON` / `MarshalJSON` / `IsZero` and rides `omitzero`, and the distinction must survive every hop — `types.CanonicalHash`, the MCP strict decode and binder, and the payload JSON Schema (`internal/descriptor` `BuildPayloadSchema` special-cases it).
+**Null ≠ absent.** An ABSENT per-slot `weight` inherits; an explicit `null` opts that slot out. The per-slot type is new to `types/` (no precedent): it carries its own `UnmarshalJSON` / `MarshalJSON` / `IsZero` and rides `omitzero`, and the distinction must survive every hop — `types.CanonicalHash`, the MCP strict decode and binder, and the payload JSON Schema (`internal/descriptor` `BuildPayloadSchema` special-cases it as `#/$defs/SlotWeight` = `oneOf [string, WeightSpec, null]`). A set weight with no `kind` marshals as the bare string (the object form without `kind` re-marshals as the string — same meaning); decoding refuses any other JSON shape and any object key but `field` / `kind`. The fields are unexported on purpose: the three states are reachable only through the constructors, so "null with a field" cannot be built. The MCP binder (`internal/mcp/bind.go`) declares the same union, its field enum drawn from the cohort's weight-capable columns (`descx.IsWeightFieldType`).
 
 No new top-level slot on `ComposedRequest` or `ChainRequest`: each inner `Request` carries its own `weight`. `AGG_WEIGHTED_MEAN.params.weight_field` is slot-weight sugar (see "Aggregator classification").
 
-**Weight field type.** Unsigned integers (`u4`, `u8` … `u64`) and floats (`f32`, `f64`) only. `decimal128`, `categorical_*`, `date`, `datetime`, `packed_bool` and `set_*` are `PROCESSING_CONFIG`. The weight field is added to the projected field set (`NeededFields`) and to `internal/descriptor/field_refs.go`, so projection never decodes it as null; a joined (prefixed) name resolves like any other field reference.
+**Weight field type.** Unsigned integers (`u4`, `u8` … `u64`) and floats (`f32`, `f64`) only. `decimal128`, `categorical_*`, `date`, `datetime`, `packed_bool` and `set_*` are `PROCESSING_CONFIG` with details `{slot, field, type}` (`slot` is `weight`, `<slot>.weight`, or the slot path for an applied default). An empty `field` or a `kind` other than `probability` / `frequency` is `PROCESSING_CONFIG` too (`{slot, field, kind}`), for `Options.DefaultWeight` already at `pulse.New` (`slot: "Options.DefaultWeight"`).
+
+**Weight field existence.** An explicitly named weight (request or slot) is judged by the field-reference rule (`fieldRefWalk.checkWeights` in `internal/descriptor/field_refs.go`) against the SCHEMA, not the derived column set — an attribute label or feature output is no weight — and refused `SERVICE_VALIDATION` `{field, slot}` like any unknown name. A joined (prefixed) name resolves against the joined schema; a chain stage ≥ 1 against its synthesised input schema. The inherited `Options.DefaultWeight` is NOT a request reference: `ResolveWeights` judges its existence and type only on a slot where it is APPLIED, so an instance default never breaks a cohort lacking the column for a request that would not use it. Projection: `processing.NeededFields` adds the request and slot weight fields; the service's `neededFields` adds the instance default (which `NeededFields` cannot see), so projection never decodes a weight as null (`TestProjection_WeightColumnDecodes`).
 
 ## Resolution order
 
-One shared resolver, modelled on the time-zone resolver (`internal/descriptor/zone_resolve.go`), called by BOTH runtime and predict so they cannot disagree:
+One shared resolver, `ResolveWeights(req, schema, defaultWeight, inst)` in `internal/descriptor/weight_resolve.go`, modelled on the time-zone resolver (`internal/descriptor/zone_resolve.go`), called by BOTH runtime and predict so they cannot disagree. The runtime runs it inside `Service.checkFieldRefs`, i.e. right after the field-reference rule passes, in every execution mode (Compose slots and chain stages each resolve their own Request, located by `details.request` / `details.stage`); predict and the Compose / chain validators run it at the same point:
 
 1. the slot's own `weight` (`null` ⇒ opted out, stop);
 2. the request's `weight`;
 3. `Options.DefaultWeight`;
 4. none.
 
-The slot list includes the crosstab cell and every `margin_aggregations[i]`; chain stages are walked. Predict reports the outcome per slot as `PredictResult.Weights` — `{slot, operator, field, kind, status, source}`, `status` ∈ `applied` | `skipped_not_weight_aware` | `opted_out` | `none` *(field and `source` spellings follow the `ResolvedZone` precedent; the implementing story pins them)*. Refusals surface as predict errors, identical to runtime.
+Slot order (and `slot` spelling): `aggregations[i]`, `crosstab.cell`, `crosstab.margin_aggregations[i]`, `tests[i]`, `post_tests[i]`, `regressions[i]`, `attributes[i]`, `overlays[i]` (`operator` = the overlay kind). A slot with an empty `Type` is skipped. Predict reports the outcome per slot as `PredictResult.Weights` (`descriptor.ResolvedWeight`, `weights`, `omitempty`) — `{slot, operator, field, kind, status, source}`: `field` / `kind` are omitted on `opted_out` / `none` and `kind` is spelled out (`probability` when the spec left it empty); `status` ∈ `applied` | `skipped_not_weight_aware` | `opted_out` | `none` (`descriptor.WeightStatus*`); `source` ∈ `slot` | `request` | `options` | `none` (`descriptor.WeightSource*`; an opted-out slot's source is `slot`). The whole list is nil — the key absent — when neither the request, a slot (a `null` included) nor the instance names a weight, so an unweighted predict payload is unchanged. `applied` vs `skipped_not_weight_aware` reads `IsWeightAware(op)`; a hidden operator is never-registered, hence not aware. Refusals surface as predict errors, identical to runtime (`TestWeight_PredictMatchesRuntime`, `TestWeight_ValidatorsMatchRuntime`).
 
 ## Validation
 
@@ -118,7 +120,7 @@ Inspect reads the SPSS metadata sidecar (`cohort.pulse.spss.json`, header-only �
 
 ## Error codes
 
-Each needs a `codeMetadata` entry (Message + ≥1 Fixup) and an `internal/descriptor/error_owners.go` owner:
+Each needs a `codeMetadata` entry (Message + ≥1 Fixup) and an `internal/descriptor/error_owners.go` owner. The three `PULSE_*` codes are registered (E1-S2) with owner `shared` — they move to the `capability:weighting` feature when it exists — and are not raised anywhere yet; the stories that raise them own their final details and fixup prose:
 
 - `PULSE_WEIGHT_INVALID_ROWS` — warning; excluded rows with the by-reason breakdown.
 - `PULSE_WEIGHT_UNSUPPORTED` — a refused surface under a weight; the fixup names the U12 gap and the `weight: null` opt-out.

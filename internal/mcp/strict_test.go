@@ -180,3 +180,38 @@ func TestCheckUnknownRequestKeys_SharesSlotGateShape(t *testing.T) {
 		t.Errorf("slot gate message: %s", gce.Message)
 	}
 }
+
+// TestStrictRequestDecode_WeightNullIsNotAbsent: `weight` is a known
+// top-level slot, and through the strict decode a slot `null` stays an
+// opt-out while an absent key stays absent — the distinction survives
+// the MCP hop.
+func TestStrictRequestDecode_WeightNullIsNotAbsent(t *testing.T) {
+	body := []byte(`{"weight":{"field":"w","kind":"frequency"},"aggregations":[
+		{"type":"AGG_SUM","field":"x"},
+		{"type":"AGG_SUM","field":"x","weight":null},
+		{"type":"AGG_SUM","field":"x","weight":"v"}],
+		"crosstab":{"rows":[],"columns":[],"cell":{"type":"AGG_COUNT","field":"x","weight":null},
+		"margin_aggregations":[{"type":"AGG_COUNT","field":"x","weight":{"field":"v"}}]}}`)
+	req, err := strictRequestDecode(body, nil)
+	if err != nil {
+		t.Fatalf("strict decode: %v", err)
+	}
+	if req.Weight == nil || req.Weight.Field != "w" || req.Weight.Kind != types.WeightKindFrequency {
+		t.Errorf("request weight = %+v", req.Weight)
+	}
+	if !req.Aggregations[0].Weight.IsZero() {
+		t.Error("absent slot weight decoded as present")
+	}
+	if !req.Aggregations[1].Weight.IsNull() {
+		t.Error("null slot weight lost")
+	}
+	if s := req.Aggregations[2].Weight.Spec(); s == nil || s.Field != "v" {
+		t.Errorf("string slot weight = %+v", req.Aggregations[2].Weight)
+	}
+	if !req.Crosstab.Cell.Weight.IsNull() {
+		t.Error("crosstab cell null weight lost")
+	}
+	if s := req.Crosstab.MarginAggregations[0].Weight.Spec(); s == nil || s.Field != "v" {
+		t.Errorf("margin weight = %+v", req.Crosstab.MarginAggregations[0].Weight)
+	}
+}

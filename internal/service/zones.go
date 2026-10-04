@@ -46,8 +46,15 @@ func (s *Service) resolveZones(req *types.Request, schema *encoding.Schema) erro
 // any record is read, so an unknown name is refused instead of reading
 // as an all-null column. A located refusal: Compose adds
 // details.request, a chain details.stage.
+//
+// Weight resolution (resolveWeights) runs here too, right after the
+// references pass, so every caller resolves weights at the same point
+// predict does.
 func (s *Service) checkFieldRefs(req *types.Request, schema *encoding.Schema) error {
-	return markLocated(descx.ScopedFieldRefRefusal(req, schema, s.instance))
+	if err := descx.ScopedFieldRefRefusal(req, schema, s.instance); err != nil {
+		return markLocated(err)
+	}
+	return s.resolveWeights(req, schema)
 }
 
 // checkFacetFieldRefs is checkFieldRefs for a FacetRequest's

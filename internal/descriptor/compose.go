@@ -753,7 +753,8 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // runtime's order — the join-count rule (JoinCountRefusal), the
 // join-key rule for a join, zones the way the runtime resolves them
 // (defaults, then ResolveZones), then the field-reference rule
-// (FieldRefRefusals) on the defaulted slot — and records each refusal
+// (FieldRefRefusals) on the defaulted slot, then weight resolution
+// (ResolveWeights) when the references pass — and records each refusal
 // tagged with its slot index. Without a SchemaLoader (or for a cohort it
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
@@ -780,8 +781,16 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 			addCodedError(env, RefusalAt(err, "request", i))
 			continue
 		}
-		for _, ce := range fieldRefRefusals(defaultedForValidation(slot, schema, opts), schema, extensionsFromOpts(opts), opts.instance()) {
+		refs := fieldRefRefusals(defaultedForValidation(slot, schema, opts), schema, extensionsFromOpts(opts), opts.instance())
+		for _, ce := range refs {
 			addCodedError(env, RefusalAt(ce, "request", i))
+		}
+		// The slot's Process resolves its weights right after its field
+		// references pass (ResolveWeights).
+		if len(refs) == 0 {
+			if _, werr := resolveRequestWeights(slot, schema, opts); werr != nil {
+				addCodedError(env, RefusalAt(werr, "request", i))
+			}
 		}
 	}
 }

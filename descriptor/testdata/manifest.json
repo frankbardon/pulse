@@ -5510,7 +5510,7 @@
         ]
       }
     ],
-    "error_codes_count": 254,
+    "error_codes_count": 257,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5588,6 +5588,7 @@
       "PULSE_EXTENSION_NAME_COLLISION",
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
+      "PULSE_EXTENSION_NOT_WEIGHT_AWARE",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_SKILL_COLLISION",
@@ -5769,6 +5770,8 @@
       "PULSE_TEST_VARIANCE_ZERO",
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
+      "PULSE_WEIGHT_INVALID_ROWS",
+      "PULSE_WEIGHT_UNSUPPORTED",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
       "SERVICE_REGISTRY",
@@ -10677,4 +10680,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1c6f12c65cebf45c07f7f22d0c0c2e3b206945cfea5622d7288e71f1c5d7632c
+// golden-hash: f87c87dd7ccfe149a00e73098476c5c93ecaa5442ef7f4b3367980401954c987

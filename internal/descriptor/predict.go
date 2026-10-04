@@ -124,6 +124,11 @@ type PredictOptions struct {
 	// request's `time_zone` names one. Empty means UTC.
 	DefaultTimeZone string
 
+	// DefaultWeight is pulse.Options.DefaultWeight — the row weight a
+	// weight-bearing slot inherits when neither its own `weight` nor
+	// the request's `weight` names one. Nil means none.
+	DefaultWeight *types.WeightSpec
+
 	// ZoneLoader resolves zone names (nil: temporal.LoadZone). The
 	// facade passes its per-instance cache so predict and the runtime
 	// resolve through the same loader.
@@ -305,6 +310,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// request executes over). Every unknown name is reported.
 	for _, ce := range fieldRefRefusals(req, schema, extensionsFromOpts(opts), opts.Instance) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+
+	// Weight resolution — the same single pass the runtime runs right
+	// after the field-reference rule (ResolveWeights). A refusal is a
+	// predict error carrying the runtime's own code and details.
+	if weights, werr := ResolveWeights(req, schema, opts.DefaultWeight, opts.Instance); werr != nil {
+		addCodedError(env, werr)
+	} else {
+		result.Weights = weights
 	}
 
 	// A slot still without an operator Type is refused by the runtime's

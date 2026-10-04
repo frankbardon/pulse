@@ -387,6 +387,12 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FEATURE_PROFILE_INVALID:    shared,
 	errors.PULSE_FEATURE_PROFILE_UNKNOWN:    shared,
 	errors.PULSE_FEATURE_PROFILE_DEPENDENCY: shared,
+
+	// Row weighting rides the request slots every request host carries;
+	// listed on every instance until a weighting capability owns them.
+	errors.PULSE_WEIGHT_INVALID_ROWS:        shared,
+	errors.PULSE_WEIGHT_UNSUPPORTED:         shared,
+	errors.PULSE_EXTENSION_NOT_WEIGHT_AWARE: shared,
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

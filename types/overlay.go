@@ -2898,6 +2898,12 @@ type OverlaySpec struct {
 	// internal/processing/crosstab_normalize.go and
 	// skills/overlay-system.md for the per-kind matrix.
 	Within int `json:"within,omitempty"`
+
+	// Weight is the per-slot weight override: absent inherits
+	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
+	// slot out (it runs unweighted); a field-name string or a
+	// {field, kind} object sets the slot's own weight. See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // OverlayOptions is the per-spec optimization knob bag for Compose-only

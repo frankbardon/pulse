@@ -247,6 +247,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return b.overlayRefDef(t)
 	case reflect.TypeFor[types.OverlayPayload]():
 		return b.overlayPayloadDef(t)
+	case reflect.TypeFor[types.SlotWeight]():
+		return b.slotWeightDef()
 	}
 	// Registry-backed enum.
 	if vals, ok := b.enums[t]; ok {
@@ -444,6 +446,23 @@ func (b *schemaBuilder) overlayPayloadDef(t reflect.Type) any {
 		"additionalProperties": false,
 		"required":             []string{"shape"},
 		"allOf":                allOf,
+	}
+}
+
+// slotWeightDef builds the per-slot weight union. types.SlotWeight has
+// no exported fields (its three states are behind constructors), so
+// reflection would describe an empty object; on the wire it is a
+// field-name string, a WeightSpec object, or null — and null is NOT
+// absence: an absent key inherits the request / instance weight, null
+// opts the slot out.
+func (b *schemaBuilder) slotWeightDef() any {
+	return map[string]any{
+		"description": "Per-slot row weight. Absent: inherit the request weight, then the instance default. null: opt this slot out (run unweighted). A string names the weight field (kind probability); an object is a full WeightSpec.",
+		"oneOf": []any{
+			map[string]any{"type": "string"},
+			map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.WeightSpec]())},
+			map[string]any{"type": "null"},
+		},
 	}
 }
 

@@ -643,6 +643,12 @@ type Test struct {
 	//   TEST_TUKEY_HSD: {"ms_within": <f64>, "df_within": <f64>}
 	//   TEST_TREND: {"variant": "mann_kendall"} (default)
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// Weight is the per-slot weight override: absent inherits
+	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
+	// slot out (it runs unweighted); a field-name string or a
+	// {field, kind} object sets the slot's own weight. See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // TestResult is the per-test outcome embedded in Response.Tests and
@@ -781,6 +787,12 @@ type Aggregation struct {
 	// Params holds type-specific configuration as raw JSON.
 	// Used by aggregation types that require additional parameters (e.g., AGG_PERCENTILE).
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// Weight is the per-slot weight override: absent inherits
+	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
+	// slot out (it runs unweighted); a field-name string or a
+	// {field, kind} object sets the slot's own weight. See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // Filterer defines a filter to apply to records before processing.
@@ -914,6 +926,12 @@ type Attribute struct {
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
+
+	// Weight is the per-slot weight override: absent inherits
+	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
+	// slot out (it runs unweighted); a field-name string or a
+	// {field, kind} object sets the slot's own weight. See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // Output configures how processing results are formatted.
@@ -1076,6 +1094,12 @@ type Request struct {
 	// sets no `tz` of its own. Empty inherits
 	// pulse.Options.DefaultTimeZone, then UTC.
 	TimeZone string `json:"time_zone,omitempty"`
+
+	// Weight is the request-level row weight inherited by every slot
+	// that sets no `weight` of its own (a slot's `null` opts it out).
+	// Nil inherits pulse.Options.DefaultWeight; with neither, the
+	// request runs unweighted. See .claude/reference/weighting.md.
+	Weight *WeightSpec `json:"weight,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.

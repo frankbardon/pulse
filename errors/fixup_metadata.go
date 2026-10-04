@@ -2782,4 +2782,53 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_WEIGHT_INVALID_ROWS: {
+		Message: "Rows were left out of a weighted figure because their weight was not usable: null, negative, NaN or infinite, or not a whole number under `kind: frequency`. A zero weight is valid and simply contributes nothing. Invalid weights are never coerced — the excluded rows are counted, by reason, under `by_reason` {null, negative, nan_inf, non_integer_frequency}, with the total under `count` and the weight column under `field`. This is a WARNING: the figures were computed from the remaining rows. Under strict mode it is an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"weight", "field"},
+				Hint:     "Check that `field` is the intended weight column; a column with many nulls or negatives is often not a weight at all.",
+				Examples: []any{"wt"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"weight", "kind"},
+				Hint:     "If every excluded row is `non_integer_frequency`, the column is a probability (sampling) weight rather than a replication count — set `kind` to probability.",
+				Examples: []any{"probability"},
+			},
+		},
+	},
+	PULSE_WEIGHT_UNSUPPORTED: {
+		Message: "A row weight is in force on a slot whose operator cannot honour one yet — an inferential test, regression, reference-distribution attribute, quantile grouper, confidence-interval aggregator or inferential overlay, or an aggregation over a decimal128 field. Weighted inference needs design-based variance, which is not implemented, so the request is refused rather than answered unweighted or wrongly weighted. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"weight"},
+				Hint:     "Set `weight: null` on the refused slot to run that slot unweighted while the rest of the request stays weighted — null opts out, an absent key inherits.",
+				Examples: []any{nil},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"weight"},
+				Hint:   "Or remove the request-level `weight` (and leave the instance default unset) if no slot of this request should be weighted.",
+			},
+		},
+	},
+	PULSE_EXTENSION_NOT_WEIGHT_AWARE: {
+		Message: "An explicit row weight — a slot or request `weight` — reached an embedder-registered operator whose registration does not declare that it consumes weights, so it would have silently run unweighted. An inherited instance default is skipped on such an operator instead of refused. The slot is under `slot`, the operator under `operator` and the weight column under `field`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"weight"},
+				Hint:     "Set `weight: null` on the slot to run the operator unweighted explicitly.",
+				Examples: []any{nil},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"WeightAware"},
+				Hint:   "If you own the operator, read the row weight from extend.Record and declare WeightAware on its registration.",
+			},
+		},
+	},
 }

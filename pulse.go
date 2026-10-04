@@ -323,6 +323,16 @@ type Options struct {
 	// onto it is decided per request).
 	DefaultTimeZone string
 
+	// DefaultWeight is the engine-wide row weight that weight-bearing
+	// request slots inherit when neither the slot's `weight` nor the
+	// request's `weight` names one; a slot's `weight: null` opts out.
+	// It reaches Process, Compose slots and ProcessChain stages, never
+	// Facet / FacetSchema. Nil means none. New() refuses a spec with no
+	// Field or an unknown Kind (PROCESSING_CONFIG); the field itself is
+	// judged per request against the cohort it runs over, where the
+	// default applies. See .claude/reference/weighting.md.
+	DefaultWeight *types.WeightSpec
+
 	// Strict promotes request-validation warnings into hard errors at
 	// runtime. Today this covers the numeric-aggregation-on-categorical
 	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
@@ -531,6 +541,10 @@ func New(opts Options) (*Pulse, error) {
 		}
 	}
 
+	if err := descx.ValidateWeightSpec(opts.DefaultWeight, "Options.DefaultWeight"); err != nil {
+		return nil, err
+	}
+
 	var fsCfg *fs.Config
 
 	if opts.FS != nil {
@@ -598,6 +612,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetEchoRequest(opts.EchoRequest)
 	svc.SetDisableCrosstabFusion(opts.DisableCrosstabFusion)
 	svc.SetTimeZones(opts.DefaultTimeZone, zones)
+	svc.SetDefaultWeight(opts.DefaultWeight)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:                opts.ImportsDir,
@@ -1079,6 +1094,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		Extensions:            p.svc.ExtensionsSnapshot(),
 		Instance:              p.svc.InstanceSnapshot(),
 		DefaultTimeZone:       p.svc.DefaultTimeZone(),
+		DefaultWeight:         p.svc.DefaultWeight(),
 		ZoneLoader:            p.svc.ZoneLoader(),
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
@@ -1148,6 +1164,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		Extensions:            p.svc.ExtensionsSnapshot(),
 		Instance:              p.svc.InstanceSnapshot(),
 		DefaultTimeZone:       p.svc.DefaultTimeZone(),
+		DefaultWeight:         p.svc.DefaultWeight(),
 		ZoneLoader:            p.svc.ZoneLoader(),
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),

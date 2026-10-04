@@ -336,3 +336,53 @@ func TestProjection_WideRequestSkipsProjection(t *testing.T) {
 		t.Errorf("expected no projection installed when request touches every field")
 	}
 }
+
+// TestProjection_WeightColumnDecodes: with projection on, the weight
+// column — named by the request, by a slot, or only by the instance
+// default (SetDefaultWeight) — is retained and decodes with its real
+// value; left out, it would read as null on every row and every row
+// would count as an invalid weight.
+func TestProjection_WeightColumnDecodes(t *testing.T) {
+	schema := wideSchema()
+	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())
+	agg := func(w types.SlotWeight) []*types.Aggregation {
+		return []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Weight: w}}
+	}
+	cases := []struct {
+		name   string
+		req    *types.Request
+		def    *types.WeightSpec
+		weight string
+	}{
+		{"request", &types.Request{Weight: &types.WeightSpec{Field: "y"}, Aggregations: agg(types.SlotWeight{})}, nil, "y"},
+		{"slot", &types.Request{Aggregations: agg(types.SlotWeightField("z"))}, nil, "z"},
+		{"instance default", &types.Request{Aggregations: agg(types.SlotWeight{})}, &types.WeightSpec{Field: "x"}, "x"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := New(cfg)
+			svc.SetProjectBufferedFields(true)
+			svc.SetDefaultWeight(tc.def)
+			iter := newStreamingIterator(cfg.Fs(), "wide.pulse", schema)
+			defer iter.Close()
+			svc.applyProjection(iter, tc.req, schema)
+			if iter.project == nil {
+				t.Fatal("expected a projection filter")
+			}
+			if iter.project("id") {
+				t.Error("projection should still drop 'id'")
+			}
+			if !iter.Next() {
+				t.Fatalf("iter.Next: %v", iter.Err())
+			}
+			if !iter.Next() { // row 1: every weight column is non-zero
+				t.Fatalf("iter.Next: %v", iter.Err())
+			}
+			rec := iter.Record()
+			got, ok := rec.NumericValue(tc.weight)
+			if !ok || got == 0 {
+				t.Fatalf("weight column %q = %v (ok=%v), want its decoded non-zero value", tc.weight, got, ok)
+			}
+		})
+	}
+}

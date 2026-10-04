@@ -87,6 +87,10 @@ type Service struct {
 	// the per-instance zone cache; both feed resolveZones.
 	defaultZone string
 	zones       *temporal.Cache
+
+	// defaultWeight is pulse.Options.DefaultWeight (nil = none); it
+	// feeds resolveWeights and the projected field set.
+	defaultWeight *types.WeightSpec
 }
 
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
@@ -811,7 +815,7 @@ func (s *Service) processSingleFileParallelMaybe(
 		projectMapHint = len(schema.Fields)
 	)
 	if s.projectBuffered {
-		needed := processing.NeededFields(req, schema, s.extensions)
+		needed := s.neededFields(req, schema)
 		if !needed.IsWide() {
 			size := needed.Len()
 			if size > 0 && size < len(schema.Fields) {
@@ -940,7 +944,7 @@ func (s *Service) applyCrosstabProjection(iter scanIterator, req *types.Request,
 // and applyCrosstabProjection. The two callers diverge only on the
 // gate that decides whether projection is attempted at all.
 func (s *Service) installProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) {
-	needed := processing.NeededFields(req, schema, s.extensions)
+	needed := s.neededFields(req, schema)
 	if needed.IsWide() {
 		return
 	}

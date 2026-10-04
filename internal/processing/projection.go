@@ -100,6 +100,15 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 		}
 	}
 
+	// Row weights: the request's and every slot's own. A weight column
+	// left out of the projection decodes as null on every row, so
+	// every row would read as an invalid weight. (The instance default,
+	// pulse.Options.DefaultWeight, is added by the service, which owns
+	// it.)
+	for _, name := range requestWeightFields(req) {
+		addKnown(name)
+	}
+
 	for _, f := range req.Filterers {
 		if f == nil {
 			continue
@@ -358,6 +367,61 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 		}
 	}
 
+	return out
+}
+
+// requestWeightFields lists the weight fields req names explicitly:
+// the request-level weight and each slot's own (aggregations, crosstab
+// cell and margin aggregations, tests, post-tests, regressions,
+// attributes, overlays). A `null` slot names none.
+func requestWeightFields(req *types.Request) []string {
+	var out []string
+	add := func(w types.SlotWeight) {
+		if spec := w.Spec(); spec != nil {
+			out = append(out, spec.Field)
+		}
+	}
+	if req.Weight != nil {
+		out = append(out, req.Weight.Field)
+	}
+	for _, a := range req.Aggregations {
+		if a != nil {
+			add(a.Weight)
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		if ct.Cell != nil {
+			add(ct.Cell.Weight)
+		}
+		for _, a := range ct.MarginAggregations {
+			if a != nil {
+				add(a.Weight)
+			}
+		}
+	}
+	for _, t := range req.Tests {
+		if t != nil {
+			add(t.Weight)
+		}
+	}
+	for _, t := range req.PostTests {
+		if t != nil {
+			add(t.Weight)
+		}
+	}
+	for _, r := range req.Regressions {
+		if r != nil {
+			add(r.Weight)
+		}
+	}
+	for _, a := range req.Attributes {
+		if a != nil {
+			add(a.Weight)
+		}
+	}
+	for _, o := range req.Overlays {
+		add(o.Weight)
+	}
 	return out
 }
 

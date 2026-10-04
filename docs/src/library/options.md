@@ -39,6 +39,10 @@ type Options struct {
     // Area/Location name) a zone-capable slot falls back to. Empty = UTC.
     DefaultTimeZone string
 
+    // DefaultWeight is the row weight a weight-bearing slot inherits
+    // when neither the slot nor the request names one. Nil = none.
+    DefaultWeight *types.WeightSpec
+
     // FeatureProfile / FeatureProfileFile declare the instance's
     // feature set (at most one of the two). Nil / empty = no profile.
     FeatureProfile     *FeatureProfile
@@ -145,6 +149,26 @@ this field supplied it. There is no env var or CLI flag for it.
 
 ```go
 p, err := pulse.New(pulse.Options{DefaultTimeZone: "UTC"})
+```
+
+### `DefaultWeight *types.WeightSpec`
+
+The row weight a weight-bearing slot (aggregations, the crosstab cell
+and margin aggregations, tests, regressions, attributes, overlays)
+falls back to when neither its own `weight` nor the request's `weight`
+names one — precedence is slot `weight` → request `weight` →
+`DefaultWeight` → none, and a slot's `weight: null` opts that slot out.
+`pulse.New` refuses a spec with no `Field` or a `Kind` other than
+`probability` (the default when empty) / `frequency` with
+`PROCESSING_CONFIG`. The field is judged per request, only where the
+default actually applies: there it must exist in the cohort and be an
+unsigned-integer or float column. It reaches Process, Compose slots and
+ProcessChain stages, never `Facet` / `FacetSchema`. Predict reports the
+resolved weight per slot under `weights`, with `source: "options"` when
+this field supplied it. There is no env var or CLI flag for it.
+
+```go
+p, err := pulse.New(pulse.Options{DefaultWeight: &types.WeightSpec{Field: "wt"}})
 ```
 
 ### `FeatureProfile *FeatureProfile` / `FeatureProfileFile string`

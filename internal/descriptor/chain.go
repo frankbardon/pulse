@@ -220,8 +220,16 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			continue
 		}
 		if fieldsReached {
-			for _, ce := range fieldRefRefusals(fieldReq, fieldSchema, extensionsFromOpts(opts), opts.instance()) {
+			refs := fieldRefRefusals(fieldReq, fieldSchema, extensionsFromOpts(opts), opts.instance())
+			for _, ce := range refs {
 				addCodedError(env, RefusalAt(ce, "stage", i))
+			}
+			// The runtime resolves the stage's weights right after its
+			// field references pass (ResolveWeights).
+			if len(refs) == 0 {
+				if _, werr := ResolveWeights(fieldReq, fieldSchema, opts.DefaultWeight, opts.instance()); werr != nil {
+					addCodedError(env, RefusalAt(werr, "stage", i))
+				}
 			}
 		}
 		next := chainPredictedOutputFields(staged)

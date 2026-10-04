@@ -158,6 +158,37 @@ The resolved zone per slot is echoed by predict as
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
 
+## Weight slots
+
+Row weighting adds two additive slot shapes (`format_version` stays
+`"1.1"`; a request that names no weight is byte-identical to the earlier
+wire form and hashes identically):
+
+- **`weight`** on `Request` — a `WeightSpec` object `{field, kind}`,
+  `kind` ∈ `probability` (default when omitted) | `frequency`.
+  `ComposedRequest` and `ChainRequest` carry none of their own (each
+  inner `Request` does); `FacetRequest` and `SampleRequest` have none.
+- **`weight`** on every `Aggregation` (so also `crosstab.cell` and each
+  `crosstab.margin_aggregations[]` entry), `Test` (`tests[]` and
+  `post_tests[]`), `RegressionSpec`, `Attribute` and `OverlaySpec` — the
+  per-slot `SlotWeight` union: a field-name string, a `WeightSpec`
+  object, or `null`.
+
+**`null` is not absence.** An absent per-slot `weight` inherits the
+request's `weight`, then the engine's `DefaultWeight`; an explicit
+`null` opts that one slot out, so it runs unweighted while the rest of
+the request stays weighted. The schema says so with
+`oneOf [string, WeightSpec, null]` on `#/$defs/SlotWeight`.
+
+The field set a weight may name is not in the schema; `pulse predict`
+and the runtime enforce it identically: the field must be a cohort
+column (a joined, prefixed name included — never a derived column) of
+an unsigned-integer or float type, otherwise `SERVICE_VALIDATION`
+(unknown field) or `PROCESSING_CONFIG` (`{slot, field, type}`). The
+resolved weight per slot is echoed by predict as `data.weights[]` —
+`{slot, operator, field, kind, status, source}`, omitted when nothing
+names a weight — a predict result field, not part of this schema.
+
 ## Whether a crosstab fuses is a predict answer
 
 The schema cannot tell you which arm the engine will build a crosstab

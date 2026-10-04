@@ -233,6 +233,7 @@ func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 	}
 
 	// 4. Record-level consumers.
+	w.checkWeights(req, schema)
 	for _, t := range req.Tests {
 		if t != nil {
 			w.checkTest(t, -1)
@@ -581,6 +582,26 @@ func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 			name := paramString(t.Params, key)
 			add(name, typ+": params."+key+" references unknown field "+name, map[string]any{"type": typ, "field": name, "param": key})
 		}
+	}
+}
+
+// checkWeights judges every explicitly named weight field — the
+// request's `weight` and each slot's own — against the cohort SCHEMA,
+// not the derived column set: a weight is read straight off the record
+// as a stored column, so an attribute label or feature output is no
+// weight. An inherited Options.DefaultWeight is not a request reference
+// and is judged by ResolveWeights where it applies.
+func (w *fieldRefWalk) checkWeights(req *types.Request, schema *encoding.Schema) {
+	judge := func(slot string, spec *types.WeightSpec) {
+		if spec == nil || spec.Field == "" || schema.Field(spec.Field) != nil {
+			return
+		}
+		w.out = append(w.out, refusal(slot+" references unknown field: "+spec.Field+" (a weight must name a cohort field)",
+			map[string]any{"field": spec.Field, "slot": slot}))
+	}
+	judge("weight", req.Weight)
+	for _, s := range weightSlots(req, w.inst) {
+		judge(s.slot+".weight", s.weight.Spec())
 	}
 }
 

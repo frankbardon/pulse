@@ -680,7 +680,7 @@
     "post_tests": [],
     "regressions": [],
     "synth_distributions": [],
-    "error_codes_count": 149,
+    "error_codes_count": 152,
     "error_domains": [
       "CLI",
       "DATA",
@@ -745,6 +745,7 @@
       "PULSE_EXTENSION_NAME_COLLISION",
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
+      "PULSE_EXTENSION_NOT_WEIGHT_AWARE",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_SKILL_COLLISION",
@@ -835,6 +836,8 @@
       "PULSE_TEST_UNKNOWN_TYPE",
       "PULSE_TEST_VARIANCE_ZERO",
       "PULSE_TIMEZONE_UNKNOWN",
+      "PULSE_WEIGHT_INVALID_ROWS",
+      "PULSE_WEIGHT_UNSUPPORTED",
       "SERVICE_INTERNAL",
       "SERVICE_REGISTRY",
       "SERVICE_RESOURCE",
@@ -1945,4 +1948,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ee2789a18dc0161331abfd25e4537d70db723dc091a771c4edf63ec02230e7ea
+// golden-hash: f0ffe6319fb1672586e3d38a82c72d9c9ef4f72a8c96d8282ec2d9c9abcfdfa5
