@@ -170,9 +170,13 @@ wire form and hashes identically):
   inner `Request` does); `FacetRequest` and `SampleRequest` have none.
 - **`weight`** on every `Aggregation` (so also `crosstab.cell` and each
   `crosstab.margin_aggregations[]` entry), `Test` (`tests[]` and
-  `post_tests[]`), `RegressionSpec`, `Attribute` and `OverlaySpec` — the
-  per-slot `SlotWeight` union: a field-name string, a `WeightSpec`
-  object, or `null`.
+  `post_tests[]`), `RegressionSpec`, `Attribute`, `OverlaySpec` and
+  `Group` (`groups[]` and both crosstab axes) — the per-slot
+  `SlotWeight` union: a field-name string, a `WeightSpec` object, or
+  `null`. Inferential slots (tests, regressions, reference-distribution
+  attributes, the quantile grouper, inferential overlays) are refused
+  `PULSE_WEIGHT_UNSUPPORTED` while a weight is in force, so on them
+  `null` is the way to run unweighted.
 
 **`null` is not absence.** An absent per-slot `weight` inherits the
 request's `weight`, then the engine's `DefaultWeight`; an explicit

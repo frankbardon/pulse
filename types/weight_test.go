@@ -179,3 +179,34 @@ func TestSlotWeight_EverySlotFamily(t *testing.T) {
 		}
 	}
 }
+
+// TestGroupWeight_NullOptOut: a grouper's `weight` keeps the three
+// wire states — absent marshals nothing (an unweighted request is
+// byte-identical), null survives a round trip and changes the hash.
+func TestGroupWeight_NullOptOut(t *testing.T) {
+	mk := func(w SlotWeight) *Request {
+		return &Request{
+			Cohort:       &Cohort{Filename: "a.pulse"},
+			Groups:       []*Group{{Type: GROUP_QUANTILE, Field: "x", Interval: 4, Weight: w}},
+			Aggregations: []*Aggregation{{Type: AGG_COUNT, Field: "x"}},
+		}
+	}
+	b, _ := json.Marshal(mk(SlotWeight{}))
+	if strings.Contains(string(b), "weight") {
+		t.Fatalf("absent group weight must not marshal: %s", b)
+	}
+	nb, _ := json.Marshal(mk(NullSlotWeight()))
+	if !strings.Contains(string(nb), `"weight":null`) {
+		t.Fatalf("null group weight must marshal as null: %s", nb)
+	}
+	var back Request
+	if err := json.Unmarshal(nb, &back); err != nil {
+		t.Fatal(err)
+	}
+	if !back.Groups[0].Weight.IsNull() {
+		t.Fatalf("null group weight lost in round trip: %s", nb)
+	}
+	if mk(NullSlotWeight()).Hash() == mk(SlotWeight{}).Hash() {
+		t.Fatal("null and absent group weights must hash apart")
+	}
+}

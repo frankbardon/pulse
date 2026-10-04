@@ -81,20 +81,31 @@ func TestResolveWeights_Precedence(t *testing.T) {
 
 // TestResolveWeights_SlotFamilies: every weight-bearing slot is walked
 // — crosstab cell and margin aggregations, post-tests, regressions,
-// attributes, overlays — under its JSON path.
+// attributes, overlays, groupers, crosstab axes, windows — under its
+// JSON path.
 func TestResolveWeights_SlotFamilies(t *testing.T) {
+	null := types.NullSlotWeight()
 	req := &types.Request{
 		Weight:      &types.WeightSpec{Field: "w"},
-		PostTests:   []*types.Test{{Type: types.TEST_T, Field: "x"}},
-		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "x"}},
-		Attributes:  []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "x"}},
+		PostTests:   []*types.Test{{Type: types.TEST_T, Field: "x", Weight: null}},
+		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "x", Weight: null}},
+		Attributes:  []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "x", Weight: null}},
 		Overlays:    []types.OverlaySpec{{Kind: types.OverlayKindDeltaVsMargin}},
+		Groups:      []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+		Windows:     []*types.Window{{Type: types.WIN_LAG, Field: "x"}},
 		Crosstab: &types.CrosstabSpec{
+			Rows:               []*types.Group{{Type: types.GROUP_QUANTILE, Field: "x", Interval: 4, Weight: null}},
+			Columns:            []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
 			Cell:               &types.Aggregation{Type: types.AGG_COUNT, Field: "x"},
-			MarginAggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Weight: types.NullSlotWeight()}},
+			MarginAggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Weight: null}},
 		},
 	}
-	got, err := ResolveWeights(req, weightSchema(), nil, nil)
+	// The request weight on a window is an explicit weight; the default
+	// is not, so this pass reaches every slot.
+	def := req.Weight
+	req.Weight = nil
+	req.Crosstab.Cell.Weight = types.SlotWeightField("w")
+	got, err := ResolveWeights(req, weightSchema(), def, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,11 +113,12 @@ func TestResolveWeights_SlotFamilies(t *testing.T) {
 	for _, g := range got {
 		slots = append(slots, g.Slot)
 	}
-	want := []string{"crosstab.cell", "crosstab.margin_aggregations[0]", "post_tests[0]", "regressions[0]", "attributes[0]", "overlays[0]"}
+	want := []string{"crosstab.cell", "crosstab.margin_aggregations[0]", "post_tests[0]", "regressions[0]", "attributes[0]", "overlays[0]",
+		"groups[0]", "crosstab.rows[0]", "crosstab.columns[0]", "windows[0]"}
 	if !reflect.DeepEqual(slots, want) {
 		t.Fatalf("slots = %v, want %v", slots, want)
 	}
-	if got[1].Status != "opted_out" || got[5].Operator != "OVERLAY_DELTA_VS_MARGIN" {
+	if got[1].Status != "opted_out" || got[5].Operator != "OVERLAY_DELTA_VS_MARGIN" || got[7].Status != "opted_out" || got[9].Status != "skipped_not_weight_aware" {
 		t.Fatalf("got %+v", got)
 	}
 }
@@ -316,7 +328,7 @@ func TestResolveWeights_Classes(t *testing.T) {
 			t.Fatalf("%s opted out: %v", op, err)
 		}
 	}
-	got, err := ResolveWeights(&types.Request{Weight: def, Tests: []*types.Test{{Type: types.TEST_T, Field: "x"}}}, weightSchema(), nil, nil)
+	got, err := ResolveWeights(&types.Request{Weight: def, Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: "x * 2"}}}, weightSchema(), nil, nil)
 	if err != nil || got[0].Status != descriptor.WeightStatusSkippedNotWeightAware {
 		t.Fatalf("ungoverned operator: %+v %v", got, err)
 	}
@@ -420,5 +432,261 @@ func TestResolveWeights_DecimalRefused(t *testing.T) {
 	// A nil schema (schema-less validation) judges no field type.
 	if _, err := ResolveWeights(refused[0].req, nil, def, nil); err != nil {
 		t.Fatalf("nil schema refused: %v", err)
+	}
+}
+
+// inferentialSlotRequests builds, per refused non-aggregator operator,
+// a one-slot request carrying slot weight w — every built-in TEST_*
+// (as a test and, for TEST_T, a post-test), every REG_*, the four
+// reference-distribution attributes and GROUP_QUANTILE (as a grouper
+// and on both crosstab axes). The key is the slot path.
+func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
+	out := map[string]*types.Request{}
+	for _, tt := range types.AllTestTypes() {
+		out["tests[0]/"+string(tt)] = &types.Request{Tests: []*types.Test{{Type: tt, Field: "x", Weight: w}}}
+	}
+	out["post_tests[0]/TEST_T"] = &types.Request{PostTests: []*types.Test{{Type: types.TEST_T, Field: "x", Weight: w}}}
+	for _, rt := range types.AllRegressionTypes() {
+		out["regressions[0]/"+string(rt)] = &types.Request{Regressions: []*types.RegressionSpec{{Type: rt, Target: "x", Weight: w}}}
+	}
+	for _, at := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_PERCENTILE, types.ATTR_NORMALIZED} {
+		out["attributes[0]/"+string(at)] = &types.Request{Attributes: []*types.Attribute{{Type: at, Field: "x", Weight: w}}}
+	}
+	q := func() *types.Group {
+		return &types.Group{Type: types.GROUP_QUANTILE, Field: "x", Interval: 4, Weight: w}
+	}
+	cat := func() *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: "cat"} }
+	out["groups[0]/GROUP_QUANTILE"] = &types.Request{Groups: []*types.Group{q()}}
+	out["crosstab.rows[0]/GROUP_QUANTILE"] = &types.Request{Crosstab: &types.CrosstabSpec{
+		Rows: []*types.Group{q()}, Columns: []*types.Group{cat()}, Cell: &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Weight: types.NullSlotWeight()}}}
+	out["crosstab.columns[0]/GROUP_QUANTILE"] = &types.Request{Crosstab: &types.CrosstabSpec{
+		Rows: []*types.Group{cat()}, Columns: []*types.Group{q()}, Cell: &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Weight: types.NullSlotWeight()}}}
+	return out
+}
+
+// TestResolveWeights_InferentialRefused: every TEST_*, REG_*,
+// reference-distribution attribute and GROUP_QUANTILE is
+// PULSE_WEIGHT_UNSUPPORTED under ANY weight in force — slot, request
+// or the instance default — with details {slot, operator, field}; the
+// slot's `weight: null` opts it out on all three.
+func TestResolveWeights_InferentialRefused(t *testing.T) {
+	def := &types.WeightSpec{Field: "w"}
+	sources := map[string]func(map[string]*types.Request) (map[string]*types.Request, *types.WeightSpec){
+		"default": func(m map[string]*types.Request) (map[string]*types.Request, *types.WeightSpec) { return m, def },
+		"request": func(m map[string]*types.Request) (map[string]*types.Request, *types.WeightSpec) {
+			for _, r := range m {
+				r.Weight = def
+			}
+			return m, nil
+		},
+	}
+	run := func(t *testing.T, key string, req *types.Request, defW *types.WeightSpec) {
+		t.Helper()
+		_, err := ResolveWeights(req, weightSchema(), defW, nil)
+		ce := codeOf(t, err)
+		slot, op := splitKey(key)
+		want := map[string]any{"slot": slot, "operator": op, "field": "w"}
+		if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || !reflect.DeepEqual(ce.Details, want) {
+			t.Fatalf("%s: got %s %v, want PULSE_WEIGHT_UNSUPPORTED %v", key, ce.Code, ce.Details, want)
+		}
+	}
+	for name, src := range sources {
+		reqs, defW := src(inferentialSlotRequests(types.SlotWeight{}))
+		for key, req := range reqs {
+			t.Run(name+"/"+key, func(t *testing.T) { run(t, key, req, defW) })
+		}
+	}
+	for key, req := range inferentialSlotRequests(types.SlotWeightField("w")) {
+		t.Run("slot/"+key, func(t *testing.T) { run(t, key, req, nil) })
+	}
+	for key, req := range inferentialSlotRequests(types.NullSlotWeight()) {
+		t.Run("null/"+key, func(t *testing.T) {
+			req.Weight = def
+			got, err := ResolveWeights(req, weightSchema(), def, nil)
+			if err != nil {
+				t.Fatalf("opted-out slot refused: %v", err)
+			}
+			slot, _ := splitKey(key)
+			for _, g := range got {
+				if g.Slot == slot && g.Status != descriptor.WeightStatusOptedOut {
+					t.Fatalf("%s: %+v, want opted_out", slot, g)
+				}
+			}
+		})
+	}
+}
+
+func splitKey(key string) (slot, op string) {
+	for i := len(key) - 1; i >= 0; i-- {
+		if key[i] == '/' {
+			return key[:i], key[i+1:]
+		}
+	}
+	return key, ""
+}
+
+// TestResolveWeights_WindowsAndUnaffected: a WIN_* slot (no slot
+// weight of its own) is PROCESSING_CONFIG under a request weight and
+// skipped under the instance default; filterers, features, row-local
+// attributes and the other groupers are untouched — the request runs
+// and each reports skipped (filterers and features carry no slot).
+func TestResolveWeights_WindowsAndUnaffected(t *testing.T) {
+	def := &types.WeightSpec{Field: "w"}
+	win := func(reqW *types.WeightSpec) *types.Request {
+		return &types.Request{Weight: reqW, Windows: []*types.Window{{Type: types.WIN_LAG, Field: "x"}}}
+	}
+	_, err := ResolveWeights(win(def), weightSchema(), nil, nil)
+	ce := codeOf(t, err)
+	if want := (map[string]any{"slot": "windows[0]", "operator": "WIN_LAG", "field": "w"}); ce.Code != errors.PROCESSING_CONFIG || !reflect.DeepEqual(ce.Details, want) {
+		t.Fatalf("explicit window: %s %v", ce.Code, ce.Details)
+	}
+	got, err := ResolveWeights(win(nil), weightSchema(), def, nil)
+	if err != nil || len(got) != 1 || got[0].Slot != "windows[0]" || got[0].Status != descriptor.WeightStatusSkippedNotWeightAware {
+		t.Fatalf("default window: %+v %v", got, err)
+	}
+
+	unaffected := &types.Request{
+		Weight:     def,
+		Filterers:  []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "cat", Values: []string{"a"}}},
+		Features:   []*types.Feature{{Type: types.FEAT_LOG, Field: "x"}},
+		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: "x * 2"}},
+		Groups: []*types.Group{
+			{Type: types.GROUP_CATEGORY, Field: "cat"},
+			{Type: types.GROUP_RANGE, Field: "x", Interval: 10},
+			{Type: types.GROUP_ROUNDED, Field: "x", Interval: 10, Weight: types.SlotWeightField("w")},
+		},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
+	}
+	got, err = ResolveWeights(unaffected, weightSchema(), def, nil)
+	if err != nil {
+		t.Fatalf("unaffected surfaces refused: %v", err)
+	}
+	status := map[string]string{}
+	for _, g := range got {
+		status[g.Slot] = g.Status
+	}
+	want := map[string]string{
+		"aggregations[0]": "applied", "attributes[0]": "skipped_not_weight_aware",
+		"groups[0]": "skipped_not_weight_aware", "groups[1]": "skipped_not_weight_aware", "groups[2]": "skipped_not_weight_aware",
+	}
+	if !reflect.DeepEqual(status, want) {
+		t.Fatalf("statuses = %v, want %v", status, want)
+	}
+}
+
+// TestResolveWeights_InferentialOverlays: the overlay refusal is keyed
+// off the manifest Inferential flag, never a hand list — every
+// Inferential kind but OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z is
+// PULSE_WEIGHT_UNSUPPORTED under a weight in force on its own slot
+// (request / default / slot); `weight: null` on the overlay opts out.
+// A host weighted only by its own slot weight does not refuse an
+// overlay nothing weights (the shipped pairwise n_source modes read
+// such a host on purpose). Descriptive kinds and the exemption are
+// skipped.
+func TestResolveWeights_InferentialOverlays(t *testing.T) {
+	def := &types.WeightSpec{Field: "w"}
+	cell := func(w types.SlotWeight) *types.CrosstabSpec {
+		return &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Weight: w},
+		}
+	}
+	var inferential int
+	for _, c := range OverlayCapabilities() {
+		k := c.Kind
+		refuses := c.Inferential && k != types.OverlayKindPairwiseWeightedTwoMeansZ
+		if refuses {
+			inferential++
+		}
+		ov := func(w types.SlotWeight) []types.OverlaySpec { return []types.OverlaySpec{{Kind: k, Weight: w}} }
+		cases := map[string]struct {
+			req  *types.Request
+			defW *types.WeightSpec
+		}{
+			"request": {&types.Request{Weight: def, Crosstab: cell(types.NullSlotWeight()), Overlays: ov(types.SlotWeight{})}, nil},
+			"default": {&types.Request{Crosstab: cell(types.NullSlotWeight()), Overlays: ov(types.SlotWeight{})}, def},
+			"slot":    {&types.Request{Crosstab: cell(types.SlotWeight{}), Overlays: ov(types.SlotWeightField("w"))}, nil},
+		}
+		for name, tc := range cases {
+			got, err := ResolveWeights(tc.req, weightSchema(), tc.defW, nil)
+			if !refuses {
+				if err != nil {
+					t.Fatalf("%s %s: descriptive kind refused: %v", k, name, err)
+				}
+				continue
+			}
+			ce := codeOf(t, err)
+			want := map[string]any{"slot": "overlays[0]", "operator": string(k), "field": "w"}
+			if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || !reflect.DeepEqual(ce.Details, want) {
+				t.Fatalf("%s %s: got %s %v (weights %+v), want %v", k, name, ce.Code, ce.Details, got, want)
+			}
+		}
+		for name, req := range map[string]*types.Request{
+			"null":           {Weight: def, Crosstab: cell(types.SlotWeight{}), Overlays: ov(types.NullSlotWeight())},
+			"host slot only": {Crosstab: cell(types.SlotWeightField("w")), Overlays: ov(types.SlotWeight{})},
+		} {
+			if _, err := ResolveWeights(req, weightSchema(), nil, nil); err != nil {
+				t.Fatalf("%s %s: overlay refused: %v", k, name, err)
+			}
+		}
+	}
+	if inferential == 0 {
+		t.Fatal("no Inferential overlay kind found — the flag keying is vacuous")
+	}
+}
+
+// TestComposeOverlayWeightRefusal: a Compose-host Inferential overlay
+// (keyed off the flag, sole exemption the weighted-z) is refused when a
+// slot it reads has a request or instance default weight applied to an
+// aggregation or cell; a slot weighted only by its own slot weight, a
+// host opted out with `weight: null`, and a slot the overlay does not
+// read leave it alone.
+func TestComposeOverlayWeightRefusal(t *testing.T) {
+	def := &types.WeightSpec{Field: "w"}
+	slot := func(reqW *types.WeightSpec, w types.SlotWeight) *types.Request {
+		return &types.Request{Weight: reqW, Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "x", Weight: w}}}
+	}
+	labels := []string{"a", "b", "c"}
+	var checked int
+	for _, c := range OverlayCapabilities() {
+		k := c.Kind
+		refuses := c.Inferential && k != types.OverlayKindPairwiseWeightedTwoMeansZ
+		ov := []types.ComposeOverlaySpec{{Kind: k, Reference: "a", Targets: []string{"b"}}}
+		run := func(reqs []*types.Request, defW *types.WeightSpec) error {
+			return ComposeOverlayWeightRefusal(ov, reqs, labels, defW, nil)
+		}
+		err := run([]*types.Request{slot(nil, types.SlotWeight{}), slot(def, types.SlotWeight{}), slot(nil, types.SlotWeight{})}, nil)
+		if !refuses {
+			if err != nil {
+				t.Fatalf("%s: non-inferential refused: %v", k, err)
+			}
+			continue
+		}
+		checked++
+		ce := codeOf(t, err)
+		want := map[string]any{"slot": "overlays[0]", "operator": string(k), "field": "w", "host": "requests[1].aggregations[0]"}
+		if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || !reflect.DeepEqual(ce.Details, want) {
+			t.Fatalf("%s request weight: %s %v", k, ce.Code, ce.Details)
+		}
+		ce = codeOf(t, run([]*types.Request{slot(nil, types.SlotWeight{}), slot(nil, types.SlotWeight{}), slot(nil, types.SlotWeight{})}, def))
+		if ce.Details["host"] != "requests[0].aggregations[0]" {
+			t.Fatalf("%s default: %v", k, ce.Details)
+		}
+		for name, reqs := range map[string][]*types.Request{
+			"slot weight only": {slot(nil, types.SlotWeightField("w")), slot(nil, types.SlotWeightField("w")), nil},
+			"unread slot":      {slot(nil, types.SlotWeight{}), slot(nil, types.SlotWeight{}), slot(def, types.SlotWeight{})},
+		} {
+			if err := run(reqs, nil); err != nil {
+				t.Fatalf("%s %s: refused: %v", k, name, err)
+			}
+		}
+		null := []*types.Request{slot(def, types.NullSlotWeight()), slot(nil, types.NullSlotWeight()), slot(nil, types.SlotWeight{})}
+		if err := ComposeOverlayWeightRefusal([]types.ComposeOverlaySpec{{Kind: k, Reference: "a", Targets: []string{"b"}}}, null, labels, def, nil); err != nil {
+			t.Fatalf("%s host opted out: %v", k, err)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no Inferential kind checked")
 	}
 }

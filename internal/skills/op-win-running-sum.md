@@ -27,6 +27,7 @@ One `float64` per row written to `Label` (default `WIN_RUNNING_SUM_<field>`). Su
 
 ## Gotchas
 
+- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - Frame REQUIRED — `null` preceding = UNBOUNDED PRECEDING (full cumulative).
 - Bounded frames produce a windowed sum, not cumulative.
 - Nulls skipped (not zero-filled).

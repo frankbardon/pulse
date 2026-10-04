@@ -25,6 +25,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Streamable — per-group Welford feeds both SS terms.
 - Rejects globally, not per pair<!-- feature: TEST_TUKEY_HSD --> — follow with tier-2 `TEST_TUKEY_HSD` via `ms_within` / `df_within`<!-- /feature -->.
 - Assumes equal spread; a large p from a spread test is not evidence of it.

@@ -15,11 +15,55 @@ func TestClassify_Complete(t *testing.T) {
 			t.Errorf("%s has no weight class", at)
 		}
 	}
-	if ClassOf("TEST_T") != ClassNone || ClassOf("AGG_EXT_FOO_BAR") != ClassNone {
-		t.Fatal("non-aggregator names must be ClassNone")
+	if ClassOf("AGG_EXT_FOO_BAR") != ClassNone || ClassOf("TEST_EXT_FOO_BAR") != ClassNone {
+		t.Fatal("extension names must be ClassNone (their class is the registration's)")
 	}
 	if !IsAware("AGG_SUM") || !IsAware("AGG_MEDIAN") || IsAware("AGG_MIN") || IsAware("AGG_CI_LOWER") {
 		t.Fatal("IsAware mismatch")
+	}
+}
+
+// TestClassify_NonAggregatorFamilies pins the non-aggregator classes
+// (.claude/reference/weighting.md, Refusal rules): every built-in
+// TEST_* and REG_*, the reference-distribution attributes and
+// GROUP_QUANTILE refuse under any weight; every WIN_* is not weightable
+// (skipped under a default, refused under an explicit weight); every
+// other attribute, grouper, filterer and feature is untouched
+// (ClassNone).
+func TestClassify_NonAggregatorFamilies(t *testing.T) {
+	want := map[string]Class{}
+	for _, tt := range types.AllTestTypes() {
+		want[string(tt)] = ClassRefuse
+	}
+	for _, rt := range types.AllRegressionTypes() {
+		want[string(rt)] = ClassRefuse
+	}
+	for _, at := range types.AllAttributeTypes() {
+		want[string(at)] = ClassNone
+	}
+	for _, a := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_PERCENTILE, types.ATTR_NORMALIZED} {
+		want[string(a)] = ClassRefuse
+	}
+	for _, gt := range types.AllGroupTypes() {
+		want[string(gt)] = ClassNone
+	}
+	want[string(types.GROUP_QUANTILE)] = ClassRefuse
+	for _, wt := range types.AllWindowTypes() {
+		want[string(wt)] = ClassNotWeightable
+	}
+	for _, ft := range types.AllFiltererTypes() {
+		want[string(ft)] = ClassNone
+	}
+	for _, ft := range types.AllFeatureTypes() {
+		want[string(ft)] = ClassNone
+	}
+	for op, c := range want {
+		if got := ClassOf(op); got != c {
+			t.Errorf("ClassOf(%s) = %v, want %v", op, got, c)
+		}
+		if IsAware(op) {
+			t.Errorf("%s must not be weight-aware", op)
+		}
 	}
 }
 

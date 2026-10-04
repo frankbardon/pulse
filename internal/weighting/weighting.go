@@ -18,10 +18,11 @@ import (
 type Class int
 
 const (
-	// ClassNone: the operator is not an aggregator this table governs
-	// (tests, attributes, overlays, regressions, windows, extension
-	// operators, unknown names). Its weight behaviour is owned
-	// elsewhere; the resolver reports a resolved weight on it as
+	// ClassNone: the table does not govern the operator — a row-local
+	// attribute, a non-quantile grouper, a filterer, a feature, an
+	// overlay (classed by its Inferential flag in internal/descriptor),
+	// an extension operator or an unknown name. A weight does not
+	// change it; the resolver reports a resolved weight on it as
 	// skipped.
 	ClassNone Class = iota
 
@@ -34,7 +35,8 @@ const (
 	ClassNotWeightable
 
 	// ClassRefuse: the operator is inferential (U12's territory); any
-	// weight in force on its slot is PULSE_WEIGHT_UNSUPPORTED.
+	// weight in force on its slot — the instance default included — is
+	// PULSE_WEIGHT_UNSUPPORTED. The slot's `weight: null` opts out.
 	ClassRefuse
 )
 
@@ -76,10 +78,45 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_CI_UPPER: ClassRefuse,
 }
 
-// ClassOf returns the weight class of the named operator; ClassNone
-// for any name the table does not govern.
+// refusedAttributes are the reference-distribution attributes: each
+// row's value is placed against a whole-cohort mean / spread / rank,
+// whose weighted form is U12's.
+var refusedAttributes = map[types.AttributeType]bool{
+	types.ATTR_ZSCORE:     true,
+	types.ATTR_TSCORE:     true,
+	types.ATTR_PERCENTILE: true,
+	types.ATTR_NORMALIZED: true,
+}
+
+// operatorClasses is the whole built-in table: the aggregators above
+// plus the non-aggregator families (.claude/reference/weighting.md,
+// Refusal rules) — every TEST_* and REG_*, the reference-distribution
+// attributes and GROUP_QUANTILE refuse; every WIN_* is not weightable.
+var operatorClasses = func() map[string]Class {
+	m := make(map[string]Class, len(aggregatorClasses))
+	for op, c := range aggregatorClasses {
+		m[string(op)] = c
+	}
+	for _, t := range types.AllTestTypes() {
+		m[string(t)] = ClassRefuse
+	}
+	for _, r := range types.AllRegressionTypes() {
+		m[string(r)] = ClassRefuse
+	}
+	for a := range refusedAttributes {
+		m[string(a)] = ClassRefuse
+	}
+	m[string(types.GROUP_QUANTILE)] = ClassRefuse
+	for _, w := range types.AllWindowTypes() {
+		m[string(w)] = ClassNotWeightable
+	}
+	return m
+}()
+
+// ClassOf returns the weight class of the named built-in operator;
+// ClassNone for any name the table does not govern.
 func ClassOf(op string) Class {
-	return aggregatorClasses[types.AggregationType(op)]
+	return operatorClasses[op]
 }
 
 // IsAware reports whether the named built-in operator computes a

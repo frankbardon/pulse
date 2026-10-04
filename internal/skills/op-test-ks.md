@@ -27,6 +27,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — both ECDFs must materialize and sort before comparison.
 - Sensitive to distribution shape, not just mean.
 - Small-n approximation drifts; only n < 2 per group is refused (`PULSE_TEST_INSUFFICIENT_N`).

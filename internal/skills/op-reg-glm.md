@@ -33,6 +33,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - `penalty` / `alpha` / `l1_ratio` rejected → `PROCESSING_CONFIG`. Regularized GLM is a later phase.
 - Binomial separation diverges → `PROCESSING_REGRESSION_NO_CONVERGE`. Raise `max_iters`, drop the offender, or pre-bin.
 - Unsupported link → `PROCESSING_REGRESSION_INVALID_LINK`.

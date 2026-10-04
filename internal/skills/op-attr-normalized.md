@@ -28,6 +28,7 @@ One `float64` per record in `[0, 1]`. Null source → `0` (not null).
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Two-pass: pre-pass tracks min/max across filter-passing rows; pass 2 emits per row.
 - Constant field (`max == min`) → `0` per row.
 - Outlier-sensitive — one extreme value compresses the rest of the range.

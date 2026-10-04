@@ -25,6 +25,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — combined values ranked across all groups under tie correction.
 - Nonparametric alternative to one-way ANOVA for skewed or heavy-tailed data.
 - Global only — no Dunn / Conover post-hoc<!-- feature: TEST_MANN_WHITNEY_U -->; use pairwise `TEST_MANN_WHITNEY_U` + manual Holm/Bonferroni<!-- /feature -->.

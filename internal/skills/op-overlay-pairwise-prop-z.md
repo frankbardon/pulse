@@ -25,6 +25,7 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 
 ## Gotchas
 
+- No weighted form yet: a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the overlay to run it unweighted.
 - Reuses `twoProportionZ` — byte-for-byte equal to every two-proportion z test and overlay on the same (success, n).
 - RAW p-values only — direction, thresholds and min-n flags are the embedder's job.
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.

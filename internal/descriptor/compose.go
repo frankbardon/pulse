@@ -309,6 +309,27 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		resolved = append(resolved, resolvedTarget{label: label, req: tReq})
 	}
 
+	// Gate 2b: an Inferential kind reading a slot weighted by a
+	// request or instance default weight has no weighted form yet
+	// (PULSE_WEIGHT_UNSUPPORTED) — the runtime's check in
+	// Service.applyComposeOverlays, over the same raw slots.
+	labels := make([]string, len(req.Requests))
+	for j, r := range req.Requests {
+		if r != nil {
+			labels[j] = r.Label
+			if labels[j] == "" {
+				labels[j] = composeDescriptorDefaultLabel(j)
+			}
+		}
+	}
+	var defaultWeight *types.WeightSpec
+	if opts != nil {
+		defaultWeight = opts.DefaultWeight
+	}
+	if werr := composeOverlayWeightRefusal(specIdx, spec, req.Requests, labels, defaultWeight, opts.instance()); werr != nil {
+		addCodedError(env, werr)
+	}
+
 	// Gate 3: multi-reference panel target cap. Fires before the
 	// per-target shape walk so a wildly over-cap spec does not also
 	// emit N shape-divergence pairs. The cap honours

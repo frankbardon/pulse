@@ -373,7 +373,8 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 // requestWeightFields lists the weight fields req names explicitly:
 // the request-level weight and each slot's own (aggregations, crosstab
 // cell and margin aggregations, tests, post-tests, regressions,
-// attributes, overlays). A `null` slot names none.
+// attributes, overlays, groups and crosstab axes). A `null` slot names
+// none.
 func requestWeightFields(req *types.Request) []string {
 	var out []string
 	add := func(w types.SlotWeight) {
@@ -421,6 +422,15 @@ func requestWeightFields(req *types.Request) []string {
 	}
 	for _, o := range req.Overlays {
 		add(o.Weight)
+	}
+	groups := req.Groups
+	if ct := req.Crosstab; ct != nil {
+		groups = append(append(append([]*types.Group(nil), groups...), ct.Rows...), ct.Columns...)
+	}
+	for _, g := range groups {
+		if g != nil {
+			add(g.Weight)
+		}
 	}
 	return out
 }

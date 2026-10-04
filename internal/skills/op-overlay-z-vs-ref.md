@@ -25,6 +25,7 @@ SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary
 
 ## Gotchas
 
+- No weighted form yet: a request or `Options.DefaultWeight` weight applied to a read slot's aggregation is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on those aggregations.
 - **Byte-equal** to the two-sample z-test on the same inputs — shares `normalTwoSidedP` with it and the cell z overlay.
 - Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
 - Unlike the streamable SERIES arm of the reference index / delta: inferential, buffered.

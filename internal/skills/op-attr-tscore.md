@@ -28,6 +28,7 @@ One `float64` per record — `50 + 10 * zscore`. Null source → `50` (not null)
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Two-pass: a Welford pre-pass computes the mean and sd. Reading-friendly scale for survey / education contexts (mean 50, sd 10, no negatives in the typical range).
 - Zero stddev → `50` per row.
 - `decimal128` rejected.

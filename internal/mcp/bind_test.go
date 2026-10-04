@@ -474,7 +474,8 @@ func TestMCPSchemaBinding_CrosstabMarginAggregations(t *testing.T) {
 // TestMCPSchemaBinding_WeightSlots: the bound request schema declares
 // the request-level `weight` object and a per-slot `weight` union
 // (field name | {field, kind} | null) on aggregations, attributes,
-// tests, overlays and the crosstab cell / margin aggregations, its
+// tests, overlays, groups, the crosstab axes and the crosstab cell /
+// margin aggregations, its
 // field enum limited to weight-capable columns (the f64 "score"; never
 // the categorical or date column).
 func TestMCPSchemaBinding_WeightSlots(t *testing.T) {
@@ -506,6 +507,9 @@ func TestMCPSchemaBinding_WeightSlots(t *testing.T) {
 		"overlays":            itemProps("overlays", "items", "properties"),
 		"crosstab.cell":       itemProps("crosstab", "properties", "cell", "properties"),
 		"margin_aggregations": itemProps("crosstab", "properties", "margin_aggregations", "items", "properties"),
+		"groups":              itemProps("groups", "items", "properties"),
+		"crosstab.rows":       itemProps("crosstab", "properties", "rows", "items", "properties"),
+		"crosstab.columns":    itemProps("crosstab", "properties", "columns", "items", "properties"),
 	}
 	for name, p := range slots {
 		w, _ := p["weight"].(map[string]any)

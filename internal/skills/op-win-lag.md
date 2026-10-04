@@ -32,6 +32,7 @@ One `float64` per row written to `Label` (default `WIN_LAG_<field>`). When `i - 
 
 ## Gotchas
 
+- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - `order_by` required — predict rejects empty slate (`PULSE_WINDOW_INVALID`).
 - `frame` forbidden — set one and predict rejects.
 - Partitioning by the raw `date` collapses each row to its own partition. Pick a coarser partition (region, account) and order by date.

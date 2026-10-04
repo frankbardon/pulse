@@ -3319,6 +3319,7 @@ pulse/types: type Group field Interval float64 "json:\"interval,omitempty\""
 pulse/types: type Group field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Group field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Group field Type pulse/types.GroupType "json:\"type\""
+pulse/types: type Group field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type GroupType string
 pulse/types: type GroupType method (GroupType) FansOut() bool
 pulse/types: type GroupType method (GroupType) Mergeable() bool
@@ -3807,4 +3808,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9bc74e174ea906685d8d56e29cf0bf6f3a6b39a03588c5cdac7c91fed86ea418
+// golden-hash: 1a2e41e54c0f97d55f2d6d6fa60eb0c36a889567e25c0c662032f31ca44fdcf5

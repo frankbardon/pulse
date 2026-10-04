@@ -3,6 +3,7 @@ package descriptor
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -69,6 +70,43 @@ type weightSlot struct {
 	// Field, or AGG_RATIO's numerator / denominator); nil on every
 	// other slot family.
 	valueFields []string
+	// overlay marks a Request.Overlays slot: its class is its kind's
+	// Inferential flag (overlayWeightClass), not the operator table.
+	overlay bool
+	// noSlotWeight marks a slot family with no `weight` of its own
+	// (windows): only the request weight is explicit there, and the
+	// refusal prose says so.
+	noSlotWeight bool
+}
+
+// weightExemptOverlays are the Inferential overlay kinds that already
+// read a weighted host correctly, so a weight in force does not refuse
+// them: OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z computes its own
+// weighted z from the host's weighted components. A kind added here
+// owes its weighted contract in .claude/reference/weighting.md.
+var weightExemptOverlays = map[types.OverlayKind]bool{
+	types.OverlayKindPairwiseWeightedTwoMeansZ: true,
+}
+
+// overlayWeightClass classes an overlay kind off its manifest
+// Inferential flag (capabilities_overlay.go), never a hand list: an
+// Inferential kind refuses a weight in force unless exempt; every
+// descriptive kind (shares, indices, deltas, z-scores) reads the host
+// payload and is untouched.
+func overlayWeightClass(kind string) weighting.Class {
+	k := types.OverlayKind(kind)
+	if weightExemptOverlays[k] || !overlayCapabilityFor(k).Inferential {
+		return weighting.ClassNone
+	}
+	return weighting.ClassRefuse
+}
+
+// weightUnsupported is the PULSE_WEIGHT_UNSUPPORTED refusal of an
+// inferential slot (U12 owns weighted inference).
+func weightUnsupported(s weightSlot, field string) error {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
+		fmt.Sprintf("%s: %s has no weighted form yet (weighted inference is not implemented); opt the slot out with \"weight\": null to run it unweighted", s.slot, s.operator),
+		map[string]any{"slot": s.slot, "operator": s.operator, "field": field})
 }
 
 // aggValueFields lists the columns a weighted aggregation multiplies by
@@ -150,7 +188,9 @@ func weightFieldTypeRefusal(schema *encoding.Schema, where, field string) error 
 
 // weightSlots flattens req's weight-bearing slots in reporting order:
 // aggregations, crosstab cell, crosstab margin aggregations, tests,
-// post-tests, regressions, attributes, overlays.
+// post-tests, regressions, attributes, overlays, groups, crosstab rows,
+// crosstab columns, windows (the last four were added after the first
+// eight, so they trail rather than reorder an existing report).
 func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	var slots []weightSlot
 	add := func(slot, op string, w types.SlotWeight) {
@@ -198,6 +238,25 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	}
 	for i, o := range req.Overlays {
 		add(fmt.Sprintf("overlays[%d]", i), string(o.Kind), o.Weight)
+		slots[len(slots)-1].overlay = true
+	}
+	addGroups := func(prefix string, groups []*types.Group) {
+		for i, g := range groups {
+			if g != nil {
+				add(fmt.Sprintf("%s[%d]", prefix, i), string(g.Type), g.Weight)
+			}
+		}
+	}
+	addGroups("groups", req.Groups)
+	if ct := req.Crosstab; ct != nil {
+		addGroups("crosstab.rows", ct.Rows)
+		addGroups("crosstab.columns", ct.Columns)
+	}
+	for i, w := range req.Windows {
+		if w != nil {
+			add(fmt.Sprintf("windows[%d]", i), string(w.Type), types.SlotWeight{})
+			slots[len(slots)-1].noSlotWeight = true
+		}
 	}
 	return slots
 }
@@ -276,9 +335,23 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //   - the slot's operator class (internal/weighting) decides what a
 //     resolved weight does: weight-aware ⇒ applied; not weightable ⇒
 //     skipped under the instance default but PROCESSING_CONFIG under
-//     an explicit (slot or request) weight; inferential (AGG_CI_LOWER /
-//     AGG_CI_UPPER) ⇒ PULSE_WEIGHT_UNSUPPORTED under any weight; every
-//     operator the table does not govern ⇒ skipped;
+//     an explicit (slot or request) weight — a WIN_* slot has no slot
+//     weight, so only the request weight is explicit there; inferential
+//     (AGG_CI_LOWER / AGG_CI_UPPER, every built-in TEST_* and REG_*,
+//     ATTR_ZSCORE / TSCORE / PERCENTILE / NORMALIZED, GROUP_QUANTILE on
+//     `groups` or a crosstab axis) ⇒ PULSE_WEIGHT_UNSUPPORTED under any
+//     weight, the instance default included; every operator the table
+//     does not govern ⇒ skipped;
+//   - an overlay is classed by its kind's manifest Inferential flag
+//     (overlayWeightClass; sole exemption
+//     OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z): an Inferential kind is
+//     PULSE_WEIGHT_UNSUPPORTED under a weight resolved on its OWN slot
+//     (slot → request → default, so a request or instance weight that
+//     weights the host weights the overlay too); its `weight: null`
+//     opts out. A host weighted only by its own slot weight (or
+//     AGG_WEIGHTED_MEAN's params.weight_field) does not refuse an
+//     overlay nothing else weights — the shipped pairwise n_source
+//     modes read such a host on purpose;
 //   - a weight-aware slot whose value field is decimal128 (its Field,
 //     or AGG_RATIO's numerator_field / denominator_field) ⇒
 //     PULSE_WEIGHT_UNSUPPORTED under ANY weight, the instance default
@@ -352,6 +425,14 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 		default:
 			rw.Status, rw.Source = descriptor.WeightStatusNone, descriptor.WeightSourceNone
 		}
+		class := weighting.ClassNone
+		switch {
+		case s.hidden:
+		case s.overlay:
+			class = overlayWeightClass(s.operator)
+		default:
+			class = weighting.ClassOf(s.operator)
+		}
 		if spec == nil {
 			// AGG_WEIGHTED_MEAN IS a weighted figure: with nothing
 			// resolving (no weight anywhere, or the slot opted out)
@@ -366,16 +447,15 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 		}
 		rw.Field, rw.Kind = spec.Field, string(spec.EffectiveKind())
 		explicit := rw.Source != descriptor.WeightSourceOptions
-		class := weighting.ClassNone
-		if !s.hidden {
-			class = weighting.ClassOf(s.operator)
-		}
 		switch class {
 		case weighting.ClassRefuse:
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
-				fmt.Sprintf("%s: %s has no weighted form yet; opt the slot out with \"weight\": null to run it unweighted", s.slot, s.operator),
-				map[string]any{"slot": s.slot, "operator": s.operator, "field": spec.Field})
+			return nil, weightUnsupported(s, spec.Field)
 		case weighting.ClassNotWeightable:
+			if explicit && s.noSlotWeight {
+				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					fmt.Sprintf("%s: %s has no weighted form and carries no slot weight; drop the request weight (an instance default is skipped on it)", s.slot, s.operator),
+					map[string]any{"slot": s.slot, "operator": s.operator, "field": spec.Field})
+			}
 			if explicit {
 				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 					fmt.Sprintf("%s: %s is not weight-aware; drop the weight or set \"weight\": null on the slot", s.slot, s.operator),
@@ -405,6 +485,83 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 		out = append(out, rw)
 	}
 	return out, nil
+}
+
+// inheritedHostWeight returns the first overlay-host slot of req (an
+// aggregation or the crosstab cell) that a request-level or instance
+// default weight is APPLIED to, and that weight's field; "" when none.
+// A host weighted only by its own slot weight (or AGG_WEIGHTED_MEAN's
+// params.weight_field) does not count — the same line the per-request
+// overlay rule draws. A request the resolver refuses reports none: its
+// own slot fails first.
+func inheritedHostWeight(req *types.Request, defaultWeight *types.WeightSpec, inst *InstanceSnapshot) (string, string) {
+	rws, err := ResolveWeights(req, nil, defaultWeight, inst)
+	if err != nil {
+		return "", ""
+	}
+	for _, rw := range rws {
+		if rw.Status != descriptor.WeightStatusApplied || rw.Source == descriptor.WeightSourceSlot {
+			continue
+		}
+		if rw.Slot == "crosstab.cell" || strings.HasPrefix(rw.Slot, "aggregations[") {
+			return rw.Slot, rw.Field
+		}
+	}
+	return "", ""
+}
+
+// ComposeOverlayWeightRefusal is the Compose-host half of the
+// inferential-overlay refusal. A ComposeOverlaySpec carries no weight
+// of its own, so an Inferential kind (overlayWeightClass) is refused
+// PULSE_WEIGHT_UNSUPPORTED when a slot it reads — its reference or a
+// target, every slot when Targets is empty — has a request-level or
+// instance default weight applied to an aggregation or crosstab cell.
+// The opt-out is on the host: `weight: null` on the slot's weighted
+// aggregations (the overlay then compares unweighted figures). requests
+// and labels are parallel (labels already defaulted); the runtime
+// (Service.applyComposeOverlays) and ValidateComposeWithOptions both
+// call it with the RAW slots, so they refuse identically. Details:
+// {slot: overlays[i], operator, field, host: requests[j].<slot>}.
+func ComposeOverlayWeightRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, defaultWeight *types.WeightSpec, inst *InstanceSnapshot) error {
+	for i := range overlays {
+		if err := composeOverlayWeightRefusal(i, &overlays[i], requests, labels, defaultWeight, inst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func composeOverlayWeightRefusal(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string, defaultWeight *types.WeightSpec, inst *InstanceSnapshot) error {
+	kind := string(spec.Kind)
+	if inst.Hidden(kind) || overlayWeightClass(kind) != weighting.ClassRefuse {
+		return nil
+	}
+	reads := func(label string) bool {
+		if len(spec.Targets) == 0 || label == spec.Reference {
+			return true
+		}
+		for _, t := range spec.Targets {
+			if t == label {
+				return true
+			}
+		}
+		return false
+	}
+	for j, r := range requests {
+		if r == nil || j >= len(labels) || !reads(labels[j]) {
+			continue
+		}
+		slot, field := inheritedHostWeight(r, defaultWeight, inst)
+		if slot == "" {
+			continue
+		}
+		host := fmt.Sprintf("requests[%d].%s", j, slot)
+		where := fmt.Sprintf("overlays[%d]", i)
+		return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
+			fmt.Sprintf("%s: %s has no weighted form yet (weighted inference is not implemented) and its host %s (slot %q) is weighted by %q; set \"weight\": null on that slot to compare unweighted figures", where, kind, host, labels[j], field),
+			map[string]any{"slot": where, "operator": kind, "field": field, "host": host})
+	}
+	return nil
 }
 
 // resolveRequestWeights is the validators' mirror of one runtime

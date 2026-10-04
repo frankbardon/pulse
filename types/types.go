@@ -871,6 +871,14 @@ type Group struct {
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
+
+	// Weight is the per-slot weight override, carried by a grouper
+	// mainly to opt OUT: GROUP_QUANTILE's cutpoints have no weighted
+	// form yet, so any weight in force refuses it unless the slot sets
+	// `null` (it then cuts unweighted). Absent inherits Request.Weight,
+	// then pulse.Options.DefaultWeight. No other grouper reads a weight.
+	// See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // Attribute defines a derived attribute computation.

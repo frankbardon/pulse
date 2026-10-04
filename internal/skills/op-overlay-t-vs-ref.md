@@ -25,6 +25,7 @@ SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary
 
 ## Gotchas
 
+- No weighted form yet: a request or `Options.DefaultWeight` weight applied to a read slot's aggregation is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on those aggregations.
 - **Byte-equal** to Welch's t-test on the same inputs — shares `studentTTwoSidedP` + the df recurrence with it and the cell t overlay.
 - Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
 - Unlike the streamable SERIES arm of INDEX/DELTA_VS_REF: inferential, buffered by policy.

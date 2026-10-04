@@ -569,7 +569,7 @@ func TestNeededFields_CrosstabMarginAggregationUnknownExtensionWidens(t *testing
 // own weight field are projected (a `null` slot names none, and a name
 // the schema lacks is dropped like any unknown name).
 func TestNeededFields_WeightFields(t *testing.T) {
-	schema := mkSchema("x", "rw", "aw", "cw", "mw", "tw", "pw", "gw", "atw", "ow", "unused")
+	schema := mkSchema("x", "rw", "aw", "cw", "mw", "tw", "pw", "gw", "atw", "ow", "qw", "unused")
 	req := &types.Request{
 		Weight: &types.WeightSpec{Field: "rw"},
 		Aggregations: []*types.Aggregation{
@@ -581,6 +581,7 @@ func TestNeededFields_WeightFields(t *testing.T) {
 		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "x", Weight: types.SlotWeightField("gw")}},
 		Attributes:  []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "x", Weight: types.SlotWeightField("atw")}},
 		Overlays:    []types.OverlaySpec{{Weight: types.SlotWeightOf(types.WeightSpec{Field: "ow", Kind: types.WeightKindFrequency})}},
+		Groups:      []*types.Group{{Type: types.GROUP_QUANTILE, Field: "x", Interval: 4, Weight: types.SlotWeightField("qw")}},
 		Crosstab: &types.CrosstabSpec{
 			Cell:               &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Weight: types.SlotWeightField("cw")},
 			MarginAggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Weight: types.SlotWeightField("mw")}},
@@ -590,7 +591,7 @@ func TestNeededFields_WeightFields(t *testing.T) {
 	if got.IsWide() {
 		t.Fatal("expected narrow set")
 	}
-	want := []string{"atw", "aw", "cw", "gw", "mw", "ow", "pw", "rw", "tw", "x"}
+	want := []string{"atw", "aw", "cw", "gw", "mw", "ow", "pw", "qw", "rw", "tw", "x"}
 	if g := sortedFields(got); !equalStrings(g, want) {
 		t.Errorf("fields = %v, want %v", g, want)
 	}

@@ -501,6 +501,9 @@
         },
         "tz": {
           "type": "string"
+        },
+        "weight": {
+          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -1750,4 +1753,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: e6f95c888f2d249901307a41f9ac9e133c33a8748f6c79f8c2a21841f3c5ba57
+// golden-hash: 29b54f7977c671e5ee46604dcb6bb5ad21346088c2621ae53da883a48f2ff25a

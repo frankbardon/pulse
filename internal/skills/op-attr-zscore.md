@@ -28,6 +28,7 @@ One `float64` per record — `(value − pop_mean) / pop_stddev`. Null source �
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Two-pass: pre-pass computes mean/stddev over filter-passing rows, then pass 2 emits per row. Orchestrator handles transparently — no full buffering unless paired with a buffered op downstream.
 - Zero stddev (constant field) → `0` per row.
 - `decimal128` rejected.

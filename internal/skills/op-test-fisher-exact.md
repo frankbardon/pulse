@@ -25,6 +25,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Strictly 2×2 — other shapes → `PULSE_TEST_CONTINGENCY_DEGENERATE`.
 - The canonical small-sample choice when any expected cell `< 5`.
 - Buffered — needs the full contingency table.

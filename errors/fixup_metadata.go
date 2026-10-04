@@ -2800,12 +2800,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WEIGHT_UNSUPPORTED: {
-		Message: "A row weight is in force on a slot whose operator cannot honour one yet — an inferential test, regression, reference-distribution attribute, quantile grouper, confidence-interval aggregator or inferential overlay, or an aggregation over a decimal128 field. Weighted inference needs design-based variance, which is not implemented, so the request is refused rather than answered unweighted or wrongly weighted. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default. For a decimal128 aggregation the decimal column is under `value_field`: the decimal path has no weighted form, so it is refused even under the instance default rather than answered unweighted inside a weighted table.",
+		Message: "A row weight is in force on a slot whose operator cannot honour one yet — an inferential test (`tests` / `post_tests`), regression, reference-distribution attribute (z-score, t-score, percentile rank or normalised value), quantile grouper (on `groups` or a crosstab axis), confidence-interval aggregator or inferential overlay, or an aggregation over a decimal128 field. Weighted inference needs design-based variance, which is not implemented yet — it is planned as its own roadmap unit (U12) — so the request is refused rather than answered unweighted or wrongly weighted. An instance default weight refuses these slots too: each must opt out explicitly. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default. For a decimal128 aggregation the decimal column is under `value_field`: the decimal path has no weighted form, so it is refused even under the instance default rather than answered unweighted inside a weighted table.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"weight"},
-				Hint:     "Set `weight: null` on the refused slot to run that slot unweighted while the rest of the request stays weighted — null opts out, an absent key inherits.",
+				Hint:     "Set `weight: null` on the refused slot (the test, regression, attribute, grouper, aggregation or overlay named in `slot`) to run that slot unweighted while the rest of the request stays weighted — null opts out, an absent key inherits the request weight and then the instance default. Until weighted inference ships (roadmap unit U12) this is the only way to run the slot under a weight.",
 				Examples: []any{nil},
 			},
 			{
