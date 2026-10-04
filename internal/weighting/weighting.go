@@ -33,14 +33,6 @@ const (
 	// (slot or request) is PROCESSING_CONFIG.
 	ClassNotWeightable
 
-	// ClassPending: the operator HAS a weighted meaning (it is
-	// weight-aware in the final classification table) but its weighted
-	// computation has not landed yet. Until it does it is treated
-	// exactly as ClassNotWeightable — skipped under a default weight,
-	// refused under an explicit one — so a weight is never silently
-	// ignored.
-	ClassPending
-
 	// ClassRefuse: the operator is inferential (U12's territory); any
 	// weight in force on its slot is PULSE_WEIGHT_UNSUPPORTED.
 	ClassRefuse
@@ -63,11 +55,11 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_MODE:          ClassAware,
 	types.AGG_MODE_COUNT:    ClassAware,
 
-	types.AGG_FREQUENCY:           ClassPending,
-	types.AGG_RATIO:               ClassPending,
-	types.AGG_SET_FREQUENCY:       ClassPending,
-	types.AGG_SET_CARDINALITY_SUM: ClassPending,
-	types.AGG_SET_CARDINALITY_AVG: ClassPending,
+	types.AGG_FREQUENCY:           ClassAware,
+	types.AGG_RATIO:               ClassAware,
+	types.AGG_SET_FREQUENCY:       ClassAware,
+	types.AGG_SET_CARDINALITY_SUM: ClassAware,
+	types.AGG_SET_CARDINALITY_AVG: ClassAware,
 
 	types.AGG_MIN:                 ClassNotWeightable,
 	types.AGG_MAX:                 ClassNotWeightable,

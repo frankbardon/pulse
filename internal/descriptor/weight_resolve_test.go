@@ -281,7 +281,8 @@ func TestResolveWeights_Classes(t *testing.T) {
 		return &types.Request{Weight: reqW, Aggregations: []*types.Aggregation{a}}
 	}
 	for _, op := range []types.AggregationType{types.AGG_COUNT, types.AGG_SUM, types.AGG_AVERAGE, types.AGG_VARIANCE, types.AGG_STDDEV, types.AGG_WELFORD,
-		types.AGG_MEDIAN, types.AGG_PERCENTILE, types.AGG_MODE, types.AGG_MODE_COUNT, types.AGG_SKEWNESS, types.AGG_KURTOSIS} {
+		types.AGG_MEDIAN, types.AGG_PERCENTILE, types.AGG_MODE, types.AGG_MODE_COUNT, types.AGG_SKEWNESS, types.AGG_KURTOSIS,
+		types.AGG_FREQUENCY, types.AGG_RATIO, types.AGG_SET_FREQUENCY, types.AGG_SET_CARDINALITY_SUM, types.AGG_SET_CARDINALITY_AVG} {
 		got, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x"}, def), weightSchema(), nil, nil)
 		if err != nil || got[0].Status != descriptor.WeightStatusApplied {
 			t.Fatalf("%s: %+v %v, want applied", op, got, err)
@@ -359,5 +360,65 @@ func TestResolveWeights_WeightedMeanSugar(t *testing.T) {
 		if ce := codeOf(t, err); ce.Code != errors.PROCESSING_CONFIG || ce.Details["slot"] == nil {
 			t.Fatalf("%s: %s %v", name, ce.Code, ce.Details)
 		}
+	}
+}
+
+// TestResolveWeights_DecimalRefused: a weight-aware slot over a
+// decimal128 value field (its Field, or AGG_RATIO's numerator /
+// denominator) is PULSE_WEIGHT_UNSUPPORTED under ANY weight in force —
+// slot, request and the instance default alike — because the decimal
+// path has no weighted form; `weight: null` opts the slot out, and a
+// not-weightable operator under the default is skipped as on any type.
+func TestResolveWeights_DecimalRefused(t *testing.T) {
+	def := &types.WeightSpec{Field: "w"}
+	ratio := func(num, den string) *types.Aggregation {
+		return &types.Aggregation{Type: types.AGG_RATIO, Field: "x",
+			Params: []byte(`{"numerator_field":"` + num + `","denominator_field":"` + den + `"}`)}
+	}
+	refused := []struct {
+		name       string
+		req        *types.Request
+		def        *types.WeightSpec
+		operator   string
+		valueField string
+	}{
+		{"sum default", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "dec"}}}, def, "AGG_SUM", "dec"},
+		{"count request", &types.Request{Weight: def, Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "dec"}}}, nil, "AGG_COUNT", "dec"},
+		{"average slot", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "dec", Weight: types.SlotWeightField("w")}}}, nil, "AGG_AVERAGE", "dec"},
+		{"ratio numerator", &types.Request{Weight: def, Aggregations: []*types.Aggregation{ratio("dec", "x")}}, nil, "AGG_RATIO", "dec"},
+		{"ratio denominator", &types.Request{Aggregations: []*types.Aggregation{ratio("x", "dec")}}, def, "AGG_RATIO", "dec"},
+		{"crosstab cell", &types.Request{Crosstab: &types.CrosstabSpec{Cell: &types.Aggregation{Type: types.AGG_SUM, Field: "dec"}}}, def, "AGG_SUM", "dec"},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ResolveWeights(tc.req, weightSchema(), tc.def, nil)
+			ce := codeOf(t, err)
+			if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || ce.Details["operator"] != tc.operator ||
+				ce.Details["value_field"] != tc.valueField || ce.Details["type"] != "decimal128" || ce.Details["field"] != "w" {
+				t.Fatalf("got %s %v", ce.Code, ce.Details)
+			}
+		})
+	}
+	accepted := map[string]*types.Request{
+		// Opted out: the decimal path runs unweighted, by request.
+		"null opt-out": {Weight: def, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "dec", Weight: types.NullSlotWeight()}}},
+		// AGG_RATIO ignores its Field: a decimal there is not weighted.
+		"ratio ignored field": {Weight: def, Aggregations: []*types.Aggregation{{Type: types.AGG_RATIO, Field: "dec",
+			Params: []byte(`{"numerator_field":"x","denominator_field":"x"}`)}}},
+		// No weight anywhere: the unweighted decimal path is untouched.
+		"unweighted": {Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "dec"}}},
+	}
+	for name, req := range accepted {
+		if _, err := ResolveWeights(req, weightSchema(), nil, nil); err != nil {
+			t.Fatalf("%s refused: %v", name, err)
+		}
+	}
+	got, err := ResolveWeights(&types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MIN, Field: "dec"}}}, weightSchema(), def, nil)
+	if err != nil || got[0].Status != descriptor.WeightStatusSkippedNotWeightAware {
+		t.Fatalf("not-weightable decimal slot under the default: %+v %v", got, err)
+	}
+	// A nil schema (schema-less validation) judges no field type.
+	if _, err := ResolveWeights(refused[0].req, nil, def, nil); err != nil {
+		t.Fatalf("nil schema refused: %v", err)
 	}
 }

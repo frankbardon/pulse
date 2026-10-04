@@ -43,6 +43,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Smart default for numeric fields when `Type` omitted.
 - Set-typed fields (`set_*`) NOT supported.
 - Overflow on huge u64 sums silently promotes through float64.
+- `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See
 

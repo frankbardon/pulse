@@ -74,9 +74,8 @@ func (o parityOp) baselineOp() types.AggregationType {
 	return o.op
 }
 
-// parityOps: one row per weight-aware aggregator. E2 stories append
-// rows as they flip operators from ClassPending to ClassAware (E2-S1:
-// the shape operators).
+// parityOps: one row per weight-aware aggregator (E1-S3 core, E2-S1
+// shape, E2-S2 counting operators).
 var parityOps = []parityOp{
 	{op: types.AGG_COUNT, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
 	{op: types.AGG_SUM, fields: []string{"x", "y"}, expandExact: []string{"x"}},
@@ -95,6 +94,15 @@ var parityOps = []parityOp{
 	{op: types.AGG_MODE_COUNT, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
 	{op: types.AGG_SKEWNESS, fields: []string{"x", "y"}},
 	{op: types.AGG_KURTOSIS, fields: []string{"x", "y"}},
+	// E2-S2 counting operators: every figure is a sum of integer weights
+	// times integer data (or one division of two such sums), so all are
+	// exact on expansion except AGG_RATIO, whose denominator y is
+	// fractional. AGG_RATIO ignores its Field (x carries the floor).
+	{op: types.AGG_FREQUENCY, fields: []string{"x", "y"}, params: json.RawMessage(`{"value":"3"}`), expandExact: []string{"x", "y"}},
+	{op: types.AGG_RATIO, fields: []string{"x"}, params: json.RawMessage(`{"numerator_field":"x","denominator_field":"y"}`)},
+	{op: types.AGG_SET_FREQUENCY, fields: []string{"s"}, expandExact: []string{"s"}},
+	{op: types.AGG_SET_CARDINALITY_SUM, fields: []string{"s"}, expandExact: []string{"s"}},
+	{op: types.AGG_SET_CARDINALITY_AVG, fields: []string{"s"}, expandExact: []string{"s"}},
 }
 
 // --- fixture ------------------------------------------------------------
@@ -106,16 +114,31 @@ func paritySchema() *encoding.Schema {
 		{Name: "y", Type: encoding.FieldTypeF64, ByteOffset: 12, CsvColumnIdx: 2, Nullable: true},
 		{Name: "g", Type: encoding.FieldTypeU8, ByteOffset: 20, CsvColumnIdx: 3},
 		{Name: "w", Type: encoding.FieldTypeF64, ByteOffset: 21, CsvColumnIdx: 4},
+		{Name: "s", Type: encoding.FieldTypeSetU8, ByteOffset: 29, CsvColumnIdx: 5, Nullable: true, Dictionary: parityDict()},
 	}}
 }
 
+// parityDict is the set column's five-member dictionary.
+func parityDict() *encoding.Dictionary {
+	d := encoding.NewDictionary()
+	for _, m := range []string{"a", "b", "c", "d", "e"} {
+		if _, err := d.Add(m); err != nil {
+			panic(err)
+		}
+	}
+	return d
+}
+
 // parityRow is one fixture record. x is integer-valued (exact sums), y
-// fractional (operation-order sensitive); both carry nulls.
+// fractional (operation-order sensitive); both carry nulls. s is a set
+// mask over five members (empty on some rows, null on others).
 type parityRow struct {
 	id           uint32
 	x, y, w      float64
 	xNull, yNull bool
 	g            uint8
+	s            uint64
+	sNull        bool
 }
 
 func parityRows(n int, weight func(i int) float64) []parityRow {
@@ -129,6 +152,8 @@ func parityRows(n int, weight func(i int) float64) []parityRow {
 			yNull: i%7 == 3,
 			g:     uint8(i % 3),
 			w:     weight(i),
+			s:     uint64((i * 11) % 32),
+			sNull: i%13 == 6,
 		}
 	}
 	return rows
@@ -157,10 +182,10 @@ func encodeParityRows(t testing.TB, rows []parityRow) []byte {
 	t.Helper()
 	recs := make([][]uint64, len(rows))
 	for i, r := range rows {
-		recs[i] = []uint64{uint64(r.id), math.Float64bits(r.x), math.Float64bits(r.y), uint64(r.g), math.Float64bits(r.w)}
+		recs[i] = []uint64{uint64(r.id), math.Float64bits(r.x), math.Float64bits(r.y), uint64(r.g), math.Float64bits(r.w), r.s}
 	}
 	return writeNullablePulse(t, paritySchema(), recs, func(r, f int) bool {
-		return (f == 1 && rows[r].xNull) || (f == 2 && rows[r].yNull)
+		return (f == 1 && rows[r].xNull) || (f == 2 && rows[r].yNull) || (f == 5 && rows[r].sNull)
 	})
 }
 

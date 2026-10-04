@@ -65,6 +65,46 @@ type weightSlot struct {
 	// sugar is AGG_WEIGHTED_MEAN's params.weight_field: a slot-level
 	// weight of kind probability.
 	sugar string
+	// valueFields are the columns an aggregation slot weights (its
+	// Field, or AGG_RATIO's numerator / denominator); nil on every
+	// other slot family.
+	valueFields []string
+}
+
+// aggValueFields lists the columns a weighted aggregation multiplies by
+// the weight: AGG_RATIO ignores its Field and weights its two params;
+// every other aggregator weights its Field.
+func aggValueFields(a *types.Aggregation) []string {
+	if a.Type != types.AGG_RATIO {
+		return []string{a.Field}
+	}
+	var p struct {
+		Num string `json:"numerator_field"`
+		Den string `json:"denominator_field"`
+	}
+	if len(a.Params) > 0 && json.Unmarshal(a.Params, &p) != nil {
+		return nil
+	}
+	return []string{p.Num, p.Den}
+}
+
+// decimalWeightRefusal refuses an applied weight on a slot whose value
+// field is decimal128: the decimal aggregation path has no weighted
+// form. A nil schema judges nothing.
+func decimalWeightRefusal(schema *encoding.Schema, s weightSlot, spec *types.WeightSpec) error {
+	if schema == nil {
+		return nil
+	}
+	for _, name := range s.valueFields {
+		f := schema.Field(name)
+		if f == nil || !f.Type.IsDecimal() {
+			continue
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
+			fmt.Sprintf("%s: %s over decimal128 field %q has no weighted form; opt the slot out with \"weight\": null to run it unweighted", s.slot, s.operator, name),
+			map[string]any{"slot": s.slot, "operator": s.operator, "field": spec.Field, "value_field": name, "type": f.Type.String()})
+	}
+	return nil
 }
 
 // ValidateWeightSpec is the shape rule every weight passes before any
@@ -119,6 +159,7 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	addAgg := func(slot string, a *types.Aggregation) {
 		add(slot, string(a.Type), a.Weight)
 		slots[len(slots)-1].sugar = WeightedMeanParamField(a)
+		slots[len(slots)-1].valueFields = aggValueFields(a)
 	}
 	for i, a := range req.Aggregations {
 		if a != nil {
@@ -233,12 +274,16 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //     AGG_WEIGHTED_MEAN slot nothing resolves a weight for is
 //     PROCESSING_CONFIG;
 //   - the slot's operator class (internal/weighting) decides what a
-//     resolved weight does: weight-aware ⇒ applied; not weightable (or
-//     weighted form still pending) ⇒ skipped under the instance default
-//     but PROCESSING_CONFIG under an explicit (slot or request) weight;
-//     inferential (AGG_CI_LOWER / AGG_CI_UPPER) ⇒
-//     PULSE_WEIGHT_UNSUPPORTED under any weight; every operator the
-//     table does not govern ⇒ skipped;
+//     resolved weight does: weight-aware ⇒ applied; not weightable ⇒
+//     skipped under the instance default but PROCESSING_CONFIG under
+//     an explicit (slot or request) weight; inferential (AGG_CI_LOWER /
+//     AGG_CI_UPPER) ⇒ PULSE_WEIGHT_UNSUPPORTED under any weight; every
+//     operator the table does not govern ⇒ skipped;
+//   - a weight-aware slot whose value field is decimal128 (its Field,
+//     or AGG_RATIO's numerator_field / denominator_field) ⇒
+//     PULSE_WEIGHT_UNSUPPORTED under ANY weight, the instance default
+//     included: the decimal path has no weighted form, and skipping it
+//     would mix an unweighted figure into a weighted table;
 //   - an inherited Options.DefaultWeight is judged only where it
 //     APPLIES (the slot's operator is weight-aware): there its field
 //     must exist in the schema (the field-reference refusal,
@@ -330,7 +375,7 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
 				fmt.Sprintf("%s: %s has no weighted form yet; opt the slot out with \"weight\": null to run it unweighted", s.slot, s.operator),
 				map[string]any{"slot": s.slot, "operator": s.operator, "field": spec.Field})
-		case weighting.ClassNotWeightable, weighting.ClassPending:
+		case weighting.ClassNotWeightable:
 			if explicit {
 				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 					fmt.Sprintf("%s: %s is not weight-aware; drop the weight or set \"weight\": null on the slot", s.slot, s.operator),
@@ -352,6 +397,9 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			if err := weightFieldTypeRefusal(schema, s.slot+".weight", spec.Field); err != nil {
 				return nil, err
 			}
+		}
+		if err := decimalWeightRefusal(schema, s, spec); err != nil {
+			return nil, err
 		}
 		rw.Status = descriptor.WeightStatusApplied
 		out = append(out, rw)

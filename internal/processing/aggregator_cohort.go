@@ -83,6 +83,12 @@ type ratioParams struct {
 // honest. Denominator-zero at finalize emits NaN (consistent with
 // IEEE-754 0/0); callers can detect via math.IsNaN.
 //
+// Weighted (a slot weight applied, weighting-descriptive E2-S2): each
+// contributing row adds w·num and w·den, so the figure is
+// Σw·num / Σw·den; a row whose weight is invalid or zero contributes to
+// neither sum. At w = 1, w·x is x and the sums are the unweighted sums
+// bit for bit. The components keep their keys (now the weighted sums).
+//
 // frozen{Num, Den, Ratio, HasResult} mirror the post-Aggregate /
 // post-Finalize state so Components() works on both buffered and
 // streaming code paths — the streaming Finalize step zeros out
@@ -92,6 +98,8 @@ type ratioParams struct {
 type ratioAggregator struct {
 	numField, denField string
 	num, den           float64
+	// weight is the applied slot weight; nil on an unweighted slot.
+	weight *types.WeightSpec
 
 	frozenNum       float64
 	frozenDen       float64
@@ -110,18 +118,41 @@ func newRatioAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator,
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"AGG_RATIO requires Params.numerator_field and Params.denominator_field")
 	}
-	return &ratioAggregator{numField: params.NumeratorField, denField: params.DenominatorField}, nil
+	a := &ratioAggregator{numField: params.NumeratorField, denField: params.DenominatorField}
+	if w := slotWeight(agg); w != nil {
+		ew := effectiveWeight(w)
+		a.weight = &ew
+	}
+	return a, nil
+}
+
+// pair returns the row's (numerator, denominator) contribution: both
+// fields present (a null on either skips the row), times the row's
+// weight on a weighted slot (an invalid or zero weight skips it).
+func (a *ratioAggregator) pair(r *Record) (n, d float64, ok bool) {
+	n, okN := r.NumericValue(a.numField)
+	if !okN {
+		return 0, 0, false
+	}
+	d, okD := r.NumericValue(a.denField)
+	if !okD {
+		return 0, 0, false
+	}
+	if a.weight != nil {
+		w, ok := validRowWeight(r, a.weight)
+		if !ok {
+			return 0, 0, false
+		}
+		return w * n, w * d, true
+	}
+	return n, d, true
 }
 
 func (a *ratioAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	a.num, a.den = 0, 0
 	for _, r := range records {
-		n, okN := r.NumericValue(a.numField)
-		if !okN {
-			continue
-		}
-		d, okD := r.NumericValue(a.denField)
-		if !okD {
+		n, d, ok := a.pair(r)
+		if !ok {
 			continue
 		}
 		a.num += n
@@ -133,12 +164,8 @@ func (a *ratioAggregator) Aggregate(records []*Record, field string) (float64, e
 }
 
 func (a *ratioAggregator) UpdateRow(r *Record, field string) error {
-	n, okN := r.NumericValue(a.numField)
-	if !okN {
-		return nil
-	}
-	d, okD := r.NumericValue(a.denField)
-	if !okD {
+	n, d, ok := a.pair(r)
+	if !ok {
 		return nil
 	}
 	a.num += n

@@ -13,6 +13,8 @@ examples_tags: [proportion-analysis, streaming-friendly]
 
 `numerator_field`, `denominator_field` — required field names, any type, read through the numeric channel (a categorical contributes its dictionary code). An unknown name is `SERVICE_VALIDATION`, predict and runtime alike.
 
+Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. A `decimal128` num/den under a weight → `PULSE_WEIGHT_UNSUPPORTED`.
+
 ## Inputs
 
 `Field` is IGNORED (manifest `ignores_field`) but still required on the wire; `accepts_types` refuses no type there.
@@ -23,7 +25,7 @@ Scalar `float64` — `sum(num) / sum(den)`. NaN when the denominator sum is 0 (n
 
 ## Components
 
-Floor `{n, n_null}` plus:
+Floor `{n, n_null}` (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`) plus:
 
 | Key | Type | Notes |
 |---|---|---|

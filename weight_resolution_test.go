@@ -199,3 +199,56 @@ func TestWeight_ValidatorsMatchRuntime(t *testing.T) {
 		sameEntry(t, descx.ValidateChainWithOptions(bytes.NewReader(data), mk(), opts), rerr)
 	})
 }
+
+// TestWeight_DecimalPredictMatchesRuntime: a weight-aware slot over a
+// decimal128 field is PULSE_WEIGHT_UNSUPPORTED at runtime and predict
+// alike, under a request weight and under the instance default (the
+// decimal path has no weighted form; computing it unweighted would mix
+// an unweighted figure into a weighted table). `weight: null` opts the
+// slot out on both sides.
+func TestWeight_DecimalPredictMatchesRuntime(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	decSum := func(w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
+		return &types.Request{
+			Cohort:       &types.Cohort{Filename: cohort},
+			Weight:       reqW,
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "t_decimal128", Label: "total", Weight: w}},
+		}
+	}
+	plain := weightPulse(t, fs, nil)
+	withDefault := weightPulse(t, fs, &types.WeightSpec{Field: "x"})
+	refused := map[string]struct {
+		p   *pulse.Pulse
+		req func() *types.Request
+	}{
+		"request": {plain, func() *types.Request { return decSum(types.SlotWeight{}, &types.WeightSpec{Field: "x"}) }},
+		"slot":    {plain, func() *types.Request { return decSum(types.SlotWeightField("x"), nil) }},
+		"default": {withDefault, func() *types.Request { return decSum(types.SlotWeight{}, nil) }},
+	}
+	for name, tc := range refused {
+		t.Run(name, func(t *testing.T) {
+			_, rerr := tc.p.Process(ctx, tc.req())
+			ce := requireCode(t, rerr, errors.PULSE_WEIGHT_UNSUPPORTED)
+			if ce.Details["value_field"] != "t_decimal128" {
+				t.Fatalf("details = %v", ce.Details)
+			}
+			sameEntry(t, predictEnvelope(t, tc.p, fs, cohort, tc.req()), rerr)
+		})
+	}
+	optOut := func() *types.Request { return decSum(types.NullSlotWeight(), &types.WeightSpec{Field: "x"}) }
+	for name, p := range map[string]*pulse.Pulse{"request": plain, "default": withDefault} {
+		t.Run("null/"+name, func(t *testing.T) {
+			resp, err := p.Process(ctx, optOut())
+			if err != nil {
+				t.Fatalf("runtime refused the opted-out slot: %v", err)
+			}
+			if c := resp.Components; c == nil || len(c.Aggregations) != 1 || c.Aggregations[0].SumWeights != nil {
+				t.Fatalf("opted-out slot carries weighted floor: %+v", c)
+			}
+			if env := predictEnvelope(t, p, fs, cohort, optOut()); len(env.Errors) != 0 {
+				t.Fatalf("predict refused what runtime accepts: %+v", env.Errors)
+			}
+		})
+	}
+}

@@ -44,6 +44,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Population stddev (`n` denominator), not sample (`n-1`).
 - `decimal128` is supported, but not by Welford: a decimal two-pass (mean, then Σ(x−μ)², then decimal `Sqrt`). An overflowing intermediate drops the WHOLE aggregate to an f64 pass and warns `PULSE_DECIMAL_PRECISION_LOSS`. The decimal claim therefore rests partly on an f64 fallback.
 - Single-row group → 0.
+- `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See
 

@@ -11,7 +11,7 @@ examples_tags: [cardinality-analysis, streaming-friendly]
 
 ## Params
 
-None.
+None. Weight-aware (`"weight": null` opts out): Σw·popcount (a float).
 
 ## Inputs
 
@@ -21,9 +21,11 @@ None.
 
 ## Output
 
-Scalar `int64` — total selections seen across rows.
+Scalar `int64` — total selections seen across rows (weighted: `float64`).
 
 ## Components
+
+Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
 
 Universal floor `{n, n_null}` plus operator-specific:
 

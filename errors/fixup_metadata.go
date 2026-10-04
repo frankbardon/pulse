@@ -2800,7 +2800,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WEIGHT_UNSUPPORTED: {
-		Message: "A row weight is in force on a slot whose operator cannot honour one yet — an inferential test, regression, reference-distribution attribute, quantile grouper, confidence-interval aggregator or inferential overlay, or an aggregation over a decimal128 field. Weighted inference needs design-based variance, which is not implemented, so the request is refused rather than answered unweighted or wrongly weighted. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default.",
+		Message: "A row weight is in force on a slot whose operator cannot honour one yet — an inferential test, regression, reference-distribution attribute, quantile grouper, confidence-interval aggregator or inferential overlay, or an aggregation over a decimal128 field. Weighted inference needs design-based variance, which is not implemented, so the request is refused rather than answered unweighted or wrongly weighted. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default. For a decimal128 aggregation the decimal column is under `value_field`: the decimal path has no weighted form, so it is refused even under the instance default rather than answered unweighted inside a weighted table.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
