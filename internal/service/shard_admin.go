@@ -608,12 +608,12 @@ func writeArchiveEntry(zw *zip.Writer, name string, payload []byte) error {
 // level zip primitives. v1 reads the entire archive into memory and
 // rewrites — semantically equivalent and crash-safe.
 func atomicWrite(fsys afero.Fs, dst string, data []byte) error {
-	dir := filepath.Dir(dst)
-	if dir == "" || dir == "." {
-		dir = ""
-	}
-	// MemMapFs ignores the dir argument; OsFs honours it. Both accept "".
-	tmp, err := afero.TempFile(fsys, dir, filepath.Base(dst)+shardAdminTempPattern)
+	// The temp file is staged BESIDE dst — never in "": afero.TempFile
+	// maps an empty dir to os.TempDir(), which under Options{DataDir}
+	// (a BasePathFs) resolves outside the base path and fails for an
+	// archive at the data-dir root. filepath.Dir yields "." there, which
+	// every afero backend resolves against its own root.
+	tmp, err := afero.TempFile(fsys, filepath.Dir(dst), filepath.Base(dst)+shardAdminTempPattern)
 	if err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("creating temp file for atomic rename of %s", dst))
