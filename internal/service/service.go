@@ -487,9 +487,11 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 	anchorPath := archivePath + "#" + entry
 	overlay := newAnchorOverlay(s.fs.Fs(), anchorPath, payload)
 	return &Cohort{
-		path:   anchorPath,
-		schema: schema,
-		fs:     overlay,
+		path:          anchorPath,
+		schema:        schema,
+		fs:            overlay,
+		anchorArchive: archivePath,
+		anchorEntry:   entry,
 	}, nil
 }
 

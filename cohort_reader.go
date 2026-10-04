@@ -36,7 +36,20 @@ type CohortReader struct {
 // Reader opens an index-addressed record reader over the cohort. It
 // supports single-file cohorts, ungrouped (format 0x01) and grouped
 // (0x02) alike — a grouped cohort reads identically to its ungrouped
-// twin. A whole shard archive is refused with SERVICE_VALIDATION. The
+// twin — whole shard archives and anchored shards
+// (`archive.pulse#shard.pulse`).
+//
+// Over an archive, index i is global: shards are concatenated in
+// archive order (Cohort.Shards), Len is the sum of their record
+// counts, and every record decodes against the archive's canonical
+// schema. An anchored shard addresses that one shard, also against the
+// canonical schema, so its rows equal the whole-archive reader's rows
+// for that shard; Reader().Schema() can therefore carry longer
+// dictionaries than the anchored Cohort.Schema() (a stored shard's own
+// header dictionaries are a prefix of the canonical ones). A shard
+// whose header is not decode-compatible with the canonical schema is
+// refused with the code `shard verify` reports
+// (PULSE_SHARD_SCHEMA_MISMATCH / PULSE_SHARD_DICT_DIVERGENCE). The
 // caller must Close the returned reader.
 func (c *Cohort) Reader() (*CohortReader, error) {
 	inner, err := c.inner.OpenRecordReader()
@@ -50,7 +63,9 @@ func (c *Cohort) Reader() (*CohortReader, error) {
 // i holds Schema().Fields[i].
 func (r *CohortReader) Schema() *encoding.Schema { return r.inner.Schema() }
 
-// Len returns the number of records the reader addresses.
+// Len returns the number of records the reader addresses — for a shard
+// archive, the sum over its shards (unlike Cohort.RecordCount, which
+// counts single-file cohorts only).
 func (r *CohortReader) Len() int64 { return r.inner.Len() }
 
 // RecordAt returns record i (0-based) as exact typed values. An index

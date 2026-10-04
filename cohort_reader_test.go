@@ -419,7 +419,7 @@ func compareReaders(t *testing.T, flat, grouped *CohortReader) {
 }
 
 // TestCohortReader_Errors: an out-of-range index and a read after Close
-// are coded errors, never panics; a whole shard archive is refused.
+// are coded errors, never panics.
 func TestCohortReader_Errors(t *testing.T) {
 	p, _, _, _, _ := readerFixtureEngine(t)
 	c, err := p.Open(context.Background(), "all.pulse")
@@ -519,5 +519,97 @@ func TestCohortRow_DistinctFromRecord(t *testing.T) {
 	if reflect.TypeOf(CohortRow{}).PkgPath() != "github.com/frankbardon/pulse" ||
 		reflect.TypeOf(CohortReader{}).PkgPath() != "github.com/frankbardon/pulse" {
 		t.Fatal("CohortRow / CohortReader must be declared in the root package")
+	}
+}
+
+// TestCohortReader_ArchiveAllTypes: a two-shard archive of the all-types
+// fixture reads through the facade with a global index — Len is the sum
+// over shards, record n+i is shard two's record i, every value exact —
+// an anchor reads its one shard, and RecordAt fans across the shard
+// boundary concurrently on an in-memory FS and an on-disk DataDir (run
+// under -race).
+func TestCohortReader_ArchiveAllTypes(t *testing.T) {
+	cols := readerColumns(t)
+	data, _ := writeReaderFixture(t, cols)
+	n := len(cols[0].want)
+
+	// Build the archive in memory, then mirror it onto disk.
+	mem := afero.NewMemMapFs()
+	for _, name := range []string{"a.pulse", "b.pulse"} {
+		if err := afero.WriteFile(mem, name, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pm, err := New(Options{FS: mem})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pm.CreateShardArchive(context.Background(), "arch.pulse", []string{"a.pulse", "b.pulse"}); err != nil {
+		t.Fatalf("CreateShardArchive: %v", err)
+	}
+	archive, err := afero.ReadFile(mem, "arch.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := afero.WriteFile(afero.NewOsFs(), filepath.Join(dir, "arch.pulse"), archive, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, opts := range map[string]Options{"memmap": {FS: mem}, "datadir": {DataDir: dir}} {
+		t.Run(name, func(t *testing.T) {
+			p, err := New(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := openReader(t, p, "arch.pulse")
+			if r.Len() != int64(2*n) {
+				t.Fatalf("archive Len = %d, want %d", r.Len(), 2*n)
+			}
+			for i := int64(0); i < r.Len(); i++ {
+				got, err := r.RecordAt(i)
+				if err != nil {
+					t.Fatalf("RecordAt(%d): %v", i, err)
+				}
+				assertRowEqual(t, fmt.Sprintf("archive row %d", i), r.Schema(), got, wantRow(cols, int(i)%n))
+			}
+			anchor := openReader(t, p, "arch.pulse#b.pulse")
+			if anchor.Len() != int64(n) {
+				t.Fatalf("anchor Len = %d, want %d", anchor.Len(), n)
+			}
+			for i := int64(0); i < anchor.Len(); i++ {
+				got, err := anchor.RecordAt(i)
+				if err != nil {
+					t.Fatalf("anchor RecordAt(%d): %v", i, err)
+				}
+				assertRowEqual(t, fmt.Sprintf("anchor row %d", i), anchor.Schema(), got, wantRow(cols, int(i)))
+			}
+
+			var wg sync.WaitGroup
+			errs := make(chan error, 16)
+			for g := 0; g < 16; g++ {
+				wg.Add(1)
+				go func(g int) {
+					defer wg.Done()
+					for k := 0; k < 60; k++ {
+						i := int64((g + k) % (2 * n))
+						row, err := r.RecordAt(i)
+						if err != nil {
+							errs <- err
+							return
+						}
+						w := cols[4].want[int(i)%n]
+						if u, _ := row[4].(uint64); w != nil && u != w {
+							errs <- fmt.Errorf("record %d u64 = %#v, want %v", i, row[4], w)
+							return
+						}
+					}
+				}(g)
+			}
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				t.Fatal(err)
+			}
+		})
 	}
 }

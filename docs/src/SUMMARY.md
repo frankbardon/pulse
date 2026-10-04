@@ -40,6 +40,7 @@
 - [Request Hashing](library/request-hashing.md)
 - [Watch & WatchDir](library/watch.md)
 - [Deterministic FilterToFile](library/filter-to-file.md)
+- [Reading & Building Cohorts](library/cohort-reader.md)
 - [Point Lookup & Index Management](library/point-lookup.md)
 - [Request Templating](library/request-templating.md)
 - [Feature Profiles](library/feature-profiles.md)

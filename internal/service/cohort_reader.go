@@ -4,6 +4,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -12,11 +13,19 @@ import (
 	"github.com/spf13/afero"
 )
 
-// CohortRecordReader reads records of an opened single-file cohort by
-// index, returning each as a freshly allocated []any in schema LOGICAL
-// field order holding the EXACT stored value (see exactValue for the
-// per-type Go mapping). A grouped (0x02) cohort decodes identically to
-// its ungrouped twin.
+// CohortRecordReader reads records of an opened cohort by index,
+// returning each as a freshly allocated []any in schema LOGICAL field
+// order holding the EXACT stored value (see exactValue for the per-type
+// Go mapping). A grouped (0x02) cohort decodes identically to its
+// ungrouped twin.
+//
+// A single-file cohort is one segment. A shard archive is one segment
+// per shard in archive (central-directory) order, addressed through a
+// global index: prefix sums over the shard record counts locate record
+// i's shard by binary search, and the shard's records decode against
+// the archive's CANONICAL schema, exactly as the shard iterator does.
+// An anchored shard (`archive.pulse#shard.pulse`) is a one-segment
+// archive read and also decodes against the canonical schema.
 //
 // RecordAt is safe for concurrent use: every call drives its own
 // io.SectionReader (private cursor) over one shared io.ReaderAt, so no
@@ -24,81 +33,207 @@ import (
 // every later RecordAt fail with SERVICE_RESOURCE.
 type CohortRecordReader struct {
 	schema *encoding.Schema
-	loc    *encoding.RecordLocator
-	size   int64
+	segs   []recordSegment
+	// starts[k] is the global index of segment k's first record;
+	// starts[len(segs)] is the total.
+	starts []int64
 
 	mu     sync.RWMutex
 	closed bool
 	file   afero.File
-	ra     io.ReaderAt
+}
+
+// recordSegment is one independently addressable record region: the
+// whole file of a single-file cohort, or one stored shard entry.
+type recordSegment struct {
+	loc  *encoding.RecordLocator
+	ra   io.ReaderAt // offsets relative to the segment start
+	size int64
 }
 
 // OpenRecordReader opens an index-addressed record reader over the
-// cohort. Single-file cohorts (ungrouped 0x01 and grouped 0x02) are
-// supported; a shard archive opened whole is refused with
-// SERVICE_VALIDATION.
+// cohort: a single-file cohort (ungrouped 0x01 and grouped 0x02), a
+// whole shard archive, or one anchored shard.
 func (c *Cohort) OpenRecordReader() (*CohortRecordReader, error) {
-	if len(c.shards) > 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"record-by-record reads of a whole shard archive are not supported; open one shard with the archive#shard anchor",
-			map[string]any{"path": c.path, "shards": len(c.shards)})
+	switch {
+	case len(c.shards) > 0:
+		return openArchiveRecordReader(c.fs, c.path, c.schema, c.shards, "")
+	case c.anchorArchive != "":
+		return openArchiveRecordReader(c.fs, c.anchorArchive, nil, nil, c.anchorEntry)
 	}
-	f, err := c.fs.Open(c.path)
+	f, size, ra, err := openReaderFile(c.fs, c.path)
 	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"opening cohort file for record reads: "+c.path)
+		return nil, err
+	}
+	// The already-parsed c.schema supplies the geometry (the physical
+	// stride for a grouped cohort).
+	seg, _, err := measureSegment(ra, size, c.schema)
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return &CohortRecordReader{
+		schema: c.schema,
+		segs:   []recordSegment{seg},
+		starts: []int64{0, int64(seg.loc.TotalRecords)},
+		file:   f,
+	}, nil
+}
+
+// openReaderFile opens path for positional reads held until Close.
+func openReaderFile(fsys afero.Fs, path string) (afero.File, int64, io.ReaderAt, error) {
+	f, err := fsys.Open(path)
+	if err != nil {
+		return nil, 0, nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			"opening cohort file for record reads: "+path)
 	}
 	st, err := f.Stat()
 	if err != nil {
 		_ = f.Close()
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"sizing cohort file for record reads: "+c.path)
+		return nil, 0, nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			"sizing cohort file for record reads: "+path)
 	}
-	size := st.Size()
-	ra := concurrentReaderAt(f)
+	return f, st.Size(), concurrentReaderAt(f), nil
+}
 
-	// Measure the header + schema prefix: the record region begins
-	// where ReadSchema stops. The already-parsed c.schema supplies the
-	// geometry (the physical stride for a grouped cohort).
+// measureSegment parses the header + schema prefix of the single-file
+// payload in ra (the record region begins where ReadSchema stops) and
+// returns a segment whose locator decodes against geometry. The
+// payload's own header schema is returned for cohesion checks.
+func measureSegment(ra io.ReaderAt, size int64, geometry *encoding.Schema) (recordSegment, *encoding.Schema, error) {
 	sr := io.NewSectionReader(ra, 0, size)
 	version, err := encoding.ReadHeader(sr)
 	if err != nil {
-		_ = f.Close()
-		return nil, err
+		return recordSegment{}, nil, err
 	}
-	if _, err := encoding.ReadSchema(sr, version); err != nil {
-		_ = f.Close()
-		return nil, err
+	own, err := encoding.ReadSchema(sr, version)
+	if err != nil {
+		return recordSegment{}, nil, err
 	}
 	start, err := sr.Seek(0, io.SeekCurrent)
 	if err != nil {
-		_ = f.Close()
-		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+		return recordSegment{}, nil, errors.WrapCodedError(err, errors.ENCODING_IO,
 			"locating the record region")
 	}
 	loc := &encoding.RecordLocator{
-		Schema:            c.schema,
+		Schema:            geometry,
 		RecordRegionStart: start,
-		Stride:            int64(c.schema.RecordByteSize()),
+		Stride:            int64(geometry.RecordByteSize()),
 	}
-	if n, _, ok := c.schema.RecordCountForPayload(size - start); ok {
+	if n, _, ok := geometry.RecordCountForPayload(size - start); ok {
 		loc.TotalRecords = uint64(n)
 	}
-	return &CohortRecordReader{
-		schema: c.schema,
-		loc:    loc,
-		size:   size,
+	return recordSegment{loc: loc, ra: ra, size: size}, own, nil
+}
+
+// openArchiveRecordReader opens a shard archive for index-addressed
+// reads. canonical / shards come from the opened cohort when it is the
+// whole archive; for an anchored shard (only != "") both are read here
+// and the reader addresses that one shard. Every shard's own header
+// schema must be decode-compatible with the canonical schema — the
+// structural cohesion rule plus the dictionary prefix rule `shard
+// verify` applies — so decoding with canonical yields the shard's own
+// values; a shard that breaks either is refused with the verify code.
+func openArchiveRecordReader(fsys afero.Fs, path string, canonical *encoding.Schema, shards []ShardEntry, only string) (*CohortRecordReader, error) {
+	f, size, ra, err := openReaderFile(fsys, path)
+	if err != nil {
+		return nil, err
+	}
+	fail := func(err error) (*CohortRecordReader, error) {
+		_ = f.Close()
+		return nil, err
+	}
+	arch, err := encx.OpenArchive(ra, size)
+	if err != nil {
+		return fail(err)
+	}
+	if canonical == nil {
+		rc, err := arch.Open(encx.ReservedSchemaName)
+		if err != nil {
+			return fail(err)
+		}
+		doc, err := encx.ReadSchemaDoc(rc)
+		_ = rc.Close()
+		if err != nil {
+			return fail(errors.WrapCodedError(err, errors.ENCODING_INVALID,
+				"reading the canonical schema of archive: "+path))
+		}
+		canonical = doc.Schema
+	}
+	names := []string{only}
+	if only == "" {
+		names = make([]string, len(shards))
+		for k, sh := range shards {
+			names[k] = sh.Filename
+		}
+	}
+	r := &CohortRecordReader{
+		schema: canonical,
+		segs:   make([]recordSegment, 0, len(names)),
+		starts: make([]int64, 1, len(names)+1),
 		file:   f,
-		ra:     ra,
-	}, nil
+	}
+	for _, name := range names {
+		if !arch.IsStored(name) {
+			if _, err := arch.OpenAt(name); err != nil {
+				return fail(err) // PULSE_SHARD_MISSING
+			}
+			return fail(errors.NewCodedErrorWithDetails(errors.PULSE_ARCHIVE_CORRUPT,
+				"shard entry is not store-only, so its records cannot be addressed by offset",
+				map[string]any{"archive": path, "entry": name}))
+		}
+		sect, err := arch.OpenAt(name)
+		if err != nil {
+			return fail(err)
+		}
+		seg, own, err := measureSegment(&sect, sect.Size(), canonical)
+		if err != nil {
+			return fail(errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+				"reading shard header for record reads: "+path+"#"+name))
+		}
+		if err := shardDecodeCompatible(canonical, own); err != nil {
+			return fail(attachShardName(coerceCodedError(err), name))
+		}
+		r.segs = append(r.segs, seg)
+		r.starts = append(r.starts, r.starts[len(r.starts)-1]+int64(seg.loc.TotalRecords))
+	}
+	return r, nil
+}
+
+// shardDecodeCompatible reports whether a shard written with header
+// schema own decodes to its own values under canonical: same fields,
+// types (set rungs included), offsets, nullability and group layout,
+// with every dictionary (categorical, set, group entries) a PREFIX of
+// canonical's. A dictionary LONGER than canonical's could hold IDs the
+// canonical dictionary cannot resolve and is PULSE_SHARD_DICT_DIVERGENCE.
+func shardDecodeCompatible(canonical, own *encoding.Schema) error {
+	if _, err := encx.ValidateStructuralCohesion(canonical, own); err != nil {
+		return err
+	}
+	if own.RecordByteSize() != canonical.RecordByteSize() {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			"shard record stride differs from the canonical schema",
+			map[string]any{"canonical_stride": canonical.RecordByteSize(), "shard_stride": own.RecordByteSize()})
+	}
+	ext, err := encx.ValidateDictPrefixRule(canonical, own)
+	if err != nil {
+		return err
+	}
+	if ext != canonical {
+		return errors.NewCodedError(errors.PULSE_SHARD_DICT_DIVERGENCE,
+			"shard dictionary extends past the canonical dictionary")
+	}
+	return nil
 }
 
 // Schema returns the cohort schema the reader decodes against; row
-// slots are indexed by Schema().Fields.
+// slots are indexed by Schema().Fields. For an archive or an anchored
+// shard it is the archive's canonical schema.
 func (r *CohortRecordReader) Schema() *encoding.Schema { return r.schema }
 
-// Len returns the number of records the reader addresses.
-func (r *CohortRecordReader) Len() int64 { return int64(r.loc.TotalRecords) }
+// Len returns the number of records the reader addresses (for an
+// archive, the sum over its shards).
+func (r *CohortRecordReader) Len() int64 { return r.starts[len(r.starts)-1] }
 
 // RecordAt decodes record i. An index outside [0, Len()) is
 // SERVICE_VALIDATION; a call after Close is SERVICE_RESOURCE.
@@ -109,17 +244,22 @@ func (r *CohortRecordReader) RecordAt(i int64) ([]any, error) {
 		return nil, errors.NewCodedError(errors.SERVICE_RESOURCE,
 			"cohort reader is closed")
 	}
-	if i < 0 || uint64(i) >= r.loc.TotalRecords {
+	if i < 0 || i >= r.Len() {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			"record index out of range",
-			map[string]any{"index": i, "len": r.loc.TotalRecords})
+			map[string]any{"index": i, "len": r.Len()})
 	}
+	// The segment holding i: the last k with starts[k] <= i.
+	k := sort.Search(len(r.segs), func(k int) bool { return r.starts[k+1] > i })
+	seg := &r.segs[k]
+	local := uint64(i - r.starts[k])
+
 	values := make(map[string]float64, len(r.schema.Fields))
 	nulls := map[string]bool{}
 	wide := map[string]any{}
 	raw := make(map[string]uint64, len(r.schema.Fields))
-	sr := io.NewSectionReader(r.ra, 0, r.size)
-	if err := encx.ReadRecordAtRaw(r.loc, sr, uint64(i), values, nulls, wide, raw); err != nil {
+	sr := io.NewSectionReader(seg.ra, 0, seg.size)
+	if err := encx.ReadRecordAtRaw(seg.loc, sr, local, values, nulls, wide, raw); err != nil {
 		if err == io.EOF {
 			return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
 				"truncated record", map[string]any{"index": i})

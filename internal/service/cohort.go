@@ -37,6 +37,13 @@ type Cohort struct {
 	// against a Pulse shard archive (first four bytes = PK\x03\x04).
 	// Sorted by central-directory order.
 	shards []ShardEntry
+
+	// anchorArchive / anchorEntry are set when the cohort was opened
+	// through the `archive.pulse#shard.pulse` anchor: the archive path
+	// (on fs) and the shard entry name. The record reader uses them to
+	// decode the shard against the archive's canonical schema.
+	anchorArchive string
+	anchorEntry   string
 }
 
 // Shards returns the shard manifest for an archive-backed cohort. Returns
