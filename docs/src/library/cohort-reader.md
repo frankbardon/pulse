@@ -214,3 +214,45 @@ res, err := b.Close() // res.Shards: part-00001.pulse, part-00002.pulse, ...
 - **Result.** `CohortBuildResult.Shards` lists the shard entries in
   archive order. `Warnings` ends with any warnings `CreateShardArchive`
   raised (`PULSE_SHARD_*`), with their codes and details unchanged.
+
+## Appending a shard to an archive
+
+An **anchored target** — `archive.pulse#name.pulse` — makes the builder
+write **one new shard** and append it to an **existing** archive, the
+monthly-drop pattern:
+
+```go
+b, err := p.NewCohortBuilder(ctx, "orders.pulse#2026-10.pulse", schema, pulse.CohortBuilderOptions{})
+// ... Append this month's rows ...
+res, err := b.Close() // runs Pulse.AddShard once; res.Shards == ["2026-10.pulse"]
+```
+
+- **Rules, checked at `NewCohortBuilder`.** The archive must already
+  exist and be a shard archive — an append never creates one (build it
+  with `ShardSplit`): `SERVICE_VALIDATION` with `reason`
+  `archive_not_found` / `not_an_archive`. The shard name must be a plain
+  file name (`invalid_shard_name`) the archive does not hold yet
+  (`PULSE_SHARD_NAME_COLLISION`), and never `_schema.pulse`
+  (`PULSE_SHARD_RESERVED_NAME`). `Groups`, `ElideConstants` and `Shards`
+  are refused — the **archive's group layout wins** — and so is
+  `Overwrite`, since an append replaces nothing: `SERVICE_VALIDATION`,
+  `reason: append_option`, `details.option` naming the option.
+- **Close.** The rows are written as one shard file staged beside the
+  archive and handed to **one** `Pulse.AddShard` call, which rewrites
+  the archive atomically and reconciles the shard to it: categorical
+  dictionaries union-merge, a set field that outgrows the archive's rung
+  **widens** the archive (`PULSE_SHARD_SET_WIDENED`), and a shard whose
+  group layout differs is re-encoded to the archive's
+  (`PULSE_SHARD_GROUPS_REWRITTEN`, `reason: incoming_regrouped`). Those
+  **mandatory** warnings end `CohortBuildResult.Warnings`, codes and
+  details unchanged.
+- **Failures pass through.** `AddShard`'s errors are `Close`'s,
+  unchanged — a cohesion failure such as `PULSE_SHARD_SCHEMA_MISMATCH`
+  or `PULSE_SHARD_DICT_WIDTH_OVERFLOW`, or a name another writer added
+  while the build ran (`PULSE_SHARD_NAME_COLLISION`). On any failure the
+  archive is byte-for-byte as it was, and no spool or staging is left.
+- **Result.** `Target` is the anchored path, `Shards` the one entry
+  added. `Schema` / `FormatVersion` describe the shard **as built**,
+  before `AddShard` reconciled it; open the archive (or the anchor) to
+  read the stored layout. The new shard reads back through `CohortReader`
+  over the archive (after the existing shards) and over the anchor.
