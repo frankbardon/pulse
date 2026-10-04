@@ -1,0 +1,273 @@
+package pulse_test
+
+import (
+	"encoding/json"
+	"reflect"
+	"testing"
+
+	"github.com/frankbardon/pulse"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
+)
+
+// Extension names the fusion parity corpus registers on top of the
+// shared parity suites: copies of a fusable registration with the one
+// fact that changes the answer stripped.
+const (
+	aggFuseOpaque   types.AggregationType = "AGG_XT_OPAQUE"         // AGG_XT_SUM without FieldInputs
+	grpFuseNoStream types.GroupType       = "GROUP_PARITY_NOSTREAM" // keyable value, Streamable=false
+	grpFuseOpaque   types.GroupType       = "GROUP_PARITY_OPAQUE"   // GROUP_PARITY_CATEGORY without FieldInputs
+	fltFuseOpaque   types.FiltererType    = "FILTER_PARITY_OPAQUE"  // FILTER_PARITY_INCLUDE without FieldInputs
+	attrFuseOpaque  types.AttributeType   = "ATTR_PARITY_OPAQUE"    // ATTR_PARITY_SET_POPCOUNT without FieldInputs
+	fuseRangeTable                        = "fuse_fiscal"
+)
+
+// fusionParityExtensions registers extension operators of every
+// category the fusion rule reads, with and without FieldInputs, plus a
+// named range table for GROUP_DATE_RANGES `table:`.
+func fusionParityExtensions() pulse.Extensions {
+	probe := &parityProbe{}
+	ext := crosstabCellExtensions(probe)
+	grp := grouperParitySuite().register(probe)
+	flt := filtererParitySuite().register(probe)
+	attr := attributeParitySuite().register(probe)
+
+	opaqueAgg := ext.Aggregators[0]
+	opaqueAgg.Name, opaqueAgg.FieldInputs = aggFuseOpaque, nil
+	ext.Aggregators = append(ext.Aggregators, opaqueAgg)
+
+	ext.Groupers = grp.Groupers
+	noStream := grp.Groupers[0]
+	noStream.Name, noStream.Streamable, noStream.Mergeable = grpFuseNoStream, false, false
+	noStream.ComponentSchema, noStream.ComponentsFunc = grp.Groupers[0].ComponentSchema, grp.Groupers[0].ComponentsFunc
+	opaqueGrp := grp.Groupers[0]
+	opaqueGrp.Name, opaqueGrp.FieldInputs = grpFuseOpaque, nil
+	ext.Groupers = append(ext.Groupers, noStream, opaqueGrp)
+
+	ext.Filterers = flt.Filterers
+	opaqueFlt := flt.Filterers[0]
+	opaqueFlt.Name, opaqueFlt.FieldInputs = fltFuseOpaque, nil
+	ext.Filterers = append(ext.Filterers, opaqueFlt)
+
+	ext.Attributes = attr.Attributes
+	opaqueAttr := attr.Attributes[1]
+	opaqueAttr.Name, opaqueAttr.FieldInputs = attrFuseOpaque, nil
+	ext.Attributes = append(ext.Attributes, opaqueAttr)
+
+	start := "2024-01-01"
+	ext.RangeTables = map[string]pulse.RangeTable{fuseRangeTable: {Ranges: []pulse.DateRangeSpec{{Label: "fy", Start: &start}}}}
+	return ext
+}
+
+type fusionCase struct {
+	name string
+	req  *types.Request
+	// constructFails: a keyable grouper whose factory refuses its params.
+	// Only the runtime arm can know that; it declines, the buffered path
+	// then refuses the request with the factory's coded error, and the
+	// no-execute arm (which constructs nothing) answers on the static
+	// table. The one sanctioned divergence.
+	constructFails bool
+}
+
+func fusionXtab(rows, cols []*types.Group, cell *types.Aggregation) *types.Request {
+	return &types.Request{Crosstab: &types.CrosstabSpec{Rows: rows, Columns: cols, Cell: cell}}
+}
+
+func fusionParityCorpus() []fusionCase {
+	region := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
+	sum := func() *types.Aggregation { return &types.Aggregation{Type: types.AGG_SUM, Field: "qty"} }
+	with := func(mut func(*types.Request)) *types.Request {
+		r := fusionXtab(region, region, sum())
+		mut(r)
+		return r
+	}
+	var out []fusionCase
+	add := func(name string, r *types.Request) { out = append(out, fusionCase{name: name, req: r}) }
+
+	// Every built-in aggregator as the cell (numeric and decimal field)
+	// and as an auxiliary margin aggregation.
+	for _, at := range types.AllAggregationTypes() {
+		add("cell/"+string(at), fusionXtab(region, region, &types.Aggregation{Type: at, Field: "score"}))
+		add("cell_decimal/"+string(at), fusionXtab(region, region, &types.Aggregation{Type: at, Field: "amount"}))
+		add("aux/"+string(at), with(func(r *types.Request) {
+			r.Crosstab.MarginAggregations = []*types.Aggregation{{Type: at, Field: "score", Label: "aux"}}
+		}))
+		add("aux_decimal/"+string(at), with(func(r *types.Request) {
+			r.Crosstab.MarginAggregations = []*types.Aggregation{{Type: at, Field: "amount", Label: "aux"}}
+		}))
+	}
+	add("aux_malformed", with(func(r *types.Request) {
+		r.Crosstab.MarginAggregations = []*types.Aggregation{nil, {Field: "score"}}
+	}))
+
+	// Every built-in grouper type on each axis.
+	axisFix := map[types.GroupType]*types.Group{
+		types.GROUP_CATEGORY:        {Type: types.GROUP_CATEGORY, Field: "region"},
+		types.GROUP_DATE:            {Type: types.GROUP_DATE, Field: "day"},
+		types.GROUP_DATE_RANGES:     {Type: types.GROUP_DATE_RANGES, Field: "day", Params: json.RawMessage(`{"ranges":[{"label":"h1","start":"2024-01-01","end":"2024-06-30"}]}`)},
+		types.GROUP_QUANTILE:        {Type: types.GROUP_QUANTILE, Field: "score"},
+		types.GROUP_RANGE:           {Type: types.GROUP_RANGE, Field: "qty", Interval: 5},
+		types.GROUP_ROUNDED:         {Type: types.GROUP_ROUNDED, Field: "score"},
+		types.GROUP_SET_VALUE:       {Type: types.GROUP_SET_VALUE, Field: "tags"},
+		types.GROUP_SET_PER_ELEMENT: {Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"},
+	}
+	for _, gt := range types.AllGroupTypes() {
+		g, ok := axisFix[gt]
+		if !ok {
+			// A new built-in grouper needs a fixture here.
+			g = &types.Group{Type: gt, Field: "region"}
+		}
+		add("rows/"+string(gt), fusionXtab([]*types.Group{g}, region, sum()))
+		add("cols/"+string(gt), fusionXtab(region, []*types.Group{g}, sum()))
+	}
+	add("date_on_datetime", fusionXtab([]*types.Group{{Type: types.GROUP_DATE, Field: "ts"}}, region, sum()))
+	add("date_ranges_table", fusionXtab([]*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "day",
+		Params: json.RawMessage(`{"table":"` + fuseRangeTable + `"}`)}}, region, sum()))
+	add("date_ranges_unknown_table", fusionXtab([]*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "day",
+		Params: json.RawMessage(`{"table":"no_such_table"}`)}}, region, sum()))
+	add("unknown_grouper", fusionXtab([]*types.Group{{Type: "GROUP_NO_SUCH", Field: "region"}}, region, sum()))
+	add("nil_grouper", fusionXtab([]*types.Group{nil}, region, sum()))
+	out = append(out, fusionCase{name: "grouper_bad_params", constructFails: true,
+		req: fusionXtab([]*types.Group{{Type: types.GROUP_DATE, Field: "day", Params: json.RawMessage(`{"component":"fortnight"}`)}}, region, sum())})
+
+	// Request-level exclusions and non-exclusions.
+	add("no_crosstab", &types.Request{Aggregations: []*types.Aggregation{sum()}})
+	add("missing_cell", fusionXtab(region, region, nil))
+	add("joins", with(func(r *types.Request) { r.Joins = []*types.JoinSpec{{}} }))
+	add("features", with(func(r *types.Request) { r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "score"}} }))
+	add("tests", with(func(r *types.Request) { r.Tests = []*types.Test{{Type: types.TEST_T}} }))
+	add("post_tests", with(func(r *types.Request) { r.PostTests = []*types.Test{{Type: types.TEST_T}} }))
+	add("overlays", with(func(r *types.Request) { r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindPairwisePropZ}} }))
+	for _, at := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
+		types.ATTR_REG_FITTED, types.ATTR_DATE_PART, types.ATTR_SET_POPCOUNT} {
+		add("attr/"+string(at), with(func(r *types.Request) { r.Attributes = []*types.Attribute{{Type: at, Field: "score", Label: "a"}} }))
+	}
+	add("formula_expression", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "f"}}
+	}))
+	add("formula_empty", with(func(r *types.Request) { r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f"}} }))
+	add("filter_expression", with(func(r *types.Request) {
+		r.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "score > 1"}}
+	}))
+	add("filter_include", with(func(r *types.Request) {
+		r.Filterers = []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{"north"}}}
+	}))
+
+	// Extension operators, with and without FieldInputs.
+	for _, at := range []types.AggregationType{aggXtSum, aggXtMean, aggXtUndecl, aggXtRecomp, aggFuseOpaque} {
+		add("ext_cell/"+string(at), fusionXtab(region, region, &types.Aggregation{Type: at, Field: "qty"}))
+		add("ext_cell_decimal/"+string(at), fusionXtab(region, region, &types.Aggregation{Type: at, Field: "amount"}))
+		add("ext_aux/"+string(at), with(func(r *types.Request) {
+			r.Crosstab.MarginAggregations = []*types.Aggregation{{Type: at, Field: "amount", Label: "aux"}}
+		}))
+		add("ext_plain_agg/"+string(at), with(func(r *types.Request) { r.Aggregations = []*types.Aggregation{{Type: at, Field: "qty"}} }))
+	}
+	for _, gt := range []types.GroupType{grpParityCategory, grpParityPerElement, grpFuseNoStream, grpFuseOpaque} {
+		field := "region"
+		if gt == grpParityPerElement {
+			field = "tags"
+		}
+		add("ext_axis/"+string(gt), fusionXtab([]*types.Group{{Type: gt, Field: field}}, region, sum()))
+		add("ext_groups_slot/"+string(gt), with(func(r *types.Request) { r.Groups = []*types.Group{{Type: gt, Field: field}} }))
+	}
+	for _, ft := range []types.FiltererType{fltParityInclude, fltFuseOpaque} {
+		add("ext_filter/"+string(ft), with(func(r *types.Request) {
+			r.Filterers = []*types.Filterer{{Type: ft, Field: "region", Values: []string{"north"}}}
+		}))
+	}
+	for _, at := range []types.AttributeType{attrParityZScore, attrParityPopcount, attrFuseOpaque} {
+		add("ext_attr/"+string(at), with(func(r *types.Request) { r.Attributes = []*types.Attribute{{Type: at, Field: "tags", Label: "a"}} }))
+	}
+	return out
+}
+
+// TestStreamability_CrosstabFusionPredictMatchesRuntime is the parity
+// gate for the shared fusion rule (internal/crosstabfuse): the engine's
+// processing.CanFuseCrosstab over the instance ExtensionRegistry and the
+// no-execute descriptor.CrosstabFusion over the instance ExtensionsSnapshot
+// must give the same answer and the same reasons for every request in a
+// corpus spanning every built-in cell / auxiliary aggregator, decimal
+// fields, every grouper type (QUANTILE, DATE, SET_PER_ELEMENT,
+// DATE_RANGES with `table:`), joins, features, tests, two-pass
+// attributes, formula / expression bails, extension operators with and
+// without FieldInputs — on an unprofiled instance and on one whose
+// feature profile hides most of the corpus.
+func TestStreamability_CrosstabFusionPredictMatchesRuntime(t *testing.T) {
+	schema := paritySchema(t)
+	instances := []struct {
+		name    string
+		profile *pulse.FeatureProfile
+	}{
+		{"unprofiled", nil},
+		{"profiled", &pulse.FeatureProfile{Features: []string{
+			"capability:process", "AGG_SUM", "AGG_COUNT", "GROUP_CATEGORY", "GROUP_SET_PER_ELEMENT",
+			string(aggXtSum), string(grpParityCategory), string(attrParityPopcount),
+		}}},
+	}
+	corpus := fusionParityCorpus()
+	for _, inst := range instances {
+		t.Run(inst.name, func(t *testing.T) {
+			p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: fusionParityExtensions(), FeatureProfile: inst.profile})
+			if err != nil {
+				t.Fatalf("pulse.New: %v", err)
+			}
+			svc := pulse.ServiceForTest(p)
+			reg, snap := svc.Extensions(), svc.InstanceSnapshot()
+			fused, sanctioned := 0, 0
+			for _, c := range corpus {
+				rtOK, rtReason := processing.CanFuseCrosstab(c.req, schema, reg)
+				rtReasons := processing.CrosstabFuseReasons(c.req, schema, reg)
+				pdOK, pdReasons := descx.CrosstabFusion(c.req, schema, snap.Extensions(), snap)
+				if rtOK {
+					fused++
+				}
+				if rtOK != (len(rtReasons) == 0) || (!rtOK && rtReason != rtReasons[0]) {
+					t.Errorf("%s: CanFuseCrosstab=(%v,%q) disagrees with CrosstabFuseReasons=%q", c.name, rtOK, rtReason, rtReasons)
+				}
+				if c.constructFails && pdOK {
+					// The sanctioned divergence; on an instance hiding the
+					// grouper both arms decline alike and fall through.
+					if rtOK {
+						t.Errorf("%s: runtime fused a grouper whose factory refuses its params", c.name)
+					}
+					sanctioned++
+					continue
+				}
+				if rtOK != pdOK || !reflect.DeepEqual(rtReasons, pdReasons) {
+					t.Errorf("%s: runtime=(%v, %q) predict=(%v, %q)", c.name, rtOK, rtReasons, pdOK, pdReasons)
+				}
+			}
+			if inst.profile == nil && sanctioned != 1 {
+				t.Errorf("sanctioned construction divergence hit %d times on the unprofiled instance, want 1", sanctioned)
+			}
+			// A vacuous corpus (everything declined) would agree trivially.
+			if fused < 5 || fused == len(corpus) {
+				t.Errorf("fused %d of %d corpus requests; the corpus must exercise both answers", fused, len(corpus))
+			}
+		})
+	}
+}
+
+// TestStreamability_CrosstabFusionIgnoresDisableOption pins that the
+// no-execute answer is eligibility only: Options.DisableCrosstabFusion is
+// a dispatch-time override and changes neither arm's rule.
+func TestStreamability_CrosstabFusionIgnoresDisableOption(t *testing.T) {
+	schema := paritySchema(t)
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), DisableCrosstabFusion: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := pulse.ServiceForTest(p)
+	req := fusionXtab([]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+		[]*types.Group{{Type: types.GROUP_DATE, Field: "day"}}, &types.Aggregation{Type: types.AGG_SUM, Field: "qty"})
+	snap := svc.InstanceSnapshot()
+	if ok, why := descx.CrosstabFusion(req, schema, snap.Extensions(), snap); !ok {
+		t.Errorf("CrosstabFusion with DisableCrosstabFusion = false (%q), want true", why)
+	}
+	if ok, why := processing.CanFuseCrosstab(req, schema, svc.Extensions()); !ok {
+		t.Errorf("CanFuseCrosstab with DisableCrosstabFusion = false (%q), want true", why)
+	}
+}

@@ -578,10 +578,12 @@ func classifyFusedAxisGrouper(instance Grouper, field string) fusedAxisGrouper {
 // RunCrosstab path. axisName is the human-readable axis label
 // ("rows" / "columns") used in the error details.
 //
-// Mirrors axisStreamable in crosstab_fused_gate.go — the gate probes
-// the same interfaces on a throwaway instance, this builds the
-// long-lived ones. The two must stay in lockstep: anything the gate
-// admits, this must construct.
+// Mirrors the gate's grouper keyability (crosstabfuse.Decide over
+// registryFuseFacts.GrouperKeyable in crosstab_fused_gate.go) — the
+// gate answers from the static table / declaration and confirms the
+// factory constructs, this builds the long-lived instances. The two
+// must stay in lockstep: anything the gate admits, this must construct
+// (TestBuiltinGrouperKeyableMatchesRegistry pins the table).
 func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *ExtensionRegistry, axisName string) ([]fusedAxisGrouper, error) {
 	if len(axis) == 0 {
 		return nil, nil

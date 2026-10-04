@@ -19,7 +19,7 @@ import (
 // added without flipping the flag: implement KeysForRow and forget
 // FansOut(), and the two halves disagree here.
 //
-// Probe construction mirrors axisStreamable in crosstab_fused_gate.go:
+// Probe construction mirrors buildStreamableAxis in crosstab_fused.go:
 // build from the registry factory, run ApplyGrouperExtensions (a named
 // range `table:` resolves lazily through that hook), then assert.
 func TestGrouperFanOutMatchesTypes(t *testing.T) {
