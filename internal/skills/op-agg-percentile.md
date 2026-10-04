@@ -15,7 +15,7 @@ examples_tags: [distribution-shape, buffered-pipeline]
 |---|---|---|---|
 | `percentile` | float | (required) | Percentile in `[0, 100]`. e.g. 95 for p95. |
 
-Weight-aware (`"weight": null` opts out): expanded-index type 7 — sort by value; x(k) = first value with cumulative Σw > k; h = p·(Σw−1); interpolate x(⌊h⌋)..x(⌈h⌉). `probability` weights are first rescaled to Σw = n (rows used) — scale-invariant; `frequency` weights stay raw = duplicated rows. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
+Weight-aware (`"weight": null` opts out): Hmisc `wtd.quantile` — sort by value; h = p·(Σw−1); x(k) = first value with cumulative Σw ≥ k+1 (snapped to an integer within 1e-9); interpolate x(⌊h⌋)..x(⌈h⌉). `probability` weights first rescaled to Σw = n (rows used) — scale-invariant; `frequency` weights stay raw = type 7 on duplicated rows. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
 
 ## Inputs
 

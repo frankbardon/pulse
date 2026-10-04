@@ -12,9 +12,10 @@ import (
 // E2-S1; contract .claude/reference/weighting.md "Aggregator
 // classification"):
 //
-//   - AGG_MEDIAN / AGG_PERCENTILE — expanded-index Hyndman-Fan type 7
-//     over a paired (value, weight) collector, probability weights
-//     rescaled to sum to n; buffered only, exactly as unweighted.
+//   - AGG_MEDIAN / AGG_PERCENTILE — Hmisc wtd.quantile over a paired
+//     (value, weight) collector (type 7 on the expansion for integer
+//     cumulative weights), probability weights rescaled to sum to n;
+//     buffered only, exactly as unweighted.
 //   - AGG_MODE / AGG_MODE_COUNT — the value with the largest Σw (ties to
 //     the smallest value) and that Σw; streamable and mergeable, exactly
 //     as unweighted.
@@ -70,23 +71,31 @@ func collectWeightedPairs(records []*Record, field string, spec *types.WeightSpe
 
 // --- AGG_MEDIAN / AGG_PERCENTILE --------------------------------------
 
-// weightedQuantileAggregator is the weighted median / percentile —
-// expanded-index type 7. The pairs are sorted by value (sort.Float64s
-// order: NaN first) and W = Σw. x₍ₖ₎ is the smallest value whose
-// cumulative weight exceeds k, so with integer weights x₍ₖ₎ is the k-th
-// element of the physically expanded sorted data. The rank is
-// h = p·(W − 1) — the unweighted rank p·(n − 1) at w = 1 — and the
-// figure interpolates linearly between x₍⌊h⌋₎ and x₍⌈h⌉₎.
+// weightedQuantileAggregator is the weighted median / percentile — Hmisc
+// wtd.quantile(type = "quantile") over the expanded index. The pairs are
+// sorted by value (sort.Float64s order: NaN first) and W = Σw. The rank
+// is h = p·(W − 1) — the unweighted rank p·(n − 1) at w = 1 — and the
+// figure interpolates linearly between x₍⌊h⌋₎ and x₍⌈h⌉₎, where the
+// 0-based order statistic x₍ₖ₎ is the smallest value whose cumulative
+// weight is ≥ the 1-based rank k + 1 (quantileOrderIndex). With integer
+// cumulative weights x₍ₖ₎ is the k-th element of the physically
+// expanded sorted data, so this is type 7 on the expansion; with
+// fractional ones it is Hmisc's choice of order statistic. Before the
+// comparison every cumulative weight within 1e-9 relative of an integer
+// is snapped to it (snapCumWeights), so a cumulative weight one ulp off
+// an integer rank cannot flip the answer between platforms.
 //
 // Scale rule: kind probability (the default) rescales the cumulative
 // weights so W = n, the contributing row count, before the rank is
-// taken — the normalization of Hmisc wtd.quantile(normwt = TRUE) — so
-// multiplying every weight by a constant leaves the figure unchanged
-// and h = p·(n − 1) always. Kind frequency keeps the raw weights (W is
-// the expanded row count), so it equals type 7 on the physically
-// expanded data. h is clamped below at 0 as a guard; above, h ≤ W − 1
-// < W keeps x₍⌈h⌉₎ inside the data (a lookup past the last cumulative
-// weight answers the largest value).
+// taken — Hmisc wtd.quantile(normwt = TRUE) — so multiplying every
+// weight by a constant leaves the figure unchanged and h = p·(n − 1)
+// always. Kind frequency keeps the raw weights (W is the expanded row
+// count; Hmisc normwt = FALSE), so it equals type 7 on the physically
+// expanded data. Above, h ≤ W − 1 keeps x₍⌈h⌉₎ inside the data (a
+// lookup past the last cumulative weight answers the largest value).
+// The interpolation keeps the unweighted lo + f·(hi − lo) form, not
+// Hmisc's (1 − f)·lo + f·hi, so w ≡ 1 stays bit-identical to the
+// unweighted aggregator; the two agree to the last few ulps.
 //
 // Components keep the unweighted keys and types: position /
 // position_low / position_high are the EXPANDED-space indices ⌊h⌋ / ⌈h⌉
@@ -141,13 +150,8 @@ func (a *weightedQuantileAggregator) Aggregate(records []*Record, field string) 
 		}
 		total = n
 	}
-	at := func(k int) float64 {
-		i := sort.Search(len(cum), func(i int) bool { return cum[i] > float64(k) })
-		if i == len(cum) {
-			i = len(cum) - 1
-		}
-		return pairs[i].x
-	}
+	snapCumWeights(cum)
+	at := func(k int) float64 { return pairs[quantileOrderIndex(cum, k)].x }
 	// W ≥ 1 here (W = n ≥ 1 for probability; a sum of positive integers
 	// for frequency), so h ≥ 0 needs no clamp.
 	if a.op == types.AGG_MEDIAN {
@@ -156,6 +160,42 @@ func (a *weightedQuantileAggregator) Aggregate(records []*Record, field string) 
 		a.interpolate(total, at)
 	}
 	return a.frozenValue, nil
+}
+
+// cumWeightSnapTol is the relative distance within which a cumulative
+// weight is snapped to the nearest integer before it is compared with a
+// rank (weighting.md "Weighted percentile / median"). The comparison is
+// a knife edge exactly on an integer: a cumulative weight that is
+// mathematically the rank but lands one ulp below it — float summation
+// order, the probability rescale, FMA contraction on one architecture
+// and not another — would pick the next order statistic. Snapping makes
+// the answer the exact-arithmetic one, deterministically on every
+// platform. Integer cumulative weights (frequency weights, w ≡ 1) are
+// fixed points, so the snap never moves them.
+const cumWeightSnapTol = 1e-9
+
+// snapCumWeights snaps, in place, every cumulative weight within
+// cumWeightSnapTol·max(1, |c|) of an integer to that integer.
+func snapCumWeights(cum []float64) []float64 {
+	for i, c := range cum {
+		if r := math.Round(c); math.Abs(c-r) <= cumWeightSnapTol*math.Max(1, math.Abs(c)) {
+			cum[i] = r
+		}
+	}
+	return cum
+}
+
+// quantileOrderIndex is the sorted-pair index of the 0-based order
+// statistic x₍ₖ₎: the first pair whose cumulative weight reaches the
+// 1-based rank k + 1 (Hmisc wtd.quantile: approx(cumsum(w), x, xout =
+// rank, method = "constant", f = 1, rule = 2)). Past the last cumulative
+// weight it answers the last pair (rule = 2).
+func quantileOrderIndex(cum []float64, k int) int {
+	i := sort.Search(len(cum), func(i int) bool { return cum[i] >= float64(k+1) })
+	if i == len(cum) {
+		i = len(cum) - 1
+	}
+	return i
 }
 
 // median is h = 0.5·(W − 1): an integer W gives an integer or

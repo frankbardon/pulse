@@ -23,15 +23,17 @@ import (
 // weighted figure — and its floor keys sum_weights / n_eff /
 // n_weight_invalid — to values an EXTERNAL tool computed offline:
 // statsmodels DescrStatsW (mean, population and sample variance),
-// numpy type-7 percentiles on np.repeat-expanded data, scipy's biased
-// skewness / kurtosis, and numpy weighted sums for shares, ratios,
-// modes and set figures. The numbers live in the generated
-// weight_reference_values_test.go — written by
+// numpy type-7 percentiles on np.repeat-expanded data (frequency
+// weights), R Hmisc wtd.quantile(normwt = TRUE) (probability-weighted
+// median / percentile, via testdata/weight_reference/hmisc_quantile.R),
+// scipy's biased skewness / kurtosis, and numpy weighted sums for
+// shares, ratios, modes and set figures. The numbers live in the
+// generated weight_reference_values_test.go — written by
 // testdata/weight_reference/gen_weight_reference.py (tool versions
-// pinned in its PEP 723 header and echoed in weightRefProvenance; the
-// script's docstring maps each Pulse definition onto the library call
-// configured to match it, and README.md records the one family with no
-// library equivalent). CI never runs Python.
+// pinned in its PEP 723 header and the R script, and echoed in
+// weightRefProvenance; the script's docstring maps each Pulse
+// definition onto the library call configured to match it). CI never
+// runs Python or R.
 //
 // Three weight columns over one 14-row fixture: w (fractional
 // probability weights with a zero, a negative and a NaN), f (integer
@@ -150,7 +152,7 @@ func weightRefName(c weightRefCase) string {
 // TestWeightReferenceValues — see the file comment.
 func TestWeightReferenceValues(t *testing.T) {
 	t.Run("coverage", assertWeightRefCoverage)
-	if !strings.Contains(weightRefProvenance, "statsmodels") || !strings.Contains(weightRefProvenance, "numpy") {
+	if !strings.Contains(weightRefProvenance, "statsmodels") || !strings.Contains(weightRefProvenance, "numpy") || !strings.Contains(weightRefProvenance, "Hmisc") {
 		t.Fatalf("weightRefProvenance %q does not record the generating tool versions", weightRefProvenance)
 	}
 	svc := weightRefService(t)

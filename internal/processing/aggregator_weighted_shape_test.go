@@ -229,21 +229,25 @@ func TestWeightedShape_Oracle(t *testing.T) {
 		{"median even frequency", median, freq, []float64{1, 2, 3}, []float64{1, 2, 1}, 2,
 			map[string]any{"position_low": 1.0, "position_high": 2.0, "median": 2.0}},
 		// Probability weights rescale to Σw = n = 4: sorted 10 20 30 40,
-		// cum 1 4 6 7 → 4/7 16/7 24/7 4. p90: h = 0.9·3 = 2.7 →
-		// x(2) = 20, x(3) = 30.
-		{"p90 probability", pct("90"), prob, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 20 + (0.9*3-2)*(30-20),
-			map[string]any{"p": 90.0, "position": 2.0, "lower": 20.0, "upper": 30.0, "method": "linear", "value": 20 + (0.9*3-2)*(30-20)}},
-		// Median h = 1.5 → x(1) = x(2) = 20.
-		{"median probability", median, prob, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 20,
-			map[string]any{"position_low": 1.0, "position_high": 2.0, "median": 20.0}},
+		// cum 1 4 6 7 → 4/7 16/7 24/7 4. x(k) is the smallest value whose
+		// cumulative weight is ≥ k + 1 (Hmisc wtd.quantile normwt = TRUE,
+		// which answers 37 and 25 here). p90: h = 0.9·3 = 2.7 →
+		// x(2) = 30 (24/7 ≥ 3), x(3) = 40.
+		{"p90 probability", pct("90"), prob, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 30 + (0.9*3-2)*(40-30),
+			map[string]any{"p": 90.0, "position": 2.0, "lower": 30.0, "upper": 40.0, "method": "linear", "value": 30 + (0.9*3-2)*(40-30)}},
+		// Median h = 1.5 → x(1) = 20 (16/7 ≥ 2), x(2) = 30 → 25.
+		{"median probability", median, prob, []float64{40, 10, 30, 20}, []float64{1, 1, 2, 3}, 25,
+			map[string]any{"position_low": 1.0, "position_high": 2.0, "median": 25.0}},
 		// W = 2.5, n = 3: cum 0.5 1.5 2.5 → 0.6 1.8 3. Median h = 1 →
-		// x(1) = 2.
-		{"median fractional probability", median, prob, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 2,
-			map[string]any{"position_low": 1.0, "position_high": 1.0, "median": 2.0}},
-		// p100 h = n − 1 = 2 → the largest value (normalized, the
-		// expanded index reaches it).
+		// x(1) = 3 (the first cumulative weight ≥ 2); Hmisc answers 3.
+		{"median fractional probability", median, prob, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 3,
+			map[string]any{"position_low": 1.0, "position_high": 1.0, "median": 3.0}},
+		// p100 h = n − 1 = 2 → the largest value.
 		{"p100 fractional probability", pct("100"), prob, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 3, nil},
-		{"p0 fractional probability", pct("0"), prob, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 1, nil},
+		// p0 is NOT the minimum once the weights are fractional: x(0) is
+		// the first value whose cumulative weight reaches 1 — 2, not 1
+		// (cum 0.6) — exactly as Hmisc.
+		{"p0 fractional probability", pct("0"), prob, []float64{3, 1, 2}, []float64{1, 0.5, 1}, 2, nil},
 		// Σw = 0.75 < 1 no longer collapses to the minimum: cum → 1 2 3,
 		// h = 0.95·2 = 1.9 → x(1) = 5, x(2) = 9.
 		{"p95 W below one", pct("95"), prob, []float64{5, 2, 9}, []float64{0.25, 0.25, 0.25}, 5 + (0.95*2-1)*(9-5),
@@ -490,5 +494,90 @@ func TestWeightedShape_MedianMeanOfMiddles(t *testing.T) {
 	got := mustAggregate(t, wcoreNew(t, wshapeSpec{op: types.AGG_MEDIAN}.weighted(types.WeightKindProbability)), records)
 	if math.Float64bits(got) != math.Float64bits(plain) {
 		t.Errorf("unit-weighted median %.17g, unweighted %.17g", got, plain)
+	}
+}
+
+// TestWeightedShape_HmiscQuantile: probability-weighted median /
+// percentile equal Hmisc 5.3.0 wtd.quantile(x, w, probs, normwt = TRUE)
+// on the E2-S4 counterexamples, where Hmisc's "smallest value whose
+// cumulative weight is ≥ the 1-based rank" and the earlier "exceeds the
+// 0-based rank" rule disagree (the old answers are in the comments).
+// Pulse interpolates as lo + f·(hi − lo) — the unweighted statement
+// shape — while Hmisc writes (1 − f)·lo + f·hi, so the two may differ
+// in the last ulps (7.275 vs 7.2749999999999986); 1e-12 relative.
+func TestWeightedShape_HmiscQuantile(t *testing.T) {
+	// The reference fixture's x with the null and invalid-weight rows
+	// dropped; w its fractional probability weights (a zero kept — both
+	// drop it from n), p = 0.37·f its integer frequency twin.
+	xw := []float64{3.5, 1.25, 7, 3.5, 2, 9.75, 1.25, 3.5, 5, 4, 6.5}
+	w := []float64{0.8, 1.7, 0.35, 2.2, 0, 1.15, 0.6, 1.3, 2.7, 0.45, 0.95}
+	xp := []float64{3.5, 1.25, 7, 3.5, 2, 9.75, 1.25, 3.5, 5, 4}
+	p := []float64{2, 1, 0, 3, 1, 2, 4, 1, 3, 0}
+	for i := range p {
+		p[i] *= 0.37
+	}
+	pct := func(v string) wshapeSpec {
+		return wshapeSpec{op: types.AGG_PERCENTILE, params: json.RawMessage(`{"percentile":` + v + `}`)}
+	}
+	median := wshapeSpec{op: types.AGG_MEDIAN}
+	cases := []struct {
+		name string
+		spec wshapeSpec
+		xs   []float64
+		ws   []float64
+		want float64
+	}{
+		{"w median", median, xw, w, 4.25},               // was 3.5
+		{"w p37.5", pct("37.5"), xw, w, 3.5},            // unchanged
+		{"w p90", pct("90"), xw, w, 7.2749999999999986}, // was 6.55
+		{"p median", median, xp, p, 3.5},                // unchanged
+		{"p p37.5", pct("37.5"), xp, p, 3.5},            // was 2.65625
+		{"p p90", pct("90"), xp, p, 6.4249999999999954}, // was 5.0
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := mustAggregate(t, wcoreNew(t, tc.spec.weighted(types.WeightKindProbability)), wvRecords(tc.xs, tc.ws))
+			if math.Abs(got-tc.want) > 1e-12*math.Abs(tc.want) {
+				t.Errorf("got %.17g, Hmisc %.17g", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestWeightedShape_QuantileRankSnap: a cumulative weight within 1e-9
+// relative of an integer is snapped to it before it is compared with a
+// rank, so a cumulative weight that lands one ulp either side of the
+// rank (float summation order — e.g. FMA contraction on one
+// architecture but not another) answers exactly as the exact integer.
+func TestWeightedShape_QuantileRankSnap(t *testing.T) {
+	xs := []float64{10, 20, 30, 40}
+	quantileOrderStat := func(xs, cum []float64, k int) float64 { return xs[quantileOrderIndex(cum, k)] }
+	exact := []float64{1, 2, 3, 4}
+	want := quantileOrderStat(xs, exact, 1) // rank 2 (1-based): cum 2 ≥ 2 → 20
+	if want != 20 {
+		t.Fatalf("exact cumulative weights: x(1) = %v, want 20", want)
+	}
+	for name, c := range map[string]float64{"below": math.Nextafter(2, 0), "above": math.Nextafter(2, 3), "1e-10 below": 2 - 2e-10} {
+		t.Run(name, func(t *testing.T) {
+			cum := snapCumWeights([]float64{1, c, 3, 4})
+			if got := quantileOrderStat(xs, cum, 1); got != want {
+				t.Errorf("cum %.17g: x(1) = %v, want %v", c, got, want)
+			}
+		})
+	}
+	// End to end: weights 1.2, 0.3, 0.3 normalize to cumulative 2, 2.5,
+	// 3 exactly, but the float rescale lands the first one ulp low
+	// (1.9999999999999998). The median's rank is 2, which the first value
+	// reaches exactly — 10. Unsnapped the answer would be 20, and so is
+	// Hmisc's own float result: the snap answers the exact-arithmetic
+	// Hmisc figure, not its last-ulp artifact.
+	records := wvRecords([]float64{10, 20, 30}, []float64{1.2, 0.3, 0.3})
+	if got := mustAggregate(t, wcoreNew(t, wshapeSpec{op: types.AGG_MEDIAN}.weighted(types.WeightKindProbability)), records); got != 10 {
+		t.Errorf("knife-edge median = %v, want 10", got)
+	}
+	// Outside the tolerance the value is left alone: 2 − 1e-6 does not
+	// reach rank 2, so x(1) moves on to 30.
+	if got := quantileOrderStat(xs, snapCumWeights([]float64{1, 2 - 1e-6, 3, 4}), 1); got != 30 {
+		t.Errorf("2 − 1e-6 snapped: x(1) = %v, want 30", got)
 	}
 }

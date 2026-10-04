@@ -4,39 +4,43 @@
 the external reference values `TestWeightReferenceValues` and
 `TestWeightReferenceKindsAgree` pin (contract:
 `.claude/reference/weighting.md`, "Reference fixtures"). CI never runs
-Python; the generated Go file is the oracle. Never hand-edit it.
+Python or R; the generated Go file is the oracle. Never hand-edit it.
 
 ## Regenerate
 
 ```sh
 cd internal/service/testdata/weight_reference
-uv run --no-project gen_weight_reference.py   # versions pinned in the PEP 723 header
+# once: R 4.6.1 + Hmisc 5.3.0 in a private library (see hmisc_quantile.R)
+mkdir -p rlib
+R_LIBS=rlib Rscript -e 'install.packages("remotes", repos = "https://cloud.r-project.org")' \
+  -e 'remotes::install_version("Hmisc", "5.3.0", repos = "https://cloud.r-project.org")'
+R_LIBS=rlib uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
 gofmt -w ../../weight_reference_values_test.go
 go test ../.. -run TestWeightReference
 ```
 
-Pinned toolchain: Python 3.12, numpy 2.3.3, scipy 1.16.2,
-statsmodels 0.14.5. The script's docstring maps each Pulse definition onto
-the library call configured to match it, and refuses a fixture where a
-normalized cumulative weight lands on an integer rank (a "knife edge",
-where the probability quantile turns on the last ulp of a float sum).
+(Keep `rlib/` out of the commit.) Pinned toolchain: Python 3.12, numpy
+2.3.3, scipy 1.16.2, statsmodels 0.14.5; R 4.6.1, Hmisc 5.3.0 (the R
+script refuses any other Hmisc version). The script's docstring maps
+each Pulse definition onto the library call configured to match it.
 
-## Probability-weight quantiles vs Hmisc (open decision)
+## Probability-weight quantiles: Hmisc
 
-No library implements Pulse's `kind: probability` median / percentile
-(weights rescaled to sum to n, then x₍ₖ₎ = the smallest value whose
-normalized cumulative weight EXCEEDS the 0-based rank k). Its reference
-is an exact-rational transcription of that documented rule, checked
-against numpy type 7 on the expansion where the normalized weights are
-integers.
+Pulse's `kind: probability` median / percentile IS Hmisc
+`wtd.quantile(x, w, probs, type = "quantile", normwt = TRUE)`: weights
+rescaled to sum to n, x₍ₖ₎ = the smallest value whose cumulative weight
+is >= the 1-based rank k + 1, linear interpolation. The reference is
+Hmisc itself, via `hmisc_quantile.R`; the generator asserts each Hmisc
+figure equals an exact-rational transcription of the rule to 1e-12
+relative (Hmisc interpolates as `(1 - f)·lo + f·hi`, Pulse as
+`lo + f·(hi - lo)`, so they can differ in the last ulps).
 
-Hmisc `wtd.quantile(normwt = TRUE)` uses the same normalization but takes
-the smallest value whose cumulative weight is >= the 1-based rank. With
-fractional cumulative weights the two differ. One-off comparison on this
-fixture (Hmisc 5.3.0, R 4.6.1; rows with a null value or an invalid
-weight dropped first):
+Pulse's earlier rule (the smallest value whose normalized cumulative
+weight EXCEEDS the 0-based rank) agreed with Hmisc only on integer
+cumulative weights; the effort owner adopted Hmisc's. The figures that
+moved:
 
-| weights | figure | Pulse | Hmisc |
+| weights | figure | earlier Pulse | Hmisc 5.3.0 (now Pulse) |
 |---|---|---|---|
 | `w` probability | median | 3.5 | 4.25 |
 | `w` probability | p37.5 | 3.5 | 3.5 |
@@ -46,13 +50,11 @@ weight dropped first):
 | `p` probability | p90 | 5.0 | 6.425 |
 | `f` frequency (no normalization) | p90 | 6.9 | 6.9 |
 
-```r
-library(Hmisc)
-x <- c(3.5, 1.25, 7, 3.5, 2, 9.75, 1.25, 3.5, 5, 4, 6.5)
-w <- c(0.8, 1.7, 0.35, 2.2, 0, 1.15, 0.6, 1.3, 2.7, 0.45, 0.95)
-wtd.quantile(x, w, probs = c(.5, .375, .9), normwt = TRUE)
-```
+## Knife-edge guard
 
-Hmisc is not a CI dependency and these figures are not pinned; they
-record why the probability reference is a transcription of Pulse's
-rule, not a library value.
+The generator refuses a fixture where a normalized cumulative weight
+lands on an integer rank. Pulse snaps any cumulative weight within 1e-9
+relative of an integer to it before comparing with a rank, so its answer
+there is the exact-arithmetic one on every platform; Hmisc does not
+snap, so its figure on such a fixture turns on the last ulp of a float
+sum and is not a usable reference.

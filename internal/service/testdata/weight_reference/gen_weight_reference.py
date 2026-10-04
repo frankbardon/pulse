@@ -14,10 +14,12 @@ external reference computes. CI never runs Python; the Go literals ARE
 the pinned oracle (weighting-descriptive E2-S4,
 .claude/reference/weighting.md "Reference fixtures").
 
-Regenerate (uv resolves the pinned versions above, PEP 723):
+Regenerate (uv resolves the pinned versions above, PEP 723; the
+probability quantiles shell out to Rscript hmisc_quantile.R, which needs
+R 4.6.1 with Hmisc 5.3.0 on R_LIBS — see that script's header):
 
     cd internal/service/testdata/weight_reference
-    uv run --no-project gen_weight_reference.py
+    R_LIBS=<lib with Hmisc 5.3.0> uv run --no-project gen_weight_reference.py
     gofmt -w ../../weight_reference_values_test.go
 
 Reference per family, and how each maps onto Pulse's documented
@@ -31,16 +33,15 @@ definition:
     sum_weights − ddof). AGG_COUNT = .sum_weights, AGG_SUM = .sum.
   * AGG_MEDIAN / AGG_PERCENTILE, kind frequency — numpy.percentile
     (method="linear", Hyndman–Fan type 7) on np.repeat-expanded data.
-  * AGG_MEDIAN / AGG_PERCENTILE, kind probability — no library ships
-    Pulse's definition (probability weights rescaled to Σw = n, then
-    expanded-index type 7 with x_(k) = the smallest value whose
-    normalized cumulative weight EXCEEDS k). The figure is an exact
-    rational (fractions.Fraction) transcription of that documented
-    definition, cross-checked against numpy type 7 on the expansion
-    wherever the normalized weights are integers. Hmisc
-    wtd.quantile(normwt=TRUE) shares the normalization but takes the
-    smallest value whose cumulative weight is >= the 1-based rank, so
-    it differs on fractional cumulative weights (see README.md).
+  * AGG_MEDIAN / AGG_PERCENTILE, kind probability — R Hmisc 5.3.0
+    wtd.quantile(x, w, probs, type="quantile", normwt=TRUE), via
+    hmisc_quantile.R: weights rescaled to Σw = n, x_(k) = the smallest
+    value whose cumulative weight is >= the 1-based rank k + 1, linear
+    interpolation. Cross-checked against an exact rational
+    (fractions.Fraction) transcription of the same rule (1e-12
+    relative: Hmisc interpolates as (1-f)·lo + f·hi, Pulse as
+    lo + f·(hi-lo)), and that transcription against numpy type 7 on the
+    expansion wherever the normalized weights are integers.
   * AGG_SKEWNESS / AGG_KURTOSIS — population (biased) moments:
     scipy.stats.skew(bias=True) / kurtosis(fisher=True, bias=True) on
     the expanded data for kind frequency, and for the probability twin
@@ -61,6 +62,7 @@ and contributes nothing.
 
 import math
 import os
+import subprocess
 import sys
 from decimal import Decimal, getcontext
 from fractions import Fraction
@@ -160,8 +162,19 @@ def type7_expanded(x, f, q):
     return float(np.percentile(np.repeat(x, f.astype(int)), q, method="linear"))
 
 
+def hmisc_quantiles(x, w, qs):
+    """Hmisc wtd.quantile(normwt=TRUE) via Rscript: (versions, values)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    csv = lambda vs: ",".join(repr(float(v)) for v in vs)
+    out = subprocess.run(
+        ["Rscript", os.path.join(here, "hmisc_quantile.R"),
+         csv([q / 100 for q in qs]), csv(x), csv(w)],
+        check=True, capture_output=True, text=True).stdout.split("\n")
+    return out[0].strip(), [float(v) for v in out[1:1 + len(qs)]]
+
+
 def pulse_normalized_quantile(x, w, q, guard=True):
-    """Exact rational transcription of the documented probability rule."""
+    """Exact rational transcription of the probability rule (Hmisc's)."""
     pairs = sorted((Fraction(xi), Fraction(wi)) for xi, wi in zip(x, w) if wi > 0)
     n = len(pairs)
     total = sum(wi for _, wi in pairs)
@@ -172,13 +185,15 @@ def pulse_normalized_quantile(x, w, q, guard=True):
 
     def at(k):
         for (xi, _), c in zip(pairs, cum):
-            if c > k:
+            if c >= k + 1:
                 return xi
         return pairs[-1][0]
 
     # Knife-edge guard: a normalized cumulative weight sitting on an
-    # integer rank makes "exceeds k" turn on the last ulp of the float
-    # sum — a fixture property, not a definition. Refuse such fixtures.
+    # integer rank makes ">= the rank" turn on the last ulp of the float
+    # sum. Pulse snaps such a weight to the integer (the exact answer);
+    # Hmisc does not, so its figure there is a float artifact and not a
+    # usable reference. Refuse such fixtures.
     for c in cum[:-1] if guard else []:
         if abs(c - round(c)) < Fraction(1, 10**6):
             raise SystemExit(f"knife-edge fixture: normalized cumulative weight {float(c)!r}")
@@ -207,6 +222,9 @@ def exact_shape(x, w):
     return float(skew), float(kurt)
 
 
+HMISC = [None]  # "R <ver>; Hmisc <ver>", set by the first probability config
+
+
 def cases():
     out = []
     for wname, kind in CONFIGS:
@@ -233,9 +251,15 @@ def cases():
             med = type7_expanded(x, w, 50)
             pct = {q: type7_expanded(x, w, q) for q in PERCENTILES}
         else:
-            qsrc = "exact Fraction transcription of the normalized expanded-index type 7"
-            med = pulse_normalized_quantile(x, w, 50)
-            pct = {q: pulse_normalized_quantile(x, w, q) for q in PERCENTILES}
+            qs = [50.0] + PERCENTILES
+            rver, hq = hmisc_quantiles(x, w, qs)
+            HMISC[0] = rver
+            for q, v in zip(qs, hq):
+                exact = pulse_normalized_quantile(x, w, q)
+                assert abs(v - exact) <= 1e-12 * abs(exact), (wname, q, v, exact)
+            qsrc = f"{rver} wtd.quantile(normwt=TRUE)"
+            med = hq[0]
+            pct = dict(zip(PERCENTILES, hq[1:]))
         add("AGG_MEDIAN", {"": med}, src=qsrc)
         for q in PERCENTILES:
             add("AGG_PERCENTILE", {"": pct[q]}, params=f'{{"percentile":{q}}}', src=qsrc)
@@ -322,7 +346,7 @@ def emit(out):
     w("")
     w("// weightRefProvenance records the generating toolchain.")
     w(f'const weightRefProvenance = "python {sys.version.split()[0]}, numpy {np.__version__}, '
-      f'scipy {scipy.__version__}, statsmodels {statsmodels.__version__}"')
+      f'scipy {scipy.__version__}, statsmodels {statsmodels.__version__}; {HMISC[0]}"')
     w("")
     w(f"// weightRefPScale is c in the probability twin p = c·f.")
     w(f"const weightRefPScale = {P_SCALE!r}")
