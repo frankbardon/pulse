@@ -548,8 +548,39 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 		}
 	}
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
+	dropHiddenWeights(requestObject, inst)
 
 	return json.Marshal(requestObject)
+}
+
+// dropHiddenWeights deletes every nested `weight` property (the per-slot
+// weights on aggregations, the crosstab cell / margin aggregations /
+// axes, tests, post-tests, regressions, attributes, overlays, groups)
+// when inst hides capability:weighting — the properties the instance
+// payload schema drops and the request-slot gate refuses. The compose
+// and chain tools embed this request schema, so they follow. No-op
+// unless weighting is hidden.
+func dropHiddenWeights(node any, inst *descx.InstanceSnapshot) {
+	if inst.Enabled(descx.FeatureWeighting) {
+		return
+	}
+	var walk func(any)
+	walk = func(n any) {
+		switch v := n.(type) {
+		case map[string]any:
+			if props, ok := v["properties"].(map[string]any); ok {
+				delete(props, "weight")
+			}
+			for _, child := range v {
+				walk(child)
+			}
+		case []any:
+			for _, child := range v {
+				walk(child)
+			}
+		}
+	}
+	walk(node)
 }
 
 // crosstabSchema returns the JSON Schema for the Crosstab section.

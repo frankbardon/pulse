@@ -7,6 +7,7 @@
     "capability:facet",
     "capability:crosstab",
     "capability:labels",
+    "capability:weighting",
     "AGG_COUNT",
     "AGG_SUM",
     "AGG_AVERAGE",

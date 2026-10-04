@@ -115,7 +115,15 @@ var (
 	featWiden        = FeatureName(FeatureKindCapability, "widen")
 	featSynth        = FeatureName(FeatureKindCapability, "synth")
 	featExport       = FeatureName(FeatureKindCapability, "export")
+	featWeighting    = FeatureWeighting
 )
+
+// FeatureWeighting is capability:weighting — the row-weight surface:
+// the request-root `weight`, every per-slot `weight`, and
+// pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
+// profile). Exported because the root facade (DefaultWeight refusal)
+// and the MCP binder (nested weight properties) read it too.
+const FeatureWeighting = "capability:weighting"
 
 // builtinFeatures is THE feature table. Adding an operator, capability,
 // I/O format or MCP extra means adding its row here, by hand —
@@ -146,6 +154,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("synth"),          // Synth, SynthStream, data-profile capture; gates every synth distribution
 	capability("labels"),         // label tables + resolve
 	capability("range_tables"),   // range tables
+	capability("weighting"),      // Request.Weight + every per-slot weight + Options.DefaultWeight
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -339,8 +348,9 @@ var processOnly = map[string]bool{
 // requestSlotCapabilities are request slots modelled as capabilities;
 // like operators they need a request-executing host.
 var requestSlotCapabilities = map[string]bool{
-	featJoins:    true,
-	featCrosstab: true,
+	featJoins:     true,
+	featCrosstab:  true,
+	featWeighting: true,
 }
 
 // overlayHostKinds lists, per host capability, the overlay kinds that

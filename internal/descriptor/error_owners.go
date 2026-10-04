@@ -388,11 +388,16 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FEATURE_PROFILE_UNKNOWN:    shared,
 	errors.PULSE_FEATURE_PROFILE_DEPENDENCY: shared,
 
-	// Row weighting rides the request slots every request host carries;
-	// listed on every instance until a weighting capability owns them.
-	errors.PULSE_WEIGHT_INVALID_ROWS:        shared,
-	errors.PULSE_WEIGHT_UNSUPPORTED:         shared,
-	errors.PULSE_EXTENSION_NOT_WEIGHT_AWARE: shared,
+	// Row weighting is capability:weighting. AGG_WEIGHTED_MEAN co-owns
+	// the two codes its params.weight_field sugar reaches with the
+	// capability hidden (weight_field stays ungated): the invalid-row
+	// warning, and the decimal128 refusal. An extension's weight
+	// awareness is judged only under a weight in force, which a hidden
+	// capability never has (every `weight` key and Options.DefaultWeight
+	// are refused).
+	errors.PULSE_WEIGHT_INVALID_ROWS:        own(featWeighting, "AGG_WEIGHTED_MEAN"),
+	errors.PULSE_WEIGHT_UNSUPPORTED:         own(featWeighting, "AGG_WEIGHTED_MEAN"),
+	errors.PULSE_EXTENSION_NOT_WEIGHT_AWARE: own(featWeighting),
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

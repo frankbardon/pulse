@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"sort"
@@ -27,6 +28,10 @@ import (
 //   - ComposedRequest.Overlays — capability:compose
 //   - ChainRequest.Overlays    — capability:process_chain
 //   - FacetRequest.Overlays    — capability:facet
+//   - Request.Weight and every nested per-slot `weight` (Aggregation —
+//     so also the crosstab cell and margin_aggregations —, Test,
+//     RegressionSpec, Attribute, OverlaySpec, Group — so also the
+//     crosstab axes) — capability:weighting
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
@@ -63,13 +68,31 @@ func overlayGate(hosts ...string) func(*InstanceSnapshot) bool {
 	}
 }
 
-// gatedSlots maps each request root (by its Go type) to its gated slots.
+// weightKey is the JSON key of the request-root weight and of every
+// per-slot weight; all of them ride capability:weighting.
+const weightKey = "weight"
+
+// weightSlotGate is the one gate every `weight` key shares.
+var weightSlotGate = gatedSlot{key: weightKey, visible: capabilityGate(featWeighting)}
+
+// gatedSlots maps each request root (by its Go type) to its gated
+// slots, plus the nested slot objects that carry a gated key of their
+// own (the per-slot `weight`). The nested entries are what the payload
+// schema (structSchema reads HiddenSlotKeys per struct) and the nested
+// refusal (nestedWeightRefusal) consult.
 var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.Request{}): {
 		{key: "crosstab", visible: capabilityGate(featCrosstab)},
 		{key: "joins", visible: capabilityGate(featJoins)},
 		{key: "overlays", visible: overlayGate(featCrosstab, featCompose)},
+		weightSlotGate,
 	},
+	reflect.TypeOf(types.Aggregation{}):    {weightSlotGate},
+	reflect.TypeOf(types.Test{}):           {weightSlotGate},
+	reflect.TypeOf(types.RegressionSpec{}): {weightSlotGate},
+	reflect.TypeOf(types.Attribute{}):      {weightSlotGate},
+	reflect.TypeOf(types.OverlaySpec{}):    {weightSlotGate},
+	reflect.TypeOf(types.Group{}):          {weightSlotGate},
 	reflect.TypeOf(types.ComposedRequest{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 	},
@@ -163,6 +186,15 @@ func VisibleSlotKeys(sample any, inst *InstanceSnapshot) []string {
 // of the error — the MCP strict decoder and the slot gate both build it
 // here, so a hidden slot and an unknown key cannot drift apart.
 func UnknownFieldError(unknown, valid []string) *errors.CodedError {
+	return unknownFieldErrorAt("", unknown, valid)
+}
+
+// unknownFieldErrorAt is UnknownFieldError for the keys of the object at
+// path inside the request ("aggregations[0]", "crosstab.cell"); "" is
+// the request root (UnknownFieldError's message, byte-identical). A
+// nested refusal names the object in its message and carries
+// details.path; valid_keys / suggestions range over THAT object's keys.
+func unknownFieldErrorAt(path string, unknown, valid []string) *errors.CodedError {
 	if len(unknown) == 0 {
 		return nil
 	}
@@ -182,15 +214,23 @@ func UnknownFieldError(unknown, valid []string) *errors.CodedError {
 		}
 	}
 
-	msg := "request contains unrecognized top-level key(s): " + strings.Join(parts, ", ") +
-		". Unknown keys are ignored during decode, so the intended operation is silently dropped. Valid request keys: " +
+	where, validWhere := "top-level key(s): ", "Valid request keys: "
+	if path != "" {
+		where, validWhere = "key(s) in "+path+": ", "Valid keys there: "
+	}
+	msg := "request contains unrecognized " + where + strings.Join(parts, ", ") +
+		". Unknown keys are ignored during decode, so the intended operation is silently dropped. " + validWhere +
 		strings.Join(validList, ", ") + "."
 
-	return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_UNKNOWN_FIELD, msg, map[string]any{
+	details := map[string]any{
 		"unknown_keys": unknown,
 		"suggestions":  suggestions,
 		"valid_keys":   validList,
-	})
+	}
+	if path != "" {
+		details["path"] = path
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_UNKNOWN_FIELD, msg, details)
 }
 
 // NearestKey returns the closest candidate to k by Levenshtein distance,
@@ -229,6 +269,9 @@ func setSlots(v any) []string {
 		if len(r.Overlays) > 0 {
 			out = append(out, "overlays")
 		}
+		if r.Weight != nil {
+			out = append(out, weightKey)
+		}
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
@@ -266,6 +309,105 @@ func rootSlotRefusal(v any, inst *InstanceSnapshot) *errors.CodedError {
 	return UnknownFieldError(unknown, VisibleSlotKeys(v, inst))
 }
 
+// nestedWeightRefusal refuses the first per-slot `weight` set inside
+// req when inst hides capability:weighting, in the resolver's slot
+// order (weightSlots): aggregations, crosstab cell, crosstab margin
+// aggregations, tests, post-tests, regressions, attributes, overlays,
+// groups, crosstab rows, crosstab columns. A set weight is any non-zero
+// SlotWeight — an explicit `null` included, as strict decode refuses
+// any set key. The refusal is PULSE_REQUEST_UNKNOWN_FIELD at that
+// object (details.path), valid_keys over its visible keys.
+func nestedWeightRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
+	if req == nil || inst.Enabled(featWeighting) {
+		return nil
+	}
+	at := func(path string, sample any) *errors.CodedError {
+		return unknownFieldErrorAt(path, []string{weightKey}, VisibleSlotKeys(sample, inst))
+	}
+	for i, a := range req.Aggregations {
+		if a != nil && !a.Weight.IsZero() {
+			return at(fmt.Sprintf("aggregations[%d]", i), a)
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		if ct.Cell != nil && !ct.Cell.Weight.IsZero() {
+			return at("crosstab.cell", ct.Cell)
+		}
+		for i, a := range ct.MarginAggregations {
+			if a != nil && !a.Weight.IsZero() {
+				return at(fmt.Sprintf("crosstab.margin_aggregations[%d]", i), a)
+			}
+		}
+	}
+	for _, tier := range []struct {
+		prefix string
+		tests  []*types.Test
+	}{{"tests", req.Tests}, {"post_tests", req.PostTests}} {
+		for i, t := range tier.tests {
+			if t != nil && !t.Weight.IsZero() {
+				return at(fmt.Sprintf("%s[%d]", tier.prefix, i), t)
+			}
+		}
+	}
+	for i, r := range req.Regressions {
+		if r != nil && !r.Weight.IsZero() {
+			return at(fmt.Sprintf("regressions[%d]", i), r)
+		}
+	}
+	for i, a := range req.Attributes {
+		if a != nil && !a.Weight.IsZero() {
+			return at(fmt.Sprintf("attributes[%d]", i), a)
+		}
+	}
+	if ce := overlayWeightRefusal(req.Overlays, inst); ce != nil {
+		return ce
+	}
+	groups := func(prefix string, gs []*types.Group) *errors.CodedError {
+		for i, g := range gs {
+			if g != nil && !g.Weight.IsZero() {
+				return at(fmt.Sprintf("%s[%d]", prefix, i), g)
+			}
+		}
+		return nil
+	}
+	if ce := groups("groups", req.Groups); ce != nil {
+		return ce
+	}
+	if ct := req.Crosstab; ct != nil {
+		if ce := groups("crosstab.rows", ct.Rows); ce != nil {
+			return ce
+		}
+		if ce := groups("crosstab.columns", ct.Columns); ce != nil {
+			return ce
+		}
+	}
+	return nil
+}
+
+// overlayWeightRefusal is nestedWeightRefusal over one overlays list
+// (a Request's or a FacetRequest's).
+func overlayWeightRefusal(overlays []types.OverlaySpec, inst *InstanceSnapshot) *errors.CodedError {
+	if inst.Enabled(featWeighting) {
+		return nil
+	}
+	for i := range overlays {
+		if !overlays[i].Weight.IsZero() {
+			return unknownFieldErrorAt(fmt.Sprintf("overlays[%d]", i), []string{weightKey},
+				VisibleSlotKeys(&overlays[i], inst))
+		}
+	}
+	return nil
+}
+
+// requestSlotRefusal gates one Request: its own top-level slots, then
+// every nested slot `weight`.
+func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
+	if ce := rootSlotRefusal(req, inst); ce != nil {
+		return ce
+	}
+	return nestedWeightRefusal(req, inst)
+}
+
 // SlotRefusal is the request-slot gate. v is a *types.Request,
 // *types.ComposedRequest, *types.ChainRequest or *types.FacetRequest
 // (any other value — a *types.SampleRequest, nil — passes). It returns
@@ -273,6 +415,8 @@ func rootSlotRefusal(v any, inst *InstanceSnapshot) *errors.CodedError {
 // every hidden slot set on the first offending root:
 //
 //   - the root's own slots first;
+//   - then the nested per-slot `weight` keys (nestedWeightRefusal) of a
+//     Request, or of a FacetRequest's overlays;
 //   - then, for a ComposedRequest, each Requests[i] in order with
 //     details.request = i; for a ChainRequest each Stages[i].Request
 //     with details.stage = i (the keys the service's located refusals
@@ -290,12 +434,23 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 		return ce
 	}
 	switch r := v.(type) {
+	case *types.Request:
+		if ce := nestedWeightRefusal(r, inst); ce != nil {
+			return ce
+		}
+	case *types.FacetRequest:
+		if r == nil {
+			return nil
+		}
+		if ce := overlayWeightRefusal(r.Overlays, inst); ce != nil {
+			return ce
+		}
 	case *types.ComposedRequest:
 		if r == nil {
 			return nil
 		}
 		for i, req := range r.Requests {
-			if ce := rootSlotRefusal(req, inst); ce != nil {
+			if ce := requestSlotRefusal(req, inst); ce != nil {
 				return RefusalAt(ce, "request", i)
 			}
 		}
@@ -307,7 +462,7 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 			if st == nil {
 				continue
 			}
-			if ce := rootSlotRefusal(st.Request, inst); ce != nil {
+			if ce := requestSlotRefusal(st.Request, inst); ce != nil {
 				return RefusalAt(ce, "stage", i)
 			}
 		}

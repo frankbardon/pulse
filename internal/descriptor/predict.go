@@ -315,9 +315,12 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Weight resolution — the same single pass the runtime runs right
 	// after the field-reference rule (ResolveWeights). A refusal is a
 	// predict error carrying the runtime's own code and details.
+	// With capability:weighting hidden the refusals still run (an
+	// AGG_WEIGHTED_MEAN params.weight_field stays ungated) but the
+	// per-slot report is not offered.
 	if weights, werr := ResolveWeights(req, schema, opts.DefaultWeight, opts.Instance); werr != nil {
 		addCodedError(env, werr)
-	} else {
+	} else if opts.instance().Enabled(featWeighting) {
 		result.Weights = weights
 	}
 
@@ -895,6 +898,11 @@ func populateOverlayDescriptors(result *descriptor.PredictResult, req *types.Req
 // validateExtensions).
 func aggregatorComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.ComponentSchema {
 	caps := aggregatorCapabilities()
+	if !opts.instance().Enabled(featWeighting) {
+		// As the instance manifest: no weighted floor keys when
+		// capability:weighting is hidden.
+		caps = aggregatorCapabilityTable()
+	}
 	out := make(map[string]descriptor.ComponentSchema, len(caps))
 	for _, op := range caps {
 		out[op.Name] = op.ComponentSchema

@@ -15,9 +15,6 @@
         },
         "type": {
           "$ref": "#/$defs/AggregationType"
-        },
-        "weight": {
-          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -112,9 +109,6 @@
         },
         "tz": {
           "type": "string"
-        },
-        "weight": {
-          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -510,9 +504,6 @@
         },
         "tz": {
           "type": "string"
-        },
-        "weight": {
-          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -1256,9 +1247,6 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
-        },
-        "weight": {
-          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -1384,9 +1372,6 @@
         },
         "time_zone": {
           "type": "string"
-        },
-        "weight": {
-          "$ref": "#/$defs/WeightSpec"
         },
         "windows": {
           "items": {
@@ -1612,20 +1597,6 @@
       ],
       "type": "object"
     },
-    "SlotWeight": {
-      "description": "Per-slot row weight. Absent: inherit the request weight, then the instance default. null: opt this slot out (run unweighted). A string names the weight field (kind probability); an object is a full WeightSpec.",
-      "oneOf": [
-        {
-          "type": "string"
-        },
-        {
-          "$ref": "#/$defs/WeightSpec"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "StageRef": {
       "additionalProperties": false,
       "properties": {
@@ -1679,9 +1650,6 @@
         },
         "type": {
           "$ref": "#/$defs/TestType"
-        },
-        "weight": {
-          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -1755,21 +1723,6 @@
       "enum": [],
       "type": "string"
     },
-    "WeightSpec": {
-      "additionalProperties": false,
-      "properties": {
-        "field": {
-          "type": "string"
-        },
-        "kind": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "field"
-      ],
-      "type": "object"
-    },
     "Window": {
       "additionalProperties": false,
       "properties": {
@@ -1834,4 +1787,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6d8b1fa91720eb2d93147f32cde7c8db5d6e37b03132edca4a7d9c907f77198e
+// golden-hash: ad8b0cfd5e410100de974b42c624d5db01dac8c6f80ad1be8f77bad888fb50fb

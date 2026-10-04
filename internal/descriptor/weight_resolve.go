@@ -490,8 +490,14 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			// resolving (no weight anywhere, or the slot opted out)
 			// there is no answer to give.
 			if s.operator == string(types.AGG_WEIGHTED_MEAN) && !s.hidden {
+				remedy := "set params.weight_field, a slot weight or a request weight"
+				if !inst.Enabled(featWeighting) {
+					// The slot and request weight are hidden with
+					// capability:weighting; only the sugar remains.
+					remedy = "set params.weight_field"
+				}
 				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-					s.slot+": AGG_WEIGHTED_MEAN needs a weight: set params.weight_field, a slot weight or a request weight",
+					s.slot+": AGG_WEIGHTED_MEAN needs a weight: "+remedy,
 					map[string]any{"slot": s.slot, "operator": s.operator})
 			}
 			out = append(out, rw)

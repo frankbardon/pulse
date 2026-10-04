@@ -3,7 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
-    "feature_set_digest": "fs1:3755efe584d3389f1901b91847f757f0c5904ca37a945281409d5c3b091db1f9",
+    "feature_set_digest": "fs1:276b855083140502543b326015fa94e916daec31687d0033a304d07d3849f222",
     "commands": [
       {
         "name": "process",
@@ -11382,4 +11382,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c3245989591a602ba9127350827ff212d15854b446c47d0392cbba7e0cd055cb
+// golden-hash: b30c946ab2a1e4575f84c5414e6b2b185e1f4b1e9e4ef3887e46b26dc8b97469

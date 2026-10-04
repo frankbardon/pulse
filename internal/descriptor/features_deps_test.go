@@ -74,6 +74,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"TEST_TUKEY_HSD":               {requestHosts}, // no TUKEY → ANOVA edge: the pairing is advice
 		"capability:joins":             {requestHosts},
 		"capability:crosstab":          {requestHosts},
+		"capability:weighting":         {requestHosts},
 		"capability:stream":            {{"capability:process"}},
 		"capability:watch":             {{"capability:process"}},
 		"capability:filter_to_file":    {{"capability:process"}, {"FILTER_EXPRESSION"}},

@@ -57,6 +57,9 @@ var requestSlotAppliers = map[string]func(r *types.Request){
 	"overlays": func(r *types.Request) {
 		r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindShareOfRow}}
 	},
+	"weight": func(r *types.Request) {
+		r.Weight = &types.WeightSpec{Field: "age"}
+	},
 }
 
 // requestSlotEntryPoints run one Request through every entry point
@@ -87,7 +90,7 @@ var requestSlotEntryPoints = map[string]func(h *parityHost, req *types.Request) 
 	},
 	"ProcessChain/stage1": func(h *parityHost, req *types.Request) *slotGateOutcome {
 		stage1 := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "total"}}}
-		stage1.Crosstab, stage1.Joins, stage1.Overlays = req.Crosstab, req.Joins, req.Overlays
+		stage1.Crosstab, stage1.Joins, stage1.Overlays, stage1.Weight = req.Crosstab, req.Joins, req.Overlays, req.Weight
 		_, err := h.p.ProcessChain(context.Background(), &ChainRequest{
 			Cohort: &types.Cohort{Filename: h.cohort},
 			Stages: []*types.ChainStage{{Name: "base", Request: h.base()}, {Name: "probe", Request: stage1}},

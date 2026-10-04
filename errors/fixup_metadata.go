@@ -1656,7 +1656,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REQUEST_UNKNOWN_FIELD: {
-		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\").",
+		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\"). When `details.path` is present the key sits inside that slot object (\"aggregations[0]\") rather than at the top level, and `valid_keys` lists that object's keys.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2772,13 +2772,19 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEATURE_PROFILE_DEPENDENCY: {
-		Message: "The feature profile enables a feature without a feature it depends on, so pulse.New refused it. A feature's dependencies are an AND of any-of groups — an operator, for example, needs at least one request host (`capability:process`, `capability:compose` or `capability:process_chain`). Every unmet group is listed under the `unmet` detail, naming the enabled `feature` and the `requires_any_of` group; an extension registration's DependsOn entries are single-name groups.",
+		Message: "The feature profile enables a feature without a feature it depends on, so pulse.New refused it. A feature's dependencies are an AND of any-of groups — an operator, for example, needs at least one request host (`capability:process`, `capability:compose` or `capability:process_chain`). Every unmet group is listed under the `unmet` detail, naming the enabled `feature` and the `requires_any_of` group; an extension registration's DependsOn entries are single-name groups. An instance Options value that acts on a feature is checked the same way: its `unmet` entry names the `option` instead of a `feature` (listed under `options`) — `Options.DefaultWeight` needs `capability:weighting`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"features"},
 				Hint:     "For each entry under `unmet`, add at least one name from `requires_any_of` to the profile's `features`, or remove the `feature` that needs it.",
 				Examples: []any{"capability:process"},
+			},
+			{
+				Action:   FixupRemoveParam,
+				Path:     []string{"Options.DefaultWeight"},
+				Hint:     "For an `unmet` entry naming an `option`, either add the required feature to the profile or leave that Options value unset.",
+				Examples: []any{"capability:weighting"},
 			},
 		},
 	},

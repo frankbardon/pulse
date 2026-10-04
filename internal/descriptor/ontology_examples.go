@@ -42,6 +42,10 @@ var exampleCapabilityDetectors = []exampleCapabilityDetector{
 	{featCompose, func(_ ontologyExample, body any) bool { return rootHasKey(body, "requests") }},
 	{featProcessChain, func(_ ontologyExample, body any) bool { return rootHasKey(body, "stages") }},
 	{featJoins, func(_ ontologyExample, body any) bool { return jsonHasKey(body, "joins") }},
+	// A `weight` key at any depth — the request root or any slot's —
+	// is the weighting surface (AGG_WEIGHTED_MEAN's params.weight_field
+	// is a different key and stays ungated).
+	{featWeighting, func(_ ontologyExample, body any) bool { return jsonHasKey(body, "weight") }},
 	{featFacet, func(ex ontologyExample, _ any) bool {
 		return ex.Category == "facet" || slices.Contains(ex.Tags, "facet")
 	}},

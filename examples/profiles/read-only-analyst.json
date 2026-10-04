@@ -15,6 +15,7 @@
     "capability:templates",
     "capability:labels",
     "capability:range_tables",
+    "capability:weighting",
     "AGG_COUNT",
     "AGG_SUM",
     "AGG_AVERAGE",

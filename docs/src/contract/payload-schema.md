@@ -33,7 +33,9 @@ with a feature profile gets a narrower document:
 - the operator, overlay-kind and regression enums list only the enabled
   names;
 - a request slot the instance does not offer (`crosstab`, `joins`,
-  `overlays`) is not a property of its request root;
+  `overlays`, `weight`) is not a property of its request root; without
+  `capability:weighting` no per-slot `weight` is a property either (so
+  `SlotWeight` and `WeightSpec` are absent);
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
