@@ -145,8 +145,10 @@ func TestCohortBuilder_AppendShardRefusals(t *testing.T) {
 
 // TestCohortBuilder_AppendShardCloseFailures: AddShard's errors are
 // Close's, unchanged — a shard name taken while the build ran
-// (PULSE_SHARD_NAME_COLLISION) and a cohesion failure (a schema the
-// archive does not share: PULSE_SHARD_SCHEMA_MISMATCH) — and a failed
+// (PULSE_SHARD_NAME_COLLISION) and a cohesion failure against an
+// archive replaced while the build ran (PULSE_SHARD_SCHEMA_MISMATCH:
+// the construction-time pre-check is advisory, AddShard is the
+// authority) — and a failed
 // Close leaves the archive byte-identical with no spool or staging.
 func TestCohortBuilder_AppendShardCloseFailures(t *testing.T) {
 	rows, _ := groupedData()
@@ -183,17 +185,24 @@ func TestCohortBuilder_AppendShardCloseFailures(t *testing.T) {
 	})
 
 	t.Run("cohesion", func(t *testing.T) {
-		p, fsys, before := setup(t)
-		b, err := p.NewCohortBuilder(context.Background(), "arch.pulse#other.pulse", paritySchema(), CohortBuilderOptions{})
+		// The construction-time pre-check passed against the archive as
+		// it was; the archive is then replaced by one the build no longer
+		// coheres with, so AddShard at Close — the authority — refuses.
+		p, fsys, _ := setup(t)
+		b, err := p.NewCohortBuilder(context.Background(), "arch.pulse#other.pulse", groupedSchema(), CohortBuilderOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, r := range parityRows(t) {
+		for _, r := range rows[:10] {
 			if err := b.Append(r); err != nil {
 				t.Fatal(err)
 			}
 		}
-		check(t, fsys, b, before, errors.PULSE_SHARD_SCHEMA_MISMATCH)
+		if err := fsys.Remove("arch.pulse"); err != nil {
+			t.Fatal(err)
+		}
+		buildCohort(t, p, "arch.pulse", paritySchema(), CohortBuilderOptions{Shards: &ShardSplit{MaxRecords: 60}}, parityRows(t))
+		check(t, fsys, b, readFile(t, fsys, "arch.pulse"), errors.PULSE_SHARD_SCHEMA_MISMATCH)
 	})
 }
 

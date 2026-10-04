@@ -168,7 +168,16 @@ type CohortBuilder struct {
 // (not_an_archive), a malformed shard name (invalid_shard_name,
 // anchored_target) and a refused option (append_option, details.option
 // naming it); PULSE_SHARD_RESERVED_NAME for `_schema.pulse`;
-// PULSE_SHARD_NAME_COLLISION for a name the archive already holds.
+// PULSE_SHARD_NAME_COLLISION for a name the archive already holds; and
+// a schema AddShard is certain to refuse, checked up front against the
+// archive's canonical schema with AddShard's own merge rules and
+// refused with its code, message and details unchanged
+// (PULSE_SHARD_SCHEMA_MISMATCH for a field name, count, non-set type,
+// nullability or categorical width that diverges;
+// PULSE_SHARD_DICT_WIDTH_OVERFLOW / PULSE_SHARD_DICT_DIVERGENCE for
+// pre-seeded dictionaries that cannot merge). What AddShard accepts —
+// set widening, dictionary union, the archive's group re-layout — is
+// accepted here too, and Close re-runs AddShard as the authority.
 func (p *Pulse) NewCohortBuilder(ctx context.Context, target string, schema encoding.Schema, opts CohortBuilderOptions) (*CohortBuilder, error) {
 	bo := iio.CohortBuildOptions{
 		Strict:         opts.Strict,
@@ -177,6 +186,7 @@ func (p *Pulse) NewCohortBuilder(ctx context.Context, target string, schema enco
 		ElideConstants: opts.ElideConstants,
 		RatioFloor:     opts.RatioFloor,
 		AppendShard:    p.appendShard,
+		CheckAppend:    p.svc.PrecheckShardCohesion,
 	}
 	if opts.Shards != nil {
 		if opts.Shards.MaxRecords <= 0 {

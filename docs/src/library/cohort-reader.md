@@ -237,6 +237,18 @@ res, err := b.Close() // runs Pulse.AddShard once; res.Shards == ["2026-10.pulse
   are refused — the **archive's group layout wins** — and so is
   `Overwrite`, since an append replaces nothing: `SERVICE_VALIDATION`,
   `reason: append_option`, `details.option` naming the option.
+- **Cohesion, checked up front too.** `NewCohortBuilder` reads the
+  archive's canonical schema and runs `AddShard`'s own merge rules over
+  your schema, so a shard `AddShard` is certain to refuse fails at
+  construction — before any row is spooled — with the **same** code,
+  message and details: `PULSE_SHARD_SCHEMA_MISMATCH` for a field count,
+  name, order, numeric type, categorical width or set-vs-non-set that
+  differs, `PULSE_SHARD_DICT_WIDTH_OVERFLOW` when your **pre-seeded**
+  dictionaries alone overflow the union. Everything `AddShard` accepts
+  passes: a set rung it widens, labels it union-merges, a grouped
+  archive it re-encodes into. What only the rows decide (a union the
+  appended labels overflow) is still checked at `Close`, and `Close`
+  re-runs the full check, since the archive can change in between.
 - **Close.** The rows are written as one shard file staged beside the
   archive and handed to **one** `Pulse.AddShard` call, which rewrites
   the archive atomically and reconciles the shard to it: categorical
@@ -247,8 +259,9 @@ res, err := b.Close() // runs Pulse.AddShard once; res.Shards == ["2026-10.pulse
   **mandatory** warnings end `CohortBuildResult.Warnings`, codes and
   details unchanged.
 - **Failures pass through.** `AddShard`'s errors are `Close`'s,
-  unchanged — a cohesion failure such as `PULSE_SHARD_SCHEMA_MISMATCH`
-  or `PULSE_SHARD_DICT_WIDTH_OVERFLOW`, or a name another writer added
+  unchanged — a cohesion failure the rows caused or that an archive
+  changed while the build ran introduced (`PULSE_SHARD_SCHEMA_MISMATCH`,
+  `PULSE_SHARD_DICT_WIDTH_OVERFLOW`), or a name another writer added
   while the build ran (`PULSE_SHARD_NAME_COLLISION`). On any failure the
   archive is byte-for-byte as it was, and no spool or staging is left.
 - **Result.** `Target` is the anchored path, `Shards` the one entry

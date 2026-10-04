@@ -70,6 +70,13 @@ type CohortBuildOptions struct {
 	// for an anchored target (`archive.pulse#name.pulse`): the build is
 	// then ONE shard appended to that archive — see NewCohortBuild.
 	AppendShard func(ctx context.Context, archivePath, shardPath string) ([]*errors.CodedError, error)
+	// CheckAppend, when set, is the up-front cohesion check an anchored
+	// build runs at NewCohortBuild against the archive's canonical
+	// schema, with the build's (layout-recomputed) schema: it refuses
+	// only what AddShard is certain to refuse, with AddShard's own code
+	// and message (the facade wires the service's
+	// PrecheckShardCohesion). AppendShard at Close stays the authority.
+	CheckAppend func(ctx context.Context, archivePath string, schema *encoding.Schema) error
 }
 
 // MaxBuildShards is the most shards one sharded build may write: the
@@ -183,8 +190,9 @@ type CohortBuild struct {
 // (no implicit create), a file that is not a shard archive, a
 // malformed shard name, an option the append refuses, a reserved
 // shard name (PULSE_SHARD_RESERVED_NAME), a name already in the
-// archive (PULSE_SHARD_NAME_COLLISION) and an unreadable archive (its
-// own code); a malformed schema (no fields, empty or duplicate names, an
+// archive (PULSE_SHARD_NAME_COLLISION), an unreadable archive (its
+// own code) and, through CheckAppend, a schema AddShard is certain to
+// refuse (its own PULSE_SHARD_* code); a malformed schema (no fields, empty or duplicate names, an
 // unknown type, a bad decimal precision/scale, a pre-seeded dictionary
 // longer than its rung, parent groups in the schema); an over-long
 // description (PULSE_IMPORT_DESCRIPTION_TOO_LONG); under Strict a
@@ -211,6 +219,11 @@ func NewCohortBuild(ctx context.Context, fsys afero.Fs, target string, schema *e
 	written, warns, err := prepareBuildSchema(schema, opts.Strict)
 	if err != nil {
 		return nil, err
+	}
+	if anchored && opts.CheckAppend != nil {
+		if err := opts.CheckAppend(ctx, archive, written); err != nil {
+			return nil, err
+		}
 	}
 	var (
 		specs      []encx.GroupSpec
