@@ -3,12 +3,14 @@ package pulse
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -647,5 +649,77 @@ func TestCohortBuilder_EmptyBuild(t *testing.T) {
 	}
 	if r := openReader(t, p, "empty.pulse"); r.Len() != 0 {
 		t.Fatalf("Len = %d", r.Len())
+	}
+}
+
+// managedExpiry reads a managed-import sidecar's expires_at.
+func managedExpiry(t *testing.T, fsys afero.Fs, cohort string) time.Time {
+	t.Helper()
+	var sc struct {
+		ExpiresAt time.Time `json:"expires_at"`
+	}
+	if err := json.Unmarshal(readFile(t, fsys, cohort+".meta.json"), &sc); err != nil {
+		t.Fatal(err)
+	}
+	return sc.ExpiresAt
+}
+
+// ageSidecar rewrites a sidecar's expires_at to a fixed past instant,
+// keeping every other key.
+func ageSidecar(t *testing.T, fsys afero.Fs, cohort string, at time.Time) {
+	t.Helper()
+	var sc map[string]any
+	if err := json.Unmarshal(readFile(t, fsys, cohort+".meta.json"), &sc); err != nil {
+		t.Fatal(err)
+	}
+	sc["expires_at"] = at.Format(time.RFC3339Nano)
+	out, err := json.Marshal(sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(fsys, cohort+".meta.json", out, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestCohortBuilder_OverwriteTouchesManagedImport: an Overwrite build
+// that replaces a managed import slides the import's expiry by its TTL,
+// as an in-place Dedup does; the same build over a cohort outside the
+// imports directory leaves a look-alike sidecar beside it untouched,
+// and a fresh build into the imports directory creates none.
+func TestCohortBuilder_OverwriteTouchesManagedImport(t *testing.T) {
+	ctx := context.Background()
+	past := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+	p, fsys := memBuilderEngine(t)
+	if err := afero.WriteFile(fsys, "data.csv", []byte("id,name\n1,a\n2,b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	imp, err := p.ImportFile(ctx, ImportSpec{SourcePath: "data.csv", TTL: time.Hour})
+	if err != nil || !imp.Managed {
+		t.Fatalf("ImportFile = %+v, %v", imp, err)
+	}
+	ageSidecar(t, fsys, imp.Path, past)
+
+	start := time.Now()
+	buildCohort(t, p, imp.Path, groupedSchema(), CohortBuilderOptions{Overwrite: true}, nil)
+	if got := managedExpiry(t, fsys, imp.Path); got.Before(start.Add(time.Hour - time.Minute)) {
+		t.Fatalf("managed expiry after Overwrite = %v, want ~now+1h (was %v)", got, past)
+	}
+
+	// Outside the imports directory: never a managed import.
+	buildCohort(t, p, "plain.pulse", groupedSchema(), CohortBuilderOptions{}, nil)
+	if err := afero.WriteFile(fsys, "plain.pulse.meta.json", readFile(t, fsys, imp.Path+".meta.json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ageSidecar(t, fsys, "plain.pulse", past)
+	buildCohort(t, p, "plain.pulse", groupedSchema(), CohortBuilderOptions{Overwrite: true}, nil)
+	if got := managedExpiry(t, fsys, "plain.pulse"); !got.Equal(past) {
+		t.Fatalf("unmanaged look-alike sidecar touched: expiry %v, want %v", got, past)
+	}
+
+	// A fresh build into the imports directory is not a managed import.
+	buildCohort(t, p, "imports/fresh.pulse", groupedSchema(), CohortBuilderOptions{}, nil)
+	if ok, _ := afero.Exists(fsys, "imports/fresh.pulse.meta.json"); ok {
+		t.Fatal("a fresh build created a managed-import sidecar")
 	}
 }

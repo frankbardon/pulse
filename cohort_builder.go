@@ -20,7 +20,10 @@ type CohortBuilderOptions struct {
 	Strict bool
 	// Overwrite lets the build replace an existing cohort at the
 	// target. Without it an existing target is refused with
-	// SERVICE_VALIDATION, at NewCohortBuilder and again at Close.
+	// SERVICE_VALIDATION, at NewCohortBuilder and again at Close. When
+	// the replaced cohort is a managed import, its expiry slides by its
+	// TTL (a pinned import stays pinned), as an in-place Pulse.Dedup
+	// does.
 	Overwrite bool
 	// Groups declares parent groups (key + the members it determines),
 	// exactly as `pulse import --group` / pio.ImportJob.Groups do: the
@@ -254,6 +257,9 @@ func (b *CohortBuilder) Close() (*CohortBuildResult, error) {
 		Shards:          rep.Shards,
 	}
 	if rep.Replaced {
+		// A replaced managed import slides its TTL, as an in-place
+		// Pulse.Dedup does; a no-op for any other target.
+		b.p.touchManaged(b.ctx, rep.Target)
 		sidecars, scanErr := b.p.InvalidatedSidecars(b.ctx, rep.Target)
 		res.InvalidatedSidecars = sidecars
 		if scanErr != nil {

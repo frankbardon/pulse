@@ -168,7 +168,12 @@ res, err := b.Close() // or b.Abort() to discard
   per-group `Groups` verdicts and `ElidedConstants`.
 - **Overwrite.** An existing target is refused unless
   `Overwrite: true`; replacing a cohort reports the sidecars it
-  invalidated (`InvalidatedSidecars`), as `Pulse.Dedup` does.
+  invalidated (`InvalidatedSidecars`), as `Pulse.Dedup` does. Replacing
+  a **managed import** (a cohort under the imports directory with its
+  `.meta.json` sidecar) also slides its expiry by its TTL — the same
+  refresh an in-place `Dedup` or a read gives it; a pinned import stays
+  pinned. A fresh build never creates or touches that sidecar, so a new
+  cohort written into the imports directory is not a managed import.
 
 **Parity with import.** A builder cohort with schema S is
 byte-identical to the same rows imported with explicit schema S and the
