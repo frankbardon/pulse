@@ -33,7 +33,9 @@ with a feature profile gets a narrower document:
 - the operator, overlay-kind and regression enums list only the enabled
   names;
 - a request slot the instance does not offer (`crosstab`, `joins`,
-  `overlays`) is not a property of its request root;
+  `overlays`, `weight`) is not a property of its request root; without
+  `capability:weighting` no per-slot `weight` is a property either (so
+  `SlotWeight` and `WeightSpec` are absent);
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
@@ -157,6 +159,76 @@ The resolved zone per slot is echoed by predict as
 `data.time_zones[]` — `{slot, operator, field_type, tz, source}` —
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
+
+## Weight slots
+
+Row weighting adds two additive slot shapes (`format_version` stays
+`"1.1"`; a request that names no weight is byte-identical to the earlier
+wire form and hashes identically):
+
+- **`weight`** on `Request` — a `WeightSpec` object `{field, kind}`,
+  `kind` ∈ `probability` (default when omitted) | `frequency`.
+  `ComposedRequest` and `ChainRequest` carry none of their own (each
+  inner `Request` does); `FacetRequest` and `SampleRequest` have none.
+- **`weight`** on every `Aggregation` (so also `crosstab.cell` and each
+  `crosstab.margin_aggregations[]` entry), `Test` (`tests[]` and
+  `post_tests[]`), `RegressionSpec`, `Attribute`, `OverlaySpec` and
+  `Group` (`groups[]` and both crosstab axes) — the per-slot
+  `SlotWeight` union: a field-name string, a `WeightSpec` object, or
+  `null`. Inferential slots (tests, regressions, reference-distribution
+  attributes, the quantile grouper, inferential overlays) are refused
+  `PULSE_WEIGHT_UNSUPPORTED` while a weight is in force, so on them
+  `null` is the way to run unweighted.
+
+**`null` is not absence.** An absent per-slot `weight` inherits the
+request's `weight`, then the engine's `DefaultWeight`; an explicit
+`null` opts that one slot out, so it runs unweighted while the rest of
+the request stays weighted. The schema says so with
+`oneOf [string, WeightSpec, null]` on `#/$defs/SlotWeight`.
+
+The field set a weight may name is not in the schema; `pulse predict`
+and the runtime enforce it identically: the field must be a cohort
+column (a joined, prefixed name included — never a derived column) of
+an unsigned-integer or float type, otherwise `SERVICE_VALIDATION`
+(unknown field) or `PROCESSING_CONFIG` (`{slot, field, type}`). The
+resolved weight per slot is echoed by predict as `data.weights[]` —
+`{slot, operator, field, kind, status, source}`, omitted when nothing
+names a weight — a predict result field, not part of this schema.
+
+A weighted aggregation slot reports three optional floor fields on its
+`Response.components.aggregations[i]` entry — `sum_weights`, `n_eff`
+(probability weights only) and `n_weight_invalid` — each `omitempty`
+and present only when a weight was applied to that slot, so an
+unweighted response is unchanged. `n` and `n_null` keep their
+value-presence meaning.
+
+Which operators honour, skip or refuse a weight, the invalid-weight
+rules and the unweighted-base recipe: [Row Weighting](../library/weighting.md).
+
+## Undefined figures
+
+A result figure can be undefined even when every input is present — a
+ratio over an all-zero denominator, a confidence bound under two rows,
+the first entry of an index-vs-prior series, a rolling window that has
+not filled. The engine's Go results carry NaN there; JSON has no NaN,
+so every JSON surface writes the figure as **`null` in place, key
+kept** (`types.MarshalFinite`), and the rest of the response serialises
+normally. `null` means "reported, undefined here"; an absent optional
+key keeps meaning "not reported for this kind".
+
+The schema says so: every float slot on a result-only def —
+`TestResult`, `RegressionResult`, `OverlaySummary`, the
+`OverlayPayload.scalar` arm, `FacetNumeric`, `FacetHistogram` and the
+weighted floor's `sum_weights` / `n_eff` on `AggregationComponents` —
+is `"type": ["number", "null"]`. The open slots (`data` rows,
+components operator maps, matrix cell `value`) already admit `null`.
+Request floats stay `"number"`: a decoded request never carries a
+non-finite float.
+
+Widening those slots did not move `format_version` (still `"1.1"`):
+every document the schema accepted before it still accepts, and output
+that serialised before is byte-identical — the only outputs that
+change are ones that previously failed to serialise at all.
 
 ## Whether a crosstab fuses is a predict answer
 

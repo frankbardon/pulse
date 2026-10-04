@@ -25,6 +25,7 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 
 ## Gotchas
 
+- No weighted form yet: a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the overlay to run it unweighted.
 - Expected cell formula: `row_margin × col_margin / grand_total`. p-value via `chiSquareSurvival` — byte-equal to the χ² test on the same contingency.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer.
 - Absent host cell treated as observed count of 0.

@@ -6,10 +6,12 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/spf13/afero"
 )
 
@@ -127,7 +129,35 @@ func resolveFeatureProfile(opts Options, fsys afero.Fs) (*FeatureProfile, error)
 	if err := validateFeatureProfile(fp, u, opts.FeatureProfileFile); err != nil {
 		return nil, err
 	}
+	if err := validateOptionsAgainstFeatureProfile(opts, fp); err != nil {
+		return nil, err
+	}
 	return fp, nil
+}
+
+// validateOptionsAgainstFeatureProfile refuses an Options value that
+// needs a feature the (already valid) profile omits — it would act on a
+// surface the instance hides. Today one: Options.DefaultWeight needs
+// capability:weighting (.claude/reference/weighting.md, Feature
+// profile); a hidden weighting refuses every request `weight`, so an
+// instance default would weight requests that could not opt out. It is
+// the dependency class: PULSE_FEATURE_PROFILE_DEPENDENCY with an
+// `unmet` entry {option, requires_any_of} and an `options` list.
+func validateOptionsAgainstFeatureProfile(opts Options, fp *FeatureProfile) error {
+	if opts.DefaultWeight == nil || slices.Contains(fp.Features, descx.FeatureWeighting) {
+		return nil
+	}
+	const option = "Options.DefaultWeight"
+	details := map[string]any{
+		"unmet":   []map[string]any{{"option": option, "requires_any_of": []string{descx.FeatureWeighting}}},
+		"options": []string{option},
+	}
+	if opts.FeatureProfileFile != "" {
+		details["path"] = opts.FeatureProfileFile
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_FEATURE_PROFILE_DEPENDENCY,
+		"feature profile: unmet dependencies: "+option+" requires one of ["+descx.FeatureWeighting+"]",
+		details)
 }
 
 // validateFeatureProfile runs the three validation classes in order —

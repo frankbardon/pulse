@@ -179,6 +179,22 @@ type PredictResult struct {
 	// runtime validates with. Empty when no zone-capable slot is present;
 	// never nil in JSON output.
 	TimeZones []ResolvedZone `json:"time_zones"`
+
+	// Weights lists how a row weight resolves on every weight-bearing
+	// slot (aggregations, the crosstab cell and margin aggregations,
+	// tests, post-tests, regressions, attributes, overlays) in that
+	// order. Resolution is slot `weight` → Request.Weight →
+	// Options.DefaultWeight → none, computed by the same function the
+	// runtime validates with. Omitted when the request, its slots and
+	// the instance name no weight at all, so an unweighted request's
+	// predict output is unchanged.
+	Weights []ResolvedWeight `json:"weights,omitempty"`
+
+	// SuggestedWeight echoes inspect's suggested_weight as DATA (never
+	// a warning, so strict mode is unaffected) when no slot resolves a
+	// weight field. Never applied. Omitted when there is nothing to
+	// suggest, a weight resolves, or the instance hides row weighting.
+	SuggestedWeight *SuggestedWeight `json:"suggested_weight,omitempty"`
 }
 
 // Zone-resolution sources reported on ResolvedZone.Source.
@@ -219,6 +235,61 @@ type ResolvedZone struct {
 	// Source names where TZ came from: "slot", "request", "options" or
 	// "default". On a null TZ it names the level the skipped zone was
 	// inherited from.
+	Source string `json:"source"`
+}
+
+// Weight-resolution sources reported on ResolvedWeight.Source.
+const (
+	// WeightSourceSlot: the slot's own `weight` (a `null` included).
+	WeightSourceSlot = "slot"
+	// WeightSourceRequest: the request root's `weight`.
+	WeightSourceRequest = "request"
+	// WeightSourceOptions: pulse.Options.DefaultWeight.
+	WeightSourceOptions = "options"
+	// WeightSourceNone: nothing named a weight.
+	WeightSourceNone = "none"
+)
+
+// Weight-resolution outcomes reported on ResolvedWeight.Status.
+const (
+	// WeightStatusApplied: the slot's operator consumes the resolved
+	// weight.
+	WeightStatusApplied = "applied"
+	// WeightStatusSkippedNotWeightAware: a weight resolved, but the
+	// slot's operator does not consume one; the slot runs unweighted.
+	WeightStatusSkippedNotWeightAware = "skipped_not_weight_aware"
+	// WeightStatusOptedOut: the slot's own `weight` is `null`.
+	WeightStatusOptedOut = "opted_out"
+	// WeightStatusNone: no weight resolves for the slot.
+	WeightStatusNone = "none"
+)
+
+// ResolvedWeight is the resolved row weight of one weight-bearing
+// request slot.
+type ResolvedWeight struct {
+	// Slot addresses the slot by its JSON path inside the request, e.g.
+	// "aggregations[0]", "crosstab.cell",
+	// "crosstab.margin_aggregations[1]", "tests[0]", "overlays[2]".
+	Slot string `json:"slot"`
+
+	// Operator is the slot's operator type (post smart-defaults), or
+	// the overlay kind on an overlay slot.
+	Operator string `json:"operator"`
+
+	// Field is the resolved weight field; empty when Status is
+	// "opted_out" or "none".
+	Field string `json:"field,omitempty"`
+
+	// Kind is the resolved weight kind ("probability" or "frequency",
+	// the default spelled out); empty when Field is.
+	Kind string `json:"kind,omitempty"`
+
+	// Status is "applied", "skipped_not_weight_aware", "opted_out" or
+	// "none".
+	Status string `json:"status"`
+
+	// Source names where the weight came from: "slot", "request",
+	// "options" or "none".
 	Source string `json:"source"`
 }
 

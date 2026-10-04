@@ -30,6 +30,7 @@ MATRIX — `Cells[r][c].Value = cell / row_margin` (raw ratio, no ×100). Cells 
 - Absent host cells stay absent on the overlay.
 - Scope MUST be `cell`. Empty `Ref.Margin` or non-row Axis → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (host crosstab always recomputes margins from raw rows).
+- Weighted host → weighted figure (reads the host payload).
 
 ## See
 

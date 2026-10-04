@@ -26,12 +26,14 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `index =
 ## Gotchas
 
 - Single-state lag carrier (one `float64`) — streamable inside the streaming Process fold.
+- NaN entries are `statistic: null` in JSON.
 - First ordinal → NaN, no warning ("no comparison available" ≠ "denominator zero").
-- Absent host point → NaN + carrier does NOT advance (next present point still divides by last present value).
+- Absent host point → no `statistic` key + carrier does NOT advance (next present point still divides by last present value).
 - Zero prior → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - `Ref.Prior.Lag` reserved for future window-N priors; v1 ships lag-1 only.
 - Empty `Ref` and populated `Ref.Prior` both spell lag-1.
 - Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Weighted host → weighted figure (reads the host payload).
 
 ## See
 

@@ -27,6 +27,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Pairing is **per-row**: Field and Field2 must already encode the (post, pre) pair on the same record. If pairing is across rows, build a paired column upstream first.
 - Streamable — Welford runs on d = Field − Field2 in a single pass.
 - A null in Field or Field2 drops the pair; `n` counts complete pairs.

@@ -331,10 +331,12 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 		return false
 	}
 	switch {
-	// Predict looser.
+	// Predict looser. (AGG_WEIGHTED_MEAN is not here: it always carries
+	// a weight, and a weight on a decimal128 value field is refused
+	// PULSE_WEIGHT_UNSUPPORTED by the shared resolver on both sides.)
 	case ft.IsDecimal() && in("AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_DISTINCT_SUM", "AGG_FREQUENCY", "AGG_MODE_COUNT", "AGG_KURTOSIS",
 		"AGG_MEDIAN", "AGG_MODE", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SKEWNESS",
-		"AGG_WEIGHTED_MEAN", "AGG_WELFORD", "AGG_ZSCORE", "AGG_SET_UNION", "AGG_SET_INTERSECTION",
+		"AGG_WELFORD", "AGG_ZSCORE", "AGG_SET_UNION", "AGG_SET_INTERSECTION",
 		"AGG_SET_FREQUENCY", "AGG_SET_CARDINALITY_SUM", "AGG_SET_CARDINALITY_AVG", "AGG_SET_DISTINCT_VALUES"):
 		return "predict only WARNS PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL (an error under Strict); the runtime refuses decimal128 regardless"
 	case set && in("AGG_DISTINCT_COUNT", "AGG_FREQUENCY", "AGG_MODE_COUNT", "AGG_MODE", "AGG_WELFORD", "ATTR_NORMALIZED", "ATTR_PERCENTILE",

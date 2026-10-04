@@ -20,29 +20,48 @@ import (
 // Welford kinds' predict-only selector refusal), so drift on either side
 // is a contract break.
 func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
+	wspec := types.WeightSpec{Field: "weight"}
 	cases := []struct {
 		name   string
 		params string
 		cell   types.AggregationType
+		// slot is the cell's own weight; req / def weight the request
+		// / the instance default (Options.DefaultWeight).
+		slot     types.SlotWeight
+		req, def bool
 	}{
-		{"weights_ok", `{"n_basis":"weights"}`, types.AGG_WEIGHTED_MEAN},
-		{"kish_ok", `{"n_basis":"kish"}`, types.AGG_WEIGHTED_MEAN},
-		{"missing_n_basis", `{}`, types.AGG_WEIGHTED_MEAN},
-		{"empty_n_basis", `{"n_basis":""}`, types.AGG_WEIGHTED_MEAN},
-		{"unknown_n_basis", `{"n_basis":"effective"}`, types.AGG_WEIGHTED_MEAN},
-		{"n_source", `{"n_basis":"kish","n_source":"cell_weight_sum"}`, types.AGG_WEIGHTED_MEAN},
-		{"p_source", `{"n_basis":"weights","p_source":"cell_value"}`, types.AGG_WEIGHTED_MEAN},
-		{"both_selectors", `{"n_basis":"weights","n_source":"row_margin_n","p_source":"cell_value"}`, types.AGG_WEIGHTED_MEAN},
-		{"welford_cell", `{"n_basis":"weights"}`, types.AGG_WELFORD},
-		{"average_cell", `{"n_basis":"kish"}`, types.AGG_AVERAGE},
+		{name: "weights_ok", params: `{"n_basis":"weights"}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "kish_ok", params: `{"n_basis":"kish"}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "missing_n_basis", params: `{}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "empty_n_basis", params: `{"n_basis":""}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "unknown_n_basis", params: `{"n_basis":"effective"}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "n_source", params: `{"n_basis":"kish","n_source":"cell_weight_sum"}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "p_source", params: `{"n_basis":"weights","p_source":"cell_value"}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "both_selectors", params: `{"n_basis":"weights","n_source":"row_margin_n","p_source":"cell_value"}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "welford_cell", params: `{"n_basis":"weights"}`, cell: types.AGG_WELFORD},
+		{name: "average_cell", params: `{"n_basis":"kish"}`, cell: types.AGG_AVERAGE},
+		// A WEIGHTED AGG_AVERAGE cell emits the weighted moments (FR-18):
+		// accepted whichever source weights it, refused once opted out.
+		{name: "weighted_average_slot", params: `{"n_basis":"kish"}`, cell: types.AGG_AVERAGE, slot: types.SlotWeightOf(wspec)},
+		{name: "weighted_average_request", params: `{"n_basis":"weights"}`, cell: types.AGG_AVERAGE, req: true},
+		{name: "weighted_average_default", params: `{"n_basis":"kish"}`, cell: types.AGG_AVERAGE, def: true},
+		{name: "average_opted_out", params: `{"n_basis":"kish"}`, cell: types.AGG_AVERAGE, slot: types.NullSlotWeight(), req: true},
 	}
+	accepted := map[string]bool{}
 	refusals := 0
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			schema := wtzSchema(t)
 			req := crosstabWeightedOverlayBaseRequest()
 			if tc.cell != types.AGG_WEIGHTED_MEAN {
-				req.Crosstab.Cell = &types.Aggregation{Type: tc.cell, Field: "value", Label: "cell"}
+				req.Crosstab.Cell = &types.Aggregation{Type: tc.cell, Field: "value", Label: "cell", Weight: tc.slot}
+			}
+			if tc.req {
+				req.Weight = &wspec
+			}
+			var def *types.WeightSpec
+			if tc.def {
+				def = &wspec
 			}
 			req.Overlays = []types.OverlaySpec{{
 				Name:   "wtz",
@@ -52,19 +71,20 @@ func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
 			}}
 
 			env := descriptor.NewEnvelope(nil)
-			descx.ValidateOverlays(env, req, schema, nil)
+			descx.ValidateOverlays(env, req, schema, &descx.PredictOptions{DefaultWeight: def})
 			predictCodes := map[string]bool{}
 			for _, e := range env.Errors {
 				predictCodes[e.Code] = true
 			}
 
-			_, err := runBufferedCrosstabWithComponents(t, schema, req, wtzRecords(schema), false)
+			_, err := runBufferedCrosstabWithComponents(t, schema, StampWeights(req, def), wtzRecords(schema), false)
 
 			if (len(env.Errors) != 0) != (err != nil) {
 				t.Fatalf("predict refused=%v (%v), runtime refused=%v (%v)",
 					len(env.Errors) != 0, env.Errors, err != nil, err)
 			}
 			if err == nil {
+				accepted[tc.name] = true
 				return
 			}
 			refusals++
@@ -81,6 +101,11 @@ func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
 	}
 	if refusals == 0 {
 		t.Fatal("no case refused: the parity table is vacuous")
+	}
+	for _, name := range []string{"weighted_average_slot", "weighted_average_request", "weighted_average_default"} {
+		if !accepted[name] {
+			t.Errorf("%s: a weighted AGG_AVERAGE host must be accepted by both arms", name)
+		}
 	}
 }
 
@@ -127,11 +152,11 @@ func TestPairwiseOverlay_NBasisInertAtRuntimeOnOtherKinds(t *testing.T) {
 // TestPairwiseWeightedMomentKeysMatchCapabilities pins the four keys the
 // weighted overlay reads (weightedMomentKeys) against the DECLARED
 // ComponentSchema: every one must be an AGG_WEIGHTED_MEAN key, and no
-// other built-in aggregator may declare all four. The second half is the
-// premise of predict's cell-host refusal (descriptor.
-// validateOverlayPairwise refuses any other built-in cell type); if a
-// second built-in ever emitted the moments, that refusal would reject a
-// host the runtime accepts.
+// other built-in aggregator may declare all four as always-emitted. The
+// second half is the premise of predict's cell-host refusal (descriptor.
+// validateOverlayPairwise refuses every other built-in cell type but a
+// weighted AGG_AVERAGE); if a second built-in ever emitted the moments
+// unconditionally, that refusal would reject a host the runtime accepts.
 func TestPairwiseWeightedMomentKeysMatchCapabilities(t *testing.T) {
 	declared := func(agg types.AggregationType) map[string]bool {
 		m := descx.BuildManifest()
@@ -139,9 +164,18 @@ func TestPairwiseWeightedMomentKeysMatchCapabilities(t *testing.T) {
 		if !ok {
 			return nil
 		}
+		// Only keys every run emits: an OPTIONAL key (the weighted
+		// floor, weighted AGG_AVERAGE's moments) appears only on a
+		// weighted slot. A weighted AGG_AVERAGE cell is a valid host
+		// (FR-18) — predict admits it by its resolved weight
+		// (weightedMomentCell), not by these declared keys, and
+		// TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity pins
+		// that the two arms agree on it.
 		out := map[string]bool{}
 		for _, k := range schema.Keys {
-			out[k.Name] = true
+			if !k.Optional {
+				out[k.Name] = true
+			}
 		}
 		return out
 	}

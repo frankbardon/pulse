@@ -13,7 +13,9 @@ examples_tags: [streaming-friendly, comparison]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `weight_field` | string | (required) | Per-row weight field |
+| `weight_field` | string | (none) | Per-row weight field; sugar for a slot `weight` of kind `probability` |
+
+The weighted mean of the core family: same figure and engine, own type name and components. The weight is `weight_field`, else the slot / request `weight`, else `Options.DefaultWeight`. A `weight_field` that differs from the slot `weight` (or a `"weight": null`), or no weight resolving at all, is `PROCESSING_CONFIG`. Invalid weights (null, negative, NaN/Inf) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`).
 
 ## Inputs
 
@@ -24,11 +26,11 @@ examples_tags: [streaming-friendly, comparison]
 
 ## Output
 
-Scalar `float64` — `sum(field * weight) / sum(weight)`.
+Scalar `float64` — exact `Σ field·w / Σw` (a few ULP from releases that used the running mean).
 
 ## Components
 
-Floor `{n, n_null}` plus (all float64; empty cell all 0):
+Floor `{n, n_null}` plus `n_weight_invalid` (rows excluded for an invalid weight); operator keys (all float64; empty cell all 0):
 
 | Key | Notes |
 |---|---|
@@ -45,7 +47,7 @@ Floor `{n, n_null}` plus (all float64; empty cell all 0):
 
 ## Gotchas
 
-- Null/zero-weight rows skip the mean but STILL count in floor `n` (`n`/`n_null` track `Field`); size from `sum_weights`/`n_eff`.
+- Invalid/zero-weight rows skip the mean but STILL count in floor `n` (`n`/`n_null` track `Field`); size from `sum_weights`/`n_eff`.
 - Unknown `weight_field` → `SERVICE_VALIDATION` (predict + runtime).
 - `decimal128` rejected.
 

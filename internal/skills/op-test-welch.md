@@ -27,6 +27,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 <!-- feature: TEST_T -->
 - Identical math to `TEST_T` with `SplitBy`; this alias documents intent.
 <!-- /feature -->

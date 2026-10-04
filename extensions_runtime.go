@@ -28,6 +28,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	r := &processing.ExtensionRegistry{
 		Streamable:  make(map[string]bool),
 		Mergeable:   make(map[string]bool),
+		WeightAware: make(map[string]bool),
 		FansOut:     make(map[types.GroupType]bool),
 		FieldInputs: make(map[string]processing.FieldInputsFunc),
 	}
@@ -94,6 +95,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 				r.MarginReducibility = make(map[types.AggregationType]types.MarginReducibility, len(ext.Aggregators))
 			}
 			r.MarginReducibility[reg.Name] = reg.MarginReducibility
+			r.WeightAware[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.WeightAware
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}
 	}
@@ -103,6 +105,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		for _, reg := range ext.Attributes {
 			r.Attributes[reg.Name] = adaptAttributeFactory(reg)
 			r.Streamable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mode != AttributeModeBuffered
+			r.WeightAware[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.WeightAware
 			if reg.Mode == AttributeModeTwoPass {
 				if r.TwoPassAttributes == nil {
 					r.TwoPassAttributes = make(map[types.AttributeType]bool)
@@ -162,6 +165,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 
 	if len(ext.Tests) > 0 {
 		for _, reg := range ext.Tests {
+			r.WeightAware[processing.StreamabilityKey("test", string(reg.Name))] = reg.WeightAware
 			switch reg.Tier {
 			case TestTierRow:
 				if r.RowTests == nil {

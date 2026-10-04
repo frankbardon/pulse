@@ -73,6 +73,11 @@ type ComponentKey struct {
 	// Description is a single-sentence prose description suitable for
 	// manifest / predict / MCP surfaces.
 	Description string `json:"description"`
+	// Optional marks a key that is emitted only under a condition the
+	// Description states — the weighted floor keys (sum_weights, n_eff,
+	// n_weight_invalid) appear only on a weighted slot. Omitted (false)
+	// for a key every run emits.
+	Optional bool `json:"optional,omitempty"`
 }
 
 // ComponentSchema is the per-operator declaration carried by every

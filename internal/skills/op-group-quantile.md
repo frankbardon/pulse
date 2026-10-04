@@ -41,6 +41,7 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 
 ## Gotchas
 
+- No weighted cutpoints yet: any row weight in force on the grouper (request, `groups[i]` / crosstab-axis slot, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the grouper to cut unweighted.
 - Forces buffered execution — disables fused crosstab.
 - Rejects categorical/decimal128 at construction.
 - `Group.Include` not honoured — buckets are derived ranks.

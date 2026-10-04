@@ -25,6 +25,7 @@ SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; 
 
 ## Gotchas
 
+- No weighted form yet: a request or `Options.DefaultWeight` weight applied to a read slot's aggregation is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on those aggregations.
 - Reference scaled to target N: `expected = ref_cell × (target_N / ref_N)`. Reuses `chiSquareSurvival` — byte-equal to the χ² test on the same contingency.
 - `df = (target cells with expected > 0) - 1`.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer (canonical χ² low-count rule).

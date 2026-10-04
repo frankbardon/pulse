@@ -1656,7 +1656,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REQUEST_UNKNOWN_FIELD: {
-		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\").",
+		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\"). When `details.path` is present the key sits inside that slot object (\"aggregations[0]\") rather than at the top level, and `valid_keys` lists that object's keys.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2772,13 +2772,68 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEATURE_PROFILE_DEPENDENCY: {
-		Message: "The feature profile enables a feature without a feature it depends on, so pulse.New refused it. A feature's dependencies are an AND of any-of groups — an operator, for example, needs at least one request host (`capability:process`, `capability:compose` or `capability:process_chain`). Every unmet group is listed under the `unmet` detail, naming the enabled `feature` and the `requires_any_of` group; an extension registration's DependsOn entries are single-name groups.",
+		Message: "The feature profile enables a feature without a feature it depends on, so pulse.New refused it. A feature's dependencies are an AND of any-of groups — an operator, for example, needs at least one request host (`capability:process`, `capability:compose` or `capability:process_chain`). Every unmet group is listed under the `unmet` detail, naming the enabled `feature` and the `requires_any_of` group; an extension registration's DependsOn entries are single-name groups. An instance Options value that acts on a feature is checked the same way: its `unmet` entry names the `option` instead of a `feature` (listed under `options`) — `Options.DefaultWeight` needs `capability:weighting`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"features"},
 				Hint:     "For each entry under `unmet`, add at least one name from `requires_any_of` to the profile's `features`, or remove the `feature` that needs it.",
 				Examples: []any{"capability:process"},
+			},
+			{
+				Action:   FixupRemoveParam,
+				Path:     []string{"Options.DefaultWeight"},
+				Hint:     "For an `unmet` entry naming an `option`, either add the required feature to the profile or leave that Options value unset.",
+				Examples: []any{"capability:weighting"},
+			},
+		},
+	},
+	PULSE_WEIGHT_INVALID_ROWS: {
+		Message: "Rows were left out of a weighted figure because their weight was not usable: null, negative, NaN or infinite, or not a whole number under `kind: frequency`. A zero weight is valid and simply contributes nothing. Invalid weights are never coerced — the excluded rows are counted, by reason, under `by_reason` {null, negative, nan_inf, non_integer_frequency}, with the total under `count` and the weight column under `field`. This is a WARNING: the figures were computed from the remaining rows. Under strict mode it is an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"weight", "field"},
+				Hint:     "Check that `field` is the intended weight column; a column with many nulls or negatives is often not a weight at all.",
+				Examples: []any{"wt"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"weight", "kind"},
+				Hint:     "If every excluded row is `non_integer_frequency`, the column is a probability (sampling) weight rather than a replication count — set `kind` to probability.",
+				Examples: []any{"probability"},
+			},
+		},
+	},
+	PULSE_WEIGHT_UNSUPPORTED: {
+		Message: "A row weight is in force on a slot whose operator cannot honour one yet — an inferential test (`tests` / `post_tests`), regression, reference-distribution attribute (z-score, t-score, percentile rank or normalised value), quantile grouper (on `groups` or a crosstab axis), confidence-interval aggregator or inferential overlay, or an aggregation over a decimal128 field. Weighted inference needs design-based variance, which is not implemented yet — it is planned as its own roadmap unit (U12) — so the request is refused rather than answered unweighted or wrongly weighted. An instance default weight refuses these slots too: each must opt out explicitly. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default. For a decimal128 aggregation the decimal column is under `value_field`: the decimal path has no weighted form, so it is refused even under the instance default rather than answered unweighted inside a weighted table.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"weight"},
+				Hint:     "Set `weight: null` on the refused slot (the test, regression, attribute, grouper, aggregation or overlay named in `slot`) to run that slot unweighted while the rest of the request stays weighted — null opts out, an absent key inherits the request weight and then the instance default. Until weighted inference ships (roadmap unit U12) this is the only way to run the slot under a weight.",
+				Examples: []any{nil},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"weight"},
+				Hint:   "Or remove the request-level `weight` (and leave the instance default unset) if no slot of this request should be weighted.",
+			},
+		},
+	},
+	PULSE_EXTENSION_NOT_WEIGHT_AWARE: {
+		Message: "A row weight reached an embedder-registered operator whose registration does not declare that it consumes weights, so it would have silently run unweighted: an explicit slot or request `weight` on an aggregator (an inherited instance default is skipped on an aggregator instead), or any weight in force — the instance default included — on an attribute or test. The slot is under `slot`, the operator under `operator` and the weight column under `field`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"weight"},
+				Hint:     "Set `weight: null` on the slot to run the operator unweighted explicitly.",
+				Examples: []any{nil},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"WeightAware"},
+				Hint:   "If you own the operator, read the row weight from extend.Record and declare WeightAware on its registration.",
 			},
 		},
 	},

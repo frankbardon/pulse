@@ -55,6 +55,28 @@ type Processor struct {
 	lastPath          ProcessPath
 	exts              *ExtensionRegistry
 	disableComponents bool
+
+	// defaultWeight is pulse.Options.DefaultWeight (nil = none) and
+	// strictWeights promotes PULSE_WEIGHT_INVALID_ROWS to an error;
+	// both set through SetWeighting.
+	defaultWeight *types.WeightSpec
+	strictWeights bool
+}
+
+// SetWeighting installs the instance default weight (nil = none) that
+// StampWeights folds into every run, and whether an invalid-weight row
+// is an error (strict) rather than a PULSE_WEIGHT_INVALID_ROWS warning.
+// The service sets both from pulse.Options; a processor built without
+// the call weights only by request and slot weights, non-strictly.
+func (p *Processor) SetWeighting(def *types.WeightSpec, strict bool) {
+	p.defaultWeight = def
+	p.strictWeights = strict
+}
+
+// stampWeights is StampWeightsWith with this processor's default weight
+// and extension registry.
+func (p *Processor) stampWeights(req *types.Request) *types.Request {
+	return StampWeightsWith(req, p.defaultWeight, p.exts)
 }
 
 // SetDisableComponents toggles Response.Components emission for this
@@ -117,6 +139,7 @@ func (p *Processor) LastPath() ProcessPath {
 // well-conditioned inputs (variance/stddev/skewness/kurtosis use
 // Welford-Pébaÿ recurrences in the streaming path).
 func (p *Processor) Process(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	req = p.stampWeights(req)
 	if p.canStream(req) {
 		var resp *types.Response
 		var err error
@@ -457,7 +480,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		online OnlineAggregator
 		n      int
 		nNull  int
+		weight WeightFloor
 	}
+	weights := NewWeightRowTally(req)
 	entries := make([]onlineEntry, len(req.Aggregations))
 	for i, agg := range req.Aggregations {
 		factory, _ := p.exts.LookupAggregator(agg.Type) // canStream verified existence
@@ -471,7 +496,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", agg.Type))
 		}
-		entries[i] = onlineEntry{agg: agg, online: online}
+		entries[i] = onlineEntry{agg: agg, online: online, weight: NewWeightFloor(agg)}
 	}
 
 	// Build row-local attribute computers. canStream verified every
@@ -540,6 +565,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			r.Set(ra.label, val)
 		}
 
+		weights.Observe(r)
 		for i := range entries {
 			e := &entries[i]
 			if FieldPresent(r, e.agg.Field) {
@@ -547,6 +573,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			} else {
 				e.nNull++
 			}
+			e.weight.Observe(r, e.agg.Field)
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
 			}
@@ -571,6 +598,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		agg    *types.Aggregation
 		n      int
 		nNull  int
+		weight WeightFloor
 	}
 	finalized := make([]finalizedEntry, 0, len(entries))
 	for i := range entries {
@@ -592,6 +620,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			agg:    e.agg,
 			n:      e.n,
 			nNull:  e.nNull,
+			weight: e.weight,
 		})
 	}
 
@@ -653,6 +682,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			if err != nil {
 				return nil, err
 			}
+			fe.weight.Stamp(&entry)
 			attachAggregationComponents(resp, entry)
 		}
 
@@ -675,6 +705,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			FilteredRecords: filteredRows,
 			NullRecords:     nullRecords,
 		})
+	}
+	if err := weights.Apply(resp, p.strictWeights); err != nil {
+		return nil, err
 	}
 	return resp, nil
 }
@@ -779,6 +812,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		primaryField = grp.Field
 	}
 	var primaryNullRecords int64
+	weights := NewWeightRowTally(req)
 
 	var totalRows, filteredRows, assignments int64
 	for iter.Next() {
@@ -824,6 +858,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		if primaryField != "" && r.IsNull(primaryField) {
 			primaryNullRecords++
 		}
+		weights.Observe(r)
 
 		rowKeys, ok, err := keyer.Keys(r, grp.Field)
 		if err != nil {
@@ -868,7 +903,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// The streaming-grouped path has no shard concept (records flow off
 	// a single iterator whatever the cohort topology); the service stamps
 	// Run.ShardCount on an archive.
-	return FinalizeGroupedStream(req, GroupedTail{
+	resp, err := FinalizeGroupedStream(req, GroupedTail{
 		Group:             grp,
 		Grouper:           grouperInstance,
 		Buckets:           buckets,
@@ -883,6 +918,13 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		},
 		Extensions: p.exts,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if err := weights.Apply(resp, p.strictWeights); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // twoPassStage is one attribute in DECLARED order on the two-pass
@@ -981,7 +1023,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		online OnlineAggregator
 		n      int
 		nNull  int
+		weight WeightFloor
 	}
+	weights := NewWeightRowTally(req)
 	entries := make([]onlineEntry, len(req.Aggregations))
 	for i, agg := range req.Aggregations {
 		factory, _ := p.exts.LookupAggregator(agg.Type)
@@ -994,7 +1038,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", agg.Type))
 		}
-		entries[i] = onlineEntry{agg: agg, online: online}
+		entries[i] = onlineEntry{agg: agg, online: online, weight: NewWeightFloor(agg)}
 	}
 
 	// passesFilters re-runs the filter chain without touching the
@@ -1091,6 +1135,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 				return nil, err
 			}
 		}
+		weights.Observe(r)
 		for i := range entries {
 			e := &entries[i]
 			if FieldPresent(r, e.agg.Field) {
@@ -1098,6 +1143,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			} else {
 				e.nNull++
 			}
+			e.weight.Observe(r, e.agg.Field)
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
 			}
@@ -1154,6 +1200,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			if err != nil {
 				return nil, err
 			}
+			e.weight.Stamp(&entry)
 			attachAggregationComponents(resp, entry)
 		}
 
@@ -1177,6 +1224,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			FilteredRecords: filteredRows,
 			NullRecords:     nullRecords,
 		})
+	}
+	if err := weights.Apply(resp, p.strictWeights); err != nil {
+		return nil, err
 	}
 	return resp, nil
 }
@@ -1449,6 +1499,14 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// processCrosstab), so the SERIES hook never collides with the
 	// MATRIX hook in internal/processing/crosstab.go.
 	if err := applyOverlaysSeriesToResponse(req, resp, p.exts); err != nil {
+		return nil, err
+	}
+
+	// One PULSE_WEIGHT_INVALID_ROWS warning per weight field over the
+	// filter-passing rows (after attributes, as every streaming mode).
+	weights := NewWeightRowTally(req)
+	weights.ObserveAll(filtered)
+	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
 
@@ -1771,6 +1829,13 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 			entry, err := buildAggregationComponents(aggregator, agg, fl.n, fl.nNull)
 			if err != nil {
 				return nil, nil, err
+			}
+			wf := NewWeightFloor(agg)
+			if wf.spec != nil {
+				for _, r := range records {
+					wf.Observe(r, agg.Field)
+				}
+				wf.Stamp(&entry)
 			}
 			components = append(components, entry)
 		}

@@ -42,6 +42,10 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 
 Each operation's MCP tool is listed in `pulse_manifest` `mcp_tools`; one the instance does not offer is absent.
 
+<!-- feature: capability:weighting -->
+Row weight: `Request.weight` `{field, kind}`; per-slot `weight` — a field, `{field, kind}` or `null` (`null` opts out, absent inherits); `pulse.Options.DefaultWeight`. See `weighting`.
+<!-- /feature -->
+
 `Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a column, and an aggregation label equal to a group field or another aggregation label.
 
 ## Canonical process Request
@@ -114,7 +118,7 @@ Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `t
 
 ## Predict-specific data fields
 
-`streamable`, `streamable_reasons`, `defaults_applied`, `time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
+`streamable`, `streamable_reasons`, `defaults_applied`, <!-- feature: capability:weighting -->`weights` / `suggested_weight` (`weighting`), <!-- /feature -->`time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
 
 ## Cross-links
 

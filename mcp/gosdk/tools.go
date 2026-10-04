@@ -10,6 +10,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	core "github.com/frankbardon/pulse/internal/mcp"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
+	"github.com/frankbardon/pulse/types"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -164,9 +165,11 @@ func errorResult(text string) *mcpsdk.CallToolResult {
 	}
 }
 
-// jsonResult marshals v and returns it as text content.
+// jsonResult marshals v and returns it as text content. A non-finite
+// float anywhere in v is written as JSON null (types.MarshalFinite), so
+// an undefined figure never fails the whole tool result.
 func jsonResult(v any) (*mcpsdk.CallToolResult, error) {
-	body, err := json.Marshal(v)
+	body, err := types.MarshalFinite(v)
 	if err != nil {
 		return errorResult("encode result: " + err.Error()), nil
 	}

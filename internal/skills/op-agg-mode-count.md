@@ -11,7 +11,7 @@ examples_tags: [cross-tabulation, cardinality-analysis]
 
 ## Params
 
-None.
+Weight-aware (`"weight": null` opts out): the largest per-value Σw (a float), its value the weighted mode. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
 
 ## Inputs
 
@@ -25,13 +25,15 @@ Scalar `float64` — the modal count, NOT a per-value map. Per group under a gro
 
 ## Components
 
+Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+
 Universal floor `{n, n_null}` plus operator-specific:
 
 | Key | Type | Notes |
 |---|---|---|
 | `distinct_count` | int | Number of distinct values |
 | `mode_value` | any | Modal value (smallest wins a tie) |
-| `mode_count` | int | Row count of the modal value (= scalar) |
+| `mode_count` | int | Row count of the modal value (= scalar; weighted: Σw) |
 
 - Mergeability: `Partial` — per-value count map merged exactly; ProcessChain admits it
 - Streaming: count maps merged at flush

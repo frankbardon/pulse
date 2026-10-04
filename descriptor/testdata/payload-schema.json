@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:3755efe584d3389f1901b91847f757f0c5904ca37a945281409d5c3b091db1f9",
+  "$comment": "feature_set_digest: fs1:276b855083140502543b326015fa94e916daec31687d0033a304d07d3849f222",
   "$defs": {
     "Aggregation": {
       "additionalProperties": false,
@@ -15,6 +15,9 @@
         },
         "type": {
           "$ref": "#/$defs/AggregationType"
+        },
+        "weight": {
+          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -32,12 +35,27 @@
         "n": {
           "type": "integer"
         },
+        "n_eff": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "n_null": {
+          "type": "integer"
+        },
+        "n_weight_invalid": {
           "type": "integer"
         },
         "operator": {
           "additionalProperties": true,
           "type": "object"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
@@ -122,6 +140,9 @@
         },
         "tz": {
           "type": "string"
+        },
+        "weight": {
+          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -744,10 +765,16 @@
           ]
         },
         "max": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "min": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
@@ -767,25 +794,43 @@
           "$ref": "#/$defs/FacetHistogram"
         },
         "max": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "mean": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "min": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "percentiles": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
         "stddev": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "sum": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1103,6 +1148,9 @@
         },
         "tz": {
           "type": "string"
+        },
+        "weight": {
+          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -1637,7 +1685,10 @@
           "$ref": "#/$defs/MatrixPayload"
         },
         "scalar": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "series": {
           "$ref": "#/$defs/SeriesPayload"
@@ -1756,6 +1807,9 @@
         "scope": {
           "type": "string"
         },
+        "weight": {
+          "$ref": "#/$defs/SlotWeight"
+        },
         "within": {
           "type": "integer"
         }
@@ -1771,28 +1825,46 @@
       "additionalProperties": false,
       "properties": {
         "baseline": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "count": {
           "type": "integer"
         },
         "max": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "min": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "p_value": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "parameters": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
         "statistic": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "type": "object"
@@ -1827,14 +1899,23 @@
       "additionalProperties": false,
       "properties": {
         "adj_r2": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "alpha": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "coefficients": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
@@ -1844,7 +1925,10 @@
         "credible_intervals": {
           "additionalProperties": {
             "items": {
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ]
             },
             "type": [
               "array",
@@ -1857,13 +1941,19 @@
           "type": "string"
         },
         "deviance": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "family": {
           "type": "string"
         },
         "l1_ratio": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "link": {
           "type": "string"
@@ -1875,11 +1965,17 @@
           "type": "string"
         },
         "null_deviance": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "p_values": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
@@ -1890,16 +1986,25 @@
           "type": "string"
         },
         "pseudo_r2": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "r2": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "resample": {
           "type": "string"
         },
         "residual_std_err": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "selected_features": {
           "items": {
@@ -1915,7 +2020,10 @@
         },
         "std_errors": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
@@ -2008,6 +2116,9 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "weight": {
+          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -2158,6 +2269,9 @@
         },
         "time_zone": {
           "type": "string"
+        },
+        "weight": {
+          "$ref": "#/$defs/WeightSpec"
         },
         "windows": {
           "items": {
@@ -2407,6 +2521,20 @@
       ],
       "type": "object"
     },
+    "SlotWeight": {
+      "description": "Per-slot row weight. Absent: inherit the request weight, then the instance default. null: opt this slot out (run unweighted). A string names the weight field (kind probability); an object is a full WeightSpec.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/WeightSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "StageRef": {
       "additionalProperties": false,
       "properties": {
@@ -2460,6 +2588,9 @@
         },
         "type": {
           "$ref": "#/$defs/TestType"
+        },
+        "weight": {
+          "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
@@ -2471,26 +2602,38 @@
       "additionalProperties": false,
       "properties": {
         "alpha": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "details": {
           "additionalProperties": true,
           "type": "object"
         },
         "df": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "label": {
           "type": "string"
         },
         "p_value": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "reject_null": {
           "type": "boolean"
         },
         "statistic": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "type": {
           "$ref": "#/$defs/TestType"
@@ -2542,6 +2685,21 @@
         "TEST_Z_TWO_SAMPLE"
       ],
       "type": "string"
+    },
+    "WeightSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
     },
     "Window": {
       "additionalProperties": false,
@@ -2646,4 +2804,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: b380046a000e8f9cf5968c85a4c97ec2f959fdd53914c99102d20159f9c09367
+// golden-hash: 7f1ac4c9ae48469629f36a330db4891e5550f7c582c8ce66977f10d6ea8d0e6f

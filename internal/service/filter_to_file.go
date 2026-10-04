@@ -463,7 +463,7 @@ func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) e
 			{Type: types.FILTER_EXPRESSION, Expression: plan.filterExpr},
 		}
 	}
-	set := processing.NeededFields(req, schema, s.extensions)
+	set := s.neededFields(req, schema)
 	if set.IsWide() {
 		return nil
 	}

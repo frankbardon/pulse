@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -122,6 +123,13 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 			continue
 		}
 		labels[i] = r.Label
+	}
+	// An Inferential kind over a slot that a request or instance
+	// default weight reaches is refused (no weighted form yet) — the
+	// shared rule ValidateComposeWithOptions applies to the same raw
+	// slots.
+	if err := descx.ComposeOverlayWeightRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance); err != nil {
+		return nil, nil, err
 	}
 	// The requests-aware entry point, not the bare one: the panel's
 	// within-prefix slab gate turns on each slot's authored

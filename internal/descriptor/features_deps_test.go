@@ -74,6 +74,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"TEST_TUKEY_HSD":               {requestHosts}, // no TUKEY → ANOVA edge: the pairing is advice
 		"capability:joins":             {requestHosts},
 		"capability:crosstab":          {requestHosts},
+		"capability:weighting":         {requestHosts},
 		"capability:stream":            {{"capability:process"}},
 		"capability:watch":             {{"capability:process"}},
 		"capability:filter_to_file":    {{"capability:process"}, {"FILTER_EXPRESSION"}},
@@ -86,10 +87,12 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"OVERLAY_Z_VS_REF":             {{"capability:compose"}, {"AGG_WELFORD"}},
 		"OVERLAY_PAIRWISE_WELCH_T":     {{"capability:crosstab"}, {"AGG_WELFORD"}},
 		"OVERLAY_PAIRWISE_TWO_MEANS_Z": {{"capability:crosstab"}, {"AGG_WELFORD"}},
-		"OVERLAY_SHARE_OF_TOTAL":       {{"capability:compose", "capability:crosstab"}},
-		"OVERLAY_YOY":                  {{"capability:compose"}, {"GROUP_DATE"}},
-		"capability:process":           nil,
-		"io_format:csv":                nil,
+		// Any-of edge (FR-18): a weighted AGG_AVERAGE cell is a host too.
+		"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {{"capability:crosstab"}, {"AGG_AVERAGE", "AGG_WEIGHTED_MEAN"}},
+		"OVERLAY_SHARE_OF_TOTAL":                {{"capability:compose", "capability:crosstab"}},
+		"OVERLAY_YOY":                           {{"capability:compose"}, {"GROUP_DATE"}},
+		"capability:process":                    nil,
+		"io_format:csv":                         nil,
 	}
 	for name, want := range expect {
 		got, ok := descx.FeatureDependencies(name)

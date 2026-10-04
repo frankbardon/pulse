@@ -30,6 +30,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `index =
 - Absent host point → `SeriesEntry` with unset `Statistic`.
 - Absent baseline ordinal yields `0.0` from host → routes to zero-baseline arm.
 - Buffered — `host.ValueAt(Position)` post-finalize via `ApplyOverlaysSeries`.
+- Weighted host → weighted figure (reads the host payload).
 
 ## See
 

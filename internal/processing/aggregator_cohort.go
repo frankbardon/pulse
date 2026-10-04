@@ -25,42 +25,15 @@ type weightedMeanParams struct {
 	WeightField string `json:"weight_field"`
 }
 
-// weightedMeanAggregator accumulates a weighted mean via the
-// Chan-Welford streaming recurrence:
-//
-//	delta   = x − mean
-//	wSum   += w
-//	mean   += (w / wSum) * delta
-//	m2     += w * delta * (x − mean)   // Σw(x − mean)², the weighted
-//	                                   // second central moment
-//	wSumSq += w * w                    // Σw², feeds Kish n_eff
-//
-// MergeOnline combines two weighted partials via the same parallel
-// formula used by varianceAggregator, weighted by wSum instead of n;
-// wSumSq merges as a plain sum.
-//
-// frozen{SumWeighted, SumWeights, WeightedMean, M2, SumWeightsSq,
-// HasResult} mirror the post-Aggregate / post-Finalize state so
-// Components() works on both buffered and streaming code paths — the
-// streaming Finalize step zeros out (wSum, mean, m2, wSumSq) before
-// Components() runs, so the frozen mirrors are the source of truth. sum_weighted is reconstructed as
-// mean * wSum at the freeze point (algebraically identical to the
-// running sum of (field * weight) for the Chan-Welford recurrence).
-type weightedMeanAggregator struct {
-	weightField string
-	wSum        float64
-	mean        float64
-	m2          float64
-	wSumSq      float64
-
-	frozenSumWeighted  float64
-	frozenSumWeights   float64
-	frozenWeightedMean float64
-	frozenM2           float64
-	frozenSumWeightsSq float64
-	frozenHasResult    bool
-}
-
+// newWeightedMeanAggregator builds AGG_WEIGHTED_MEAN — an alias of
+// weighted AGG_AVERAGE (weightedAggregator) that keeps its own type
+// name and components shape. Its weight is the slot's applied weight
+// (StampWeights folds params.weight_field, the slot `weight`, the
+// request weight and Options.DefaultWeight into it); a slot that was
+// not stamped falls back to params.weight_field (kind probability), so
+// a direct factory caller keeps the pre-weighting spelling. No weight
+// at all — or an explicit `weight: null` — is PROCESSING_CONFIG: the
+// operator is a weighted figure by definition.
 func newWeightedMeanAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	var params weightedMeanParams
 	if len(agg.Params) > 0 {
@@ -68,90 +41,15 @@ func newWeightedMeanAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggr
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid weighted_mean params: "+err.Error())
 		}
 	}
-	if params.WeightField == "" {
+	spec := slotWeight(agg)
+	if spec == nil && agg.Weight.IsZero() && params.WeightField != "" {
+		spec = &types.WeightSpec{Field: params.WeightField, Kind: types.WeightKindProbability}
+	}
+	if spec == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"AGG_WEIGHTED_MEAN requires Params.weight_field")
+			"AGG_WEIGHTED_MEAN needs a weight: set params.weight_field, a slot weight or a request weight")
 	}
-	return &weightedMeanAggregator{weightField: params.WeightField}, nil
-}
-
-func (a *weightedMeanAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	a.wSum, a.mean, a.m2, a.wSumSq = 0, 0, 0, 0
-	for _, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok {
-			continue
-		}
-		w, ok := r.NumericValue(a.weightField)
-		if !ok || w == 0 {
-			continue
-		}
-		a.foldOne(v, w)
-	}
-	a.freeze()
-	if a.wSum == 0 {
-		return 0, nil
-	}
-	return a.mean, nil
-}
-
-func (a *weightedMeanAggregator) UpdateRow(r *Record, field string) error {
-	v, ok := r.NumericValue(field)
-	if !ok {
-		return nil
-	}
-	w, ok := r.NumericValue(a.weightField)
-	if !ok || w == 0 {
-		return nil
-	}
-	a.foldOne(v, w)
-	return nil
-}
-
-func (a *weightedMeanAggregator) foldOne(x, w float64) {
-	a.wSum += w
-	delta := x - a.mean
-	a.mean += (w / a.wSum) * delta
-	a.m2 += w * delta * (x - a.mean)
-	a.wSumSq += w * w
-}
-
-func (a *weightedMeanAggregator) Finalize() (float64, error) {
-	a.freeze()
-	if a.wSum == 0 {
-		a.mean, a.wSum, a.m2, a.wSumSq = 0, 0, 0, 0
-		return 0, nil
-	}
-	out := a.mean
-	a.mean, a.wSum, a.m2, a.wSumSq = 0, 0, 0, 0
-	return out, nil
-}
-
-// freeze stamps the components mirrors from the live (wSum, mean)
-// state. Called from both Aggregate and Finalize so Components()
-// returns the same map on either path even after the streaming
-// Finalize-reset wipes the live moments. sum_weighted is reconstructed
-// as mean * wSum (algebraically identical to the running sum-of-
-// weighted-values for the Chan-Welford recurrence). Empty-input case
-// (wSum == 0) emits zero sums and a zero weighted_mean to mirror the
-// scalar return path's 0 fallback — callers detect the zero-weight
-// case via sum_weights == 0, NOT the universal floor: floor n counts
-// every row whose value Field is present, including null/zero-weight
-// rows (pinned by aggregator_weighted_floor_test.go).
-func (a *weightedMeanAggregator) freeze() {
-	a.frozenHasResult = true
-	a.frozenSumWeights = a.wSum
-	if a.wSum == 0 {
-		a.frozenSumWeighted = 0
-		a.frozenWeightedMean = 0
-		a.frozenM2 = 0
-		a.frozenSumWeightsSq = 0
-		return
-	}
-	a.frozenSumWeighted = a.mean * a.wSum
-	a.frozenWeightedMean = a.mean
-	a.frozenM2 = a.m2
-	a.frozenSumWeightsSq = a.wSumSq
+	return newWeightedAggregator(types.AGG_WEIGHTED_MEAN, spec), nil
 }
 
 // weightedVariance is the frequency-weights variance m2 / (Σw − 1)
@@ -174,70 +72,6 @@ func kishNEff(wSum, wSumSq float64) float64 {
 	return wSum * wSum / wSumSq
 }
 
-// Components returns {sum_weighted, sum_weights, weighted_mean,
-// m2_weighted, sum_weights_sq, weighted_variance, n_eff} — the running
-// weighted accumulators that feed the scalar return, the resolved
-// weighted mean, and the sufficient statistics for both weighted
-// variance conventions (frequency m2/(Σw−1) and Kish n_eff). Reads the frozen mirrors stamped by
-// Aggregate / Finalize so the streaming Finalize-reset on
-// (wSum, mean, m2) does not erase the values before Components() runs.
-//
-// Zero-weight rows: when every contributing row is filtered out
-// (no valid (value, weight) pair, or all weights == 0), the live
-// wSum collapses to 0 and the scalar return falls back to 0; the
-// emitted components reflect that raw state — sum_weighted == 0,
-// sum_weights == 0, weighted_mean == 0 — so callers can correlate
-// the zero floor with the absent denominator.
-func (a *weightedMeanAggregator) Components() (map[string]any, error) {
-	if !a.frozenHasResult {
-		return map[string]any{
-			"sum_weighted":      0.0,
-			"sum_weights":       0.0,
-			"weighted_mean":     0.0,
-			"m2_weighted":       0.0,
-			"sum_weights_sq":    0.0,
-			"weighted_variance": 0.0,
-			"n_eff":             0.0,
-		}, nil
-	}
-	return map[string]any{
-		"sum_weighted":      a.frozenSumWeighted,
-		"sum_weights":       a.frozenSumWeights,
-		"weighted_mean":     a.frozenWeightedMean,
-		"m2_weighted":       a.frozenM2,
-		"sum_weights_sq":    a.frozenSumWeightsSq,
-		"weighted_variance": weightedVariance(a.frozenM2, a.frozenSumWeights),
-		"n_eff":             kishNEff(a.frozenSumWeights, a.frozenSumWeightsSq),
-	}, nil
-}
-
-// Compile-time interface lock — catches MetaAggregator drift at build
-// time for AGG_WEIGHTED_MEAN.
-var _ MetaAggregator = (*weightedMeanAggregator)(nil)
-
-func (a *weightedMeanAggregator) MergeOnline(other OnlineAggregator) error {
-	b, ok := other.(*weightedMeanAggregator)
-	if !ok {
-		return mergeTypeMismatch("AGG_WEIGHTED_MEAN")
-	}
-	if b.wSum == 0 {
-		return nil
-	}
-	if a.wSum == 0 {
-		a.wSum, a.mean, a.m2, a.wSumSq = b.wSum, b.mean, b.m2, b.wSumSq
-		return nil
-	}
-	total := a.wSum + b.wSum
-	delta := b.mean - a.mean
-	newMean := a.mean + delta*b.wSum/total
-	newM2 := a.m2 + b.m2 + delta*delta*a.wSum*b.wSum/total
-	a.wSum = total
-	a.mean = newMean
-	a.m2 = newM2
-	a.wSumSq += b.wSumSq
-	return nil
-}
-
 type ratioParams struct {
 	NumeratorField   string `json:"numerator_field"`
 	DenominatorField string `json:"denominator_field"`
@@ -247,7 +81,15 @@ type ratioParams struct {
 // independent + associative, so MergeOnline is trivial. Null on either
 // field skips that row's contribution to BOTH sums to keep the ratio
 // honest. Denominator-zero at finalize emits NaN (consistent with
-// IEEE-754 0/0); callers can detect via math.IsNaN.
+// IEEE-754 0/0); callers can detect via math.IsNaN. On the JSON wire the
+// undefined ratio — scalar and components alike — is null
+// (types.MarshalFinite), so it never fails the response.
+//
+// Weighted (a slot weight applied, weighting-descriptive E2-S2): each
+// contributing row adds w·num and w·den, so the figure is
+// Σw·num / Σw·den; a row whose weight is invalid or zero contributes to
+// neither sum. At w = 1, w·x is x and the sums are the unweighted sums
+// bit for bit. The components keep their keys (now the weighted sums).
 //
 // frozen{Num, Den, Ratio, HasResult} mirror the post-Aggregate /
 // post-Finalize state so Components() works on both buffered and
@@ -258,6 +100,8 @@ type ratioParams struct {
 type ratioAggregator struct {
 	numField, denField string
 	num, den           float64
+	// weight is the applied slot weight; nil on an unweighted slot.
+	weight *types.WeightSpec
 
 	frozenNum       float64
 	frozenDen       float64
@@ -276,18 +120,41 @@ func newRatioAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator,
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"AGG_RATIO requires Params.numerator_field and Params.denominator_field")
 	}
-	return &ratioAggregator{numField: params.NumeratorField, denField: params.DenominatorField}, nil
+	a := &ratioAggregator{numField: params.NumeratorField, denField: params.DenominatorField}
+	if w := slotWeight(agg); w != nil {
+		ew := effectiveWeight(w)
+		a.weight = &ew
+	}
+	return a, nil
+}
+
+// pair returns the row's (numerator, denominator) contribution: both
+// fields present (a null on either skips the row), times the row's
+// weight on a weighted slot (an invalid or zero weight skips it).
+func (a *ratioAggregator) pair(r *Record) (n, d float64, ok bool) {
+	n, okN := r.NumericValue(a.numField)
+	if !okN {
+		return 0, 0, false
+	}
+	d, okD := r.NumericValue(a.denField)
+	if !okD {
+		return 0, 0, false
+	}
+	if a.weight != nil {
+		w, ok := validRowWeight(r, a.weight)
+		if !ok {
+			return 0, 0, false
+		}
+		return w * n, w * d, true
+	}
+	return n, d, true
 }
 
 func (a *ratioAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	a.num, a.den = 0, 0
 	for _, r := range records {
-		n, okN := r.NumericValue(a.numField)
-		if !okN {
-			continue
-		}
-		d, okD := r.NumericValue(a.denField)
-		if !okD {
+		n, d, ok := a.pair(r)
+		if !ok {
 			continue
 		}
 		a.num += n
@@ -299,12 +166,8 @@ func (a *ratioAggregator) Aggregate(records []*Record, field string) (float64, e
 }
 
 func (a *ratioAggregator) UpdateRow(r *Record, field string) error {
-	n, okN := r.NumericValue(a.numField)
-	if !okN {
-		return nil
-	}
-	d, okD := r.NumericValue(a.denField)
-	if !okD {
+	n, d, ok := a.pair(r)
+	if !ok {
 		return nil
 	}
 	a.num += n
@@ -349,7 +212,8 @@ func (a *ratioAggregator) freeze(scalar float64) {
 // Zero-denominator: when sum(den) collapses to zero (every input row
 // filtered out, or every row's den == 0), the scalar return is NaN
 // (consistent with IEEE-754 0/0) and the frozen ratio mirror preserves
-// that NaN. Numerator and denominator surface their raw running sums
+// that NaN (null on the JSON wire, types.MarshalFinite). Numerator and
+// denominator surface their raw running sums
 // (numerator may be > 0 with denominator == 0 when the den field is
 // null on contributing rows — in that case the row is skipped from
 // BOTH sums and neither moves, so frozen num + den both end at 0).
@@ -533,7 +397,8 @@ func (a *ciAggregator) MergeOnline(other OnlineAggregator) error {
 // and Finalize both fall through to — so Components survives the
 // streaming Finalize-reset on (n, mean, m2). NaN bound (n < 2) is
 // preserved as NaN in the components map so consumers can detect the
-// degenerate case without re-deriving from the floor.
+// degenerate case without re-deriving from the floor; the JSON wire
+// writes it (and the NaN scalar) as null (types.MarshalFinite).
 //
 // t_critical surfaces the normal quantile (z) actually used to scale
 // the standard error; the schema name preserves the analyst-facing

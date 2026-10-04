@@ -22,6 +22,7 @@ pulse: type AggregatorRegistration field Name pulse/types.AggregationType
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
 pulse: type AggregatorRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AggregatorRegistration field Streamable bool
+pulse: type AggregatorRegistration field WeightAware bool
 pulse: const AttributeEmitBool pulse.AttributeEmitType = "bool"
 pulse: const AttributeEmitFloat64 pulse.AttributeEmitType = "float64"
 pulse: const AttributeEmitString pulse.AttributeEmitType = "string"
@@ -41,6 +42,7 @@ pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
 pulse: type AttributeRegistration field Params []pulse.ParamMeta
 pulse: type AttributeRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type AttributeRegistration field WeightAware bool
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
 pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
@@ -58,6 +60,7 @@ pulse: type ChainResponse field Final *pulse/types.Response "json:\"final\""
 pulse: type ChainResponse field NormalizedRequest *pulse/types.ChainRequest "json:\"normalized_request,omitempty\""
 pulse: type ChainResponse field Overlays []*pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ChainResponse field Stages []*pulse/types.Response "json:\"stages\""
+pulse: type ChainResponse method (ChainResponse) MarshalJSON() ([]byte, error)
 pulse: type ChainStage = pulse/types.ChainStage
 pulse: type ChainStage underlying struct
 pulse: type ChainStage field Name string "json:\"name,omitempty\""
@@ -129,6 +132,7 @@ pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
+pulse: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse: type CreateShardArchiveResult = pulse/internal/service.CreateShardArchiveResult
 pulse: type CreateShardArchiveResult underlying struct
 pulse: type CreateShardArchiveResult field Archive string "json:\"archive\""
@@ -239,6 +243,7 @@ pulse: type FacetField field Kind string "json:\"kind\""
 pulse: type FacetField field NullCount int64 "json:\"null_count\""
 pulse: type FacetField field Numeric *pulse/types.FacetNumeric "json:\"numeric,omitempty\""
 pulse: type FacetField field TypeName string "json:\"type_name\""
+pulse: type FacetField method (FacetField) MarshalJSON() ([]byte, error)
 pulse: type FacetHistogram = pulse/types.FacetHistogram
 pulse: type FacetHistogram underlying struct
 pulse: type FacetHistogram field Bins []int64 "json:\"bins\""
@@ -277,6 +282,7 @@ pulse: type FacetResult field FilteredRecords int64 "json:\"filtered_records\""
 pulse: type FacetResult field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type FacetResult field TotalRecords int64 "json:\"total_records\""
 pulse: type FacetResult field Warnings []string "json:\"warnings,omitempty\""
+pulse: type FacetResult method (FacetResult) MarshalJSON() ([]byte, error)
 pulse: type FacetValueCount = pulse/types.FacetValueCount
 pulse: type FacetValueCount underlying struct
 pulse: type FacetValueCount field Count int64 "json:\"count\""
@@ -527,6 +533,7 @@ pulse: type Options field AutoLabels []pulse.LabelBinding
 pulse: type Options field DataDir string
 pulse: type Options field DecodeWorkers int
 pulse: type Options field DefaultTimeZone string
+pulse: type Options field DefaultWeight *pulse/types.WeightSpec
 pulse: type Options field DisableComponents bool
 pulse: type Options field DisableCrosstabFusion bool
 pulse: type Options field DisableDefaults bool
@@ -698,6 +705,7 @@ pulse: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regr
 pulse: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse: type Request field TimeZone string "json:\"time_zone,omitempty\""
+pulse: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
 pulse: type Request method (*Request) Hash() string
 pulse: type Response = pulse/types.Response
@@ -711,6 +719,7 @@ pulse: type Response field PostTests []*pulse/types.TestResult "json:\"post_test
 pulse: type Response field Regressions []*pulse/types.RegressionResult "json:\"regressions,omitempty\""
 pulse: type Response field Tests []*pulse/types.TestResult "json:\"tests,omitempty\""
 pulse: type Response field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
+pulse: type Response method (Response) MarshalJSON() ([]byte, error)
 pulse: type Row = pulse/internal/service.Row
 pulse: type RowIter = pulse/internal/service.RowIter
 pulse: type RowIter underlying interface
@@ -922,6 +931,7 @@ pulse: type TestRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type TestRegistration field RowFactory pulse/extend.RowTestFactory
 pulse: type TestRegistration field Streamable bool
 pulse: type TestRegistration field Tier pulse.TestTier
+pulse: type TestRegistration field WeightAware bool
 pulse: type TestTier string
 pulse: const TestTierPost pulse.TestTier = "tier2"
 pulse: const TestTierRow pulse.TestTier = "tier1"
@@ -997,6 +1007,7 @@ pulse/descriptor: type CommandAnnotations field Streamable bool "json:\"streamab
 pulse/descriptor: type ComponentKey struct
 pulse/descriptor: type ComponentKey field Description string "json:\"description\""
 pulse/descriptor: type ComponentKey field Name string "json:\"name\""
+pulse/descriptor: type ComponentKey field Optional bool "json:\"optional,omitempty\""
 pulse/descriptor: type ComponentKey field Type string "json:\"type\""
 pulse/descriptor: type ComponentSchema struct
 pulse/descriptor: type ComponentSchema field Keys []pulse/descriptor.ComponentKey "json:\"keys,omitempty\""
@@ -1170,6 +1181,7 @@ pulse/descriptor: type InspectResult field Groups []*pulse/descriptor.InspectGro
 pulse/descriptor: type InspectResult field Layout *pulse/descriptor.InspectLayout "json:\"layout,omitempty\""
 pulse/descriptor: type InspectResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type InspectResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
+pulse/descriptor: type InspectResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
 pulse/descriptor: type Intent struct
 pulse/descriptor: type Intent field Analytic bool "json:\"analytic\""
 pulse/descriptor: type Intent field ID string "json:\"id\""
@@ -1282,6 +1294,7 @@ pulse/descriptor: type Operator field Name string "json:\"name\""
 pulse/descriptor: type Operator field Params []pulse/descriptor.Param "json:\"params\""
 pulse/descriptor: type Operator field Streamable bool "json:\"streamable\""
 pulse/descriptor: type Operator field StreamableHint string "json:\"streamable_hint,omitempty\""
+pulse/descriptor: type Operator field WeightAware bool "json:\"weight_aware,omitempty\""
 pulse/descriptor: type Operator field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type OperatorMeta struct
 pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omitempty\""
@@ -1297,6 +1310,7 @@ pulse/descriptor: type OperatorMeta field Namespace string "json:\"namespace\""
 pulse/descriptor: type OperatorMeta field Params []pulse/descriptor.OperatorParamMeta "json:\"params,omitempty\""
 pulse/descriptor: type OperatorMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type OperatorMeta field Tier string "json:\"tier,omitempty\""
+pulse/descriptor: type OperatorMeta field WeightAware bool "json:\"weight_aware,omitempty\""
 pulse/descriptor: type OperatorParamMeta struct
 pulse/descriptor: type OperatorParamMeta field Default any "json:\"default,omitempty\""
 pulse/descriptor: type OperatorParamMeta field Description string "json:\"description,omitempty\""
@@ -1346,9 +1360,11 @@ pulse/descriptor: type PredictResult field SchemaInfo *pulse/descriptor.PredictS
 pulse/descriptor: type PredictResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
 pulse/descriptor: type PredictResult field Streamable bool "json:\"streamable\""
 pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
+pulse/descriptor: type PredictResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
 pulse/descriptor: type PredictResult field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
 pulse/descriptor: type PredictResult field TimeZones []pulse/descriptor.ResolvedZone "json:\"time_zones\""
 pulse/descriptor: type PredictResult field Valid bool "json:\"valid\""
+pulse/descriptor: type PredictResult field Weights []pulse/descriptor.ResolvedWeight "json:\"weights,omitempty\""
 pulse/descriptor: type PredictSchemaInfo struct
 pulse/descriptor: type PredictSchemaInfo field FieldCount int "json:\"field_count\""
 pulse/descriptor: type PredictSchemaInfo field Fields []string "json:\"fields\""
@@ -1388,6 +1404,13 @@ pulse/descriptor: type RegressionModifier struct
 pulse/descriptor: type RegressionModifier field Description string "json:\"description\""
 pulse/descriptor: type RegressionModifier field EnumValues []string "json:\"enum_values\""
 pulse/descriptor: type RegressionModifier field Name string "json:\"name\""
+pulse/descriptor: type ResolvedWeight struct
+pulse/descriptor: type ResolvedWeight field Field string "json:\"field,omitempty\""
+pulse/descriptor: type ResolvedWeight field Kind string "json:\"kind,omitempty\""
+pulse/descriptor: type ResolvedWeight field Operator string "json:\"operator\""
+pulse/descriptor: type ResolvedWeight field Slot string "json:\"slot\""
+pulse/descriptor: type ResolvedWeight field Source string "json:\"source\""
+pulse/descriptor: type ResolvedWeight field Status string "json:\"status\""
 pulse/descriptor: type ResolvedZone struct
 pulse/descriptor: type ResolvedZone field FieldType string "json:\"field_type,omitempty\""
 pulse/descriptor: type ResolvedZone field Operator string "json:\"operator\""
@@ -1412,6 +1435,10 @@ pulse/descriptor: type SlotPair struct
 pulse/descriptor: type SlotPair field Reason string "json:\"reason\""
 pulse/descriptor: type SlotPair field ReferenceLabel string "json:\"reference_label\""
 pulse/descriptor: type SlotPair field TargetLabel string "json:\"target_label\""
+pulse/descriptor: type SuggestedWeight struct
+pulse/descriptor: type SuggestedWeight field Field string "json:\"field\""
+pulse/descriptor: type SuggestedWeight field Kind string "json:\"kind\""
+pulse/descriptor: type SuggestedWeight field Source string "json:\"source\""
 pulse/descriptor: type Suggestion struct
 pulse/descriptor: type Suggestion field Confidence float64 "json:\"confidence\""
 pulse/descriptor: type Suggestion field Current any "json:\"current,omitempty\""
@@ -1435,6 +1462,15 @@ pulse/descriptor: type TestMeta field Requires []string "json:\"requires,omitemp
 pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
+pulse/descriptor: const WeightSourceNone untyped string = "none"
+pulse/descriptor: const WeightSourceOptions untyped string = "options"
+pulse/descriptor: const WeightSourceRequest untyped string = "request"
+pulse/descriptor: const WeightSourceSlot untyped string = "slot"
+pulse/descriptor: const WeightStatusApplied untyped string = "applied"
+pulse/descriptor: const WeightStatusNone untyped string = "none"
+pulse/descriptor: const WeightStatusOptedOut untyped string = "opted_out"
+pulse/descriptor: const WeightStatusSkippedNotWeightAware untyped string = "skipped_not_weight_aware"
+pulse/descriptor: const WeightSuggestionSourceSPSSSidecar untyped string = "spss_sidecar"
 pulse/descriptor: const ZoneSourceDefault untyped string = "default"
 pulse/descriptor: const ZoneSourceOptions untyped string = "options"
 pulse/descriptor: const ZoneSourceRequest untyped string = "request"
@@ -1775,6 +1811,7 @@ pulse/errors: const PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA pulse/errors.Code =
 pulse/errors: const PULSE_EXTENSION_NAME_COLLISION pulse/errors.Code = "PULSE_EXTENSION_NAME_COLLISION"
 pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTENSION_NAME_INVALID"
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
+pulse/errors: const PULSE_EXTENSION_NOT_WEIGHT_AWARE pulse/errors.Code = "PULSE_EXTENSION_NOT_WEIGHT_AWARE"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_EXTENSION_PURPOSE_INVALID"
 pulse/errors: const PULSE_EXTENSION_SKILL_COLLISION pulse/errors.Code = "PULSE_EXTENSION_SKILL_COLLISION"
@@ -1956,6 +1993,8 @@ pulse/errors: const PULSE_TEST_UNKNOWN_TYPE pulse/errors.Code = "PULSE_TEST_UNKN
 pulse/errors: const PULSE_TEST_VARIANCE_ZERO pulse/errors.Code = "PULSE_TEST_VARIANCE_ZERO"
 pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_UNKNOWN"
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
+pulse/errors: const PULSE_WEIGHT_INVALID_ROWS pulse/errors.Code = "PULSE_WEIGHT_INVALID_ROWS"
+pulse/errors: const PULSE_WEIGHT_UNSUPPORTED pulse/errors.Code = "PULSE_WEIGHT_UNSUPPORTED"
 pulse/errors: const PULSE_WINDOW_INVALID pulse/errors.Code = "PULSE_WINDOW_INVALID"
 pulse/errors: func ParseCode(s string) (pulse/errors.Code, bool)
 pulse/errors: const SERVICE_INTERNAL pulse/errors.Code = "SERVICE_INTERNAL"
@@ -2008,6 +2047,7 @@ pulse/extend: type Record imethod NumericValue(field string) (float64, bool)
 pulse/extend: type Record imethod Schema() *pulse/encoding.Schema
 pulse/extend: type Record imethod SetMaskValue(field string) (pulse/encoding.SetMask, bool)
 pulse/extend: type Record imethod StringValue(field string) (string, bool)
+pulse/extend: type Record imethod Weight() (float64, bool)
 pulse/extend: type RichAggregator interface
 pulse/extend: type RichAggregator imethod Rich() (any, error)
 pulse/extend: type RowLocalAttribute interface
@@ -3023,11 +3063,16 @@ pulse/types: type Aggregation field Field string "json:\"field\""
 pulse/types: type Aggregation field Label string "json:\"label,omitempty\""
 pulse/types: type Aggregation field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Aggregation field Type pulse/types.AggregationType "json:\"type\""
+pulse/types: type Aggregation field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type AggregationComponents struct
 pulse/types: type AggregationComponents field Label string "json:\"label,omitempty\""
 pulse/types: type AggregationComponents field N int "json:\"n\""
+pulse/types: type AggregationComponents field NEff *float64 "json:\"n_eff,omitempty\""
 pulse/types: type AggregationComponents field NNull int "json:\"n_null\""
+pulse/types: type AggregationComponents field NWeightInvalid *int "json:\"n_weight_invalid,omitempty\""
 pulse/types: type AggregationComponents field Operator map[string]any "json:\"operator,omitempty\""
+pulse/types: type AggregationComponents field SumWeights *float64 "json:\"sum_weights,omitempty\""
+pulse/types: type AggregationComponents method (AggregationComponents) MarshalJSON() ([]byte, error)
 pulse/types: func AggregationLabelOf(a *pulse/types.Aggregation) string
 pulse/types: type AggregationType string
 pulse/types: type AggregationType method (AggregationType) MapValued() bool
@@ -3055,6 +3100,7 @@ pulse/types: type Attribute field Predictors []string "json:\"predictors,omitemp
 pulse/types: type Attribute field Target string "json:\"target,omitempty\""
 pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Attribute field Type pulse/types.AttributeType "json:\"type\""
+pulse/types: type Attribute field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type AttributeType string
 pulse/types: type AttributeType method (AttributeType) Streamable() bool
 pulse/types: func AxisFieldNames(axis []*pulse/types.Group) []string
@@ -3081,6 +3127,7 @@ pulse/types: type ChainResponse field Final *pulse/types.Response "json:\"final\
 pulse/types: type ChainResponse field NormalizedRequest *pulse/types.ChainRequest "json:\"normalized_request,omitempty\""
 pulse/types: type ChainResponse field Overlays []*pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ChainResponse field Stages []*pulse/types.Response "json:\"stages\""
+pulse/types: type ChainResponse method (ChainResponse) MarshalJSON() ([]byte, error)
 pulse/types: type ChainStage struct
 pulse/types: type ChainStage field Name string "json:\"name,omitempty\""
 pulse/types: type ChainStage field Request *pulse/types.Request "json:\"request\""
@@ -3112,6 +3159,7 @@ pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
+pulse/types: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse/types: type CrosstabComponents struct
 pulse/types: type CrosstabComponents field CellComponents [][]map[string]any "json:\"cell_components,omitempty\""
 pulse/types: type CrosstabComponents field CellCounts [][]int "json:\"cell_counts,omitempty\""
@@ -3128,6 +3176,7 @@ pulse/types: type CrosstabComponents field RowKeyComponents []map[string]any "js
 pulse/types: type CrosstabComponents field RowMarginAggregations []map[string]pulse/types.MarginAggregationFigure "json:\"row_margin_aggregations,omitempty\""
 pulse/types: type CrosstabComponents field RowMarginComponents []map[string]any "json:\"row_margin_components,omitempty\""
 pulse/types: type CrosstabComponents field RowMarginCounts []int "json:\"row_margin_counts,omitempty\""
+pulse/types: type CrosstabComponents method (CrosstabComponents) MarshalJSON() ([]byte, error)
 pulse/types: type CrosstabMargins struct
 pulse/types: type CrosstabMargins field Columns bool "json:\"columns,omitempty\""
 pulse/types: type CrosstabMargins field Grand bool "json:\"grand,omitempty\""
@@ -3140,6 +3189,7 @@ pulse/types: const CrosstabNormalizeTotal pulse/types.CrosstabNormalize = "total
 pulse/types: type CrosstabResult struct
 pulse/types: type CrosstabResult field Matrix *pulse/types.MatrixPayload "json:\"matrix,omitempty\""
 pulse/types: type CrosstabResult field Shape pulse/types.CrosstabShape "json:\"shape\""
+pulse/types: type CrosstabResult method (CrosstabResult) MarshalJSON() ([]byte, error)
 pulse/types: type CrosstabShape string
 pulse/types: const CrosstabShapeLong pulse/types.CrosstabShape = "long"
 pulse/types: const CrosstabShapeMatrix pulse/types.CrosstabShape = "matrix"
@@ -3205,6 +3255,7 @@ pulse/types: type FacetField field Kind string "json:\"kind\""
 pulse/types: type FacetField field NullCount int64 "json:\"null_count\""
 pulse/types: type FacetField field Numeric *pulse/types.FacetNumeric "json:\"numeric,omitempty\""
 pulse/types: type FacetField field TypeName string "json:\"type_name\""
+pulse/types: type FacetField method (FacetField) MarshalJSON() ([]byte, error)
 pulse/types: type FacetHistogram struct
 pulse/types: type FacetHistogram field Bins []int64 "json:\"bins\""
 pulse/types: type FacetHistogram field Max float64 "json:\"max\""
@@ -3239,6 +3290,7 @@ pulse/types: type FacetResult field FilteredRecords int64 "json:\"filtered_recor
 pulse/types: type FacetResult field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type FacetResult field TotalRecords int64 "json:\"total_records\""
 pulse/types: type FacetResult field Warnings []string "json:\"warnings,omitempty\""
+pulse/types: type FacetResult method (FacetResult) MarshalJSON() ([]byte, error)
 pulse/types: type FacetValueCount struct
 pulse/types: type FacetValueCount field Count int64 "json:\"count\""
 pulse/types: type FacetValueCount field Value string "json:\"value\""
@@ -3291,6 +3343,7 @@ pulse/types: type Group field Interval float64 "json:\"interval,omitempty\""
 pulse/types: type Group field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Group field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Group field Type pulse/types.GroupType "json:\"type\""
+pulse/types: type Group field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type GroupType string
 pulse/types: type GroupType method (GroupType) FansOut() bool
 pulse/types: type GroupType method (GroupType) Mergeable() bool
@@ -3301,6 +3354,7 @@ pulse/types: type GrouperComponents field Label string "json:\"label,omitempty\"
 pulse/types: type GrouperComponents field NNull int "json:\"n_null,omitempty\""
 pulse/types: type GrouperComponents field Operator map[string]any "json:\"operator,omitempty\""
 pulse/types: type GrouperComponents field TotalN int "json:\"total_n,omitempty\""
+pulse/types: type GrouperComponents method (GrouperComponents) MarshalJSON() ([]byte, error)
 pulse/types: func IsPairwiseOverlayKind(kind pulse/types.OverlayKind) bool
 pulse/types: func IsPanelOverlayParamsKind(kind pulse/types.OverlayKind) bool
 pulse/types: func IsValidNormalize(mode pulse/types.CrosstabNormalize) bool
@@ -3359,6 +3413,7 @@ pulse/types: const MarginMeanReducible pulse/types.MarginReducibility = "mean_re
 pulse/types: const MarginRecompute pulse/types.MarginReducibility = "recompute"
 pulse/types: type MarginReducibility string
 pulse/types: const MarginSummable pulse/types.MarginReducibility = "summable"
+pulse/types: func MarshalFinite(v any) ([]byte, error)
 pulse/types: type MatrixCell struct
 pulse/types: type MatrixCell field Present bool "json:\"present\""
 pulse/types: type MatrixCell field Value any "json:\"value,omitempty\""
@@ -3374,7 +3429,9 @@ pulse/types: type MatrixPayload field NormalizeApplied pulse/types.CrosstabNorma
 pulse/types: type MatrixPayload field RowHeader pulse/types.AxisHeader "json:\"row_header\""
 pulse/types: type MatrixPayload field RowKeys []pulse/types.AxisKey "json:\"row_keys\""
 pulse/types: type MatrixPayload field RowMargins []pulse/types.MatrixCell "json:\"row_margins,omitempty\""
+pulse/types: type MatrixPayload method (MatrixPayload) MarshalJSON() ([]byte, error)
 pulse/types: func NormalizedString(mode string) pulse/types.CrosstabNormalize
+pulse/types: func NullSlotWeight() pulse/types.SlotWeight
 pulse/types: type OnPair struct
 pulse/types: type OnPair field LeftField string "json:\"left_field\""
 pulse/types: type OnPair field RightField string "json:\"right_field\""
@@ -3443,6 +3500,7 @@ pulse/types: type OverlayLayer field Ref pulse/types.OverlayRef "json:\"ref\""
 pulse/types: type OverlayLayer field Scope pulse/types.OverlayScope "json:\"scope\""
 pulse/types: type OverlayLayer field Summary *pulse/types.OverlaySummary "json:\"summary,omitempty\""
 pulse/types: type OverlayLayer field Warnings []pulse/types.OverlayWarning "json:\"warnings,omitempty\""
+pulse/types: type OverlayLayer method (OverlayLayer) MarshalJSON() ([]byte, error)
 pulse/types: type OverlayMarginRef struct
 pulse/types: type OverlayMarginRef field Axis pulse/types.MarginAxis "json:\"axis\""
 pulse/types: type OverlayOptions struct
@@ -3453,6 +3511,7 @@ pulse/types: type OverlayPayload field Matrix *pulse/types.MatrixPayload "json:\
 pulse/types: type OverlayPayload field Scalar *float64 "json:\"scalar,omitempty\""
 pulse/types: type OverlayPayload field Series *pulse/types.SeriesPayload "json:\"series,omitempty\""
 pulse/types: type OverlayPayload field Shape pulse/types.OverlayShape "json:\"shape\""
+pulse/types: type OverlayPayload method (OverlayPayload) MarshalJSON() ([]byte, error)
 pulse/types: type OverlayPopulationRef struct
 pulse/types: type OverlayPopulationRef field Cohort string "json:\"cohort,omitempty\""
 pulse/types: type OverlayPriorRef struct
@@ -3491,6 +3550,7 @@ pulse/types: type OverlaySpec field Name string "json:\"name,omitempty\""
 pulse/types: type OverlaySpec field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type OverlaySpec field Ref pulse/types.OverlayRef "json:\"ref\""
 pulse/types: type OverlaySpec field Scope pulse/types.OverlayScope "json:\"scope\""
+pulse/types: type OverlaySpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type OverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: var OverlayStreamability map[pulse/types.OverlayKind]bool
 pulse/types: func OverlayStreamable(kind pulse/types.OverlayKind) (streamable bool, known bool)
@@ -3502,6 +3562,7 @@ pulse/types: type OverlaySummary field Min *float64 "json:\"min,omitempty\""
 pulse/types: type OverlaySummary field PValue *float64 "json:\"p_value,omitempty\""
 pulse/types: type OverlaySummary field Parameters map[string]float64 "json:\"parameters,omitempty\""
 pulse/types: type OverlaySummary field Statistic *float64 "json:\"statistic,omitempty\""
+pulse/types: type OverlaySummary method (OverlaySummary) MarshalJSON() ([]byte, error)
 pulse/types: type OverlayWarning struct
 pulse/types: type OverlayWarning field Code string
 pulse/types: type OverlayWarning field Details map[string]any
@@ -3593,6 +3654,7 @@ pulse/types: type RegressionResult field SelectedFeatures []string "json:\"selec
 pulse/types: type RegressionResult field Selection string "json:\"selection,omitempty\""
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
+pulse/types: type RegressionResult method (RegressionResult) MarshalJSON() ([]byte, error)
 pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionSpec field BootstrapIters int "json:\"bootstrap_iters,omitempty\""
@@ -3616,6 +3678,7 @@ pulse/types: type RegressionSpec field Selection string "json:\"selection,omitem
 pulse/types: type RegressionSpec field Target string "json:\"target\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
+pulse/types: type RegressionSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type RegressionSpec method (RegressionSpec) Streamable() bool
 pulse/types: type RegressionType string
 pulse/types: type RegressionType method (RegressionType) Streamable() bool
@@ -3638,6 +3701,7 @@ pulse/types: type Request field Regressions []*pulse/types.RegressionSpec "json:
 pulse/types: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse/types: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse/types: type Request field TimeZone string "json:\"time_zone,omitempty\""
+pulse/types: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse/types: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
 pulse/types: type Request method (*Request) Hash() string
 pulse/types: func ResolveBuiltinGroupFanOut(t pulse/types.GroupType) (fansOut bool, known bool)
@@ -3651,12 +3715,14 @@ pulse/types: type Response field PostTests []*pulse/types.TestResult "json:\"pos
 pulse/types: type Response field Regressions []*pulse/types.RegressionResult "json:\"regressions,omitempty\""
 pulse/types: type Response field Tests []*pulse/types.TestResult "json:\"tests,omitempty\""
 pulse/types: type Response field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
+pulse/types: type Response method (Response) MarshalJSON() ([]byte, error)
 pulse/types: type ResponseComponents struct
 pulse/types: type ResponseComponents field Aggregations []pulse/types.AggregationComponents "json:\"aggregations,omitempty\""
 pulse/types: type ResponseComponents field Crosstab *pulse/types.CrosstabComponents "json:\"crosstab,omitempty\""
 pulse/types: type ResponseComponents field Filterers []pulse/types.FiltererComponents "json:\"filterers,omitempty\""
 pulse/types: type ResponseComponents field Groupers []pulse/types.GrouperComponents "json:\"groupers,omitempty\""
 pulse/types: type ResponseComponents field Run *pulse/types.RunComponents "json:\"run,omitempty\""
+pulse/types: type ResponseComponents method (ResponseComponents) MarshalJSON() ([]byte, error)
 pulse/types: type ResponseMetadata struct
 pulse/types: type ResponseMetadata field CohortFile string "json:\"cohort_file,omitempty\""
 pulse/types: type ResponseMetadata field FilteredRows int64 "json:\"filtered_rows\""
@@ -3680,6 +3746,14 @@ pulse/types: type SeriesEntry field Key pulse/types.AxisKey "json:\"key\""
 pulse/types: type SeriesEntry field Summary pulse/types.OverlaySummary "json:\"summary\""
 pulse/types: type SeriesPayload struct
 pulse/types: type SeriesPayload field Entries []pulse/types.SeriesEntry "json:\"entries\""
+pulse/types: type SlotWeight struct
+pulse/types: type SlotWeight method (*SlotWeight) UnmarshalJSON(b []byte) error
+pulse/types: type SlotWeight method (SlotWeight) IsNull() bool
+pulse/types: type SlotWeight method (SlotWeight) IsZero() bool
+pulse/types: type SlotWeight method (SlotWeight) MarshalJSON() ([]byte, error)
+pulse/types: type SlotWeight method (SlotWeight) Spec() *pulse/types.WeightSpec
+pulse/types: func SlotWeightField(field string) pulse/types.SlotWeight
+pulse/types: func SlotWeightOf(spec pulse/types.WeightSpec) pulse/types.SlotWeight
 pulse/types: type StageRef struct
 pulse/types: type StageRef field Index *int "json:\"index,omitempty\""
 pulse/types: type StageRef field Name string "json:\"name,omitempty\""
@@ -3716,6 +3790,7 @@ pulse/types: type Test field Rows string "json:\"rows,omitempty\""
 pulse/types: type Test field SplitBy string "json:\"split_by,omitempty\""
 pulse/types: type Test field SubjectField string "json:\"subject_field,omitempty\""
 pulse/types: type Test field Type pulse/types.TestType "json:\"type\""
+pulse/types: type Test field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type TestResult struct
 pulse/types: type TestResult field Alpha float64 "json:\"alpha\""
 pulse/types: type TestResult field DF float64 "json:\"df,omitempty\""
@@ -3727,6 +3802,7 @@ pulse/types: type TestResult field Statistic float64 "json:\"statistic\""
 pulse/types: type TestResult field Type pulse/types.TestType "json:\"type\""
 pulse/types: type TestResult field Variant string "json:\"variant,omitempty\""
 pulse/types: type TestResult field Warnings []string "json:\"warnings,omitempty\""
+pulse/types: type TestResult method (TestResult) MarshalJSON() ([]byte, error)
 pulse/types: type TestType string
 pulse/types: type TestType method (TestType) Streamable() bool
 pulse/types: func ValidPairwiseNBasis(s string) bool
@@ -3748,6 +3824,13 @@ pulse/types: const WIN_RANK pulse/types.WindowType = "WIN_RANK"
 pulse/types: const WIN_ROW_NUMBER pulse/types.WindowType = "WIN_ROW_NUMBER"
 pulse/types: const WIN_RUNNING_AVG pulse/types.WindowType = "WIN_RUNNING_AVG"
 pulse/types: const WIN_RUNNING_SUM pulse/types.WindowType = "WIN_RUNNING_SUM"
+pulse/types: type WeightKind string
+pulse/types: const WeightKindFrequency pulse/types.WeightKind = "frequency"
+pulse/types: const WeightKindProbability pulse/types.WeightKind = "probability"
+pulse/types: type WeightSpec struct
+pulse/types: type WeightSpec field Field string "json:\"field\""
+pulse/types: type WeightSpec field Kind pulse/types.WeightKind "json:\"kind,omitempty\""
+pulse/types: type WeightSpec method (WeightSpec) EffectiveKind() pulse/types.WeightKind
 pulse/types: type Window struct
 pulse/types: type Window field Field string "json:\"field,omitempty\""
 pulse/types: type Window field Frame *pulse/types.FrameSpec "json:\"frame,omitempty\""
@@ -3759,4 +3842,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c116ac5e593627200cf5306529709f19ae689f1315992cb88a3512d1b4e32b3a
+// golden-hash: 6d0d1492438088948343b41ff0defea2a6185b995ddc75ed0c7649d88ba7244c

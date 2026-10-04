@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 )
 
@@ -118,5 +119,21 @@ func TestEnvelope_RequestPopulatedWhenSet(t *testing.T) {
 	env2 := NewEnvelope("data").WithRequest(req)
 	if env2.Request == nil {
 		t.Fatal("WithRequest did not attach request")
+	}
+}
+
+// TestEnvelope_UndefinedFigureIsNull: a non-finite float anywhere in
+// the envelope — an untyped data map, a warning's details — is written
+// as null and the envelope still serialises (types.MarshalFinite).
+func TestEnvelope_UndefinedFigureIsNull(t *testing.T) {
+	env := NewEnvelope(map[string]any{"ratio": math.NaN(), "n": 3})
+	env.AddWarning("W", "w", map[string]any{"bound": math.Inf(-1)})
+	body, err := json.Marshal(env)
+	if err != nil {
+		t.Fatalf("envelope does not serialise: %v", err)
+	}
+	want := `{"format_version":"1.1","data":{"n":3,"ratio":null},"errors":[],"warnings":[{"code":"W","message":"w","details":{"bound":null}}]}`
+	if string(body) != want {
+		t.Errorf("got  %s\nwant %s", body, want)
 	}
 }

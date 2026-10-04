@@ -44,6 +44,7 @@ MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-ma
 
 ## Gotchas
 
+- No weighted form yet: a request or `Options.DefaultWeight` weight applied to a read slot's aggregation is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on those aggregations.
 - Pairs byte-equal the cell proportion z (shared `twoProportionZ`).
 - Degenerate `(n == 0, pooled ∈ {0,1}, se == 0)` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
 - Absent value → nil slice + `REF_ZERO` `ref_missing`; an unreadable counted n adds `n_missing` + `slot_index`.

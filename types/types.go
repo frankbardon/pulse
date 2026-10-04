@@ -643,6 +643,12 @@ type Test struct {
 	//   TEST_TUKEY_HSD: {"ms_within": <f64>, "df_within": <f64>}
 	//   TEST_TREND: {"variant": "mann_kendall"} (default)
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// Weight is the per-slot weight override: absent inherits
+	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
+	// slot out (it runs unweighted); a field-name string or a
+	// {field, kind} object sets the slot's own weight. See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // TestResult is the per-test outcome embedded in Response.Tests and
@@ -781,6 +787,12 @@ type Aggregation struct {
 	// Params holds type-specific configuration as raw JSON.
 	// Used by aggregation types that require additional parameters (e.g., AGG_PERCENTILE).
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// Weight is the per-slot weight override: absent inherits
+	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
+	// slot out (it runs unweighted); a field-name string or a
+	// {field, kind} object sets the slot's own weight. See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // Filterer defines a filter to apply to records before processing.
@@ -859,6 +871,14 @@ type Group struct {
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
+
+	// Weight is the per-slot weight override, carried by a grouper
+	// mainly to opt OUT: GROUP_QUANTILE's cutpoints have no weighted
+	// form yet, so any weight in force refuses it unless the slot sets
+	// `null` (it then cuts unweighted). Absent inherits Request.Weight,
+	// then pulse.Options.DefaultWeight. No other grouper reads a weight.
+	// See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // Attribute defines a derived attribute computation.
@@ -914,6 +934,12 @@ type Attribute struct {
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
+
+	// Weight is the per-slot weight override: absent inherits
+	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
+	// slot out (it runs unweighted); a field-name string or a
+	// {field, kind} object sets the slot's own weight. See SlotWeight.
+	Weight SlotWeight `json:"weight,omitzero"`
 }
 
 // Output configures how processing results are formatted.
@@ -1076,6 +1102,12 @@ type Request struct {
 	// sets no `tz` of its own. Empty inherits
 	// pulse.Options.DefaultTimeZone, then UTC.
 	TimeZone string `json:"time_zone,omitempty"`
+
+	// Weight is the request-level row weight inherited by every slot
+	// that sets no `weight` of its own (a slot's `null` opts it out).
+	// Nil inherits pulse.Options.DefaultWeight; with neither, the
+	// request runs unweighted. See .claude/reference/weighting.md.
+	Weight *WeightSpec `json:"weight,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -1237,6 +1269,22 @@ type AggregationComponents struct {
 	// the source field was null. Universal floor — emitted by every
 	// aggregator.
 	NNull int `json:"n_null"`
+
+	// SumWeights is Σw over the rows whose value was present and whose
+	// weight was valid — set only when a row weight is APPLIED to the
+	// slot, so its absence is the per-slot "unweighted" signal. N and
+	// NNull keep their value-presence meaning under a weight.
+	SumWeights *float64 `json:"sum_weights,omitempty"`
+
+	// NEff is Kish's effective sample size (Σw)² / Σw² over the same
+	// rows — set only on a slot weighted with kind probability.
+	NEff *float64 `json:"n_eff,omitempty"`
+
+	// NWeightInvalid counts the rows whose value was present but whose
+	// weight was invalid (null, negative, NaN / ±Inf, or non-integer
+	// under kind frequency) and was therefore excluded — set only on a
+	// weighted slot.
+	NWeightInvalid *int `json:"n_weight_invalid,omitempty"`
 
 	// Operator carries the per-aggregator schema-declared keys. Key
 	// set is governed by the operator's ComponentSchema declaration in

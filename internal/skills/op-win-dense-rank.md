@@ -27,6 +27,7 @@ One `int64` per row written to `Label` (default `WIN_DENSE_RANK`). Ties share a 
 
 ## Gotchas
 
+- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - Tie comparison uses every `order_by` key; tie only when ALL keys equal.
 - `WIN_DENSE_RANK` does NOT distinguish row count from rank count.
 - Result rows are NOT reordered — use `Request.Sort` for response order.

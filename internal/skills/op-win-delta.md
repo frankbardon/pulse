@@ -25,6 +25,7 @@ One `float64` per row on `Label` (default `WIN_DELTA_<field>`). `cur - prev` at 
 
 ## Gotchas
 
+- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - **A zero prior is a REAL delta, not a null.** A percent change nulls it because the division is undefined; subtraction has no such case, so `prev == 0` emits `cur`.
 - **Frame rejection happens at CONSTRUCTION**, not just in predict — the factory returns `PROCESSING_CONFIG` for a non-nil `frame`. The rest of the family declares it in predict only, so a framed request skipping predict is ignored there but REFUSED here.
 - `periods <= 0` rejected (`PULSE_WINDOW_INVALID`); either side null → `null`; rows NOT reordered (`Request.Sort`); buffered.

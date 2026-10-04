@@ -101,7 +101,7 @@ func TestBindForInstance_EnumsCarryOnlyEnabledNames(t *testing.T) {
 	for _, f := range schema.Fields {
 		literals[f.Name] = true
 	}
-	for _, l := range []string{"none", "row", "column", "total", "matrix", "long", "replace", "augment"} {
+	for _, l := range []string{"none", "row", "column", "total", "matrix", "long", "replace", "augment", "probability", "frequency"} {
 		literals[l] = true
 	}
 	for _, tc := range []struct {

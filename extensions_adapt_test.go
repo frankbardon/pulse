@@ -74,7 +74,7 @@ func TestAdaptAggregator_ForwardsExactlyTheImplementedSiblings(t *testing.T) {
 			if withEmit {
 				fn = emit
 			}
-			got := adaptAggregator("AGG_T_X", c.inner, fn)
+			got := adaptAggregator("AGG_T_X", c.inner, fn, nil)
 			_, isOnline := got.(processing.OnlineAggregator)
 			_, isRich := got.(processing.RichAggregator)
 			_, isMeta := got.(processing.MetaAggregator)
@@ -85,7 +85,7 @@ func TestAdaptAggregator_ForwardsExactlyTheImplementedSiblings(t *testing.T) {
 			}
 			if isMerge {
 				sink = nil
-				other := adaptAggregator("AGG_T_X", c.inner, fn).(processing.OnlineAggregator)
+				other := adaptAggregator("AGG_T_X", c.inner, fn, nil).(processing.OnlineAggregator)
 				if err := got.(processing.MergeableAggregator).MergeOnline(other); err != nil {
 					t.Errorf("%s: MergeOnline = %v", c.name, err)
 				}
@@ -123,7 +123,7 @@ func (adaptSelfEmitting) Components() (map[string]any, error) { return map[strin
 // registration supplies no ComponentsFunc, and that an explicit
 // ComponentsFunc wins over it.
 func TestAdaptAggregator_TypeLevelComponentsKept(t *testing.T) {
-	got := adaptAggregator("AGG_T_X", adaptSelfEmitting{}, nil)
+	got := adaptAggregator("AGG_T_X", adaptSelfEmitting{}, nil, nil)
 	meta, ok := got.(processing.MetaAggregator)
 	if !ok {
 		t.Fatal("type-level Components() not surfaced as MetaAggregator")
@@ -135,7 +135,7 @@ func TestAdaptAggregator_TypeLevelComponentsKept(t *testing.T) {
 		t.Error("OnlineAggregator lost alongside type-level Components()")
 	}
 	explicit := func(extend.Aggregator) (map[string]any, error) { return map[string]any{"fn": 1}, nil }
-	m, _ := adaptAggregator("AGG_T_X", adaptSelfEmitting{}, explicit).(processing.MetaAggregator).Components()
+	m, _ := adaptAggregator("AGG_T_X", adaptSelfEmitting{}, explicit, nil).(processing.MetaAggregator).Components()
 	if m["fn"] != 1 {
 		t.Errorf("explicit ComponentsFunc did not win: %v", m)
 	}
@@ -158,7 +158,7 @@ func TestAdaptAggregator_RowsViewIsZeroCopy(t *testing.T) {
 			t.Errorf("At(%d) is not the engine's record", i)
 		}
 	}
-	got, err := adaptAggregator("AGG_T_X", adaptBase{}, nil).Aggregate(recs, "x")
+	got, err := adaptAggregator("AGG_T_X", adaptBase{}, nil, nil).Aggregate(recs, "x")
 	if err != nil || got != 2 {
 		t.Errorf("Aggregate through adapter = %v, %v; want 2", got, err)
 	}
@@ -194,7 +194,7 @@ func (foreignOnline) Finalize() (float64, error)                 { return 0, nil
 // PROCESSING_INTERNAL error, never a panic or a silent no-op.
 func TestAdaptAggregator_MergeRefusesForeignPartner(t *testing.T) {
 	var sink extend.OnlineAggregator
-	got := adaptAggregator("AGG_T_X", adaptMergeable{got: &sink}, nil).(processing.MergeableAggregator)
+	got := adaptAggregator("AGG_T_X", adaptMergeable{got: &sink}, nil, nil).(processing.MergeableAggregator)
 	err := got.MergeOnline(foreignOnline{})
 	var ce *perr.CodedError
 	if !errors.As(err, &ce) || ce.Code != perr.PROCESSING_INTERNAL {

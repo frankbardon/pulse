@@ -216,14 +216,64 @@ type schemaBuilder struct {
 	defs  map[string]any
 	enums map[reflect.Type][]string
 	inst  *InstanceSnapshot
+
+	// resultOnly holds the struct types reachable from a result root but
+	// from no request root. A float slot in one of them is "number or
+	// null": the wire writes an undefined figure (NaN / ±Inf in Go) as
+	// null (types.MarshalFinite). Request floats stay "number" — a
+	// decoded request never carries a non-finite float.
+	resultOnly map[reflect.Type]bool
+	// floatNull is set while a resultOnly struct's fields are described.
+	floatNull bool
 }
 
 func newSchemaBuilder(inst *InstanceSnapshot) *schemaBuilder {
 	return &schemaBuilder{
-		defs:  map[string]any{},
-		enums: enumValues(inst),
-		inst:  inst,
+		defs:       map[string]any{},
+		enums:      enumValues(inst),
+		inst:       inst,
+		resultOnly: resultOnlyStructs(),
 	}
+}
+
+// resultOnlyStructs walks the struct graph from the result roots and
+// from the request roots and returns the structs only the former reach
+// (ChainResponse echoes a ChainRequest, so request-side structs reached
+// through a result are excluded).
+func resultOnlyStructs() map[reflect.Type]bool {
+	reach := func(roots ...reflect.Type) map[reflect.Type]bool {
+		seen := map[reflect.Type]bool{}
+		var walk func(t reflect.Type)
+		walk = func(t reflect.Type) {
+			for t.Kind() == reflect.Pointer || t.Kind() == reflect.Slice || t.Kind() == reflect.Array || t.Kind() == reflect.Map {
+				t = t.Elem()
+			}
+			if t.Kind() != reflect.Struct || seen[t] {
+				return
+			}
+			seen[t] = true
+			for i := 0; i < t.NumField(); i++ {
+				if f := t.Field(i); f.PkgPath == "" {
+					if _, _, skip := jsonFieldName(f); !skip {
+						walk(f.Type)
+					}
+				}
+			}
+		}
+		for _, r := range roots {
+			walk(r)
+		}
+		return seen
+	}
+	results := reach(reflect.TypeFor[types.Response](), reflect.TypeFor[types.ComposedResponse](),
+		reflect.TypeFor[types.ChainResponse](), reflect.TypeFor[types.FacetResult](), reflect.TypeFor[types.LookupResult]())
+	requests := reach(reflect.TypeFor[types.Request](), reflect.TypeFor[types.ComposedRequest](),
+		reflect.TypeFor[types.ChainRequest](), reflect.TypeFor[types.FacetRequest](),
+		reflect.TypeFor[types.SampleRequest](), reflect.TypeFor[types.LookupRequest]())
+	for t := range requests {
+		delete(results, t)
+	}
+	return results
 }
 
 // register ensures a $def exists for the named type t and returns its def
@@ -247,6 +297,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return b.overlayRefDef(t)
 	case reflect.TypeFor[types.OverlayPayload]():
 		return b.overlayPayloadDef(t)
+	case reflect.TypeFor[types.SlotWeight]():
+		return b.slotWeightDef()
 	}
 	// Registry-backed enum.
 	if vals, ok := b.enums[t]; ok {
@@ -299,6 +351,9 @@ func (b *schemaBuilder) schemaFor(t reflect.Type, inlineNamed bool) any {
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return map[string]any{"type": "integer"}
 	case reflect.Float32, reflect.Float64:
+		if b.floatNull {
+			return map[string]any{"type": []any{"number", "null"}}
+		}
 		return map[string]any{"type": "number"}
 	case reflect.Interface:
 		return true // any
@@ -332,6 +387,9 @@ func (b *schemaBuilder) schemaFor(t reflect.Type, inlineNamed bool) any {
 // A capability-gated request slot the instance hides is skipped like a
 // "-" field, so neither it nor any def reachable only through it appears.
 func (b *schemaBuilder) structSchema(t reflect.Type) any {
+	prevFloatNull := b.floatNull
+	b.floatNull = b.resultOnly[t]
+	defer func() { b.floatNull = prevFloatNull }()
 	props := map[string]any{}
 	var required []string
 	hidden := HiddenSlotKeys(reflect.New(t).Interface(), b.inst)
@@ -405,6 +463,9 @@ func (b *schemaBuilder) overlayRefDef(t reflect.Type) any {
 // overlayPayloadDef builds the strict OverlayPayload union: shape-keyed
 // scalar/series/matrix, with the populated arm required for its shape.
 func (b *schemaBuilder) overlayPayloadDef(t reflect.Type) any {
+	prevFloatNull := b.floatNull
+	b.floatNull = b.resultOnly[t]
+	defer func() { b.floatNull = prevFloatNull }()
 	props := map[string]any{}
 	armForShape := map[string]string{}
 	for i := 0; i < t.NumField(); i++ {
@@ -444,6 +505,23 @@ func (b *schemaBuilder) overlayPayloadDef(t reflect.Type) any {
 		"additionalProperties": false,
 		"required":             []string{"shape"},
 		"allOf":                allOf,
+	}
+}
+
+// slotWeightDef builds the per-slot weight union. types.SlotWeight has
+// no exported fields (its three states are behind constructors), so
+// reflection would describe an empty object; on the wire it is a
+// field-name string, a WeightSpec object, or null — and null is NOT
+// absence: an absent key inherits the request / instance weight, null
+// opts the slot out.
+func (b *schemaBuilder) slotWeightDef() any {
+	return map[string]any{
+		"description": "Per-slot row weight. Absent: inherit the request weight, then the instance default. null: opt this slot out (run unweighted). A string names the weight field (kind probability); an object is a full WeightSpec.",
+		"oneOf": []any{
+			map[string]any{"type": "string"},
+			map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.WeightSpec]())},
+			map[string]any{"type": "null"},
+		},
 	}
 }
 

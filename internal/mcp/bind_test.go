@@ -470,3 +470,56 @@ func TestMCPSchemaBinding_CrosstabMarginAggregations(t *testing.T) {
 		t.Error("margin_aggregations item type enum diverges from the cell slot's")
 	}
 }
+
+// TestMCPSchemaBinding_WeightSlots: the bound request schema declares
+// the request-level `weight` object and a per-slot `weight` union
+// (field name | {field, kind} | null) on aggregations, attributes,
+// tests, overlays, groups, the crosstab axes and the crosstab cell /
+// margin aggregations, its
+// field enum limited to weight-capable columns (the f64 "score"; never
+// the categorical or date column).
+func TestMCPSchemaBinding_WeightSlots(t *testing.T) {
+	schemas, err := Bind(makeBindSchema())
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	req := decodeBoundRequest(t, schemas[toolmeta.ToolProcess])
+	props := req["properties"].(map[string]any)
+	rw, _ := props["weight"].(map[string]any)
+	if rw == nil {
+		t.Fatal("request-level weight missing")
+	}
+	if got := rw["properties"].(map[string]any)["field"].(map[string]any)["enum"]; !reflect.DeepEqual(got, []any{"score"}) {
+		t.Errorf("request weight field enum = %v, want [score]", got)
+	}
+	itemProps := func(path ...string) map[string]any {
+		var cur any = props
+		for _, p := range path {
+			cur = cur.(map[string]any)[p]
+		}
+		return cur.(map[string]any)
+	}
+	slots := map[string]map[string]any{
+		"aggregations":        itemProps("aggregations", "items", "properties"),
+		"attributes":          itemProps("attributes", "items", "properties"),
+		"tests":               itemProps("tests", "items", "properties"),
+		"post_tests":          itemProps("post_tests", "items", "properties"),
+		"overlays":            itemProps("overlays", "items", "properties"),
+		"crosstab.cell":       itemProps("crosstab", "properties", "cell", "properties"),
+		"margin_aggregations": itemProps("crosstab", "properties", "margin_aggregations", "items", "properties"),
+		"groups":              itemProps("groups", "items", "properties"),
+		"crosstab.rows":       itemProps("crosstab", "properties", "rows", "items", "properties"),
+		"crosstab.columns":    itemProps("crosstab", "properties", "columns", "items", "properties"),
+	}
+	for name, p := range slots {
+		w, _ := p["weight"].(map[string]any)
+		if w == nil {
+			t.Errorf("%s: weight property missing", name)
+			continue
+		}
+		arms, _ := w["oneOf"].([]any)
+		if len(arms) != 3 || arms[2].(map[string]any)["type"] != "null" {
+			t.Errorf("%s: weight oneOf = %v, want string | object | null", name, arms)
+		}
+	}
+}

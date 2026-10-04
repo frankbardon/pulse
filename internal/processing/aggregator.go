@@ -190,7 +190,10 @@ type countAggregator struct {
 	n int64
 }
 
-func newCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newCountAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_COUNT, w), nil
+	}
 	return &countAggregator{}, nil
 }
 
@@ -214,7 +217,10 @@ type sumAggregator struct {
 	frozenSum float64
 }
 
-func newSumAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newSumAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_SUM, w), nil
+	}
 	return &sumAggregator{}, nil
 }
 
@@ -241,7 +247,10 @@ type averageAggregator struct {
 	frozenSum float64
 }
 
-func newAverageAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newAverageAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_AVERAGE, w), nil
+	}
 	return &averageAggregator{}, nil
 }
 
@@ -343,7 +352,10 @@ type stdDevAggregator struct {
 	frozenM2   float64
 }
 
-func newStdDevAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newStdDevAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_STDDEV, w), nil
+	}
 	return &stdDevAggregator{}, nil
 }
 
@@ -413,6 +425,9 @@ type modeCountAggregator struct {
 func newModeCountAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
 	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
 		return nil, err
+	}
+	if w := slotWeight(agg); w != nil {
+		return newWeightedModeAggregator(types.AGG_MODE_COUNT, w), nil
 	}
 	return &modeCountAggregator{}, nil
 }
@@ -542,7 +557,10 @@ type medianAggregator struct {
 	frozenPositionHigh int
 }
 
-func newMedianAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newMedianAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedQuantileAggregator(types.AGG_MEDIAN, w, 50), nil
+	}
 	return &medianAggregator{}, nil
 }
 
@@ -597,7 +615,10 @@ type varianceAggregator struct {
 	frozenM2   float64
 }
 
-func newVarianceAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newVarianceAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_VARIANCE, w), nil
+	}
 	return &varianceAggregator{}, nil
 }
 
@@ -634,6 +655,9 @@ type modeAggregator struct {
 func newModeAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
 	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
 		return nil, err
+	}
+	if w := slotWeight(agg); w != nil {
+		return newWeightedModeAggregator(types.AGG_MODE, w), nil
 	}
 	return &modeAggregator{}, nil
 }
@@ -702,7 +726,10 @@ type skewnessAggregator struct {
 	frozenM3   float64
 }
 
-func newSkewnessAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newSkewnessAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedMomentAggregator(types.AGG_SKEWNESS, w), nil
+	}
 	return &skewnessAggregator{}, nil
 }
 
@@ -751,7 +778,10 @@ type kurtosisAggregator struct {
 	frozenM4   float64
 }
 
-func newKurtosisAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newKurtosisAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedMomentAggregator(types.AGG_KURTOSIS, w), nil
+	}
 	return &kurtosisAggregator{}, nil
 }
 
@@ -862,6 +892,9 @@ func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggreg
 	}
 	if p < 0 || p > 100 {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "percentile must be between 0 and 100")
+	}
+	if w := slotWeight(agg); w != nil {
+		return newWeightedQuantileAggregator(types.AGG_PERCENTILE, w, p), nil
 	}
 	return &percentileAggregator{percentile: p}, nil
 }

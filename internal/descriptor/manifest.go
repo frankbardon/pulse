@@ -283,7 +283,14 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	allTests = append(allTests, filterTests(postTestCapabilities(), on)...)
 	tier1, tier2 := partitionTier(allTests)
 
-	aggs := filterOps(aggregatorCapabilities(), on)
+	// capability:weighting hidden: no aggregator is weight-aware on this
+	// instance (no weight can reach one), so the table is read without
+	// the weight stamp — no weight_aware flag, no weighted floor keys.
+	aggTable := aggregatorCapabilities()
+	if !on(featWeighting) {
+		aggTable = aggregatorCapabilityTable()
+	}
+	aggs := filterOps(aggTable, on)
 	attrs := filterOps(attributeCapabilities(), on)
 	filts := filterOps(filtererCapabilities(), on)
 	grps := filterOps(grouperCapabilities(), on)
@@ -324,6 +331,16 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		Overlays:           withOverlayIntents(filterOverlays(OverlayCapabilities(), on)),
 		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap),
 		Intents:            instanceIntentIDs(inst),
+	}
+	if !on(featWeighting) {
+		// An extension's WeightAware declaration is moot too.
+		for _, metas := range [][]descriptor.OperatorMeta{
+			m.Extensions.Aggregators, m.Extensions.Attributes, m.Extensions.Tests,
+		} {
+			for i := range metas {
+				metas[i].WeightAware = false
+			}
+		}
 	}
 	if !on(featSynth) {
 		m.SynthDistributions = []descriptor.DistributionMeta{}

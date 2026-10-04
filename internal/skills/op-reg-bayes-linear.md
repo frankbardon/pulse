@@ -33,6 +33,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - `penalty` / `alpha` / `l1_ratio` / `family` / `link` rejected — other engines' knobs.
 - `resample` / `selection` → `PROCESSING_CONFIG` (not advertised) — credible intervals already convey uncertainty.
 - `prior_mu` length ≠ predictors + 1 → `PROCESSING_CONFIG`.

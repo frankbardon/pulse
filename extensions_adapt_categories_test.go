@@ -62,7 +62,7 @@ func TestAdaptAttribute_ForwardsExactlyTheImplementedTier(t *testing.T) {
 		{"two_pass", adaptAttrTwoPass{prePasses: &pre, finalized: &fin}, true, true},
 	}
 	for _, c := range cases {
-		got := adaptAttribute(c.inner)
+		got := adaptAttribute(c.inner, nil)
 		vals, err := got.Compute(recs, "x")
 		if err != nil || len(vals) != 2 || vals[0] != 2 || vals[1] != 4 {
 			t.Errorf("%s: Compute = %v, %v; want [2 4]", c.name, vals, err)

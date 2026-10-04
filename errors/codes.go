@@ -2400,6 +2400,32 @@ const (
 	// "requires_any_of" group) and the features with an unmet group
 	// under "features".
 	PULSE_FEATURE_PROFILE_DEPENDENCY Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
+
+	// PULSE_WEIGHT_INVALID_ROWS is the run WARNING that rows were
+	// excluded from a weighted figure because their weight was not
+	// usable: null, negative, NaN or ±Inf, or non-integer under
+	// `kind: frequency`. Invalid weights are never coerced. One warning
+	// per Response, merged across every execution mode; details carry
+	// "field", "count" and "by_reason" {null, negative, nan_inf,
+	// non_integer_frequency}. Promoted to an error under Options.Strict.
+	PULSE_WEIGHT_INVALID_ROWS Code = "PULSE_WEIGHT_INVALID_ROWS"
+
+	// PULSE_WEIGHT_UNSUPPORTED indicates a row weight is in force on a
+	// surface that cannot honour it yet — an inferential operator or
+	// overlay, a confidence-interval aggregator, or a decimal128 value
+	// field. Refused rather than answered unweighted (or wrongly
+	// weighted). Details carry "slot", "operator" and "field". A slot
+	// `weight: null` opts that slot out.
+	PULSE_WEIGHT_UNSUPPORTED Code = "PULSE_WEIGHT_UNSUPPORTED"
+
+	// PULSE_EXTENSION_NOT_WEIGHT_AWARE indicates a row weight reached an
+	// extension operator whose registration does not declare
+	// WeightAware: an explicit (slot or request) weight on an extension
+	// aggregator — an inherited instance default is skipped there — or
+	// any weight in force, the instance default included, on an
+	// extension attribute or test. Details carry "slot", "operator" and
+	// "field".
+	PULSE_EXTENSION_NOT_WEIGHT_AWARE Code = "PULSE_EXTENSION_NOT_WEIGHT_AWARE"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -2877,6 +2903,9 @@ var allCodes = []Code{
 	PULSE_FEATURE_PROFILE_INVALID,
 	PULSE_FEATURE_PROFILE_UNKNOWN,
 	PULSE_FEATURE_PROFILE_DEPENDENCY,
+	PULSE_WEIGHT_INVALID_ROWS,
+	PULSE_WEIGHT_UNSUPPORTED,
+	PULSE_EXTENSION_NOT_WEIGHT_AWARE,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

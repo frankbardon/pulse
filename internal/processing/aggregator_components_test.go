@@ -491,7 +491,10 @@ func manifestAggregatorOperatorKeys(t *testing.T, name string) []string {
 		// Strip universal floor — those keys are typed fields on
 		// AggregationComponents (N, NNull), not in the per-operator
 		// Operator map.
-		if k.Name == "n" || k.Name == "n_null" {
+		// The optional weighted floor keys (sum_weights, n_eff,
+		// n_weight_invalid) are typed fields too
+		// (AggregationComponents.SumWeights / NEff / NWeightInvalid).
+		if k.Name == "n" || k.Name == "n_null" || k.Optional {
 			continue
 		}
 		out = append(out, k.Name)

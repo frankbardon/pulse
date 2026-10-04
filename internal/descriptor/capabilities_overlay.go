@@ -516,7 +516,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
-			Description: pairwiseDescription("two-means z-test on AGG_WEIGHTED_MEAN cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. A non-weighted-mean host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path"),
+			Description: pairwiseDescription("two-means z-test on AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. Any other host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator or an AGG_AVERAGE no weight resolves on, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path"),
 		}
 	case types.OverlayKindPairwiseWelchT:
 		return descriptor.OverlayCapability{
@@ -719,7 +719,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state " +
 				"lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process " +
 				"fold (no second pass over records); the post-host finalize is the divide step. First present " +
-				"point emits NaN (no prior available — not a zero-denominator path, so no warning). Zero prior " +
+				"point emits NaN, null in JSON (no prior available — not a zero-denominator path, so no warning). Zero prior " +
 				"value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a " +
 				"present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier " +
 				"— the next present point compares against the most recent PRESENT value. Ref accepts either " +
@@ -822,7 +822,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"— the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W " +
 				"most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the " +
 				"OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). " +
-				"Window-fill semantics: the first W present ordinals all emit NaN without warning — \"window not yet " +
+				"Window-fill semantics: the first W present ordinals all emit NaN (null in JSON) without warning — \"window not yet " +
 				"filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports " +
 				"(0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring " +
 				"buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. " +

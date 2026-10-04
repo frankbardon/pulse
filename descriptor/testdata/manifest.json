@@ -3,7 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
-    "feature_set_digest": "fs1:3755efe584d3389f1901b91847f757f0c5904ca37a945281409d5c3b091db1f9",
+    "feature_set_digest": "fs1:276b855083140502543b326015fa94e916daec31687d0033a304d07d3849f222",
     "commands": [
       {
         "name": "process",
@@ -358,13 +358,62 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "sum",
                 "type": "float64",
-                "description": "Running sum of non-null field values; combined with n to recover the mean."
+                "description": "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."
+              },
+              {
+                "name": "sum_weighted",
+                "type": "float64",
+                "description": "Weighted slots only: Σw·x over the contributing rows.",
+                "optional": true
+              },
+              {
+                "name": "weighted_mean",
+                "type": "float64",
+                "description": "Weighted slots only: Σw·x / Σw (the scalar).",
+                "optional": true
+              },
+              {
+                "name": "m2_weighted",
+                "type": "float64",
+                "description": "Weighted slots only: Σw(x − mean)², the weighted second central moment.",
+                "optional": true
+              },
+              {
+                "name": "sum_weights_sq",
+                "type": "float64",
+                "description": "Weighted slots only: Σw², the Kish n_eff denominator.",
+                "optional": true
+              },
+              {
+                "name": "weighted_variance",
+                "type": "float64",
+                "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+                "optional": true
               }
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "describe"
           ]
@@ -401,7 +450,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (NaN when n \u003c 2)",
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when n \u003c 2)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -480,7 +529,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (NaN when n \u003c 2)",
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when n \u003c 2)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -567,10 +616,29 @@
                 "name": "n_null",
                 "type": "int",
                 "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
               }
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "describe"
           ]
@@ -681,7 +749,7 @@
         {
           "name": "AGG_FREQUENCY",
           "category": "aggregator",
-          "description": "Number of non-null rows whose field equals params.value (0 when none does). The count of the most common value is AGG_MODE_COUNT.",
+          "description": "Number of non-null rows whose field equals params.value (0 when none does); on a weighted slot the sum of their weights. The count of the most common value is AGG_MODE_COUNT.",
           "params": [
             {
               "name": "value",
@@ -720,18 +788,37 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "match_count",
                 "type": "int",
-                "description": "Non-null rows equal to params.value (= the scalar)."
+                "description": "Non-null rows equal to params.value (= the scalar); on a weighted slot their sum of weights (a float)."
               },
               {
                 "name": "share",
                 "type": "float64",
-                "description": "match_count / n; omitted when n is 0."
+                "description": "match_count / n; omitted when n is 0. On a weighted slot the matching sum of weights over the sum of weights of the non-null rows (omitted when that is 0)."
               }
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "composition",
             "describe"
@@ -769,6 +856,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "mean",
                 "type": "float64",
                 "description": "Running mean of non-null field values."
@@ -791,11 +896,12 @@
               {
                 "name": "kurtosis",
                 "type": "float64",
-                "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n \u003c= 1 or the variance is zero."
+                "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
               }
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "distribution_shape"
           ]
@@ -878,14 +984,32 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "position_low",
                 "type": "int",
-                "description": "Lower index used to bracket the median in the sorted value set."
+                "description": "Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."
               },
               {
                 "name": "position_high",
                 "type": "int",
-                "description": "Upper index used to bracket the median in the sorted value set."
+                "description": "Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."
               },
               {
                 "name": "median",
@@ -895,6 +1019,7 @@
             ],
             "mergeability": "none"
           },
+          "weight_aware": true,
           "intents": [
             "describe",
             "distribution_shape"
@@ -981,6 +1106,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "value",
                 "type": "any",
                 "description": "Most-frequent value observed (smallest-value tie-break)."
@@ -988,7 +1131,7 @@
               {
                 "name": "count",
                 "type": "int",
-                "description": "Row count of the modal value."
+                "description": "Row count of the modal value; on a weighted slot its sum of weights (a float)."
               },
               {
                 "name": "distinct_count",
@@ -1003,6 +1146,7 @@
             ],
             "mergeability": "partial"
           },
+          "weight_aware": true,
           "intents": [
             "describe"
           ]
@@ -1043,6 +1187,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "distinct_count",
                 "type": "int",
                 "description": "Number of distinct values observed."
@@ -1050,16 +1212,17 @@
               {
                 "name": "mode_value",
                 "type": "any",
-                "description": "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."
+                "description": "Most-frequent value — the largest sum of weights on a weighted slot (ties broken by the smallest value, matching AGG_MODE)."
               },
               {
                 "name": "mode_count",
                 "type": "int",
-                "description": "Row count of the modal value."
+                "description": "Row count of the modal value; on a weighted slot its sum of weights (a float)."
               }
             ],
             "mergeability": "partial"
           },
+          "weight_aware": true,
           "intents": [
             "composition",
             "describe"
@@ -1153,6 +1316,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "p",
                 "type": "float64",
                 "description": "Percentile requested, in [0, 100]."
@@ -1160,7 +1341,7 @@
               {
                 "name": "position",
                 "type": "int",
-                "description": "Index into the sorted value set used to resolve the percentile."
+                "description": "Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1), probability weights rescaled to Σw = n)."
               },
               {
                 "name": "lower",
@@ -1185,6 +1366,7 @@
             ],
             "mergeability": "none"
           },
+          "weight_aware": true,
           "intents": [
             "describe",
             "distribution_shape"
@@ -1242,7 +1424,7 @@
         {
           "name": "AGG_RATIO",
           "category": "aggregator",
-          "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN.",
+          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
           "params": [
             {
               "name": "numerator_field",
@@ -1282,7 +1464,7 @@
             "u8"
           ],
           "ignores_field": true,
-          "emits_type_note": "scalar float64 (NaN when denominator sum == 0)",
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when denominator sum == 0)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1297,23 +1479,42 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "numerator",
                 "type": "float64",
-                "description": "Running sum of the numerator field."
+                "description": "Running sum of the numerator field (weighted slot: of weight * numerator)."
               },
               {
                 "name": "denominator",
                 "type": "float64",
-                "description": "Running sum of the denominator field."
+                "description": "Running sum of the denominator field (weighted slot: of weight * denominator)."
               },
               {
                 "name": "ratio",
                 "type": "float64",
-                "description": "Resolved ratio: numerator / denominator (NaN when denominator is zero)."
+                "description": "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."
               }
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "composition",
             "describe"
@@ -1322,7 +1523,7 @@
         {
           "name": "AGG_SET_CARDINALITY_AVG",
           "category": "aggregator",
-          "description": "Average popcount per contributing row — typical number of selections.",
+          "description": "Average popcount per contributing row — typical number of selections; on a weighted slot sum(w * popcount) / sum(w).",
           "params": null,
           "accepts_types": [
             "set_u128",
@@ -1347,18 +1548,37 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "sum_cardinality",
                 "type": "int",
-                "description": "Sum of popcounts across contributing rows."
+                "description": "Sum of popcounts across contributing rows; weighted slot: sum(w * popcount) (a float)."
               },
               {
                 "name": "avg_cardinality",
                 "type": "float64",
-                "description": "Average popcount per contributing row (sum_cardinality / n)."
+                "description": "Average popcount per contributing row (sum_cardinality / n; weighted slot: / sum of weights)."
               }
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "describe"
           ]
@@ -1366,7 +1586,7 @@
         {
           "name": "AGG_SET_CARDINALITY_SUM",
           "category": "aggregator",
-          "description": "Sum of popcounts across contributing rows — total selections seen.",
+          "description": "Sum of popcounts across contributing rows — total selections seen; on a weighted slot sum(w * popcount).",
           "params": null,
           "accepts_types": [
             "set_u128",
@@ -1376,7 +1596,7 @@
             "set_u64",
             "set_u8"
           ],
-          "emits_type_note": "scalar int64",
+          "emits_type_note": "scalar int64 (float64 when weighted)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1391,13 +1611,32 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "sum_cardinality",
                 "type": "int",
-                "description": "Sum of popcounts across contributing rows — total label selections seen."
+                "description": "Sum of popcounts across contributing rows — total label selections seen; weighted slot: sum(w * popcount) (a float)."
               }
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "describe"
           ]
@@ -1454,7 +1693,7 @@
         {
           "name": "AGG_SET_FREQUENCY",
           "category": "aggregator",
-          "description": "Per-bit row count: how many rows had each set label selected.",
+          "description": "Per-bit row count: how many rows had each set label selected; on a weighted slot the sum of their weights.",
           "params": null,
           "accepts_types": [
             "set_u128",
@@ -1464,7 +1703,7 @@
             "set_u64",
             "set_u8"
           ],
-          "emits_type_note": "rich map[string]int (label→row count); scalar fallback = max single-label frequency",
+          "emits_type_note": "rich map[string]int (label→row count; map[string]float64 of weight sums when weighted); scalar fallback = max single-label frequency",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1479,23 +1718,42 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "total_label_observations",
                 "type": "int",
-                "description": "Sum of popcounts across contributing rows (total label selections seen)."
+                "description": "Sum of popcounts across contributing rows (total label selections seen); weighted slot: the weight-summed selections (a float)."
               },
               {
                 "name": "distinct_labels",
                 "type": "int",
-                "description": "Number of distinct labels observed at least once."
+                "description": "Number of distinct labels observed at least once (weighted slot: with a positive weight sum)."
               },
               {
                 "name": "per_label_count",
                 "type": "map[string]int",
-                "description": "Per-label row count: how many rows had each label selected."
+                "description": "Per-label row count: how many rows had each label selected; weighted slot: each label's sum of weights (float values)."
               }
             ],
             "mergeability": "partial"
           },
+          "weight_aware": true,
           "intents": [
             "composition",
             "describe"
@@ -1631,6 +1889,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "mean",
                 "type": "float64",
                 "description": "Running mean of non-null field values."
@@ -1648,11 +1924,12 @@
               {
                 "name": "skewness",
                 "type": "float64",
-                "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n \u003c= 1 or the variance is zero."
+                "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
               }
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "distribution_shape"
           ]
@@ -1690,6 +1967,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "mean",
                 "type": "float64",
                 "description": "Running Welford mean of non-null field values."
@@ -1712,6 +2007,7 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "describe",
             "distribution_shape"
@@ -1750,6 +2046,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "sum",
                 "type": "float64",
                 "description": "Running sum of non-null field values."
@@ -1757,6 +2071,7 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "composition",
             "describe"
@@ -1795,6 +2110,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "mean",
                 "type": "float64",
                 "description": "Running Welford mean of non-null field values."
@@ -1812,6 +2145,7 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "describe",
             "distribution_shape"
@@ -1820,13 +2154,13 @@
         {
           "name": "AGG_WEIGHTED_MEAN",
           "category": "aggregator",
-          "description": "Weighted arithmetic mean: sum(field * weight) / sum(weight). Streaming Chan-Welford recurrence.",
+          "description": "Weighted arithmetic mean: sum(field * weight) / sum(weight) — the weighted average under its own name and components.",
           "params": [
             {
               "name": "weight_field",
               "type": "string",
-              "required": true,
-              "description": "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only)."
+              "required": false,
+              "description": "Schema field whose value is the per-row weight (kind probability); sugar for a slot weight. Absent: the slot or request weight, else the instance default weight; none resolving is refused. Rows with an invalid (null, negative, NaN/Inf) or zero weight are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only)."
             }
           ],
           "accepts_types": [
@@ -1854,6 +2188,12 @@
                 "name": "n_null",
                 "type": "int",
                 "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
               },
               {
                 "name": "sum_weighted",
@@ -1893,6 +2233,7 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "describe"
           ]
@@ -1910,7 +2251,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1923,6 +2264,24 @@
                 "name": "n_null",
                 "type": "int",
                 "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
               },
               {
                 "name": "mean",
@@ -1947,6 +2306,7 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
           "intents": [
             "compare_groups",
             "describe"
@@ -5510,7 +5870,7 @@
         ]
       }
     ],
-    "error_codes_count": 254,
+    "error_codes_count": 257,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5588,6 +5948,7 @@
       "PULSE_EXTENSION_NAME_COLLISION",
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
+      "PULSE_EXTENSION_NOT_WEIGHT_AWARE",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_SKILL_COLLISION",
@@ -5769,6 +6130,8 @@
       "PULSE_TEST_VARIANCE_ZERO",
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
+      "PULSE_WEIGHT_INVALID_ROWS",
+      "PULSE_WEIGHT_UNSUPPORTED",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
       "SERVICE_REGISTRY",
@@ -7470,7 +7833,7 @@
       },
       {
         "name": "op-overlay-pairwise-weighted-two-means-z",
-        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells under a required n_basis (weights | kish)."
+        "description": "Intra-matrix axis-pairwise two-means z-test on weighted-mean cells under a required n_basis (weights | kish)."
       },
       {
         "name": "op-overlay-pairwise-welch-t",
@@ -8087,6 +8450,10 @@
       {
         "name": "type-u8",
         "description": "1-byte unsigned integer; fits cardinals through 255."
+      },
+      {
+        "name": "weighting",
+        "description": "Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, the unweighted-base recipe and the weighted floor keys."
       },
       {
         "name": "window-design",
@@ -8787,7 +9154,7 @@
           "Prior"
         ],
         "buffered": false,
-        "description": "Per-point windowed index against the immediately preceding point of an ordered SERIES (grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable windowed-Process overlay in the catalog and the first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize is the divide step. First present point emits NaN (no prior available — not a zero-denominator path, so no warning). Zero prior value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1; non-zero Lag is reserved for future window-N priors) or an entirely empty Ref (the implicit-default authoring shape); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the lag carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on baseline=100.",
+        "description": "Per-point windowed index against the immediately preceding point of an ordered SERIES (grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable windowed-Process overlay in the catalog and the first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize is the divide step. First present point emits NaN, null in JSON (no prior available — not a zero-denominator path, so no warning). Zero prior value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1; non-zero Lag is reserved for future window-N priors) or an entirely empty Ref (the implicit-default authoring shape); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the lag carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on baseline=100.",
         "intents": [
           "change_over_time"
         ]
@@ -8821,7 +9188,7 @@
           "RollingMean"
         ],
         "buffered": true,
-        "description": "Per-point windowed index against the arithmetic mean of the W immediately preceding points of an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE, and the first kind to consume the Ref.RollingMean arm of the OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see skills/window-design.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family — the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). Window-fill semantics: the first W present ordinals all emit NaN without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. Zero rolling-mean value (every prior point in the window was zero) emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — the ring buffer carries the full window of present values, larger than the single-state lag accumulator INDEX_VS_PRIOR uses, so the streaming Process pass cannot maintain it inline with the per-record fold today. Renderers centre diverging colour ramps on baseline=100 (mirrors OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_TOTAL / OVERLAY_INDEX_VS_SIBLING / OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE).",
+        "description": "Per-point windowed index against the arithmetic mean of the W immediately preceding points of an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE, and the first kind to consume the Ref.RollingMean arm of the OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see skills/window-design.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family — the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). Window-fill semantics: the first W present ordinals all emit NaN (null in JSON) without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. Zero rolling-mean value (every prior point in the window was zero) emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — the ring buffer carries the full window of present values, larger than the single-state lag accumulator INDEX_VS_PRIOR uses, so the streaming Process pass cannot maintain it inline with the per-record fold today. Renderers centre diverging colour ramps on baseline=100 (mirrors OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_TOTAL / OVERLAY_INDEX_VS_SIBLING / OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE).",
         "intents": [
           "change_over_time"
         ]
@@ -8958,7 +9325,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. A non-weighted-mean host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. Any other host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator or an AGG_AVERAGE no weight resolves on, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
         "intents": [
           "compare_groups"
         ],
@@ -9278,9 +9645,57 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "sum",
               "type": "float64",
-              "description": "Running sum of non-null field values; combined with n to recover the mean."
+              "description": "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."
+            },
+            {
+              "name": "sum_weighted",
+              "type": "float64",
+              "description": "Weighted slots only: Σw·x over the contributing rows.",
+              "optional": true
+            },
+            {
+              "name": "weighted_mean",
+              "type": "float64",
+              "description": "Weighted slots only: Σw·x / Σw (the scalar).",
+              "optional": true
+            },
+            {
+              "name": "m2_weighted",
+              "type": "float64",
+              "description": "Weighted slots only: Σw(x − mean)², the weighted second central moment.",
+              "optional": true
+            },
+            {
+              "name": "sum_weights_sq",
+              "type": "float64",
+              "description": "Weighted slots only: Σw², the Kish n_eff denominator.",
+              "optional": true
+            },
+            {
+              "name": "weighted_variance",
+              "type": "float64",
+              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+              "optional": true
             }
           ],
           "mergeability": "mergeable"
@@ -9376,6 +9791,24 @@
               "name": "n_null",
               "type": "int",
               "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
             }
           ],
           "mergeability": "mergeable"
@@ -9438,14 +9871,32 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "match_count",
               "type": "int",
-              "description": "Non-null rows equal to params.value (= the scalar)."
+              "description": "Non-null rows equal to params.value (= the scalar); on a weighted slot their sum of weights (a float)."
             },
             {
               "name": "share",
               "type": "float64",
-              "description": "match_count / n; omitted when n is 0."
+              "description": "match_count / n; omitted when n is 0. On a weighted slot the matching sum of weights over the sum of weights of the non-null rows (omitted when that is 0)."
             }
           ],
           "mergeability": "mergeable"
@@ -9461,6 +9912,24 @@
               "name": "n_null",
               "type": "int",
               "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
             },
             {
               "name": "mean",
@@ -9485,7 +9954,7 @@
             {
               "name": "kurtosis",
               "type": "float64",
-              "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n \u003c= 1 or the variance is zero."
+              "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
             }
           ],
           "mergeability": "mergeable"
@@ -9523,14 +9992,32 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "position_low",
               "type": "int",
-              "description": "Lower index used to bracket the median in the sorted value set."
+              "description": "Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."
             },
             {
               "name": "position_high",
               "type": "int",
-              "description": "Upper index used to bracket the median in the sorted value set."
+              "description": "Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."
             },
             {
               "name": "median",
@@ -9573,6 +10060,24 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "value",
               "type": "any",
               "description": "Most-frequent value observed (smallest-value tie-break)."
@@ -9580,7 +10085,7 @@
             {
               "name": "count",
               "type": "int",
-              "description": "Row count of the modal value."
+              "description": "Row count of the modal value; on a weighted slot its sum of weights (a float)."
             },
             {
               "name": "distinct_count",
@@ -9608,6 +10113,24 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "distinct_count",
               "type": "int",
               "description": "Number of distinct values observed."
@@ -9615,12 +10138,12 @@
             {
               "name": "mode_value",
               "type": "any",
-              "description": "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."
+              "description": "Most-frequent value — the largest sum of weights on a weighted slot (ties broken by the smallest value, matching AGG_MODE)."
             },
             {
               "name": "mode_count",
               "type": "int",
-              "description": "Row count of the modal value."
+              "description": "Row count of the modal value; on a weighted slot its sum of weights (a float)."
             }
           ],
           "mergeability": "partial"
@@ -9653,6 +10176,24 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "p",
               "type": "float64",
               "description": "Percentile requested, in [0, 100]."
@@ -9660,7 +10201,7 @@
             {
               "name": "position",
               "type": "int",
-              "description": "Index into the sorted value set used to resolve the percentile."
+              "description": "Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1), probability weights rescaled to Σw = n)."
             },
             {
               "name": "lower",
@@ -9723,19 +10264,37 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "numerator",
               "type": "float64",
-              "description": "Running sum of the numerator field."
+              "description": "Running sum of the numerator field (weighted slot: of weight * numerator)."
             },
             {
               "name": "denominator",
               "type": "float64",
-              "description": "Running sum of the denominator field."
+              "description": "Running sum of the denominator field (weighted slot: of weight * denominator)."
             },
             {
               "name": "ratio",
               "type": "float64",
-              "description": "Resolved ratio: numerator / denominator (NaN when denominator is zero)."
+              "description": "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."
             }
           ],
           "mergeability": "mergeable"
@@ -9753,14 +10312,32 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "sum_cardinality",
               "type": "int",
-              "description": "Sum of popcounts across contributing rows."
+              "description": "Sum of popcounts across contributing rows; weighted slot: sum(w * popcount) (a float)."
             },
             {
               "name": "avg_cardinality",
               "type": "float64",
-              "description": "Average popcount per contributing row (sum_cardinality / n)."
+              "description": "Average popcount per contributing row (sum_cardinality / n; weighted slot: / sum of weights)."
             }
           ],
           "mergeability": "mergeable"
@@ -9778,9 +10355,27 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "sum_cardinality",
               "type": "int",
-              "description": "Sum of popcounts across contributing rows — total label selections seen."
+              "description": "Sum of popcounts across contributing rows — total label selections seen; weighted slot: sum(w * popcount) (a float)."
             }
           ],
           "mergeability": "mergeable"
@@ -9828,19 +10423,37 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "total_label_observations",
               "type": "int",
-              "description": "Sum of popcounts across contributing rows (total label selections seen)."
+              "description": "Sum of popcounts across contributing rows (total label selections seen); weighted slot: the weight-summed selections (a float)."
             },
             {
               "name": "distinct_labels",
               "type": "int",
-              "description": "Number of distinct labels observed at least once."
+              "description": "Number of distinct labels observed at least once (weighted slot: with a positive weight sum)."
             },
             {
               "name": "per_label_count",
               "type": "map[string]int",
-              "description": "Per-label row count: how many rows had each label selected."
+              "description": "Per-label row count: how many rows had each label selected; weighted slot: each label's sum of weights (float values)."
             }
           ],
           "mergeability": "partial"
@@ -9918,6 +10531,24 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "mean",
               "type": "float64",
               "description": "Running mean of non-null field values."
@@ -9935,7 +10566,7 @@
             {
               "name": "skewness",
               "type": "float64",
-              "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n \u003c= 1 or the variance is zero."
+              "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
             }
           ],
           "mergeability": "mergeable"
@@ -9951,6 +10582,24 @@
               "name": "n_null",
               "type": "int",
               "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
             },
             {
               "name": "mean",
@@ -9988,6 +10637,24 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "sum",
               "type": "float64",
               "description": "Running sum of non-null field values."
@@ -10006,6 +10673,24 @@
               "name": "n_null",
               "type": "int",
               "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
             },
             {
               "name": "mean",
@@ -10036,6 +10721,12 @@
               "name": "n_null",
               "type": "int",
               "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
             },
             {
               "name": "sum_weighted",
@@ -10086,6 +10777,24 @@
               "name": "n_null",
               "type": "int",
               "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
             },
             {
               "name": "mean",
@@ -10677,4 +11386,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1c6f12c65cebf45c07f7f22d0c0c2e3b206945cfea5622d7288e71f1c5d7632c
+// golden-hash: f717ba998e0c1d974da7bb7515ed657dcc57cbdcd97a2e59c6a4921e11f2f2e6

@@ -3,6 +3,8 @@ package descriptor
 import (
 	"bytes"
 	"encoding/json"
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -130,6 +132,51 @@ func TestPayloadSchema_ValidatesRepresentativePayloads(t *testing.T) {
 
 	// The same Response wrapped in the universal output Envelope.
 	validateAgainst(t, c, "#/$defs/Envelope", descriptor.NewEnvelope(resp))
+}
+
+// TestPayloadSchema_UndefinedFiguresValidate: a response whose figures
+// are undefined (NaN / ±Inf in Go) marshals them as null
+// (types.MarshalFinite), and that wire form validates — the result-side
+// float slots are "number or null". Request floats stay "number": a
+// null where a request carries a number is still refused.
+func TestPayloadSchema_UndefinedFiguresValidate(t *testing.T) {
+	c := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
+	if err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	if err := c.AddResource(payloadSchemaID, doc); err != nil {
+		t.Fatalf("add resource: %v", err)
+	}
+	nan, inf := math.NaN(), math.Inf(1)
+	resp := types.Response{
+		Data:  []map[string]any{{"r": nan}},
+		Tests: []*types.TestResult{{Type: types.TEST_T, Statistic: nan, DF: nan, PValue: inf, Alpha: 0.05}},
+		Overlays: []types.OverlayLayer{{
+			Name: "i_prior", Kind: types.OverlayKindIndexVsPrior, Scope: types.OverlayScopeGroup,
+			Payload: types.OverlayPayload{Shape: types.OverlayShapeSeries, Series: &types.SeriesPayload{
+				Entries: []types.SeriesEntry{{Key: types.AxisKey{"a"}, Summary: types.OverlaySummary{Statistic: &nan}}}}},
+		}, {
+			Name: "s", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix,
+			Payload: types.OverlayPayload{Shape: types.OverlayShapeScalar, Scalar: &nan},
+		}},
+		Components: &types.ResponseComponents{Aggregations: []types.AggregationComponents{
+			{Label: "r", SumWeights: &nan, Operator: map[string]any{"ratio": nan}}}},
+	}
+	validateAgainst(t, c, "#/$defs/Response", resp)
+	validateAgainst(t, c, "#/$defs/Envelope", descriptor.NewEnvelope(resp))
+
+	sch, err := c.Compile(payloadSchemaID + "#/$defs/Test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := jsonschema.UnmarshalJSON(strings.NewReader(`{"type":"TEST_T","alpha":null}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sch.Validate(inst) == nil {
+		t.Error("a request Test accepted alpha: null; request floats must stay number")
+	}
 }
 
 func validateAgainst(t *testing.T, c *jsonschema.Compiler, fragment string, payload any) {

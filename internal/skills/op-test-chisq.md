@@ -27,6 +27,7 @@ Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Fi
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Any expected cell `< 5` emits `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`.
 - Streamable — builds the contingency table during the row scan.
 - Sparse high-cardinality axes blow memory; filter them first.

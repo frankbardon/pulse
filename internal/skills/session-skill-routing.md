@@ -53,6 +53,9 @@ Lowercase the operator family prefix and map through this table.
 | Request slot `Crosstab` | `crosstab-guide` |
 <!-- /feature -->
 | Request slot `Overlays` | `overlay-system` |
+<!-- feature: capability:weighting -->
+| Request / per-slot `weight`, `Options.DefaultWeight`, predict `weights`, `suggested_weight`, `PULSE_WEIGHT_*` | `weighting` |
+<!-- /feature -->
 | Response slot `data.components` (first sight) | `response-components` |
 <!-- feature: capability:labels -->
 | Response slot `Metadata.LabelBindings` | `label-display` |

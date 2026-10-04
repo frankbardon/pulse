@@ -34,6 +34,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - `l1` / `elasticnet` SE is plug-in over the active set — pair with `op-reg-mod-resample`; otherwise `PROCESSING_REGRESSION_APPROXIMATE_SE` warns.
 - Collinearity → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`; drop a predictor or add `l2`.
 - `penalty != ""` + `selection != ""` → `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.

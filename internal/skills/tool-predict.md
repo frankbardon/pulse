@@ -8,7 +8,7 @@ applies_to: predict, process, mcp
 
 ## When to use
 
-Before storing or executing a hand-authored / programmatically generated request. Cheap — reads only the cohort header + schema, never record data. Returns the same shape errors execution would emit on validation failure, plus normalization metadata.
+Before storing or executing a hand-authored or generated request. Cheap — reads only the cohort header + schema, never record data. Returns the same shape errors execution would emit on validation failure, plus normalization metadata.
 
 ## Input
 
@@ -16,7 +16,7 @@ Before storing or executing a hand-authored / programmatically generated request
 
 ## Output
 
-`descriptor.Envelope` wrapping `PredictResult`: `Errors`, `Warnings`, `Streamable` (bool — matches runtime via `processing.CanStreamRequest`), `CrosstabFusable` + `CrosstabFusionReasons` (crosstab requests only: will the grid build on the fused one-pass, `O(cells + margins)` arm — and why not), `DefaultsApplied` (slot-level inference summary), and `Normalized` (the engine-canonical request after defaults).
+`descriptor.Envelope` wrapping `PredictResult`: `Errors`, `Warnings`, `Streamable` (bool — matches runtime via `processing.CanStreamRequest`), `CrosstabFusable` + `CrosstabFusionReasons` (crosstab requests only: will the grid build on the fused one-pass, `O(cells + margins)` arm — and why not), `DefaultsApplied` (slot-level inference summary), `Normalized` (the engine-canonical request after defaults)<!-- feature: capability:weighting -->, and `suggested_weight` — inspect's SPSS suggestion, echoed as data (never a warning or applied) while no weight resolves<!-- /feature -->.
 
 ## Gotchas
 

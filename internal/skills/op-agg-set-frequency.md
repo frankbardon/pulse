@@ -11,7 +11,7 @@ examples_tags: [cardinality-analysis, cross-tabulation]
 
 ## Params
 
-None.
+None. Weight-aware (`"weight": null` opts out): Σw per member — map values become floats.
 
 ## Inputs
 
@@ -21,9 +21,11 @@ None.
 
 ## Output
 
-Rich `map[string]int` — label→row count. Scalar fallback = max single-label frequency.
+Rich `map[string]int` — label→row count (weighted: `map[string]float64`, Σw). Scalar fallback = max single-label frequency.
 
 ## Components
+
+Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
 
 Universal floor `{n, n_null}` plus operator-specific:
 

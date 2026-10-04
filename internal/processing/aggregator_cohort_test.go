@@ -62,7 +62,9 @@ func TestAggregator_WeightedMean_Streaming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if math.Abs(got-22.5) > 1e-9 {
+	// 1e-12 relative: the scalar is the exact Σwx/Σw since the
+	// weighted-AVERAGE alias landed (a few ULP from the old recurrence).
+	if !wvClose(got, 22.5) {
 		t.Errorf("weighted_mean = %v, want 22.5", got)
 	}
 }
@@ -90,7 +92,7 @@ func TestAggregator_WeightedMean_BufferedMatchesStreaming(t *testing.T) {
 		stream.UpdateRow(r, "value")
 	}
 	streamed, _ := stream.Finalize()
-	if math.Abs(buffered-streamed) > 1e-9 {
+	if !wvClose(buffered, streamed) {
 		t.Errorf("buffered=%v streamed=%v differ", buffered, streamed)
 	}
 }
@@ -128,7 +130,7 @@ func TestAggregator_WeightedMean_MergeMatchesSerial(t *testing.T) {
 		t.Fatal(err)
 	}
 	mergedOut, _ := left.(*weightedMeanAggregator).Finalize()
-	if math.Abs(serialOut-mergedOut) > 1e-9 {
+	if !wvClose(mergedOut, serialOut) {
 		t.Errorf("serial=%v merged=%v", serialOut, mergedOut)
 	}
 }

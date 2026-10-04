@@ -22,7 +22,11 @@ func allSlotsRequest() *types.Request {
 	return &types.Request{
 		Crosstab: &types.CrosstabSpec{},
 		Joins:    []*types.JoinSpec{{}},
-		Overlays: []types.OverlaySpec{{Kind: types.OverlayKindShareOfRow}},
+		Overlays: []types.OverlaySpec{{Kind: types.OverlayKindShareOfRow, Weight: types.NullSlotWeight()}},
+		Weight:   &types.WeightSpec{Field: "w"},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "x", Weight: types.SlotWeightField("w")},
+		},
 	}
 }
 
@@ -47,12 +51,20 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 	}{
 		{"nil hides nothing", nil, &types.Request{}, nil},
 		{"unscoped hides nothing", UnscopedInstanceSnapshot(&ExtensionsSnapshot{}), &types.Request{}, nil},
-		{"process only", scopedOnly(featProcess, "AGG_COUNT"), &types.Request{}, []string{"crosstab", "joins", "overlays"}},
-		{"crosstab with a matrix kind", scopedOnly(featProcess, featCrosstab, "OVERLAY_SHARE_OF_ROW"), types.Request{}, []string{"joins"}},
-		{"joins only", scopedOnly(featProcess, featJoins), &types.Request{}, []string{"crosstab", "overlays"}},
-		{"crosstab host without a kind", scopedOnly(featProcess, featCrosstab), &types.Request{}, []string{"joins", "overlays"}},
-		{"series kind via compose", scopedOnly(featProcess, featCompose, "OVERLAY_DELTA_VS_PRIOR"), &types.Request{}, []string{"crosstab", "joins"}},
-		{"kind enabled but its host hidden", scopedOnly(featProcess, featCompose, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, []string{"crosstab", "joins", "overlays"}},
+		{"process only", scopedOnly(featProcess, "AGG_COUNT"), &types.Request{}, []string{"crosstab", "joins", "overlays", "weight"}},
+		{"crosstab with a matrix kind", scopedOnly(featProcess, featCrosstab, "OVERLAY_SHARE_OF_ROW"), types.Request{}, []string{"joins", "weight"}},
+		{"joins only", scopedOnly(featProcess, featJoins), &types.Request{}, []string{"crosstab", "overlays", "weight"}},
+		{"crosstab host without a kind", scopedOnly(featProcess, featCrosstab), &types.Request{}, []string{"joins", "overlays", "weight"}},
+		{"series kind via compose", scopedOnly(featProcess, featCompose, "OVERLAY_DELTA_VS_PRIOR"), &types.Request{}, []string{"crosstab", "joins", "weight"}},
+		{"kind enabled but its host hidden", scopedOnly(featProcess, featCompose, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, []string{"crosstab", "joins", "overlays", "weight"}},
+		{"weighting enabled", scopedOnly(featProcess, featWeighting), &types.Request{}, []string{"crosstab", "joins", "overlays"}},
+		{"nested aggregation weight", scopedOnly(featProcess), &types.Aggregation{}, []string{"weight"}},
+		{"nested test weight", scopedOnly(featProcess), &types.Test{}, []string{"weight"}},
+		{"nested regression weight", scopedOnly(featProcess), &types.RegressionSpec{}, []string{"weight"}},
+		{"nested attribute weight", scopedOnly(featProcess), &types.Attribute{}, []string{"weight"}},
+		{"nested overlay weight", scopedOnly(featProcess), &types.OverlaySpec{}, []string{"weight"}},
+		{"nested group weight", scopedOnly(featProcess), &types.Group{}, []string{"weight"}},
+		{"nested weight with weighting", scopedOnly(featProcess, featWeighting), &types.Group{}, nil},
 		{"compose overlays", scopedOnly(featCompose, "OVERLAY_RANK"), &types.ComposedRequest{}, nil},
 		{"compose overlays hidden", scopedOnly(featCompose, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.ComposedRequest{}, []string{"overlays"}},
 		{"chain overlays", scopedOnly(featProcessChain, "OVERLAY_DELTA_VS_STAGE"), &types.ChainRequest{}, nil},

@@ -443,6 +443,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"RunCrosstab requires a Crosstab spec")
 	}
+	// The cell and margin aggregators take their applied weight off
+	// the stamped spec, so cells, every margin, the normalization
+	// denominators and the auxiliaries are all weighted from raw rows;
+	// counts stay raw (.claude/reference/weighting.md "Crosstab").
+	req = p.stampWeights(req)
 	spec := req.Crosstab
 	if err := validateCrosstabSpec(spec, req); err != nil {
 		return nil, err
@@ -549,6 +554,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if err != nil {
 				return nil, err
 			}
+			val.weight.stampMap(compMap)
 			cellComponents[ck] = compMap
 			if !val.present {
 				continue
@@ -593,6 +599,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if err != nil {
 				return nil, err
 			}
+			val.weight.stampMap(compMap)
 			rowMarginComponents[rkey] = compMap
 			if !val.present {
 				continue
@@ -625,6 +632,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if err != nil {
 				return nil, err
 			}
+			val.weight.stampMap(compMap)
 			colMarginComponents[ckey] = compMap
 			if !val.present {
 				continue
@@ -649,6 +657,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if err != nil {
 				return nil, err
 			}
+			val.weight.stampMap(compMap)
 			grandMarginComponents = compMap
 			if val.present {
 				grandMargin = val.value
@@ -1014,6 +1023,15 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//     crosstab no longer forces the buffered path and both paths
 	//     emit identical Response.Overlays / Response.Warnings.
 	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
+		return nil, err
+	}
+
+	// One PULSE_WEIGHT_INVALID_ROWS warning per weight field the cell or
+	// an auxiliary margin reads, over the filter-passing rows (after
+	// attributes) — the same rows the fused arm observes.
+	weights := NewWeightRowTally(req)
+	weights.ObserveAll(filtered)
+	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
 
@@ -1600,6 +1618,10 @@ func populateCrosstabComponents(resp *types.Response,
 type cellAggregationResult struct {
 	value   any
 	present bool
+	// weight is the slot's weighted-floor tally over the same bucket
+	// (sum_weights / n_eff / n_weight_invalid); inert on an unweighted
+	// slot, so an unweighted component map is unchanged.
+	weight WeightFloor
 }
 
 // runCellAggregation runs a single cell aggregator against a bucket and
@@ -1626,12 +1648,14 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 	// aggregateWithComponents tilts the same way, but per-field rather
 	// than per-bucket). Cheap: one NumericValue probe per record.
 	var n, nNull int
+	wf := NewWeightFloor(slot)
 	for _, r := range bucket {
 		if FieldPresent(r, slot.Field) {
 			n++
 		} else {
 			nNull++
 		}
+		wf.Observe(r, slot.Field)
 	}
 
 	// Decimal128 dispatch — same gate as aggregateWithComponents: a
@@ -1651,7 +1675,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 			// Decimal aggregators do not implement MetaAggregator — the
 			// orchestrator's floor-only entry is the full components
 			// payload (mirrors the ungrouped buffered path).
-			return cellAggregationResult{value: out, present: true}, nil, n, nNull, nil
+			return cellAggregationResult{value: out, present: true, weight: wf}, nil, n, nNull, nil
 		}
 	}
 
@@ -1672,7 +1696,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 	if err != nil {
 		return cellAggregationResult{}, nil, 0, 0, err
 	}
-	return cellAggregationResult{value: v, present: true}, aggregator, n, nNull, nil
+	return cellAggregationResult{value: v, present: true, weight: wf}, aggregator, n, nNull, nil
 }
 
 // buildCellComponentMap merges the per-cell universal-floor counters

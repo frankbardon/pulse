@@ -25,6 +25,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Streamable — same per-group Welford as classic one-way ANOVA; only the statistic + denominator change.
 - Use when group spreads may differ.
 - Tier-2 `welch_one_way_post` reads per-group `{mean, variance, n}`; same keys.

@@ -1,6 +1,6 @@
 package descriptor
 
-import "encoding/json"
+import "github.com/frankbardon/pulse/types"
 
 // Envelope is the standard JSON output wrapper for all descriptor operations.
 // All --json output follows this shape.
@@ -76,8 +76,12 @@ func (e *Envelope) AddWarning(code, message string, details map[string]any) {
 	})
 }
 
-// MarshalJSON produces deterministic JSON output.
+// MarshalJSON produces deterministic JSON output. It encodes through
+// types.MarshalFinite, so an undefined figure (a non-finite float)
+// anywhere in Data, Request or an entry's Details is written as JSON
+// null rather than failing the whole envelope; output holding no
+// non-finite float is byte-identical to json.Marshal.
 func (e *Envelope) MarshalJSON() ([]byte, error) {
 	type alias Envelope
-	return json.Marshal((*alias)(e))
+	return types.MarshalFinite((*alias)(e))
 }

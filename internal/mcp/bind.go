@@ -42,6 +42,7 @@ type fieldClassification struct {
 	Bool          []string // packed_bool
 	Set           []string // set_u8/u16/u32/u64/u128/u256 multi-select bitmasks
 	NumericOrDate []string // window OrderBy targets
+	Weight        []string // weight-capable columns (descx.IsWeightFieldType): u4…u64, f32, f64
 }
 
 // classifyFields sorts schema fields into per-type-category buckets. Order
@@ -55,6 +56,9 @@ func classifyFields(schema *encoding.Schema) fieldClassification {
 	}
 	for _, f := range schema.Fields {
 		c.AllFields = append(c.AllFields, f.Name)
+		if descx.IsWeightFieldType(f.Type) {
+			c.Weight = append(c.Weight, f.Name)
+		}
 		switch {
 		case isNumericType(f.Type):
 			c.Numeric = append(c.Numeric, f.Name)
@@ -426,6 +430,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"field":  enumStringField(c.AllFields, "Field to aggregate. Categorical and decimal fields are valid for some operators only — see Type description and the manifest's Operator.AcceptsTypes."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
+						"weight": slotWeightSchema(c),
 					},
 					"required":             []string{"type", "field"},
 					"additionalProperties": true,
@@ -441,6 +446,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"label":      map[string]any{"type": "string"},
 						"expression": map[string]any{"type": "string"},
 						"params":     map[string]any{},
+						"weight":     slotWeightSchema(c),
 					},
 					"required":             []string{"type", "field"},
 					"additionalProperties": true,
@@ -470,6 +476,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"field":    enumStringField(c.AllFields, "Field to group by. GROUP_CATEGORY expects a categorical field. GROUP_ROUNDED and GROUP_RANGE expect numeric. GROUP_DATE expects date."),
 						"interval": map[string]any{"type": "number"},
 						"params":   map[string]any{},
+						"weight":   slotWeightSchema(c),
 					},
 					"required":             []string{"type", "field"},
 					"additionalProperties": true,
@@ -533,9 +540,47 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	if labels := buildLabelsSchema(c, inst); labels != nil {
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
+	reqProps := requestObject["properties"].(map[string]any)
+	reqProps["weight"] = weightSpecSchema(c, "Request-level row weight, inherited by every weight-bearing slot that sets no `weight` of its own.")
+	if overlays, ok := reqProps["overlays"].(map[string]any); ok {
+		if items, ok := overlays["items"].(map[string]any); ok {
+			items["properties"].(map[string]any)["weight"] = slotWeightSchema(c)
+		}
+	}
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
+	dropHiddenWeights(requestObject, inst)
 
 	return json.Marshal(requestObject)
+}
+
+// dropHiddenWeights deletes every nested `weight` property (the per-slot
+// weights on aggregations, the crosstab cell / margin aggregations /
+// axes, tests, post-tests, regressions, attributes, overlays, groups)
+// when inst hides capability:weighting — the properties the instance
+// payload schema drops and the request-slot gate refuses. The compose
+// and chain tools embed this request schema, so they follow. No-op
+// unless weighting is hidden.
+func dropHiddenWeights(node any, inst *descx.InstanceSnapshot) {
+	if inst.Enabled(descx.FeatureWeighting) {
+		return
+	}
+	var walk func(any)
+	walk = func(n any) {
+		switch v := n.(type) {
+		case map[string]any:
+			if props, ok := v["properties"].(map[string]any); ok {
+				delete(props, "weight")
+			}
+			for _, child := range v {
+				walk(child)
+			}
+		case []any:
+			for _, child := range v {
+				walk(child)
+			}
+		}
+	}
+	walk(node)
 }
 
 // crosstabSchema returns the JSON Schema for the Crosstab section.
@@ -547,6 +592,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 			"field":    enumStringField(c.AllFields, "Field to group by on this axis."),
 			"interval": map[string]any{"type": "number"},
 			"params":   map[string]any{},
+			"weight":   slotWeightSchema(c),
 		},
 		"required":             []string{"type", "field"},
 		"additionalProperties": true,
@@ -573,6 +619,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 					"field":  enumStringField(c.AllFields, "Field the cell aggregation reads. AGG_COUNT may name any field."),
 					"label":  map[string]any{"type": "string"},
 					"params": map[string]any{},
+					"weight": slotWeightSchema(c),
 				},
 				"required":             []string{"type", "field"},
 				"additionalProperties": true,
@@ -587,6 +634,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 						"field":  enumStringField(c.AllFields, "Field the auxiliary margin aggregation reads. AGG_COUNT may name any field."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
+						"weight": slotWeightSchema(c),
 					},
 					"required":             []string{"type", "field"},
 					"additionalProperties": true,
@@ -846,6 +894,7 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 				"label":         map[string]any{"type": "string"},
 				"order_by":      map[string]any{"type": "array", "items": orderKeySchema(c.NumericOrDate)},
 				"params":        map[string]any{},
+				"weight":        slotWeightSchema(c),
 			},
 			"required":             []string{"type"},
 			"additionalProperties": true,
@@ -985,6 +1034,36 @@ func dropHiddenSlots(object map[string]any, sample any, inst *descx.InstanceSnap
 	props, _ := object["properties"].(map[string]any)
 	for _, k := range descx.HiddenSlotKeys(sample, inst) {
 		delete(props, k)
+	}
+}
+
+// weightSpecSchema is the {field, kind} weight object, its field enum
+// drawn from the cohort's weight-capable columns (unsigned integers and
+// floats — never decimal, categorical, date-family, bool or set).
+func weightSpecSchema(c fieldClassification, description string) map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": description,
+		"properties": map[string]any{
+			"field": enumStringField(c.Weight, "Weight field: an unsigned-integer or float column."),
+			"kind":  enumStringField([]string{string(types.WeightKindProbability), string(types.WeightKindFrequency)}, "probability (default) or frequency (a replication count; non-integer values are invalid)."),
+		},
+		"required":             []string{"field"},
+		"additionalProperties": false,
+	}
+}
+
+// slotWeightSchema is the per-slot weight: a field name, a {field, kind}
+// object, or null. null is NOT absence — an absent key inherits the
+// request / instance weight, null opts the slot out.
+func slotWeightSchema(c fieldClassification) map[string]any {
+	return map[string]any{
+		"description": "Per-slot row weight. Omit to inherit the request weight (then the instance default); null opts this slot out (runs unweighted); a field name or a {field, kind} object sets the slot's own weight.",
+		"oneOf": []any{
+			enumStringField(c.Weight, "Weight field (kind probability)."),
+			weightSpecSchema(c, "Weight field and kind."),
+			map[string]any{"type": "null"},
+		},
 	}
 }
 

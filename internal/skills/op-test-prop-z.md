@@ -26,6 +26,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - `success` must match a dictionary value; otherwise `PULSE_TEST_INVALID_SUCCESS`.
 - Streamable — per-group counts feed both numerator and pooled denominator in one pass.
 - More than two `SplitBy` groups is a `(SplitBy × Field)` contingency-table question, not this test.

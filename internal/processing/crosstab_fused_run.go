@@ -52,6 +52,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"RunCrosstabFused requires a non-nil record iterator")
 	}
+	req = p.stampWeights(req)
 
 	spec := req.Crosstab
 	if err := validateCrosstabSpec(spec, req); err != nil {
@@ -78,6 +79,9 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 	if err != nil {
 		return nil, err
 	}
+	// Invalid-weight tally over the filter-passing rows, mirroring the
+	// buffered RunCrosstab exit; nil (inert) on an unweighted request.
+	weights := NewWeightRowTally(req)
 
 	// NOTE: this loop does not call EnableReuse(iter). Projection is NOT
 	// the reason: both service iterator arms honour the DecodePlan that
@@ -119,6 +123,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 			rec.Set(ra.label, val)
 		}
 
+		weights.Observe(rec)
 		if uerr := state.Update(rec); uerr != nil {
 			return nil, uerr
 		}
@@ -147,6 +152,9 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 	// neither the *types.Request nor the ExtensionRegistry the fold
 	// needs; RunCrosstabFused has both.
 	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
+		return nil, err
+	}
+	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
 

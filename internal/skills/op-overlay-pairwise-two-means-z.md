@@ -27,6 +27,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values <!-- feature: OVERLA
 
 ## Gotchas
 
+- No weighted form yet: a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the overlay to run it unweighted.
 - Either leg with `n <= 1` skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - Assumes the normal approximation: no small-sample df correction.
 - `n_basis` here is inert; predict refuses it.

@@ -118,6 +118,9 @@ func printInspectResult(cmd *cli.Command, result *descriptor.InspectResult) {
 		}
 	}
 	printInspectGroups(cmd, result)
+	if sw := result.SuggestedWeight; sw != nil {
+		writeText(cmd.Writer, "Suggested weight: %s (%s, kind %s; not applied)\n", sw.Field, sw.Source, sw.Kind)
+	}
 }
 
 // printInspectGroups renders the 0x02 physical layout and each parent

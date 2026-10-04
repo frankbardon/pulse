@@ -32,12 +32,27 @@
         "n": {
           "type": "integer"
         },
+        "n_eff": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "n_null": {
+          "type": "integer"
+        },
+        "n_weight_invalid": {
           "type": "integer"
         },
         "operator": {
           "additionalProperties": true,
           "type": "object"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
@@ -836,7 +851,10 @@
           "$ref": "#/$defs/MatrixPayload"
         },
         "scalar": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "series": {
           "$ref": "#/$defs/SeriesPayload"
@@ -938,28 +956,46 @@
       "additionalProperties": false,
       "properties": {
         "baseline": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "count": {
           "type": "integer"
         },
         "max": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "min": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "p_value": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "parameters": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
         "statistic": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "type": "object"
@@ -994,14 +1030,23 @@
       "additionalProperties": false,
       "properties": {
         "adj_r2": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "alpha": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "coefficients": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
@@ -1011,7 +1056,10 @@
         "credible_intervals": {
           "additionalProperties": {
             "items": {
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ]
             },
             "type": [
               "array",
@@ -1024,13 +1072,19 @@
           "type": "string"
         },
         "deviance": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "family": {
           "type": "string"
         },
         "l1_ratio": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "link": {
           "type": "string"
@@ -1042,11 +1096,17 @@
           "type": "string"
         },
         "null_deviance": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "p_values": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
@@ -1057,16 +1117,25 @@
           "type": "string"
         },
         "pseudo_r2": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "r2": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "resample": {
           "type": "string"
         },
         "residual_std_err": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "selected_features": {
           "items": {
@@ -1082,7 +1151,10 @@
         },
         "std_errors": {
           "additionalProperties": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
@@ -1589,26 +1661,38 @@
       "additionalProperties": false,
       "properties": {
         "alpha": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "details": {
           "additionalProperties": true,
           "type": "object"
         },
         "df": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "label": {
           "type": "string"
         },
         "p_value": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "reject_null": {
           "type": "boolean"
         },
         "statistic": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "type": {
           "$ref": "#/$defs/TestType"
@@ -1703,4 +1787,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 56ce3aa0ab261e34ae00106f33c4e4255e6e8b94af71749571b2c746937c7c18
+// golden-hash: ad8b0cfd5e410100de974b42c624d5db01dac8c6f80ad1be8f77bad888fb50fb

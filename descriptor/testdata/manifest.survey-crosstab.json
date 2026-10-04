@@ -152,7 +152,37 @@
               {
                 "name": "sum",
                 "type": "float64",
-                "description": "Running sum of non-null field values; combined with n to recover the mean."
+                "description": "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."
+              },
+              {
+                "name": "sum_weighted",
+                "type": "float64",
+                "description": "Weighted slots only: Σw·x over the contributing rows.",
+                "optional": true
+              },
+              {
+                "name": "weighted_mean",
+                "type": "float64",
+                "description": "Weighted slots only: Σw·x / Σw (the scalar).",
+                "optional": true
+              },
+              {
+                "name": "m2_weighted",
+                "type": "float64",
+                "description": "Weighted slots only: Σw(x − mean)², the weighted second central moment.",
+                "optional": true
+              },
+              {
+                "name": "sum_weights_sq",
+                "type": "float64",
+                "description": "Weighted slots only: Σw², the Kish n_eff denominator.",
+                "optional": true
+              },
+              {
+                "name": "weighted_variance",
+                "type": "float64",
+                "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+                "optional": true
               }
             ],
             "mergeability": "mergeable"
@@ -257,7 +287,7 @@
               {
                 "name": "mode_count",
                 "type": "int",
-                "description": "Row count of the modal value."
+                "description": "Row count of the modal value; on a weighted slot its sum of weights (a float)."
               }
             ],
             "mergeability": "partial"
@@ -325,7 +355,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1712,7 +1742,37 @@
             {
               "name": "sum",
               "type": "float64",
-              "description": "Running sum of non-null field values; combined with n to recover the mean."
+              "description": "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."
+            },
+            {
+              "name": "sum_weighted",
+              "type": "float64",
+              "description": "Weighted slots only: Σw·x over the contributing rows.",
+              "optional": true
+            },
+            {
+              "name": "weighted_mean",
+              "type": "float64",
+              "description": "Weighted slots only: Σw·x / Σw (the scalar).",
+              "optional": true
+            },
+            {
+              "name": "m2_weighted",
+              "type": "float64",
+              "description": "Weighted slots only: Σw(x − mean)², the weighted second central moment.",
+              "optional": true
+            },
+            {
+              "name": "sum_weights_sq",
+              "type": "float64",
+              "description": "Weighted slots only: Σw², the Kish n_eff denominator.",
+              "optional": true
+            },
+            {
+              "name": "weighted_variance",
+              "type": "float64",
+              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+              "optional": true
             }
           ],
           "mergeability": "mergeable"
@@ -1757,7 +1817,7 @@
             {
               "name": "mode_count",
               "type": "int",
-              "description": "Row count of the modal value."
+              "description": "Row count of the modal value; on a weighted slot its sum of weights (a float)."
             }
           ],
           "mergeability": "partial"
@@ -1945,4 +2005,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ee2789a18dc0161331abfd25e4537d70db723dc091a771c4edf63ec02230e7ea
+// golden-hash: a5a41aa6e48b2e4cd9b587e105873cd3d204de4333f94de8db4f2c8e6a897fbe

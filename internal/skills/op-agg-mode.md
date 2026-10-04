@@ -11,7 +11,7 @@ examples_tags: [cardinality-analysis, cross-tabulation]
 
 ## Params
 
-None.
+Weight-aware (`"weight": null` opts out): the value with the largest Σw; `count` becomes that Σw (a float). Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
 
 ## Inputs
 
@@ -25,12 +25,14 @@ Scalar `float64` — the modal value (categorical: its dictionary index). Per-gr
 
 ## Components
 
+Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+
 Universal floor `{n, n_null}` plus operator-specific:
 
 | Key | Type | Notes |
 |---|---|---|
 | `value` | any | Most-frequent value |
-| `count` | int | Row count of the modal value |
+| `count` | int | Row count of the modal value (weighted: Σw) |
 | `distinct_count` | int | Distinct values observed |
 | `tie_count` | int | Values tied at the max count |
 

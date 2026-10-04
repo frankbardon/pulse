@@ -14,7 +14,7 @@ Part of the SPSS surface; entry skill `spss-cohorts`. The sibling column is regi
 
 ## Missing values — and why the two arms differ
 
-SPSS separates `refused` / `don't know` / `not applicable` / `sysmis`; the Pulse bitmap is ONE bit — *that* a value is absent, never *why*. Both naive mappings lose: codes-as-data makes a sum aggregator add 99999 per refusal; all-to-null destroys the item-non-response distinction weighting needs. Split **by substrate**:
+SPSS separates `refused` / `don't know` / `not applicable` / `sysmis`; the Pulse bitmap is ONE bit — *that* a value is absent, never *why*. Both naive mappings lose: codes-as-data makes a sum aggregator add 99999 per refusal; all-to-null destroys the item-non-response distinction that nonresponse adjustment needs. Split **by substrate**:
 
 | | Numeric | Categorical / string |
 |---|---|---|

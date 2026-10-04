@@ -158,6 +158,26 @@ func fusionParityCorpus() []fusionCase {
 		r.Filterers = []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{"north"}}}
 	}))
 
+	// Weighted cells and auxiliaries (weighting E3-S1, every built-in
+	// aggregator since E3-S2): a weight never moves the answer — a
+	// weighted median / percentile stays buffered (non-mergeable, exactly
+	// as unweighted), a weighted mergeable cell stays fusable, a weight
+	// the resolver refuses or skips decides nothing, and a `weight: null`
+	// base changes nothing.
+	weighted := func(r *types.Request) *types.Request {
+		r.Weight = &types.WeightSpec{Field: "qty"}
+		return r
+	}
+	for _, at := range types.AllAggregationTypes() {
+		add("weighted_cell/"+string(at), weighted(fusionXtab(region, region, &types.Aggregation{Type: at, Field: "score"})))
+		add("weighted_aux/"+string(at), weighted(with(func(r *types.Request) {
+			r.Crosstab.MarginAggregations = []*types.Aggregation{{Type: at, Field: "score", Label: "aux"}}
+		})))
+	}
+	add("weighted_null_base", weighted(with(func(r *types.Request) {
+		r.Crosstab.MarginAggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score", Label: "base", Weight: types.NullSlotWeight()}}
+	})))
+
 	// Extension operators, with and without FieldInputs.
 	for _, at := range []types.AggregationType{aggXtSum, aggXtMean, aggXtUndecl, aggXtRecomp, aggFuseOpaque} {
 		add("ext_cell/"+string(at), fusionXtab(region, region, &types.Aggregation{Type: at, Field: "qty"}))

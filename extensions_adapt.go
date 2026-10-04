@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -42,12 +43,120 @@ type recordRows []*processing.Record
 func (r recordRows) Len() int               { return len(r) }
 func (r recordRows) At(i int) extend.Record { return r[i] }
 
+// ---- row weights -------------------------------------------------------
+
+// slotWeighting is the resolved row weight of one WeightAware extension
+// slot (processing.StampWeightsWith left it set on the spec). Nil on an
+// unweighted slot and on every non-aware operator, whose records reach
+// it as-is and report Weight() == (0, false).
+type slotWeighting struct {
+	field string
+	kind  types.WeightKind
+}
+
+// newSlotWeighting returns the slot's weighting, or nil when aware is
+// false or no weight is set on the slot.
+func newSlotWeighting(aware bool, w types.SlotWeight) *slotWeighting {
+	spec := w.Spec()
+	if !aware || spec == nil {
+		return nil
+	}
+	return &slotWeighting{field: spec.Field, kind: spec.EffectiveKind()}
+}
+
+// judge reads the row's weight and reports whether it is VALID
+// (weighting.Classify: finite, non-negative, an integer under
+// frequency). Invalid weights are never coerced.
+func (s *slotWeighting) judge(rec *processing.Record) (float64, bool) {
+	w, ok := rec.NumericValue(s.field)
+	return w, weighting.Classify(w, ok, s.kind) == weighting.Valid
+}
+
+// weightedRecord is the per-slot view a WeightAware operator receives:
+// the engine row plus its valid weight. Its Weight shadows the engine
+// row's always-false one.
+type weightedRecord struct {
+	*processing.Record
+	w float64
+}
+
+func (r *weightedRecord) Weight() (float64, bool) { return r.w, true }
+
+// weightedRows is the extend.Rows view over the valid-weight rows of a
+// buffered aggregator call.
+type weightedRows []weightedRecord
+
+func (r weightedRows) Len() int               { return len(r) }
+func (r weightedRows) At(i int) extend.Record { return &r[i] }
+
+// validWeightRows keeps the records whose weight is valid, each paired
+// with it. A row with an invalid weight never reaches the operator.
+func (s *slotWeighting) validWeightRows(records []*processing.Record) weightedRows {
+	out := make(weightedRows, 0, len(records))
+	for _, rec := range records {
+		if w, ok := s.judge(rec); ok {
+			out = append(out, weightedRecord{Record: rec, w: w})
+		}
+	}
+	return out
+}
+
+// mixedRows is the extend.Rows view an attribute receives: every row,
+// the valid-weight ones as weightedRecord views.
+type mixedRows []extend.Record
+
+func (r mixedRows) Len() int               { return len(r) }
+func (r mixedRows) At(i int) extend.Record { return r[i] }
+
+// allRows views every record for an attribute (which owes each row a
+// value): a valid-weight row reports its weight, an invalid one reports
+// false.
+func (s *slotWeighting) allRows(records []*processing.Record) mixedRows {
+	views := make([]weightedRecord, len(records))
+	out := make(mixedRows, len(records))
+	for i, rec := range records {
+		if w, ok := s.judge(rec); ok {
+			views[i] = weightedRecord{Record: rec, w: w}
+			out[i] = &views[i]
+			continue
+		}
+		out[i] = rec
+	}
+	return out
+}
+
+// rowView is a reusable single-row view (the extend reuse contract: a
+// Record is valid only for the call that received it, so one view per
+// operator instance is safe). It returns the view and true for a
+// valid-weight row, or (rec, false) for an invalid one.
+type rowView struct {
+	s    *slotWeighting
+	view weightedRecord
+}
+
+func (v *rowView) of(rec *processing.Record) (extend.Record, bool) {
+	w, ok := v.s.judge(rec)
+	if !ok {
+		return rec, false
+	}
+	v.view = weightedRecord{Record: rec, w: w}
+	return &v.view, true
+}
+
 // ---- aggregators -------------------------------------------------------
 
-// aggCore forwards the base Aggregator method.
-type aggCore struct{ inner extend.Aggregator }
+// aggCore forwards the base Aggregator method. On a weighted
+// WeightAware slot (wt non-nil) only the valid-weight rows reach the
+// operator, each reporting its weight.
+type aggCore struct {
+	inner extend.Aggregator
+	wt    *slotWeighting
+}
 
 func (a aggCore) Aggregate(records []*processing.Record, field string) (float64, error) {
+	if a.wt != nil {
+		return a.inner.Aggregate(a.wt.validWeightRows(records), field)
+	}
 	return a.inner.Aggregate(recordRows(records), field)
 }
 
@@ -61,10 +170,22 @@ type extendAggregatorWrapper interface {
 }
 
 // aggOnline forwards extend.OnlineAggregator as
-// processing.OnlineAggregator.
-type aggOnline struct{ online extend.OnlineAggregator }
+// processing.OnlineAggregator. On a weighted WeightAware slot (view
+// non-nil) a row with an invalid weight is skipped and every other row
+// is handed over with its weight.
+type aggOnline struct {
+	online extend.OnlineAggregator
+	view   *rowView
+}
 
 func (a aggOnline) UpdateRow(rec *processing.Record, field string) error {
+	if a.view != nil {
+		v, ok := a.view.of(rec)
+		if !ok {
+			return nil
+		}
+		return a.online.UpdateRow(v, field)
+	}
 	return a.online.UpdateRow(rec, field)
 }
 
@@ -190,23 +311,27 @@ const (
 
 // adaptAggregator wraps an extend.Aggregator so the engine sees exactly
 // the siblings it implements, plus MetaAggregator when emit is non-nil.
-// name is carried only for the merge-partner diagnostic.
+// name is carried only for the merge-partner diagnostic; wt is the
+// slot's row weighting (nil: records pass as-is).
 //
 // A value that carries its own Components() method and no registration
 // ComponentsFunc keeps the type-level emission path: the method is
 // adopted as the emitter, exactly as the engine's MetaAggregator
 // assertion saw it before adaptation.
-func adaptAggregator(name types.AggregationType, inner extend.Aggregator, emit AggregatorComponentsFunc) processing.Aggregator {
+func adaptAggregator(name types.AggregationType, inner extend.Aggregator, emit AggregatorComponentsFunc, wt *slotWeighting) processing.Aggregator {
 	if emit == nil {
 		if self, ok := inner.(componentsEmitter); ok {
 			emit = func(extend.Aggregator) (map[string]any, error) { return self.Components() }
 		}
 	}
-	core := aggCore{inner: inner}
+	core := aggCore{inner: inner, wt: wt}
 	online, isOnline := inner.(extend.OnlineAggregator)
 	rich, isRich := inner.(extend.RichAggregator)
 	merge, isMerge := inner.(extend.MergeableAggregator)
 	o := aggOnline{online: online}
+	if wt != nil {
+		o.view = &rowView{s: wt}
+	}
 	r := aggRich{rich: rich}
 	m := aggMeta{inner: inner, emit: emit}
 	g := aggMerge{merge: merge, name: name}
@@ -254,9 +379,11 @@ func adaptAggregator(name types.AggregationType, inner extend.Aggregator, emit A
 // adaptAggregatorFactory turns a registration's extend factory into the
 // engine factory registered on processing.ExtensionRegistry. A nil
 // instance passes through as nil (the engine reports it); probe-
-// validation already refuses a factory that returns nil.
+// validation already refuses a factory that returns nil. A WeightAware
+// registration on a slot stamped with a weight reads it through
+// extend.Record.Weight().
 func adaptAggregatorFactory(reg AggregatorRegistration) processing.AggregatorFactory {
-	inner, emit, name := reg.Factory, reg.ComponentsFunc, reg.Name
+	inner, emit, name, aware := reg.Factory, reg.ComponentsFunc, reg.Name, reg.WeightAware
 	return func(agg *types.Aggregation, schema *encoding.Schema) (processing.Aggregator, error) {
 		instance, err := inner(agg, schema)
 		if err != nil {
@@ -265,7 +392,11 @@ func adaptAggregatorFactory(reg AggregatorRegistration) processing.AggregatorFac
 		if instance == nil {
 			return nil, nil
 		}
-		return adaptAggregator(name, instance, emit), nil
+		var wt *slotWeighting
+		if agg != nil {
+			wt = newSlotWeighting(aware, agg.Weight)
+		}
+		return adaptAggregator(name, instance, emit, wt), nil
 	}
 }
 
@@ -655,27 +786,51 @@ func adaptFiltererFactory(reg FiltererRegistration) processing.FiltererFactory {
 // ---- attributes --------------------------------------------------------
 
 // attrCore forwards the base AttributeComputer method over the
-// zero-copy Rows view.
-type attrCore struct{ inner extend.AttributeComputer }
+// zero-copy Rows view. On a weighted WeightAware slot (wt non-nil)
+// every row still reaches the attribute — it owes each a value — with
+// Weight reporting the valid weight, or false on an invalid one.
+type attrCore struct {
+	inner extend.AttributeComputer
+	wt    *slotWeighting
+}
 
 func (a attrCore) Compute(records []*processing.Record, field string) ([]float64, error) {
+	if a.wt != nil {
+		return a.inner.Compute(a.wt.allRows(records), field)
+	}
 	return a.inner.Compute(recordRows(records), field)
+}
+
+// attrView hands a weighted slot's per-row view (any row, see attrCore)
+// or the record as-is when view is nil.
+func attrView(view *rowView, rec *processing.Record) extend.Record {
+	if view == nil {
+		return rec
+	}
+	v, _ := view.of(rec)
+	return v
 }
 
 // attrRow forwards extend.RowLocalAttribute as
 // processing.RowLocalAttribute.
-type attrRow struct{ row extend.RowLocalAttribute }
+type attrRow struct {
+	row  extend.RowLocalAttribute
+	view *rowView
+}
 
 func (a attrRow) Row(rec *processing.Record, field string) (float64, error) {
-	return a.row.Row(rec, field)
+	return a.row.Row(attrView(a.view, rec), field)
 }
 
 // attrTwoPass forwards the two extra extend.TwoPassAttribute methods;
 // paired with attrRow it satisfies processing.TwoPassAttribute.
-type attrTwoPass struct{ two extend.TwoPassAttribute }
+type attrTwoPass struct {
+	two  extend.TwoPassAttribute
+	view *rowView
+}
 
 func (a attrTwoPass) PrePass(rec *processing.Record, field string) error {
-	return a.two.PrePass(rec, field)
+	return a.two.PrePass(attrView(a.view, rec), field)
 }
 
 func (a attrTwoPass) Finalize() error { return a.two.Finalize() }
@@ -700,13 +855,17 @@ type (
 // RowLocalAttribute / TwoPassAttribute assertions succeed iff the
 // embedder value implements the matching extend sibling. ExtensionAware
 // is engine-only and never forwarded.
-func adaptAttribute(inner extend.AttributeComputer) processing.AttributeComputer {
-	core := attrCore{inner: inner}
+func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting) processing.AttributeComputer {
+	core := attrCore{inner: inner, wt: wt}
+	var view *rowView
+	if wt != nil {
+		view = &rowView{s: wt}
+	}
 	if two, ok := inner.(extend.TwoPassAttribute); ok {
-		return &attrAdaptedT{core, attrRow{row: two}, attrTwoPass{two: two}}
+		return &attrAdaptedT{core, attrRow{row: two, view: view}, attrTwoPass{two: two, view: view}}
 	}
 	if row, ok := inner.(extend.RowLocalAttribute); ok {
-		return &attrAdaptedR{core, attrRow{row: row}}
+		return &attrAdaptedR{core, attrRow{row: row, view: view}}
 	}
 	return &attrAdapted{core}
 }
@@ -714,7 +873,7 @@ func adaptAttribute(inner extend.AttributeComputer) processing.AttributeComputer
 // adaptAttributeFactory turns a registration's extend factory into the
 // engine factory. A nil instance passes through as nil.
 func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactory {
-	inner := reg.Factory
+	inner, aware := reg.Factory, reg.WeightAware
 	return func(attr *types.Attribute, schema *encoding.Schema) (processing.AttributeComputer, error) {
 		instance, err := inner(attr, schema)
 		if err != nil {
@@ -723,24 +882,42 @@ func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactor
 		if instance == nil {
 			return nil, nil
 		}
-		return adaptAttribute(instance), nil
+		var wt *slotWeighting
+		if attr != nil {
+			wt = newSlotWeighting(aware, attr.Weight)
+		}
+		return adaptAttribute(instance, wt), nil
 	}
 }
 
 // ---- tests -------------------------------------------------------------
 
 // rowTestAdapted forwards extend.RowTest as processing.RowTest. Row
-// tests have no optional siblings.
-type rowTestAdapted struct{ inner extend.RowTest }
+// tests have no optional siblings. On a weighted WeightAware slot (view
+// non-nil) a row with an invalid weight is skipped and every other row
+// is handed over with its weight.
+type rowTestAdapted struct {
+	inner extend.RowTest
+	view  *rowView
+}
 
-func (t *rowTestAdapted) UpdateRow(rec *processing.Record) error { return t.inner.UpdateRow(rec) }
+func (t *rowTestAdapted) UpdateRow(rec *processing.Record) error {
+	if t.view != nil {
+		v, ok := t.view.of(rec)
+		if !ok {
+			return nil
+		}
+		return t.inner.UpdateRow(v)
+	}
+	return t.inner.UpdateRow(rec)
+}
 
 func (t *rowTestAdapted) Finalize() (*types.TestResult, error) { return t.inner.Finalize() }
 
 // adaptRowTestFactory turns a tier-1 registration's extend factory
 // into the engine factory. A nil instance passes through as nil.
 func adaptRowTestFactory(reg TestRegistration) processing.RowTestFactory {
-	inner := reg.RowFactory
+	inner, aware := reg.RowFactory, reg.WeightAware
 	return func(spec *types.Test, schema *encoding.Schema) (processing.RowTest, error) {
 		instance, err := inner(spec, schema)
 		if err != nil {
@@ -749,7 +926,13 @@ func adaptRowTestFactory(reg TestRegistration) processing.RowTestFactory {
 		if instance == nil {
 			return nil, nil
 		}
-		return &rowTestAdapted{inner: instance}, nil
+		adapted := &rowTestAdapted{inner: instance}
+		if spec != nil {
+			if wt := newSlotWeighting(aware, spec.Weight); wt != nil {
+				adapted.view = &rowView{s: wt}
+			}
+		}
+		return adapted, nil
 	}
 }
 
@@ -829,6 +1012,9 @@ func (v featureRecordView) SetMaskValue(string) (encoding.SetMask, bool) {
 func (v featureRecordView) DecimalValue(string) (encoding.Decimal128, bool) {
 	return encoding.Decimal128{}, false
 }
+
+// Weight: features are never weighted.
+func (v featureRecordView) Weight() (float64, bool) { return 0, false }
 
 // featureRows is the extend.Rows view over the engine's feature record
 // slice. It copies no rows.

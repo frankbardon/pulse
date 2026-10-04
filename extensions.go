@@ -224,8 +224,21 @@ type AggregatorRegistration struct {
 	// class admits the operator as a fused crosstab cell. Requires
 	// Mergeable unless empty or types.MarginRecompute.
 	MarginReducibility types.MarginReducibility
-	Accepts            []encoding.FieldType
-	Params             []ParamMeta
+	// WeightAware declares that the operator computes a weighted
+	// figure: on a slot where a row weight is in force (slot weight,
+	// request weight or pulse.Options.DefaultWeight) the factory sees
+	// the resolved weight on spec.Weight and every row's VALID weight
+	// is readable through extend.Record.Weight() — rows with an invalid
+	// weight are excluded before they reach the operator, and the
+	// orchestrator emits the weighted floor keys (sum_weights, n_eff,
+	// n_weight_invalid). Probe-validation constructs the factory both
+	// with and without a weight. Undeclared, an explicit (slot or
+	// request) weight on the slot is PULSE_EXTENSION_NOT_WEIGHT_AWARE
+	// and the instance default is skipped. Projected as the manifest's
+	// weight_aware.
+	WeightAware bool
+	Accepts     []encoding.FieldType
+	Params      []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
 	// projection (runtime widens the field set when this operator
@@ -305,6 +318,17 @@ type AttributeRegistration struct {
 	Accepts   []encoding.FieldType
 	Emits     AttributeEmitType
 	Params    []ParamMeta
+	// WeightAware declares that the attribute reads the row weight:
+	// on a slot where a weight is in force the factory sees it on
+	// spec.Weight and extend.Record.Weight() reports each row's valid
+	// weight (false on a row whose weight is invalid — the attribute
+	// still owes that row a value). Undeclared, ANY weight in force on
+	// the slot — the instance default included — is
+	// PULSE_EXTENSION_NOT_WEIGHT_AWARE (a non-aware attribute may
+	// depend on the whole population, whose weighted form it cannot
+	// give); `weight: null` on the slot opts out. Probe-validation
+	// constructs the factory both with and without a weight.
+	WeightAware bool
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
@@ -564,6 +588,17 @@ type TestRegistration struct {
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
+	// WeightAware declares that the test computes a weighted result:
+	// on a slot where a weight is in force the factory sees it on
+	// spec.Weight and a tier-1 row test reads each row's valid weight
+	// through extend.Record.Weight() (rows with an invalid weight never
+	// reach UpdateRow). Undeclared, ANY weight in force on the slot —
+	// the instance default included — is
+	// PULSE_EXTENSION_NOT_WEIGHT_AWARE, as the built-in tests refuse
+	// one; `weight: null` on the slot opts out. Probe-validation
+	// constructs a WeightAware test's factory both with and without a
+	// weight (a test that does not declare it is not probed).
+	WeightAware bool
 	// FieldInputs is the optional buffered-projection introspection
 	// hook for tier-1 row tests. Tier-2 post-tests run on materialized
 	// result rows rather than source records, so projection doesn't

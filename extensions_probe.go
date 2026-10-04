@@ -23,12 +23,19 @@ import (
 //
 // Embedder factories MUST tolerate a nil/empty Schema and a spec
 // carrying only the operator Name; documented in
-// docs/src/internals/extension-points.md.
+// docs/src/internals/extension-points.md. A WeightAware aggregator,
+// attribute or test factory is constructed a second time with a row
+// weight on its spec (probeWeight) and must pass the same checks both
+// times; a failure carries details "weighted": true. Tests are probed
+// only when they declare WeightAware.
 func probeExtensions(ext Extensions) error {
 	if err := probeAggregators(ext.Aggregators); err != nil {
 		return err
 	}
 	if err := probeAttributes(ext.Attributes); err != nil {
+		return err
+	}
+	if err := probeTests(ext.Tests); err != nil {
 		return err
 	}
 	if err := probeGroupers(ext.Groupers); err != nil {
@@ -56,25 +63,19 @@ func probeExtensions(ext Extensions) error {
 func probeAggregators(regs []AggregatorRegistration) error {
 	probeSchema := &encoding.Schema{}
 	for _, reg := range regs {
-		instance, err := safeBuildAggregator(reg, probeSchema)
+		instance, err := safeBuildAggregator(reg, probeSchema, false)
 		if err != nil {
 			return err
 		}
-		if reg.Streamable {
-			if _, ok := instance.(extend.OnlineAggregator); !ok {
-				return errors.NewCodedErrorWithDetails(
-					errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
-					fmt.Sprintf("aggregator %q declares Streamable=true but factory does not return extend.OnlineAggregator", reg.Name),
-					map[string]any{
-						"category":   "aggregator",
-						"name":       string(reg.Name),
-						"streamable": true,
-					},
-				)
-			}
+		if err := verifyAggregatorInstance(reg, instance, false); err != nil {
+			return err
 		}
-		if reg.Mergeable {
-			if err := verifyAggregatorMergeable(reg, instance); err != nil {
+		if reg.WeightAware {
+			weighted, err := safeBuildAggregator(reg, probeSchema, true)
+			if err != nil {
+				return err
+			}
+			if err := verifyAggregatorInstance(reg, weighted, true); err != nil {
 				return err
 			}
 		}
@@ -108,6 +109,46 @@ func probeAggregators(regs []AggregatorRegistration) error {
 	return nil
 }
 
+// probeWeight is the row weight a WeightAware factory's second probe
+// construction sees on its spec. The probe schema is empty, so the
+// field resolves to nothing — exactly like every other name the probe
+// spec could carry.
+var probeWeight = types.SlotWeightOf(types.WeightSpec{Field: "probe_weight", Kind: types.WeightKindProbability})
+
+// probeDetails adds "weighted": true to a probe failure's details when
+// the failing construction carried probeWeight.
+func probeDetails(details map[string]any, weighted bool) map[string]any {
+	if weighted {
+		details["weighted"] = true
+	}
+	return details
+}
+
+// verifyAggregatorInstance runs the per-instance aggregator checks
+// (streaming sibling, merge declaration) against one probe
+// construction.
+func verifyAggregatorInstance(reg AggregatorRegistration, instance extend.Aggregator, weighted bool) error {
+	if reg.Streamable {
+		if _, ok := instance.(extend.OnlineAggregator); !ok {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
+				fmt.Sprintf("aggregator %q declares Streamable=true but factory does not return extend.OnlineAggregator", reg.Name),
+				probeDetails(map[string]any{
+					"category":   "aggregator",
+					"name":       string(reg.Name),
+					"streamable": true,
+				}, weighted),
+			)
+		}
+	}
+	if reg.Mergeable {
+		if err := verifyAggregatorMergeable(reg, instance, weighted); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // verifyAggregatorMergeable checks a Mergeable=true registration can
 // honour the declaration, raising PULSE_EXTENSION_MERGEABLE_MISMATCH
 // with a reason discriminator when it cannot:
@@ -121,17 +162,17 @@ func probeAggregators(regs []AggregatorRegistration) error {
 //     the MERGED instance, so a figure that cannot be computed from
 //     partials would be silently wrong under ShardWorkers /
 //     DecodeWorkers.
-func verifyAggregatorMergeable(reg AggregatorRegistration, instance extend.Aggregator) error {
+func verifyAggregatorMergeable(reg AggregatorRegistration, instance extend.Aggregator, weighted bool) error {
 	mismatch := func(reason, msg string) error {
 		return errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_MERGEABLE_MISMATCH,
 			fmt.Sprintf("aggregator %q declares Mergeable=true but %s", reg.Name, msg),
-			map[string]any{
+			probeDetails(map[string]any{
 				"category":  "aggregator",
 				"name":      string(reg.Name),
 				"mergeable": true,
 				"reason":    reason,
-			},
+			}, weighted),
 		)
 	}
 	if !reg.Streamable {
@@ -357,22 +398,49 @@ func probeFilterers(regs []FiltererRegistration) error {
 func probeAttributes(regs []AttributeRegistration) error {
 	probeSchema := &encoding.Schema{}
 	for _, reg := range regs {
-		instance, err := safeBuildAttribute(reg, probeSchema)
-		if err != nil {
-			return err
+		probes := []bool{false}
+		if reg.WeightAware {
+			probes = append(probes, true)
 		}
-		switch reg.Mode {
-		case AttributeModeRowLocal:
-			if _, ok := instance.(extend.RowLocalAttribute); !ok {
-				return attributeModeMismatch(reg, "RowLocalAttribute")
+		for _, weighted := range probes {
+			instance, err := safeBuildAttribute(reg, probeSchema, weighted)
+			if err != nil {
+				return err
 			}
-		case AttributeModeTwoPass:
-			if _, ok := instance.(extend.TwoPassAttribute); !ok {
-				return attributeModeMismatch(reg, "TwoPassAttribute")
+			switch reg.Mode {
+			case AttributeModeRowLocal:
+				if _, ok := instance.(extend.RowLocalAttribute); !ok {
+					return attributeModeMismatch(reg, "RowLocalAttribute", weighted)
+				}
+			case AttributeModeTwoPass:
+				if _, ok := instance.(extend.TwoPassAttribute); !ok {
+					return attributeModeMismatch(reg, "TwoPassAttribute", weighted)
+				}
+			case AttributeModeBuffered:
+				// AttributeComputer is the minimum interface; the factory
+				// signature already enforces this at compile time.
 			}
-		case AttributeModeBuffered:
-			// AttributeComputer is the minimum interface; the factory
-			// signature already enforces this at compile time.
+		}
+	}
+	return nil
+}
+
+// probeTests constructs every WeightAware test factory (tier 1 or tier
+// 2) without and with a weight on a name-only spec over an empty
+// schema; a panic, an error or a nil instance is
+// PULSE_EXTENSION_FACTORY_PANIC. A test that does not declare
+// WeightAware is not probed (tests predate probe-validation; probing
+// them now would refuse registrations that worked).
+func probeTests(regs []TestRegistration) error {
+	probeSchema := &encoding.Schema{}
+	for _, reg := range regs {
+		if !reg.WeightAware {
+			continue
+		}
+		for _, weighted := range []bool{false, true} {
+			if err := safeBuildTest(reg, probeSchema, weighted); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -403,45 +471,50 @@ func grouperFanOutMismatch(reg GrouperRegistration, observed bool) error {
 	)
 }
 
-func attributeModeMismatch(reg AttributeRegistration, want string) error {
+func attributeModeMismatch(reg AttributeRegistration, want string, weighted bool) error {
 	return errors.NewCodedErrorWithDetails(
 		errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
 		fmt.Sprintf("attribute %q declares Mode=%s but factory does not return extend.%s", reg.Name, reg.Mode, want),
-		map[string]any{
+		probeDetails(map[string]any{
 			"category": "attribute",
 			"name":     string(reg.Name),
 			"mode":     string(reg.Mode),
 			"required": "extend." + want,
-		},
+		}, weighted),
 	)
 }
 
 // safeBuildAggregator invokes the factory under a deferred recover so
 // embedder panics become a coded error instead of crashing pulse.New.
-func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema) (instance extend.Aggregator, err error) {
+// weighted hands the factory probeWeight on the spec (the second probe
+// of a WeightAware registration).
+func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema, weighted bool) (instance extend.Aggregator, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
 				errors.PULSE_EXTENSION_FACTORY_PANIC,
 				fmt.Sprintf("aggregator factory %q panicked during probe-validation: %v", reg.Name, r),
-				map[string]any{"category": "aggregator", "name": string(reg.Name), "panic": fmt.Sprintf("%v", r)},
+				probeDetails(map[string]any{"category": "aggregator", "name": string(reg.Name), "panic": fmt.Sprintf("%v", r)}, weighted),
 			)
 		}
 	}()
 	spec := &types.Aggregation{Type: reg.Name}
+	if weighted {
+		spec.Weight = probeWeight
+	}
 	instance, err = reg.Factory(spec, schema)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_FACTORY_PANIC,
 			fmt.Sprintf("aggregator factory %q returned error during probe-validation: %v", reg.Name, err),
-			map[string]any{"category": "aggregator", "name": string(reg.Name), "factory_error": err.Error()},
+			probeDetails(map[string]any{"category": "aggregator", "name": string(reg.Name), "factory_error": err.Error()}, weighted),
 		)
 	}
 	if instance == nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_FACTORY_PANIC,
 			fmt.Sprintf("aggregator factory %q returned a nil instance during probe-validation", reg.Name),
-			map[string]any{"category": "aggregator", "name": string(reg.Name)},
+			probeDetails(map[string]any{"category": "aggregator", "name": string(reg.Name)}, weighted),
 		)
 	}
 	return instance, nil
@@ -449,33 +522,82 @@ func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema) (i
 
 // safeBuildAttribute invokes an attribute factory under a deferred
 // recover with the same contract as safeBuildAggregator.
-func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema) (instance extend.AttributeComputer, err error) {
+func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema, weighted bool) (instance extend.AttributeComputer, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
 				errors.PULSE_EXTENSION_FACTORY_PANIC,
 				fmt.Sprintf("attribute factory %q panicked during probe-validation: %v", reg.Name, r),
-				map[string]any{"category": "attribute", "name": string(reg.Name), "panic": fmt.Sprintf("%v", r)},
+				probeDetails(map[string]any{"category": "attribute", "name": string(reg.Name), "panic": fmt.Sprintf("%v", r)}, weighted),
 			)
 		}
 	}()
 	spec := &types.Attribute{Type: reg.Name}
+	if weighted {
+		spec.Weight = probeWeight
+	}
 	instance, err = reg.Factory(spec, schema)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_FACTORY_PANIC,
 			fmt.Sprintf("attribute factory %q returned error during probe-validation: %v", reg.Name, err),
-			map[string]any{"category": "attribute", "name": string(reg.Name), "factory_error": err.Error()},
+			probeDetails(map[string]any{"category": "attribute", "name": string(reg.Name), "factory_error": err.Error()}, weighted),
 		)
 	}
 	if instance == nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_FACTORY_PANIC,
 			fmt.Sprintf("attribute factory %q returned a nil instance during probe-validation", reg.Name),
-			map[string]any{"category": "attribute", "name": string(reg.Name)},
+			probeDetails(map[string]any{"category": "attribute", "name": string(reg.Name)}, weighted),
 		)
 	}
 	return instance, nil
+}
+
+// safeBuildTest invokes a WeightAware test registration's factory
+// (RowFactory or PostFactory, by Tier) under a deferred recover with
+// the same contract as safeBuildAggregator.
+func safeBuildTest(reg TestRegistration, schema *encoding.Schema, weighted bool) (err error) {
+	fail := func(what string, extra map[string]any) error {
+		details := map[string]any{"category": "test", "name": string(reg.Name)}
+		for k, v := range extra {
+			details[k] = v
+		}
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_FACTORY_PANIC,
+			fmt.Sprintf("test factory %q %s during probe-validation", reg.Name, what),
+			probeDetails(details, weighted),
+		)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fail(fmt.Sprintf("panicked: %v", r), map[string]any{"panic": fmt.Sprintf("%v", r)})
+		}
+	}()
+	spec := &types.Test{Type: reg.Name}
+	if weighted {
+		spec.Weight = probeWeight
+	}
+	var isNil bool
+	switch {
+	case reg.RowFactory != nil:
+		var instance extend.RowTest
+		instance, err = reg.RowFactory(spec, schema)
+		isNil = instance == nil
+	case reg.PostFactory != nil:
+		var instance extend.PostTest
+		instance, err = reg.PostFactory(spec, schema)
+		isNil = instance == nil
+	default:
+		return nil // the registration validator owns a missing factory
+	}
+	if err != nil {
+		return fail(fmt.Sprintf("returned error: %v", err), map[string]any{"factory_error": err.Error()})
+	}
+	if isNil {
+		return fail("returned a nil instance", nil)
+	}
+	return nil
 }
 
 // safeBuildGrouper invokes a grouper factory under a deferred recover

@@ -25,6 +25,7 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per row ke
 
 ## Gotchas
 
+- No weighted form yet: a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the overlay to run it unweighted.
 - Reuses `chiSquareSurvival` — byte-equal p-values to every χ² test and overlay on the same contingency.
 - Any `expected < 5` in a row emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending row.
 - Absent host cell treated as observed count of 0.

@@ -11,7 +11,7 @@ examples_tags: [distribution-shape, streaming-friendly]
 
 ## Params
 
-None.
+Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is √(m2_w / Σw). Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
 
 ## Inputs
 
@@ -24,6 +24,8 @@ None.
 Scalar `float64` — population stddev (n-denominator); `decimal128` input yields a decimal-scaled result. Per-group when wired under a grouper.
 
 ## Components
+
+Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
 
 Universal floor `{n, n_null}` plus operator-specific:
 
@@ -42,6 +44,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Population stddev (`n` denominator), not sample (`n-1`).
 - `decimal128` is supported, but not by Welford: a decimal two-pass (mean, then Σ(x−μ)², then decimal `Sqrt`). An overflowing intermediate drops the WHOLE aggregate to an f64 pass and warns `PULSE_DECIMAL_PRECISION_LOSS`. The decimal claim therefore rests partly on an f64 fallback.
 - Single-row group → 0.
+- `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See
 

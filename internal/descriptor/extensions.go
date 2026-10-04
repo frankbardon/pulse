@@ -330,6 +330,38 @@ func (s *ExtensionsSnapshot) GrouperFanOut(name string) (fansOut bool, ok bool) 
 	return false, false
 }
 
+// Weight-bearing extension categories, as WeightAwareness spells them.
+const (
+	extCategoryAggregator = "aggregator"
+	extCategoryAttribute  = "attribute"
+	extCategoryTest       = "test"
+)
+
+// WeightAwareness reports whether name is an embedder-registered
+// operator of category ("aggregator", "attribute" or "test" — tier-1
+// and tier-2 tests alike) and, if so, whether its registration declared
+// WeightAware. Nil-safe: a nil snapshot registers nothing.
+func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered, aware bool) {
+	if s == nil {
+		return false, false
+	}
+	var metas []descriptor.OperatorMeta
+	switch category {
+	case extCategoryAggregator:
+		metas = s.Aggregators
+	case extCategoryAttribute:
+		metas = s.Attributes
+	case extCategoryTest:
+		metas = s.Tests
+	}
+	for _, m := range metas {
+		if m.Name == name {
+			return true, m.WeightAware
+		}
+	}
+	return false, false
+}
+
 // HasAggregator reports whether name is an embedder-registered
 // aggregator in the snapshot. Nil-safe.
 func (s *ExtensionsSnapshot) HasAggregator(name string) bool {

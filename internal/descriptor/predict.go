@@ -124,6 +124,11 @@ type PredictOptions struct {
 	// request's `time_zone` names one. Empty means UTC.
 	DefaultTimeZone string
 
+	// DefaultWeight is pulse.Options.DefaultWeight — the row weight a
+	// weight-bearing slot inherits when neither its own `weight` nor
+	// the request's `weight` names one. Nil means none.
+	DefaultWeight *types.WeightSpec
+
 	// ZoneLoader resolves zone names (nil: temporal.LoadZone). The
 	// facade passes its per-instance cache so predict and the runtime
 	// resolve through the same loader.
@@ -149,6 +154,13 @@ type PredictOptions struct {
 	// kind gates (Request, Compose and Facet hosts) report a kind it
 	// hides exactly as a kind not in the catalog. Nil hides nothing.
 	Instance *InstanceSnapshot
+
+	// SuggestedWeightVariable is the weighting variable the cohort's SPSS
+	// metadata sidecar records; the facade reads the sidecar (Predict
+	// itself never opens a file) and leaves it "" when there is none.
+	// Predict echoes it as PredictResult.SuggestedWeight when no slot
+	// resolves a weight — it is never applied.
+	SuggestedWeightVariable string
 
 	// DisableCrosstabFusion is pulse.Options.DisableCrosstabFusion. When
 	// set, PredictResult.CrosstabFusable answers false with
@@ -305,6 +317,25 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// request executes over). Every unknown name is reported.
 	for _, ce := range fieldRefRefusals(req, schema, extensionsFromOpts(opts), opts.Instance) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+
+	// Weight resolution — the same single pass the runtime runs right
+	// after the field-reference rule (ResolveWeights). A refusal is a
+	// predict error carrying the runtime's own code and details.
+	// With capability:weighting hidden the refusals still run (an
+	// AGG_WEIGHTED_MEAN params.weight_field stays ungated) but the
+	// per-slot report is not offered.
+	if weights, werr := ResolveWeights(req, schema, opts.DefaultWeight, opts.Instance); werr != nil {
+		addCodedError(env, werr)
+	} else if opts.instance().Enabled(featWeighting) {
+		result.Weights = weights
+		// The cohort's own suggestion (SPSS sidecar), echoed as data
+		// only while nothing resolves a weight field — never a warning,
+		// never applied. Judged against the COHORT schema the sidecar
+		// describes, not a joined one.
+		if !anyWeightResolves(weights) {
+			result.SuggestedWeight = SuggestWeight(cohortSchema, opts.SuggestedWeightVariable, opts.Instance)
+		}
 	}
 
 	// A slot still without an operator Type is refused by the runtime's
@@ -881,6 +912,11 @@ func populateOverlayDescriptors(result *descriptor.PredictResult, req *types.Req
 // validateExtensions).
 func aggregatorComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.ComponentSchema {
 	caps := aggregatorCapabilities()
+	if !opts.instance().Enabled(featWeighting) {
+		// As the instance manifest: no weighted floor keys when
+		// capability:weighting is hidden.
+		caps = aggregatorCapabilityTable()
+	}
 	out := make(map[string]descriptor.ComponentSchema, len(caps))
 	for _, op := range caps {
 		out[op.Name] = op.ComponentSchema

@@ -5,9 +5,9 @@ running a query — the human-side counterpart of the `inspect` library
 method and the `pulse_inspect` MCP tool. Defined in
 [`internal/cli/cohort.go`](https://github.com/frankbardon/pulse/blob/main/internal/cli/cohort.go).
 
-`pulse cohort inspect` reads only the file's header and schema — it
-never reads record data. The operation is constant-time regardless of
-cohort size.
+`pulse cohort inspect` reads only the file's header and schema, plus
+the SPSS metadata sidecar beside it when there is one — it never reads
+record data. The operation is constant-time regardless of cohort size.
 
 > **LLM agents using MCP:** see the `cohort-schema-design` skill and
 > the `pulse_inspect` tool.
@@ -102,6 +102,25 @@ Every figure is header-only — the entry count is in the schema block
 and `Records` comes from the file length. A `0x01` cohort prints none
 of these lines. Field semantics:
 [Format → Parent Groups](../format/parent-groups.md#inspecting-a-grouped-cohort).
+
+## Suggested weight (SPSS cohorts)
+
+A cohort imported from a weighted `.sav` carries the file's weighting
+variable in its SPSS metadata sidecar (`cohort.pulse.spss.json`).
+Inspect reports it as a suggestion — text mode ends with
+
+```
+Suggested weight: WT (spss_sidecar, kind probability; not applied)
+```
+
+and `--json` carries `"suggested_weight": {"field": "WT", "source":
+"spss_sidecar", "kind": "probability"}`. It is **never applied**: name
+the field as a request `weight` to use it. SPSS `WEIGHT BY` replicates
+cases, which is frequency-like, so pass `"kind": "frequency"` when you
+mean the SPSS semantics. No sidecar, a stale or unreadable one, or a
+variable the cohort no longer carries (or cannot weight by) yields no
+suggestion and no warning. `pulse_predict` and the library `Predict`
+echo the same object while no weight resolves.
 
 ## Output (`--json`)
 

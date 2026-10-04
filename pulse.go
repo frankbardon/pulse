@@ -323,6 +323,16 @@ type Options struct {
 	// onto it is decided per request).
 	DefaultTimeZone string
 
+	// DefaultWeight is the engine-wide row weight that weight-bearing
+	// request slots inherit when neither the slot's `weight` nor the
+	// request's `weight` names one; a slot's `weight: null` opts out.
+	// It reaches Process, Compose slots and ProcessChain stages, never
+	// Facet / FacetSchema. Nil means none. New() refuses a spec with no
+	// Field or an unknown Kind (PROCESSING_CONFIG); the field itself is
+	// judged per request against the cohort it runs over, where the
+	// default applies. See .claude/reference/weighting.md.
+	DefaultWeight *types.WeightSpec
+
 	// Strict promotes request-validation warnings into hard errors at
 	// runtime. Today this covers the numeric-aggregation-on-categorical
 	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
@@ -531,6 +541,10 @@ func New(opts Options) (*Pulse, error) {
 		}
 	}
 
+	if err := descx.ValidateWeightSpec(opts.DefaultWeight, "Options.DefaultWeight"); err != nil {
+		return nil, err
+	}
+
 	var fsCfg *fs.Config
 
 	if opts.FS != nil {
@@ -598,6 +612,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetEchoRequest(opts.EchoRequest)
 	svc.SetDisableCrosstabFusion(opts.DisableCrosstabFusion)
 	svc.SetTimeZones(opts.DefaultTimeZone, zones)
+	svc.SetDefaultWeight(opts.DefaultWeight)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:                opts.ImportsDir,
@@ -990,7 +1005,9 @@ func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectRe
 }
 
 // InspectEnvelope is Inspect's envelope-returning sibling: same
-// header-only read, same anchor resolution, same afero.Fs, but it
+// no-record read (header + schema, plus the SPSS metadata sidecar beside
+// the cohort for InspectResult.SuggestedWeight), same anchor resolution,
+// same afero.Fs, but it
 // returns the descriptor envelope WHOLE and accepts InspectOptions
 // (nil means defaults).
 //
@@ -1030,10 +1047,16 @@ func (p *Pulse) InspectEnvelope(ctx context.Context, path string, opts *descript
 		data = shardBytes
 	}
 
-	env, err := p.InspectBytes(ctx, data, opts)
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// The cohort's SPSS sidecar may suggest a row weight: metadata
+	// beside the cohort, read here through the instance Fs, judged by
+	// descriptor inspect against the schema it reads. Never a record.
+	env := descx.InspectWith(bytes.NewReader(data), opts, descx.InspectMetadata{
+		WeightVariable: p.sidecarWeightVariable(path),
+		Instance:       p.svc.InstanceSnapshot(),
+	})
 	if len(env.Errors) == 0 {
 		// TTL slide on a successful read only — an unreadable cohort is
 		// not a use of the managed import.
@@ -1079,10 +1102,13 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		Extensions:            p.svc.ExtensionsSnapshot(),
 		Instance:              p.svc.InstanceSnapshot(),
 		DefaultTimeZone:       p.svc.DefaultTimeZone(),
+		DefaultWeight:         p.svc.DefaultWeight(),
 		ZoneLoader:            p.svc.ZoneLoader(),
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
+		// Echoed (never applied) when no weight resolves.
+		SuggestedWeightVariable: p.sidecarWeightVariable(path),
 	})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
@@ -1109,7 +1135,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 // its floored record count beside an ENCODING_INVALID warning). It is
 // the byte-level twin of InspectEnvelope for a caller that already
 // holds the bytes: no filesystem read, no anchor resolution, no
-// managed-import TTL slide. opts may be nil (defaults).
+// managed-import TTL slide, and no sidecar — so never a SuggestedWeight. opts may be nil (defaults).
 //
 // Inspect has no request and no strict mode, so it reads nothing else
 // from the instance's Options. A returned error is a cancelled ctx;
@@ -1148,6 +1174,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		Extensions:            p.svc.ExtensionsSnapshot(),
 		Instance:              p.svc.InstanceSnapshot(),
 		DefaultTimeZone:       p.svc.DefaultTimeZone(),
+		DefaultWeight:         p.svc.DefaultWeight(),
 		ZoneLoader:            p.svc.ZoneLoader(),
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),

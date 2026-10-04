@@ -74,6 +74,9 @@ func newWelfordAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggr
 				fmt.Sprintf("AGG_WELFORD field %q has non-numeric type %s", agg.Field, f.Type.String()))
 		}
 	}
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_WELFORD, w), nil
+	}
 	return &welfordAggregator{field: agg.Field}, nil
 }
 

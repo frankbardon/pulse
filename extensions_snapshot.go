@@ -65,6 +65,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Mergeable:   r.Mergeable,
 			// The declared crosstab margin class; empty stays omitted.
 			MarginReducibility: string(r.MarginReducibility),
+			WeightAware:        r.WeightAware,
 			Accepts:            fieldTypeStrings(r.Accepts),
 			Params:             paramMetaSnapshot(r.Params),
 		})
@@ -78,6 +79,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Namespace:   parseNamespace(string(r.Name)),
 			Description: r.Description,
 			Streamable:  r.Mode != AttributeModeBuffered,
+			WeightAware: r.WeightAware,
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Emits:       string(r.Emits),
 			Mode:        string(r.Mode),
@@ -148,6 +150,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Namespace:   parseNamespace(string(r.Name)),
 			Description: r.Description,
 			Streamable:  streamable,
+			WeightAware: r.WeightAware,
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Tier:        tier,
 			Params:      paramMetaSnapshot(r.Params),

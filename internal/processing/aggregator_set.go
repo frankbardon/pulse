@@ -320,6 +320,9 @@ func newSetFrequencyAggregator(agg *types.Aggregation, schema *encoding.Schema) 
 	if width > encoding.SetMaskBits {
 		width = encoding.SetMaskBits
 	}
+	if w := slotWeight(agg); w != nil {
+		return newWeightedSetFrequencyAggregator(dict, width, w), nil
+	}
 	return &setFrequencyAggregator{
 		dict:   dict,
 		counts: make([]uint64, width),
@@ -499,6 +502,9 @@ func newSetCardinalitySumAggregator(agg *types.Aggregation, schema *encoding.Sch
 	if _, err := setAggDict(agg, schema); err != nil {
 		return nil, err
 	}
+	if w := slotWeight(agg); w != nil {
+		return newWeightedSetCardinalityAggregator(types.AGG_SET_CARDINALITY_SUM, w), nil
+	}
 	return &setCardinalitySumAggregator{}, nil
 }
 
@@ -572,6 +578,9 @@ type setCardinalityAvgAggregator struct {
 func newSetCardinalityAvgAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
 	if _, err := setAggDict(agg, schema); err != nil {
 		return nil, err
+	}
+	if w := slotWeight(agg); w != nil {
+		return newWeightedSetCardinalityAggregator(types.AGG_SET_CARDINALITY_AVG, w), nil
 	}
 	return &setCardinalityAvgAggregator{}, nil
 }

@@ -31,6 +31,7 @@ One `float64` per row written to `Label` (default `WIN_EWMA_<field>`). Recurrenc
 
 ## Gotchas
 
+- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - `alpha` REQUIRED — missing or out of `(0, 1]` → `PULSE_WINDOW_INVALID`.
 - Rows preceding the first non-null emit `null` (no seed).
 - Null values emit `null` but state survives through to the next non-null row.

@@ -39,6 +39,22 @@ type Record interface {
 	// (zero, false) for a null, missing or non-decimal field. The value
 	// is safe to keep.
 	DecimalValue(field string) (encoding.Decimal128, bool)
+
+	// Weight returns the row weight the engine resolved for the slot
+	// this operator runs in (slot weight → request weight →
+	// pulse.Options.DefaultWeight) and true, or (0, false) when no
+	// weight is in force on the slot. It reports a weight only to an
+	// operator whose registration declares WeightAware, and only a
+	// VALID one: finite and non-negative (zero included), and an
+	// integer under kind frequency. A row whose weight is invalid never
+	// reaches a weight-aware aggregator or row test (it is excluded and
+	// counted by the engine); a weight-aware attribute, which owes a
+	// value for every row, still receives it with Weight reporting
+	// false. Every other operator — and every operator on an unweighted
+	// slot — always sees (0, false). The orchestrator emits the
+	// weighted floor keys (sum_weights, n_eff, n_weight_invalid); the
+	// operator never does.
+	Weight() (float64, bool)
 }
 
 // Rows is a read-only, zero-copy view over the rows of one buffered

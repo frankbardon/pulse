@@ -27,6 +27,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — mid-ranks each column under tie correction before running Pearson on the ranks.
 - Detects monotonic association; robust to outliers (rank transform).
 - Tier-2 variant `TEST_SPEARMAN_R/rank_pearson_post` runs over result columns.

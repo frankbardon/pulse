@@ -108,6 +108,9 @@ func newFrequencyAggregator(agg *types.Aggregation, schema *encoding.Schema) (Ag
 		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 			"parsing AGG_FREQUENCY value "+strconv.Quote(value))
 	}
+	if w := slotWeight(agg); w != nil {
+		return newWeightedFrequencyAggregator(key, found, w), nil
+	}
 	return &frequencyAggregator{key: key, matchable: found}, nil
 }
 

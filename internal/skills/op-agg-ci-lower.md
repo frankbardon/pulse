@@ -24,7 +24,7 @@ examples_tags: [hypothesis-test, streaming-friendly]
 
 ## Output
 
-Scalar `float64` — lower CI bound. NaN when `n < 2`.
+Scalar `float64` — lower CI bound. NaN when `n < 2` (`null` in JSON).
 
 ## Components
 
@@ -43,6 +43,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - `n < 2` → NaN (no variance estimate).
 - `"bootstrap"` method returns `PROCESSING_CONFIG` until the buffered follow-up lands.
 

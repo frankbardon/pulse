@@ -27,6 +27,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 ## Gotchas
 
+- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — |d| ranked across the whole set.
 - Zero-diff pairs are dropped (Wilcoxon convention); reported in `Details.zero_diffs`.
 - Nonparametric alternative to a paired t-test when d is non-normal.

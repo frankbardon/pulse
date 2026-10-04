@@ -266,6 +266,12 @@ func aggSchema(merge descriptor.ComponentsMergeability, extra ...descriptor.Comp
 // Name. The TestManifestOperatorsComplete gate enforces that every entry
 // in types.AllAggregationTypes() has a row here.
 func aggregatorCapabilities() []descriptor.Operator {
+	return withWeightAware(aggregatorCapabilityTable())
+}
+
+// aggregatorCapabilityTable is the literal declaration table;
+// aggregatorCapabilities stamps the weight classification onto it.
+func aggregatorCapabilityTable() []descriptor.Operator {
 	return []descriptor.Operator{
 		{
 			Name:            string(types.AGG_COUNT),
@@ -295,7 +301,12 @@ func aggregatorCapabilities() []descriptor.Operator {
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "sum", Type: "float64", Description: "Running sum of non-null field values; combined with n to recover the mean."},
+				descriptor.ComponentKey{Name: "sum", Type: "float64", Description: "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."},
+				descriptor.ComponentKey{Name: "sum_weighted", Type: "float64", Optional: true, Description: "Weighted slots only: Σw·x over the contributing rows."},
+				descriptor.ComponentKey{Name: "weighted_mean", Type: "float64", Optional: true, Description: "Weighted slots only: Σw·x / Σw (the scalar)."},
+				descriptor.ComponentKey{Name: "m2_weighted", Type: "float64", Optional: true, Description: "Weighted slots only: Σw(x − mean)², the weighted second central moment."},
+				descriptor.ComponentKey{Name: "sum_weights_sq", Type: "float64", Optional: true, Description: "Weighted slots only: Σw², the Kish n_eff denominator."},
+				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Optional: true, Description: "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1."},
 			),
 		},
 		{
@@ -364,14 +375,14 @@ func aggregatorCapabilities() []descriptor.Operator {
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
 				descriptor.ComponentKey{Name: "distinct_count", Type: "int", Description: "Number of distinct values observed."},
-				descriptor.ComponentKey{Name: "mode_value", Type: "any", Description: "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."},
-				descriptor.ComponentKey{Name: "mode_count", Type: "int", Description: "Row count of the modal value."},
+				descriptor.ComponentKey{Name: "mode_value", Type: "any", Description: "Most-frequent value — the largest sum of weights on a weighted slot (ties broken by the smallest value, matching AGG_MODE)."},
+				descriptor.ComponentKey{Name: "mode_count", Type: "int", Description: "Row count of the modal value; on a weighted slot its sum of weights (a float)."},
 			),
 		},
 		{
 			Name:        string(types.AGG_FREQUENCY),
 			Category:    "aggregator",
-			Description: "Number of non-null rows whose field equals params.value (0 when none does). The count of the most common value is AGG_MODE_COUNT.",
+			Description: "Number of non-null rows whose field equals params.value (0 when none does); on a weighted slot the sum of their weights. The count of the most common value is AGG_MODE_COUNT.",
 			Params: []descriptor.Param{
 				{
 					Name:        "value",
@@ -387,8 +398,8 @@ func aggregatorCapabilities() []descriptor.Operator {
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "match_count", Type: "int", Description: "Non-null rows equal to params.value (= the scalar)."},
-				descriptor.ComponentKey{Name: "share", Type: "float64", Description: "match_count / n; omitted when n is 0."},
+				descriptor.ComponentKey{Name: "match_count", Type: "int", Description: "Non-null rows equal to params.value (= the scalar); on a weighted slot their sum of weights (a float)."},
+				descriptor.ComponentKey{Name: "share", Type: "float64", Description: "match_count / n; omitted when n is 0. On a weighted slot the matching sum of weights over the sum of weights of the non-null rows (omitted when that is 0)."},
 			),
 		},
 		{
@@ -416,8 +427,8 @@ func aggregatorCapabilities() []descriptor.Operator {
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
 			ComponentSchema: aggSchema(descriptor.None,
-				descriptor.ComponentKey{Name: "position_low", Type: "int", Description: "Lower index used to bracket the median in the sorted value set."},
-				descriptor.ComponentKey{Name: "position_high", Type: "int", Description: "Upper index used to bracket the median in the sorted value set."},
+				descriptor.ComponentKey{Name: "position_low", Type: "int", Description: "Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."},
+				descriptor.ComponentKey{Name: "position_high", Type: "int", Description: "Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."},
 				descriptor.ComponentKey{Name: "median", Type: "float64", Description: "Resolved median value (linear interpolation between the bracketing positions)."},
 			),
 		},
@@ -444,7 +455,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
 				descriptor.ComponentKey{Name: "value", Type: "any", Description: "Most-frequent value observed (smallest-value tie-break)."},
-				descriptor.ComponentKey{Name: "count", Type: "int", Description: "Row count of the modal value."},
+				descriptor.ComponentKey{Name: "count", Type: "int", Description: "Row count of the modal value; on a weighted slot its sum of weights (a float)."},
 				descriptor.ComponentKey{Name: "distinct_count", Type: "int", Description: "Number of distinct values observed."},
 				descriptor.ComponentKey{Name: "tie_count", Type: "int", Description: "Number of values tied with the mode at the same maximum count."},
 			),
@@ -460,7 +471,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running mean of non-null field values."},
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n <= 1 or the variance is zero."},
+				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
 			),
 		},
 		{
@@ -475,7 +486,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m4", Type: "float64", Description: "Fourth-moment accumulator (sum of fourth-power deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n <= 1 or the variance is zero."},
+				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
 			),
 		},
 		{
@@ -528,7 +539,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 			StreamableHint: "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
 			ComponentSchema: aggSchema(descriptor.None,
 				descriptor.ComponentKey{Name: "p", Type: "float64", Description: "Percentile requested, in [0, 100]."},
-				descriptor.ComponentKey{Name: "position", Type: "int", Description: "Index into the sorted value set used to resolve the percentile."},
+				descriptor.ComponentKey{Name: "position", Type: "int", Description: "Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1), probability weights rescaled to Σw = n)."},
 				descriptor.ComponentKey{Name: "lower", Type: "float64", Description: "Lower bracketing value used during interpolation."},
 				descriptor.ComponentKey{Name: "upper", Type: "float64", Description: "Upper bracketing value used during interpolation."},
 				descriptor.ComponentKey{Name: "method", Type: "string", Description: "Interpolation method (e.g. \"linear\")."},
@@ -547,13 +558,13 @@ func aggregatorCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_WEIGHTED_MEAN),
 			Category:    "aggregator",
-			Description: "Weighted arithmetic mean: sum(field * weight) / sum(weight). Streaming Chan-Welford recurrence.",
+			Description: "Weighted arithmetic mean: sum(field * weight) / sum(weight) — the weighted average under its own name and components.",
 			Params: []descriptor.Param{
 				{
 					Name:        "weight_field",
 					Type:        "string",
-					Required:    true,
-					Description: "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only).",
+					Required:    false,
+					Description: "Schema field whose value is the per-row weight (kind probability); sugar for a slot weight. Absent: the slot or request weight, else the instance default weight; none resolving is refused. Rows with an invalid (null, negative, NaN/Inf) or zero weight are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only).",
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
@@ -572,7 +583,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_RATIO),
 			Category:    "aggregator",
-			Description: "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN.",
+			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
 			Params: []descriptor.Param{
 				{
 					Name:        "numerator_field",
@@ -595,12 +606,12 @@ func aggregatorCapabilities() []descriptor.Operator {
 			// fine there because none of them is read.
 			IgnoresField:  true,
 			AcceptsTypes:  allCohortFieldTypes,
-			EmitsTypeNote: "scalar float64 (NaN when denominator sum == 0)",
+			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when denominator sum == 0)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "numerator", Type: "float64", Description: "Running sum of the numerator field."},
-				descriptor.ComponentKey{Name: "denominator", Type: "float64", Description: "Running sum of the denominator field."},
-				descriptor.ComponentKey{Name: "ratio", Type: "float64", Description: "Resolved ratio: numerator / denominator (NaN when denominator is zero)."},
+				descriptor.ComponentKey{Name: "numerator", Type: "float64", Description: "Running sum of the numerator field (weighted slot: of weight * numerator)."},
+				descriptor.ComponentKey{Name: "denominator", Type: "float64", Description: "Running sum of the denominator field (weighted slot: of weight * denominator)."},
+				descriptor.ComponentKey{Name: "ratio", Type: "float64", Description: "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."},
 			),
 		},
 		{
@@ -624,7 +635,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
-			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
+			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when n < 2)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Welford-running mean of the field."},
@@ -655,7 +666,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
-			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
+			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when n < 2)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Welford-running mean of the field."},
@@ -670,7 +681,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 			Category:      "aggregator",
 			Description:   "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
 			AcceptsTypes:  numericFieldTypesStrictScalar,
-			EmitsTypeNote: "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+			EmitsTypeNote: "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
@@ -708,40 +719,40 @@ func aggregatorCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.AGG_SET_FREQUENCY),
 			Category:      "aggregator",
-			Description:   "Per-bit row count: how many rows had each set label selected.",
+			Description:   "Per-bit row count: how many rows had each set label selected; on a weighted slot the sum of their weights.",
 			AcceptsTypes:  setFieldTypes,
-			EmitsTypeNote: "rich map[string]int (label→row count); scalar fallback = max single-label frequency",
+			EmitsTypeNote: "rich map[string]int (label→row count; map[string]float64 of weight sums when weighted); scalar fallback = max single-label frequency",
 			Streamable:    true,
 			// Partial: per_label_count merges across chunks but the
 			// map allocation makes it more expensive than a pure
 			// fold; orchestrator may stage merge at terminal flush.
 			ComponentSchema: aggSchema(descriptor.Partial,
-				descriptor.ComponentKey{Name: "total_label_observations", Type: "int", Description: "Sum of popcounts across contributing rows (total label selections seen)."},
-				descriptor.ComponentKey{Name: "distinct_labels", Type: "int", Description: "Number of distinct labels observed at least once."},
-				descriptor.ComponentKey{Name: "per_label_count", Type: "map[string]int", Description: "Per-label row count: how many rows had each label selected."},
+				descriptor.ComponentKey{Name: "total_label_observations", Type: "int", Description: "Sum of popcounts across contributing rows (total label selections seen); weighted slot: the weight-summed selections (a float)."},
+				descriptor.ComponentKey{Name: "distinct_labels", Type: "int", Description: "Number of distinct labels observed at least once (weighted slot: with a positive weight sum)."},
+				descriptor.ComponentKey{Name: "per_label_count", Type: "map[string]int", Description: "Per-label row count: how many rows had each label selected; weighted slot: each label's sum of weights (float values)."},
 			),
 		},
 		{
 			Name:          string(types.AGG_SET_CARDINALITY_SUM),
 			Category:      "aggregator",
-			Description:   "Sum of popcounts across contributing rows — total selections seen.",
+			Description:   "Sum of popcounts across contributing rows — total selections seen; on a weighted slot sum(w * popcount).",
 			AcceptsTypes:  setFieldTypes,
-			EmitsTypeNote: "scalar int64",
+			EmitsTypeNote: "scalar int64 (float64 when weighted)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "sum_cardinality", Type: "int", Description: "Sum of popcounts across contributing rows — total label selections seen."},
+				descriptor.ComponentKey{Name: "sum_cardinality", Type: "int", Description: "Sum of popcounts across contributing rows — total label selections seen; weighted slot: sum(w * popcount) (a float)."},
 			),
 		},
 		{
 			Name:          string(types.AGG_SET_CARDINALITY_AVG),
 			Category:      "aggregator",
-			Description:   "Average popcount per contributing row — typical number of selections.",
+			Description:   "Average popcount per contributing row — typical number of selections; on a weighted slot sum(w * popcount) / sum(w).",
 			AcceptsTypes:  setFieldTypes,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "sum_cardinality", Type: "int", Description: "Sum of popcounts across contributing rows."},
-				descriptor.ComponentKey{Name: "avg_cardinality", Type: "float64", Description: "Average popcount per contributing row (sum_cardinality / n)."},
+				descriptor.ComponentKey{Name: "sum_cardinality", Type: "int", Description: "Sum of popcounts across contributing rows; weighted slot: sum(w * popcount) (a float)."},
+				descriptor.ComponentKey{Name: "avg_cardinality", Type: "float64", Description: "Average popcount per contributing row (sum_cardinality / n; weighted slot: / sum of weights)."},
 			),
 		},
 		{

@@ -11,7 +11,7 @@ examples_tags: [streaming-friendly, cohort-analysis]
 
 ## Params
 
-None.
+Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is Σw over value-present rows (a float). Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
 
 ## Inputs
 
@@ -27,6 +27,8 @@ Scalar `int64`. Per-group when wired under a grouper; otherwise one row across t
 
 ## Components
 
+Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
+
 Floor only — no operator-specific keys. Universal `{n, n_null}` per response-components contract.
 
 - Mergeability: `Mergeable`
@@ -36,6 +38,7 @@ Floor only — no operator-specific keys. Universal `{n, n_null}` per response-c
 
 - Counts non-null inputs only.
 - Never a smart default: an omitted `Type` never infers `AGG_COUNT` — name it explicitly.
+- `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See
 

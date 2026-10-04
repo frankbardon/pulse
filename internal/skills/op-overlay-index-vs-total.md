@@ -30,6 +30,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `index =
 - Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Streamable — one `float64` grand-total accumulator carried alongside per-group accumulators inside the streaming Process fold. Post-host finalize is the divide step.
 - Sum semantics — counts post-filter rows, not pre-filter row count.
+- Weighted host → weighted figure (reads the host payload).
 
 ## See
 

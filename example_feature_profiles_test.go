@@ -139,7 +139,7 @@ func TestExampleFeatureProfiles_Content(t *testing.T) {
 
 	survey := load("survey-crosstab")
 	for _, f := range []string{
-		"capability:crosstab", "capability:facet", "capability:labels",
+		"capability:crosstab", "capability:facet", "capability:labels", "capability:weighting",
 		"TEST_CHISQ", "TEST_T", "OVERLAY_SHARE_OF_ROW", "OVERLAY_PAIRWISE_WELCH_T", "AGG_WELFORD",
 	} {
 		if !survey[f] {

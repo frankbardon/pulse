@@ -25,6 +25,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to
 
 ## Gotchas
 
+- No weighted form yet: a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the overlay to run it unweighted.
 - `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - RAW p-values only — direction / thresholds / min-n are the embedder's job.
 - `p_source` mismatch fails silently: `cell_value` over a 0..100 percentage pushes proportions outside `[0,1]` and every pair skips.

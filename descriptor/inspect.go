@@ -61,6 +61,31 @@ type InspectResult struct {
 	// Groups reports each parent group in file order. Omitted when the
 	// schema declares none.
 	Groups []*InspectGroup `json:"groups,omitempty"`
+	// SuggestedWeight names the row weight the cohort's own metadata
+	// proposes — today the SPSS weighting variable recorded in the
+	// cohort's SPSS metadata sidecar. A suggestion only: nothing ever
+	// applies it. Omitted when there is no sidecar, the sidecar names
+	// no weight, the variable is not a weight-capable column of this
+	// schema, or the instance hides row weighting.
+	SuggestedWeight *SuggestedWeight `json:"suggested_weight,omitempty"`
+}
+
+// WeightSuggestionSourceSPSSSidecar is SuggestedWeight.Source for a
+// weight read from the cohort's SPSS metadata sidecar
+// (cohort.pulse.spss.json).
+const WeightSuggestionSourceSPSSSidecar = "spss_sidecar"
+
+// SuggestedWeight is a row weight a cohort's metadata proposes. It is
+// reported by inspect and echoed by predict; it is never applied —
+// a caller opts in by naming Field in a request `weight`.
+//
+// Kind is the weight kind the suggestion proposes: "probability", the
+// request default. SPSS `WEIGHT BY` replicates cases (frequency-like),
+// so a caller who means the SPSS semantics names kind "frequency".
+type SuggestedWeight struct {
+	Field  string `json:"field"`
+	Source string `json:"source"`
+	Kind   string `json:"kind"`
 }
 
 // InspectLayout is the on-wire row shape of a cohort whose format
