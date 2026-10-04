@@ -141,3 +141,14 @@ func TestCohortBuild_ShardLimit(t *testing.T) {
 		t.Fatalf("records = %d after the refusal, want %d", b.records, MaxBuildShards)
 	}
 }
+
+// TestCohortBuild_AppendNeedsPublisher: an anchored target with no
+// AppendShard publisher is refused before the archive is even looked
+// at, so the engine can never silently drop an append.
+func TestCohortBuild_AppendNeedsPublisher(t *testing.T) {
+	_, err := NewCohortBuild(context.Background(), afero.NewMemMapFs(), "arch.pulse#s.pulse", tinyShardSchema(), CohortBuildOptions{})
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "append_option" {
+		t.Fatalf("err = %v, want SERVICE_VALIDATION append_option", err)
+	}
+}

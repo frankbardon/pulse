@@ -472,7 +472,7 @@ func TestCohortBuilder_FailedCloseLeavesNothing(t *testing.T) {
 
 // TestCohortBuilder_TargetRefusals: an existing target without
 // Overwrite (at construction and when it appears mid-build), a
-// directory, an anchor, a .zst target and an empty one are refused with
+// directory, an anchor onto a missing archive, a .zst target and an empty one are refused with
 // SERVICE_VALIDATION; nothing is left behind.
 func TestCohortBuilder_TargetRefusals(t *testing.T) {
 	p, fsys := memBuilderEngine(t)

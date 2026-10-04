@@ -65,7 +65,8 @@ type ShardSplit struct {
 
 // CohortBuildResult is what a successful CohortBuilder.Close wrote.
 type CohortBuildResult struct {
-	// Target is the cohort path written, as given to NewCohortBuilder.
+	// Target is the cohort path written, as given to NewCohortBuilder
+	// (the anchored `archive.pulse#name.pulse` for an append).
 	Target string `json:"target"`
 	// Records is the number of rows written: the accepted Append calls.
 	Records int64 `json:"records"`
@@ -75,14 +76,20 @@ type CohortBuildResult struct {
 	FormatVersion byte `json:"cohort_format_version"`
 	// Schema is the schema written: the caller's fields with the layout
 	// recomputed and the final dictionaries (pre-seeded entries first,
-	// then labels in first-seen order).
+	// then labels in first-seen order). For an anchored append it (and
+	// FormatVersion) is the shard as built, before AddShard reconciled
+	// it to the archive; read the archive's schema back with Open.
 	Schema *encoding.Schema `json:"-"`
 	// Warnings are the non-fatal coded findings, in order: one
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY per field with a weak
 	// description, the group gate's PULSE_GROUP_TOO_NARROW then
 	// PULSE_DEDUP_LOW_RATIO findings (each fatal under Strict instead),
-	// then, for a sharded build, CreateShardArchive's warnings unchanged
-	// (PULSE_SHARD_*, with their details), then a failure to enumerate
+	// then, for a sharded build, CreateShardArchive's warnings — for an
+	// anchored append, AddShard's — unchanged (PULSE_SHARD_*, with their
+	// details: PULSE_SHARD_SET_WIDENED when a set field outgrew the
+	// archive's rung, PULSE_SHARD_GROUPS_REWRITTEN when the shard was
+	// re-encoded to the archive's group layout or a constant group was
+	// promoted), then a failure to enumerate
 	// the sidecars an overwrite invalidated.
 	Warnings []*errors.CodedError `json:"warnings,omitempty"`
 	// Groups describes every declared group in declaration order — its
@@ -93,7 +100,8 @@ type CohortBuildResult struct {
 	// schema order. Empty when nothing was elided.
 	ElidedConstants []string `json:"elided_constants,omitempty"`
 	// Shards names a sharded build's (ShardSplit) archive entries, in
-	// archive order. Empty for a single-file build.
+	// archive order, or the one entry an anchored append added. Empty
+	// for a single-file build.
 	Shards []string `json:"shards,omitempty"`
 	// InvalidatedSidecars names each sidecar beside the target that an
 	// Overwrite of an existing cohort invalidated — the point-lookup
@@ -135,8 +143,18 @@ type CohortBuilder struct {
 // the description length and the row conversion; the schema-shape
 // refusals below are the builder's own (import trusts its schema).
 //
-// Refusals: SERVICE_VALIDATION for an empty, anchored
-// (`archive.pulse#shard.pulse`) or `.zst` target, an existing target
+// An anchored target — `archive.pulse#name.pulse` — instead builds ONE
+// new shard and Close appends it to that EXISTING archive with
+// Pulse.AddShard (see Close). The archive is never created implicitly
+// (build a new one with ShardSplit), name must be a plain file name the
+// archive does not hold yet, and the options that would shape the
+// archive are refused: Groups, ElideConstants and Shards (the archive's
+// group layout wins — AddShard re-encodes the shard to it), and
+// Overwrite (an append never replaces anything). The spool and staging
+// live beside the archive.
+//
+// Refusals: SERVICE_VALIDATION for an empty or `.zst` target, an
+// existing target
 // without Overwrite, and a malformed schema (no fields, empty or
 // duplicate names, unknown type, bad decimal precision / scale, a
 // pre-seeded dictionary longer than its rung, parent groups in the
@@ -144,7 +162,13 @@ type CohortBuilder struct {
 // 1000 bytes; PULSE_FIELD_DESCRIPTION_LOW_QUALITY under Strict; a bad
 // group declaration (PULSE_GROUP_*) and, under Strict, a too-narrow
 // group (PULSE_GROUP_TOO_NARROW); SERVICE_VALIDATION for a ShardSplit
-// whose MaxRecords is not positive.
+// whose MaxRecords is not positive. For an anchored target:
+// SERVICE_VALIDATION (details.reason) for a missing archive
+// (archive_not_found), a file that is not a shard archive
+// (not_an_archive), a malformed shard name (invalid_shard_name,
+// anchored_target) and a refused option (append_option, details.option
+// naming it); PULSE_SHARD_RESERVED_NAME for `_schema.pulse`;
+// PULSE_SHARD_NAME_COLLISION for a name the archive already holds.
 func (p *Pulse) NewCohortBuilder(ctx context.Context, target string, schema encoding.Schema, opts CohortBuilderOptions) (*CohortBuilder, error) {
 	bo := iio.CohortBuildOptions{
 		Strict:         opts.Strict,
@@ -152,6 +176,7 @@ func (p *Pulse) NewCohortBuilder(ctx context.Context, target string, schema enco
 		Groups:         opts.Groups,
 		ElideConstants: opts.ElideConstants,
 		RatioFloor:     opts.RatioFloor,
+		AppendShard:    p.appendShard,
 	}
 	if opts.Shards != nil {
 		if opts.Shards.MaxRecords <= 0 {
@@ -194,7 +219,12 @@ func (b *CohortBuilder) Append(row CohortRow) error {
 // instead cuts the rows into shard files staged in a directory beside
 // the target and publishes them with one CreateShardArchive call (its
 // errors are Close's, unchanged); the staging directory is removed
-// whatever the outcome. On any failure
+// whatever the outcome. For an anchored target it writes the rows as
+// one shard file staged beside the archive and calls AddShard once,
+// which rewrites the archive atomically: its errors — cohesion
+// (PULSE_SHARD_SCHEMA_MISMATCH, PULSE_SHARD_DICT_WIDTH_OVERFLOW, …) and
+// a name added meanwhile (PULSE_SHARD_NAME_COLLISION) — are Close's,
+// unchanged, and on failure the archive is left as it was. On any failure
 // nothing is left at the target (an overwritten cohort stays as it
 // was) and the spool is removed. The builder is finished either way: a
 // second Close returns SERVICE_RESOURCE.
@@ -227,6 +257,17 @@ func (b *CohortBuilder) Close() (*CohortBuildResult, error) {
 // left untouched. It is idempotent and a no-op after Close.
 func (b *CohortBuilder) Abort() error {
 	return b.inner.Abort()
+}
+
+// appendShard adds an anchored build's staged shard file to its
+// archive through AddShard and lifts the warnings, unchanged, into
+// coded findings.
+func (p *Pulse) appendShard(ctx context.Context, archive, shardPath string) ([]*errors.CodedError, error) {
+	res, err := p.AddShard(ctx, archive, shardPath)
+	if err != nil {
+		return nil, err
+	}
+	return cohesionFindings(res.Warnings), nil
 }
 
 // archiveShards publishes a sharded build's staged shard files through

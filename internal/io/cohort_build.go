@@ -64,6 +64,12 @@ type CohortBuildOptions struct {
 	// atomically (the facade wires Pulse.CreateShardArchive), returning
 	// its non-fatal warnings. Required when ShardMaxRecords > 0.
 	Archive func(ctx context.Context, target string, shardPaths []string) ([]*errors.CodedError, error)
+	// AppendShard adds one staged shard file to an EXISTING archive,
+	// atomically (the facade wires Pulse.AddShard; the entry name is
+	// the file's basename), returning its non-fatal warnings. Required
+	// for an anchored target (`archive.pulse#name.pulse`): the build is
+	// then ONE shard appended to that archive — see NewCohortBuild.
+	AppendShard func(ctx context.Context, archivePath, shardPath string) ([]*errors.CodedError, error)
 }
 
 // MaxBuildShards is the most shards one sharded build may write: the
@@ -97,8 +103,9 @@ type CohortBuildReport struct {
 	// Replaced reports that a cohort already existed at Target and was
 	// atomically replaced (Overwrite).
 	Replaced bool
-	// Shards names a sharded build's shard entries, in archive order.
-	// Nil for a single-file build.
+	// Shards names a sharded build's shard entries, in archive order,
+	// or the one entry an anchored (append) build added. Nil for a
+	// single-file build.
 	Shards []string
 }
 
@@ -130,8 +137,13 @@ type CohortBuild struct {
 	fs     afero.Fs
 	target string
 	opts   CohortBuildOptions
-	schema *encoding.Schema
-	warns  []*errors.CodedError
+	// archive / shard are an anchored target's halves: the build is
+	// one shard named shard appended to the existing archive. Both
+	// empty for a single-file or sharded build.
+	archive string
+	shard   string
+	schema  *encoding.Schema
+	warns   []*errors.CodedError
 
 	// Declared groups: the specs the width screen admitted, its views
 	// (one per declaration) and its warnings.
@@ -158,10 +170,21 @@ type CohortBuild struct {
 
 // NewCohortBuild validates target and schema and opens the spool.
 //
-// Refusals (SERVICE_VALIDATION unless noted): an empty target, an
-// anchored target (`archive.pulse#shard.pulse`), a `.zst` transfer
-// target, an existing target without Overwrite or a directory at the
-// target; a malformed schema (no fields, empty or duplicate names, an
+// An anchored target (`archive.pulse#name.pulse`) builds ONE shard and
+// Close hands it to AppendShard: the archive must already exist and be
+// a shard archive, name must be a new plain basename, and Overwrite,
+// Groups, ElideConstants and ShardMaxRecords are refused (the archive's
+// group layout wins; AddShard reconciles the shard to it). The spool
+// and staging live beside the archive.
+//
+// Refusals (SERVICE_VALIDATION unless noted): an empty target, a
+// `.zst` transfer target, an existing target without Overwrite or a
+// directory at the target; for an anchored target a missing archive
+// (no implicit create), a file that is not a shard archive, a
+// malformed shard name, an option the append refuses, a reserved
+// shard name (PULSE_SHARD_RESERVED_NAME), a name already in the
+// archive (PULSE_SHARD_NAME_COLLISION) and an unreadable archive (its
+// own code); a malformed schema (no fields, empty or duplicate names, an
 // unknown type, a bad decimal precision/scale, a pre-seeded dictionary
 // longer than its rung, parent groups in the schema); an over-long
 // description (PULSE_IMPORT_DESCRIPTION_TOO_LONG); under Strict a
@@ -172,11 +195,18 @@ func NewCohortBuild(ctx context.Context, fsys afero.Fs, target string, schema *e
 	if fsys == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "cohort build needs a filesystem")
 	}
-	if err := checkBuildTarget(fsys, target, opts.Overwrite); err != nil {
-		return nil, err
-	}
-	if err := checkShardOptions(target, opts); err != nil {
-		return nil, err
+	archive, shard, anchored := splitAnchor(target)
+	if anchored {
+		if err := checkAppendTarget(fsys, target, archive, shard, opts); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := checkBuildTarget(fsys, target, opts.Overwrite); err != nil {
+			return nil, err
+		}
+		if err := checkShardOptions(target, opts); err != nil {
+			return nil, err
+		}
 	}
 	written, warns, err := prepareBuildSchema(schema, opts.Strict)
 	if err != nil {
@@ -205,6 +235,8 @@ func NewCohortBuild(ctx context.Context, fsys afero.Fs, target string, schema *e
 		ctx:        ctx,
 		fs:         fsys,
 		target:     target,
+		archive:    archive,
+		shard:      shard,
 		opts:       opts,
 		schema:     written,
 		warns:      warns,
@@ -219,7 +251,7 @@ func NewCohortBuild(ctx context.Context, fsys afero.Fs, target string, schema *e
 	if written.HasBitmap() {
 		b.bitmap = make([]byte, written.BitmapByteSize())
 	}
-	dir, base := filepath.Dir(target), filepath.Base(target)
+	dir, base := b.stageDir()
 	spool, err := afero.TempFile(fsys, dir, base+buildSpoolPattern)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
@@ -239,14 +271,112 @@ func checkBuildTarget(fsys afero.Fs, target string, overwrite bool) error {
 	switch {
 	case target == "":
 		return invalid("empty_target", "cohort build target is empty")
-	case strings.Contains(target, "#"):
-		return invalid("anchored_target",
-			"an anchored target (archive.pulse#shard.pulse) is not a single-file cohort path")
 	case strings.HasSuffix(strings.ToLower(target), ".zst"):
 		return invalid("compressed_target",
 			"a .zst file is a transfer artifact, never a cohort: build the .pulse, then ExportTransfer it")
 	}
 	return checkTargetFree(fsys, target, overwrite)
+}
+
+// splitAnchor splits `archive.pulse#name.pulse` at the FIRST '#', as
+// every anchored read does.
+func splitAnchor(target string) (archive, shard string, ok bool) {
+	if archive, shard, ok = strings.Cut(target, "#"); !ok {
+		return "", "", false
+	}
+	return archive, shard, true
+}
+
+// checkAppendTarget refuses an anchored (append-one-shard) build the
+// archive cannot take: the options an append does not admit, a
+// malformed or reserved shard name, a missing archive (never created
+// implicitly), a directory or single-file cohort in its place, and a
+// shard name the archive already holds. AddShard re-checks the name
+// at Close, so a shard added meanwhile is still refused.
+func checkAppendTarget(fsys afero.Fs, target, archive, shard string, opts CohortBuildOptions) error {
+	invalid := func(reason, msg string, extra map[string]any) error {
+		details := map[string]any{"target": target, "reason": reason}
+		for k, v := range extra {
+			details[k] = v
+		}
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION, msg, details)
+	}
+	for _, o := range []struct {
+		name string
+		set  bool
+	}{
+		{"Overwrite", opts.Overwrite},
+		{"Groups", len(opts.Groups) > 0},
+		{"ElideConstants", opts.ElideConstants},
+		{"Shards", opts.ShardMaxRecords != 0},
+	} {
+		if o.set {
+			return invalid("append_option",
+				fmt.Sprintf("%s does not apply to an anchored target: the build appends one new shard and the archive's layout wins", o.name),
+				map[string]any{"option": o.name})
+		}
+	}
+	if opts.AppendShard == nil {
+		return invalid("append_option", "an anchored build needs a shard publisher", nil)
+	}
+	switch {
+	case archive == "" || shard == "":
+		return invalid("anchored_target",
+			"an anchored target must name an archive and a shard: archive.pulse#name.pulse", nil)
+	case shard != filepath.Base(shard) || strings.ContainsAny(shard, `/\#`) || shard == "." || shard == "..":
+		return invalid("invalid_shard_name",
+			fmt.Sprintf("shard name %q must be a plain file name", shard), map[string]any{"shard": shard})
+	case strings.HasSuffix(strings.ToLower(archive), ".zst") || strings.HasSuffix(strings.ToLower(shard), ".zst"):
+		return invalid("compressed_target",
+			"a .zst file is a transfer artifact, never a cohort or a shard", nil)
+	case shard == encx.ReservedSchemaName:
+		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
+			fmt.Sprintf("cannot add a shard with the reserved basename %q", encx.ReservedSchemaName),
+			map[string]any{"basename": shard, "target": target})
+	}
+	st, err := fsys.Stat(archive)
+	if err != nil {
+		return invalid("archive_not_found",
+			fmt.Sprintf("archive %s does not exist; an anchored target appends to an existing archive (build a new one with ShardSplit)", archive),
+			map[string]any{"archive": archive})
+	}
+	if st.IsDir() {
+		return invalid("target_is_directory", fmt.Sprintf("archive %s is a directory", archive),
+			map[string]any{"archive": archive})
+	}
+	f, err := fsys.Open(archive)
+	if err != nil {
+		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, fmt.Sprintf("opening archive %s", archive))
+	}
+	defer func() { _ = f.Close() }()
+	if isArch, err := encx.IsArchive(f, st.Size()); err != nil || !isArch {
+		return invalid("not_an_archive",
+			fmt.Sprintf("%s is not a shard archive; only an archive takes an anchored append", archive),
+			map[string]any{"archive": archive})
+	}
+	arch, err := encx.OpenArchive(f, st.Size())
+	if err != nil {
+		return err
+	}
+	for _, e := range arch.Entries() {
+		if e.Name == shard {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_NAME_COLLISION,
+				fmt.Sprintf("archive already contains a shard named %q", shard),
+				map[string]any{"basename": shard, "target": target})
+		}
+	}
+	return nil
+}
+
+// stageDir is where the spool and staging go: beside the archive for
+// an anchored build, beside the target otherwise. base prefixes their
+// names.
+func (b *CohortBuild) stageDir() (dir, base string) {
+	path := b.target
+	if b.archive != "" {
+		path = b.archive
+	}
+	return filepath.Dir(path), filepath.Base(path)
 }
 
 // checkShardOptions refuses a negative shard size and a sharded build
@@ -515,10 +645,13 @@ func (b *CohortBuild) Close() (*CohortBuildReport, error) {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
 			fmt.Sprintf("flushing build spool for %s", b.target))
 	}
-	if err := checkTargetFree(b.fs, b.target, b.opts.Overwrite); err != nil {
-		return nil, err
+	replaced := false
+	if b.archive == "" {
+		if err := checkTargetFree(b.fs, b.target, b.opts.Overwrite); err != nil {
+			return nil, err
+		}
+		replaced, _ = afero.Exists(b.fs, b.target)
 	}
-	replaced, _ := afero.Exists(b.fs, b.target)
 	lay, err := b.finalLayout()
 	if err != nil {
 		return nil, err
@@ -527,9 +660,13 @@ func (b *CohortBuild) Close() (*CohortBuildReport, error) {
 		shards     []string
 		shardWarns []*errors.CodedError
 	)
-	if b.opts.ShardMaxRecords > 0 {
+	switch {
+	case b.archive != "":
+		shardWarns, err = b.publishAppend(lay.schema, lay.payload)
+		shards = []string{b.shard}
+	case b.opts.ShardMaxRecords > 0:
 		shards, shardWarns, err = b.publishArchive(lay.schema, lay.payload)
-	} else {
+	default:
 		err = b.publish(lay.schema, lay.payload)
 	}
 	if err != nil {
@@ -614,7 +751,7 @@ func (b *CohortBuild) finalLayout() (*buildLayout, error) {
 	if err != nil {
 		return nil, err
 	}
-	dir, base := filepath.Dir(b.target), filepath.Base(b.target)
+	dir, base := b.stageDir()
 	phys, err := afero.TempFile(b.fs, dir, base+buildPhysPattern)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
@@ -737,6 +874,32 @@ func (b *CohortBuild) publishArchive(schema *encoding.Schema, payload io.Reader)
 		return nil, nil, err
 	}
 	return names, warns, nil
+}
+
+// publishAppend writes every record as ONE standalone shard file named
+// for the anchor's shard, staged in a directory beside the archive, and
+// hands it to AppendShard, which rewrites the archive atomically —
+// reconciling the shard to the archive's canonical schema (dictionary
+// union, set widening, group layout) and returning the mandatory
+// PULSE_SHARD_* warnings. Its errors (cohesion included) are returned
+// unchanged. The staging directory is removed whatever the outcome.
+func (b *CohortBuild) publishAppend(schema *encoding.Schema, payload io.Reader) ([]*errors.CodedError, error) {
+	dir, base := b.stageDir()
+	stage, err := afero.TempDir(b.fs, dir, base+buildShardsPrefix)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("creating shard staging directory beside %s", b.archive))
+	}
+	defer func() { _ = b.fs.RemoveAll(stage) }()
+	path := filepath.Join(stage, b.shard)
+	in := ctxReader{ctx: b.ctx, r: bufio.NewReaderSize(payload, buildIOBuffer)}
+	if err := b.writeShard(path, schema, in, b.records*int64(schema.RecordByteSize())); err != nil {
+		return nil, err
+	}
+	if err := b.ctx.Err(); err != nil {
+		return nil, err
+	}
+	return b.opts.AppendShard(b.ctx, b.archive, path)
 }
 
 // writeShard writes one staged shard: preamble(schema) then exactly

@@ -474,6 +474,75 @@ func TestCohortBuilderShardedFlow(t *testing.T) {
 	}
 }
 
+// TestCohortBuilderAppendShardFlow builds a shard archive (ShardSplit),
+// then appends a monthly drop to it through an anchored target —
+// a new categorical label union-merges — and reads every row back
+// through the archive and the drop alone through the anchor. An anchor
+// onto a missing archive is refused: an append never creates one.
+func TestCohortBuilderAppendShardFlow(t *testing.T) {
+	schema := encoding.Schema{Fields: []encoding.Field{
+		{Name: "a", Type: encoding.FieldTypeU16, Description: "Small counter a."},
+		{Name: "tier", Type: encoding.FieldTypeCategoricalU8, Description: "Customer tier label."},
+	}}
+	p, _ := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	build := func(target string, opts pulse.CohortBuilderOptions, rows []pulse.CohortRow) *pulse.CohortBuildResult {
+		t.Helper()
+		b, err := p.NewCohortBuilder(ctx, target, schema, opts)
+		if err != nil {
+			t.Fatalf("NewCohortBuilder(%s): %v", target, err)
+		}
+		for _, r := range rows {
+			if err := b.Append(r); err != nil {
+				t.Fatalf("Append: %v", err)
+			}
+		}
+		res, err := b.Close()
+		if err != nil {
+			t.Fatalf("Close(%s): %v", target, err)
+		}
+		return res
+	}
+	var old, drop []pulse.CohortRow
+	for i := 0; i < 20; i++ {
+		old = append(old, pulse.CohortRow{uint64(i), []string{"gold", "silver"}[i%2]})
+	}
+	for i := 0; i < 5; i++ {
+		drop = append(drop, pulse.CohortRow{uint64(100 + i), []string{"platinum", "gold"}[i%2]})
+	}
+	if _, err := p.NewCohortBuilder(ctx, "missing.pulse#2026-10.pulse", schema, pulse.CohortBuilderOptions{}); !perrors.HasCode(err, perrors.SERVICE_VALIDATION) {
+		t.Fatalf("anchor onto a missing archive = %v, want SERVICE_VALIDATION", err)
+	}
+	build("arch.pulse", pulse.CohortBuilderOptions{Shards: &pulse.ShardSplit{MaxRecords: 10}}, old)
+	res := build("arch.pulse#2026-10.pulse", pulse.CohortBuilderOptions{}, drop)
+	if res.Records != 5 || len(res.Shards) != 1 || res.Shards[0] != "2026-10.pulse" {
+		t.Fatalf("append result = %+v", res)
+	}
+	check := func(target string, want []pulse.CohortRow) {
+		t.Helper()
+		c, err := p.Open(ctx, target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := c.Reader()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		if r.Len() != int64(len(want)) {
+			t.Fatalf("%s: Len = %d, want %d", target, r.Len(), len(want))
+		}
+		for i, w := range want {
+			got, err := r.RecordAt(int64(i))
+			if err != nil || got[0] != w[0] || got[1] != w[1] {
+				t.Fatalf("%s: RecordAt(%d) = %v, %v; want %v", target, i, got, err, w)
+			}
+		}
+	}
+	check("arch.pulse", append(append([]pulse.CohortRow(nil), old...), drop...))
+	check("arch.pulse#2026-10.pulse", drop)
+}
+
 // TestCohortBuilderGroupedFlow builds a grouped, constant-elided
 // cohort through the public builder and checks it is byte-identical to
 // an explicit-schema import with the same --group / --elide-constants,
