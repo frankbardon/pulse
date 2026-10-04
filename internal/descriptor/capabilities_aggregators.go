@@ -583,7 +583,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_RATIO),
 			Category:    "aggregator",
-			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN.",
+			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
 			Params: []descriptor.Param{
 				{
 					Name:        "numerator_field",
@@ -606,12 +606,12 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			// fine there because none of them is read.
 			IgnoresField:  true,
 			AcceptsTypes:  allCohortFieldTypes,
-			EmitsTypeNote: "scalar float64 (NaN when denominator sum == 0)",
+			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when denominator sum == 0)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "numerator", Type: "float64", Description: "Running sum of the numerator field (weighted slot: of weight * numerator)."},
 				descriptor.ComponentKey{Name: "denominator", Type: "float64", Description: "Running sum of the denominator field (weighted slot: of weight * denominator)."},
-				descriptor.ComponentKey{Name: "ratio", Type: "float64", Description: "Resolved ratio: numerator / denominator (NaN when denominator is zero)."},
+				descriptor.ComponentKey{Name: "ratio", Type: "float64", Description: "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."},
 			),
 		},
 		{
@@ -635,7 +635,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
-			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
+			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when n < 2)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Welford-running mean of the field."},
@@ -666,7 +666,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
-			EmitsTypeNote: "scalar float64 (NaN when n < 2)",
+			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when n < 2)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Welford-running mean of the field."},
@@ -681,7 +681,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:      "aggregator",
 			Description:   "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
 			AcceptsTypes:  numericFieldTypesStrictScalar,
-			EmitsTypeNote: "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+			EmitsTypeNote: "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},

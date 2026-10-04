@@ -24,7 +24,7 @@ examples_tags: [hypothesis-test, streaming-friendly]
 
 ## Output
 
-Scalar `float64` — lower CI bound. NaN when `n < 2`.
+Scalar `float64` — lower CI bound. NaN when `n < 2` (`null` in JSON).
 
 ## Components
 

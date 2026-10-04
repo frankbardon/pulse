@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"math"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -162,10 +159,11 @@ func assertWeightedLayers(t *testing.T, kinds []types.OverlayKind, got, want, ra
 		if len(got[i].Warnings) != 0 {
 			t.Errorf("%s: unexpected warnings %v", k, got[i].Warnings)
 		}
-		if where := overlayMismatch(string(k), reflect.ValueOf(got[i]), reflect.ValueOf(want[i]), true); where != "" {
-			t.Errorf("weighted layer differs from the expanded cohort's at %s", where)
-		}
-		if overlayMismatch(string(k), reflect.ValueOf(got[i].Payload), reflect.ValueOf(raw[i].Payload), false) == "" {
+		// Compared on the WIRE form: an undefined entry (INDEX_VS_PRIOR's
+		// first, an unfilled rolling window) is NaN in Go and null in
+		// JSON, so the layer must marshal for the comparison to run.
+		compareJSONClose(t, string(k), toJSONValue(t, got[i]), toJSONValue(t, want[i]))
+		if bytes.Equal(mustMarshal(t, got[i].Payload), mustMarshal(t, raw[i].Payload)) {
 			t.Errorf("%s: the weighted layer equals the unweighted one — the weight never reached it", k)
 		}
 	}
@@ -249,69 +247,4 @@ func TestWeightComposeIndexOverlaysReadWeightedSlots(t *testing.T) {
 			}
 		})
 	}
-}
-
-// overlayMismatch walks two overlay values and returns the path of the
-// first difference, "" when equal. Floats compare within parityClose
-// when tolerant, exactly otherwise; NaN equals NaN (an undefined entry —
-// INDEX_VS_PRIOR's first, a short rolling window — is NaN on both
-// sides). The walk is reflective because an undefined NaN entry does
-// not survive encoding/json.
-func overlayMismatch(where string, a, b reflect.Value, tolerant bool) string {
-	if a.Kind() != b.Kind() {
-		return where
-	}
-	switch a.Kind() {
-	case reflect.Pointer, reflect.Interface:
-		if a.IsNil() || b.IsNil() {
-			if a.IsNil() != b.IsNil() {
-				return where
-			}
-			return ""
-		}
-		return overlayMismatch(where, a.Elem(), b.Elem(), tolerant)
-	case reflect.Struct:
-		for i := 0; i < a.NumField(); i++ {
-			if w := overlayMismatch(where+"."+a.Type().Field(i).Name, a.Field(i), b.Field(i), tolerant); w != "" {
-				return w
-			}
-		}
-	case reflect.Slice, reflect.Array:
-		if a.Len() != b.Len() {
-			return where + ".len"
-		}
-		for i := 0; i < a.Len(); i++ {
-			if w := overlayMismatch(fmt.Sprintf("%s[%d]", where, i), a.Index(i), b.Index(i), tolerant); w != "" {
-				return w
-			}
-		}
-	case reflect.Map:
-		if a.Len() != b.Len() {
-			return where + ".len"
-		}
-		for _, k := range a.MapKeys() {
-			bv := b.MapIndex(k)
-			if !bv.IsValid() {
-				return fmt.Sprintf("%s[%v]", where, k)
-			}
-			if w := overlayMismatch(fmt.Sprintf("%s[%v]", where, k), a.MapIndex(k), bv, tolerant); w != "" {
-				return w
-			}
-		}
-	case reflect.Float32, reflect.Float64:
-		x, y := a.Float(), b.Float()
-		switch {
-		case math.IsNaN(x) || math.IsNaN(y):
-			if math.IsNaN(x) != math.IsNaN(y) {
-				return where
-			}
-		case tolerant && !parityClose(x, y), !tolerant && x != y:
-			return fmt.Sprintf("%s (%v vs %v)", where, x, y)
-		}
-	default:
-		if fmt.Sprint(a.Interface()) != fmt.Sprint(b.Interface()) {
-			return fmt.Sprintf("%s (%v vs %v)", where, a.Interface(), b.Interface())
-		}
-	}
-	return ""
 }

@@ -789,15 +789,6 @@ func TestWeightCrosstabFusedMatchesBuffered(t *testing.T) {
 			t.Run(v.name+"/"+string(row.op), func(t *testing.T) {
 				for _, src := range crosstabSources() {
 					t.Run(src.name, func(t *testing.T) {
-						if row.op == types.AGG_RATIO && src.kind == types.WeightKindFrequency && v.name != "margins" && v.name != "normalize_total" {
-							// A partial-depth cell holding only zero-weight
-							// rows has Σw·den = 0, and AGG_RATIO answers 0/0 =
-							// NaN — exactly as an unweighted all-zero
-							// denominator does — which encoding/json refuses
-							// on BOTH arms. A pre-existing wire hazard, not an
-							// arm divergence; the probability arms cover it.
-							t.Skip("AGG_RATIO 0/0 partial-depth cell is NaN on both arms and does not marshal")
-						}
 						store := stores[src.kind]
 						build := func(op types.AggregationType) *types.Request {
 							req := crosstabParityRequest(store.paths[paritySingleFile], row, op)

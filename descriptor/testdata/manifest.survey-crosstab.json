@@ -431,7 +431,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -2193,4 +2193,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ed929ed35ab70a3aff53508268506a1294f9e208f03d8d19395993e34ea1cdb6
+// golden-hash: bd7abb9288adc160023a75de9ce76966a000b251b827d31b8f1c5590c08207d2

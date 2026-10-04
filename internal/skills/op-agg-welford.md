@@ -23,7 +23,7 @@ Weight: honours a resolved row weight (`weight` on the request or slot, or `Opti
 
 ## Output
 
-Scalar `float64` — running mean (NaN no rows). Rich: `WelfordTriple{Mean, Variance, N}` via `RichAggregator`.
+Scalar `float64` — running mean (NaN no rows; `null` in JSON). Rich: `WelfordTriple{Mean, Variance, N}` via `RichAggregator`.
 
 ## Components
 

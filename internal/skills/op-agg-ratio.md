@@ -21,7 +21,7 @@ Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. A `decimal128` nu
 
 ## Output
 
-Scalar `float64` — `sum(num) / sum(den)`. NaN when the denominator sum is 0 (not Inf, not an error).
+Scalar `float64` — `sum(num) / sum(den)`. Den sum 0 (incl. all-zero weights) → NaN in Go, `null` in JSON; not an error.
 
 ## Components
 
@@ -31,7 +31,7 @@ Floor `{n, n_null}` (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`) p
 |---|---|---|
 | `numerator` | float64 | Running num sum |
 | `denominator` | float64 | Running den sum |
-| `ratio` | float64 | Resolved ratio (NaN if den==0) |
+| `ratio` | float64 | Resolved ratio (`null` if den==0) |
 
 `Mergeable` (two independent sums); streams per chunk.
 

@@ -8,12 +8,25 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	perrors "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
 )
 
 func writeJSON(w io.Writer, data any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(data)
+	return encodeFinite(enc, data)
+}
+
+// encodeFinite writes v through enc under the wire rule for undefined
+// figures: a non-finite float is JSON null (types.MarshalFinite), never
+// a `json: unsupported value` failure. Output holding no non-finite
+// float is byte-identical to enc.Encode(v).
+func encodeFinite(enc *json.Encoder, v any) error {
+	body, err := types.MarshalFinite(v)
+	if err != nil {
+		return err
+	}
+	return enc.Encode(json.RawMessage(body))
 }
 
 func writeEnvelope(w io.Writer, data any) error {

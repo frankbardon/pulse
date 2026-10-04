@@ -81,7 +81,9 @@ type ratioParams struct {
 // independent + associative, so MergeOnline is trivial. Null on either
 // field skips that row's contribution to BOTH sums to keep the ratio
 // honest. Denominator-zero at finalize emits NaN (consistent with
-// IEEE-754 0/0); callers can detect via math.IsNaN.
+// IEEE-754 0/0); callers can detect via math.IsNaN. On the JSON wire the
+// undefined ratio — scalar and components alike — is null
+// (types.MarshalFinite), so it never fails the response.
 //
 // Weighted (a slot weight applied, weighting-descriptive E2-S2): each
 // contributing row adds w·num and w·den, so the figure is
@@ -210,7 +212,8 @@ func (a *ratioAggregator) freeze(scalar float64) {
 // Zero-denominator: when sum(den) collapses to zero (every input row
 // filtered out, or every row's den == 0), the scalar return is NaN
 // (consistent with IEEE-754 0/0) and the frozen ratio mirror preserves
-// that NaN. Numerator and denominator surface their raw running sums
+// that NaN (null on the JSON wire, types.MarshalFinite). Numerator and
+// denominator surface their raw running sums
 // (numerator may be > 0 with denominator == 0 when the den field is
 // null on contributing rows — in that case the row is skipped from
 // BOTH sums and neither moves, so frozen num + den both end at 0).
@@ -394,7 +397,8 @@ func (a *ciAggregator) MergeOnline(other OnlineAggregator) error {
 // and Finalize both fall through to — so Components survives the
 // streaming Finalize-reset on (n, mean, m2). NaN bound (n < 2) is
 // preserved as NaN in the components map so consumers can detect the
-// degenerate case without re-deriving from the floor.
+// degenerate case without re-deriving from the floor; the JSON wire
+// writes it (and the NaN scalar) as null (types.MarshalFinite).
 //
 // t_critical surfaces the normal quantile (z) actually used to scale
 // the standard error; the schema name preserves the analyst-facing

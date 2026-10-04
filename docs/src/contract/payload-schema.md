@@ -200,6 +200,31 @@ and present only when a weight was applied to that slot, so an
 unweighted response is unchanged. `n` and `n_null` keep their
 value-presence meaning.
 
+## Undefined figures
+
+A result figure can be undefined even when every input is present — a
+ratio over an all-zero denominator, a confidence bound under two rows,
+the first entry of an index-vs-prior series, a rolling window that has
+not filled. The engine's Go results carry NaN there; JSON has no NaN,
+so every JSON surface writes the figure as **`null` in place, key
+kept** (`types.MarshalFinite`), and the rest of the response serialises
+normally. `null` means "reported, undefined here"; an absent optional
+key keeps meaning "not reported for this kind".
+
+The schema says so: every float slot on a result-only def —
+`TestResult`, `RegressionResult`, `OverlaySummary`, the
+`OverlayPayload.scalar` arm, `FacetNumeric`, `FacetHistogram` and the
+weighted floor's `sum_weights` / `n_eff` on `AggregationComponents` —
+is `"type": ["number", "null"]`. The open slots (`data` rows,
+components operator maps, matrix cell `value`) already admit `null`.
+Request floats stay `"number"`: a decoded request never carries a
+non-finite float.
+
+Widening those slots did not move `format_version` (still `"1.1"`):
+every document the schema accepted before it still accepts, and output
+that serialised before is byte-identical — the only outputs that
+change are ones that previously failed to serialise at all.
+
 ## Whether a crosstab fuses is a predict answer
 
 The schema cannot tell you which arm the engine will build a crosstab

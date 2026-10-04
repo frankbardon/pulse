@@ -89,7 +89,7 @@ func apiProcessCmd() *cli.Command {
 					if !ok {
 						return nil
 					}
-					if err := enc.Encode(row); err != nil {
+					if err := encodeFinite(enc, row); err != nil {
 						return err
 					}
 				}
@@ -255,7 +255,7 @@ func apiComposeCmd() *cli.Command {
 							continue
 						}
 						for _, row := range sub.Data {
-							if err := enc.Encode(map[string]any{"index": i, "row": row}); err != nil {
+							if err := encodeFinite(enc, map[string]any{"index": i, "row": row}); err != nil {
 								return err
 							}
 						}

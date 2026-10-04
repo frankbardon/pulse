@@ -450,7 +450,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (NaN when n \u003c 2)",
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when n \u003c 2)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -529,7 +529,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (NaN when n \u003c 2)",
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when n \u003c 2)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1424,7 +1424,7 @@
         {
           "name": "AGG_RATIO",
           "category": "aggregator",
-          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN.",
+          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
           "params": [
             {
               "name": "numerator_field",
@@ -1464,7 +1464,7 @@
             "u8"
           ],
           "ignores_field": true,
-          "emits_type_note": "scalar float64 (NaN when denominator sum == 0)",
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when denominator sum == 0)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1509,7 +1509,7 @@
               {
                 "name": "ratio",
                 "type": "float64",
-                "description": "Resolved ratio: numerator / denominator (NaN when denominator is zero)."
+                "description": "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."
               }
             ],
             "mergeability": "mergeable"
@@ -2251,7 +2251,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -9150,7 +9150,7 @@
           "Prior"
         ],
         "buffered": false,
-        "description": "Per-point windowed index against the immediately preceding point of an ordered SERIES (grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable windowed-Process overlay in the catalog and the first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize is the divide step. First present point emits NaN (no prior available — not a zero-denominator path, so no warning). Zero prior value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1; non-zero Lag is reserved for future window-N priors) or an entirely empty Ref (the implicit-default authoring shape); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the lag carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on baseline=100.",
+        "description": "Per-point windowed index against the immediately preceding point of an ordered SERIES (grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable windowed-Process overlay in the catalog and the first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize is the divide step. First present point emits NaN, null in JSON (no prior available — not a zero-denominator path, so no warning). Zero prior value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1; non-zero Lag is reserved for future window-N priors) or an entirely empty Ref (the implicit-default authoring shape); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the lag carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on baseline=100.",
         "intents": [
           "change_over_time"
         ]
@@ -9184,7 +9184,7 @@
           "RollingMean"
         ],
         "buffered": true,
-        "description": "Per-point windowed index against the arithmetic mean of the W immediately preceding points of an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE, and the first kind to consume the Ref.RollingMean arm of the OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see skills/window-design.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family — the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). Window-fill semantics: the first W present ordinals all emit NaN without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. Zero rolling-mean value (every prior point in the window was zero) emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — the ring buffer carries the full window of present values, larger than the single-state lag accumulator INDEX_VS_PRIOR uses, so the streaming Process pass cannot maintain it inline with the per-record fold today. Renderers centre diverging colour ramps on baseline=100 (mirrors OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_TOTAL / OVERLAY_INDEX_VS_SIBLING / OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE).",
+        "description": "Per-point windowed index against the arithmetic mean of the W immediately preceding points of an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE, and the first kind to consume the Ref.RollingMean arm of the OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see skills/window-design.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family — the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). Window-fill semantics: the first W present ordinals all emit NaN (null in JSON) without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. Zero rolling-mean value (every prior point in the window was zero) emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — the ring buffer carries the full window of present values, larger than the single-state lag accumulator INDEX_VS_PRIOR uses, so the streaming Process pass cannot maintain it inline with the per-record fold today. Renderers centre diverging colour ramps on baseline=100 (mirrors OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_TOTAL / OVERLAY_INDEX_VS_SIBLING / OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE).",
         "intents": [
           "change_over_time"
         ]
@@ -10290,7 +10290,7 @@
             {
               "name": "ratio",
               "type": "float64",
-              "description": "Resolved ratio: numerator / denominator (NaN when denominator is zero)."
+              "description": "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."
             }
           ],
           "mergeability": "mergeable"
@@ -11382,4 +11382,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 271331ef488af9c1210974e6c9588d55427aa254e58adbdc9ace72e2acaafcc5
+// golden-hash: c3245989591a602ba9127350827ff212d15854b446c47d0392cbba7e0cd055cb

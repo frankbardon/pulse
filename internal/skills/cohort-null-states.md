@@ -4,7 +4,7 @@ description: How a .pulse cohort stores absence — the per-record null bitmap, 
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
-covers: [nullability, null bitmap, set fields, categorical, empty mask, null promotion]
+covers: [nullability, null bitmap, set fields, categorical, empty mask, null promotion, undefined figures]
 ---
 
 # Cohort null states
@@ -37,3 +37,7 @@ The bitmap is the sole null mechanism. No type has an inline sentinel — `decim
 One marker (a bare `|`, the default set delimiter) serves every format, so the convention cannot drift between them, and it survives a third-party round trip because it is ordinary cell text — unlike CSV's `,,` versus `,"",`, a spreadsheet has nothing to normalise away. It works because `isNullToken` does not recognise `\|` and the token splitter drops empty tokens, so `\|` yields zero tokens and no dictionary entry. Widening the null-token set to cover a lone delimiter, or retaining empty tokens, re-collapses the two states SILENTLY — both spellings keep importing and only the meaning changes.
 
 **`categorical_*` has the same pair — an empty-string VALUE and a null — and no marker can carry it**, because any text is a legal categorical value. It rides an out-of-band channel instead: the export row spells a null `nil` and an empty value `""` (`io.NullAwareWriter`), and a source declares its own nulls per row (`io.NullAwareReader`). `ndjson` / `jsonarray` / `arrow` / `parquet` carry both states; `csv` / `tsv` / `excel` have one spelling for an absent value and read BOTH back as **null** — a documented gap, asserted in `internal/io/nullcell/`, never a silent one. A blank cell in a non-dictionary column (`u32`, `date`, …) is a null on every format.
+
+## Undefined figures in results
+
+A result figure can be UNDEFINED even when every input is present: a ratio over an all-zero denominator (including a crosstab cell whose rows all carry weight 0), a CI bound under two rows, an index-vs-prior series' first entry, an unfilled rolling window. In Go it is NaN (test `math.IsNaN`); on every JSON surface — `--json` envelopes, `--stream` NDJSON rows, MCP tool results, an embedder's own `json.Marshal` of a result type — it is `null` in place, key kept, and the rest of the response serialises normally. Absent still means "not reported for this kind"; `null` means "reported, undefined here". For an untyped fragment (a streamed row) use `types.MarshalFinite`.

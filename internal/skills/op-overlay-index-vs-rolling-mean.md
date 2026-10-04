@@ -27,7 +27,8 @@ SERIES — one `SeriesEntry` per host group key in host order carrying `index = 
 
 - Carrier: Welford `(count, mean, M2)` trio in a W-wide per-group ring buffer; M2 is reserved so the rolling z-score reads SD off it.
 - Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window <= 0` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
-- First W present ordinals → NaN, no warning (window unfilled). Absent host point → NaN, ring does NOT advance. Zero rolling mean → NaN + ONE `PULSE_OVERLAY_REF_ZERO`.
+- NaN entries are `statistic: null` in JSON.
+- First W present ordinals → NaN, no warning (window unfilled). Absent host point → no `statistic` key, ring does NOT advance. Zero rolling mean → NaN + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Buffered — the ring buffer widens streaming-fold state past v1's single-state lag.
 - Weighted host → weighted figure (reads the host payload).
 

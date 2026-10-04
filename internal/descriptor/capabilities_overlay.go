@@ -719,7 +719,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state " +
 				"lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process " +
 				"fold (no second pass over records); the post-host finalize is the divide step. First present " +
-				"point emits NaN (no prior available — not a zero-denominator path, so no warning). Zero prior " +
+				"point emits NaN, null in JSON (no prior available — not a zero-denominator path, so no warning). Zero prior " +
 				"value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a " +
 				"present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier " +
 				"— the next present point compares against the most recent PRESENT value. Ref accepts either " +
@@ -822,7 +822,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"— the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W " +
 				"most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the " +
 				"OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). " +
-				"Window-fill semantics: the first W present ordinals all emit NaN without warning — \"window not yet " +
+				"Window-fill semantics: the first W present ordinals all emit NaN (null in JSON) without warning — \"window not yet " +
 				"filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports " +
 				"(0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring " +
 				"buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. " +
