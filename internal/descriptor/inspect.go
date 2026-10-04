@@ -30,8 +30,30 @@ const DefaultDictionaryLimit = 100
 // RecordCount populated by peeking each shard's header; the
 // envelope-level RecordCount is the cumulative sum across shards.
 func Inspect(fileData io.ReadSeeker, opts *descriptor.InspectOptions) *descriptor.Envelope {
+	return InspectWith(fileData, opts, InspectMetadata{})
+}
+
+// InspectMetadata carries the facts about a cohort that sit BESIDE its
+// bytes rather than in them — read by the caller (the facade, from the
+// cohort's sidecars through its afero.Fs) and judged here against the
+// schema. Inspect itself never opens a file: it is handed a stream.
+type InspectMetadata struct {
+	// WeightVariable is the weighting variable the cohort's SPSS
+	// metadata sidecar records ("" when there is no sidecar, the
+	// sidecar is unreadable or stale, or it names no weight).
+	WeightVariable string
+	// Instance is the instance feature set. With capability:weighting
+	// hidden no suggestion is reported. Nil hides nothing.
+	Instance *InstanceSnapshot
+}
+
+// InspectWith is Inspect plus the cohort's sidecar metadata: it reports
+// InspectResult.SuggestedWeight through SuggestWeight against the
+// schema just read (the canonical schema for an archive). Still no
+// record is read.
+func InspectWith(fileData io.ReadSeeker, opts *descriptor.InspectOptions, meta InspectMetadata) *descriptor.Envelope {
 	if data, ok := sniffArchive(fileData); ok {
-		return inspectArchive(data, opts)
+		return inspectArchive(data, opts, meta)
 	}
 	if opts == nil {
 		opts = &descriptor.InspectOptions{}
@@ -74,6 +96,7 @@ func Inspect(fileData io.ReadSeeker, opts *descriptor.InspectOptions) *descripto
 	for i, f := range schema.Fields {
 		result.Fields[i] = renderInspectField(f, limit)
 	}
+	result.SuggestedWeight = SuggestWeight(schema, meta.WeightVariable, meta.Instance)
 
 	// Record count for a single-file cohort is derivable from the bytes
 	// remaining after the header + schema — no record is read. The
@@ -183,7 +206,7 @@ func inspectFromBytes(data []byte, opts *descriptor.InspectOptions) *descriptor.
 // record counts. The result schema and dictionaries match the
 // canonical entry (single source of truth); the truncated dictionary
 // limit applies as for single-file cohorts.
-func inspectArchive(data []byte, opts *descriptor.InspectOptions) *descriptor.Envelope {
+func inspectArchive(data []byte, opts *descriptor.InspectOptions, meta InspectMetadata) *descriptor.Envelope {
 	if opts == nil {
 		opts = &descriptor.InspectOptions{}
 	}
@@ -228,6 +251,7 @@ func inspectArchive(data []byte, opts *descriptor.InspectOptions) *descriptor.En
 	for i, f := range schema.Fields {
 		result.Fields[i] = renderInspectField(f, limit)
 	}
+	result.SuggestedWeight = SuggestWeight(schema, meta.WeightVariable, meta.Instance)
 
 	// Enumerate shard entries (excluding the reserved schema) and peek
 	// each one for the authoritative per-shard record count.

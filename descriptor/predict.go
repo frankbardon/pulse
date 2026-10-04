@@ -189,6 +189,12 @@ type PredictResult struct {
 	// the instance name no weight at all, so an unweighted request's
 	// predict output is unchanged.
 	Weights []ResolvedWeight `json:"weights,omitempty"`
+
+	// SuggestedWeight echoes inspect's suggested_weight as DATA (never
+	// a warning, so strict mode is unaffected) when no slot resolves a
+	// weight field. Never applied. Omitted when there is nothing to
+	// suggest, a weight resolves, or the instance hides row weighting.
+	SuggestedWeight *SuggestedWeight `json:"suggested_weight,omitempty"`
 }
 
 // Zone-resolution sources reported on ResolvedZone.Source.

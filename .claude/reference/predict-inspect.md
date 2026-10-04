@@ -1,6 +1,6 @@
 # Predict / Inspect — the no-execute contracts
 
-Relocated from CLAUDE.md (section `### Predict / Inspect contracts`). CLAUDE.md keeps the always-load half inline — the structural import ban, the header-only rule, the streamability mirror, and the fact that `CountRecords` is header-fast. Everything below is the long form it points at.
+Relocated from CLAUDE.md (section `### Predict / Inspect contracts`). CLAUDE.md keeps the always-load half inline — the structural import ban, the no-record inspect rule (header + schema + sidecar metadata), the streamability mirror, and the fact that `CountRecords` is header-fast. Everything below is the long form it points at.
 
 **Load it before changing `internal/descriptor/predict.go`, `internal/descriptor/inspect.go`, `Pulse.Inspect` / `Pulse.InspectEnvelope`, `mcp.InspectOut` / `HandleInspect`, the `pulse cohort inspect` leaf, or `pulse.CountRecords`.** All four surfaces answer the same question over the same bytes and the failure mode they share is SILENT: a floored or truncated count is indistinguishable on the wire from an honest one.
 
@@ -8,7 +8,7 @@ Relocated from CLAUDE.md (section `### Predict / Inspect contracts`). CLAUDE.md 
 
 ## Inspect — the envelope is the only way to see a truncated tail
 
-`descriptor.Inspect` reads only `encoding.ReadHeader` + `encoding.ReadSchema`, never a record. Dictionaries are truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`.
+`descriptor.Inspect` reads only `encoding.ReadHeader` + `encoding.ReadSchema`, never a record. Dictionaries are truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`. **The contract is "header + schema + sidecar metadata, never records"** (amended at weighting-descriptive E4-S3): the path-based facade also reads the cohort's SPSS metadata sidecar for the suggested weight — see "Suggested weight" below. Metadata beside the cohort is not a record.
 
 `InspectResult.RecordCount` is derived from the file LENGTH, never by reading a record — the cumulative per-shard sum for an archive, that shard's own count for an `archive.pulse#shard.pulse` anchor, and `payload_bytes / record_stride` for a single file.
 
@@ -21,6 +21,17 @@ Relocated from CLAUDE.md (section `### Predict / Inspect contracts`). CLAUDE.md 
 ## Byte-level inspect and predict live on the instance
 
 `Pulse.InspectBytes(ctx, data, *descriptor.InspectOptions)` and `Pulse.PredictBytes(ctx, data, *Request)` are the only public byte-level entry points; both return the envelope WHOLE (the result-only-wrapper trap above does not recur). `descriptor.Inspect` / `descriptor.Predict` sniff the zip magic themselves, so one call covers a single file and a whole shard archive. **`PredictBytes` fills every `PredictOptions` field from the instance** — the extension snapshot, `Options.Strict`, `Options.EchoRequest` — because the free functions it replaced left the snapshot to the caller and every nil caller silently treated an embedder-registered operator as unknown. `Pulse.Predict` (path-based, result-only) still passes the snapshot, not `Strict` / `EchoRequest`. **Both pass the instance feature set (`PredictOptions.Instance`)**, so a name a feature profile hides predicts exactly as a never-registered one — every type-keyed predict rule reads the operator's route (`opRoute`), see `feature-profiles.md` (Predict hiding). Gated by `TestPredictBytes_ExtensionOperatorIsKnown`, `TestPredictBytes_HonoursStrict`, `TestPredictBytes_HonoursEchoRequest`, `TestInspectBytes_SurfacesTruncatedTailWarning`.
+
+## Suggested weight — sidecar metadata, never records
+
+`InspectResult.SuggestedWeight` / `PredictResult.SuggestedWeight` (`suggested_weight {field, source: "spss_sidecar", kind: "probability"}`, additive `omitempty`) name the weighting variable the cohort's SPSS metadata sidecar (`cohort.pulse.spss.json`, `payload.weight.variable`) records. Contract: `weighting.md` (SPSS suggestion).
+
+- **Who reads what.** The FACADE reads the sidecar — `Pulse.sidecarWeightVariable` (root `weight_suggest.go`) through `spss.LoadSidecar` on the instance `afero.Fs` — and hands the variable NAME down: `descx.InspectWith(rs, opts, InspectMetadata{WeightVariable, Instance})` for inspect, `PredictOptions.SuggestedWeightVariable` for predict. `internal/descriptor` never opens a file, so `TestPredictNoExecutionImports` and "predict.go reads only header + schema" both hold. The one judgement is `descx.SuggestWeight(schema, variable, inst)`: nil unless the variable is a column of the schema just read (the canonical schema for an archive; the COHORT schema, not a joined one, for predict) of a weight-capable type (`IsWeightFieldType`) and the instance offers `capability:weighting`.
+- **Every failure is silent** — no suggestion, never a warning or error: no sidecar, a malformed / foreign / unknown-version one, a STALE one (the size+mtime fingerprint `LoadSidecar` checks, which `pulse export spss` refuses on), a variable the schema no longer carries or cannot weight by, an anchor path (`archive.pulse#shard.pulse` — a sidecar sits beside a whole cohort file), and the byte-level `InspectBytes` / `PredictBytes` (no path, so no sidecar — `pulse api predict` goes through `PredictBytes` and so never echoes).
+- **Predict echoes it as DATA only while no slot resolves a weight field** (`ResolvedWeight.Field` empty everywhere — no weight named, or every slot `weight: null`); never a warning, so `Options.Strict` cannot turn it into an error. It is never applied, by `DefaultWeight` or otherwise.
+- `descriptor.InspectResult` / `PredictResult` are not payload-schema-reachable: no payload golden moves; `internal/apigolden` does (additive).
+
+Gates: `TestSuggestedWeight_*` (root: inspect + envelope JSON, absent / stale / malformed / unweighted silent, predict echo, never auto-applied, hidden with `capability:weighting`), `TestSuggestWeight_Rule`, `TestInspect_SuggestedWeightFromMetadata`, `TestPredict_SuggestedWeightIsDataNotWarning`, `TestHandleInspect_SuggestsTheSPSSWeight` (MCP, incl. hidden), `TestCliCohortInspect_SuggestedWeight`.
 
 ## Inspect — parent groups are header-only too
 

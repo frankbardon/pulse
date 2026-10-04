@@ -277,7 +277,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   tool input schemas drop every `weight` property, the manifest drops
   `weight_aware` (built-in and extension) and the weighted
   `sum_weights` / `n_eff` / `n_weight_invalid` component keys, predict
-  reports no `weights`, and `pulse.New` refuses `Options.DefaultWeight`
+  reports no `weights`, inspect and predict report no SPSS
+  `suggested_weight`, and `pulse.New` refuses `Options.DefaultWeight`
   (`PULSE_FEATURE_PROFILE_DEPENDENCY`). `AGG_WEIGHTED_MEAN` and its
   `params.weight_field` keep working: they are the operator's own
   parameters, not the weight surface, so its invalid-weight warning and

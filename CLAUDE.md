@@ -154,7 +154,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 - **Predict structural ban:** `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/`. Enforced by `TestPredictNoExecutionImports`. Reads only header + schema, never records.
 - **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via the engine's internal streamability gate (`TestPredict_Streamable_MatchesRuntime`). Beside it, `CrosstabFusable` (nil ⇔ no crosstab) + `CrosstabFusionReasons`: the fused-crosstab dispatch answer from the shared `internal/crosstabfuse` rule, instance-aware (`DisableCrosstabFusion`) — `TestPredict_CrosstabFusableMatchesRuntime`.
-- **Inspect header-only:** reads only `encoding.ReadHeader` + `encoding.ReadSchema`; dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`; `RecordCount` derives from the file LENGTH. **`Pulse.Inspect` drops `env.Warnings`** — the CLI leaf and `pulse_inspect` read `Pulse.InspectEnvelope`.
+- **Inspect reads no record:** header + schema + sidecar metadata (`suggested_weight`); dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`; `RecordCount` derives from the file LENGTH. **`Pulse.Inspect` drops `env.Warnings`** — CLI and `pulse_inspect` read `Pulse.InspectEnvelope`.
 - **CountRecords header-fast:** no payload decode; the single-file floor division exists ONCE (`encoding.Schema.RecordCountForPayload`, shared with `Inspect`). `Inspect` warns on a truncated tail, `CountRecords` floors SILENTLY — deliberately; never make it error.
 
 ### Execution modes (pointers)

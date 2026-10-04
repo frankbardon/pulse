@@ -174,7 +174,7 @@ Recipe: `docs/src/internals/extension-points.md`; engine wiring: `architecture.m
 
 ## SPSS suggestion
 
-Inspect reads the SPSS metadata sidecar (`cohort.pulse.spss.json`, header-only — never records) and surfaces `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` (additive, omitempty) on the result and envelope, the CLI leaf and `pulse_inspect`. Predict echoes it as DATA when no weight resolves — never a warning, so `--strict` stays safe. A stale sidecar (variable not in the schema) yields no suggestion, silently. A suggested weight is **never** auto-applied, including via `DefaultWeight`; there is no manifest-level suggestion (the manifest is instance-level). SPSS `WEIGHT BY` is frequency-like, while the default `kind` is `probability` — say so wherever the suggestion is documented. The predict / inspect contract amendment ("header + schema + sidecar metadata, never records") lands in `predict-inspect.md` with the implementing story.
+Inspect reads the SPSS metadata sidecar (`cohort.pulse.spss.json`, header-only — never records) and surfaces `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` (additive, omitempty) on the result and envelope, the CLI leaf and `pulse_inspect`. Predict echoes it as DATA when no weight resolves — never a warning, so `--strict` stays safe. A stale sidecar (variable not in the schema) yields no suggestion, silently. A suggested weight is **never** auto-applied, including via `DefaultWeight`; there is no manifest-level suggestion (the manifest is instance-level). SPSS `WEIGHT BY` is frequency-like, while the default `kind` is `probability` — say so wherever the suggestion is documented. **Shipped (E4-S3).** The predict / inspect contract now reads "header + schema + sidecar metadata, never records"; wiring, the silent-failure list (absent, malformed, fingerprint-stale, variable gone or not weight-capable, anchor, byte-level entry points) and gates: `predict-inspect.md` (Suggested weight).
 
 ## Feature profile
 
@@ -185,7 +185,7 @@ Inspect reads the SPSS metadata sidecar (`cohort.pulse.spss.json`, header-only �
 - `Options.DefaultWeight` fails `pulse.New` — `PULSE_FEATURE_PROFILE_DEPENDENCY`, `unmet: [{option: "Options.DefaultWeight", requires_any_of: ["capability:weighting"]}]`. Refused rather than ignored: an ignored default would silently change every figure an instance-level setting promised to weight;
 - `AGG_WEIGHTED_MEAN.params.weight_field` stays ungated (deliberate asymmetry, `TestHiddenWeighting_WeightedMeanParamUngated`): it is the operator's own parameter, so its invalid-row warning and decimal refusal keep their codes listed while `AGG_WEIGHTED_MEAN` is enabled.
 
-`suggested_weight` (SPSS, not yet shipped) must be absent too when hidden — the story that ships it owes the gate. Contract and pins: `feature-profiles.md` (Request-slot gate, Manifest hiding, Predict hiding, Error hiding).
+`suggested_weight` (SPSS, E4-S3) is absent too when hidden — on inspect, predict and `pulse_inspect` / `pulse_predict` (`TestSuggestedWeight_HiddenWithWeighting`, `TestHandleInspect_SuggestsTheSPSSWeight`). Contract and pins: `feature-profiles.md` (Request-slot gate, Manifest hiding, Predict hiding, Error hiding).
 
 ## Error codes
 

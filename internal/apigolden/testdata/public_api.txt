@@ -1181,6 +1181,7 @@ pulse/descriptor: type InspectResult field Groups []*pulse/descriptor.InspectGro
 pulse/descriptor: type InspectResult field Layout *pulse/descriptor.InspectLayout "json:\"layout,omitempty\""
 pulse/descriptor: type InspectResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type InspectResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
+pulse/descriptor: type InspectResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
 pulse/descriptor: type Intent struct
 pulse/descriptor: type Intent field Analytic bool "json:\"analytic\""
 pulse/descriptor: type Intent field ID string "json:\"id\""
@@ -1359,6 +1360,7 @@ pulse/descriptor: type PredictResult field SchemaInfo *pulse/descriptor.PredictS
 pulse/descriptor: type PredictResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
 pulse/descriptor: type PredictResult field Streamable bool "json:\"streamable\""
 pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
+pulse/descriptor: type PredictResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
 pulse/descriptor: type PredictResult field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
 pulse/descriptor: type PredictResult field TimeZones []pulse/descriptor.ResolvedZone "json:\"time_zones\""
 pulse/descriptor: type PredictResult field Valid bool "json:\"valid\""
@@ -1433,6 +1435,10 @@ pulse/descriptor: type SlotPair struct
 pulse/descriptor: type SlotPair field Reason string "json:\"reason\""
 pulse/descriptor: type SlotPair field ReferenceLabel string "json:\"reference_label\""
 pulse/descriptor: type SlotPair field TargetLabel string "json:\"target_label\""
+pulse/descriptor: type SuggestedWeight struct
+pulse/descriptor: type SuggestedWeight field Field string "json:\"field\""
+pulse/descriptor: type SuggestedWeight field Kind string "json:\"kind\""
+pulse/descriptor: type SuggestedWeight field Source string "json:\"source\""
 pulse/descriptor: type Suggestion struct
 pulse/descriptor: type Suggestion field Confidence float64 "json:\"confidence\""
 pulse/descriptor: type Suggestion field Current any "json:\"current,omitempty\""
@@ -1464,6 +1470,7 @@ pulse/descriptor: const WeightStatusApplied untyped string = "applied"
 pulse/descriptor: const WeightStatusNone untyped string = "none"
 pulse/descriptor: const WeightStatusOptedOut untyped string = "opted_out"
 pulse/descriptor: const WeightStatusSkippedNotWeightAware untyped string = "skipped_not_weight_aware"
+pulse/descriptor: const WeightSuggestionSourceSPSSSidecar untyped string = "spss_sidecar"
 pulse/descriptor: const ZoneSourceDefault untyped string = "default"
 pulse/descriptor: const ZoneSourceOptions untyped string = "options"
 pulse/descriptor: const ZoneSourceRequest untyped string = "request"
@@ -3835,4 +3842,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7cc973e045983f6a6e600a09307cae8e1f8509563ca27854264a35bac223acd9
+// golden-hash: 6d0d1492438088948343b41ff0defea2a6185b995ddc75ed0c7649d88ba7244c

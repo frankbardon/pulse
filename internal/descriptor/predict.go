@@ -155,6 +155,13 @@ type PredictOptions struct {
 	// hides exactly as a kind not in the catalog. Nil hides nothing.
 	Instance *InstanceSnapshot
 
+	// SuggestedWeightVariable is the weighting variable the cohort's SPSS
+	// metadata sidecar records; the facade reads the sidecar (Predict
+	// itself never opens a file) and leaves it "" when there is none.
+	// Predict echoes it as PredictResult.SuggestedWeight when no slot
+	// resolves a weight — it is never applied.
+	SuggestedWeightVariable string
+
 	// DisableCrosstabFusion is pulse.Options.DisableCrosstabFusion. When
 	// set, PredictResult.CrosstabFusable answers false with
 	// CrosstabFusionDisabledReason for every crosstab request, as the
@@ -322,6 +329,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		addCodedError(env, werr)
 	} else if opts.instance().Enabled(featWeighting) {
 		result.Weights = weights
+		// The cohort's own suggestion (SPSS sidecar), echoed as data
+		// only while nothing resolves a weight field — never a warning,
+		// never applied. Judged against the COHORT schema the sidecar
+		// describes, not a joined one.
+		if !anyWeightResolves(weights) {
+			result.SuggestedWeight = SuggestWeight(cohortSchema, opts.SuggestedWeightVariable, opts.Instance)
+		}
 	}
 
 	// A slot still without an operator Type is refused by the runtime's

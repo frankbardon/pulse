@@ -17,6 +17,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/internal/spsstest"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -666,6 +667,69 @@ func TestHandleSkills_GuidanceSkills(t *testing.T) {
 		got, err := HandleSkillsGet(context.Background(), defaultPulse(t), SkillsGetIn{Name: name})
 		if err != nil || got.Body != want || want == "" {
 			t.Errorf("pulse_skills_get %s: err=%v, body differs", name, err)
+		}
+	}
+}
+
+// TestHandleInspect_SuggestsTheSPSSWeight: pulse_inspect carries the
+// SPSS sidecar's weighting variable as suggested_weight (and
+// pulse_predict echoes it); an instance hiding capability:weighting
+// shows neither.
+func TestHandleInspect_SuggestsTheSPSSWeight(t *testing.T) {
+	afs := afero.NewMemMapFs()
+	raw, err := spsstest.Build(spsstest.Spec{
+		Vars: []spsstest.Var{
+			{Name: "ID", Print: spsstest.Format{Type: spsstest.FormatF, Width: 8}},
+			{Name: "WT", Print: spsstest.Format{Type: spsstest.FormatF, Width: 8, Decimals: 2}},
+		},
+		Cases:     [][]spsstest.Value{{spsstest.Num(1), spsstest.Num(2)}, {spsstest.Num(2), spsstest.Num(3)}},
+		WeightVar: "WT",
+	})
+	if err != nil {
+		t.Fatalf("spsstest.Build: %v", err)
+	}
+	if err := afero.WriteFile(afs, "w.sav", raw, 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	ctx := context.Background()
+	p, err := pulse.New(pulse.Options{FS: afs})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	imp, err := HandleImport(ctx, p, ImportIn{Source: "w.sav"})
+	if err != nil {
+		t.Fatalf("HandleImport: %v", err)
+	}
+
+	hidden, err := pulse.New(pulse.Options{FS: afs, FeatureProfile: &pulse.FeatureProfile{
+		Profile: "no-weighting", Features: []string{"capability:process", "AGG_COUNT"},
+	}})
+	if err != nil {
+		t.Fatalf("pulse.New(hidden): %v", err)
+	}
+	for _, tc := range []struct {
+		name string
+		p    *pulse.Pulse
+		want bool
+	}{{"default", p, true}, {"weighting hidden", hidden, false}} {
+		out, err := HandleInspect(ctx, tc.p, InspectIn{Path: imp.Path})
+		if err != nil {
+			t.Fatalf("%s: HandleInspect: %v", tc.name, err)
+		}
+		body, _ := json.Marshal(out)
+		has := strings.Contains(string(body), `"suggested_weight":{"field":"WT","source":"spss_sidecar","kind":"probability"}`)
+		if has != tc.want {
+			t.Errorf("%s: pulse_inspect suggested_weight present=%v, want %v: %s", tc.name, has, tc.want, body)
+		}
+		pred, err := HandlePredict(ctx, tc.p, PredictIn{
+			Cohort:       &types.Cohort{Filename: imp.Path},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "ID", Label: "n"}},
+		})
+		if err != nil {
+			t.Fatalf("%s: HandlePredict: %v", tc.name, err)
+		}
+		if (pred.SuggestedWeight != nil) != tc.want {
+			t.Errorf("%s: pulse_predict suggested_weight = %+v, want present=%v", tc.name, pred.SuggestedWeight, tc.want)
 		}
 	}
 }
