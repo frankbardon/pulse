@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 200, 201]
+todo_items: [198, 199, 200, 201, 207]
 branch: predict-runtime-parity
 ---
 
@@ -38,6 +38,7 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 - [ ] **#199** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) The runtime refuses, rather than silently computes on, a field it cannot read: the "predict stricter, runtime wrong" half of the ledger (`FEAT_POLY`, `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` and the `WIN_*` value windows on categorical, set, decimal, `packed_bool` or `datetime` columns), plus tier-1 tests on `set_*` fields
 - [ ] **#200** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A request with more than one `Groups` entry executes every group or is refused; today only `Groups[0]` runs
 - [ ] **#201** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection
+- [ ] **#207** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Shard-archive cohesion compares `Nullable`: `AddShard`, `shard verify`, the `NewCohortBuilder` anchored-append pre-check and the archive reader refuse a shard whose per-field nullability differs from the canonical schema, instead of decoding it under the canonical flags
 
 ## Scope
 
@@ -46,6 +47,7 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 - The runtime refuses, with a coded error, every field type it cannot read
 - Multi-entry `Groups`: execute every entry or refuse at predict and runtime alike
 - Each #201 gap fixed with a predict-vs-runtime test
+- Shard cohesion compares per-field `Nullable` everywhere a shard meets the canonical schema (#207)
 
 **Out of scope**
 - Widening predict to match a wrong runtime (never — fix the runtime)
@@ -58,6 +60,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 ### E1 — The runtime never computes on a field it cannot read
 - S1: refuse unreadable types in `FEAT_POLY`, `REG_*`, `WIN_*` value windows and tier-1 tests on `set_*` (#199); delete the ledger's "predict stricter, runtime wrong" entries
 - S2: multi-entry `Groups` executes every group or is refused (#200)
+- S3: shard cohesion compares `Nullable` in `AddShard`, `shard verify`, the builder's anchored-append pre-check and the archive reader; a parity row for nullability joins `TestCohortBuilder_AppendPrecheckParity` (#207)
 
 ### E2 — Predict refuses what the runtime refuses
 - S1: predict gains the runtime's operator × field-type checks (#198); the ledger's "predict looser" entries are deleted as each is fixed
@@ -68,6 +71,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 - [ ] `knownTypeDivergence` returns `""` for every operator × field type pair, and the ledger is deleted
 - [ ] No request with more than one `Groups` entry silently drops a group
 - [ ] Every #201 gap has a predict-vs-runtime test
+- [ ] A shard whose field nullability differs from the canonical schema is refused with a coded error (`PULSE_SHARD_SCHEMA_MISMATCH` or a sibling) at every entry point, never decoded (#207)
 - [ ] `format_version` stays `"1.1"`
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
@@ -82,6 +86,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 - `errors/fixup_metadata.go` + `internal/descriptor/error_owners.go` for any new refusal code
 - The atomic `op-*` skill of every operator whose accepted types change
 - `.claude/reference/predict-inspect.md` if predict's contract changes; `byte-layout.md` (projected decode) if the windowed-row fix touches the contract
+- `.claude/reference/byte-layout.md` (shard cohesion) + `skills/cohort-schema-design.md` (Sharded) if the cohesion rule's wording changes (#207)
 
 ## Human inputs & decisions
 
@@ -98,3 +103,7 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 - **Label-binding collision check** (#201). Predict and the runtime pass it different label sets.
 - **ProcessChain stage ≥ 1 ignores label bindings** (#201). They are silently dropped, where they should be applied or refused.
 - **Windowed record rows differ under projection** (#201). They carry only the projected fields where the unprojected path carries the full row, which contradicts the output-transparent projection contract (`.claude/reference/byte-layout.md`, projected decode).
+
+## Inherited from U02c
+
+- **Shard cohesion ignores `Nullable`** (#207). Found while adding the U02c anchored-append pre-check (PR #311): `AddShard`'s structural cohesion compares name, type, order and set rung but never the per-field nullable flag, and the pre-check reuses that code, so it inherits the gap. The dangerous direction is an archive field declared non-nullable receiving a shard whose field is nullable: when the bitmap width still matches (other nullable fields exist), the stride check passes and the archive reader, which decodes an anchored shard under the CANONICAL schema, would ignore that field's null bits, so a null could come back as a value (inferred from the code path, not yet reproduced — write the failing test first). Fix in the shared cohesion check so every caller picks it up; decide whether non-nullable→nullable widening is a legal rewrite (like set widening) or a refusal.
