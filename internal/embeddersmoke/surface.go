@@ -57,7 +57,8 @@ var (
 	_ func(*pulse.CohortBuilder) (*pulse.CohortBuildResult, error)                                                           = (*pulse.CohortBuilder).Close
 	_ func(*pulse.CohortBuilder) error                                                                                       = (*pulse.CohortBuilder).Abort
 	_                                                                                                                        = pulse.CohortBuilderOptions{Strict: true, Overwrite: true, Groups: []pio.GroupDecl{{Key: []string{"k"}, Members: []string{"m"}}}, ElideConstants: true, RatioFloor: 2}
-	_                                                                                                                        = pulse.CohortBuildResult{Groups: []pio.GroupReport(nil), ElidedConstants: []string(nil)}
+	_                                                                                                                        = pulse.CohortBuildResult{Groups: []pio.GroupReport(nil), ElidedConstants: []string(nil), Shards: []string(nil)}
+	_                                                                                                                        = pulse.CohortBuilderOptions{Shards: &pulse.ShardSplit{MaxRecords: 1000}}
 	_                                                                                                                        = pulse.CohortBuildResult{Target: "", Records: 0, FormatVersion: encoding.FormatVersionV1, Schema: (*encoding.Schema)(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil)}
 )
 

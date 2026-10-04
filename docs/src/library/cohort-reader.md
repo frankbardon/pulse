@@ -181,4 +181,36 @@ with `SERVICE_VALIDATION`, which import does not check.
 
 ## Building a shard archive
 
-*To be documented with the shard-archive builder.*
+Set `Shards` and the same builder writes a **new shard archive**, split
+automatically:
+
+```go
+b, err := p.NewCohortBuilder(ctx, "orders.pulse", schema, pulse.CohortBuilderOptions{
+    Shards: &pulse.ShardSplit{MaxRecords: 1_000_000},
+    Groups: []pio.GroupDecl{{Key: []string{"cust"}, Members: []string{"tier"}}}, // optional
+})
+// ... Append exactly as above ...
+res, err := b.Close() // res.Shards: part-00001.pulse, part-00002.pulse, ...
+```
+
+- **Split.** Rows are cut, in append order, into consecutive shards of
+  `MaxRecords` rows named `part-00001.pulse`, `part-00002.pulse`, …;
+  the last shard is partial, and an empty build is one empty shard.
+  The archive reads back through `CohortReader` as the appended rows,
+  in order. `MaxRecords` must be positive (`SERVICE_VALIDATION`), and a
+  build holds at most 65,535 shards — the row that would open one more
+  is refused with `SERVICE_VALIDATION` (`reason: shard_limit`).
+- **One layout.** `Groups` and `ElideConstants` are decided **once over
+  all rows**, then applied to every shard: each shard carries the same
+  schema, dictionaries and group layout. A group the gate drops is
+  dropped in every shard, and a field constant within each shard but
+  not across the build is not elided.
+- **All or nothing.** `Close` stages the shard files in a directory
+  beside the target and publishes them with **one**
+  `Pulse.CreateShardArchive` call, which writes the archive atomically.
+  The staging directory is removed whatever the outcome, so a failed
+  `Close` leaves no archive, no spool and no shard file — and an
+  existing archive being replaced (`Overwrite: true`) stays as it was.
+- **Result.** `CohortBuildResult.Shards` lists the shard entries in
+  archive order. `Warnings` ends with any warnings `CreateShardArchive`
+  raised (`PULSE_SHARD_*`), with their codes and details unchanged.

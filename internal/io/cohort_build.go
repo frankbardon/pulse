@@ -22,6 +22,10 @@ const (
 	buildSpoolPattern = ".build-spool-*.tmp"
 	buildTempPattern  = ".build-*.tmp"
 	buildPhysPattern  = ".build-phys-*.tmp"
+	// buildShardsPrefix names the staging directory a sharded build
+	// writes its shard files into (afero.TempDir appends a random
+	// suffix); it is removed whatever Close's outcome.
+	buildShardsPrefix = ".build-shards-"
 	buildIOBuffer     = 256 << 10
 )
 
@@ -46,7 +50,29 @@ type CohortBuildOptions struct {
 	// RatioFloor is the viability gate's rows-per-tuple floor
 	// (ImportJob.DedupRatioFloor); 0 selects the default.
 	RatioFloor float64
+	// ShardMaxRecords > 0 makes Close publish a shard archive at the
+	// target instead of a single-file cohort: the spooled rows are cut
+	// into consecutive shards of ShardMaxRecords rows (the last one
+	// partial; one empty shard for an empty build), each a standalone
+	// cohort with the ONE layout the full pass decided — so the group
+	// gate and constant elision are decided once over all rows and every
+	// shard carries the same schema, dictionaries and group layout —
+	// staged as ShardName(k) in a directory beside the target and handed
+	// to Archive in one call. Negative is refused; 0 is a single file.
+	ShardMaxRecords int
+	// Archive publishes the staged shard files as an archive at target,
+	// atomically (the facade wires Pulse.CreateShardArchive), returning
+	// its non-fatal warnings. Required when ShardMaxRecords > 0.
+	Archive func(ctx context.Context, target string, shardPaths []string) ([]*errors.CodedError, error)
 }
+
+// MaxBuildShards is the most shards one sharded build may write: the
+// archive trailer's shard count is a u16.
+const MaxBuildShards = math.MaxUint16
+
+// ShardName is the archive entry name of a sharded build's k-th shard
+// (1-based): part-00001.pulse, part-00002.pulse, ...
+func ShardName(k int) string { return fmt.Sprintf("part-%05d.pulse", k) }
 
 // CohortBuildReport is what a successful CohortBuild.Close wrote.
 type CohortBuildReport struct {
@@ -71,6 +97,9 @@ type CohortBuildReport struct {
 	// Replaced reports that a cohort already existed at Target and was
 	// atomically replaced (Overwrite).
 	Replaced bool
+	// Shards names a sharded build's shard entries, in archive order.
+	// Nil for a single-file build.
+	Shards []string
 }
 
 // CohortBuild writes a single-file cohort from typed rows appended one
@@ -92,8 +121,10 @@ type CohortBuildReport struct {
 // anything is published. Close then writes the preamble plus the
 // (logical or physical) spooled rows to a temp file beside the target,
 // fsyncs it and renames it over the target; Abort, or any Close failure, removes the spool and the
-// temp file and leaves the target untouched. A CohortBuild is not safe
-// for concurrent use.
+// temp file and leaves the target untouched. With ShardMaxRecords the
+// same layout is cut into shard files in a staging directory beside the
+// target and published by ONE Archive call instead (publishArchive). A
+// CohortBuild is not safe for concurrent use.
 type CohortBuild struct {
 	ctx    context.Context
 	fs     afero.Fs
@@ -142,6 +173,9 @@ func NewCohortBuild(ctx context.Context, fsys afero.Fs, target string, schema *e
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "cohort build needs a filesystem")
 	}
 	if err := checkBuildTarget(fsys, target, opts.Overwrite); err != nil {
+		return nil, err
+	}
+	if err := checkShardOptions(target, opts); err != nil {
 		return nil, err
 	}
 	written, warns, err := prepareBuildSchema(schema, opts.Strict)
@@ -215,6 +249,22 @@ func checkBuildTarget(fsys afero.Fs, target string, overwrite bool) error {
 	return checkTargetFree(fsys, target, overwrite)
 }
 
+// checkShardOptions refuses a negative shard size and a sharded build
+// with nothing to publish the archive.
+func checkShardOptions(target string, opts CohortBuildOptions) error {
+	switch {
+	case opts.ShardMaxRecords < 0:
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("shard size must be positive, got %d", opts.ShardMaxRecords),
+			map[string]any{"target": target, "reason": "invalid_shard_split", "max_records": opts.ShardMaxRecords})
+	case opts.ShardMaxRecords > 0 && opts.Archive == nil:
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"a sharded build needs an archive publisher",
+			map[string]any{"target": target, "reason": "invalid_shard_split"})
+	}
+	return nil
+}
+
 // checkTargetFree refuses a directory at target, and an existing target
 // unless overwrite.
 func checkTargetFree(fsys afero.Fs, target string, overwrite bool) error {
@@ -255,6 +305,11 @@ func (b *CohortBuild) Append(row []any) error {
 	}
 	if err := b.ctx.Err(); err != nil {
 		return err
+	}
+	if n := int64(b.opts.ShardMaxRecords); n > 0 && b.records >= n*MaxBuildShards {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("a sharded build holds at most %d shards of %d rows; this row would open one more", MaxBuildShards, n),
+			map[string]any{"target": b.target, "reason": "shard_limit", "max_shards": MaxBuildShards, "max_records": n})
 	}
 	b.calls++
 	if err := b.convert(row); err != nil {
@@ -468,17 +523,28 @@ func (b *CohortBuild) Close() (*CohortBuildReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := b.publish(lay.schema, lay.payload); err != nil {
+	var (
+		shards     []string
+		shardWarns []*errors.CodedError
+	)
+	if b.opts.ShardMaxRecords > 0 {
+		shards, shardWarns, err = b.publishArchive(lay.schema, lay.payload)
+	} else {
+		err = b.publish(lay.schema, lay.payload)
+	}
+	if err != nil {
 		return nil, err
 	}
+	warns := append(append(append([]*errors.CodedError(nil), b.warns...), b.groupWarns...), lay.ratioWarns...)
 	rep := &CohortBuildReport{
 		Target:          b.target,
 		Records:         b.records,
 		FormatVersion:   lay.schema.RequiredFormatVersion(),
 		Schema:          lay.schema,
-		Warnings:        append(append(append([]*errors.CodedError(nil), b.warns...), b.groupWarns...), lay.ratioWarns...),
+		Warnings:        append(warns, shardWarns...),
 		ElidedConstants: lay.elided,
 		Replaced:        replaced,
+		Shards:          shards,
 	}
 	rep.Groups = groupReports(lay.schema, b.opts.Groups, b.screen, lay.ratio)
 	return rep, nil
@@ -625,6 +691,78 @@ func (b *CohortBuild) publish(schema *encoding.Schema, payload io.Reader) error 
 			fmt.Sprintf("renaming %s onto %s", tmpName, b.target))
 	}
 	return nil
+}
+
+// publishArchive cuts payload — every record laid out by schema — into
+// consecutive shards of ShardMaxRecords records, writes each as a
+// standalone cohort (preamble(schema) + its records) into a staging
+// directory beside the target, and hands the files to Archive in ONE
+// call, which writes the archive atomically. Every shard carries the
+// same schema, so the archive's merge sees identical layouts and
+// dictionaries. The staging directory is removed whatever the outcome,
+// so a failure leaves neither an archive nor a shard file.
+func (b *CohortBuild) publishArchive(schema *encoding.Schema, payload io.Reader) ([]string, []*errors.CodedError, error) {
+	per := int64(b.opts.ShardMaxRecords)
+	count := int((b.records + per - 1) / per)
+	if count == 0 {
+		count = 1 // an empty build is an archive of one empty shard
+	}
+	dir, base := filepath.Dir(b.target), filepath.Base(b.target)
+	stage, err := afero.TempDir(b.fs, dir, base+buildShardsPrefix)
+	if err != nil {
+		return nil, nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("creating shard staging directory beside %s", b.target))
+	}
+	defer func() { _ = b.fs.RemoveAll(stage) }()
+
+	stride := int64(schema.RecordByteSize())
+	in := ctxReader{ctx: b.ctx, r: bufio.NewReaderSize(payload, buildIOBuffer)}
+	names := make([]string, count)
+	paths := make([]string, count)
+	left := b.records
+	for k := range count {
+		n := min(per, left)
+		left -= n
+		names[k] = ShardName(k + 1)
+		paths[k] = filepath.Join(stage, names[k])
+		if err := b.writeShard(paths[k], schema, in, n*stride); err != nil {
+			return nil, nil, err
+		}
+	}
+	if err := b.ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	warns, err := b.opts.Archive(b.ctx, b.target, paths)
+	if err != nil {
+		return nil, nil, err
+	}
+	return names, warns, nil
+}
+
+// writeShard writes one staged shard: preamble(schema) then exactly
+// size payload bytes from in.
+func (b *CohortBuild) writeShard(path string, schema *encoding.Schema, in io.Reader, size int64) error {
+	f, err := b.fs.Create(path)
+	if err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("creating shard %s", path))
+	}
+	w := bufio.NewWriterSize(f, buildIOBuffer)
+	err = encx.WritePreamble(w, schema)
+	if err == nil {
+		if _, cerr := io.CopyN(w, in, size); cerr != nil {
+			err = errors.WrapCodedError(cerr, errors.ENCODING_IO, fmt.Sprintf("writing shard %s", path))
+		}
+	}
+	if err == nil {
+		if ferr := w.Flush(); ferr != nil {
+			err = errors.WrapCodedError(ferr, errors.ENCODING_IO, fmt.Sprintf("flushing shard %s", path))
+		}
+	}
+	if cerr := f.Close(); err == nil && cerr != nil {
+		err = errors.WrapCodedError(cerr, errors.ENCODING_IO, fmt.Sprintf("closing shard %s", path))
+	}
+	return err
 }
 
 // Abort discards the build: the spool is removed and the target is

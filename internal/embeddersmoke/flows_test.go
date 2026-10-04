@@ -420,6 +420,60 @@ func TestCohortBuilderFlow(t *testing.T) {
 	}
 }
 
+// TestCohortBuilderShardedFlow builds a new shard archive through the
+// public builder's ShardSplit, checks the split, and reads the rows
+// back in order across shard boundaries.
+func TestCohortBuilderShardedFlow(t *testing.T) {
+	schema := encoding.Schema{Fields: []encoding.Field{
+		{Name: "a", Type: encoding.FieldTypeU16, Description: "Small counter a."},
+		{Name: "tier", Type: encoding.FieldTypeCategoricalU8, Description: "Customer tier label."},
+	}}
+	tiers := []string{"gold", "silver", "bronze"}
+	var rows []pulse.CohortRow
+	for i := 0; i < 25; i++ {
+		rows = append(rows, pulse.CohortRow{uint64(i), tiers[i%3]})
+	}
+	p, _ := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	b, err := p.NewCohortBuilder(ctx, "arch.pulse", schema, pulse.CohortBuilderOptions{Shards: &pulse.ShardSplit{MaxRecords: 10}})
+	if err != nil {
+		t.Fatalf("NewCohortBuilder: %v", err)
+	}
+	for _, r := range rows {
+		if err := b.Append(r); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+	res, err := b.Close()
+	if err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if res.Records != 25 || len(res.Shards) != 3 || res.Shards[0] != "part-00001.pulse" {
+		t.Fatalf("result = %+v", res)
+	}
+	c, err := p.Open(ctx, "arch.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Shards(); len(got) != 3 || got[2].RecordCount != 5 {
+		t.Fatalf("shards = %+v, want 3 with a 5-record tail", got)
+	}
+	r, err := c.Reader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if r.Len() != 25 {
+		t.Fatalf("Len = %d", r.Len())
+	}
+	for i, want := range rows {
+		got, err := r.RecordAt(int64(i))
+		if err != nil || got[0] != want[0] || got[1] != want[1] {
+			t.Fatalf("RecordAt(%d) = %v, %v; want %v", i, got, err, want)
+		}
+	}
+}
+
 // TestCohortBuilderGroupedFlow builds a grouped, constant-elided
 // cohort through the public builder and checks it is byte-identical to
 // an explicit-schema import with the same --group / --elide-constants,

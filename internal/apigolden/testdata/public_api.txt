@@ -93,6 +93,7 @@ pulse: type CohortBuildResult field Groups []pulse/io.GroupReport "json:\"groups
 pulse: type CohortBuildResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type CohortBuildResult field Records int64 "json:\"records\""
 pulse: type CohortBuildResult field Schema *pulse/encoding.Schema "json:\"-\""
+pulse: type CohortBuildResult field Shards []string "json:\"shards,omitempty\""
 pulse: type CohortBuildResult field Target string "json:\"target\""
 pulse: type CohortBuildResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
 pulse: type CohortBuilder struct
@@ -104,6 +105,7 @@ pulse: type CohortBuilderOptions field ElideConstants bool
 pulse: type CohortBuilderOptions field Groups []pulse/io.GroupDecl
 pulse: type CohortBuilderOptions field Overwrite bool
 pulse: type CohortBuilderOptions field RatioFloor float64
+pulse: type CohortBuilderOptions field Shards *pulse.ShardSplit
 pulse: type CohortBuilderOptions field Strict bool
 pulse: type CohortFingerprint = pulse/internal/encoding.Fingerprint
 pulse: type CohortFingerprint underlying [32]byte
@@ -764,6 +766,8 @@ pulse: type ShardInfo = pulse/descriptor.ShardInfo
 pulse: type ShardInfo underlying struct
 pulse: type ShardInfo field Filename string "json:\"filename\""
 pulse: type ShardInfo field RecordCount int64 "json:\"record_count\""
+pulse: type ShardSplit struct
+pulse: type ShardSplit field MaxRecords int
 pulse: type SidecarIndex = pulse/internal/encoding.Index
 pulse: type SidecarIndex underlying struct
 pulse: type SidecarIndex field Buckets []pulse/internal/encoding.IndexBucket
@@ -3753,4 +3757,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 12627a6ca98ed965e7f5f3f05ae62d7a6e0b6467c490727550ed118c767eb67f
+// golden-hash: 9afbf9d576222fc0c304cb30a842a98ac89f2bb4e7ab3c82e245d825cb0c3654
