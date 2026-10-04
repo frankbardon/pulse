@@ -3,9 +3,7 @@ package descriptor
 import (
 	"bytes"
 	"io"
-	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -151,7 +149,17 @@ type PredictOptions struct {
 	// kind gates (Request, Compose and Facet hosts) report a kind it
 	// hides exactly as a kind not in the catalog. Nil hides nothing.
 	Instance *InstanceSnapshot
+
+	// DisableCrosstabFusion is pulse.Options.DisableCrosstabFusion. When
+	// set, PredictResult.CrosstabFusable answers false with
+	// CrosstabFusionDisabledReason for every crosstab request, as the
+	// engine then never dispatches the fused arm.
+	DisableCrosstabFusion bool
 }
+
+// CrosstabFusionDisabledReason is the PredictResult.CrosstabFusionReasons
+// entry reported when PredictOptions.DisableCrosstabFusion is set.
+const CrosstabFusionDisabledReason = "crosstab fusion disabled on this instance (Options.DisableCrosstabFusion)"
 
 // instance returns the options' instance feature set (nil — hide
 // nothing — on a nil receiver). Nil-receiver-safe.
@@ -396,6 +404,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// the extensions snapshot when present so custom operator overrides land.
 	result.Streamable, result.StreamableReasons = computeStreamable(req, schema, opts)
 
+	// Fused-crosstab dispatch — the engine's own rule on the
+	// defaults-resolved request over the cohort's schema (the runtime
+	// gate reads cohort.Schema(); a join declines first either way).
+	result.CrosstabFusable, result.CrosstabFusionReasons = computeCrosstabFusion(req, cohortSchema, opts)
+
 	// Compute autocomplete-style suggestions. Suggestions may surface even
 	// when the request is otherwise valid (streamability hints), so this
 	// runs unconditionally after every other validator.
@@ -407,6 +420,22 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	}
 
 	return env
+}
+
+// computeCrosstabFusion answers PredictResult.CrosstabFusable /
+// CrosstabFusionReasons: nil without a crosstab spec, false with
+// CrosstabFusionDisabledReason when the instance switched fusion off
+// (the engine then never consults the rule), else CrosstabFusion.
+func computeCrosstabFusion(req *types.Request, schema *encoding.Schema, opts *PredictOptions) (*bool, []string) {
+	if req == nil || req.Crosstab == nil {
+		return nil, nil
+	}
+	if opts.DisableCrosstabFusion {
+		fused := false
+		return &fused, []string{CrosstabFusionDisabledReason}
+	}
+	fused, reasons := CrosstabFusion(req, schema, opts.Extensions, opts.instance())
+	return &fused, reasons
 }
 
 // computeStreamable reports whether the request can execute via the
@@ -770,19 +799,10 @@ func validateDescriptionQuality(env *descriptor.Envelope, schema *encoding.Schem
 	}
 }
 
-// isLowQualityDescription checks if a description is empty or too short/generic.
+// isLowQualityDescription checks if a description is empty or too
+// short/generic — the shared encx.IsLowQualityDescription rule.
 func isLowQualityDescription(desc string) bool {
-	if desc == "" {
-		return true
-	}
-	trimmed := strings.TrimSpace(desc)
-	if len(trimmed) < 10 {
-		return true
-	}
-	// Check for obviously unhelpful descriptions.
-	lower := strings.ToLower(trimmed)
-	unhelpful := []string{"n/a", "na", "none", "tbd", "todo", "unknown", "field", "data", "value", "column"}
-	return slices.Contains(unhelpful, lower)
+	return encx.IsLowQualityDescription(desc)
 }
 
 // overlayCostStreamable is the OverlayCost score assigned to overlay

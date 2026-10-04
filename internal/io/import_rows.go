@@ -26,11 +26,10 @@ type rowConverter struct {
 
 	// Narrow types share vals; wide types (decimal128, set_u128,
 	// set_u256) write raw bytes via wide, sized for the widest of them
-	// and sliced down to the field's own ByteSize on write.
-	vals     []uint64
-	wide     []wideFieldBytes
-	wideUsed []bool
-	null     []bool
+	// and sliced down to the field's own ByteSize on write. The cells
+	// and their byte layout are shared with the cohort builder
+	// (cell_encode.go).
+	rowCells
 	// promoted[i]: field i was widened to nullable by an out-of-sample
 	// null during this pass.
 	promoted []bool
@@ -77,10 +76,7 @@ func newRowConverter(schema *encoding.Schema, inferred bool, dicts map[int]*enco
 		inferred:  inferred,
 		dicts:     dicts,
 		delimFor:  delimFor,
-		vals:      make([]uint64, n),
-		wide:      make([]wideFieldBytes, n),
-		wideUsed:  make([]bool, n),
-		null:      make([]bool, n),
+		rowCells:  newRowCells(n),
 		promoted:  make([]bool, n),
 		widenable: widenable,
 	}
@@ -101,10 +97,7 @@ func (c *rowConverter) takePending() []widening {
 // schema promotes a non-nullable field on a null cell (mutating
 // schema.Fields[i].Nullable and recording promoted[i]).
 func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *RowError {
-	for i := range c.wideUsed {
-		c.wideUsed[i] = false
-		c.null[i] = false
-	}
+	c.reset()
 	rowErr := func(f encoding.Field, msg string) *RowError {
 		return &RowError{
 			Row: rowNum,
@@ -138,21 +131,7 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 				c.schema.Fields[i].Nullable = true
 				c.promoted[i] = true
 			}
-			c.null[i] = true
-			if isWideFieldType(f.Type) {
-				// Null rides the per-record bitmap; the payload is a
-				// zeroed placeholder of the field's FULL width. For a
-				// set that zero is also the empty mask, which is only
-				// reachable as a VALUE on a non-null cell.
-				c.wide[i] = wideFieldBytes{}
-				if f.Type == encoding.FieldTypeDecimal128 {
-					enc := encoding.EncodeDecimal128(encoding.ZeroDecimal128())
-					copy(c.wide[i][:], enc[:])
-				}
-				c.wideUsed[i] = true
-			} else {
-				c.vals[i] = 0
-			}
+			c.setNull(i, f.Type)
 			continue
 		}
 
@@ -171,8 +150,7 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 				}
 				return rowErr(f, err.Error())
 			}
-			c.wide[i] = wb
-			c.wideUsed[i] = true
+			c.setWide(i, wb)
 			continue
 		}
 
@@ -198,42 +176,10 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 	return nil
 }
 
-// writeFields appends the converted row's field bytes — every field in
-// schema order, bit-packed types as one whole byte — to buf.
+// writeFields appends the converted row's field bytes to buf (the
+// shared row layout, rowCells.writeFields).
 func (c *rowConverter) writeFields(buf *bytes.Buffer) error {
-	for i, f := range c.schema.Fields {
-		if c.wideUsed[i] {
-			// Slice to the field's own width: 16 for decimal128 and
-			// set_u128, 32 for set_u256. Writing the whole scratch
-			// array would pad every decimal by 16 zero bytes and
-			// desynchronize the stride for the rest of the file.
-			if _, err := buf.Write(c.wide[i][:f.Type.ByteSize()]); err != nil {
-				return err
-			}
-			continue
-		}
-		if f.Type.IsBitPacked() {
-			// Bit-packed types: write as single byte for simplicity.
-			buf.WriteByte(byte(c.vals[i]))
-			continue
-		}
-		if err := encoding.WriteFieldValue(buf, f.Type, c.vals[i]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// fillBitmap sets bit i of bm (a zeroed full-width ceil(field_count/8)
-// bitmap) for every null cell of the converted row. A cell is only ever
-// null-marked for a nullable field (an explicit non-nullable null fails
-// the row), so this is safe.
-func (c *rowConverter) fillBitmap(bm []byte) {
-	for i := range c.null {
-		if c.null[i] {
-			encoding.BitmapSetNull(bm, i)
-		}
-	}
+	return c.rowCells.writeFields(buf, c.schema)
 }
 
 // promotedNames lists the promoted fields in schema order.

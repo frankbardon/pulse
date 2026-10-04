@@ -329,10 +329,15 @@ A single-key `extend.StreamingGrouper` fuses too: the adapter binds the
 `types.Group.Field` the factory was built for and synthesizes the
 engine-only field-bound `KeyFor` from your `KeyForRow`, so your method
 always receives the real field name. The fused gate reads the
-interface, not the declaration — exactly as for the built-in
-`GROUP_DATE` — so a `Streamable=false` grouper that implements
-`KeyForRow` still fuses a crosstab while its grouped `Process` request
-runs buffered.
+DECLARATION: a crosstab axis grouper fuses iff its registration
+declares `Streamable=true` or `FansOut=true` (both probe-validated, so
+the keying sibling is guaranteed). This is a deliberate change — the
+gate used to probe the constructed value's interface, so a
+`Streamable=false` grouper implementing `KeyForRow` fused; it now runs
+the buffered crosstab arm, with identical output and only peak heap
+differing, because `pulse predict` (`PredictResult.CrosstabFusable`)
+can read only the declaration and both sides run one rule. Declare
+`Streamable=true` to keep such a grouper on the fused arm.
 `Streamable=true` routes the grouped `Process` request onto the
 streaming path, driving `KeyForRow` / `KeysForRow` per row; the probe
 refuses a `Streamable=true` registration whose value implements
@@ -1028,7 +1033,9 @@ State these plainly to users rather than discovering them at run time:
   extension cell aggregator takes the fused crosstab arm when its
   registration declares `MarginReducibility` (summable,
   mean_reducible or independent) alongside `Mergeable`; undeclared, the
-  crosstab runs the buffered arm with the same result.
+  crosstab runs the buffered arm with the same result. An axis grouper
+  fuses only on a declared `Streamable` or `FansOut`. Predict reports
+  the answer as `crosstab_fusable` + `crosstab_fusion_reasons`.
 - **Grouped Components: grouper figures yes, per-group aggregator
   figures no — for every operator.** An extension grouper's
   `ComponentsFunc` output lands on `Components.Groupers[i].Operator` on

@@ -54,7 +54,7 @@ New operators in U04, U07, U15 and U20 land after `processing` is internal, whic
 - Porting built-in operators onto `extend`: built-ins keep the concrete record path
 - New extension categories or new registration slots
 - Freezing the engine's internal record representation: `Record` is an interface precisely so the engine can change underneath it after v1
-- `CohortReader` / `CohortWriter` and `PredictResult.CrosstabFusable` ([U02c](U02c-cohort-facade.md))
+- `CohortReader` / `CohortBuilder` and `PredictResult.CrosstabFusable` ([U02c](U02c-cohort-facade.md))
 - Any wire, manifest-shape or file-format change; `format_version` stays `"1.1"`
 
 ## Epics & stories

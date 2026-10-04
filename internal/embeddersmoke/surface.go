@@ -39,6 +39,29 @@ var (
 	_ func(io.Reader, *encoding.Schema, string) (pulse.LoadMemberSetResult, error)                                       = pulse.LoadMemberSetFromReader
 )
 
+// Record-by-record reader: Cohort.Reader and the exact-typed CohortRow.
+var (
+	_ func(*pulse.Cohort) (*pulse.CohortReader, error)          = (*pulse.Cohort).Reader
+	_ func(*pulse.CohortReader) *encoding.Schema                = (*pulse.CohortReader).Schema
+	_ func(*pulse.CohortReader) int64                           = (*pulse.CohortReader).Len
+	_ func(*pulse.CohortReader, int64) (pulse.CohortRow, error) = (*pulse.CohortReader).RecordAt
+	_ func(*pulse.CohortReader) error                           = (*pulse.CohortReader).Close
+	_ []any                                                     = pulse.CohortRow(nil)
+)
+
+// Row-at-a-time builder: Pulse.NewCohortBuilder, Append / Close / Abort
+// and the result + options it names.
+var (
+	_ func(*pulse.Pulse, context.Context, string, encoding.Schema, pulse.CohortBuilderOptions) (*pulse.CohortBuilder, error) = (*pulse.Pulse).NewCohortBuilder
+	_ func(*pulse.CohortBuilder, pulse.CohortRow) error                                                                      = (*pulse.CohortBuilder).Append
+	_ func(*pulse.CohortBuilder) (*pulse.CohortBuildResult, error)                                                           = (*pulse.CohortBuilder).Close
+	_ func(*pulse.CohortBuilder) error                                                                                       = (*pulse.CohortBuilder).Abort
+	_                                                                                                                        = pulse.CohortBuilderOptions{Strict: true, Overwrite: true, Groups: []pio.GroupDecl{{Key: []string{"k"}, Members: []string{"m"}}}, ElideConstants: true, RatioFloor: 2}
+	_                                                                                                                        = pulse.CohortBuildResult{Groups: []pio.GroupReport(nil), ElidedConstants: []string(nil), Shards: []string(nil)}
+	_                                                                                                                        = pulse.CohortBuilderOptions{Shards: &pulse.ShardSplit{MaxRecords: 1000}}
+	_                                                                                                                        = pulse.CohortBuildResult{Target: "", Records: 0, FormatVersion: encoding.FormatVersionV1, Schema: (*encoding.Schema)(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil)}
+)
+
 // Options carries the crosstab-fusion switch that replaced mutating the
 // service, alongside the filesystem an embedder supplies.
 var _ = pulse.Options{

@@ -58,3 +58,42 @@ func ReadRecordAt(loc *encoding.RecordLocator,
 	}
 	return rr.ReadRecordWithWideProjected(values, nulls, wide, keep)
 }
+
+// ReadRecordAtRaw is ReadRecordAt's full-record exact variant: it
+// decodes record i into values / nulls / wide exactly as ReadRecordAt
+// with a nil plan and a nil keep does, and ALSO writes the exact
+// on-wire word of every field read through ReadFieldValue into raw
+// (integers u8..u64, f32/f64 bit patterns, date, datetime, categorical
+// dictionary IDs and the narrow set masks). Bit-packed fields (u4,
+// packed_bool) are exact in values; decimal128 and the wide set rungs
+// are exact in wide. A null field is absent from raw and wide.
+//
+// It is the decode path for an index-addressed reader that must hand
+// back the stored value rather than the float64 echo (u64 above 2^53,
+// datetime beyond 2^53 seconds). A grouped (0x02) locator decodes the
+// logical record, identical to the ungrouped twin.
+func ReadRecordAtRaw(loc *encoding.RecordLocator,
+	r io.ReadSeeker,
+	i uint64,
+	values map[string]float64,
+	nulls map[string]bool,
+	wide map[string]any,
+	raw map[string]uint64,
+) error {
+	if r == nil {
+		return errors.NewCodedError(errors.ENCODING_INVALID,
+			"record locator: nil reader")
+	}
+	if i >= loc.TotalRecords {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			"record index out of range",
+			map[string]any{"index": i, "total_records": loc.TotalRecords})
+	}
+	if _, err := r.Seek(loc.Offset(i), io.SeekStart); err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_IO,
+			"seeking to record offset")
+	}
+	rr := NewRecordReader(r, loc.Schema)
+	rr.raw = raw
+	return rr.ReadRecordWithWide(values, nulls, wide)
+}

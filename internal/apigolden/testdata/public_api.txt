@@ -82,11 +82,39 @@ pulse: type CohesionWarning field Message string
 pulse: type Cohort struct
 pulse: type Cohort method (*Cohort) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse: type Cohort method (*Cohort) Field(name string) *pulse/encoding.Field
+pulse: type Cohort method (*Cohort) Reader() (*pulse.CohortReader, error)
 pulse: type Cohort method (*Cohort) RecordCount() (int64, error)
 pulse: type Cohort method (*Cohort) Schema() *pulse/encoding.Schema
 pulse: type Cohort method (*Cohort) Shards() []pulse.ShardEntry
+pulse: type CohortBuildResult struct
+pulse: type CohortBuildResult field ElidedConstants []string "json:\"elided_constants,omitempty\""
+pulse: type CohortBuildResult field FormatVersion byte "json:\"cohort_format_version\""
+pulse: type CohortBuildResult field Groups []pulse/io.GroupReport "json:\"groups,omitempty\""
+pulse: type CohortBuildResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
+pulse: type CohortBuildResult field Records int64 "json:\"records\""
+pulse: type CohortBuildResult field Schema *pulse/encoding.Schema "json:\"-\""
+pulse: type CohortBuildResult field Shards []string "json:\"shards,omitempty\""
+pulse: type CohortBuildResult field Target string "json:\"target\""
+pulse: type CohortBuildResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
+pulse: type CohortBuilder struct
+pulse: type CohortBuilder method (*CohortBuilder) Abort() error
+pulse: type CohortBuilder method (*CohortBuilder) Append(row pulse.CohortRow) error
+pulse: type CohortBuilder method (*CohortBuilder) Close() (*pulse.CohortBuildResult, error)
+pulse: type CohortBuilderOptions struct
+pulse: type CohortBuilderOptions field ElideConstants bool
+pulse: type CohortBuilderOptions field Groups []pulse/io.GroupDecl
+pulse: type CohortBuilderOptions field Overwrite bool
+pulse: type CohortBuilderOptions field RatioFloor float64
+pulse: type CohortBuilderOptions field Shards *pulse.ShardSplit
+pulse: type CohortBuilderOptions field Strict bool
 pulse: type CohortFingerprint = pulse/internal/encoding.Fingerprint
 pulse: type CohortFingerprint underlying [32]byte
+pulse: type CohortReader struct
+pulse: type CohortReader method (*CohortReader) Close() error
+pulse: type CohortReader method (*CohortReader) Len() int64
+pulse: type CohortReader method (*CohortReader) RecordAt(i int64) (pulse.CohortRow, error)
+pulse: type CohortReader method (*CohortReader) Schema() *pulse/encoding.Schema
+pulse: type CohortRow []any
 pulse: type ComposeOptions = pulse/internal/service.ComposeOptions
 pulse: type ComposeOptions underlying struct
 pulse: type ComposeOptions field FailFast bool
@@ -599,6 +627,7 @@ pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath st
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
 pulse: type Pulse method (*Pulse) Manifest(_ context.Context) *pulse/descriptor.Manifest
+pulse: type Pulse method (*Pulse) NewCohortBuilder(ctx context.Context, target string, schema pulse/encoding.Schema, opts pulse.CohortBuilderOptions) (*pulse.CohortBuilder, error)
 pulse: type Pulse method (*Pulse) Ontology() pulse/descriptor.Ontology
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
 pulse: type Pulse method (*Pulse) PayloadSchema() ([]byte, error)
@@ -737,6 +766,8 @@ pulse: type ShardInfo = pulse/descriptor.ShardInfo
 pulse: type ShardInfo underlying struct
 pulse: type ShardInfo field Filename string "json:\"filename\""
 pulse: type ShardInfo field RecordCount int64 "json:\"record_count\""
+pulse: type ShardSplit struct
+pulse: type ShardSplit field MaxRecords int
 pulse: type SidecarIndex = pulse/internal/encoding.Index
 pulse: type SidecarIndex underlying struct
 pulse: type SidecarIndex field Buckets []pulse/internal/encoding.IndexBucket
@@ -1301,6 +1332,8 @@ pulse/descriptor: type Param field Type string "json:\"type\""
 pulse/descriptor: const Partial pulse/types.ComponentsMergeability = "partial"
 pulse/descriptor: type PredictResult struct
 pulse/descriptor: type PredictResult field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
+pulse/descriptor: type PredictResult field CrosstabFusable *bool "json:\"crosstab_fusable,omitempty\""
+pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:\"crosstab_fusion_reasons,omitempty\""
 pulse/descriptor: type PredictResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
 pulse/descriptor: type PredictResult field Filterers []pulse/descriptor.FiltererPredict "json:\"filterers\""
 pulse/descriptor: type PredictResult field Groups []pulse/descriptor.GroupPredict "json:\"groups\""
@@ -3726,4 +3759,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 736f7668104527f5d9d39bef6959991701fe3d112a07134f67ed7869fc5c96f2
+// golden-hash: c116ac5e593627200cf5306529709f19ae689f1315992cb88a3512d1b4e32b3a

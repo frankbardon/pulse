@@ -7,7 +7,7 @@ The v1.0.0 roadmap broken into **38 Flow-sized units**. Each unit is one initiat
 - links to the theme sections to read first;
 - epics and stories, acceptance criteria, gates, Update Demand companions, and the human inputs needed.
 
-Every one of the 206 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
+Every one of the 207 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
 
 These files were generated once from the theme documents and `TODO.md`, and are now maintained by hand. Edit them directly, and keep a unit's `todo_items` in step with the `· [Uxx]` links in `TODO.md`.
 
@@ -72,7 +72,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31 | 159, 160, 161, 162, 163, 164, 165, 166, 167 |
 | U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206 |
 | U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | S | U02b | 194, 195, 196, 197 |
-| U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | M | U02c (soft) | 198, 199, 200, 201 |
+| U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | M | U02c (soft) | 198, 199, 200, 201, 207 |
 | U36 | [reference-oracles](U36-reference-oracles.md): Every inferential output is pinned to an external reference, and none answers with a wrong or unencodable number | Statistical integrity | M | U08 | 202, 203, 204, 205 |
 
 ## Dependency graph

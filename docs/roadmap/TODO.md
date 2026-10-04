@@ -44,11 +44,12 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#199** The runtime refuses, rather than silently computes on, a field it cannot read: the ledger's "predict stricter, runtime wrong" half (`FEAT_POLY`, `REG_*` and `WIN_*` value windows on categorical / set / decimal / `packed_bool` / `datetime`), plus tier-1 tests on `set_*` · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#200** A request with more than one `Groups` entry executes every group or is refused (today only `Groups[0]` runs) · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#201** Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#207** Shard-archive cohesion compares `Nullable`: `AddShard`, `shard verify`, the `NewCohortBuilder` anchored-append pre-check and the archive reader refuse a shard whose per-field nullability differs from the canonical schema, instead of decoding it under the canonical flags · [U35](units/U35-predict-runtime-parity.md)
 
 #### Cohort facade
-- [ ] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
-- [ ] **#191** `CohortWriter` on the facade: schema + append rows, grouped (`0x02`) cohorts included · [U02c](units/U02c-cohort-facade.md)
-- [ ] **#192** `PredictResult.CrosstabFusable` (no-execute) with a runtime parity gate against the engine's fusion check; payload-schema golden regenerated, `format_version` stays `"1.1"` · [U02c](units/U02c-cohort-facade.md)
+- [x] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
+- [x] **#191** `CohortBuilder` on the facade: schema + append rows, grouped (`0x02`) cohorts included · [U02c](units/U02c-cohort-facade.md)
+- [x] **#192** `PredictResult.CrosstabFusable` (no-execute) with a runtime parity gate against the engine's fusion check; payload-schema golden regenerated, `format_version` stays `"1.1"` · [U02c](units/U02c-cohort-facade.md)
 
 ### Release pipeline ([api-and-release 01](v1.0.0-api-and-release/01-release-pipeline.md))
 - [x] **#5** `internal/buildinfo` + `pulse.Version()`; ldflags injection; `ReadBuildInfo` fallback; `make build` uses `git describe` · [U01](units/U01-release-pipeline.md)

@@ -34,6 +34,25 @@ type PredictResult struct {
 	// when Streamable=true. Useful for users debugging why their request
 	// is buffering.
 	StreamableReasons []string `json:"streamable_reasons,omitempty"`
+	// CrosstabFusable reports whether this instance would run the
+	// request's crosstab on the fused in-decode arm (O(cells + margins)
+	// memory, one decode pass) rather than the buffered arm that holds
+	// every filter-passing record. Nil when the request carries no
+	// crosstab spec. Computed from the same rule the engine dispatches
+	// on (internal/crosstabfuse), on the defaults-resolved request, and
+	// instance-aware: Options.DisableCrosstabFusion answers false with a
+	// reason. Both arms produce identical output; only memory differs.
+	//
+	// The one fact predict cannot know is whether a keyable grouper's
+	// factory accepts its params (e.g. a GROUP_DATE component the
+	// runtime rejects): predict may then say true while the runtime
+	// declines and the buffered path refuses the request with a coded
+	// error — the request errors on either answer.
+	CrosstabFusable *bool `json:"crosstab_fusable,omitempty"`
+	// CrosstabFusionReasons lists, in rule order, every reason
+	// CrosstabFusable is false — short stable prose. Empty when it is
+	// true or nil.
+	CrosstabFusionReasons []string `json:"crosstab_fusion_reasons,omitempty"`
 	// Suggestions enumerates structured next-actions the caller can apply
 	// to repair (or improve) the request. Suggestions fire on validation
 	// issues — field-name typos, operator/type mismatches, date misuse,

@@ -158,6 +158,19 @@ The resolved zone per slot is echoed by predict as
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
 
+## Whether a crosstab fuses is a predict answer
+
+The schema cannot tell you which arm the engine will build a crosstab
+on — the fused one-pass arm (memory `O(cells + margins)`) or the buffered
+arm (holds every filter-passing record). Output is identical; only
+memory differs. `pulse predict` reports it as
+`data.crosstab_fusable` (absent when the request has no crosstab) plus
+`data.crosstab_fusion_reasons` (every reason it will not fuse, in rule
+order). Both are predict result fields, not part of this schema, so
+adding them did not move `format_version` (still `"1.1"`). They honour
+the instance: an engine built with `Options.DisableCrosstabFusion`
+answers `false` with a reason. See `skills/crosstab-guide.md`.
+
 ## What the schema cannot say about `margin_aggregations`
 
 The auxiliary margin-only slot is fully described structurally — it is an

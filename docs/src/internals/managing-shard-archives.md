@@ -39,6 +39,13 @@ appends the payload:
 pulse shard add q1_2019.pulse 20190122.pulse
 ```
 
+Go embedders building shards from rows skip the intermediate files:
+`Pulse.NewCohortBuilder` with `ShardSplit` writes a new archive through
+one `CreateShardArchive` call, and an anchored target
+(`q1_2019.pulse#20190122.pulse`) appends one shard through one
+`AddShard` call, with the same cohesion checks and mandatory warnings.
+See [Reading & Building Cohorts](../library/cohort-reader.md).
+
 ### Set-width auto-widen
 
 **Two** conditions trigger it, and they compose:
