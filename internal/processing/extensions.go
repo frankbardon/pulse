@@ -74,6 +74,15 @@ type ExtensionRegistry struct {
 	// only ever recorded alongside a true Mergeable entry.
 	MarginReducibility map[types.AggregationType]types.MarginReducibility
 
+	// WeightAware is the per-(category, name) row-weight declaration
+	// (pulse.AggregatorRegistration / AttributeRegistration /
+	// TestRegistration .WeightAware), keyed like Streamable and
+	// consulted through IsExtensionWeightAware by StampWeightsWith: a
+	// true entry's slot is stamped with its resolved weight, so the
+	// adapted operator reads it through extend.Record.Weight(). Built-in
+	// operators are not stored here (internal/weighting classes them).
+	WeightAware map[string]bool
+
 	// TwoPassAttributes records which extension attributes declared the
 	// two-pass streaming tier (pulse.AttributeModeTwoPass) — the
 	// extension half of the built-in two-pass set (ZSCORE, TSCORE,
@@ -524,6 +533,17 @@ func (r *ExtensionRegistry) IsMergeable(category, name string) bool {
 		return types.GroupType(name).Mergeable()
 	}
 	return false
+}
+
+// IsExtensionWeightAware reports whether the extension operator name in
+// category ("aggregator", "attribute", "test") declared WeightAware. A
+// built-in name, an unregistered name and a hidden name answer false.
+// Nil-receiver-safe.
+func (r *ExtensionRegistry) IsExtensionWeightAware(category, name string) bool {
+	if r == nil || r.isHidden(name) {
+		return false
+	}
+	return r.WeightAware[StreamabilityKey(category, name)]
 }
 
 // AggregatorMarginReducibility reports the crosstab margin class of

@@ -2418,11 +2418,13 @@ const (
 	// `weight: null` opts that slot out.
 	PULSE_WEIGHT_UNSUPPORTED Code = "PULSE_WEIGHT_UNSUPPORTED"
 
-	// PULSE_EXTENSION_NOT_WEIGHT_AWARE indicates an explicit row weight
-	// (a slot or request `weight`) reached an extension operator whose
-	// registration does not declare WeightAware. An inherited instance
-	// default is skipped there instead. Details carry "slot",
-	// "operator" and "field".
+	// PULSE_EXTENSION_NOT_WEIGHT_AWARE indicates a row weight reached an
+	// extension operator whose registration does not declare
+	// WeightAware: an explicit (slot or request) weight on an extension
+	// aggregator — an inherited instance default is skipped there — or
+	// any weight in force, the instance default included, on an
+	// extension attribute or test. Details carry "slot", "operator" and
+	// "field".
 	PULSE_EXTENSION_NOT_WEIGHT_AWARE Code = "PULSE_EXTENSION_NOT_WEIGHT_AWARE"
 )
 

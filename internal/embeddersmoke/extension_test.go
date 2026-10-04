@@ -116,6 +116,88 @@ func TestExtendAggregatorThroughProcess(t *testing.T) {
 	}
 }
 
+// smokeWeightedSum is a WeightAware Σ w·x: it reads the engine-resolved
+// row weight through extend.Record.Weight (1 when none is in force).
+type smokeWeightedSum struct{ sum float64 }
+
+func (a *smokeWeightedSum) fold(rec extend.Record, field string) {
+	v, ok := rec.NumericValue(field)
+	if !ok {
+		return
+	}
+	w, weighted := rec.Weight()
+	if !weighted {
+		w = 1
+	}
+	a.sum += w * v
+}
+
+func (a *smokeWeightedSum) Aggregate(rows extend.Rows, field string) (float64, error) {
+	for i := 0; i < rows.Len(); i++ {
+		a.fold(rows.At(i), field)
+	}
+	return a.sum, nil
+}
+
+func (a *smokeWeightedSum) UpdateRow(rec extend.Record, field string) error {
+	a.fold(rec, field)
+	return nil
+}
+
+func (a *smokeWeightedSum) Finalize() (float64, error) { return a.sum, nil }
+
+// TestExtendWeightAwareAggregator: a registration declaring WeightAware
+// answers the weighted built-in AGG_SUM under a request weight, and the
+// orchestrator stamps the weighted floor (sum_weights) on its slot.
+func TestExtendWeightAwareAggregator(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:        "AGG_SMOKE_WEIGHTED_SUM",
+			Description: "Σ w·x authored against the public extend package.",
+			Factory: func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
+				return &smokeWeightedSum{}, nil
+			},
+			Streamable:  true,
+			WeightAware: true,
+		}},
+	}})
+	ingest(t, p, fs, "sales.pulse")
+	ctx := context.Background()
+
+	weighted := func(op types.AggregationType) *pulse.Response {
+		req := sumByRegion("sales.pulse")
+		req.Weight = &types.WeightSpec{Field: "amount", Kind: types.WeightKindFrequency}
+		req.Aggregations[0].Type = op
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("Process(%s): %v", op, err)
+		}
+		return resp
+	}
+	builtin, ext := weighted(types.AGG_SUM), weighted("AGG_SMOKE_WEIGHTED_SUM")
+	want, got := totals(t, builtin), totals(t, ext)
+	if want["north"] != 125 || want["south"] != 400 {
+		t.Fatalf("weighted built-in totals = %v, want north=125 south=400", want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("extension weighted total[%s] = %v, built-in %v", k, got[k], v)
+		}
+	}
+
+	whole := sumByRegion("sales.pulse")
+	whole.Groups = nil
+	whole.Weight = &types.WeightSpec{Field: "amount"}
+	whole.Aggregations[0].Type = "AGG_SMOKE_WEIGHTED_SUM"
+	resp, err := p.Process(ctx, whole)
+	if err != nil {
+		t.Fatalf("Process(ungrouped): %v", err)
+	}
+	if c := resp.Components; c == nil || len(c.Aggregations) != 1 || c.Aggregations[0].SumWeights == nil || *c.Aggregations[0].SumWeights != 35 {
+		t.Fatalf("extension slot's weighted floor = %+v, want sum_weights 35", c)
+	}
+}
+
 // The remaining categories authored against extend alone: an
 // attribute (two-pass tier), a streaming feature, both test tiers and
 // a window. The compile-time assertions prove the public spellings

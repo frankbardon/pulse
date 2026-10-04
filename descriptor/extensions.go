@@ -58,12 +58,18 @@ type OperatorMeta struct {
 	// A non-recompute class admits the operator as a fused crosstab
 	// cell. Omitted when undeclared, which reads as "recompute": the
 	// crosstab cell runs buffered.
-	MarginReducibility string              `json:"margin_reducibility,omitempty"`
-	Accepts            []string            `json:"accepts,omitempty"`
-	Emits              string              `json:"emits,omitempty"`
-	Mode               string              `json:"mode,omitempty"`
-	Tier               string              `json:"tier,omitempty"`
-	Params             []OperatorParamMeta `json:"params,omitempty"`
+	MarginReducibility string `json:"margin_reducibility,omitempty"`
+	// WeightAware is the aggregator / attribute / test projection of
+	// the registration's WeightAware declaration — the extension half
+	// of the built-in Operator.WeightAware. True means the operator
+	// reads the resolved row weight (extend.Record.Weight) and computes
+	// a weighted figure; omitted otherwise.
+	WeightAware bool                `json:"weight_aware,omitempty"`
+	Accepts     []string            `json:"accepts,omitempty"`
+	Emits       string              `json:"emits,omitempty"`
+	Mode        string              `json:"mode,omitempty"`
+	Tier        string              `json:"tier,omitempty"`
+	Params      []OperatorParamMeta `json:"params,omitempty"`
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
 	// registration's purpose declares, sorted. Omitted when the
 	// registration declares none.

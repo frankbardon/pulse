@@ -73,9 +73,10 @@ func (p *Processor) SetWeighting(def *types.WeightSpec, strict bool) {
 	p.strictWeights = strict
 }
 
-// stampWeights is StampWeights with this processor's default weight.
+// stampWeights is StampWeightsWith with this processor's default weight
+// and extension registry.
 func (p *Processor) stampWeights(req *types.Request) *types.Request {
-	return StampWeights(req, p.defaultWeight)
+	return StampWeightsWith(req, p.defaultWeight, p.exts)
 }
 
 // SetDisableComponents toggles Response.Components emission for this

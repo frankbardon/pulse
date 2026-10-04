@@ -83,8 +83,8 @@ func (s *Service) shouldFanOut(req *types.Request, cohort *Cohort) (int, bool) {
 // deterministic across runs.
 func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Request, cohort *Cohort, path string, workers int) (*types.Response, error) {
 	// Every worker builds its aggregators off the stamped spec, so each
-	// slot carries its resolved weight (processing.StampWeights).
-	req = processing.StampWeights(req, s.defaultWeight)
+	// slot carries its resolved weight (processing.StampWeightsWith).
+	req = processing.StampWeightsWith(req, s.defaultWeight, s.extensions)
 	shards := cohort.Shards()
 	schema := cohort.Schema()
 

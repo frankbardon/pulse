@@ -43,7 +43,7 @@ overlay the engine consults).
 ## The `extend` contract: `Record`, `Rows` and reuse
 
 `extend.Record` exposes `Schema`, `IsNull`, `NumericValue`,
-`StringValue`, `SetMaskValue` and `DecimalValue`; `extend.Rows` exposes
+`StringValue`, `SetMaskValue`, `DecimalValue` and `Weight`; `extend.Rows` exposes
 `Len` and `At(i)`. Accessors never return an error — every "no value"
 answer is a false second return. The silent cases: `NumericValue` is
 false for a null, projected-out or missing field AND for every
@@ -59,6 +59,63 @@ retain one (copy out values; `encoding.SetMask` and
 from a `Record` including its `*encoding.Schema`. `Record` and `Rows`
 are consumer-only: Pulse implements them, embedders call them, and
 methods may be added in a minor release.
+
+## Row weights: `WeightAware` and `Record.Weight()`
+
+`AggregatorRegistration`, `AttributeRegistration` and
+`TestRegistration` carry `WeightAware bool`, projected as the manifest
+extension entry's `weight_aware` (omitted when false). A WeightAware
+operator reads the row weight the engine resolved for its slot — slot
+`weight` → request `weight` → `pulse.Options.DefaultWeight` — through
+`extend.Record.Weight() (float64, bool)`:
+
+- `ok == false` means no weight is in force on the slot (or the
+  operator is not WeightAware — every other operator, and every
+  filterer, grouper, window and feature, always sees `(0, false)`).
+- Only a VALID weight is ever reported: finite and non-negative (zero
+  included), and an integer under `kind: frequency`. A row whose weight
+  is invalid never reaches a WeightAware aggregator or tier-1 row test —
+  it is excluded and counted (`n_weight_invalid`, one
+  `PULSE_WEIGHT_INVALID_ROWS` warning per weight column). A WeightAware
+  attribute owes every row a value, so it still receives such a row,
+  with `Weight()` reporting false.
+- The factory sees the resolved weight on its spec (`spec.Weight.Spec()`
+  gives `{field, kind}` with the kind spelled out); `nil` when no weight
+  applies.
+- The orchestrator stamps the weighted floor keys (`sum_weights`,
+  `n_eff`, `n_weight_invalid`) on a weighted aggregator slot, exactly as
+  for a built-in. The operator never emits them, and they are not
+  declared in its `ComponentSchema`.
+
+A registration that does NOT declare `WeightAware` is classed like the
+built-ins: an aggregator is skipped under the instance default
+(predict reports `skipped_not_weight_aware`, the slot runs unweighted)
+and refused with `PULSE_EXTENSION_NOT_WEIGHT_AWARE` under an explicit
+slot or request weight; an attribute or test is refused under ANY
+weight in force, the instance default included (it may read the whole
+population, like the built-in tests and reference attributes). Every
+refusal is opted out of with `"weight": null` on the slot. Predict,
+manifest and runtime read the same declaration, so they always agree.
+A WeightAware extension test is applied, not refused — unlike a
+built-in `TEST_*`, the registration has declared its weighted form.
+
+```go
+func (a *wsum) UpdateRow(rec extend.Record, field string) error {
+	x, ok := rec.NumericValue(field)
+	if !ok {
+		return nil
+	}
+	w, weighted := rec.Weight()
+	if !weighted {
+		w = 1
+	}
+	a.sum += w * x
+	return nil
+}
+```
+
+Contract long form: `.claude/reference/weighting.md` (Extension
+contract).
 
 ## When to register vs use a built-in
 
@@ -672,6 +729,11 @@ flowchart TD
 Factory contract for the probe (documented in `extensions_probe.go`):
 embedder factories MUST tolerate a nil/empty `Schema` and a spec
 carrying only the operator `Name`. The probe never feeds real records.
+A `WeightAware` aggregator, attribute or test factory is constructed a
+second time with a row weight on its spec (a field the empty schema
+does not carry) and must pass the same checks; a failure of that
+construction reports the same code with `details.weighted: true`.
+Tests are probed only when they declare `WeightAware`.
 
 Factory panics or nil returns surface as
 `PULSE_EXTENSION_FACTORY_PANIC`. Streamability declarations that do
@@ -1283,6 +1345,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_EXAMPLE_INVALID` | an `Extensions.Examples` file breaks a rule in "Embedder examples" — `details.reason` names which |
 | `PULSE_EXTENSION_EXAMPLE_COLLISION` | an `Extensions.Examples` name is a built-in example or is shipped twice |
 | `PULSE_FEATURE_PROFILE_UNKNOWN` | a `DependsOn` entry names no built-in feature or registered extension operator |
+| `PULSE_EXTENSION_NOT_WEIGHT_AWARE` | a row weight reached a registration without `WeightAware` — explicit on an aggregator, or any weight in force on an attribute or test |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |
 

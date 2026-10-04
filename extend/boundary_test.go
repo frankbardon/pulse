@@ -61,12 +61,15 @@ func TestExtendImportBoundary(t *testing.T) {
 
 // enginePackages are the module trees extend must never reach, even
 // transitively through an allowed import: the operator engine moved
-// under internal/processing and the orchestrator lives in
-// internal/service. Reaching either would re-couple the public
+// under internal/processing, the orchestrator lives in
+// internal/service, and internal/weighting holds the row-weight class
+// table and validity rule the engine applies before a weight reaches
+// extend.Record.Weight. Reaching any would re-couple the public
 // extension contract to engine internals.
 var enginePackages = []string{
 	"github.com/frankbardon/pulse/internal/processing",
 	"github.com/frankbardon/pulse/internal/service",
+	"github.com/frankbardon/pulse/internal/weighting",
 }
 
 // TestExtendImportBoundary_NoTransitiveEngine walks the full dependency

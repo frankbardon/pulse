@@ -77,6 +77,12 @@ type weightSlot struct {
 	// (windows): only the request weight is explicit there, and the
 	// refusal prose says so.
 	noSlotWeight bool
+	// extCategory is the weight-bearing extension category
+	// ("aggregator", "attribute", "test") when operator is an
+	// embedder-registered operator of the slot's family, "" otherwise;
+	// extAware is its registration's WeightAware declaration.
+	extCategory string
+	extAware    bool
 }
 
 // weightExemptOverlays are the Inferential overlay kinds that already
@@ -106,6 +112,24 @@ func overlayWeightClass(kind string) weighting.Class {
 func weightUnsupported(s weightSlot, field string) error {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
 		fmt.Sprintf("%s: %s has no weighted form yet (weighted inference is not implemented); opt the slot out with \"weight\": null to run it unweighted", s.slot, s.operator),
+		map[string]any{"slot": s.slot, "operator": s.operator, "field": field})
+}
+
+// extensionNotWeightAware is the PULSE_EXTENSION_NOT_WEIGHT_AWARE
+// refusal of a weight in force on an extension operator whose
+// registration does not declare WeightAware.
+func extensionNotWeightAware(s weightSlot, field string, explicit bool) error {
+	var why string
+	switch {
+	case s.extCategory == extCategoryAggregator:
+		why = "drop the weight or set \"weight\": null on the slot (an instance default is skipped on it)"
+	case explicit:
+		why = "set \"weight\": null on the slot to run it unweighted"
+	default:
+		why = "an extension " + s.extCategory + " is refused under any weight in force, the instance default included; set \"weight\": null on the slot to run it unweighted"
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_NOT_WEIGHT_AWARE,
+		fmt.Sprintf("%s: extension operator %s does not declare WeightAware; %s", s.slot, s.operator, why),
 		map[string]any{"slot": s.slot, "operator": s.operator, "field": field})
 }
 
@@ -196,10 +220,19 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	add := func(slot, op string, w types.SlotWeight) {
 		slots = append(slots, weightSlot{slot: slot, operator: op, weight: w, hidden: inst.Hidden(op)})
 	}
+	// ext marks the slot just added as an extension operator of
+	// category when the instance registers one under its name.
+	ext := func(category string) {
+		s := &slots[len(slots)-1]
+		if registered, aware := inst.Extensions().WeightAwareness(category, s.operator); registered {
+			s.extCategory, s.extAware = category, aware
+		}
+	}
 	addAgg := func(slot string, a *types.Aggregation) {
 		add(slot, string(a.Type), a.Weight)
 		slots[len(slots)-1].sugar = WeightedMeanParamField(a)
 		slots[len(slots)-1].valueFields = aggValueFields(a)
+		ext(extCategoryAggregator)
 	}
 	for i, a := range req.Aggregations {
 		if a != nil {
@@ -219,11 +252,13 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	for i, t := range req.Tests {
 		if t != nil {
 			add(fmt.Sprintf("tests[%d]", i), string(t.Type), t.Weight)
+			ext(extCategoryTest)
 		}
 	}
 	for i, t := range req.PostTests {
 		if t != nil {
 			add(fmt.Sprintf("post_tests[%d]", i), string(t.Type), t.Weight)
+			ext(extCategoryTest)
 		}
 	}
 	for i, r := range req.Regressions {
@@ -234,6 +269,7 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	for i, a := range req.Attributes {
 		if a != nil {
 			add(fmt.Sprintf("attributes[%d]", i), string(a.Type), a.Weight)
+			ext(extCategoryAttribute)
 		}
 	}
 	for i, o := range req.Overlays {
@@ -342,6 +378,16 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //     `groups` or a crosstab axis) ⇒ PULSE_WEIGHT_UNSUPPORTED under any
 //     weight, the instance default included; every operator the table
 //     does not govern ⇒ skipped;
+//   - an extension aggregator, attribute or test (the instance's
+//     ExtensionsSnapshot) is classed by its registration's WeightAware
+//     declaration: aware ⇒ applied (no decimal128 refusal — the
+//     extension owns its decimal reads); a non-aware aggregator ⇒
+//     skipped under the instance default, PULSE_EXTENSION_NOT_WEIGHT_AWARE
+//     under an explicit weight; a non-aware attribute or test ⇒
+//     PULSE_EXTENSION_NOT_WEIGHT_AWARE under any weight, the instance
+//     default included (it may read the whole population, like the
+//     built-in tests and reference attributes). A hidden extension is
+//     never-registered (skipped);
 //   - an overlay is classed by its kind's manifest Inferential flag
 //     (overlayWeightClass; sole exemption
 //     OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z): an Inferential kind is
@@ -430,6 +476,12 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 		case s.hidden:
 		case s.overlay:
 			class = overlayWeightClass(s.operator)
+		case s.extCategory != "" && s.extAware:
+			class = weighting.ClassAware
+		case s.extCategory != "":
+			// Classed below: a non-aware extension aggregator is
+			// skipped under the default, every other refusal is
+			// PULSE_EXTENSION_NOT_WEIGHT_AWARE.
 		default:
 			class = weighting.ClassOf(s.operator)
 		}
@@ -447,6 +499,14 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 		}
 		rw.Field, rw.Kind = spec.Field, string(spec.EffectiveKind())
 		explicit := rw.Source != descriptor.WeightSourceOptions
+		if s.extCategory != "" && !s.extAware && !s.hidden {
+			if explicit || s.extCategory != extCategoryAggregator {
+				return nil, extensionNotWeightAware(s, spec.Field, explicit)
+			}
+			rw.Status = descriptor.WeightStatusSkippedNotWeightAware
+			out = append(out, rw)
+			continue
+		}
 		switch class {
 		case weighting.ClassRefuse:
 			return nil, weightUnsupported(s, spec.Field)
@@ -478,8 +538,13 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 				return nil, err
 			}
 		}
-		if err := decimalWeightRefusal(schema, s, spec); err != nil {
-			return nil, err
+		// The decimal refusal is the built-in decimal path's: an
+		// extension reads decimal fields through
+		// extend.Record.DecimalValue and owns its weighted form.
+		if s.extCategory == "" {
+			if err := decimalWeightRefusal(schema, s, spec); err != nil {
+				return nil, err
+			}
 		}
 		rw.Status = descriptor.WeightStatusApplied
 		out = append(out, rw)

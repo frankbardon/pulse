@@ -63,12 +63,12 @@ func effectiveAggWeight(a *types.Aggregation, reqW, def *types.WeightSpec) *type
 // stampAgg returns a copy of a whose `weight` is its resolved state:
 // the applied weight (kind spelled out) on a weight-aware operator,
 // `null` everywhere else.
-func stampAgg(a *types.Aggregation, reqW, def *types.WeightSpec) *types.Aggregation {
+func stampAgg(a *types.Aggregation, reqW, def *types.WeightSpec, aware func(string) bool) *types.Aggregation {
 	if a == nil {
 		return nil
 	}
 	c := *a
-	if w := effectiveAggWeight(a, reqW, def); w != nil && weighting.IsAware(string(a.Type)) {
+	if w := effectiveAggWeight(a, reqW, def); w != nil && aware(string(a.Type)) {
 		c.Weight = types.SlotWeightOf(types.WeightSpec{Field: w.Field, Kind: w.EffectiveKind()})
 	} else {
 		c.Weight = types.NullSlotWeight()
@@ -76,33 +76,121 @@ func stampAgg(a *types.Aggregation, reqW, def *types.WeightSpec) *types.Aggregat
 	return &c
 }
 
-// StampWeights returns req with every aggregation slot (the top-level
-// aggregations, the crosstab cell and margin aggregations) carrying its
-// resolved weight, def being pulse.Options.DefaultWeight. When nothing
-// names a weight — no request weight, no default, no slot weight, no
+// effectiveSlotWeight is the weight in force on a non-aggregation slot
+// (a test or an attribute): its own `weight` (null ⇒ none), the
+// request weight, then the instance default.
+func effectiveSlotWeight(own types.SlotWeight, reqW, def *types.WeightSpec) *types.WeightSpec {
+	switch {
+	case own.IsNull():
+		return nil
+	case !own.IsZero():
+		return own.Spec()
+	case reqW != nil:
+		return reqW
+	}
+	return def
+}
+
+// stampSlotWeight is the resolved `weight` of a test or attribute
+// slot: the applied weight (kind spelled out) on a WeightAware
+// extension operator, `null` on any other slot that names a weight, and
+// own unchanged otherwise. ok=false means "no change". The resolver
+// already refused a weight in force on a non-aware extension test or
+// attribute and on every built-in test, so a slot that keeps a set
+// weight here is one the weight applies to.
+func stampSlotWeight(own types.SlotWeight, aware bool, reqW, def *types.WeightSpec) (types.SlotWeight, bool) {
+	if aware {
+		if w := effectiveSlotWeight(own, reqW, def); w != nil {
+			return types.SlotWeightOf(types.WeightSpec{Field: w.Field, Kind: w.EffectiveKind()}), true
+		}
+		return types.NullSlotWeight(), !own.IsNull()
+	}
+	if own.Spec() != nil {
+		// A built-in row-local attribute skips its weight; nulling it
+		// keeps the slot out of the invalid-row tally.
+		return types.NullSlotWeight(), true
+	}
+	return own, false
+}
+
+// StampWeights is StampWeightsWith over the built-in class table alone
+// (no extension operators).
+func StampWeights(req *types.Request, def *types.WeightSpec) *types.Request {
+	return StampWeightsWith(req, def, nil)
+}
+
+// StampWeightsWith returns req with every aggregation slot (the
+// top-level aggregations, the crosstab cell and margin aggregations)
+// carrying its resolved weight, def being pulse.Options.DefaultWeight
+// and exts the instance's extension registry (nil: built-ins only). An
+// extension aggregator is weight-aware iff its registration declared
+// WeightAware; a WeightAware extension test (`tests`, `post_tests`) or
+// attribute slot carries its resolved weight too, so the adapted
+// operator reads it through extend.Record.Weight(). When nothing names
+// a weight — no request weight, no default, no slot weight, no
 // AGG_WEIGHTED_MEAN weight_field — req itself is returned, so an
 // unweighted request executes the unchanged object. Otherwise the
 // result is a shallow copy with copied slots; req is never mutated.
 // Idempotent: stamping a stamped request changes nothing.
-func StampWeights(req *types.Request, def *types.WeightSpec) *types.Request {
+func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *ExtensionRegistry) *types.Request {
 	if req == nil || !namesWeight(req, def) {
 		return req
+	}
+	aware := func(op string) bool {
+		return weighting.IsAware(op) || exts.IsExtensionWeightAware("aggregator", op)
 	}
 	c := *req
 	c.Aggregations = make([]*types.Aggregation, len(req.Aggregations))
 	for i, a := range req.Aggregations {
-		c.Aggregations[i] = stampAgg(a, req.Weight, def)
+		c.Aggregations[i] = stampAgg(a, req.Weight, def, aware)
 	}
 	if req.Crosstab != nil {
 		ct := *req.Crosstab
-		ct.Cell = stampAgg(req.Crosstab.Cell, req.Weight, def)
+		ct.Cell = stampAgg(req.Crosstab.Cell, req.Weight, def, aware)
 		ct.MarginAggregations = make([]*types.Aggregation, len(req.Crosstab.MarginAggregations))
 		for i, a := range req.Crosstab.MarginAggregations {
-			ct.MarginAggregations[i] = stampAgg(a, req.Weight, def)
+			ct.MarginAggregations[i] = stampAgg(a, req.Weight, def, aware)
 		}
 		c.Crosstab = &ct
 	}
+	c.Tests = stampTests(req.Tests, req.Weight, def, exts)
+	c.PostTests = stampTests(req.PostTests, req.Weight, def, exts)
+	if len(req.Attributes) > 0 {
+		c.Attributes = make([]*types.Attribute, len(req.Attributes))
+		for i, a := range req.Attributes {
+			c.Attributes[i] = a
+			if a == nil {
+				continue
+			}
+			if w, ok := stampSlotWeight(a.Weight, exts.IsExtensionWeightAware("attribute", string(a.Type)), req.Weight, def); ok {
+				cp := *a
+				cp.Weight = w
+				c.Attributes[i] = &cp
+			}
+		}
+	}
 	return &c
+}
+
+// stampTests stamps a test slice (see stampSlotWeight); a nil or empty
+// slice is returned as-is.
+func stampTests(tests []*types.Test, reqW, def *types.WeightSpec, exts *ExtensionRegistry) []*types.Test {
+	if len(tests) == 0 {
+		return tests
+	}
+	out := make([]*types.Test, len(tests))
+	for i, t := range tests {
+		out[i] = t
+		if t == nil {
+			continue
+		}
+		if w, ok := stampSlotWeight(t.Weight, exts.IsExtensionWeightAware("test", string(t.Type)), reqW, def); ok {
+			cp := *t
+			cp.Weight = w
+			out[i] = &cp
+		}
+	}
+	return out
 }
 
 func namesWeight(req *types.Request, def *types.WeightSpec) bool {
@@ -127,8 +215,25 @@ func namesWeight(req *types.Request, def *types.WeightSpec) bool {
 			}
 		}
 	}
+	for _, t := range append(append([]*types.Test(nil), req.Tests...), req.PostTests...) {
+		if t != nil && t.Weight.Spec() != nil {
+			return true
+		}
+	}
+	for _, a := range req.Attributes {
+		if a != nil && a.Weight.Spec() != nil {
+			return true
+		}
+	}
 	return false
 }
+
+// Weight satisfies extend.Record: the engine's own row carries no
+// per-slot weight (slot weights differ within one request), so it
+// always reports (0, false). A WeightAware extension operator on a
+// weighted slot is handed a per-slot view instead (the root extension
+// adapter), whose Weight reports the row's valid weight.
+func (r *Record) Weight() (float64, bool) { return 0, false }
 
 // readWeight reads and judges one row's weight under spec.
 func readWeight(r *Record, spec *types.WeightSpec) (float64, weighting.Reason) {
@@ -233,8 +338,9 @@ type weightTallyEntry struct {
 }
 
 // NewWeightRowTally builds the tally for a stamped request's weighted
-// aggregation slots — the top-level aggregations, the crosstab cell and
-// the crosstab margin aggregations; nil when no slot is weighted.
+// slots — the top-level aggregations, the crosstab cell, the crosstab
+// margin aggregations and any WeightAware extension row test or
+// attribute; nil when no slot is weighted.
 func NewWeightRowTally(req *types.Request) *WeightRowTally {
 	if req == nil {
 		return nil
@@ -246,8 +352,24 @@ func NewWeightRowTally(req *types.Request) *WeightRowTally {
 		// The crosstab cell and auxiliary margin slots weight rows too.
 		slots = append(append(append([]*types.Aggregation(nil), slots...), ct.Cell), ct.MarginAggregations...)
 	}
+	weights := make([]*types.WeightSpec, 0, len(slots)+len(req.Tests)+len(req.Attributes))
 	for _, a := range slots {
-		w := slotWeight(a)
+		weights = append(weights, slotWeight(a))
+	}
+	// A WeightAware extension row test or attribute reads the row
+	// weight too (StampWeightsWith left its weight set); tier-2 post
+	// tests see no rows.
+	for _, t := range req.Tests {
+		if t != nil {
+			weights = append(weights, t.Weight.Spec())
+		}
+	}
+	for _, a := range req.Attributes {
+		if a != nil {
+			weights = append(weights, a.Weight.Spec())
+		}
+	}
+	for _, w := range weights {
 		if w == nil {
 			continue
 		}

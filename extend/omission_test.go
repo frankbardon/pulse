@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/frankbardon/pulse/extend"
 )
 
 // engineOnlyNames are engine capabilities extend deliberately does NOT
@@ -16,8 +18,14 @@ import (
 // fast paths extensions never take, and ExtensionAware would hand an
 // extension the whole engine registry. Merge capabilities ARE public
 // (extend.MergeableAggregator), behind an explicit registration
-// declaration, so no Mergeable* prefix is banned here.
-var engineOnlyNames = []string{"StreamableGrouper", "IncludeOrdered", "ExtensionAware"}
+// declaration, so no Mergeable* prefix is banned here. The row-weight
+// machinery is engine-only too: an extension READS a resolved weight
+// through Record.Weight, while resolution (StampWeights), validity
+// (WeightRowTally) and the floor keys (WeightFloor) stay with the
+// orchestrator — an extension never emits sum_weights / n_eff /
+// n_weight_invalid.
+var engineOnlyNames = []string{"StreamableGrouper", "IncludeOrdered", "ExtensionAware",
+	"StampWeights", "WeightFloor", "WeightRowTally"}
 
 var engineOnlyPrefixes = []string{"Meta"}
 
@@ -84,4 +92,42 @@ func exportedNames(d ast.Decl) []string {
 		}
 	}
 	return out
+}
+
+// TestRecordExposesWeight pins the read-only weight accessor on
+// extend.Record — the one surface a WeightAware operator reads the
+// engine-resolved row weight through — and that Record offers no other
+// weight method (no setter, no validity judge: those are the engine's).
+func TestRecordExposesWeight(t *testing.T) {
+	_ = func(r extend.Record) (float64, bool) { return r.Weight() }
+	fset := token.NewFileSet()
+	af, err := parser.ParseFile(fset, "record.go", nil, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var methods []string
+	ast.Inspect(af, func(n ast.Node) bool {
+		ts, ok := n.(*ast.TypeSpec)
+		if !ok || ts.Name.Name != "Record" {
+			return true
+		}
+		for _, m := range ts.Type.(*ast.InterfaceType).Methods.List {
+			for _, name := range m.Names {
+				methods = append(methods, name.Name)
+			}
+		}
+		return false
+	})
+	found := false
+	for _, m := range methods {
+		switch {
+		case m == "Weight":
+			found = true
+		case strings.Contains(m, "Weight"):
+			t.Errorf("extend.Record declares %s; the weight is read-only (Weight)", m)
+		}
+	}
+	if !found {
+		t.Fatalf("extend.Record does not declare Weight (methods %v)", methods)
+	}
 }
