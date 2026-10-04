@@ -22,7 +22,7 @@ branch: public-surface
 
 Apply the decided classification. Every package the decisions table marks internal moves under `internal/`; `encoding`, `io`, `descriptor`, `errors`, `synth`, `mcp/gosdk` and `mcpserve` are narrowed to their kept subset. Facade-returned types keep their spelling through root aliases, and the leaks that aliases cannot close get facade replacements: `Options.DisableCrosstabFusion`, `InspectBytes` / `PredictBytes`, the `io` factory with typed formats, `CohortArtifacts` (planned as `IndexArtifacts`), and root-native `DateRangeSpec` / `MemberSet`. Then an API-compatibility check runs in CI so the frozen surface cannot break silently.
 
-The catalog and the classification (#1, #2) are already done. The extension-authoring contract (`extend`) is [U02b](U02b-extension-contract.md); `CohortReader` / `CohortWriter` and `PredictResult.CrosstabFusable` are [U02c](U02c-cohort-facade.md).
+The catalog and the classification (#1, #2) are already done. The extension-authoring contract (`extend`) is [U02b](U02b-extension-contract.md); `CohortReader` / `CohortBuilder` and `PredictResult.CrosstabFusable` are [U02c](U02c-cohort-facade.md).
 
 ## References
 
@@ -58,7 +58,7 @@ The catalog and the classification (#1, #2) are already done. The extension-auth
 
 **Out of scope**
 - The `extend` package, registration adapters and making `processing` fully internal ([U02b](U02b-extension-contract.md))
-- `CohortReader` / `CohortWriter` and `PredictResult.CrosstabFusable` ([U02c](U02c-cohort-facade.md))
+- `CohortReader` / `CohortBuilder` and `PredictResult.CrosstabFusable` ([U02c](U02c-cohort-facade.md))
 - Public raw-byte writing of grouped (`0x02`) cohorts — permanently outside the v1 primitive set
 - A Pulse-owned filesystem interface replacing `afero.Fs` (frozen as-is)
 - Behaviour changes beyond the decided replacements: no wire, file-format or operator change; `format_version` stays `"1.1"`. The one intended behaviour difference is that `PredictBytes` fills the extension snapshot, which `PredictFromBytes` left unset

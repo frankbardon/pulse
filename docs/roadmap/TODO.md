@@ -47,7 +47,7 @@ Theme documents: see the [roadmap index](README.md).
 
 #### Cohort facade
 - [ ] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
-- [ ] **#191** `CohortWriter` on the facade: schema + append rows, grouped (`0x02`) cohorts included · [U02c](units/U02c-cohort-facade.md)
+- [ ] **#191** `CohortBuilder` on the facade: schema + append rows, grouped (`0x02`) cohorts included · [U02c](units/U02c-cohort-facade.md)
 - [ ] **#192** `PredictResult.CrosstabFusable` (no-execute) with a runtime parity gate against the engine's fusion check; payload-schema golden regenerated, `format_version` stays `"1.1"` · [U02c](units/U02c-cohort-facade.md)
 
 ### Release pipeline ([api-and-release 01](v1.0.0-api-and-release/01-release-pipeline.md))
