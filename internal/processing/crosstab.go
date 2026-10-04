@@ -443,6 +443,10 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"RunCrosstab requires a Crosstab spec")
 	}
+	// The cell and margin aggregators take their applied weight off
+	// the stamped spec (weighting E3 owns the crosstab floor, margins
+	// verification and invalid-row warning).
+	req = p.stampWeights(req)
 	spec := req.Crosstab
 	if err := validateCrosstabSpec(spec, req); err != nil {
 		return nil, err

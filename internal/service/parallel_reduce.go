@@ -84,6 +84,10 @@ func (s *Service) reduceParallelBuffered(
 			"reduceParallelBuffered: workers must be >= 1")
 	}
 
+	// Every worker builds its aggregators off the stamped spec, so each
+	// slot carries its resolved weight (processing.StampWeights).
+	req = processing.StampWeights(req, s.defaultWeight)
+
 	// Pre-resolve aggregator factories once; the per-worker factory
 	// closure re-uses these so we do not pay an extensions.LookupAggregator
 	// hop per worker. Same shape as processOneShard's spec table.
@@ -156,11 +160,7 @@ func (s *Service) reduceParallelBuffered(
 			}
 		}
 
-		out := &shardPartial{
-			aggN:           make([]int64, len(specs)),
-			aggNNull:       make([]int64, len(specs)),
-			filterCounters: processing.NewFilterPassCounters(req.Filterers),
-		}
+		out := newShardPartial(req, specs)
 		if buildErr == nil && grouperInst == nil {
 			ungroupedAggs = make([]processing.OnlineAggregator, len(specs))
 			for i, sp := range specs {
@@ -233,13 +233,7 @@ func (s *Service) reduceParallelBuffered(
 				// row-local attributes land so a slot aggregating an
 				// attribute label sees the same presence the serial
 				// orchestrator sees.
-				for i := range specs {
-					if processing.FieldPresent(rec, specs[i].agg.Field) {
-						out.aggN[i]++
-					} else {
-						out.aggNNull[i]++
-					}
-				}
+				out.observeFloor(rec, specs)
 
 				if grouperInst == nil {
 					for i, oa := range ungroupedAggs {
@@ -284,6 +278,9 @@ func (s *Service) reduceParallelBuffered(
 		if err != nil {
 			return nil, err
 		}
+		if err := partials[0].weights.Apply(resp, s.strict); err != nil {
+			return nil, err
+		}
 		return resp, nil
 	}
 
@@ -299,6 +296,9 @@ func (s *Service) reduceParallelBuffered(
 	}
 	resp, err := finalizeMergedPartial(req, schema, merged, 0, s.effectiveDisableComponents(req), s.extensions)
 	if err != nil {
+		return nil, err
+	}
+	if err := merged.weights.Apply(resp, s.strict); err != nil {
 		return nil, err
 	}
 	return resp, nil

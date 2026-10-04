@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 
-	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -38,8 +37,7 @@ func (s *Service) processCrosstabFused(ctx context.Context, cohort *Cohort, path
 	// to deliver the win on wide cohorts.
 	s.applyCrosstabProjection(iter, req, cohort.Schema())
 
-	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
-	proc.SetDisableComponents(s.effectiveDisableComponents(req))
+	proc := s.newProcessor(cohort.Schema(), req)
 	resp, err := proc.RunCrosstabFused(ctx, req, iter)
 	if err != nil {
 		return nil, err

@@ -1262,6 +1262,22 @@ type AggregationComponents struct {
 	// aggregator.
 	NNull int `json:"n_null"`
 
+	// SumWeights is Σw over the rows whose value was present and whose
+	// weight was valid — set only when a row weight is APPLIED to the
+	// slot, so its absence is the per-slot "unweighted" signal. N and
+	// NNull keep their value-presence meaning under a weight.
+	SumWeights *float64 `json:"sum_weights,omitempty"`
+
+	// NEff is Kish's effective sample size (Σw)² / Σw² over the same
+	// rows — set only on a slot weighted with kind probability.
+	NEff *float64 `json:"n_eff,omitempty"`
+
+	// NWeightInvalid counts the rows whose value was present but whose
+	// weight was invalid (null, negative, NaN / ±Inf, or non-integer
+	// under kind frequency) and was therefore excluded — set only on a
+	// weighted slot.
+	NWeightInvalid *int `json:"n_weight_invalid,omitempty"`
+
 	// Operator carries the per-aggregator schema-declared keys. Key
 	// set is governed by the operator's ComponentSchema declaration in
 	// internal/descriptor/capabilities_aggregators.go. Values are JSON-compatible

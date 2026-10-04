@@ -93,6 +93,15 @@ type Operator struct {
 	// never zone-capable.
 	Zone string `json:"zone,omitempty"`
 
+	// WeightAware is true for an operator that computes a weighted
+	// figure when a row weight (Request.Weight, a per-slot `weight`, or
+	// Options.DefaultWeight) is in force on its slot, and omitted
+	// otherwise: such an operator is skipped under an instance default
+	// weight and refused under an explicit one (or, for an inferential
+	// one, under any weight). Predict's per-slot `weights` status says
+	// which happened.
+	WeightAware bool `json:"weight_aware,omitempty"`
+
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
 	// operator answers, sorted. Omitted when the operator declares no
 	// purpose.

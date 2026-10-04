@@ -130,8 +130,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 
-	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
-	proc.SetDisableComponents(s.effectiveDisableComponents(req))
+	proc := s.newProcessor(cohort.Schema(), req)
 	resp, err := proc.RunCrosstab(ctx, req, records)
 	if err != nil {
 		return nil, err
@@ -194,8 +193,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 		return nil, err
 	}
 
-	proc := processing.NewProcessorWithExtensions(joinedSchema, s.extensions)
-	proc.SetDisableComponents(s.effectiveDisableComponents(req))
+	proc := s.newProcessor(joinedSchema, req)
 	resp, err := proc.RunCrosstab(ctx, &clone, records)
 	if err != nil {
 		return nil, err

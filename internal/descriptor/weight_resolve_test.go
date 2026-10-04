@@ -22,19 +22,6 @@ func weightSchema() *encoding.Schema {
 	}}
 }
 
-// withWeightAware marks ops weight-aware for the test's duration — the
-// table is filled operator by operator by later stories, so the
-// "applied" branch is driven here directly.
-func withWeightAware(t *testing.T, ops ...string) {
-	t.Helper()
-	saved := weightAwareOperators
-	weightAwareOperators = map[string]bool{}
-	for _, op := range ops {
-		weightAwareOperators[op] = true
-	}
-	t.Cleanup(func() { weightAwareOperators = saved })
-}
-
 func codeOf(t *testing.T, err error) *errors.CodedError {
 	t.Helper()
 	var ce *errors.CodedError
@@ -47,7 +34,6 @@ func codeOf(t *testing.T, err error) *errors.CodedError {
 // TestResolveWeights_Precedence walks slot → request → options → none
 // and the slot `null` opt-out, per slot, in reporting order.
 func TestResolveWeights_Precedence(t *testing.T) {
-	withWeightAware(t, "AGG_SUM", "AGG_COUNT")
 	def := &types.WeightSpec{Field: "wi", Kind: types.WeightKindFrequency}
 	req := &types.Request{
 		Weight: &types.WeightSpec{Field: "w"},
@@ -55,7 +41,7 @@ func TestResolveWeights_Precedence(t *testing.T) {
 			{Type: types.AGG_SUM, Field: "x"},                                                                               // request
 			{Type: types.AGG_SUM, Field: "x", Weight: types.NullSlotWeight()},                                               // opted out
 			{Type: types.AGG_SUM, Field: "x", Weight: types.SlotWeightOf(types.WeightSpec{Field: "wi", Kind: "frequency"})}, // slot
-			{Type: types.AGG_MIN, Field: "x"},                                                                               // not aware
+			{Type: types.AGG_MIN, Field: "x", Weight: types.NullSlotWeight()},                                               // not aware, opted out
 		},
 		Tests: []*types.Test{{Type: types.TEST_T, Field: "x", Weight: types.NullSlotWeight()}},
 	}
@@ -67,7 +53,7 @@ func TestResolveWeights_Precedence(t *testing.T) {
 		{Slot: "aggregations[0]", Operator: "AGG_SUM", Field: "w", Kind: "probability", Status: "applied", Source: "request"},
 		{Slot: "aggregations[1]", Operator: "AGG_SUM", Status: "opted_out", Source: "slot"},
 		{Slot: "aggregations[2]", Operator: "AGG_SUM", Field: "wi", Kind: "frequency", Status: "applied", Source: "slot"},
-		{Slot: "aggregations[3]", Operator: "AGG_MIN", Field: "w", Kind: "probability", Status: "skipped_not_weight_aware", Source: "request"},
+		{Slot: "aggregations[3]", Operator: "AGG_MIN", Status: "opted_out", Source: "slot"},
 		{Slot: "tests[0]", Operator: "TEST_T", Status: "opted_out", Source: "slot"},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -188,7 +174,6 @@ func TestResolveWeights_Refusals(t *testing.T) {
 // refused only where it would be applied — a request it reaches only on
 // non-weight-aware slots, or only through opted-out slots, runs.
 func TestResolveWeights_DefaultJudgedWhereItApplies(t *testing.T) {
-	withWeightAware(t, "AGG_SUM")
 	missing := &types.WeightSpec{Field: "nope"}
 	minOnly := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MIN, Field: "x"}}}
 	if _, err := ResolveWeights(minOnly, weightSchema(), missing, nil); err != nil {
@@ -280,5 +265,98 @@ func TestPredictWeights_Surface(t *testing.T) {
 	env = predictFromBytes(data, bad, &PredictOptions{})
 	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PROCESSING_CONFIG) || env.Errors[0].Details["type"] != "categorical_u8" {
 		t.Fatalf("refusal: %+v", env.Errors)
+	}
+}
+
+// TestResolveWeights_Classes: the operator's weight class decides what
+// a resolved weight does — applied on a weight-aware aggregator;
+// skipped under the instance default but refused (PROCESSING_CONFIG)
+// under an explicit slot or request weight on a not-weightable or
+// still-pending one; PULSE_WEIGHT_UNSUPPORTED under ANY weight on the
+// inferential AGG_CI_*; skipped on an operator the table does not
+// govern. `weight: null` opts every class out.
+func TestResolveWeights_Classes(t *testing.T) {
+	def := &types.WeightSpec{Field: "w"}
+	one := func(a *types.Aggregation, reqW *types.WeightSpec) *types.Request {
+		return &types.Request{Weight: reqW, Aggregations: []*types.Aggregation{a}}
+	}
+	for _, op := range []types.AggregationType{types.AGG_COUNT, types.AGG_SUM, types.AGG_AVERAGE, types.AGG_VARIANCE, types.AGG_STDDEV, types.AGG_WELFORD} {
+		got, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x"}, def), weightSchema(), nil, nil)
+		if err != nil || got[0].Status != descriptor.WeightStatusApplied {
+			t.Fatalf("%s: %+v %v, want applied", op, got, err)
+		}
+	}
+	for _, op := range []types.AggregationType{types.AGG_MIN, types.AGG_MEDIAN} {
+		got, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x"}, nil), weightSchema(), def, nil)
+		if err != nil || got[0].Status != descriptor.WeightStatusSkippedNotWeightAware {
+			t.Fatalf("%s under default: %+v %v, want skipped", op, got, err)
+		}
+		for name, req := range map[string]*types.Request{
+			"request": one(&types.Aggregation{Type: op, Field: "x"}, def),
+			"slot":    one(&types.Aggregation{Type: op, Field: "x", Weight: types.SlotWeightField("w")}, nil),
+		} {
+			_, err := ResolveWeights(req, weightSchema(), nil, nil)
+			ce := codeOf(t, err)
+			if ce.Code != errors.PROCESSING_CONFIG || ce.Details["operator"] != string(op) || ce.Details["slot"] != "aggregations[0]" {
+				t.Fatalf("%s %s: %s %v", op, name, ce.Code, ce.Details)
+			}
+		}
+		if _, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x", Weight: types.NullSlotWeight()}, def), weightSchema(), nil, nil); err != nil {
+			t.Fatalf("%s opted out: %v", op, err)
+		}
+	}
+	for _, op := range []types.AggregationType{types.AGG_CI_LOWER, types.AGG_CI_UPPER} {
+		_, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x"}, nil), weightSchema(), def, nil)
+		if ce := codeOf(t, err); ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || ce.Details["operator"] != string(op) {
+			t.Fatalf("%s under default: %s %v", op, ce.Code, ce.Details)
+		}
+		if _, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x", Weight: types.NullSlotWeight()}, def), weightSchema(), def, nil); err != nil {
+			t.Fatalf("%s opted out: %v", op, err)
+		}
+	}
+	got, err := ResolveWeights(&types.Request{Weight: def, Tests: []*types.Test{{Type: types.TEST_T, Field: "x"}}}, weightSchema(), nil, nil)
+	if err != nil || got[0].Status != descriptor.WeightStatusSkippedNotWeightAware {
+		t.Fatalf("ungoverned operator: %+v %v", got, err)
+	}
+}
+
+// TestResolveWeights_WeightedMeanSugar: AGG_WEIGHTED_MEAN's
+// params.weight_field is the slot's own weight (kind probability); it
+// agrees with or conflicts against an explicit slot weight, and a slot
+// nothing resolves a weight for is refused.
+func TestResolveWeights_WeightedMeanSugar(t *testing.T) {
+	wm := func(params string, w types.SlotWeight) *types.Request {
+		a := &types.Aggregation{Type: types.AGG_WEIGHTED_MEAN, Field: "x", Weight: w}
+		if params != "" {
+			a.Params = []byte(params)
+		}
+		return &types.Request{Aggregations: []*types.Aggregation{a}}
+	}
+	got, err := ResolveWeights(wm(`{"weight_field":"wi"}`, types.SlotWeight{}), weightSchema(), &types.WeightSpec{Field: "w"}, nil)
+	want := []descriptor.ResolvedWeight{{Slot: "aggregations[0]", Operator: "AGG_WEIGHTED_MEAN", Field: "wi", Kind: "probability", Status: "applied", Source: "slot"}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("sugar: %+v %v", got, err)
+	}
+	got, err = ResolveWeights(wm(`{"weight_field":"wi"}`, types.SlotWeightOf(types.WeightSpec{Field: "wi", Kind: "frequency"})), weightSchema(), nil, nil)
+	if err != nil || got[0].Kind != "frequency" {
+		t.Fatalf("agreeing slot weight: %+v %v", got, err)
+	}
+	// Without the sugar the slot inherits.
+	r := wm("", types.SlotWeight{})
+	r.Weight = &types.WeightSpec{Field: "w"}
+	if got, err = ResolveWeights(r, weightSchema(), nil, nil); err != nil || got[0].Source != "request" {
+		t.Fatalf("inherit: %+v %v", got, err)
+	}
+	for name, req := range map[string]*types.Request{
+		"conflict field":    wm(`{"weight_field":"wi"}`, types.SlotWeightField("w")),
+		"conflict null":     wm(`{"weight_field":"wi"}`, types.NullSlotWeight()),
+		"nothing":           wm("", types.SlotWeight{}),
+		"opted out":         wm("", types.NullSlotWeight()),
+		"sugar categorical": wm(`{"weight_field":"cat"}`, types.SlotWeight{}),
+	} {
+		_, err := ResolveWeights(req, weightSchema(), nil, nil)
+		if ce := codeOf(t, err); ce.Code != errors.PROCESSING_CONFIG || ce.Details["slot"] == nil {
+			t.Fatalf("%s: %s %v", name, ce.Code, ce.Details)
+		}
 	}
 }

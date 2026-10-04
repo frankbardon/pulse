@@ -999,6 +999,7 @@ pulse/descriptor: type CommandAnnotations field Streamable bool "json:\"streamab
 pulse/descriptor: type ComponentKey struct
 pulse/descriptor: type ComponentKey field Description string "json:\"description\""
 pulse/descriptor: type ComponentKey field Name string "json:\"name\""
+pulse/descriptor: type ComponentKey field Optional bool "json:\"optional,omitempty\""
 pulse/descriptor: type ComponentKey field Type string "json:\"type\""
 pulse/descriptor: type ComponentSchema struct
 pulse/descriptor: type ComponentSchema field Keys []pulse/descriptor.ComponentKey "json:\"keys,omitempty\""
@@ -1284,6 +1285,7 @@ pulse/descriptor: type Operator field Name string "json:\"name\""
 pulse/descriptor: type Operator field Params []pulse/descriptor.Param "json:\"params\""
 pulse/descriptor: type Operator field Streamable bool "json:\"streamable\""
 pulse/descriptor: type Operator field StreamableHint string "json:\"streamable_hint,omitempty\""
+pulse/descriptor: type Operator field WeightAware bool "json:\"weight_aware,omitempty\""
 pulse/descriptor: type Operator field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type OperatorMeta struct
 pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omitempty\""
@@ -3048,8 +3050,11 @@ pulse/types: type Aggregation field Weight pulse/types.SlotWeight "json:\"weight
 pulse/types: type AggregationComponents struct
 pulse/types: type AggregationComponents field Label string "json:\"label,omitempty\""
 pulse/types: type AggregationComponents field N int "json:\"n\""
+pulse/types: type AggregationComponents field NEff *float64 "json:\"n_eff,omitempty\""
 pulse/types: type AggregationComponents field NNull int "json:\"n_null\""
+pulse/types: type AggregationComponents field NWeightInvalid *int "json:\"n_weight_invalid,omitempty\""
 pulse/types: type AggregationComponents field Operator map[string]any "json:\"operator,omitempty\""
+pulse/types: type AggregationComponents field SumWeights *float64 "json:\"sum_weights,omitempty\""
 pulse/types: func AggregationLabelOf(a *pulse/types.Aggregation) string
 pulse/types: type AggregationType string
 pulse/types: type AggregationType method (AggregationType) MapValued() bool
@@ -3802,4 +3807,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 475e836f6a81eac925b97404a8b284ca791324b5fb14f45d4a18884cc2f3294c
+// golden-hash: 9bc74e174ea906685d8d56e29cf0bf6f3a6b39a03588c5cdac7c91fed86ea418

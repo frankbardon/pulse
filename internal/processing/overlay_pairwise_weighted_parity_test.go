@@ -139,9 +139,17 @@ func TestPairwiseWeightedMomentKeysMatchCapabilities(t *testing.T) {
 		if !ok {
 			return nil
 		}
+		// Only keys every run emits: an OPTIONAL key (the weighted
+		// floor, weighted AGG_AVERAGE's moments) appears only on a
+		// weighted slot. Weighted AGG_AVERAGE cells become a valid
+		// host only when weighting E3 puts the weighted floor into
+		// CellComponents AND relaxes predict's cell-host refusal in
+		// the same change (FR-18).
 		out := map[string]bool{}
 		for _, k := range schema.Keys {
-			out[k.Name] = true
+			if !k.Optional {
+				out[k.Name] = true
+			}
 		}
 		return out
 	}

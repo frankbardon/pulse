@@ -685,8 +685,7 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 
 	s.applyProjection(iter, req, cohort.Schema())
 
-	proc := processing.NewProcessorWithExtensions(cohort.Schema(), s.extensions)
-	proc.SetDisableComponents(s.effectiveDisableComponents(req))
+	proc := s.newProcessor(cohort.Schema(), req)
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {
 		return nil, err

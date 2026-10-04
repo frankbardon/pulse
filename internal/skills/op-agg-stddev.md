@@ -11,7 +11,7 @@ examples_tags: [distribution-shape, streaming-friendly]
 
 ## Params
 
-None.
+Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is √(m2_w / Σw). Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
 
 ## Inputs
 
@@ -24,6 +24,8 @@ None.
 Scalar `float64` — population stddev (n-denominator); `decimal128` input yields a decimal-scaled result. Per-group when wired under a grouper.
 
 ## Components
+
+Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
 
 Universal floor `{n, n_null}` plus operator-specific:
 

@@ -42,6 +42,7 @@ internal/imports/          managed-imports manager (TTL, sidecars)
 internal/statdist/         Student-t family + regularized incomplete beta shared by processing and regression (leaf: stdlib + gonum only; TestStatdistImportBoundary)
 internal/daterange/        compiled {label,start,end} model for the date-range operators
 internal/mergegate/        the one pure merge + chain-stage gate (types/encoding/errors only); engine and chain validator both call it
+internal/weighting/        the one weight-class table per built-in aggregator + the per-row weight-validity rule (leaf: stdlib + types); resolver, manifest and engine all read it
 internal/spsssidecar/      SPSS sidecar path helpers used by root sidecar_*.go
 internal/profilefile/      ReadOS: the one host-OS-path feature-profile reader (mcpserve.NewPulse + `pulse features`); imports the root, never imported by it
 internal/facadebridge/     init-installed hooks from the root to mcp/gosdk + mcpserve (replaces Service()): ExtensionsSnapshot, CohortScanDisabled

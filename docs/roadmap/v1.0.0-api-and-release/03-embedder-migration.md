@@ -207,6 +207,18 @@ U10 leaves for later units: the `follow_up` edge and `Purpose.FollowUps` (U22), 
 | the `AGG_FREQUENCY` name | reused for a NEW operator: the count of non-null rows equal to a required `params.value` (matched as `FILTER_INCLUDE` matches one value; components `match_count`, `share`; streamable, mergeable, ProcessChain-admitted, never a smart default). An old request naming it no longer fails as unknown: without `params.value` it is refused (`PROCESSING_CONFIG`, at predict and at run time) with a message pointing at `AGG_MODE_COUNT`; a feature profile listing it now enables the value count, not the modal count | breaking (semantics) | rename modal-count uses to `AGG_MODE_COUNT` (in profiles too, or the instance loses the modal count); add `params.value` where one value's count is meant | U09 |
 | a ProcessChain stage using `AGG_MODE` was refused (`PULSE_CHAIN_NOT_MERGEABLE`, "emits a non-scalar value") | admitted: it emits one float64 per row and its per-value counts merge exactly. On a categorical field the chained value is the DICTIONARY INDEX, so a later stage reads a number, not a label | behaviour change | drop any per-stage `Process` fallback written for `AGG_MODE`; resolve the index against the stage-0 field's dictionary when a label is wanted | U09 |
 
+## Changes from U11 (weighted descriptive figures)
+
+Rows land story by story; contract: `.claude/reference/weighting.md`. A request that names no weight (no request / slot `weight`, no `Options.DefaultWeight`, no `AGG_WEIGHTED_MEAN`) is byte-identical; `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `AGG_WEIGHTED_MEAN` scalar = the Chan-Welford running mean; `sum_weighted` = mean·Σw | the exact Σw·x / Σw (an alias of weighted `AGG_AVERAGE`); `sum_weighted` = the exact Σw·x | behaviour change (ULP) | compare with a relative tolerance (1e-12), not bit equality | U11 |
+| `AGG_WEIGHTED_MEAN` folded negative weights in and let NaN / ±Inf weights poison the result | excluded and counted (`n_weight_invalid`, one `PULSE_WEIGHT_INVALID_ROWS` warning; an error under `Strict`) | behaviour change | clean the weight column, or read the warning's `by_reason` | U11 |
+| `AGG_WEIGHTED_MEAN` required `params.weight_field` | optional: absent ⇒ the slot / request weight or `Options.DefaultWeight`; a differing explicit slot weight, or none at all, is `PROCESSING_CONFIG` | relaxed | none | U11 |
+| (none) | `types.AggregationComponents.SumWeights` / `NEff` / `NWeightInvalid` (`sum_weights`, `n_eff`, `n_weight_invalid`; set only on a weighted slot), `descriptor.Operator.WeightAware` (`weight_aware`), `descriptor.ComponentKey.Optional` (`optional`) | added | none; a struct literal of these types keeps compiling | U11 |
+| a request / slot weight on `AGG_MIN` and the other not-weightable aggregators (did not exist) | explicit weight ⇒ `PROCESSING_CONFIG`; `Options.DefaultWeight` ⇒ skipped (predict `skipped_not_weight_aware`); any weight on `AGG_CI_LOWER` / `AGG_CI_UPPER` ⇒ `PULSE_WEIGHT_UNSUPPORTED` — `"weight": null` opts a slot out | added | set `"weight": null` on such slots | U11 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

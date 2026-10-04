@@ -11,7 +11,7 @@ examples_tags: [financial, streaming-friendly]
 
 ## Params
 
-None.
+Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is Σw·x. Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
 
 ## Inputs
 
@@ -26,6 +26,8 @@ Decimal128 sums stay in decimal (banker-rounded precision propagation); all othe
 Scalar `float64` (decimal128 preserved when input is decimal). One row per group when wired under a grouper.
 
 ## Components
+
+Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
 
 Universal floor `{n, n_null}` plus operator-specific:
 

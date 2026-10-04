@@ -82,6 +82,9 @@ func (s *Service) shouldFanOut(req *types.Request, cohort *Cohort) (int, bool) {
 // order; a final pass merges them in that order so Welford drift is
 // deterministic across runs.
 func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Request, cohort *Cohort, path string, workers int) (*types.Response, error) {
+	// Every worker builds its aggregators off the stamped spec, so each
+	// slot carries its resolved weight (processing.StampWeights).
+	req = processing.StampWeights(req, s.defaultWeight)
 	shards := cohort.Shards()
 	schema := cohort.Schema()
 
@@ -147,6 +150,9 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
+	if err := merged.weights.Apply(resp, s.strict); err != nil {
+		return nil, err
+	}
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = path
 	}
@@ -198,6 +204,14 @@ type shardPartial struct {
 	// respondent in a set column into n_null.
 	aggN     []int64
 	aggNNull []int64
+
+	// aggWeight carries each slot's weighted floor tally (sum_weights,
+	// n_eff, n_weight_invalid) — inert on an unweighted slot — and
+	// weights the per-weight-field invalid-row tally behind the
+	// PULSE_WEIGHT_INVALID_ROWS warning (nil when nothing is weighted).
+	// Both are plain sums, merged slot-wise like aggN.
+	aggWeight []processing.WeightFloor
+	weights   *processing.WeightRowTally
 
 	// filterCounters carries the per-slot {n_in, n_out, n_null_input}
 	// triple behind Response.Components.Filterers, one entry per
@@ -294,11 +308,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	// counter (see primaryNullFieldFor).
 	primaryNullField := primaryNullFieldFor(req)
 
-	out := &shardPartial{
-		aggN:           make([]int64, len(specs)),
-		aggNNull:       make([]int64, len(specs)),
-		filterCounters: processing.NewFilterPassCounters(req.Filterers),
-	}
+	out := newShardPartial(req, specs)
 	var aggsUngrouped []processing.OnlineAggregator
 	if grouper == nil {
 		aggsUngrouped = make([]processing.OnlineAggregator, len(specs))
@@ -381,13 +391,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		// slot aggregating an attribute label sees the same presence
 		// the serial orchestrator sees. Ordering mirrors
 		// processing.processStreaming exactly.
-		for i := range specs {
-			if processing.FieldPresent(rec, specs[i].agg.Field) {
-				out.aggN[i]++
-			} else {
-				out.aggNNull[i]++
-			}
-		}
+		out.observeFloor(rec, specs)
 
 		if grouper == nil {
 			for i, oa := range aggsUngrouped {
@@ -402,6 +406,41 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		}
 	}
 	return out, nil
+}
+
+// newShardPartial returns an empty partial for req's slots: the
+// universal floor, the weighted floor and invalid-row tallies, and the
+// filter counters. Shared by both parallel reducers.
+func newShardPartial(req *types.Request, specs []aggSpec) *shardPartial {
+	out := &shardPartial{
+		aggN:           make([]int64, len(specs)),
+		aggNNull:       make([]int64, len(specs)),
+		aggWeight:      make([]processing.WeightFloor, len(specs)),
+		weights:        processing.NewWeightRowTally(req),
+		filterCounters: processing.NewFilterPassCounters(req.Filterers),
+	}
+	for i, sp := range specs {
+		out.aggWeight[i] = processing.NewWeightFloor(sp.agg)
+	}
+	return out
+}
+
+// observeFloor tallies one filter-passing record into the universal
+// floor (presence via processing.FieldPresent, never NumericValue: a
+// set column has presence but no numeric value), the weighted floor
+// and the invalid-weight tally — AFTER row-local attributes land, in
+// processing.processStreaming's order. Shared by both parallel
+// reducers.
+func (sp *shardPartial) observeFloor(rec *processing.Record, specs []aggSpec) {
+	sp.weights.Observe(rec)
+	for i := range specs {
+		if processing.FieldPresent(rec, specs[i].agg.Field) {
+			sp.aggN[i]++
+		} else {
+			sp.aggNNull[i]++
+		}
+		sp.aggWeight[i].Observe(rec, specs[i].agg.Field)
+	}
 }
 
 // foldGroupedRow fans one filter-passing record into every bucket this
@@ -561,7 +600,11 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 			if slot < len(p.aggNNull) {
 				merged.aggNNull[slot] += p.aggNNull[slot]
 			}
+			if slot < len(merged.aggWeight) && slot < len(p.aggWeight) {
+				merged.aggWeight[slot].Merge(p.aggWeight[slot])
+			}
 		}
+		merged.weights.Merge(p.weights)
 		processing.MergeFilterPassCounters(merged.filterCounters, p.filterCounters)
 
 		if merged.aggs != nil {
@@ -748,6 +791,9 @@ func attachMergedAggregationComponents(resp *types.Response, req *types.Request,
 		entry, err := processing.BuildAggregationComponents(oa, slot, n, nNull)
 		if err != nil {
 			return err
+		}
+		if i < len(merged.aggWeight) {
+			merged.aggWeight[i].Stamp(&entry)
 		}
 		processing.AttachAggregationComponents(resp, entry)
 	}

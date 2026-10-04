@@ -956,7 +956,7 @@ func manifestAggOperatorKeysForCT(t *testing.T, name string) []string {
 	}
 	out := make([]string, 0, len(schema.Keys))
 	for _, k := range schema.Keys {
-		if k.Name == "n" || k.Name == "n_null" {
+		if k.Name == "n" || k.Name == "n_null" || k.Optional {
 			continue
 		}
 		out = append(out, k.Name)

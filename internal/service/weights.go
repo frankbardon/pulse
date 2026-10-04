@@ -51,3 +51,15 @@ func (s *Service) neededFields(req *types.Request, schema *encoding.Schema) proc
 	}
 	return set
 }
+
+// newProcessor builds the processor every execution mode runs a
+// Request on: the instance's extensions, the effective Components
+// opt-out, and the weighting knobs (Options.DefaultWeight, which the
+// processor folds into each run through processing.StampWeights, and
+// strict mode, which turns PULSE_WEIGHT_INVALID_ROWS into an error).
+func (s *Service) newProcessor(schema *encoding.Schema, req *types.Request) *processing.Processor {
+	proc := processing.NewProcessorWithExtensions(schema, s.extensions)
+	proc.SetDisableComponents(s.effectiveDisableComponents(req))
+	proc.SetWeighting(s.defaultWeight, s.strict)
+	return proc
+}

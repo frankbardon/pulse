@@ -141,7 +141,7 @@ func manifestAggOperatorKeys(t *testing.T, name string) []string {
 	}
 	out := make([]string, 0, len(schema.Keys))
 	for _, k := range schema.Keys {
-		if k.Name == "n" || k.Name == "n_null" {
+		if k.Name == "n" || k.Name == "n_null" || k.Optional {
 			continue
 		}
 		out = append(out, k.Name)
@@ -392,7 +392,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 			declared := result.Aggregations[0].ComponentSchema.Keys
 			predictKeys := make([]string, 0, len(declared))
 			for _, k := range declared {
-				if k.Name == "n" || k.Name == "n_null" {
+				if k.Name == "n" || k.Name == "n_null" || k.Optional {
 					continue
 				}
 				predictKeys = append(predictKeys, k.Name)

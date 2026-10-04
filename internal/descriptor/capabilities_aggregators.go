@@ -266,6 +266,12 @@ func aggSchema(merge descriptor.ComponentsMergeability, extra ...descriptor.Comp
 // Name. The TestManifestOperatorsComplete gate enforces that every entry
 // in types.AllAggregationTypes() has a row here.
 func aggregatorCapabilities() []descriptor.Operator {
+	return withWeightAware(aggregatorCapabilityTable())
+}
+
+// aggregatorCapabilityTable is the literal declaration table;
+// aggregatorCapabilities stamps the weight classification onto it.
+func aggregatorCapabilityTable() []descriptor.Operator {
 	return []descriptor.Operator{
 		{
 			Name:            string(types.AGG_COUNT),
@@ -295,7 +301,12 @@ func aggregatorCapabilities() []descriptor.Operator {
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "sum", Type: "float64", Description: "Running sum of non-null field values; combined with n to recover the mean."},
+				descriptor.ComponentKey{Name: "sum", Type: "float64", Description: "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."},
+				descriptor.ComponentKey{Name: "sum_weighted", Type: "float64", Optional: true, Description: "Weighted slots only: Σw·x over the contributing rows."},
+				descriptor.ComponentKey{Name: "weighted_mean", Type: "float64", Optional: true, Description: "Weighted slots only: Σw·x / Σw (the scalar)."},
+				descriptor.ComponentKey{Name: "m2_weighted", Type: "float64", Optional: true, Description: "Weighted slots only: Σw(x − mean)², the weighted second central moment."},
+				descriptor.ComponentKey{Name: "sum_weights_sq", Type: "float64", Optional: true, Description: "Weighted slots only: Σw², the Kish n_eff denominator."},
+				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Optional: true, Description: "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1."},
 			),
 		},
 		{
@@ -547,13 +558,13 @@ func aggregatorCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_WEIGHTED_MEAN),
 			Category:    "aggregator",
-			Description: "Weighted arithmetic mean: sum(field * weight) / sum(weight). Streaming Chan-Welford recurrence.",
+			Description: "Weighted arithmetic mean: sum(field * weight) / sum(weight) — the weighted average under its own name and components.",
 			Params: []descriptor.Param{
 				{
 					Name:        "weight_field",
 					Type:        "string",
-					Required:    true,
-					Description: "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only).",
+					Required:    false,
+					Description: "Schema field whose value is the per-row weight (kind probability); sugar for a slot weight. Absent: the slot or request weight, else the instance default weight; none resolving is refused. Rows with an invalid (null, negative, NaN/Inf) or zero weight are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only).",
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,

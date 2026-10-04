@@ -190,7 +190,10 @@ type countAggregator struct {
 	n int64
 }
 
-func newCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newCountAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_COUNT, w), nil
+	}
 	return &countAggregator{}, nil
 }
 
@@ -214,7 +217,10 @@ type sumAggregator struct {
 	frozenSum float64
 }
 
-func newSumAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newSumAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_SUM, w), nil
+	}
 	return &sumAggregator{}, nil
 }
 
@@ -241,7 +247,10 @@ type averageAggregator struct {
 	frozenSum float64
 }
 
-func newAverageAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newAverageAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_AVERAGE, w), nil
+	}
 	return &averageAggregator{}, nil
 }
 
@@ -343,7 +352,10 @@ type stdDevAggregator struct {
 	frozenM2   float64
 }
 
-func newStdDevAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newStdDevAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_STDDEV, w), nil
+	}
 	return &stdDevAggregator{}, nil
 }
 
@@ -597,7 +609,10 @@ type varianceAggregator struct {
 	frozenM2   float64
 }
 
-func newVarianceAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newVarianceAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_VARIANCE, w), nil
+	}
 	return &varianceAggregator{}, nil
 }
 

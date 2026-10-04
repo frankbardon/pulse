@@ -189,6 +189,13 @@ resolved weight per slot is echoed by predict as `data.weights[]` —
 `{slot, operator, field, kind, status, source}`, omitted when nothing
 names a weight — a predict result field, not part of this schema.
 
+A weighted aggregation slot reports three optional floor fields on its
+`Response.components.aggregations[i]` entry — `sum_weights`, `n_eff`
+(probability weights only) and `n_weight_invalid` — each `omitempty`
+and present only when a weight was applied to that slot, so an
+unweighted response is unchanged. `n` and `n_null` keep their
+value-presence meaning.
+
 ## Whether a crosstab fuses is a predict answer
 
 The schema cannot tell you which arm the engine will build a crosstab

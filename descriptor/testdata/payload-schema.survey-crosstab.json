@@ -35,12 +35,21 @@
         "n": {
           "type": "integer"
         },
+        "n_eff": {
+          "type": "number"
+        },
         "n_null": {
+          "type": "integer"
+        },
+        "n_weight_invalid": {
           "type": "integer"
         },
         "operator": {
           "additionalProperties": true,
           "type": "object"
+        },
+        "sum_weights": {
+          "type": "number"
         }
       },
       "required": [
@@ -2147,4 +2156,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: b35fb80528dd13b309a4285712d069fa396554332633e46fe572016288b6cee4
+// golden-hash: 2abc6215cb3bd2fe4c88386fd1079ca8e5f4e89a1ed028fb1f305365c25b534e

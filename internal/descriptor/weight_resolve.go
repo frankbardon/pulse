@@ -1,26 +1,39 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
-// weightAwareOperators is the set of built-in operators that consume a
-// resolved row weight. It is the hook ResolveWeights reads to report
-// "applied" vs "skipped_not_weight_aware"; the weighting-descriptive
-// effort fills it operator by operator as each one learns to weight
-// (.claude/reference/weighting.md, Aggregator classification). Until an
-// operator is listed it is reported as skipped, never as applied — a
-// predict answer must not claim a weight the runtime does not use.
-var weightAwareOperators = map[string]bool{}
+// IsWeightAware reports whether the built-in operator op consumes a
+// resolved row weight. The classification is internal/weighting's one
+// table (.claude/reference/weighting.md, Aggregator classification),
+// shared with the engine so predict never claims a weight the runtime
+// does not apply.
+func IsWeightAware(op string) bool { return weighting.IsAware(op) }
 
-// IsWeightAware reports whether the built-in operator (or overlay kind)
-// op consumes a resolved row weight.
-func IsWeightAware(op string) bool { return weightAwareOperators[op] }
+// WeightedMeanParamField returns AGG_WEIGHTED_MEAN's
+// `params.weight_field` (the slot-weight sugar), or "" when the
+// aggregation is another type, carries no such key, or its params do
+// not decode (the factory owns that refusal).
+func WeightedMeanParamField(a *types.Aggregation) string {
+	if a == nil || a.Type != types.AGG_WEIGHTED_MEAN || len(a.Params) == 0 {
+		return ""
+	}
+	var p struct {
+		WeightField string `json:"weight_field"`
+	}
+	if json.Unmarshal(a.Params, &p) != nil {
+		return ""
+	}
+	return p.WeightField
+}
 
 // weightFieldTypes is the set of field types a weight may live in:
 // unsigned integers and floats. decimal128, categorical, date-family,
@@ -49,6 +62,9 @@ type weightSlot struct {
 	// hidden: the instance hides operator, so it is judged as a
 	// never-registered (not weight-aware) name.
 	hidden bool
+	// sugar is AGG_WEIGHTED_MEAN's params.weight_field: a slot-level
+	// weight of kind probability.
+	sugar string
 }
 
 // ValidateWeightSpec is the shape rule every weight passes before any
@@ -100,18 +116,22 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	add := func(slot, op string, w types.SlotWeight) {
 		slots = append(slots, weightSlot{slot: slot, operator: op, weight: w, hidden: inst.Hidden(op)})
 	}
+	addAgg := func(slot string, a *types.Aggregation) {
+		add(slot, string(a.Type), a.Weight)
+		slots[len(slots)-1].sugar = WeightedMeanParamField(a)
+	}
 	for i, a := range req.Aggregations {
 		if a != nil {
-			add(fmt.Sprintf("aggregations[%d]", i), string(a.Type), a.Weight)
+			addAgg(fmt.Sprintf("aggregations[%d]", i), a)
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
 		if ct.Cell != nil {
-			add("crosstab.cell", string(ct.Cell.Type), ct.Cell.Weight)
+			addAgg("crosstab.cell", ct.Cell)
 		}
 		for i, a := range ct.MarginAggregations {
 			if a != nil {
-				add(fmt.Sprintf("crosstab.margin_aggregations[%d]", i), string(a.Type), a.Weight)
+				addAgg(fmt.Sprintf("crosstab.margin_aggregations[%d]", i), a)
 			}
 		}
 	}
@@ -142,17 +162,54 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 }
 
 // requestNamesWeight reports whether req, any of its slots, or the
-// instance default names a weight (a slot `null` included).
+// instance default names a weight (a slot `null` included), or the
+// request carries an AGG_WEIGHTED_MEAN slot.
 func requestNamesWeight(req *types.Request, slots []weightSlot, defaultWeight *types.WeightSpec) bool {
 	if req.Weight != nil || defaultWeight != nil {
 		return true
 	}
 	for _, s := range slots {
-		if !s.weight.IsZero() {
+		// An AGG_WEIGHTED_MEAN slot is a weighted figure by definition:
+		// it resolves (and is refused when nothing resolves) even when
+		// no weight is named anywhere.
+		if !s.weight.IsZero() || s.sugar != "" || (s.operator == string(types.AGG_WEIGHTED_MEAN) && !s.hidden) {
 			return true
 		}
 	}
 	return false
+}
+
+// slotOwnWeight resolves a slot's OWN weight: its `weight`, folded with
+// AGG_WEIGHTED_MEAN's params.weight_field sugar (kind probability).
+// set=false means the slot inherits. A sugar field that disagrees with
+// the slot's explicit weight — a different field, or `null` — is
+// PROCESSING_CONFIG.
+func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err error) {
+	if s.sugar == "" {
+		switch {
+		case s.weight.IsNull():
+			return nil, true, true, nil
+		case !s.weight.IsZero():
+			return s.weight.Spec(), false, true, nil
+		}
+		return nil, false, false, nil
+	}
+	conflict := func(with string) error {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("%s: AGG_WEIGHTED_MEAN params.weight_field %q conflicts with the slot weight %s; name the weight once", s.slot, s.sugar, with),
+			map[string]any{"slot": s.slot, "operator": s.operator, "field": s.sugar})
+	}
+	switch {
+	case s.weight.IsNull():
+		return nil, false, false, conflict("null")
+	case !s.weight.IsZero():
+		own := s.weight.Spec()
+		if own.Field != s.sugar {
+			return nil, false, false, conflict(fmt.Sprintf("%q", own.Field))
+		}
+		return own, false, true, nil
+	}
+	return &types.WeightSpec{Field: s.sugar, Kind: types.WeightKindProbability}, false, true, nil
 }
 
 // ResolveWeights is the single weight-resolution pass for a Request.
@@ -169,7 +226,19 @@ func requestNamesWeight(req *types.Request, slots []weightSlot, defaultWeight *t
 //   - req.Weight's field, when the schema carries it, must be an
 //     unsigned-integer or float field (PROCESSING_CONFIG with details
 //     {slot, field, type});
-//   - a slot's own weight passes the same two checks;
+//   - a slot's own weight passes the same two checks. On
+//     AGG_WEIGHTED_MEAN, params.weight_field is the slot's own weight
+//     (kind probability); one that disagrees with an explicit slot
+//     `weight` (another field, or `null`) is PROCESSING_CONFIG, and an
+//     AGG_WEIGHTED_MEAN slot nothing resolves a weight for is
+//     PROCESSING_CONFIG;
+//   - the slot's operator class (internal/weighting) decides what a
+//     resolved weight does: weight-aware ⇒ applied; not weightable (or
+//     weighted form still pending) ⇒ skipped under the instance default
+//     but PROCESSING_CONFIG under an explicit (slot or request) weight;
+//     inferential (AGG_CI_LOWER / AGG_CI_UPPER) ⇒
+//     PULSE_WEIGHT_UNSUPPORTED under any weight; every operator the
+//     table does not govern ⇒ skipped;
 //   - an inherited Options.DefaultWeight is judged only where it
 //     APPLIES (the slot's operator is weight-aware): there its field
 //     must exist in the schema (the field-reference refusal,
@@ -214,14 +283,16 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			continue
 		}
 		rw := descriptor.ResolvedWeight{Slot: s.slot, Operator: s.operator}
+		own, null, set, err := slotOwnWeight(s)
+		if err != nil {
+			return nil, err
+		}
 		var spec *types.WeightSpec
 		switch {
-		case s.weight.IsNull():
+		case null:
 			rw.Status, rw.Source = descriptor.WeightStatusOptedOut, descriptor.WeightSourceSlot
-			out = append(out, rw)
-			continue
-		case !s.weight.IsZero():
-			spec, rw.Source = s.weight.Spec(), descriptor.WeightSourceSlot
+		case set:
+			spec, rw.Source = own, descriptor.WeightSourceSlot
 			where := s.slot + ".weight"
 			if err := ValidateWeightSpec(spec, where); err != nil {
 				return nil, err
@@ -235,12 +306,40 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			spec, rw.Source = defaultWeight, descriptor.WeightSourceOptions
 		default:
 			rw.Status, rw.Source = descriptor.WeightStatusNone, descriptor.WeightSourceNone
+		}
+		if spec == nil {
+			// AGG_WEIGHTED_MEAN IS a weighted figure: with nothing
+			// resolving (no weight anywhere, or the slot opted out)
+			// there is no answer to give.
+			if s.operator == string(types.AGG_WEIGHTED_MEAN) && !s.hidden {
+				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					s.slot+": AGG_WEIGHTED_MEAN needs a weight: set params.weight_field, a slot weight or a request weight",
+					map[string]any{"slot": s.slot, "operator": s.operator})
+			}
 			out = append(out, rw)
 			continue
 		}
 		rw.Field, rw.Kind = spec.Field, string(spec.EffectiveKind())
-		aware := !s.hidden && IsWeightAware(s.operator)
-		if !aware {
+		explicit := rw.Source != descriptor.WeightSourceOptions
+		class := weighting.ClassNone
+		if !s.hidden {
+			class = weighting.ClassOf(s.operator)
+		}
+		switch class {
+		case weighting.ClassRefuse:
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
+				fmt.Sprintf("%s: %s has no weighted form yet; opt the slot out with \"weight\": null to run it unweighted", s.slot, s.operator),
+				map[string]any{"slot": s.slot, "operator": s.operator, "field": spec.Field})
+		case weighting.ClassNotWeightable, weighting.ClassPending:
+			if explicit {
+				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					fmt.Sprintf("%s: %s is not weight-aware; drop the weight or set \"weight\": null on the slot", s.slot, s.operator),
+					map[string]any{"slot": s.slot, "operator": s.operator, "field": spec.Field})
+			}
+			rw.Status = descriptor.WeightStatusSkippedNotWeightAware
+			out = append(out, rw)
+			continue
+		case weighting.ClassNone:
 			rw.Status = descriptor.WeightStatusSkippedNotWeightAware
 			out = append(out, rw)
 			continue

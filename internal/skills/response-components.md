@@ -23,7 +23,7 @@ Filled by the ENGINE, not the operator — every slot carries it, even a floor-o
 | `FiltererComponents` | `n_in`, `n_out`, `n_null_input` |
 | crosstab cell (`CellComponents[r][c]`) | `n`, `n_null` |
 
-An aggregator's `n` counts NON-NULL inputs; a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator-specific keys (`mean`, `variance`, `mode_count`, `range_min`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
+Weighted slots add `sum_weights` / `n_eff` / `n_weight_invalid`. An aggregator's `n` counts NON-NULL inputs; a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
 
 ## Five sub-blocks
 

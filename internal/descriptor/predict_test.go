@@ -320,6 +320,11 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 			// (TestPredict_AggFrequencyMissingValue).
 			agg.Params = json.RawMessage(`{"value":"1"}`)
 		}
+		if aggType == types.AGG_WEIGHTED_MEAN {
+			// A weighted figure: with no weight resolving it is refused
+			// (TestResolveWeights_WeightedMeanSugar).
+			agg.Params = json.RawMessage(`{"weight_field":"val"}`)
+		}
 		req := &types.Request{Aggregations: []*types.Aggregation{agg}}
 		env := predictFromBytes(data, req, nil)
 		if len(env.Errors) != 0 {

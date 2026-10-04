@@ -52,6 +52,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"RunCrosstabFused requires a non-nil record iterator")
 	}
+	req = p.stampWeights(req)
 
 	spec := req.Crosstab
 	if err := validateCrosstabSpec(spec, req); err != nil {
