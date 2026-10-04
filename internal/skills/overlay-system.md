@@ -67,6 +67,10 @@ Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — o
 
 Manifest `overlays[].buffered`. Descriptive SERIES kinds stream; inferential kinds buffer. MATRIX kinds fold after the matrix is finished, so an overlay never decides whether a crosstab fuses — the cell aggregator does<!-- feature: capability:crosstab --> (`crosstab-guide`)<!-- /feature -->. Mixing streamable and buffered kinds on one request prices it as buffered.
 
+## Weighted hosts
+
+A weighted host yields a weighted payload, so every descriptive kind (shares, indices, deltas) reads weighted figures with no overlay setting. An inferential kind refuses a weight that reaches it (request, instance default, its own `weight`) with `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` on the spec opts out. The weighted pairwise two-means z is exempt and takes a weighted-mean or weighted-average cell.
+
 ## Parity overlays — Welford migration
 
 The cell t / z kinds and their Compose vs-ref twins read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, so the cell aggregator must emit that triple; with no triple at the coordinate they fall back to `params` (`variance_*`, `sample_size_*`). The cell's own `MatrixCell.Value` is the scalar mean. P-values equal the matching row-level two-sample tests on the same inputs.

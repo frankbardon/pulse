@@ -32,6 +32,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `index =
 - `Ref.Prior.Lag` reserved for future window-N priors; v1 ships lag-1 only.
 - Empty `Ref` and populated `Ref.Prior` both spell lag-1.
 - Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Weighted host → weighted figure (reads the host payload).
 
 ## See
 

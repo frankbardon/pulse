@@ -30,6 +30,7 @@ MATRIX (cell scope) or SERIES (row/column scope). `Cells[r][c].Value = 100 × ce
 - Empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Distinct from `OVERLAY_SHARE_OF_*` (raw ratio, no ×100). Kind names kept distinct — don't authoring-confuse.
 - Buffered (host crosstab always recomputes margins from raw rows).
+- Weighted host → weighted figure (reads the host payload).
 
 ## See
 

@@ -30,6 +30,7 @@ ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Paylo
 - Streamable: SERIES fold-only; MATRIX forced buffered by the slot barrier.
 - Shared coord space is enforced before dispatch.
 - Layer slice order matches `spec.Targets`, stable across re-runs.
+- Weighted slots → weighted figures (reads the slot payloads).
 
 ## See
 

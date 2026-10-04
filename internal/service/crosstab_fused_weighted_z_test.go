@@ -501,3 +501,43 @@ func wzsNearDiff(path string, want, got any) string {
 		return ""
 	}
 }
+
+// TestCrosstab_WeightedTwoMeansZ_WeightedAverageHost (FR-18): an
+// AGG_AVERAGE cell weighted by the REQUEST weight is a valid host on
+// both crosstab arms — the overlay kind is exempt from the
+// weighted-inference refusal — and its layers equal the AGG_WEIGHTED_MEAN
+// (weight_field) host's: the same weighted moments, read the same way.
+func TestCrosstab_WeightedTwoMeansZ_WeightedAverageHost(t *testing.T) {
+	cfg := fs.NewMemMap()
+	wzsArchive(t, cfg, "wz.pulse", []int{37, 29, 41})
+	ctx := context.Background()
+	run := func(t *testing.T, fused bool, average bool) *types.Response {
+		t.Helper()
+		svc := New(cfg)
+		svc.SetShardWorkers(1)
+		svc.SetDecodeWorkers(1)
+		svc.SetDisableCrosstabFusion(!fused)
+		req := wzsCrosstabRequest("wz.pulse.concat")
+		if average {
+			req.Weight = &types.WeightSpec{Field: "weight"}
+			req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_AVERAGE, Field: "value", Label: "wmean"}
+		}
+		if ok, reason := processing.CanFuseCrosstab(processing.StampWeights(req, nil), wzsSchema(), svc.Extensions()); fused && !ok {
+			t.Fatalf("the weighted crosstab does not fuse: %s", reason)
+		}
+		resp, err := svc.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("Process(fused=%t, average=%t): %v", fused, average, err)
+		}
+		return resp
+	}
+	ref := run(t, true, false)
+	wzsAssertNonVacuous(t, ref, len(wzsCrosstabRequest("").Overlays))
+	for _, fused := range []bool{true, false} {
+		t.Run(fmt.Sprintf("fused_%t", fused), func(t *testing.T) {
+			got := run(t, fused, true)
+			wzsAssertNonVacuous(t, got, len(ref.Overlays))
+			wzsAssertJSONNear(t, "Overlays", ref.Overlays, got.Overlays)
+		})
+	}
+}

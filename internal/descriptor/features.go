@@ -418,11 +418,15 @@ var overlayHostKinds = map[string][]string{
 }
 
 // hardEdges are the component- and result-reading dependencies: each
-// target is a single-name group ANDed after the host group. They are
-// the edges the engine enforces at run time today:
+// value is ONE any-of group ANDed after the host group (most name a
+// single operator). They are the edges the engine enforces at run time
+// today:
 //
 //   - The Welford-reading overlays consume the {mean, variance, n} triple
 //     only AGG_WELFORD emits on the host's cell/row components.
+//   - OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z reads the weighted moments
+//     AGG_WEIGHTED_MEAN or a weighted AGG_AVERAGE cell emits — either
+//     operator satisfies it.
 //   - ATTR_REG_* fit an OLS model through the regression engine.
 //   - OVERLAY_YOY refuses any series host whose first grouper is not
 //     GROUP_DATE (it reads the date grouper's frequency).
@@ -439,7 +443,7 @@ var hardEdges = map[string][]string{
 	"OVERLAY_Z_VS_REF":                      {"AGG_WELFORD"},
 	"OVERLAY_PAIRWISE_WELCH_T":              {"AGG_WELFORD"},
 	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          {"AGG_WELFORD"},
-	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {"AGG_WEIGHTED_MEAN"},
+	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {"AGG_AVERAGE", "AGG_WEIGHTED_MEAN"},
 	"ATTR_REG_FITTED":                       {"REG_OLS"},
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
 	"ATTR_REG_RESIDUAL":                     {"REG_OLS"},
@@ -480,7 +484,7 @@ func OverlayHostCapabilities(kind string) []string {
 //   - Process-only modes depend on Process;
 //   - overlay kinds depend on any-of the hosts whose handler map lists
 //     them;
-//   - then each hard edge appends a single-name group.
+//   - then a hard edge appends its any-of group.
 func withDependencies(rows []Feature) []Feature {
 	for i := range rows {
 		f := &rows[i]
@@ -495,8 +499,8 @@ func withDependencies(rows []Feature) []Feature {
 		case processOnly[f.Name]:
 			groups = append(groups, []string{featProcess})
 		}
-		for _, target := range hardEdges[f.Name] {
-			groups = append(groups, []string{target})
+		if anyOf := hardEdges[f.Name]; len(anyOf) > 0 {
+			groups = append(groups, append([]string(nil), anyOf...))
 		}
 		f.DependsOn = groups
 	}

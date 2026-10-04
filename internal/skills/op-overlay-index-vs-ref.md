@@ -29,6 +29,7 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `(target / ref) × 
 - Missing reference coordinate → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`.
 - SERIES dispatch is fold-only (streamable per `OverlayStreamability`); MATRIX is forced buffered by the slot barrier.
 - `OverlayOptions.DictPrefixFast` enables the byte-equal dictionary prefix probe. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Weighted slots → weighted figures (reads the slot payloads).
 
 ## See
 

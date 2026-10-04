@@ -20,7 +20,7 @@ requires: [capability:crosstab]
 }}
 ```
 
-Defaults: `shape: matrix`, `normalize: none`. Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins, `GrandTotal`.
+Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins, `GrandTotal`.
 
 ## Choosing a crosstab
 
@@ -60,7 +60,7 @@ Crosstab output is buffered (`pulse predict` reports `streamable_reasons`); what
 
 ### Fused mergeable path
 
-Records fold into per-cell / per-margin state in one decode pass — memory `O(cells + margins)`, not `O(records)`. Automatic (predict: `crosstab_fusable`, with reasons); identical output. It applies when:
+Records fold into per-cell / per-margin state in one decode pass — memory `O(cells + margins)`, not `O(records)`. Automatic (predict: `crosstab_fusable`); identical output. It applies when:
 
 - the cell aggregator is in `crosstab.summable_aggregators`, `mean_reducible_aggregators` or `independent_aggregators` — never `recompute_aggregators` — and every `margin_aggregations` entry is mergeable;
 - every axis grouper keys one record at a time — all but the rank-based quantile one, fan-out included, any axis (extension: declared `Streamable` / `FansOut`);
@@ -76,7 +76,7 @@ Mirrors the matrix coordinate-for-coordinate: `CellComponents[r][c]` ↔ `Cells[
 
 ## Tests + overlays compose
 
-Row-level `tests` / `post_tests` run on raw rows beside a crosstab. Crosstab is the MATRIX overlay host (share, margin compare, inferential, pairwise): specs ride `Request.Overlays`, layers `Response.Overlays[i]`; the cell t / z overlays read `{n, mean, variance}` from `CellComponents` (`overlay-system`).
+Row-level `tests` / `post_tests` run on raw rows beside a crosstab. Crosstab is the MATRIX overlay host (share, margin compare, inferential, pairwise): specs ride `Request.Overlays`, layers `Response.Overlays[i]`; shares / indices of a weighted host are weighted; the cell t / z overlays read `{n, mean, variance}` from `CellComponents` (`overlay-system`).
 
 ## See
 

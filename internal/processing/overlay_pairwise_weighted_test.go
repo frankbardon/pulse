@@ -451,3 +451,46 @@ func TestPairwiseWeightedTwoMeansZ_ComponentsDisabledEndToEnd(t *testing.T) {
 		t.Fatalf("error %v does not carry PULSE_OVERLAY_COMPONENTS_REQUIRED", err)
 	}
 }
+
+// TestPairwiseWeightedTwoMeansZ_WeightedAverageCell: a WEIGHTED
+// AGG_AVERAGE cell (slot weight) is a valid host — its components carry
+// the weighted moments plus the weighted floor's sum_weights — and
+// answers the exact-arithmetic oracle exactly as the AGG_WEIGHTED_MEAN
+// host does. An UNWEIGHTED AGG_AVERAGE cell (no weight, or `weight:
+// null`) still refuses PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+func TestPairwiseWeightedTwoMeansZ_WeightedAverageCell(t *testing.T) {
+	run := func(t *testing.T, weight types.SlotWeight) (*types.Response, error) {
+		t.Helper()
+		schema := wtzSchema(t)
+		req := crosstabWeightedOverlayBaseRequest()
+		req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_AVERAGE, Field: "value", Label: "avg", Weight: weight}
+		params := types.PairwiseOverlayParams{NBasis: types.PairwiseNBasisKish}
+		req.Overlays = []types.OverlaySpec{
+			wtzSpec(t, types.OverlayScopeRow, params),
+			wtzSpec(t, types.OverlayScopeColumn, params),
+		}
+		return runBufferedCrosstabWithComponents(t, schema, StampWeights(req, nil), wtzRecords(schema), false)
+	}
+
+	resp, err := run(t, types.SlotWeightOf(types.WeightSpec{Field: "weight"}))
+	if err != nil {
+		t.Fatalf("weighted AGG_AVERAGE host refused: %v", err)
+	}
+	if len(resp.Overlays) != 2 || len(resp.Warnings) != 0 {
+		t.Fatalf("got %d layers, warnings %+v; want 2 layers, none", len(resp.Overlays), resp.Warnings)
+	}
+	row, col := resp.Overlays[0].Payload.Matrix, resp.Overlays[1].Payload.Matrix
+	wtzAssertP(t, wtzCell(t, row.Cells[0][0], "row (r0,r1)@c0"), wtzKishRowC0, "row (r0,r1)@c0")
+	wtzAssertP(t, wtzCell(t, row.Cells[0][1], "row (r0,r1)@c1"), wtzKishRowC1, "row (r0,r1)@c1")
+	wtzAssertP(t, wtzCell(t, col.Cells[0][0], "col (c0,c1)@r0"), wtzKishColR0, "col (c0,c1)@r0")
+	wtzAssertP(t, wtzCell(t, col.Cells[1][0], "col (c0,c1)@r1"), wtzKishColR1, "col (c0,c1)@r1")
+
+	for name, w := range map[string]types.SlotWeight{"unweighted": {}, "opted_out": types.NullSlotWeight()} {
+		t.Run(name, func(t *testing.T) {
+			_, err := run(t, w)
+			if err == nil || !pairwiseErrHasCode(err, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+				t.Fatalf("unweighted AGG_AVERAGE host: err %v, want PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", err)
+			}
+		})
+	}
+}

@@ -29,6 +29,7 @@ MATRIX — `Cells[r][c].Value = cell / col_margin` (raw ratio, no ×100). Cells 
 - `col_margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected column.
 - Absent host cells stay absent on the overlay.
 - Buffered (host crosstab always recomputes margins from raw rows).
+- Weighted host → weighted figure (reads the host payload).
 
 ## See
 

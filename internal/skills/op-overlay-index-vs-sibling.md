@@ -29,6 +29,7 @@ SERIES — one `SeriesEntry` per host group, carrying `index = group / sibling �
 - Zero sibling value → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer. The subtractive twin does not warn on zero.
 - Absent host group → `SeriesEntry` with unset `Statistic`.
 - Buffered — the resolver needs materialised per-group accumulators (`ApplyOverlaysSeries`).
+- Weighted host → weighted figure (reads the host payload).
 
 ## See
 

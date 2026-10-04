@@ -169,13 +169,15 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			"overlay "+string(spec.Kind)+" requires AGG_WELFORD cells (Welford triple on CellComponents); host matrix has none",
 			map[string]any{"kind": string(spec.Kind)})
 	}
-	// The weighted kind needs the AGG_WEIGHTED_MEAN moments on at least
-	// one cell. An AGG_WELFORD triple does not qualify: its variance is
-	// unweighted and its n is a record count.
+	// The weighted kind needs the weighted moments on at least one cell
+	// — emitted by AGG_WEIGHTED_MEAN and by a WEIGHTED AGG_AVERAGE (its
+	// moments plus the weighted floor's sum_weights). An unweighted
+	// AGG_AVERAGE or an AGG_WELFORD triple does not qualify: its variance
+	// is unweighted and its n is a record count.
 	if shape == pwShapeWeighted && !host.HasWeightedMomentCells() {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" requires AGG_WEIGHTED_MEAN cells (weighted moments "+
+			"overlay "+string(spec.Kind)+" requires AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cells (weighted moments "+
 				"{weighted_mean, m2_weighted, sum_weights, sum_weights_sq} on CellComponents); host matrix has none",
 			map[string]any{"kind": string(spec.Kind)})
 	}

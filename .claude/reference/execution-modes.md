@@ -134,6 +134,8 @@ Surface: `types/overlay.go`, `types/overlay_streamability.go`, `internal/process
 - **Per-layer warning routing.** Dispatcher-stamped, service-distributed: the chain / Compose dispatchers (`internal/processing/overlay_*_dispatch.go`) stamp `Details["overlay_index"] = i`; `service.applyChainOverlays` / `applyComposeOverlays` route each warning to `out.Overlays[idx].Warnings` (none ⇒ `nil`; missing key ⇒ layer 0). Gates: `Test*_OverlayFreeByteIdentical`.
 - **Adding an overlay kind.** Declare the constant + `AllOverlayKinds()`; add the `types/overlay_streamability.go` row; handler in `internal/processing/overlay_*.go`; register it in host dispatch; predict validator (`internal/descriptor/overlay_*.go`); raise faults under the kind's own `PULSE_OVERLAY_*` code; ship `skills/op-overlay-<kebab>.md` + Purpose / Interpretation (`guided-analysis.md`).
 
+**Weighted hosts.** No overlay handler carries weight logic: share / index kinds read the already-weighted host payload on every arm (MATRIX buffered + fused, SERIES buffered + streaming fold, COMPOSE), and an `Inferential` kind is refused up front by the weight resolver, except `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`, which takes an `AGG_WEIGHTED_MEAN` or weighted `AGG_AVERAGE` cell: `weighting.md` (Overlays).
+
 **Overlay knobs** (relocated from CLAUDE.md "Build / Env"). `OverlaySpec.Options`: `DictPrefixFast bool` (default `false`) matches Compose multi-slot overlay schemas by byte-equal dictionary PREFIX probe and requires the embedder to have verified prefix-equal dicts; `MaxPanelTargets int` (default `16`) caps Targets on multi-reference Compose overlays, overflow → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Time zones

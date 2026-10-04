@@ -108,8 +108,11 @@ func (h *CrosstabHostView) HasWelfordCells() bool {
 	return false
 }
 
-// weightedMomentKeys are the AGG_WEIGHTED_MEAN component keys the
-// OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z kind reads. None collides with
+// weightedMomentKeys are the weighted-moment component keys the
+// OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z kind reads: AGG_WEIGHTED_MEAN
+// emits all four on every run; a WEIGHTED AGG_AVERAGE cell carries the
+// first, second and fourth as its own keys and sum_weights from the
+// weighted universal floor, so an unweighted one never qualifies. None collides with
 // the Welford triple's {mean, variance, n}, so neither family's shape
 // gate admits the other's cells.
 var weightedMomentKeys = [...]string{"weighted_mean", "m2_weighted", "sum_weights", "sum_weights_sq"}
@@ -140,8 +143,9 @@ func (h *CrosstabHostView) WeightedMoments(rowIdx, colIdx int) (weightedMoments,
 
 // HasWeightedMomentCells reports whether at least one present cell
 // carries every weighted-moment key. The weighted two-means handler gates
-// on this so a host whose cell aggregator is not AGG_WEIGHTED_MEAN (an
-// AGG_WELFORD triple, a plain count) fails fast with a shape error
+// on this so a host whose cell is neither AGG_WEIGHTED_MEAN nor a
+// weighted AGG_AVERAGE (an AGG_WELFORD triple, a plain count, an
+// unweighted mean) fails fast with a shape error
 // instead of skipping every pair.
 func (h *CrosstabHostView) HasWeightedMomentCells() bool {
 	if h == nil || h.components == nil {

@@ -66,6 +66,40 @@ func pairwiseNBasisAdvice(opts *PredictOptions) string {
 		". Remove n_basis, or use that kind over an AGG_WEIGHTED_MEAN cell"
 }
 
+// weightedMomentCell reports whether a crosstab cell emits the weighted
+// moments OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z reads: AGG_WEIGHTED_MEAN
+// always (it is weighted by definition), AGG_AVERAGE only when a weight
+// resolves on the cell — its own slot weight, else the request weight,
+// else the instance default (opts.DefaultWeight); `weight: null` opts
+// the cell out and leaves it an unweighted mean. The same precedence as
+// ResolveWeights and processing.StampWeights, so predict and runtime
+// agree on the host.
+func weightedMomentCell(req *types.Request, cell *types.Aggregation, opts *PredictOptions) bool {
+	switch cell.Type {
+	case types.AGG_WEIGHTED_MEAN:
+		return true
+	case types.AGG_AVERAGE:
+	default:
+		return false
+	}
+	switch {
+	case cell.Weight.IsNull():
+		return false
+	case !cell.Weight.IsZero():
+		return true
+	}
+	return req.Weight != nil || (opts != nil && opts.DefaultWeight != nil)
+}
+
+// weightedMomentCellName names a refused cell for the shape refusal,
+// qualifying an AGG_AVERAGE as unweighted (the weighted one is admitted).
+func weightedMomentCellName(req *types.Request, cell *types.Aggregation, opts *PredictOptions) string {
+	if cell.Type == types.AGG_AVERAGE && !weightedMomentCell(req, cell, opts) {
+		return "an unweighted " + string(cell.Type)
+	}
+	return string(cell.Type)
+}
+
 // pairwiseProportionAdvice is the ", or use …" tail of a Welford-kind
 // selector refusal: the proportion kinds the instance offers, which
 // what. Empty when it offers neither.
@@ -239,22 +273,24 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 					"p_source": params.PSource, "reason": weightedReason})
 			refused = true
 		}
-		// Cell host. Only AGG_WEIGHTED_MEAN emits the weighted moments
-		// among the built-ins, so a cell naming any OTHER built-in
-		// aggregator is a shape error predict can see from the request
-		// alone — the same PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE the
-		// runtime raises off the materialised host. An empty Type (a
+		// Cell host. Among the built-ins only AGG_WEIGHTED_MEAN and a
+		// WEIGHTED AGG_AVERAGE (a weight resolves on the cell: its slot
+		// weight, else the request weight, else the instance default;
+		// `weight: null` opts out) emit the weighted moments, so any
+		// OTHER built-in cell is a shape error predict can see from the
+		// request alone — the same PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+		// the runtime raises off the materialised host. An empty Type (a
 		// smart default resolves later) or an extension type defers to
 		// runtime: an extension may emit the moment keys, and runtime
 		// gates on the keys, not the type name.
 		// A cell type the instance hides is judged as a never-registered
 		// (non-built-in) name.
-		if cell := req.Crosstab.Cell; cell != nil && cell.Type != "" &&
-			cell.Type != types.AGG_WEIGHTED_MEAN && isBuiltinAggregationType(opRoute(opts.instance(), cell.Type)) {
+		if cell := req.Crosstab.Cell; cell != nil && cell.Type != "" && !weightedMomentCell(req, cell, opts) &&
+			isBuiltinAggregationType(opRoute(opts.instance(), cell.Type)) {
 			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-				"overlay "+string(spec.Kind)+" requires an AGG_WEIGHTED_MEAN cell (it reads the weighted moments off Response.Components); the crosstab cell is "+string(cell.Type),
+				"overlay "+string(spec.Kind)+" requires an AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cell (it reads the weighted moments off Response.Components); the crosstab cell is "+weightedMomentCellName(req, cell, opts),
 				map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(cell.Type),
-					"required_cell_type": string(types.AGG_WEIGHTED_MEAN)})
+					"required_cell_type": []string{string(types.AGG_WEIGHTED_MEAN), string(types.AGG_AVERAGE)}})
 			refused = true
 		}
 		if !types.ValidPairwiseNBasis(params.NBasis) {
