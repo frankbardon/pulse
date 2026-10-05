@@ -142,8 +142,8 @@ Theme documents: see the [roadmap index](README.md).
 
 ### Multiple comparisons ([statistical-integrity 02](v1.0.0-statistical-integrity/02-multiple-comparisons.md))
 - [x] **#60** `processing/multiplicity`: Bonferroni, Holm, BH, BY · [U13](units/U13-multiplicity.md)
-- [x] **#61** `multiplicity {method, family}` on Request / OverlaySpec / Test / MatrixSpec; `Options.DefaultMultiplicity` (shipped `none`; correction is opt-in) · [U13](units/U13-multiplicity.md)
-- [x] **#62** Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots · [U13](units/U13-multiplicity.md)
+- [x] **#61** `multiplicity {method, family}` on Request / OverlaySpec / Test (+ ComposeOverlaySpec / ComposedRequest; `MatrixSpec` → [U28](units/U28-matrix-overlays.md)); `Options.DefaultMultiplicity` (shipped `none`; correction is opt-in) · [U13](units/U13-multiplicity.md)
+- [x] **#62** Families `layer` / `row` / `column` / `request` / `compose` (`matrix` → [U28](units/U28-matrix-overlays.md)), incl. across Compose slots · [U13](units/U13-multiplicity.md)
 - [x] **#63** Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs · [U13](units/U13-multiplicity.md)
 - [x] **#64** Advisory + Explain hooks; glossary terms · [U13](units/U13-multiplicity.md)
 - [x] **#65** Reference-value, identity and family-boundary gates; `multiplicity-correction.md` skill · [U13](units/U13-multiplicity.md)

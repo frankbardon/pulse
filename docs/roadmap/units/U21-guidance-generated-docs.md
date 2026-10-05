@@ -86,6 +86,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-generate
 - Walk `p.Ontology()` (pruned per instance) rather than the embedded pack, so generated catalog, reference and rendered skill sections follow the instance. Skill bodies already render by feature fences and a `## See` by edge (`p.Skill(name)`); generated sections must be fenced or ontology-driven the same way (`TestSkillsCoverFeatureFences` binds).
 - CLI `pulse skills` / `pulse examples` list only the embedded library, not embedder additions: decide whether the export covers `Extensions.Skills` / `Extensions.Examples`.
 
+## Inherited from U13
+
+- **Prose names a hideable slot.** U13 reworded the `TEST_*` / `OVERLAY_*` Purpose and Interpretation prose (`internal/descriptor/purposes_*.go`, `interpretations*.go`) to point at the `multiplicity` slot and `p_adjusted`. The feature-profile prose scrub keys on operator and tool tokens, not request-slot names, so an instance hiding `capability:multiplicity` serves prose naming a slot it refuses. Generated docs and the profile-scoped `pulse docs export` must render that sentence only when the capability is enabled (or the scrub must learn slot names); add a parity case to the profile pruning tests.
+- Guidance lint gained rule `MULTI-COMP-MANUAL` (no hand-correction wording); generated sections must pass it.
+
 ## Human inputs & decisions
 
 - None.

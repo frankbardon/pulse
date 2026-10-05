@@ -81,6 +81,10 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-overlays/E
 - `skills/op-overlay-*.md`; `overlay-system.md` (host + ref family, fenced)
 - `types.AllOverlayKinds()`; `OverlayStreamability` rows
 
+## Inherited from U13
+
+- **Reuse the shipped core and fold.** Correction core: `internal/processing/multiplicity` (`Adjust`, `FamilySize`; R `p.adjust` fixtures). Config: `types.Multiplicity{method,family,alpha}`; families `layer|row|column|request|compose` — add `matrix` to `types.AllMultiplicityFamilies()` and the validity matrix in `internal/descriptor/multiplicity_resolve.go` (one resolver for predict and runtime). Fold: `internal/service/multiplicity_fold.go` (`multFamilies`, `multFamilyKey`) and the overlay p-site table `overlayPSites` in `multiplicity_overlay.go` — every new inferential kind needs a row (`TestOverlayPSites_CoverEveryInferentialKind` enforces it) and outputs `p_adjusted` / `significant_adjusted` beside the raw p, never in place. Contract: `.claude/reference/execution-modes.md` (Multiplicity); skill `skills/multiplicity-correction.md`.
+
 ## Human inputs & decisions
 
 - Decide the correspondence-analysis payload shape (open question in vm6)

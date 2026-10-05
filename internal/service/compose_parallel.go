@@ -175,12 +175,12 @@ func (s *Service) composeParallel(
 
 	// Compose-only overlay barrier. Runs AFTER the worker
 	// pool drains and all per-slot results are gathered into the
-	// order-preserved `responses` slice. The parallel path here only
-	// reaches this barrier when EITHER every slot succeeded (FailFast
-	// = true or false; firstErr is nil) OR FailFast=false collected
-	// some slot failures and the orchestrator chose to surface them
-	// as aggregated details (the early-return branch above caught
-	// the FailFast=true case). The order of layer emission matches
+	// order-preserved `responses` slice. The parallel path only
+	// reaches this barrier when every slot succeeded: any slot
+	// failure returns above (FailFast=true with the first error,
+	// FailFast=false with the aggregated SERVICE_INTERNAL), so the
+	// overlay and multiplicity folds never see a partial set of
+	// slots. The order of layer emission matches
 	// `req.Overlays` spec order regardless of slot dispatch order
 	// because `responses` is keyed by slot index, not completion
 	// order.
