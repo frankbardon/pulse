@@ -903,6 +903,316 @@ def test_cases():
     return out
 
 
+# --- weighted inferential overlays (weighting-inferential E3-S3) --------
+#
+# One reference case per (host, weight configuration) over the same
+# TEST_ROWS fixture. Frequency: stock R on the rep()-expanded rows
+# (test_reference.R, "ov_*" cases, which print the Go figure keys
+# directly). Probability: the closed form of the one formula rule on the
+# overlay's legs — a cell / slot table scaled by c = Kish n_eff / Σw of
+# the rows it covers (χ² matrix: the whole table; row / column: that
+# row / column; CHISQ_VS_REF: the target table; proportions: the row
+# base), a mean leg read as Sample(w*) with N* = n_eff. The same closed
+# form must reproduce R on the frequency configuration (1e-9) before a
+# row is written. Figure keys: "<layer>/<path>" — a wire path from the
+# layer root, "cell[<row>|<col>]" a matrix cell by its comma-joined axis
+# keys ("#i" an element of a vector cell), "entry[<key>]" a series entry.
+
+OV_SUB = "y > 4"
+OV_SUB2 = "y < 6"
+OV_SERIES_PARAMS = {"variance_target": 2.5, "variance_ref": 1.75,
+                    "sample_size_target": 40, "sample_size_ref": 55}
+
+
+def ov_xt(rows, cols, cell, extra=None):
+    x = {"rows": [{"type": "GROUP_CATEGORY", "field": rows}],
+         "columns": [{"type": "GROUP_CATEGORY", "field": cols}],
+         "cell": cell, "margins": {"rows": True, "columns": True, "grand": True}}
+    if extra:
+        x.update(extra)
+    return x
+
+
+OV_COUNT = {"type": "AGG_COUNT", "field": "o", "label": "cell"}
+OV_WELFORD = {"type": "AGG_WELFORD", "field": "x", "label": "cell"}
+
+
+def ov_slot(label, filt, body):
+    s = {"label": label, "cohort": {"filename": "ref_tests.pulse"}}
+    if filt:
+        s["filterers"] = [{"type": "FILTER_EXPRESSION", "expression": filt}]
+    s.update(body)
+    return s
+
+
+def ov_request(case, kind):
+    """The case's request fragment (Process) or ComposedRequest."""
+    if case == "ov_chisq":
+        return {"crosstab": ov_xt("h", "o", OV_COUNT), "overlays": [
+            {"name": "m", "kind": "OVERLAY_CHISQ_MATRIX", "scope": "matrix"},
+            {"name": "r", "kind": "OVERLAY_CHISQ_ROW", "scope": "row"},
+            {"name": "c", "kind": "OVERLAY_CHISQ_COL", "scope": "column"}]}
+    if case == "ov_fisher":
+        return {"crosstab": ov_xt("h", "o", OV_COUNT), "overlays": [
+            {"name": "f", "kind": "OVERLAY_FISHER_EXACT_CELL", "scope": "cell"}]}
+    if case == "ov_pairwise_welch":
+        return {"crosstab": ov_xt("k", "h", OV_WELFORD), "overlays": [
+            {"name": "pw", "kind": "OVERLAY_PAIRWISE_WELCH_T", "scope": "column"}]}
+    if case == "ov_pairwise_prop":
+        return {"attributes": [{"type": "ATTR_FORMULA", "field": "o", "label": "yes",
+                                "expression": 'o == "yes" ? 100 : 0'}],
+                "crosstab": ov_xt("h", "k", {"type": "AGG_AVERAGE", "field": "yes", "label": "cell"}),
+                "overlays": [{"name": "pz", "kind": "OVERLAY_PAIRWISE_PROP_Z", "scope": "column"}]}
+    if case == "ov_pairwise_weighted_z":
+        basis = "kish" if kind == "probability" else "weights"
+        return {"crosstab": ov_xt("k", "h", {"type": "AGG_AVERAGE", "field": "y", "label": "cell"}),
+                "overlays": [{"name": "wz", "kind": "OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z",
+                              "scope": "column", "params": {"n_basis": basis}}]}
+    if case == "ov_compose_means":
+        body = {"crosstab": ov_xt("k", "h", OV_WELFORD)}
+        return {"requests": [ov_slot("total", None, body), ov_slot("sub", OV_SUB, body)], "overlays": [
+            {"name": "t", "kind": "OVERLAY_T_CELL", "scope": "cell", "reference": "total", "targets": ["sub"]},
+            {"name": "z", "kind": "OVERLAY_Z_CELL", "scope": "cell", "reference": "total", "targets": ["sub"]}]}
+    if case == "ov_compose_series":
+        body = {"groups": [{"type": "GROUP_CATEGORY", "field": "k"}],
+                "aggregations": [{"type": "AGG_AVERAGE", "field": "x", "label": "cell"}]}
+        return {"requests": [ov_slot("total", None, body), ov_slot("sub", OV_SUB, body)], "overlays": [
+            {"name": "t", "kind": "OVERLAY_T_VS_REF", "scope": "group", "reference": "total",
+             "targets": ["sub"], "params": OV_SERIES_PARAMS},
+            {"name": "z", "kind": "OVERLAY_Z_VS_REF", "scope": "group", "reference": "total",
+             "targets": ["sub"], "params": OV_SERIES_PARAMS}]}
+    if case == "ov_compose_props":
+        body = {"crosstab": ov_xt("h", "o", OV_COUNT)}
+        return {"requests": [ov_slot("total", None, body), ov_slot("sub", OV_SUB, body),
+                             ov_slot("sub2", OV_SUB2, body)], "overlays": [
+            {"name": "cv", "kind": "OVERLAY_CHISQ_VS_REF", "scope": "matrix", "reference": "total", "targets": ["sub"]},
+            {"name": "pc", "kind": "OVERLAY_PROP_Z_CELL", "scope": "cell", "reference": "total", "targets": ["sub"]},
+            {"name": "pp", "kind": "OVERLAY_PROP_Z_PANEL", "scope": "cell", "reference": "total",
+             "targets": ["sub", "sub2"]}]}
+    raise ValueError(case)
+
+
+OV_CASES = ["ov_chisq", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
+            "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_props"]
+OV_FREQUENCY_ONLY = {"ov_fisher"}
+
+
+def ov_table(rows):
+    """h × o Σw and Σw² tables (every row counts: o is never null)."""
+    T = np.zeros((len(H_LEVELS), len(O_LEVELS)))
+    W2 = np.zeros_like(T)
+    for r in rows:
+        i, j = H_LEVELS.index(r[2]), O_LEVELS.index(r[4])
+        T[i, j] += r[5]
+        W2[i, j] += r[5] * r[5]
+    return T, W2
+
+
+def ov_scale(sw, sww, prob):
+    """c = N*/Σw: Kish n_eff / Σw under probability, else 1."""
+    return (sw * sw / sww) / sw if prob else 1.0
+
+
+def pearson(obs, exp):
+    return float(sum((o - e) ** 2 / e for o, e in zip(obs, exp) if e > 0))
+
+
+def two_prop_p(x1, n1, x2, n2):
+    pooled = (x1 + x2) / (n1 + n2)
+    se = math.sqrt(pooled * (1 - pooled) * (1 / n1 + 1 / n2))
+    z = (x1 / n1 - x2 / n2) / se
+    return float(2 * scipy.stats.norm.sf(abs(z)))
+
+
+def welch_p(a, b, normal=False):
+    va, vb = a.var / a.nstar, b.var / b.nstar
+    t = (a.mean - b.mean) / math.sqrt(va + vb)
+    if normal:
+        return float(2 * scipy.stats.norm.sf(abs(t)))
+    df = (va + vb) ** 2 / (va * va / (a.nstar - 1) + vb * vb / (b.nstar - 1))
+    return t_two_sided(t, df)
+
+
+def ov_filter(rows, expr):
+    if expr == OV_SUB:
+        return [r for r in rows if r[1] > 4]
+    if expr == OV_SUB2:
+        return [r for r in rows if r[1] < 6]
+    raise ValueError(expr)
+
+
+def ov_cell_sample(rows, field, prob, **match):
+    idx = {"x": 0, "y": 1}[field]
+    sel = [r for r in rows if r[idx] is not NULL and all(r[{"h": 2, "k": 3}[k]] == v for k, v in match.items())]
+    return Sample([r[idx] for r in sel], [r[5] for r in sel], prob)
+
+
+def ov_closed_form(case, rows, prob):
+    """{figure key: value}, expected overlay warning codes."""
+    rows = [r for r in rows if r[5] > 0]
+    out, warn = {}, set()
+    if case in ("ov_chisq", "ov_fisher"):
+        T, W2 = ov_table(rows)
+        N, R, C = T.sum(), T.sum(1), T.sum(0)
+        if case == "ov_fisher":
+            for i, h in enumerate(H_LEVELS):
+                for j, o in enumerate(O_LEVELS):
+                    a = T[i, j]
+                    tb = [[a, R[i] - a], [C[j] - a, N - R[i] - C[j] + a]]
+                    out[f"0/cell[{h}|{o}]"] = float(scipy.stats.fisher_exact(tb).pvalue)
+                    ex = [R[i] * C[j] / N, R[i] * (N - C[j]) / N, (N - R[i]) * C[j] / N,
+                          (N - R[i]) * (N - C[j]) / N]
+                    if min(ex) < 1 or sum(e < 5 for e in ex) >= 0.2 * 4:
+                        warn.add("PULSE_OVERLAY_EXPECTED_LOW")
+            out["0/summary.parameters.sum_weights"] = float(N)
+            return out, warn
+        c = ov_scale(N, W2.sum(), prob)
+        Ts = c * T
+        E = np.outer(Ts.sum(1), Ts.sum(0)) / Ts.sum()
+        stat = pearson(Ts.ravel(), E.ravel())
+        res = scipy.stats.chi2_contingency(Ts, correction=False)
+        assert close(res.statistic, stat), case
+        if E.min() < 5:
+            warn.add("PULSE_OVERLAY_EXPECTED_LOW")
+        out.update({"0/summary.statistic": stat, "0/summary.p_value": float(scipy.stats.chi2.sf(stat, 2)),
+                    "0/summary.parameters.df": 2.0, "0/summary.parameters.sum_weights": float(N)})
+        if prob:
+            out["0/summary.parameters.n_eff"] = float(N * N / W2.sum())
+        for i, h in enumerate(H_LEVELS):
+            ci = ov_scale(R[i], W2[i].sum(), prob)
+            exp = [ci * R[i] * C[j] / N for j in range(len(O_LEVELS))]
+            st = pearson([ci * v for v in T[i]], exp)
+            if min(exp) < 5:
+                warn.add("PULSE_OVERLAY_EXPECTED_LOW")
+            out[f"1/entry[{h}].summary.statistic"] = st
+            out[f"1/entry[{h}].summary.p_value"] = float(scipy.stats.chi2.sf(st, len(O_LEVELS) - 1))
+            out[f"1/entry[{h}].summary.parameters.sum_weights"] = float(R[i])
+            if prob:
+                out[f"1/entry[{h}].summary.parameters.n_eff"] = float(R[i] ** 2 / W2[i].sum())
+        for j, o in enumerate(O_LEVELS):
+            cj = ov_scale(C[j], W2[:, j].sum(), prob)
+            exp = [cj * C[j] * R[i] / N for i in range(len(H_LEVELS))]
+            st = pearson([cj * v for v in T[:, j]], exp)
+            if min(exp) < 5:
+                warn.add("PULSE_OVERLAY_EXPECTED_LOW")
+            out[f"2/entry[{o}].summary.statistic"] = st
+            out[f"2/entry[{o}].summary.p_value"] = float(scipy.stats.chi2.sf(st, len(H_LEVELS) - 1))
+        return out, warn
+    if case == "ov_pairwise_welch":
+        for k in K_LEVELS:
+            a = ov_cell_sample(rows, "x", prob, k=k, h="a")
+            b = ov_cell_sample(rows, "x", prob, k=k, h="b")
+            out[f"0/cell[{k}|a,b]"] = welch_p(a, b)
+        return out, warn
+    if case == "ov_pairwise_weighted_z":
+        for k in K_LEVELS:
+            a = ov_cell_sample(rows, "y", prob, k=k, h="a")
+            b = ov_cell_sample(rows, "y", prob, k=k, h="b")
+            out[f"0/cell[{k}|a,b]"] = welch_p(a, b, normal=True)
+        return out, warn
+    if case == "ov_pairwise_prop":
+        allw = [r[5] for r in rows]
+        for h in H_LEVELS:
+            legs = {}
+            for k in K_LEVELS:
+                ws = [r[5] for r in rows if r[2] == h and r[3] == k]
+                yes = sum(r[5] for r in rows if r[2] == h and r[3] == k and r[4] == "yes")
+                sw = float(np.sum(ws))
+                n = kish(ws) if prob else sw
+                legs[k] = (yes / sw, n)
+            for k1, k2 in [("p", "q"), ("p", "r"), ("q", "r")]:
+                (p1, n1), (p2, n2) = legs[k1], legs[k2]
+                out[f"0/cell[{h}|{k1},{k2}]"] = two_prop_p(p1 * n1, n1, p2 * n2, n2)
+        out["0/summary.parameters.sum_weights"] = float(np.sum(allw))
+        if prob:
+            out["0/summary.parameters.n_eff"] = kish(allw)
+        return out, warn
+    if case == "ov_compose_means":
+        sub = ov_filter(rows, OV_SUB)
+        for k in K_LEVELS:
+            for h in H_LEVELS:
+                a = ov_cell_sample(sub, "x", prob, k=k, h=h)
+                b = ov_cell_sample(rows, "x", prob, k=k, h=h)
+                out[f"0/cell[{k}|{h}]"] = welch_p(a, b)
+                out[f"1/cell[{k}|{h}]"] = welch_p(a, b, normal=True)
+        return out, warn
+    if case == "ov_compose_series":
+        sub = ov_filter(rows, OV_SUB)
+        P = OV_SERIES_PARAMS
+        vt, vr = P["variance_target"] / P["sample_size_target"], P["variance_ref"] / P["sample_size_ref"]
+        df = (vt + vr) ** 2 / (vt * vt / (P["sample_size_target"] - 1) + vr * vr / (P["sample_size_ref"] - 1))
+        for k in K_LEVELS:
+            # The weight reaches these kinds only through the slots'
+            # weighted means (Σw·x / Σw, kind-free).
+            d = ov_cell_sample(sub, "x", prob, k=k).mean - ov_cell_sample(rows, "x", prob, k=k).mean
+            t = d / math.sqrt(vt + vr)
+            out[f"0/entry[k={k}].summary.statistic"] = t_two_sided(t, df)
+            out[f"1/entry[k={k}].summary.statistic"] = float(2 * scipy.stats.norm.sf(abs(t)))
+        return out, warn
+    if case == "ov_compose_props":
+        slots = [rows, ov_filter(rows, OV_SUB), ov_filter(rows, OV_SUB2)]
+        tabs = [ov_table(s) for s in slots]
+        # CHISQ_VS_REF: the target (sub) table scaled to its Kish n_eff;
+        # the reference is a distribution.
+        (T, W2), (Rf, _) = tabs[1], tabs[0]
+        c = ov_scale(T.sum(), W2.sum(), prob)
+        Ts = c * T
+        exp = (Rf * (Ts.sum() / Rf.sum())).ravel()
+        st = pearson(Ts.ravel(), exp)
+        dfv = float(sum(e > 0 for e in exp) - 1)
+        if min(exp) < 5:
+            warn.add("PULSE_OVERLAY_EXPECTED_LOW")
+        out.update({"0/summary.statistic": st, "0/summary.p_value": float(scipy.stats.chi2.sf(st, dfv)),
+                    "0/summary.parameters.df": dfv, "0/summary.parameters.sum_weights": float(T.sum())})
+        if prob:
+            out["0/summary.parameters.n_eff"] = float(T.sum() ** 2 / W2.sum())
+
+        def leg(s, i, j):
+            Tt, Ww = tabs[s]
+            ci = ov_scale(Tt[i].sum(), Ww[i].sum(), prob)
+            return ci * Tt[i, j], ci * Tt[i].sum()
+
+        for i, h in enumerate(H_LEVELS):
+            for j, o in enumerate(O_LEVELS):
+                out[f"1/cell[{h}|{o}]"] = two_prop_p(*leg(1, i, j), *leg(0, i, j))
+                k = 0
+                for u in range(3):
+                    for v in range(u + 1, 3):
+                        out[f"2/cell[{h}|{o}]#{k}"] = two_prop_p(*leg(u, i, j), *leg(v, i, j))
+                        k += 1
+        return out, warn
+    raise ValueError(case)
+
+
+def overlay_cases():
+    out = []
+    for wname, kind in CONFIGS:
+        ws = TEST_WEIGHTS[wname]
+        prob = kind == "probability"
+        good = [(r[0], r[1], r[2], r[3], r[4], ws[i]) for i, r in enumerate(TEST_ROWS) if valid(ws[i], kind)]
+        rfigs = None
+        if not prob:
+            _, rfigs = r_test_reference([g[:5] + (int(g[5]),) for g in good])
+        for case in OV_CASES:
+            if prob and case in OV_FREQUENCY_ONLY:
+                continue
+            figs, warn = ov_closed_form(case, good, prob)
+            if prob:
+                src = ("closed form on w* = w·n_eff/Σw per leg / table (scipy " + scipy.__version__ + " tails)")
+            else:
+                rf = rfigs[case]
+                for key, rv in rf.items():
+                    assert key in figs, (case, key)
+                    assert close(figs[key], rv, 1e-9), (case, key, figs[key], rv)
+                    figs[key] = rv
+                missing = {k for k in figs if k not in rf and "parameters.sum_weights" not in k}
+                assert not missing, (case, missing)
+                src = f"{RTEST[0]} stats on rep()-expanded rows (test_reference.R)"
+            out.append(dict(weight=wname, kind=kind, name=case, request=ov_request(case, kind),
+                            figs=figs, warn=sorted(warn), src=src))
+    return out
+
+
 def figure_path(name):
     """Reference figure name → JSON path from the TestResult root."""
     if name in TOP_LEVEL:
@@ -917,7 +1227,7 @@ def gofloat(v):
     return r
 
 
-def emit(out, tout):
+def emit(out, tout, oout):
     lines = []
     w = lines.append
     w("// Code generated by testdata/weight_reference/gen_weight_reference.py; DO NOT EDIT.")
@@ -992,6 +1302,17 @@ def emit(out, tout):
         w(f'\t{{weight: "{c["weight"]}", kind: "{c["kind"]}", name: "{c["name"]}", '
           f'request: `{req}`, figures: map[string]float64{{{figs}}}, source: "{c["src"]}"}},')
     w("}")
+    w("")
+    w("// weightRefOverlayCases: one host per case, figures keyed by layer / path.")
+    w("var weightRefOverlayCases = []weightRefOverlayCase{")
+    for c in oout:
+        req = json.dumps(c["request"], separators=(",", ":"))
+        figs = ", ".join(f'"{k}": {gofloat(v)}' for k, v in sorted(c["figs"].items()))
+        warn = ", ".join(f'"{x}"' for x in c["warn"])
+        w(f'\t{{weight: "{c["weight"]}", kind: "{c["kind"]}", name: "{c["name"]}", '
+          f'request: `{req}`, figures: map[string]float64{{{figs}}}, warnings: []string{{{warn}}}, '
+          f'source: "{c["src"]}"}},')
+    w("}")
     return "\n".join(lines) + "\n"
 
 
@@ -999,5 +1320,5 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     dst = os.path.join(here, "..", "..", "weight_reference_values_test.go")
     with open(dst, "w") as fh:
-        fh.write(emit(cases(), test_cases()))
+        fh.write(emit(cases(), test_cases(), overlay_cases()))
     print("wrote", os.path.normpath(dst))

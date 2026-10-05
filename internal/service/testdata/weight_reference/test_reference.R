@@ -184,3 +184,106 @@ out("brown_forsythe", "ss_between", bf[["Sum Sq"]][1])
 out("brown_forsythe", "ss_within", bf[["Sum Sq"]][2])
 gmd <- tapply(xs$x, xs$k, median)
 for (g in names(gmd)) out("brown_forsythe", paste0("median_", g), gmd[[g]])
+
+# Inferential overlays (weighting-inferential E3-S3), each on the
+# expanded rows; figure names ARE the Go figure keys
+# ("<layer>/<wire path>", see weight_reference_overlays_test.go). The
+# Compose slots: total = every row, sub = y > 4, sub2 = y < 6.
+lh <- c("a", "b")
+lk <- c("p", "q", "r")
+lo <- c("maybe", "no", "yes")
+tab_of <- function(d) table(factor(d$h, levels = lh), factor(d$o, levels = lo))
+gof <- function(obs, p) suppressWarnings(chisq.test(obs, p = p))
+pz <- function(s, n) suppressWarnings(prop.test(s, n, correct = FALSE))$p.value
+
+# OVERLAY_CHISQ_MATRIX / _ROW / _COL on h × o counts.
+tb <- tab_of(e)
+cm <- suppressWarnings(chisq.test(tb, correct = FALSE))
+out("ov_chisq", "0/summary.statistic", cm$statistic)
+out("ov_chisq", "0/summary.p_value", cm$p.value)
+out("ov_chisq", "0/summary.parameters.df", cm$parameter)
+for (i in lh) {
+  g <- gof(tb[i, ], colSums(tb) / sum(tb))
+  out("ov_chisq", sprintf("1/entry[%s].summary.statistic", i), g$statistic)
+  out("ov_chisq", sprintf("1/entry[%s].summary.p_value", i), g$p.value)
+}
+for (j in lo) {
+  g <- gof(tb[, j], rowSums(tb) / sum(tb))
+  out("ov_chisq", sprintf("2/entry[%s].summary.statistic", j), g$statistic)
+  out("ov_chisq", sprintf("2/entry[%s].summary.p_value", j), g$p.value)
+}
+
+# OVERLAY_FISHER_EXACT_CELL: cell vs the rest of its row / column.
+for (i in lh) for (j in lo) {
+  a <- tb[i, j]
+  m <- matrix(c(a, sum(tb[i, ]) - a, sum(tb[, j]) - a, sum(tb) - sum(tb[i, ]) - sum(tb[, j]) + a), 2, byrow = TRUE)
+  out("ov_fisher", sprintf("0/cell[%s|%s]", i, j), fisher.test(m)$p.value)
+}
+
+# OVERLAY_PAIRWISE_WELCH_T: x by k (rows), h columns a vs b.
+for (r in lk) {
+  out("ov_pairwise_welch", sprintf("0/cell[%s|a,b]", r),
+      t.test(xs$x[xs$k == r & xs$h == "a"], xs$x[xs$k == r & xs$h == "b"])$p.value)
+}
+
+# OVERLAY_PAIRWISE_PROP_Z: share of o = "yes" by h (rows) × k (columns),
+# column pairs; n = the cell's row count.
+kp <- list(c("p", "q"), c("p", "r"), c("q", "r"))
+for (r in lh) for (pr in kp) {
+  s <- sapply(pr, function(c) sum(e$h == r & e$k == c & e$o == "yes"))
+  n <- sapply(pr, function(c) sum(e$h == r & e$k == c))
+  out("ov_pairwise_prop", sprintf("0/cell[%s|%s,%s]", r, pr[1], pr[2]), pz(s, n))
+}
+
+# OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z (n_basis weights): y by k, a vs b.
+for (r in lk) {
+  a <- e$y[e$k == r & e$h == "a"]
+  b <- e$y[e$k == r & e$h == "b"]
+  z <- (mean(a) - mean(b)) / sqrt(var(a) / length(a) + var(b) / length(b))
+  out("ov_pairwise_weighted_z", sprintf("0/cell[%s|a,b]", r), 2 * pnorm(-abs(z)))
+}
+
+sub <- e[e$y > 4, ]
+sub2 <- e[e$y < 6, ]
+xsub <- sub[!is.na(sub$x), ]
+
+# OVERLAY_T_CELL / OVERLAY_Z_CELL: x by k × h, sub (target) vs total.
+for (r in lk) for (c in lh) {
+  a <- xsub$x[xsub$k == r & xsub$h == c]
+  b <- xs$x[xs$k == r & xs$h == c]
+  out("ov_compose_means", sprintf("0/cell[%s|%s]", r, c), t.test(a, b)$p.value)
+  z <- (mean(a) - mean(b)) / sqrt(var(a) / length(a) + var(b) / length(b))
+  out("ov_compose_means", sprintf("1/cell[%s|%s]", r, c), 2 * pnorm(-abs(z)))
+}
+
+# OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF on a scalar-mean series: mean x by
+# k per slot; spread and n are the spec's params (OV_SERIES_PARAMS in
+# the generator).
+vt <- 2.5; vr <- 1.75; nt <- 40; nr <- 55
+for (r in lk) {
+  d <- mean(xsub$x[xsub$k == r]) - mean(xs$x[xs$k == r])
+  se <- sqrt(vt / nt + vr / nr)
+  df <- (vt / nt + vr / nr)^2 / ((vt / nt)^2 / (nt - 1) + (vr / nr)^2 / (nr - 1))
+  out("ov_compose_series", sprintf("0/entry[k=%s].summary.statistic", r), 2 * pt(-abs(d / se), df))
+  out("ov_compose_series", sprintf("1/entry[k=%s].summary.statistic", r), 2 * pnorm(-abs(d / se)))
+}
+
+# OVERLAY_CHISQ_VS_REF / OVERLAY_PROP_Z_CELL / OVERLAY_PROP_Z_PANEL on
+# h × o counts: total (reference), sub and sub2 (targets).
+tt <- tab_of(sub)
+t2 <- tab_of(sub2)
+cv <- gof(as.vector(t(tt)), as.vector(t(tb)) / sum(tb))
+out("ov_compose_props", "0/summary.statistic", cv$statistic)
+out("ov_compose_props", "0/summary.p_value", cv$p.value)
+out("ov_compose_props", "0/summary.parameters.df", cv$parameter)
+slots <- list(tb, tt, t2)
+for (i in lh) for (j in lo) {
+  out("ov_compose_props", sprintf("1/cell[%s|%s]", i, j), pz(c(tt[i, j], tb[i, j]), c(sum(tt[i, ]), sum(tb[i, ]))))
+  k <- 0
+  for (u in 1:2) for (v in (u + 1):3) {
+    a <- slots[[u]]
+    b <- slots[[v]]
+    out("ov_compose_props", sprintf("2/cell[%s|%s]#%d", i, j, k), pz(c(a[i, j], b[i, j]), c(sum(a[i, ]), sum(b[i, ]))))
+    k <- k + 1
+  }
+}

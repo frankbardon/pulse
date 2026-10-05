@@ -153,6 +153,7 @@ func weightRefName(c weightRefCase) string {
 func TestWeightReferenceValues(t *testing.T) {
 	t.Run("coverage", assertWeightRefCoverage)
 	t.Run("tests", testWeightRefTests)
+	t.Run("overlays", testWeightRefOverlays)
 	if !strings.Contains(weightRefProvenance, "statsmodels") || !strings.Contains(weightRefProvenance, "numpy") || !strings.Contains(weightRefProvenance, "Hmisc") {
 		t.Fatalf("weightRefProvenance %q does not record the generating tool versions", weightRefProvenance)
 	}

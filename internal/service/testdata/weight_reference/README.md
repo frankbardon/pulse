@@ -54,6 +54,34 @@ sibling `groups` array), so a later inferential surface (rank tests,
 regressions, attributes, CIs) adds rows to the generator, not a new
 harness.
 
+## Weighted inferential overlays
+
+The overlay references (`weightRefOverlayCases`, pinned by
+`TestWeightReferenceValues/overlays`) reuse the significance-test
+fixture and the same run. Each case is one host — a Process crosstab
+(`Request.Overlays`) or a Compose request whose slots are every row,
+`y > 4` and `y < 6` — and its figures are keyed `<layer>/<path>`
+(`cell[<row>|<col>]`, `#i` an element of a panel cell, `entry[<key>]`):
+
+- kind `frequency` — stock R on the expanded rows (`test_reference.R`,
+  the `ov_*` cases, which print the Go keys directly): `chisq.test` on
+  the h × o table, and as a goodness-of-fit per row / column / against
+  the reference distribution (`OVERLAY_CHISQ_*`); `fisher.test` on each
+  cell's 2 × 2 (cell vs the rest of its row and column); `t.test`
+  (Welch) for the pairwise and Compose t kinds; `prop.test(correct =
+  FALSE)` for the proportion kinds; the normal tail on R's mean / var
+  for the z kinds;
+- kind `probability` — the closed form (`ov_closed_form`): each table,
+  row, column or row base scaled by c = Kish n_eff / Σw of the rows it
+  covers, each mean leg read on w*. It must equal R on the frequency
+  configuration (1e-9) or the generator aborts.
+
+`OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF` run on a scalar-mean series (a
+weighted `AGG_AVERAGE`; spread and n from `OV_SERIES_PARAMS`, which
+`test_reference.R` repeats), so the weight reaches them only through the
+means. `OVERLAY_FISHER_EXACT_CELL` is frequency-only. The expected
+overlay warning codes are derived from the same expected counts.
+
 ## Probability-weight quantiles: Hmisc
 
 Pulse's `kind: probability` median / percentile IS Hmisc
