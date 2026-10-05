@@ -31,6 +31,9 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 		ops = append(ops, string(tt))
 	}
 	for _, rt := range types.AllRegressionTypes() {
+		if weighting.IsAware(string(rt)) {
+			continue // fits weighted: TestWeight_RegressionsMatchPredict
+		}
 		ops = append(ops, string(rt))
 	}
 	ops = append(ops, "ATTR_ZSCORE", "ATTR_TSCORE", "ATTR_PERCENTILE", "GROUP_QUANTILE")
@@ -400,6 +403,86 @@ func TestWeight_FrequencyOnlyMatchesPredict(t *testing.T) {
 			if len(resp.Tests) == 0 || resp.Tests[0].Details["sum_weights"] == nil {
 				t.Fatalf("frequency weight did not apply: %+v", resp.Tests)
 			}
+		})
+	}
+}
+
+// TestWeight_RegressionsMatchPredict: the weight-aware regressions
+// (U12 E4-S1) — REG_OLS under both kinds, REG_BAYES_LINEAR under
+// frequency — are applied at predict and fitted weighted at runtime
+// from the instance default, the request and the slot (the result
+// carries sum_weights, plus n_eff under probability); REG_BAYES_LINEAR
+// under a probability weight is refused PULSE_WEIGHT_UNSUPPORTED naming
+// the kind, at runtime and predict identically; `weight: null` runs
+// either unweighted.
+func TestWeight_RegressionsMatchPredict(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
+	// y is fractional (every row invalid as a frequency weight); a
+	// frequency run reads the integer column t_u8.
+	freq := &types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
+	mk := func(op string, w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
+		var r types.Request
+		if err := json.Unmarshal([]byte(strings.ReplaceAll(acceptanceTemplates[op], "$F", "y")), &r); err != nil {
+			t.Fatalf("%s template: %v", op, err)
+		}
+		r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
+		r.Regressions[0].Weight = w
+		return &r
+	}
+	for _, op := range []string{"REG_OLS", "REG_BAYES_LINEAR"} {
+		for _, kind := range weighting.KindsOf(op) {
+			spec := freq
+			if kind == types.WeightKindProbability {
+				spec = prob
+			}
+			for name, tc := range map[string]struct {
+				p    *pulse.Pulse
+				w    types.SlotWeight
+				reqW *types.WeightSpec
+			}{
+				"default": {weightPulse(t, fs, spec), types.SlotWeight{}, nil},
+				"request": {weightPulse(t, fs, nil), types.SlotWeight{}, spec},
+				"slot":    {weightPulse(t, fs, nil), types.SlotWeightOf(*spec), nil},
+			} {
+				t.Run(op+"/"+string(kind)+"/"+name, func(t *testing.T) {
+					env := predictEnvelope(t, tc.p, fs, cohort, mk(op, tc.w, tc.reqW))
+					if len(env.Errors) != 0 {
+						t.Fatalf("predict refused: %+v", *env.Errors[0])
+					}
+					resp, err := tc.p.Process(ctx, mk(op, tc.w, tc.reqW))
+					if err != nil {
+						t.Fatalf("runtime refused: %v", err)
+					}
+					r := resp.Regressions[0]
+					if r.SumWeights == 0 || (kind == types.WeightKindProbability) != (r.NEff != 0) {
+						t.Fatalf("weight did not apply: sum_weights %v n_eff %v", r.SumWeights, r.NEff)
+					}
+					optedOut, err := tc.p.Process(ctx, mk(op, types.NullSlotWeight(), tc.reqW))
+					if err != nil || optedOut.Regressions[0].SumWeights != 0 {
+						t.Fatalf("weight: null did not opt out: %v %+v", err, optedOut)
+					}
+				})
+			}
+		}
+	}
+	for name, tc := range map[string]struct {
+		p    *pulse.Pulse
+		w    types.SlotWeight
+		reqW *types.WeightSpec
+	}{
+		"default": {weightPulse(t, fs, prob), types.SlotWeight{}, nil},
+		"request": {weightPulse(t, fs, nil), types.SlotWeight{}, prob},
+		"slot":    {weightPulse(t, fs, freq), types.SlotWeightOf(*prob), nil},
+	} {
+		t.Run("REG_BAYES_LINEAR/probability/"+name, func(t *testing.T) {
+			_, rerr := tc.p.Process(ctx, mk("REG_BAYES_LINEAR", tc.w, tc.reqW))
+			ce := requireCode(t, rerr, errors.PULSE_WEIGHT_UNSUPPORTED)
+			if ce.Details["kind"] != "probability" || !strings.Contains(ce.Message, `kind "probability"`) {
+				t.Fatalf("refusal does not name the kind: %s %v", ce.Message, ce.Details)
+			}
+			sameEntry(t, predictEnvelope(t, tc.p, fs, cohort, mk("REG_BAYES_LINEAR", tc.w, tc.reqW)), rerr)
 		})
 	}
 }

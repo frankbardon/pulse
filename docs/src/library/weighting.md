@@ -118,7 +118,9 @@ declare it the same way.
 | the rank tests — Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ, Kendall τ-b — plus Fisher's exact test, the two-sample Kolmogorov-Smirnov test and Brown-Forsythe | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | the mean-comparison overlays — cell and reference t and z, pairwise Welch t — and the χ² (row, column, matrix, vs reference) and proportion z (cell, panel, pairwise) overlays | weighted (both kinds) | weighted |
 | the Fisher exact cell overlay | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| ordinary least squares (plain, ridge, lasso, elastic net) | weighted (both kinds) | weighted |
+| Bayesian linear regression | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
+| other tests, the GLM, any regression with `resample` or `selection`, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
 with its sample size read as Σw under `kind: frequency` (a weight of 3
@@ -166,6 +168,27 @@ unweighted test on the expanded rows. The KS statistic compares the two
 CDFs only after every row tied at a value is counted on both sides,
 which is also the unweighted rule (ties inside one sample no longer
 inflate D).
+
+**Weighted regressions.** Ordinary least squares fits weighted least
+squares: the coefficients minimise Σw·(y − ŷ)² and are the same under
+either kind. Standard errors, degrees of freedom (N* − p − 1, possibly
+fractional), p-values, adjusted R² and the residual standard error use
+the effective size N* — Σw under `kind: frequency`, Kish's n_eff under
+`kind: probability`. Under frequency weights the fit equals the one on
+the expanded rows. R's `lm(weights = w)` gives the same coefficients but
+counts the rows, not Σw or n_eff, for its residual degrees of freedom,
+so its standard errors differ. Ridge, lasso and elastic net scale the
+penalty by Σw, so their coefficients do not change when every weight is
+multiplied by the same constant, and they match `glmnet(weights = w)`
+under frequency weights. Their standard errors stay plug-in
+approximations, now on N*. Bayesian linear regression takes frequency
+weights only: X'WX, X'Wy and Σw enter the conjugate posterior, which
+equals the posterior on the expanded rows. `n_obs` stays the raw row
+count. A weighted result adds `sum_weights` and, for probability
+weights, `n_eff`. A probability-weighted fit whose n_eff falls below
+the predictor count plus one warns `PULSE_WEIGHT_LOW_NEFF`. A
+regression with `resample` or `selection` refuses any weight, because
+neither has a standard weighted form.
 
 **Other weighted inference is not available yet.** The last row is
 refused rather than silently computed unweighted beside weighted

@@ -24,7 +24,9 @@ import (
 // scope; callers who need them request the extension via Phase 9.
 //
 // Posterior after observing X (n × (p+1) with intercept column) and y
-// (length n):
+// (length n) — weighted (kind frequency only), X'WX, X'Wy, y'Wy and Σw
+// replace XᵀX, Xᵀy, yᵀy and n, which equals the posterior on the
+// expanded rows:
 //
 //	Λ_n = Λ₀ + XᵀX
 //	μ_n = Λ_n⁻¹ · (Λ₀ μ₀ + Xᵀy)
@@ -47,6 +49,11 @@ type bayesLinearEngine struct {
 	spec   *types.RegressionSpec
 	schema *encoding.Schema
 	acc    *olsAccumulator
+	// weights is the slot's stamped weight (zero value: unweighted).
+	// REG_BAYES_LINEAR is frequency-only: the resolver refuses a
+	// probability weight, so a weight here is a replication count and
+	// the posterior equals the one on the expanded rows.
+	weights rowWeights
 
 	// Resolved prior parameters (defaults filled in by newBayesLinearEngine).
 	priorMu        []float64 // length p+1; first entry is intercept
@@ -130,10 +137,14 @@ func newBayesLinearEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 		level = defaultBayesCredibleLevel
 	}
 
+	weights := newRowWeights(spec)
+	acc := newOLSAccumulator(p)
+	acc.basis = weights.basis
 	return &bayesLinearEngine{
 		spec:           spec,
 		schema:         schema,
-		acc:            newOLSAccumulator(p),
+		acc:            acc,
+		weights:        weights,
 		priorMu:        mu,
 		priorPrecision: precision,
 		priorShape:     shape,
@@ -163,7 +174,11 @@ func (e *bayesLinearEngine) UpdateRow(rec Record) error {
 		}
 		x[i] = v
 	}
-	e.acc.UpdateRow(x, y)
+	w, ok := e.weights.of(rec)
+	if !ok {
+		return nil
+	}
+	e.acc.UpdateRowWeighted(x, y, w)
 	return nil
 }
 
@@ -288,9 +303,9 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 	}
 
 	// Posterior shape and rate.
-	//   a_n = a₀ + n/2
+	//   a_n = a₀ + n/2   (Σw/2 weighted: n is Σw, exactly n unweighted)
 	//   b_n = b₀ + ½ (yᵀy + μ₀ᵀΛ₀μ₀ − μ_nᵀΛ_nμ_n)
-	aN := e.priorShape + float64(n)/2.0
+	aN := e.priorShape + e.acc.sumW/2.0
 	// μ₀ᵀΛ₀μ₀ for scalar Λ₀ = ε·I: just ε · Σ μ₀_j².
 	mu0Quad := 0.0
 	for _, v := range e.priorMu {
@@ -378,9 +393,10 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 	var r2, adjR2 float64
 	if tss > 0 {
 		r2 = 1 - rss/tss
-		df := n - q // standard OLS-style adjustment
+		// Standard OLS-style adjustment on Σw (exactly n unweighted).
+		df := e.acc.sumW - float64(q)
 		if df > 0 {
-			adjR2 = 1 - (1-r2)*float64(n-1)/float64(df)
+			adjR2 = 1 - (1-r2)*(e.acc.sumW-1)/df
 		}
 	}
 
@@ -413,6 +429,7 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 		ResidualStdErr:    residualStdErr,
 		ConvergedIters:    0,
 	}
+	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
 	return res, nil
 }
 
@@ -436,7 +453,9 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 func buildGramFromWelford(a *olsAccumulator) (gram, xtY []float64, ytY float64) {
 	p := a.p
 	q := p + 1
-	n := float64(a.n)
+	// Σw in place of n (exactly n unweighted): the weighted moments
+	// give X'WX, X'Wy and y'Wy.
+	n := a.sumW
 	gram = make([]float64, q*q)
 	xtY = make([]float64, q)
 

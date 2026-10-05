@@ -2416,8 +2416,10 @@ const (
 	// still passed): its degrees of freedom and standard errors read
 	// n_eff, so the inference is fragile. One warning per short group;
 	// details carry "test", "type", "group" (when the test splits),
-	// "n_eff" and "min_required". Promoted to an error under
-	// Options.Strict.
+	// "n_eff" and "min_required". A probability-weighted regression
+	// whose n_eff is below predictors + 1 raises it too, details
+	// "regression" (in place of "test" / "group"), "type", "n_eff" and
+	// "min_required". Promoted to an error under Options.Strict.
 	PULSE_WEIGHT_LOW_NEFF Code = "PULSE_WEIGHT_LOW_NEFF"
 
 	// PULSE_WEIGHT_UNSUPPORTED indicates a row weight is in force on a

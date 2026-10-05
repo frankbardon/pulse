@@ -439,8 +439,8 @@ func TestResolveWeights_DecimalRefused(t *testing.T) {
 
 // inferentialSlotRequests builds, per refused non-aggregator operator,
 // a request whose refused slot carries slot weight w — every refused
-// built-in TEST_* (as a test) and TEST_T as a post-test, every REG_* (plus
-// REG_OLS with each permanently refused modifier), the three
+// built-in TEST_* (as a test) and TEST_T as a post-test, every refused
+// REG_* (plus REG_OLS with each permanently refused modifier), the three
 // reference-distribution attributes, GROUP_QUANTILE (as a grouper and
 // on both crosstab axes) and a permanently refused overlay. The key is
 // the slot path and operator.
@@ -454,6 +454,9 @@ func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
 	}
 	out["post_tests[0]/TEST_T"] = &types.Request{PostTests: []*types.Test{{Type: types.TEST_T, Field: "x", Weight: w}}}
 	for _, rt := range types.AllRegressionTypes() {
+		if weighting.ClassOf(string(rt)) != weighting.ClassRefuse {
+			continue // fits weighted (TestResolveWeights_AwareRegressionsApplied)
+		}
 		out["regressions[0]/"+string(rt)] = &types.Request{Regressions: []*types.RegressionSpec{{Type: rt, Target: "x", Weight: w}}}
 	}
 	out["regressions[1]/REG_OLS"] = &types.Request{Regressions: []*types.RegressionSpec{
@@ -592,8 +595,9 @@ func TestResolveWeights_PermanentReasonsNonEmpty(t *testing.T) {
 // weight in force, whatever the regression's own class; `weight: null`
 // opts out.
 func TestResolveWeights_RegressionModifiersRefused(t *testing.T) {
-	restore := weighting.OverrideClassForTest(string(types.REG_OLS), weighting.ClassAware)
-	defer restore()
+	if weighting.ClassOf(string(types.REG_OLS)) != weighting.ClassAware {
+		t.Fatal("REG_OLS is no longer weight-aware: pick another subject")
+	}
 	def := &types.WeightSpec{Field: "w"}
 	for name, tc := range map[string]struct {
 		spec   *types.RegressionSpec
@@ -612,10 +616,55 @@ func TestResolveWeights_RegressionModifiersRefused(t *testing.T) {
 			t.Fatalf("%s opted out: %v", name, err)
 		}
 	}
-	// The plain (now stubbed aware) regression applies.
+	// The plain (weight-aware since U12 E4-S1) regression applies.
 	got, err := ResolveWeights(&types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "x"}}}, weightSchema(), def, nil)
 	if err != nil || got[0].Status != descriptor.WeightStatusApplied {
 		t.Fatalf("plain regression: %+v %v", got, err)
+	}
+}
+
+// TestResolveWeights_AwareRegressionsApplied: every regression whose
+// weighted fit exists (U12 E4-S1: REG_OLS under both kinds,
+// REG_BAYES_LINEAR under frequency) applies a weight of each kind its
+// class advertises from every source; REG_BAYES_LINEAR under a
+// probability weight is PULSE_WEIGHT_UNSUPPORTED naming the kind.
+func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
+	want := map[types.RegressionType][]types.WeightKind{
+		types.REG_OLS:          {types.WeightKindFrequency, types.WeightKindProbability},
+		types.REG_BAYES_LINEAR: {types.WeightKindFrequency},
+	}
+	for _, rt := range types.AllRegressionTypes() {
+		if !reflect.DeepEqual(weighting.KindsOf(string(rt)), want[rt]) {
+			t.Fatalf("%s kinds %v, want %v", rt, weighting.KindsOf(string(rt)), want[rt])
+		}
+	}
+	for rt, kinds := range want {
+		for _, kind := range kinds {
+			spec := &types.WeightSpec{Field: "w", Kind: kind}
+			for name, tc := range map[string]struct {
+				req *types.Request
+				def *types.WeightSpec
+			}{
+				"slot":    {&types.Request{Regressions: []*types.RegressionSpec{{Type: rt, Target: "x", Weight: types.SlotWeightOf(*spec)}}}, nil},
+				"request": {&types.Request{Weight: spec, Regressions: []*types.RegressionSpec{{Type: rt, Target: "x"}}}, nil},
+				"default": {&types.Request{Regressions: []*types.RegressionSpec{{Type: rt, Target: "x"}}}, spec},
+			} {
+				got, err := ResolveWeights(tc.req, weightSchema(), tc.def, nil)
+				if err != nil {
+					t.Fatalf("%s/%s/%s: refused: %v", rt, kind, name, err)
+				}
+				if len(got) != 1 || got[0].Status != descriptor.WeightStatusApplied || got[0].Kind != string(kind) {
+					t.Fatalf("%s/%s/%s: %+v, want applied", rt, kind, name, got)
+				}
+			}
+		}
+	}
+	_, err := ResolveWeights(&types.Request{Weight: &types.WeightSpec{Field: "w"},
+		Regressions: []*types.RegressionSpec{{Type: types.REG_BAYES_LINEAR, Target: "x"}}}, weightSchema(), nil, nil)
+	ce := codeOf(t, err)
+	if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || ce.Details["kind"] != "probability" ||
+		!reflect.DeepEqual(ce.Details["supported_kinds"], []string{"frequency"}) {
+		t.Fatalf("REG_BAYES_LINEAR under probability: %s %v", ce.Code, ce.Details)
 	}
 }
 

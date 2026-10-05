@@ -52,7 +52,10 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 	// Build M2_xx + n·λ·I. Copy m2XX so we never mutate the accumulator.
 	augmented := make([]float64, p*p)
 	copy(augmented, a.m2XX)
-	scaled := float64(a.n) * alpha
+	// The penalty scale is Σw (n unweighted): β is invariant to
+	// rescaling the weights and, under frequency, equals the expanded
+	// rows (glmnet's (1/2Σw)·Σw·r² objective).
+	scaled := a.sumW * alpha
 	for i := 0; i < p; i++ {
 		augmented[i*p+i] += scaled
 	}
@@ -114,17 +117,17 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 		}
 	}
 
-	df := a.n - p - 1
-	sigma2 := rss / float64(df)
+	df := a.residualDF()
+	sigma2Gram, sigma2 := a.residualVariances(rss)
 	if sigma2 < 0 {
-		sigma2 = 0
+		sigma2Gram, sigma2 = 0, 0
 	}
 
 	tss := a.m2YY
 	var r2, adjR2 float64
 	if tss > 0 {
 		r2 = 1 - rss/tss
-		adjR2 = 1 - (1-r2)*float64(a.n-1)/float64(df)
+		adjR2 = 1 - (1-r2)*(a.nStar()-1)/df
 	}
 
 	// Standard errors: Var(β) = σ² · (M2_xx + n·λ·I)⁻¹ · M2_xx · (M2_xx + n·λ·I)⁻¹.
@@ -147,7 +150,7 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 
 	stdErrors := make([]float64, p+1)
 	for j := 0; j < p; j++ {
-		v := sigma2 * sandwich.At(j, j)
+		v := sigma2Gram * sandwich.At(j, j)
 		if v < 0 {
 			v = 0
 		}
@@ -170,7 +173,7 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 		}
 		quad += a.meanX[i] * row
 	}
-	seInt := sigma2*(1.0/float64(a.n)) + sigma2*quad
+	seInt := sigma2Gram*(1.0/a.sumW) + sigma2Gram*quad
 	if seInt < 0 {
 		seInt = 0
 	}

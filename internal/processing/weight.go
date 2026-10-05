@@ -130,8 +130,8 @@ func StampWeights(req *types.Request, def *types.WeightSpec) *types.Request {
 // WeightAware; a weight-aware row test (`tests`: a built-in whose class
 // has a kind, read by its factory off the slot, or a WeightAware
 // extension, which reads it through extend.Record.Weight()), a
-// WeightAware extension post-test or attribute slot carries its
-// resolved weight too. When nothing names
+// WeightAware extension post-test or attribute slot, and a built-in
+// regression whose class has a kind, carries its resolved weight too. When nothing names
 // a weight — no request weight, no default, no slot weight, no
 // AGG_WEIGHTED_MEAN weight_field — req itself is returned, so an
 // unweighted request executes the unchanged object. Otherwise the
@@ -169,6 +169,29 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 	c.PostTests = stampTests(req.PostTests, req.Weight, def, func(op string) bool {
 		return exts.IsExtensionWeightAware("test", op)
 	})
+	// A built-in regression reads the weight when its class has a kind
+	// (there is no extension REG_* category); the resolver has already
+	// refused a weight in force on a pending regression, on one carrying
+	// a resample or selection modifier, and a probability weight on a
+	// frequency-only one.
+	if len(req.Regressions) > 0 {
+		c.Regressions = make([]*types.RegressionSpec, len(req.Regressions))
+		for i, r := range req.Regressions {
+			c.Regressions[i] = r
+			if r == nil {
+				continue
+			}
+			// A resample / selection modifier refits on row subsets with no
+			// weighted form: such a slot is never stamped (the resolver
+			// refuses any weight in force on it).
+			aware := weighting.IsAware(string(r.Type)) && r.Resample == "" && r.Selection == ""
+			if w, ok := stampSlotWeight(r.Weight, aware, req.Weight, def); ok {
+				cp := *r
+				cp.Weight = w
+				c.Regressions[i] = &cp
+			}
+		}
+	}
 	if len(req.Attributes) > 0 {
 		c.Attributes = make([]*types.Attribute, len(req.Attributes))
 		for i, a := range req.Attributes {
@@ -231,6 +254,11 @@ func namesWeight(req *types.Request, def *types.WeightSpec) bool {
 	}
 	for _, t := range append(append([]*types.Test(nil), req.Tests...), req.PostTests...) {
 		if t != nil && t.Weight.Spec() != nil {
+			return true
+		}
+	}
+	for _, r := range req.Regressions {
+		if r != nil && r.Weight.Spec() != nil {
 			return true
 		}
 	}
@@ -354,8 +382,8 @@ type weightTallyEntry struct {
 // NewWeightRowTally builds the tally for a stamped request's weighted
 // slots — the top-level aggregations, the crosstab cell, the crosstab
 // margin aggregations, every weight-aware row test (built-in or
-// extension) and any WeightAware extension attribute; nil when no slot
-// is weighted.
+// extension), every weight-aware regression and any WeightAware
+// extension attribute; nil when no slot is weighted.
 func NewWeightRowTally(req *types.Request) *WeightRowTally {
 	if req == nil {
 		return nil
@@ -367,7 +395,7 @@ func NewWeightRowTally(req *types.Request) *WeightRowTally {
 		// The crosstab cell and auxiliary margin slots weight rows too.
 		slots = append(append(append([]*types.Aggregation(nil), slots...), ct.Cell), ct.MarginAggregations...)
 	}
-	weights := make([]*types.WeightSpec, 0, len(slots)+len(req.Tests)+len(req.Attributes))
+	weights := make([]*types.WeightSpec, 0, len(slots)+len(req.Tests)+len(req.Regressions)+len(req.Attributes))
 	for _, a := range slots {
 		weights = append(weights, slotWeight(a))
 	}
@@ -377,6 +405,11 @@ func NewWeightRowTally(req *types.Request) *WeightRowTally {
 	for _, t := range req.Tests {
 		if t != nil {
 			weights = append(weights, t.Weight.Spec())
+		}
+	}
+	for _, r := range req.Regressions {
+		if r != nil {
+			weights = append(weights, r.Weight.Spec())
 		}
 	}
 	for _, a := range req.Attributes {

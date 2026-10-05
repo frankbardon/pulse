@@ -224,8 +224,21 @@ type RegressionResult struct {
 	// PseudoR2 is a McFadden-style 1 − Deviance/NullDeviance (REG_GLM).
 	PseudoR2 float64 `json:"pseudo_r2,omitempty"`
 
-	// NObs is the number of observations used to fit the model.
+	// NObs is the number of observations used to fit the model — the
+	// raw row count, weighted or not (a row whose weight is invalid or
+	// zero contributes nothing and is not counted).
 	NObs int `json:"n_obs,omitempty"`
+
+	// SumWeights is Σw over the rows the fit used; present only on a
+	// weighted fit (absence means unweighted). Point estimates read the
+	// weights; standard errors, degrees of freedom and adjusted R² read
+	// the inference sample size N* — SumWeights under weight kind
+	// frequency, NEff under kind probability.
+	SumWeights float64 `json:"sum_weights,omitempty"`
+
+	// NEff is Kish's effective sample size (Σw)²/Σw² of the rows the
+	// fit used; present only on a fit weighted under kind probability.
+	NEff float64 `json:"n_eff,omitempty"`
 
 	// ResidualStdErr is the residual standard error
 	// (REG_OLS / REG_BAYES_LINEAR).

@@ -43,6 +43,10 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	for _, rt := range types.AllRegressionTypes() {
 		want[string(rt)] = ClassRefuse
 	}
+	// U12 E4-S1: weighted OLS (plain + penalised) under both kinds;
+	// the conjugate Bayes posterior under frequency only.
+	want[string(types.REG_OLS)] = ClassAware
+	want[string(types.REG_BAYES_LINEAR)] = ClassFrequencyOnly
 	for _, at := range types.AllAttributeTypes() {
 		want[string(at)] = ClassNone
 	}

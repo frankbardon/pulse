@@ -1,5 +1,7 @@
 package regression
 
+import "github.com/frankbardon/pulse/internal/weighting"
+
 // olsAccumulator is a Welford-style streaming accumulator for the
 // sufficient statistics needed by ordinary least squares.
 //
@@ -23,10 +25,18 @@ package regression
 // (XᵀX_centered) and m2XY is the centered cross-product (Xᵀy_centered).
 // The solver consumes these directly without ever materializing X.
 type olsAccumulator struct {
-	p     int       // predictor count
-	n     int       // observation count
-	meanX []float64 // length p
-	meanY float64
+	p int // predictor count
+	n int // observation count (raw rows folded — NObs)
+	// basis is how Σw becomes the inference sample size N*
+	// (weighting.Basis: Unweighted / Frequency / Probability). The
+	// accumulator itself is kind-free — the moments are Σw-weighted —
+	// and only the finalize-time solvers read the basis.
+	basis weighting.Basis
+	// sumW / sumWSq are Σw and Σw² over the folded rows. Unweighted,
+	// every row weighs exactly 1, so sumW is the exact float of n.
+	sumW, sumWSq float64
+	meanX        []float64 // length p
+	meanY        float64
 	// m2XX is stored as a flat row-major slice of length p*p. Symmetric
 	// by construction; only the upper triangle is updated and the lower
 	// triangle is mirrored at Finalize time.
@@ -54,26 +64,36 @@ func newOLSAccumulator(p int) *olsAccumulator {
 // length p; y is the target value. Callers are responsible for filtering
 // rows where x or y is null before invoking UpdateRow (a null
 // contributes nothing to the centered moments and would otherwise bias
-// the means).
+// the means). It is UpdateRowWeighted with w = 1.
+func (a *olsAccumulator) UpdateRow(x []float64, y float64) {
+	a.UpdateRowWeighted(x, y, 1)
+}
+
+// UpdateRowWeighted folds one observation with weight w (> 0; the
+// caller has already excluded invalid and zero weights). The moments
+// are the Σw-weighted (West) recurrence:
 //
-// Update sequence (per Welford):
-//
-//	n     ← n + 1
+//	W     ← W + w
 //	δx    ← x − meanX (before update)
-//	meanX ← meanX + δx / n
+//	meanX ← meanX + (w·δx) / W
 //	δx'   ← x − meanX (after update)
 //	δy    ← y − meanY (before update)
-//	meanY ← meanY + δy / n
+//	meanY ← meanY + (w·δy) / W
 //	δy'   ← y − meanY (after update)
-//	m2XX += δx ⊗ δx'   (outer product; symmetric)
-//	m2XY += δx · δy'
-//	m2YY += δy · δy'
+//	m2XX += (w·δx) ⊗ δx'   (outer product; symmetric)
+//	m2XY += (w·δx) · δy'
+//	m2YY += (w·δy) · δy'
 //
 // The mixed-time-step δx · δx' (not δx · δx) is the trick that keeps the
-// recurrence numerically stable.
-func (a *olsAccumulator) UpdateRow(x []float64, y float64) {
+// recurrence numerically stable. Written in the operation-order
+// exactness form (.claude/reference/weighting.md): with w ≡ 1, w·δ is δ
+// exactly and W is the exact integer n, so the unweighted Welford
+// recurrence is reproduced bit for bit.
+func (a *olsAccumulator) UpdateRowWeighted(x []float64, y, w float64) {
 	a.n++
-	nf := float64(a.n)
+	a.sumW += w
+	a.sumWSq += w * w
+	sw := a.sumW
 
 	// δx (pre-update) into scratch.
 	for j := 0; j < a.p; j++ {
@@ -81,28 +101,52 @@ func (a *olsAccumulator) UpdateRow(x []float64, y float64) {
 	}
 	// Update meanX.
 	for j := 0; j < a.p; j++ {
-		a.meanX[j] += a.xScratch[j] / nf
+		a.meanX[j] += (w * a.xScratch[j]) / sw
 	}
 	// δy (pre-update).
 	dy := y - a.meanY
-	a.meanY += dy / nf
+	wdy := w * dy
+	a.meanY += wdy / sw
 	// δy' (post-update).
 	dyPost := y - a.meanY
 
-	// m2XX[i][j] += δx_i · (x_j − meanX_j_after) = δx_i · δx_j'.
-	// Compute δx' (post-update) into a second use of scratch: but we still
-	// need the original δx for the outer product. Use direct (x − meanX)
-	// (post-update) inline since meanX is updated.
+	// m2XX[i][j] += w·δx_i · (x_j − meanX_j_after) = w·δx_i · δx_j'.
 	for i := 0; i < a.p; i++ {
-		dxiPre := a.xScratch[i]
+		wdxi := w * a.xScratch[i]
 		for j := i; j < a.p; j++ {
 			dxjPost := x[j] - a.meanX[j]
-			a.m2XX[i*a.p+j] += dxiPre * dxjPost
+			a.m2XX[i*a.p+j] += wdxi * dxjPost
 		}
-		// m2XY uses δx_i (pre) and δy' (post-update).
-		a.m2XY[i] += dxiPre * dyPost
+		// m2XY uses w·δx_i (pre) and δy' (post-update).
+		a.m2XY[i] += wdxi * dyPost
 	}
-	a.m2YY += dy * dyPost
+	a.m2YY += wdy * dyPost
+}
+
+// nStar is the inference sample size N*: Σw (= n unweighted, Σw under
+// frequency) or Kish n_eff under probability.
+func (a *olsAccumulator) nStar() float64 { return a.basis.NStar(a.sumW, a.sumWSq) }
+
+// scale is c = N*/Σw, mapping w onto w* (exactly 1 unless the basis is
+// probability).
+func (a *olsAccumulator) scale() float64 { return a.basis.Scale(a.sumW, a.sumWSq) }
+
+// residualDF is the residual degrees of freedom N* − p − 1 (fractional
+// under probability; n − p − 1 unweighted).
+func (a *olsAccumulator) residualDF() float64 { return a.nStar() - float64(a.p) - 1 }
+
+// residualVariances turns a w-scale residual sum of squares RSS =
+// Σw·e² into (gram, star): gram = RSS/df is the factor Var(β) applies
+// to the w-scale inverse Gram (the c of w* cancels: σ̂*²·(c·M2)⁻¹), and
+// star = c·RSS/df is σ̂² on w* — the residual variance the result
+// reports. Both are RSS/df unless the basis is probability.
+func (a *olsAccumulator) residualVariances(rss float64) (gram, star float64) {
+	df := a.residualDF()
+	gram = rss / df
+	if a.basis != weighting.Probability {
+		return gram, gram
+	}
+	return gram, a.scale() * rss / df
 }
 
 // finalize mirrors the upper triangle of m2XX into the lower triangle so

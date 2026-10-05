@@ -21,7 +21,7 @@ type olsSolveResult struct {
 	AdjR2          float64
 	Sigma2         float64
 	ResidualStdErr float64
-	DF             int // n − p − 1
+	DF             float64 // N* − p − 1 (n − p − 1 unweighted; fractional under probability)
 }
 
 // solveOLS performs the closed-form OLS fit from the centered
@@ -44,6 +44,12 @@ type olsSolveResult struct {
 //  5. σ² = RSS / (n − p − 1). Var(β) = σ² · M2_xx⁻¹; standard errors
 //     are the square roots of the diagonal. Intercept standard error:
 //     SE(β_0)² = σ² · (1/n + μ_xᵀ · M2_xx⁻¹ · μ_x).
+//
+// Weighted (.claude/reference/weighting.md, Weighted inference): the
+// accumulator holds Σw-weighted moments, so β is WLS (kind-free); every
+// inferential figure is the frequency formula on w* = w·N*/Σw — df =
+// N* − p − 1, σ̂² = c·RSS/df, Var(β) = (RSS/df)·M2_xx⁻¹. Unweighted the
+// figures are the classical ones bit for bit.
 //
 // Returns PROCESSING_REGRESSION_RANK_DEFICIENT when Cholesky fails or
 // when the residual variance is non-positive (degenerate inputs).
@@ -113,10 +119,10 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 		}
 	}
 
-	df := a.n - p - 1
-	sigma2 := rss / float64(df)
+	df := a.residualDF()
+	sigma2Gram, sigma2 := a.residualVariances(rss)
 	if sigma2 < 0 {
-		sigma2 = 0
+		sigma2Gram, sigma2 = 0, 0
 	}
 
 	// R² and adjusted R².
@@ -124,10 +130,11 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	var r2, adjR2 float64
 	if tss > 0 {
 		r2 = 1 - rss/tss
-		adjR2 = 1 - (1-r2)*float64(a.n-1)/float64(df)
+		adjR2 = 1 - (1-r2)*(a.nStar()-1)/df
 	}
 
-	// Standard errors: Var(β) = σ² · M2_xx⁻¹.
+	// Standard errors: Var(β) = σ² · M2_xx⁻¹ (on w*: σ̂*²·(c·M2_xx)⁻¹ =
+	// sigma2Gram · M2_xx⁻¹, the c cancelling).
 	// Invert M2_xx via Cholesky.InverseTo, then read diagonal entries.
 	var invXX mat.SymDense
 	if err := chol.InverseTo(&invXX); err != nil {
@@ -140,13 +147,14 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	stdErrors := make([]float64, p+1)
 	// Slope SEs.
 	for j := 0; j < p; j++ {
-		v := sigma2 * invXX.At(j, j)
+		v := sigma2Gram * invXX.At(j, j)
 		if v < 0 {
 			v = 0
 		}
 		stdErrors[j+1] = sqrt(v)
 	}
-	// Intercept SE: σ² · (1/n + μ_xᵀ · M2_xx⁻¹ · μ_x).
+	// Intercept SE: σ² · (1/n + μ_xᵀ · M2_xx⁻¹ · μ_x); on w* the 1/N*
+	// term carries c, so it reads 1/Σw (1/n unweighted).
 	// quad = μ_xᵀ · M2_xx⁻¹ · μ_x.
 	quad := 0.0
 	for i := 0; i < p; i++ {
@@ -156,7 +164,7 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 		}
 		quad += a.meanX[i] * row
 	}
-	seInt := sigma2 * (1.0/float64(a.n) + quad)
+	seInt := sigma2Gram * (1.0/a.sumW + quad)
 	if seInt < 0 {
 		seInt = 0
 	}

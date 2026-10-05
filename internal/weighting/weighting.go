@@ -137,6 +137,22 @@ var testClasses = map[types.TestType]Class{
 	types.TEST_BROWN_FORSYTHE: ClassFrequencyOnly,
 }
 
+// regressionClasses are the built-in regressions whose weighted fit
+// exists (every other REG_* refuses). REG_OLS — plain and penalised
+// (ridge / lasso / elastic net) — fits on the Σw-weighted streaming
+// moments: β is WLS (the penalty scaled by Σw, so β is kind-free and
+// invariant to rescaling the weights) and every inferential figure is
+// the frequency formula on w* (df = N* − p − 1). REG_BAYES_LINEAR is
+// frequency-only: the conjugate posterior with X'WX, X'Wy, y'Wy and Σw
+// equals the posterior on the expanded rows, while under probability
+// weights it is a pseudo-posterior with no reference form. A regression
+// carrying a resample or selection modifier is refused at the slot,
+// whatever its class (the resolver's weightSlot.reason).
+var regressionClasses = map[types.RegressionType]Class{
+	types.REG_OLS:          ClassAware,
+	types.REG_BAYES_LINEAR: ClassFrequencyOnly,
+}
+
 // refusalReasons are the PERMANENT refusals: operators with no standard
 // weighted form any reference software reproduces. The reason rides
 // the PULSE_WEIGHT_UNSUPPORTED refusal (message and details.reason).
@@ -169,6 +185,9 @@ var operatorClasses = func() map[string]Class {
 	}
 	for _, r := range types.AllRegressionTypes() {
 		m[string(r)] = ClassRefuse
+	}
+	for r, c := range regressionClasses {
+		m[string(r)] = c
 	}
 	for a, c := range attributeClasses {
 		m[string(a)] = c

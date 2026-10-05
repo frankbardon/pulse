@@ -11,6 +11,9 @@ import (
 // degrees of freedom, via the shared internal/statdist implementation
 // (the same one the TEST_* operators use).
 //
+// df is a float: a weighted fit's residual df is N* − p − 1, fractional
+// under kind probability.
+//
 // Degenerate inputs:
 //   - df ≤ 0 (n − p − 1 < 1)        : returns NaN
 //   - se == 0 with non-zero coef    : returns 0 (perfectly significant
@@ -19,7 +22,7 @@ import (
 //     upstream)
 //   - se == 0 with zero coef        : returns NaN (statistic undefined)
 //   - coef NaN                      : returns NaN
-func pValueForCoefficient(coef, se float64, df int) float64 {
+func pValueForCoefficient(coef, se, df float64) float64 {
 	if df <= 0 {
 		return math.NaN()
 	}
@@ -33,7 +36,7 @@ func pValueForCoefficient(coef, se float64, df int) float64 {
 		return 0
 	}
 	t := coef / se
-	return statdist.StudentTTwoSidedP(t, float64(df))
+	return statdist.StudentTTwoSidedP(t, df)
 }
 
 // waldZTwoSidedP returns the two-sided Wald-z p-value 2·(1 − Φ(|β/SE|))

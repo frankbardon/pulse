@@ -29,6 +29,8 @@ type olsEngine struct {
 	spec   *types.RegressionSpec
 	schema *encoding.Schema
 	acc    *olsAccumulator
+	// weights is the slot's stamped weight (zero value: unweighted).
+	weights rowWeights
 	// finalized flips when Finalize / FitBuffered has run; further
 	// UpdateRow calls would corrupt the fit and are rejected.
 	finalized bool
@@ -95,10 +97,14 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 			map[string]any{"name": spec.Name},
 		)
 	}
+	weights := newRowWeights(spec)
+	acc := newOLSAccumulator(len(spec.Predictors))
+	acc.basis = weights.basis
 	return &olsEngine{
-		spec:   spec,
-		schema: schema,
-		acc:    newOLSAccumulator(len(spec.Predictors)),
+		spec:    spec,
+		schema:  schema,
+		acc:     acc,
+		weights: weights,
 	}, nil
 }
 
@@ -126,7 +132,11 @@ func (e *olsEngine) UpdateRow(rec Record) error {
 		}
 		x[i] = v
 	}
-	e.acc.UpdateRow(x, y)
+	w, ok := e.weights.of(rec)
+	if !ok {
+		return nil
+	}
+	e.acc.UpdateRowWeighted(x, y, w)
 	return nil
 }
 
@@ -247,6 +257,7 @@ func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
 		ResidualStdErr: solve.ResidualStdErr,
 		ConvergedIters: e.convergedIters,
 	}
+	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
 	return res, nil
 }
 

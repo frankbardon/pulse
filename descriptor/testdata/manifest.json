@@ -5348,6 +5348,9 @@
         "intents": [
           "drivers",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -5627,6 +5630,10 @@
         "intents": [
           "drivers",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       }
     ],
@@ -11574,4 +11581,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 456d9a3179537d0f6e7cc4ce0cfbd607abe961f7bf3d402c316ac79452f0365a
+// golden-hash: fea57eafd4bd794cba78578c2dc465c93780ff1f3aa5124c5aaf4cd76ecbd5bd

@@ -714,6 +714,11 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	if err := applyLowNEff(resp, rowTests, p.strictWeights); err != nil {
 		return nil, err
 	}
+	// ... and per probability-weighted regression whose n_eff fell
+	// below its p + 1 floor.
+	if err := applyRegressionLowNEff(resp, req.Regressions, resp.Regressions, p.strictWeights); err != nil {
+		return nil, err
+	}
 	return resp, nil
 }
 
@@ -1517,6 +1522,11 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// One PULSE_WEIGHT_LOW_NEFF warning per weighted row-test group
 	// whose Kish n_eff fell below the test's floor.
 	if err := applyLowNEff(resp, rowTests, p.strictWeights); err != nil {
+		return nil, err
+	}
+	// ... and per probability-weighted regression whose n_eff fell
+	// below its p + 1 floor.
+	if err := applyRegressionLowNEff(resp, req.Regressions, resp.Regressions, p.strictWeights); err != nil {
 		return nil, err
 	}
 

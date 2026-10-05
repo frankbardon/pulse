@@ -3645,6 +3645,7 @@ pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omite
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionResult field Link string "json:\"link,omitempty\""
+pulse/types: type RegressionResult field NEff float64 "json:\"n_eff,omitempty\""
 pulse/types: type RegressionResult field NObs int "json:\"n_obs,omitempty\""
 pulse/types: type RegressionResult field Name string "json:\"name,omitempty\""
 pulse/types: type RegressionResult field NullDeviance float64 "json:\"null_deviance,omitempty\""
@@ -3658,6 +3659,7 @@ pulse/types: type RegressionResult field ResidualStdErr float64 "json:\"residual
 pulse/types: type RegressionResult field SelectedFeatures []string "json:\"selected_features,omitempty\""
 pulse/types: type RegressionResult field Selection string "json:\"selection,omitempty\""
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
+pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type RegressionResult method (RegressionResult) MarshalJSON() ([]byte, error)
 pulse/types: type RegressionSpec struct
@@ -3847,4 +3849,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ce795d65126292539122d998aa57c810b425e082d3e84612d35316bfb4ed6cae
+// golden-hash: 88bab3c6efed70e2c18476d1c2459af4a88df41b6531a5811381364c7902c872

@@ -45,7 +45,9 @@ type standardizedGram struct {
 // PROCESSING_REGRESSION_RANK_DEFICIENT before consuming the result.
 func standardizeGram(acc *olsAccumulator) *standardizedGram {
 	p := acc.p
-	n := float64(acc.n)
+	// Σw in place of n (exactly n unweighted): the column scale is the
+	// weighted SD, scale-free in w.
+	n := acc.sumW
 	out := &standardizedGram{
 		p:       p,
 		n:       acc.n,

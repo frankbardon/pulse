@@ -235,7 +235,7 @@ Complete for U11 (pre-release target `v1.0.0-alpha.5`); contract: `.claude/refer
 
 ## Changes from U12 (weighted inference)
 
-In progress (no release yet); the full U12 table lands with the unit's docs story. Contract: `.claude/reference/weighting.md`; user guide: `docs/src/library/weighting.md`. A request that names no weight stays byte-identical. Overlay rows so far (E3):
+In progress (no release yet); the full U12 table lands with the unit's docs story. Contract: `.claude/reference/weighting.md`; user guide: `docs/src/library/weighting.md`. A request that names no weight stays byte-identical. Overlay rows so far (E3), then regressions (E4):
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
@@ -243,6 +243,8 @@ In progress (no release yet); the full U12 table lands with the unit's docs stor
 | `OVERLAY_PAIRWISE_PROP_Z` with `n_source` omitted on a weighted host read the cell's raw row count | it reads the cell's N* (`sum_weights` under `frequency`, `n_eff` under `probability`) | behaviour change | none | U12 |
 | `n_source` `cell_weight_sum` / `cell_value_weighted` (and the raw-count, `n_within` and distinct-key modes) on a weighted pairwise or panel host, including `cell_weight_sum` over an `AGG_WEIGHTED_MEAN` cell with `params.weight_field` | the raw-count, `n_within` and distinct-key modes are `PROCESSING_CONFIG` on any weighted host; the weight-sum modes are `PROCESSING_CONFIG` under `probability` (an `AGG_WEIGHTED_MEAN` `weight_field` is `probability`) — predict and runtime alike | behaviour change (refusal) | omit `n_source` to read N* | U12 |
 | a χ² overlay (`OVERLAY_CHISQ_ROW` / `_COL` / `_MATRIX` / `_VS_REF`) or a Compose proportion overlay (`OVERLAY_PROP_Z_CELL` / `_PANEL`) over a `probability`-weighted host built with components disabled read the host's Σw as the sample size, silently | `PROCESSING_CONFIG` naming the overlay and the host (`details.reason` `components_disabled`), predict and runtime alike; `frequency` hosts are unaffected | behaviour change (refusal) | enable components on that host (drop `disable_components` / `--no-components` / `Options.DisableComponents`), or use a `frequency` weight | U12 |
+| `REG_OLS` / `REG_BAYES_LINEAR` under any weight in force (slot, request or `Options.DefaultWeight`) were `PULSE_WEIGHT_UNSUPPORTED` | `REG_OLS` (plain, ridge, lasso, elastic net) fits weighted under both kinds; `REG_BAYES_LINEAR` fits weighted under `frequency` and stays `PULSE_WEIGHT_UNSUPPORTED` (now naming the kind) under `probability`; manifest `weight_kinds` gains both entries | behaviour change (lift) | an instance with `DefaultWeight` that relied on the refusal now gets weighted fits — set `"weight": null` on the regression slot to keep them unweighted | U12 |
+| `types.RegressionResult` | gains `SumWeights` (`sum_weights`) and `NEff` (`n_eff`), `omitempty`, set only on a weighted fit; `NObs` stays the raw row count | additive field | none | U12 |
 
 ## Third-party dependency
 
