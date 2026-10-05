@@ -533,3 +533,204 @@ func TestMultiplicityFold_CrosstabOverlays(t *testing.T) {
 		})
 	}
 }
+
+// TestFoldOverlayMultiplicity_RowColumn: a `row` family corrects each
+// matrix row on its own and a `column` family each column — a row
+// never mixes rows, a column never mixes columns — on a pairwise
+// overlay's cell p-values and on PROP_Z_PANEL vectors, where every
+// element of a panel cell joins its cell's row / column. The echo
+// carries m_per index-aligned with the rows / columns and m = their
+// sum; two row-family layers never pool.
+func TestFoldOverlayMultiplicity_RowColumn(t *testing.T) {
+	nan := math.NaN()
+	pair, panel := types.OverlayKindPairwisePropZ, types.OverlayKindPropZPanel
+	// nil = an absent cell.
+	grids := map[types.OverlayKind][][]any{
+		pair: {
+			{0.01, 0.02, nil},
+			{0.03, nan, 0.04},
+		},
+		panel: {
+			{[]float64{0.001, 0.02}, nil, []float64{0.04}},
+			{[]float64{0.03, nan, 0.01}, []float64{0.2}, []float64{0.005, 0.5}},
+		},
+	}
+	build := func(kind types.OverlayKind) types.OverlayLayer {
+		g := grids[kind]
+		cells := make([][]types.MatrixCell, len(g))
+		for r := range g {
+			cells[r] = make([]types.MatrixCell, len(g[r]))
+			for c, v := range g[r] {
+				if v != nil {
+					cells[r][c] = cell(v)
+				}
+			}
+		}
+		l := matrixLayer(kind, cells)
+		l.Payload.Matrix.ColumnKeys = []types.AxisKey{{"u"}, {"v"}, {"w"}}
+		return l
+	}
+	// flat returns a cell's p-values (one for a scalar cell).
+	flat := func(v any) []float64 {
+		if ps, ok := v.([]float64); ok {
+			return ps
+		}
+		return []float64{v.(float64)}
+	}
+	for _, method := range []types.MultiplicityMethod{types.MultiplicityMethodBonferroni, types.MultiplicityMethodHolm} {
+		for _, kind := range []types.OverlayKind{pair, panel} {
+			for _, family := range []types.MultiplicityFamily{types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn} {
+				t.Run(string(method)+"/"+string(kind)+"/"+string(family), func(t *testing.T) {
+					g := grids[kind]
+					// Two identical layers, both in the family: each
+					// must answer as if it were alone.
+					resp := &types.Response{Overlays: []types.OverlayLayer{build(kind), build(kind)}}
+					before := mustMarshal(t, resp.Overlays[0].Payload.Matrix)
+					plan := &descx.MultiplicityPlan{Overlays: []descx.ResolvedMultiplicity{
+						overlayMember("overlays[0]", kind, method, family, 0.05),
+						overlayMember("overlays[1]", kind, method, family, 0.05),
+					}}
+					if err := foldRequestMultiplicity(plan, resp); err != nil {
+						t.Fatal(err)
+					}
+					nIdx := len(g)
+					if family == types.MultiplicityFamilyColumn {
+						nIdx = len(g[0])
+					}
+					// Expected: one family per row / column index,
+					// cells in row-major order, panel elements in place.
+					want := map[[2]int][]float64{}
+					wantMPer := make([]int, nIdx)
+					moved := false
+					for idx := 0; idx < nIdx; idx++ {
+						var coords [][2]int
+						var ps []float64
+						for r := range g {
+							for c, v := range g[r] {
+								if v == nil || (family == types.MultiplicityFamilyRow && r != idx) || (family == types.MultiplicityFamilyColumn && c != idx) {
+									continue
+								}
+								coords = append(coords, [2]int{r, c})
+								ps = append(ps, flat(v)...)
+							}
+						}
+						adj, err := multiplicity.Adjust(multiplicity.Method(method), ps)
+						if err != nil {
+							t.Fatal(err)
+						}
+						wantMPer[idx] = multiplicity.FamilySize(ps)
+						off := 0
+						for _, rc := range coords {
+							n := len(flat(g[rc[0]][rc[1]]))
+							want[rc] = adj[off : off+n]
+							for k := 0; k < n; k++ {
+								moved = moved || !sameFloat(adj[off+k], ps[off+k])
+							}
+							off += n
+						}
+					}
+					if !moved {
+						t.Fatal("no adjusted p moved; the case proves nothing")
+					}
+					total := 0
+					for _, m := range wantMPer {
+						total += m
+					}
+					for li := range resp.Overlays {
+						l := &resp.Overlays[li]
+						pa, sa := l.Payload.PAdjusted, l.Payload.SignificantAdjusted
+						if pa == nil || sa == nil {
+							t.Fatalf("layer %d: parallel matrices missing", li)
+						}
+						for r := range g {
+							for c, v := range g[r] {
+								pc := pa.Cells[r][c]
+								if v == nil {
+									if pc.Present || sa.Cells[r][c].Present {
+										t.Errorf("layer %d (%d,%d): absent base cell present in a parallel matrix", li, r, c)
+									}
+									continue
+								}
+								got := flat(pc.Value)
+								for k, w := range want[[2]int{r, c}] {
+									if !sameFloat(got[k], w) {
+										t.Errorf("layer %d (%d,%d)[%d] p_adjusted %v, want %v", li, r, c, k, got[k], w)
+									}
+								}
+							}
+						}
+						wantEcho := &types.AppliedMultiplicity{Method: method, Family: family, Alpha: 0.05, M: total, MPer: wantMPer}
+						if !reflect.DeepEqual(l.Multiplicity, wantEcho) {
+							t.Errorf("layer %d echo %+v, want %+v", li, l.Multiplicity, wantEcho)
+						}
+					}
+					if after := mustMarshal(t, resp.Overlays[0].Payload.Matrix); !bytes.Equal(before, after) {
+						t.Error("base matrix changed under the correction")
+					}
+				})
+			}
+		}
+	}
+}
+
+// TestMultiplicityFold_CrosstabRowColumn runs `row` / `column` through
+// Process over a real crosstab (resolver → plan → post-hook): each row
+// (column) of the FISHER_EXACT_CELL layer is corrected on its own
+// against the baseline's raw cell p-values, the echo carries m_per and
+// the base matrix is byte-identical. It pins the runtime wiring; the
+// fixture's 2×2 grid cannot tell a row partition from a column one, so
+// the boundary itself is TestFoldOverlayMultiplicity_RowColumn's.
+func TestMultiplicityFold_CrosstabRowColumn(t *testing.T) {
+	_, buffered := overlayFoldService(t)
+	ctx := context.Background()
+	mk := func(m *types.Multiplicity) *types.Request {
+		r := overlayCrosstabRequest(false)
+		r.Overlays = []types.OverlaySpec{{Name: "f", Kind: types.OverlayKindFisherExactCell, Scope: types.OverlayScopeCell, Multiplicity: m}}
+		return r
+	}
+	base, err := buffered.Process(ctx, mk(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := base.Overlays[0].Payload.Matrix
+	for _, family := range []types.MultiplicityFamily{types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn} {
+		t.Run(string(family), func(t *testing.T) {
+			got, err := buffered.Process(ctx, mk(&types.Multiplicity{Method: types.MultiplicityMethodHolm, Family: family}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			l := got.Overlays[0]
+			n := len(raw.Cells)
+			if family == types.MultiplicityFamilyColumn {
+				n = len(raw.Cells[0])
+			}
+			mPer, total := make([]int, n), 0
+			for idx := 0; idx < n; idx++ {
+				var ps []float64
+				var coords [][2]int
+				for r := range raw.Cells {
+					for c, cl := range raw.Cells[r] {
+						if (family == types.MultiplicityFamilyRow && r == idx) || (family == types.MultiplicityFamilyColumn && c == idx) {
+							ps, coords = append(ps, cl.Value.(float64)), append(coords, [2]int{r, c})
+						}
+					}
+				}
+				adj, _ := multiplicity.Adjust(multiplicity.MethodHolm, ps)
+				mPer[idx] = multiplicity.FamilySize(ps)
+				total += mPer[idx]
+				for k, rc := range coords {
+					if v := l.Payload.PAdjusted.Cells[rc[0]][rc[1]].Value.(float64); !sameFloat(v, adj[k]) {
+						t.Errorf("(%d,%d) p_adjusted %v, want %v", rc[0], rc[1], v, adj[k])
+					}
+				}
+			}
+			want := &types.AppliedMultiplicity{Method: types.MultiplicityMethodHolm, Family: family, Alpha: types.DefaultMultiplicityAlpha, M: total, MPer: mPer}
+			if !reflect.DeepEqual(l.Multiplicity, want) {
+				t.Errorf("echo %+v, want %+v", l.Multiplicity, want)
+			}
+			if a, b := mustMarshal(t, raw), mustMarshal(t, l.Payload.Matrix); !bytes.Equal(a, b) {
+				t.Error("base matrix changed under the correction")
+			}
+		})
+	}
+}

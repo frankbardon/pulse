@@ -114,6 +114,15 @@
         "m": {
           "type": "integer"
         },
+        "m_per": {
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "method": {
           "$ref": "#/$defs/MultiplicityMethod"
         }
@@ -2923,4 +2932,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7ac3f3d26156fc6d2231fb211fd56c94a453454563c92646a6f5a9b0c66c1553
+// golden-hash: 13026fd17ec7a24e8b20621e0234b1b8211da09a61486e669deb074dfe91f10d

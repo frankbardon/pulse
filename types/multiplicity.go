@@ -116,9 +116,16 @@ const DefaultMultiplicityAlpha = 0.05
 // (non-NaN) p-values corrected together. It rides beside the raw
 // p-value, never in place of it, and is absent when no correction ran
 // (no block resolved, or the method resolved to none).
+//
+// A `row` / `column` family is one family per row / column index of
+// the layer's own MATRIX payload: MPer carries each family's size,
+// index-aligned with the matrix rows (row) or columns (column), and M
+// is their sum — every defined p-value the layer corrected. MPer is
+// absent for every other family.
 type AppliedMultiplicity struct {
 	Method MultiplicityMethod `json:"method"`
 	Family MultiplicityFamily `json:"family"`
 	Alpha  float64            `json:"alpha"`
 	M      int                `json:"m"`
+	MPer   []int              `json:"m_per,omitempty"`
 }

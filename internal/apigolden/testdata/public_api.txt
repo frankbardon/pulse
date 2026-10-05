@@ -3104,6 +3104,7 @@ pulse/types: type AppliedMultiplicity struct
 pulse/types: type AppliedMultiplicity field Alpha float64 "json:\"alpha\""
 pulse/types: type AppliedMultiplicity field Family pulse/types.MultiplicityFamily "json:\"family\""
 pulse/types: type AppliedMultiplicity field M int "json:\"m\""
+pulse/types: type AppliedMultiplicity field MPer []int "json:\"m_per,omitempty\""
 pulse/types: type AppliedMultiplicity field Method pulse/types.MultiplicityMethod "json:\"method\""
 pulse/types: type Attribute struct
 pulse/types: type Attribute field Alpha float64 "json:\"alpha,omitempty\""
@@ -3891,4 +3892,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e3bbac1d304595fed8d64d1b111f8bd1573a59d945a435ff5fad5b3fc1820492
+// golden-hash: c487d14d8d3902bbc75abc7572d9e2d13ee477756414f4e19464953cccb294e9

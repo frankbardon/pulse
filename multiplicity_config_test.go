@@ -67,6 +67,12 @@ func multRefusalCases() map[string]multRefusalCase {
 		"row on a non-MATRIX payload": {nil, inv, with(func(r *types.Request) {
 			r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindChiSqRow, Scope: types.OverlayScopeRow, Multiplicity: multBlock("", types.MultiplicityFamilyRow, 0)}}
 		})},
+		"column on a SCALAR payload": {nil, inv, with(func(r *types.Request) {
+			r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix, Multiplicity: multBlock("", types.MultiplicityFamilyColumn, 0)}}
+		})},
+		"row on a SCALAR payload": {nil, inv, with(func(r *types.Request) {
+			r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix, Multiplicity: multBlock(holm, types.MultiplicityFamilyRow, 0)}}
+		})},
 		"explicit method on Tukey": {nil, inv, with(func(r *types.Request) {
 			r.PostTests = []*types.Test{{Type: types.TEST_TUKEY_HSD, Field: "s", Multiplicity: multBlock(holm, "", 0)}}
 		})},

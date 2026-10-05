@@ -222,7 +222,15 @@ significance cell absent. The layer gains a `multiplicity` echo
 `significant_adjusted` compares against the resolved
 `multiplicity.alpha` (default `0.05`). A `layer` family never mixes
 layers; a `request`-family layer pools with the request's tests and
-post-tests, so its echo's `m` is the pooled count. These keys ride
+post-tests, so its echo's `m` is the pooled count. A `row` (`column`)
+family is one family per row (column) index of the layer's own MATRIX
+payload — purely coordinate-based, never crossing rows (columns) or
+layers — and every element of a panel cell joins its cell's row
+(column); its echo adds `m_per` (array of integers, `omitempty`), each
+family's size index-aligned with the matrix rows (columns), `0` for an
+index with no defined p-value, and `m` is their sum. A facet overlay
+(`FacetResult.overlays[]`) is corrected per layer with the same slots
+and the engine's `DefaultMultiplicity` applying. These keys ride
 `capability:multiplicity` like the test outputs.
 
 ## Weight slots
