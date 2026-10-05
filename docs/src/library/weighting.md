@@ -168,8 +168,12 @@ the unweighted test on the physically expanded rows. `details.n` and
 the other row counts stay raw; `sum_weights` appears beside `n`.
 Because every weighted row is itself a tie on the expansion, a
 frequency-weighted rank test often warns `PULSE_TEST_TIES_DOMINATE`.
-There is no standard probability-weighted rank test, so a probability
-weight is refused with a message naming the kind; switch the weight to
+Pulse has no probability-weighted rank test: the design-based
+Mann-Whitney and Kruskal-Wallis tests of survey software
+(`survey::svyranktest`) need design information (strata, clusters)
+Pulse does not carry, and Spearman and Kendall have no standard
+probability-weighted form. A probability weight is refused with a
+message naming the kind; switch the weight to
 `kind: frequency` (if the weights are replication counts) or set the
 slot's `weight: null`.
 

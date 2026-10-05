@@ -43,8 +43,11 @@ const (
 	ClassRefuse
 
 	// ClassFrequencyOnly: the operator computes a weighted figure under
-	// kind frequency only (exact on the expanded rows) and has no
-	// standard probability-weighted form. A frequency weight is applied;
+	// kind frequency only (exact on the expanded rows) and Pulse has no
+	// probability-weighted form for it (none is standard, or — the
+	// Mann-Whitney / Kruskal-Wallis design-based rank tests of
+	// survey::svyranktest — it needs design information Pulse does not
+	// carry and is not the expansion test). A frequency weight is applied;
 	// a probability weight in force on its slot — the instance default
 	// included — is PULSE_WEIGHT_UNSUPPORTED naming the kind. The slot's
 	// `weight: null` opts out.
@@ -120,8 +123,12 @@ var attributeClasses = map[types.AttributeType]Class{
 // approximation, not Rao-Scott). The rank tests are frequency-only:
 // weighted mid-ranks (a row of weight w ranks as w identical rows), the
 // tie corrections on the expanded tie sizes and Kendall's pair weights
-// w_i·w_j equal the unweighted test on the expanded rows; no standard
-// probability-weighted rank test exists. Fisher's exact test (the
+// w_i·w_j equal the unweighted test on the expanded rows. Pulse has no
+// probability-weighted form: the design-based rank tests
+// (survey::svyranktest, Lumley & Scott 2013, for Mann-Whitney /
+// Kruskal-Wallis) need design information Pulse does not carry and are
+// not the expansion test, and Spearman / Kendall have no standard one
+// (U12 review WS-08). Fisher's exact test (the
 // exact test on the Σw table), KS (weighted ECDFs, asymptotic p on the
 // expanded sizes) and Brown-Forsythe (ANOVA on |x − the frequency
 // weighted median|) are frequency-only for the same reason: each is the
@@ -172,7 +179,7 @@ var regressionClasses = map[types.RegressionType]Class{
 // the PULSE_WEIGHT_UNSUPPORTED refusal (message and details.reason).
 // Every key must be ClassRefuse (TestRefusalReasons_AreRefused).
 var refusalReasons = map[string]string{
-	string(types.TEST_SHAPIRO_WILK): "the Shapiro-Francia W' statistic and its p-value calibration are defined only for unweighted samples; no standard weighted form exists",
+	string(types.TEST_SHAPIRO_WILK): "a frequency-weighted W' would need the expected normal order statistics of all Σw expanded rows and Royston's p-value calibration on a tie-heavy sample, and no probability-weighted form exists",
 	string(types.TEST_TUKEY_HSD):    "it reads the aggregated per-group result rows, which carry no row weights, and weighted Tukey-Kramer has no reference form",
 	string(types.TEST_ANOVA_RM):     "a per-row weight has no defined meaning in the subject-by-condition table repeated-measures ANOVA reads",
 	string(types.TEST_TREND):        "it runs Mann-Kendall over the aggregated result rows, which carry no row weights",

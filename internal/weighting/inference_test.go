@@ -181,6 +181,35 @@ func TestNSourceRefusal(t *testing.T) {
 	}
 }
 
+// TestNSourceRefusal_WeightSumReason (U12 review WS-07): the probability
+// weight-sum refusal says Σw is scale-arbitrary — it can overstate OR
+// understate the sample size — never that it always overstates.
+func TestNSourceRefusal_WeightSumReason(t *testing.T) {
+	for _, s := range []string{"cell_weight_sum", "cell_value_weighted"} {
+		got := NSourceRefusal(s, Probability)
+		for _, want := range []string{"arbitrary in scale", "overstate or understate", "omit n_source to read Kish n_eff"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s: reason %q lacks %q", s, got, want)
+			}
+		}
+	}
+}
+
+// TestRefusalReasons_ShapiroWilkStatesObstacle (U12 review WS-09): the
+// permanent Shapiro-Wilk refusal names the practical obstacle to a
+// frequency form instead of claiming W' is undefined for weighted data.
+func TestRefusalReasons_ShapiroWilkStatesObstacle(t *testing.T) {
+	got := RefusalReason(string(types.TEST_SHAPIRO_WILK))
+	for _, want := range []string{"order statistics", "calibration", "no probability-weighted form"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("reason %q lacks %q", got, want)
+		}
+	}
+	if strings.Contains(got, "defined only for unweighted") {
+		t.Errorf("reason %q keeps the false 'defined only for unweighted' claim", got)
+	}
+}
+
 // TestHiddenFloorRefusal: the floor-scaling kinds are exactly the χ²
 // and Compose proportion kinds (the pairwise proportion kind already
 // needs components to run at all; Fisher has no probability form; the

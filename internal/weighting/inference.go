@@ -157,6 +157,12 @@ func (b *Welford) ScaledM2(basis Basis) float64 {
 // (row_margin_value, row_margin_value_within) are NOT refused: they
 // read the base's Σw, which the overlay maps onto N* itself.
 
+// WeightSumNotSampleSize is why Σw is never a sample size under kind
+// probability (U12 review WS-07): probability weights are defined only
+// up to scale, so their sum can sit on either side of the effective
+// size. NSourceRefusal and NBasisRefusal share it.
+const WeightSumNotSampleSize = "the weight sum is arbitrary in scale under weight kind probability (it can overstate or understate the sample size)"
+
 // NSourceRefusal is why an explicit overlay n_source cannot stand on a
 // host weighted under basis, "" when it can (an omitted source reads
 // the kind-driven N*; a source the rule does not name keeps its own
@@ -178,7 +184,7 @@ func NSourceRefusal(nSource string, basis Basis) string {
 		return "a distinct-key count is unweighted, so it is not a valid sample size on a weighted host; omit n_source to read the weighted sample size N* (sum_weights under kind frequency, n_eff under kind probability)"
 	case types.PairwiseNSourceCellWeightSum, types.PairwiseNSourceCellValueWeight:
 		if basis == Probability {
-			return "the weight sum overstates the sample size under weight kind probability; omit n_source to read Kish n_eff"
+			return WeightSumNotSampleSize + "; omit n_source to read Kish n_eff"
 		}
 	}
 	return ""
