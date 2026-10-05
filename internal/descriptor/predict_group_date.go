@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/dategroup"
+	"github.com/frankbardon/pulse/internal/datepart"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -37,6 +38,31 @@ func validateGroupDateParams(env *descriptor.Envelope, req *types.Request, schem
 		}
 		for _, g := range ct.Columns {
 			check(g)
+		}
+	}
+}
+
+// validateDatePartParams reports every ATTR_DATE_PART slot whose params
+// or schema field the runtime factory refuses — through datepart, the
+// one reading the factory itself calls, so the code and message are the
+// runtime's own. A field absent from schema is left to the
+// field-reference rule (FieldRefRefusals), as before.
+func validateDatePartParams(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) {
+	if req == nil {
+		return
+	}
+	for _, a := range req.Attributes {
+		if a == nil || opRoute(inst, a.Type) != types.ATTR_DATE_PART {
+			continue
+		}
+		part, err := datepart.Parse(a.Params)
+		if err == nil && schema != nil {
+			if f := schema.Field(a.Field); f != nil {
+				err = datepart.CheckField(part, a.Field, f)
+			}
+		}
+		if err != nil {
+			addCodedError(env, err)
 		}
 	}
 }

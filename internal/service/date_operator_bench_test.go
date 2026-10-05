@@ -281,6 +281,51 @@ func BenchmarkDateOps_GroupDateRanges(b *testing.B) {
 	}
 }
 
+// BenchmarkDateOps_DateParts: ATTR_DATE_PART (month) and
+// FEAT_DATE_FEATURES over a date and a datetime column, SUM of the
+// derived month (zone-aware-operators E2-S2). The `date` rows are the
+// byte-identical / same-speed bar: an inherited zone never applies
+// there. The `datetime` rows (refused before E2-S2, so skipped on a
+// pre-E2-S2 baseline) measure local-calendar extraction.
+func BenchmarkDateOps_DateParts(b *testing.B) {
+	cfg, _ := dateOpsFixture(b)
+	for _, op := range []string{"attr", "feat"} {
+		for _, col := range []string{"date", "datetime"} {
+			field := "d"
+			if col == "datetime" {
+				field = "ts"
+			}
+			for _, order := range dateOpsOrders {
+				for _, tz := range dateOpsZones {
+					b.Run(fmt.Sprintf("op=%s/col=%s/order=%s/tz=%s", op, col, order, dateOpsTZName(tz)), func(b *testing.B) {
+						svc := New(cfg)
+						mk := func() *types.Request {
+							req := &types.Request{
+								Cohort:   &types.Cohort{Filename: "dates_" + order + ".pulse"},
+								TimeZone: tz,
+							}
+							if op == "attr" {
+								req.Attributes = []*types.Attribute{{Type: types.ATTR_DATE_PART, Field: field, Label: "mo", Params: json.RawMessage(`{"part":"month"}`)}}
+								req.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "mo", Label: "s"}}
+							} else {
+								req.Features = []*types.Feature{{Type: types.FEAT_DATE_FEATURES, Field: field, Label: "df"}}
+								req.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "df_month", Label: "s"}}
+							}
+							return req
+						}
+						if col == "datetime" {
+							if _, err := svc.Process(context.Background(), mk()); err != nil {
+								b.Skipf("datetime refused (pre E2-S2): %v", err)
+							}
+						}
+						runDateOpsBench(b, svc, mk, tz)
+					})
+				}
+			}
+		}
+	}
+}
+
 // BenchmarkDateOps_CrosstabGroupDate: crosstab with a GROUP_DATE month
 // row over the datetime column × GROUP_CATEGORY column, COUNT cell,
 // all margins — buffered arm (fusion forced off) vs fused arm (asserted

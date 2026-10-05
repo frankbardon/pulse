@@ -1,14 +1,15 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/datepart"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -391,50 +392,33 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 	return result, nil
 }
 
-// datePartParams holds the configuration for ATTR_DATE_PART.
-type datePartParams struct {
-	Part string `json:"part"`
-}
-
-var validDateParts = map[string]bool{
-	"year":           true,
-	"month":          true,
-	"day":            true,
-	"year_month":     true,
-	"year_month_day": true,
-	"month_day":      true,
-}
-
+// datePartAttribute is ATTR_DATE_PART. A `date` column is read as
+// epoch days on the calendar (no zone ever applies); a `datetime` column
+// as an instant whose parts are the wall clock in the slot's zone (zone
+// nil: UTC), via temporal.LocalParts.
 type datePartAttribute struct {
-	part string
+	part    string
+	seconds bool
+	zone    *temporal.Zone
 }
 
 func newDatePartAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
-	if len(attr.Params) == 0 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "date_part attribute requires params with a \"part\" field")
+	part, err := datepart.Parse(attr.Params)
+	if err != nil {
+		return nil, err
 	}
-
-	var params datePartParams
-	if err := json.Unmarshal(attr.Params, &params); err != nil {
-		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "parsing date_part params")
+	var f *encoding.Field
+	if schema != nil {
+		f = schema.Field(attr.Field)
 	}
-
-	if params.Part == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "date_part attribute requires a \"part\" field in params")
+	if err := datepart.CheckField(part, attr.Field, f); err != nil {
+		return nil, err
 	}
-
-	if !validDateParts[params.Part] {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("invalid date part %q: must be one of year, month, day, year_month, year_month_day, month_day", params.Part))
+	df, err := resolveDateField(string(types.ATTR_DATE_PART), attr.Field, attr.TimeZone, schema, true)
+	if err != nil {
+		return nil, err
 	}
-
-	f := schema.Field(attr.Field)
-	if f == nil || f.Type != encoding.FieldTypeDate {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("date_part attribute requires a date field, got %q", attr.Field))
-	}
-
-	return &datePartAttribute{part: params.Part}, nil
+	return &datePartAttribute{part: part, seconds: df.seconds, zone: df.zone}, nil
 }
 
 func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64, error) {
@@ -460,21 +444,44 @@ func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
 	if !ok {
 		return 0, nil
 	}
+	if a.seconds {
+		return a.instantPart(int64(v)), nil
+	}
 	t := temporal.DayToTime(int64(v))
 	year, month, day := t.Date()
-	switch a.part {
-	case "year":
-		return float64(year), nil
-	case "month":
-		return float64(month), nil
-	case "day":
-		return float64(day), nil
-	case "year_month":
-		return float64(year*100 + int(month)), nil
-	case "year_month_day":
-		return float64(year*10000 + int(month)*100 + day), nil
-	case "month_day":
-		return float64(int(month)*100 + day), nil
+	return encodeDatePart(a.part, year, month, day), nil
+}
+
+// instantPart is the `datetime` arm of Row: the part of instant sec on
+// the wall clock of the slot's zone (UTC when none applies).
+func (a *datePartAttribute) instantPart(sec int64) float64 {
+	z := a.zone
+	if z == nil {
+		z = temporal.UTC
 	}
-	return 0, nil
+	p := temporal.LocalParts(sec, z)
+	if a.part == datepart.PartHour {
+		return float64(p.Hour)
+	}
+	return encodeDatePart(a.part, p.Year, p.Month, p.Day)
+}
+
+// encodeDatePart is the encoded integer ATTR_DATE_PART emits for a
+// calendar date.
+func encodeDatePart(part string, year int, month time.Month, day int) float64 {
+	switch part {
+	case "year":
+		return float64(year)
+	case "month":
+		return float64(month)
+	case "day":
+		return float64(day)
+	case "year_month":
+		return float64(year*100 + int(month))
+	case "year_month_day":
+		return float64(year*10000 + int(month)*100 + day)
+	case "month_day":
+		return float64(int(month)*100 + day)
+	}
+	return 0
 }

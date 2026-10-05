@@ -20,6 +20,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `04_percentile.json` | `ATTR_PERCENTILE` | Per-record percentile rank in the cohort |
 | `05_formula.json` | `ATTR_FORMULA` | Arbitrary expression via `expr-lang/expr` (`income / 12`) |
 | `06_date_part.json` | `ATTR_DATE_PART` | Extract `year_month` from a date field for grouping |
+| `10_date_part_hour.json` | `ATTR_DATE_PART` | Local wall-clock hour of a `datetime` (`part: hour`, request `time_zone`) |
 
 See `pulse skills show attribute-composition` for the full operator
 contract, the `ATTR_FORMULA` allowlist, and composition rules.

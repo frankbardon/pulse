@@ -44,7 +44,7 @@ const (
 
 var (
 	purposeAttrDatePart = descriptor.Purpose{
-		Plain:   "Adds a calendar part of a date field to every row, such as the year, the month or a year-month like 202403.",
+		Plain:   "Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour.",
 		Intents: []string{IntentPrepare, IntentChangeOverTime},
 		Questions: []string{
 			"Which month of the year does each order fall in, so seasons can be compared across years?",
@@ -60,7 +60,7 @@ var (
 			{When: "you want several calendar columns at once, including weekday", Use: "FEAT_DATE_FEATURES"},
 		},
 		Assumptions: []string{
-			"Date fields only (epoch days); a datetime field is refused.",
+			"Reads a date field (epoch days) or a datetime field; a datetime is read on the local clock of its time zone, and the hour part needs a datetime.",
 			"The part is an encoded number (YYYYMM for year_month), so arithmetic on it is meaningless.",
 			"A missing date reads 0.",
 		},

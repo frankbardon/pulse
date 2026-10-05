@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Extract the local wall-clock hour of order instants with ATTR_DATE_PART part=hour on a datetime field, read in America/New_York, and group on it to find the busiest hour of day.",
+    "intents": [
+      "change_over_time",
+      "prepare"
+    ],
+    "name": "attr_date_part_hour_local",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "ATTR_DATE_PART",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "time-series",
+      "feature-engineering",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_DATE_PART",
+      "field": "ordered_at",
+      "label": "hour_of_day",
+      "params": {
+        "part": "hour"
+      }
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "time_zone": "America/New_York",
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "hour_of_day"
+    }
+  ],
+  "sort": [
+    {
+      "field": "hour_of_day"
+    }
+  ]
+}

@@ -50,9 +50,9 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.FEAT_DATE_FEATURES),
 			Category:      "feature",
-			Description:   "Expand a date field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns.",
-			AcceptsTypes:  []string{"date"},
-			EmitsTypeNote: "multiple columns: <label>_year, <label>_month, <label>_day, <label>_dow, <label>_quarter",
+			Description:   "Expand a date or datetime field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns, plus hour over a datetime; a datetime reads the wall clock of its resolved time zone.",
+			AcceptsTypes:  []string{"date", "datetime"},
+			EmitsTypeNote: "multiple columns: <label>_year, <label>_month, <label>_day, <label>_dow, <label>_quarter; a datetime adds <label>_hour",
 			Streamable:    true,
 		},
 		{

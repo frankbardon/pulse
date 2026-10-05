@@ -64,9 +64,20 @@ func identityFilterReq(cohort, reqTZ string, f *types.Filterer) *types.Request {
 		Filterers: []*types.Filterer{f}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}}
 }
 
+// identityAttrReq groups by the attribute's label (its value as a key).
+func identityAttrReq(cohort, reqTZ string, a *types.Attribute) *types.Request {
+	return &types.Request{Cohort: &types.Cohort{Filename: cohort}, TimeZone: reqTZ, Aggregations: countAgg(),
+		Attributes: []*types.Attribute{a}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: a.Label}}}
+}
+
+// identityFeatReq groups by one of the feature's output columns.
+func identityFeatReq(cohort, reqTZ, column string, f *types.Feature) *types.Request {
+	return &types.Request{Cohort: &types.Cohort{Filename: cohort}, TimeZone: reqTZ, Aggregations: countAgg(),
+		Features: []*types.Feature{f}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: column}}}
+}
+
 // utcIdentityCases: every zone-aware operator landed so far. Add a row
-// per newly zone-aware operator (ATTR_DATE_PART / FEAT_DATE_FEATURES
-// over a datetime, export, ...).
+// per newly zone-aware operator (export, ...).
 var utcIdentityCases = []identityCase{
 	{name: "GROUP_DATE/day", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
 		return identityGroupReq(c, r, &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"day"}`), TimeZone: s})
@@ -110,6 +121,24 @@ var utcIdentityCases = []identityCase{
 			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "n", Label: "count"},
 			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
 		}}
+	}},
+	// ATTR_DATE_PART / FEAT_DATE_FEATURES over a `datetime` read the
+	// zone's wall clock: month moves rows across June/July, hour shifts
+	// every row, the FEAT day / hour columns likewise.
+	{name: "ATTR_DATE_PART/datetime-month", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
+		return identityAttrReq(c, r, &types.Attribute{Type: types.ATTR_DATE_PART, Field: "ts", Label: "mo", Params: json.RawMessage(`{"part":"month"}`), TimeZone: s})
+	}},
+	{name: "ATTR_DATE_PART/datetime-hour", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
+		return identityAttrReq(c, r, &types.Attribute{Type: types.ATTR_DATE_PART, Field: "ts", Label: "mo", Params: json.RawMessage(`{"part":"hour"}`), TimeZone: s})
+	}},
+	{name: "FEAT_DATE_FEATURES/datetime-day", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
+		return identityFeatReq(c, r, "df_day", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "ts", Label: "df", TimeZone: s})
+	}},
+	{name: "FEAT_DATE_FEATURES/datetime-hour", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
+		return identityFeatReq(c, r, "df_hour", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "ts", Label: "df", TimeZone: s})
+	}},
+	{name: "FEAT_DATE_FEATURES/date-inherited", mk: func(c, _, r string) *types.Request {
+		return identityFeatReq(c, r, "df_day", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "d", Label: "df"})
 	}},
 	// An inherited zone on a `date` column is never applied, so even a
 	// real zone leaves it alone; an explicit slot tz there is refused.
@@ -420,6 +449,76 @@ var dstOps = []dstOp{
 			out := map[string]float64{}
 			for _, s := range f.instants {
 				out[weekKey(at(s), f.weekStart())]++
+			}
+			return out
+		},
+	},
+	{
+		// The local calendar date as YYYYMMDD; a key is the value printed
+		// as an integer.
+		name: "ATTR_DATE_PART/year_month_day", key: "ymd",
+		mk: func(f *dstFixture, s, r string) *types.Request {
+			return identityAttrReq(f.cohort, r, &types.Attribute{Type: types.ATTR_DATE_PART, Field: "ts", Label: "ymd", Params: json.RawMessage(`{"part":"year_month_day"}`), TimeZone: s})
+		},
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
+			out := map[string]float64{}
+			for _, s := range f.instants {
+				out[at(s).Format("20060102")]++
+			}
+			return out
+		},
+	},
+	{
+		// Wall-clock hour of day: the skipped hour reads on no row, the
+		// repeated one on twice as many.
+		name: "ATTR_DATE_PART/hour", key: "hr",
+		mk: func(f *dstFixture, s, r string) *types.Request {
+			return identityAttrReq(f.cohort, r, &types.Attribute{Type: types.ATTR_DATE_PART, Field: "ts", Label: "hr", Params: json.RawMessage(`{"part":"hour"}`), TimeZone: s})
+		},
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
+			out := map[string]float64{}
+			for _, s := range f.instants {
+				out[fmt.Sprint(at(s).Hour())]++
+			}
+			return out
+		},
+	},
+	{
+		name: "FEAT_DATE_FEATURES/day", key: "df_day",
+		mk: func(f *dstFixture, s, r string) *types.Request {
+			return identityFeatReq(f.cohort, r, "df_day", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "ts", Label: "df", TimeZone: s})
+		},
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
+			out := map[string]float64{}
+			for _, s := range f.instants {
+				out[fmt.Sprint(at(s).Day())]++
+			}
+			return out
+		},
+	},
+	{
+		name: "FEAT_DATE_FEATURES/hour", key: "df_hour",
+		mk: func(f *dstFixture, s, r string) *types.Request {
+			return identityFeatReq(f.cohort, r, "df_hour", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "ts", Label: "df", TimeZone: s})
+		},
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
+			out := map[string]float64{}
+			for _, s := range f.instants {
+				out[fmt.Sprint(at(s).Hour())]++
+			}
+			return out
+		},
+	},
+	{
+		// Local weekday, Sunday = 0 (it never follows a week_start).
+		name: "FEAT_DATE_FEATURES/dow", key: "df_dow",
+		mk: func(f *dstFixture, s, r string) *types.Request {
+			return identityFeatReq(f.cohort, r, "df_dow", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "ts", Label: "df", TimeZone: s})
+		},
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
+			out := map[string]float64{}
+			for _, s := range f.instants {
+				out[fmt.Sprint(int(at(s).Weekday()))]++
 			}
 			return out
 		},

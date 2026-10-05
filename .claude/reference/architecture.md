@@ -42,6 +42,7 @@ internal/imports/          managed-imports manager (TTL, sidecars)
 internal/statdist/         Student-t family + regularized incomplete beta shared by processing and regression (leaf: stdlib + gonum only; TestStatdistImportBoundary)
 internal/daterange/        compiled {label,start,end} model for the date-range operators
 internal/dategroup/        the one GROUP_DATE params reading (component, week_start, fiscal_offset, hour-needs-datetime); factory and predict both call it (leaf: stdlib + errors/encoding + temporal)
+internal/datepart/         the one ATTR_DATE_PART params + field reading (part enum, date/datetime only, hour-needs-datetime); factory and predict both call it (leaf: stdlib + errors/encoding)
 internal/mergegate/        the one pure merge + chain-stage gate (types/encoding/errors only); engine and chain validator both call it
 internal/weighting/        the one weight-class table per built-in aggregator + the per-row weight-validity rule (leaf: stdlib + types); resolver, manifest and engine all read it
 internal/spsssidecar/      SPSS sidecar path helpers used by root sidecar_*.go

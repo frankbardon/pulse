@@ -347,8 +347,6 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 		return "the runtime constructor refuses a non-set column on a set operator; predict has no type check"
 	case op == "AGG_WELFORD" && (ft == encoding.FieldTypeU4 || temporal || ft == encoding.FieldTypePackedBool || cat):
 		return "AGG_WELFORD's runtime numeric check is narrower than the analytics set predict assumes"
-	case op == "ATTR_DATE_PART" && ft != encoding.FieldTypeDate:
-		return "the runtime refuses ATTR_DATE_PART on a non-date field; predict has no type check"
 	case in("GROUP_DATE_RANGES", "FILTER_DATE_RANGES") && !temporal:
 		return "the runtime refuses a non-temporal field; predict has no type check"
 	case in("FILTER_TRUE", "FILTER_FALSE") && ft != encoding.FieldTypePackedBool:

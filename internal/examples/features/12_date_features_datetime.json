@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "category": "features",
+    "description": "Decompose order instants (a datetime field) into local calendar features plus the wall-clock hour, read in America/New_York, and group by local day of week.",
+    "intents": [
+      "change_over_time",
+      "prepare"
+    ],
+    "name": "feat_date_features_datetime_local",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "FEAT_DATE_FEATURES",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "time-series",
+      "pre-filter"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n_orders"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "ordered_at_hour",
+      "label": "avg_hour"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "time_zone": "America/New_York",
+  "features": [
+    {
+      "type": "FEAT_DATE_FEATURES",
+      "field": "ordered_at"
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "ordered_at_dow"
+    }
+  ],
+  "sort": [
+    {
+      "field": "ordered_at_dow"
+    }
+  ]
+}

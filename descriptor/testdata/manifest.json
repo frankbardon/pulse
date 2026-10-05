@@ -2495,7 +2495,7 @@
         {
           "name": "ATTR_DATE_PART",
           "category": "attribute",
-          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day) from a date field.",
+          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
           "params": [
             {
               "name": "part",
@@ -2504,6 +2504,7 @@
               "description": "Which calendar component to extract.",
               "enum_values": [
                 "day",
+                "hour",
                 "month",
                 "month_day",
                 "year",
@@ -2513,7 +2514,8 @@
             }
           ],
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
           "emits_type": "f64",
           "emits_type_note": "encoded integer per record (e.g. year_month=YYYYMM)",
@@ -4302,12 +4304,13 @@
         {
           "name": "FEAT_DATE_FEATURES",
           "category": "feature",
-          "description": "Expand a date field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns.",
+          "description": "Expand a date or datetime field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns, plus hour over a datetime; a datetime reads the wall clock of its resolved time zone.",
           "params": null,
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
-          "emits_type_note": "multiple columns: \u003clabel\u003e_year, \u003clabel\u003e_month, \u003clabel\u003e_day, \u003clabel\u003e_dow, \u003clabel\u003e_quarter",
+          "emits_type_note": "multiple columns: \u003clabel\u003e_year, \u003clabel\u003e_month, \u003clabel\u003e_day, \u003clabel\u003e_dow, \u003clabel\u003e_quarter; a datetime adds \u003clabel\u003e_hour",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -7493,6 +7496,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_DATE_PART",
           "ATTR_FORMULA"
         ],
         "compatible_filterers": [
@@ -7515,6 +7519,7 @@
           "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
+          "FEAT_DATE_FEATURES",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -7812,7 +7817,7 @@
       },
       {
         "name": "op-attr-date-part",
-        "description": "Extract a calendar component (year, month, day, year_month, ...) from a date field."
+        "description": "Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field."
       },
       {
         "name": "op-attr-formula",
@@ -7860,7 +7865,7 @@
       },
       {
         "name": "op-feat-date-features",
-        "description": "Expand a date field into year / month / day / day-of-week / quarter columns."
+        "description": "Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns."
       },
       {
         "name": "op-feat-frequency-encode",
@@ -8703,7 +8708,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 172,
+    "examples_count": 174,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -11720,4 +11725,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 625048c095c8e7fcf08aa1f3e95a8e874452b583a2e6e3bac727737c5a66e652
+// golden-hash: 46a1240a912abfd5ba63ccbec0af645b50fb355ca9a873e0887c7c0672d9cc27
