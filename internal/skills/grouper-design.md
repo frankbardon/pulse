@@ -89,4 +89,4 @@ Components mergeability is read off the manifest: `mergeable` groupers fold acro
 ## See
 
 - Recipes: `pulse_examples_search tags=["cohort-analysis"|"cross-tabulation"|"distribution-shape"|"survey"]`.
-- <!-- feature: capability:crosstab -->`crosstab-guide` (Crosstab shape, margins, normalisation), <!-- /feature -->`aggregation-design` (what folds inside the bucket), `request-envelope` (slot keys, smart defaults), `response-components` (grouper floor), `streaming-and-watching` (streamability).
+- <!-- feature: capability:crosstab -->`crosstab-guide` (Crosstab shape, margins, normalisation), <!-- /feature -->`aggregation-design` (what folds inside the bucket), `request-envelope` (slot keys, smart defaults), `time-zones` (datetime day buckets, `hour`, `week_start`), `response-components` (grouper floor), `streaming-and-watching` (streamability).

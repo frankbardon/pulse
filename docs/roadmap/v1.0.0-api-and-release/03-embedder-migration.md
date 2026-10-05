@@ -1,6 +1,6 @@
 # 03 — Embedder migration guide
 
-**Status:** decided · U01, U02, U02b, U02c, U04, U05, U06, U09, U10, U11, U12 and U13 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
+**Status:** decided · U01, U02, U02b, U02c, U04, U05, U06, U09, U10, U11, U12, U13 and U14 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
 
 ## Purpose
 
@@ -281,6 +281,27 @@ Complete for U13 (no release tag cut by the unit; the next pre-release carries i
 | Compose, ProcessChain and Facet corrected nothing | Compose: one barrier fold after all slots and Compose-host overlays, serial == `ComposeParallel` byte for byte, `compose` family pools every slot, `--stream` emits no corrections, a failed slot aborts before the fold. ProcessChain: each stage folds its own request, no family spans stages, `ChainOverlaySpec` has no slot (a v1 stage reaches no p-value site yet). Facet: each overlay layer alone, honouring `Options.DefaultMultiplicity` | added | none | U13 |
 
 Not shipped, by decision: regression coefficient p-values are not corrected, the standalone `OVERLAY_CORR_PVALUE` is dropped, and `MatrixSpec.multiplicity` / the `matrix` family wait for the matrix units (U28). An extension `TEST_*` joins families like a built-in.
+
+## Changes from U14 (zone-aware operators)
+
+Complete for U14 (no release tag cut by the unit). Contract: `.claude/reference/execution-modes.md` (Time zones), `.claude/reference/byte-layout.md` (Import datetime literals); agent skill `skills/time-zones.md`. A request with no zone and an import with no source zone are byte-identical to before, except the rows marked behaviour change.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| a non-UTC `time_zone` / `tz` on a `datetime` field was refused `PROCESSING_CONFIG` | applied: the instant is read on its LOCAL calendar day in every mode. A non-UTC zone on a DERIVED field (absent from the schema) is still refused ("a zone cannot be applied to a derived field") | behaviour change | drop any code that caught the refusal; expect local-day buckets and filters. UTC / absent is byte-identical (`TestUTCZoneIsIdentity`) | U14 |
+| `GROUP_DATE` `component` day/week/month/quarter/year, ISO weeks only | adds `component: "hour"` (key `YYYY-MM-DDTHH`, `datetime` fields only) and `week_start` (default `monday` = ISO keys byte-identical) | added | none; `OVERLAY_YOY` follows an hourly host | U14 |
+| predict accepted a `GROUP_DATE` / `ATTR_DATE_PART` request runtime refused (bad `component`, `fiscal_offset`, part, field type) | predict reports the same refusals (shared `internal/dategroup` / `internal/datepart`; the predict-vs-runtime known divergence is gone) | behaviour change | a request that predicted `valid` and then failed at run time now fails at predict | U14 |
+| `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` over a `datetime` field: `PROCESSING_CONFIG` / `SERVICE_VALIDATION` | accepted; read the resolved zone's wall clock. `ATTR_DATE_PART` part `hour` and a sixth `<prefix>_hour` `FEAT_DATE_FEATURES` column exist for `datetime` only (`date` keeps five columns); manifest `accepts_types` lists both types | behaviour change | none for `date` inputs; consumers of the feature columns see one extra column over a `datetime` | U14 |
+| `io.ImportJob`, `io.ConvertJob`, `pulse.ImportSpec`, `pulse.ImportSidecar` had no zone | additive `SourceTZ`, `ColumnSourceTZ`, `DSTPolicy` (`io.DSTPolicy`: `io.DSTPolicyError` / `Earlier` / `Later`); sidecar JSON `source_tz`, `column_source_tz`, `dst_policy` (omitted for a UTC import) | added | set them to read naive datetimes in a zone; unset = UTC as before. A managed handle read in one zone is never reused for another (re-import with `overwrite`) | U14 |
+| `io.ImportReport`, `io.PredictReport`, `io.ConvertReport`, `pulse.ImportResult` had no zone diagnostics | `ZoneWarnings []*errors.CodedError` (`zone_warnings` on the managed result); plain import predict now converts zoned datetime cells and fails on a DST gap/overlap exactly like Run | added / behaviour change | surface `ZoneWarnings` beside `Warnings`; predict of a zoned import can newly refuse | U14 |
+| CLI `import` / `import auto` / `convert` had no zone flags; MCP `pulse_import` had no zone args | `--source-tz [col=]Zone` / `--dst-policy error|earlier|later` on `import <fmt>`, `import auto`, `import predict`, `convert`, `convert predict`; MCP `pulse_import` `source_tz` / `column_source_tz` / `dst_policy` | added | none | U14 |
+| error codes: none for DST or timestamp truncation | `PULSE_IMPORT_DST_AMBIGUOUS`, `PULSE_IMPORT_DST_NONEXISTENT` (fatal under policy `error`), `PULSE_IMPORT_DST_RESOLVED`, `PULSE_IMPORT_TIMESTAMP_TRUNCATED` (warnings) | added | resolve with `pulse errors lookup CODE` / `pulse_errors_lookup` | U14 |
+| Arrow / Parquet native timestamp columns inferred `f64` (raw epoch counts) — `arrow.TypeToPulse` / `InferPulseSchema` | `datetime`; zoned Arrow and UTC-adjusted Parquet are instants (the source zone never moves them), zone-less Arrow, non-adjusted Parquet and `INT96` are wall clocks (source zone + DST policy apply); sub-second values floor toward the past and warn `PULSE_IMPORT_TIMESTAMP_TRUNCATED` | behaviour change | a column that imported as `f64` timestamps imports as `datetime`; re-import and fix downstream aggregations (`AGG_*` over seconds -> over instants). Pin `column_type_overrides` to `f64` to keep the old type | U14 |
+| SPSS `DATETIME` cells rendered a `…Z` instant literal; the doc claimed `TIME` / `DTIME` map to `datetime` | `DATETIME` renders a naive literal, so `--source-tz` applies; without a zone the cohort is byte-identical. `TIME` / `DTIME` are durations and map to `f64` seconds (as the importer always did; the docs were wrong) | behaviour change | none for cohorts; `convert x.sav out.csv` no longer carries a trailing `Z` on SPSS datetimes | U14 |
+| `io.ExportJob`, `io.CohortSource` had no zone; export always wrote canonical UTC | additive `ExportJob.TimeZone`, `CohortSource.TimeZone`; CLI `export --tz Zone` renders each `datetime` with its local offset (`…+05:30`); sub-minute historical (LMT) offsets render `Z`. SPSS export refuses a non-UTC zone (`PULSE_SPSS_EXPORT_UNSUPPORTED`); `convert` has no `--tz` | added | none; unset = UTC `Z` (`TestUTCZoneIsIdentity_Export`) | U14 |
+| `descriptor.Manifest` / `descriptor.ExportFormatCapability` carried no zone data | `Manifest.TZDataVersion` (`tzdata_version`, the embedded IANA release); `ExportFormatCapability.TimeZone` (`export.formats[].time_zone`: `local_offset` or `refused`) | added | none; the manifest golden changed | U14 |
+
+Not shipped, by decision: no `PULSE_*` env var or CLI flag for a default zone (`Options.DefaultTimeZone` only); extension operators stay non-zone-capable (U34); `convert --tz`.
 
 ## Third-party dependency
 

@@ -1,6 +1,6 @@
 # Time zones — UTC inside, zones only at the edges
 
-**Status:** in progress — Step 0, the `Zone` type and the configuration surface landed in [U03](../units/U03-temporal-foundation.md); zone-aware operators, import and output are [U14](../units/U14-zone-aware-operators.md) · **Target:** v1.0.0
+**Status:** done — Step 0, the `Zone` type and the configuration surface landed in [U03](../units/U03-temporal-foundation.md); zone-aware operators, import and output landed in [U14](../units/U14-zone-aware-operators.md). Agent skill: `skills/time-zones.md` · **Target:** v1.0.0
 
 ## Decided rule
 
@@ -61,7 +61,7 @@ Precedence: per-slot `tz` → `Request.TimeZone` → `Options.DefaultTimeZone` �
 
 **Zone-capable operators** (declared once in `internal/descriptor/capabilities_zone.go`, surfaced as the manifest `zone` key): `GROUP_DATE`, `GROUP_DATE_RANGES`, `FILTER_DATE_RANGES`, `ATTR_DATE_PART`, `FEAT_DATE_FEATURES` (`capable`). **`OVERLAY_YOY` follows its host grouper's zone** (`following`) and has no `tz` of its own — a disagreeing overlay zone would be meaningless. **No windows:** no time-based window exists (`FrameSpec.Mode` is `"rows"`-only). Extension operators are not zone-capable (follow-up: U14 or U34). Range tables, whose entries are interpreted in the slot's resolved zone, are U14. ~~A table that pins its own `tz`~~ — cut in U14: tables stay calendar-only.
 
-**U03 posture:** the whole surface is plumbed, validated and echoed by predict, but zone-aware arithmetic is U14 — so a non-UTC zone reaching a `datetime` field (or a derived / joined field) is refused with `PROCESSING_CONFIG` rather than silently ignored. UTC and the fixed-zero `Etc/*` aliases are byte-identical to no zone.
+**Posture (since U14):** a non-UTC zone on a `datetime` schema field is applied; on a derived field (absent from the schema) it is still refused with `PROCESSING_CONFIG` rather than silently ignored. UTC and the fixed-zero `Etc/*` aliases are byte-identical to no zone.
 
 ## Rules that keep it honest
 
@@ -77,7 +77,7 @@ Precedence: per-slot `tz` → `Request.TimeZone` → `Options.DefaultTimeZone` �
 ## Gates
 
 - **`TestNoZoneMathOutsideTemporal`:** the `go/ast` gate above (U03).
-- **`TestUTCZoneIsIdentity`:** `tz: "UTC"` and absent `tz` give byte-identical goldens (U03 landed the request-level form as `TestTimeZone_UTCIdentity`; U14 extends it to zone-aware operators).
+- **`TestUTCZoneIsIdentity`** (+ `TestUTCZoneIsIdentity_Export` for export): `tz: "UTC"` and absent `tz` give byte-identical output across every zone-aware operator.
 - **`TestDSTBoundaries`:** fixtures spanning spring-forward and fall-back in several zones (including half-hour offsets like `Asia/Kolkata` and a southern-hemisphere zone), checked against `time.In` as the reference.
 - **`TestDateFieldRejectsTZ`** (U03).
 
@@ -86,8 +86,8 @@ Precedence: per-slot `tz` → `Request.TimeZone` → `Options.DefaultTimeZone` �
 - [x] Step 0: `internal/temporal`; migrate every open-coded site; `TestNoZoneMathOutsideTemporal` (U03)
 - [x] `Zone` type, embedded tzdata, transition-table fast path (U03)
 - [x] `Options.DefaultTimeZone`, `Request.TimeZone`, per-slot `tz`; precedence; `date`-field rejection (U03)
-- [ ] Zone-aware `GROUP_DATE`, `GROUP_DATE_RANGES`, `FILTER_DATE_RANGES`, `ATTR_DATE_PART`, `FEAT_DATE_FEATURES`, `OVERLAY_YOY`, range tables, `week_start`
-- [ ] Import `--source-tz` (global / per column) with `--dst-policy`
-- [ ] Zone-aware output rendering (export, `--json` labels)
-- [ ] Predict and manifest reporting — resolved zones landed in U03; tzdata version is U14
-- [ ] Identity and DST gates; skills `op-*` params updated; topical skill `time-zones.md`
+- [x] Zone-aware `GROUP_DATE`, `GROUP_DATE_RANGES`, `FILTER_DATE_RANGES`, `ATTR_DATE_PART`, `FEAT_DATE_FEATURES`, `OVERLAY_YOY`, range tables, `week_start` (U14; plus `GROUP_DATE` `hour`)
+- [x] Import `--source-tz` (global / per column) with `--dst-policy` (U14; also `import auto`, `convert`, managed imports, MCP `pulse_import`)
+- [x] Zone-aware output rendering — export `--tz` local offsets (U14). `--json` date labels are the zone's local calendar labels (bucket keys); no offset form. `convert` has no `--tz`; SPSS export refuses a non-UTC `--tz`
+- [x] Predict and manifest reporting — resolved zones (U03); manifest `tzdata_version` (U14)
+- [x] Identity and DST gates (`TestUTCZoneIsIdentity`, `TestUTCZoneIsIdentity_Export`, `TestDSTBoundaries`); skills `op-*` params updated; topical skill `time-zones.md`

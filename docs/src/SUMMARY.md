@@ -45,6 +45,7 @@
 - [Request Templating](library/request-templating.md)
 - [Row Weighting](library/weighting.md)
 - [Multiple-Comparison Correction](library/multiplicity.md)
+- [Time Zones](library/time-zones.md)
 - [Feature Profiles](library/feature-profiles.md)
 - [Guided-Analysis Vocabulary](library/guided-analysis.md)
 

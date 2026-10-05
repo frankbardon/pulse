@@ -98,3 +98,8 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 ## Inherited from U07
 
 - **Extension test `Interpretation` is checked for structure only.** `pulse.New` validates it with the built-in validators, but nothing probes the declared output keys, while built-ins get two-way runtime probes (`TestInterpretationFieldsHoldAtRuntime`). Decide in E1-S1 whether to probe them the way #195 probes `Components()` keys. If not, record that the gap is deliberate in `docs/src/internals/extension-points.md` (Purpose and Interpretation).
+
+## Inherited from U14
+
+- **Extension zone capability.** Extension operators are never zone-capable (`internal/descriptor/capabilities_zone.go`; an explicit `tz` on one is `PROCESSING_CONFIG`). Decide whether registrations gain a zone declaration (`zone: capable|following`) and which `internal/temporal` helpers (`LoadZone`, `LocalDay`, `LocalParts`, `LocalMidnightUTC`, `Zone.Fork`) become a public, frozen surface in `extend` — `Zone` is still internal.
+- **`convert --tz`** renders UTC today; SPSS local wall-clock export could replace the non-UTC refusal.

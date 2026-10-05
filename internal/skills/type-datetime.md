@@ -27,4 +27,4 @@ Absent. Datetimes are never dictionary-encoded.
 ## See
 
 - Skill: `cohort-schema-design` (Field-type matrix), `grouper-design`.
-- Cross-link: `type-date` for day resolution, `type-u64` for sub-second timestamps.
+- Cross-link: `time-zones` (local days, import and export zones), `type-date` for day resolution, `type-u64` for sub-second timestamps.

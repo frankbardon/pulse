@@ -27,7 +27,8 @@ Part of the SPSS surface; entry skill `spss-cohorts`. Missing values: `spss-miss
 | string (A*) | `categorical_*` | near-unique → `PULSE_SPSS_CARDINALITY_HIGH` (free-text signature), still imports |
 | very long string (>255 bytes) | one `categorical_*` | record `7/14` segments it; Pulse rejoins RAW bytes, decodes once |
 | DATE/ADATE/EDATE/SDATE/JDATE | `date`, else `datetime` + `PULSE_SPSS_DATE_WIDENED` | widens only on a time-of-day value; pre-1970 stays `date` (signed epoch **days**) |
-| DATETIME/TIME/DTIME | `datetime` (epoch **seconds**) | fractional-second / non-finite / out-of-int64 demotes to `f64` raw SPSS seconds + `PULSE_SPSS_TEMPORAL_PRECISION` |
+| DATETIME | `datetime` (epoch **seconds**; naive wall clock, `--source-tz` applies) | fractional-second / non-finite / out-of-int64 demotes to `f64` raw SPSS seconds + `PULSE_SPSS_TEMPORAL_PRECISION` |
+| TIME/DTIME | `f64` seconds | durations, never a `datetime` |
 | system-missing (sysmis) | null (bitmap bit) | the one missing state with a format sentinel |
 | numeric user-missing | null + `<var>_missing` sibling | `spss-missing-values` |
 | categorical/string user-missing | dictionary entries, verbatim + FLAGGED | `spss-missing-values` |
