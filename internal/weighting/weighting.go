@@ -96,11 +96,14 @@ var aggregatorClasses = map[types.AggregationType]Class{
 // permanently — RefusalReason); a min-max rescale has no weighted
 // meaning; the regression attributes refit REG_OLS and share its kinds
 // (a weighted refit: β is WLS, leverage the diagonal of
-// W½X(XᵀWX)⁻¹XᵀW½, residuals raw y − ŷ). Every other attribute is
-// row-local (ClassNone).
+// W½X(XᵀWX)⁻¹XᵀW½, residuals raw y − ŷ). ATTR_ZSCORE / ATTR_TSCORE
+// standardise against the weighted mean and the weighted POPULATION sd
+// √(M2_w/Σw) — scale-free, so identical under both kinds (statsmodels
+// DescrStatsW(ddof = 0)). Every other attribute is row-local
+// (ClassNone).
 var attributeClasses = map[types.AttributeType]Class{
-	types.ATTR_ZSCORE:     ClassRefuse,
-	types.ATTR_TSCORE:     ClassRefuse,
+	types.ATTR_ZSCORE:     ClassAware,
+	types.ATTR_TSCORE:     ClassAware,
 	types.ATTR_PERCENTILE: ClassRefuse,
 	types.ATTR_NORMALIZED: ClassNotWeightable,
 
@@ -178,8 +181,8 @@ var refusalReasons = map[string]string{
 
 // operatorClasses is the whole built-in table: the aggregators above
 // plus the non-aggregator families (.claude/reference/weighting.md,
-// Refusal rules) — every TEST_* and REG_*, the reference-distribution
-// attributes and GROUP_QUANTILE refuse (each flips to ClassAware or
+// Refusal rules) — every TEST_* and REG_* refuses unless listed above,
+// as does ATTR_PERCENTILE (each flips to ClassAware or
 // ClassFrequencyOnly only once its weighted computation exists, never
 // before: that would run it unweighted silently); ATTR_NORMALIZED and
 // every WIN_* are not weightable.
@@ -203,7 +206,10 @@ var operatorClasses = func() map[string]Class {
 	for a, c := range attributeClasses {
 		m[string(a)] = c
 	}
-	m[string(types.GROUP_QUANTILE)] = ClassRefuse
+	// GROUP_QUANTILE cuts its buckets at the weighted order statistics
+	// (Hmisc wtd.quantile; probability weights rescaled to the row
+	// count, normwt = TRUE) under both kinds (U12 E5-S2).
+	m[string(types.GROUP_QUANTILE)] = ClassAware
 	for _, w := range types.AllWindowTypes() {
 		m[string(w)] = ClassNotWeightable
 	}

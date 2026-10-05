@@ -11,7 +11,8 @@ import (
 )
 
 // Regression / regression-attribute parity harness
-// (weighting-inferential E4-S3): every weight-aware REG_* and ATTR_REG_*
+// (weighting-inferential E4-S3; the z / t score attributes since E5-S2):
+// every weight-aware REG_* and attribute
 // through the aggregator harness's arms, stores and weight sources
 // (weight_parity_test.go), per kind the manifest's weight_kinds
 // advertises:
@@ -39,6 +40,9 @@ type regParityOp struct {
 	name string
 	reg  *types.RegressionSpec // nil: an attribute row
 	attr types.AttributeType
+	// flat reads a score attribute back ungrouped, so the request takes
+	// the streaming two-pass arms (a grouped two-pass attribute buffers).
+	flat bool
 	// tol is the relative tolerance of the expansion / scale arms.
 	tol float64
 }
@@ -72,6 +76,15 @@ var regParityOps = []regParityOp{
 	{name: "attr_fitted", attr: types.ATTR_REG_FITTED, tol: 1e-10},
 	{name: "attr_residual", attr: types.ATTR_REG_RESIDUAL, tol: 1e-10},
 	{name: "attr_leverage", attr: types.ATTR_REG_LEVERAGE, tol: 1e-10},
+	// The weighted population-sd scores (U12 E5-S2) on y: scale-free, so
+	// the scale arm answers the same figures; a row's score is its
+	// copies' score, so the weighted per-k mean is the expanded one.
+	{name: "attr_zscore", attr: types.ATTR_ZSCORE, tol: 1e-10},
+	{name: "attr_tscore", attr: types.ATTR_TSCORE, tol: 1e-10},
+	// Ungrouped: the weight-following mean / sd / skewness of the scores
+	// (0 / 1 / skew(y) for z) — any weight the attribute missed moves them.
+	{name: "attr_zscore_flat", attr: types.ATTR_ZSCORE, flat: true, tol: 1e-10},
+	{name: "attr_tscore_flat", attr: types.ATTR_TSCORE, flat: true, tol: 1e-10},
 }
 
 func (o regParityOp) surface() (weightSurface, string) {
@@ -98,7 +111,17 @@ func (o regParityOp) build(path string) func() *types.Request {
 			req.Regressions = []*types.RegressionSpec{&spec}
 			return req
 		}
-		req.Attributes = []*types.Attribute{{Type: o.attr, Label: "attr", Target: "y", Predictors: regParityPredictors}}
+		attr := &types.Attribute{Type: o.attr, Label: "attr", Target: "y", Predictors: regParityPredictors}
+		if o.attr == types.ATTR_ZSCORE || o.attr == types.ATTR_TSCORE {
+			attr = &types.Attribute{Type: o.attr, Label: "attr", Field: "y"}
+		}
+		req.Attributes = []*types.Attribute{attr}
+		if o.flat {
+			for _, op := range []types.AggregationType{types.AGG_AVERAGE, types.AGG_STDDEV, types.AGG_SKEWNESS} {
+				req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: op, Field: "attr", Label: "v_" + string(op)})
+			}
+			return req
+		}
 		req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "k"}}
 		readBack := &types.Aggregation{Type: types.AGG_AVERAGE, Field: "attr", Label: "v"}
 		if o.attr == types.ATTR_REG_LEVERAGE {

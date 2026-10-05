@@ -10,52 +10,83 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
-// zscoreAttribute computes (x - mean) / stddev per row using
-// population mean/stddev derived in pass 1 via Welford-Pébaÿ. Implements
-// TwoPassAttribute so the streaming path can avoid buffering the
-// record set.
-type zscoreAttribute struct {
-	// Welford state (pass 1).
-	count uint64
-	mean  float64
-	m2    float64
+// popScoreState is the pass-1 state ATTR_ZSCORE and ATTR_TSCORE share:
+// the population mean and the POPULATION standard deviation √(M2/Σw)
+// of the filter-passing values, folded through the shared weighted
+// Welford bucket (weighting.Welford). An unweighted slot folds every
+// row with w = 1, which is the unweighted Welford recurrence bit for
+// bit (Σw is the exact count), so an unweighted score is unchanged. A
+// weighted slot (its stamped weight, processing.StampWeightsWith) folds
+// each row with its weight; a row whose weight is invalid or zero adds
+// nothing (U11 validity rule) but still receives a score — an attribute
+// owes every row a value. The weighted mean and √(M2_w/Σw) are
+// invariant to rescaling the weights, so frequency and probability
+// weights give the same scores (statsmodels DescrStatsW(ddof = 0)).
+type popScoreState struct {
+	weight *types.WeightSpec
+	bucket weighting.Welford
 	// Locked at Finalize.
 	finalMean   float64
 	finalStdDev float64
 	finalized   bool
 }
 
+func newPopScoreState(attr *types.Attribute) popScoreState {
+	return popScoreState{weight: attr.Weight.Spec()}
+}
+
+func (s *popScoreState) prePass(r *Record, field string) {
+	v, ok := r.NumericValue(field)
+	if !ok {
+		return
+	}
+	w := 1.0
+	if s.weight != nil {
+		var reason weighting.Reason
+		if w, reason = readWeight(r, s.weight); reason != weighting.Valid || w == 0 {
+			return
+		}
+	}
+	s.bucket.Add(v, w)
+}
+
+func (s *popScoreState) finalize() {
+	if s.bucket.N == 0 {
+		s.finalMean = 0
+		s.finalStdDev = 0
+	} else {
+		s.finalMean = s.bucket.Mean
+		s.finalStdDev = math.Sqrt(s.bucket.M2 / s.bucket.SumW)
+	}
+	s.finalized = true
+}
+
+// zscoreAttribute computes (x - mean) / stddev per row using the
+// population mean/stddev derived in pass 1 (popScoreState). Implements
+// TwoPassAttribute so the streaming path can avoid buffering the
+// record set.
+type zscoreAttribute struct {
+	popScoreState
+}
+
 func newZScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
 	if err := rejectSetFieldForNumericAttribute(attr, schema); err != nil {
 		return nil, err
 	}
-	return &zscoreAttribute{}, nil
+	return &zscoreAttribute{popScoreState: newPopScoreState(attr)}, nil
 }
 
 func (a *zscoreAttribute) PrePass(r *Record, field string) error {
-	v, ok := r.NumericValue(field)
-	if !ok {
-		return nil
-	}
-	a.count++
-	delta := v - a.mean
-	a.mean += delta / float64(a.count)
-	a.m2 += delta * (v - a.mean)
+	a.prePass(r, field)
 	return nil
 }
 
 func (a *zscoreAttribute) Finalize() error {
-	if a.count == 0 {
-		a.finalMean = 0
-		a.finalStdDev = 0
-	} else {
-		a.finalMean = a.mean
-		a.finalStdDev = math.Sqrt(a.m2 / float64(a.count))
-	}
-	a.finalized = true
+	a.finalize()
 	return nil
 }
 
@@ -68,65 +99,29 @@ func (a *zscoreAttribute) Row(r *Record, field string) (float64, error) {
 }
 
 func (a *zscoreAttribute) Compute(records []*Record, field string) ([]float64, error) {
-	if len(records) == 0 {
-		return []float64{}, nil
-	}
-	for _, r := range records {
-		if err := a.PrePass(r, field); err != nil {
-			return nil, err
-		}
-	}
-	if err := a.Finalize(); err != nil {
-		return nil, err
-	}
-	result := make([]float64, len(records))
-	for i, r := range records {
-		val, err := a.Row(r, field)
-		if err != nil {
-			return nil, err
-		}
-		result[i] = val
-	}
-	return result, nil
+	return computeTwoPass(a, records, field)
 }
 
-// tscoreAttribute emits z*10+50 per row using population mean/stddev
-// from a Welford pass 1. Implements TwoPassAttribute.
+// tscoreAttribute emits z*10+50 per row using the population
+// mean/stddev from pass 1 (popScoreState). Implements TwoPassAttribute.
 type tscoreAttribute struct {
-	count       uint64
-	mean        float64
-	m2          float64
-	finalMean   float64
-	finalStdDev float64
+	popScoreState
 }
 
 func newTScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
 	if err := rejectSetFieldForNumericAttribute(attr, schema); err != nil {
 		return nil, err
 	}
-	return &tscoreAttribute{}, nil
+	return &tscoreAttribute{popScoreState: newPopScoreState(attr)}, nil
 }
 
 func (a *tscoreAttribute) PrePass(r *Record, field string) error {
-	v, ok := r.NumericValue(field)
-	if !ok {
-		return nil
-	}
-	a.count++
-	delta := v - a.mean
-	a.mean += delta / float64(a.count)
-	a.m2 += delta * (v - a.mean)
+	a.prePass(r, field)
 	return nil
 }
 
 func (a *tscoreAttribute) Finalize() error {
-	if a.count == 0 {
-		a.finalMean = 0
-		a.finalStdDev = 0
-	} else {
-		a.finalMean = a.mean
-		a.finalStdDev = math.Sqrt(a.m2 / float64(a.count))
-	}
+	a.finalize()
 	return nil
 }
 
@@ -139,6 +134,12 @@ func (a *tscoreAttribute) Row(r *Record, field string) (float64, error) {
 }
 
 func (a *tscoreAttribute) Compute(records []*Record, field string) ([]float64, error) {
+	return computeTwoPass(a, records, field)
+}
+
+// computeTwoPass is the buffered Compute of a TwoPassAttribute: PrePass
+// over every record, Finalize, then Row per record.
+func computeTwoPass(a TwoPassAttribute, records []*Record, field string) ([]float64, error) {
 	if len(records) == 0 {
 		return []float64{}, nil
 	}

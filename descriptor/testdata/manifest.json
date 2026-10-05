@@ -2784,6 +2784,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "prepare"
@@ -2810,6 +2815,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "prepare"
@@ -3619,6 +3629,11 @@
             ],
             "mergeability": "none"
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "distribution_shape",
             "segment"
@@ -11682,4 +11697,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b0e195d8b8baf0ee17c56329c67f153afef067c3b63874a8108760ae045d4080
+// golden-hash: 1c368752e0cae31e889edece62d1bb998362d87ea6e97f92eb226fb7997ff98c

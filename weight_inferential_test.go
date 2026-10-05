@@ -37,7 +37,9 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 		}
 		ops = append(ops, string(rt))
 	}
-	ops = append(ops, "ATTR_ZSCORE", "ATTR_TSCORE", "ATTR_PERCENTILE", "GROUP_QUANTILE")
+	// ATTR_ZSCORE / TSCORE and GROUP_QUANTILE compute weighted since U12
+	// E5-S2 (TestWeight_ScoresAndQuantileMatchPredict).
+	ops = append(ops, "ATTR_PERCENTILE")
 	out := map[string]*types.Request{}
 	decode := func(body string) *types.Request {
 		var r types.Request
@@ -92,10 +94,6 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 		r.Regressions[0].Weight = w
 		out["modifier/"+strings.SplitN(mod, `"`, 3)[1]] = r
 	}
-	axis := decode(`{"crosstab":{"rows":[{"type":"GROUP_QUANTILE","field":"x","interval":4}],"columns":[{"type":"GROUP_CATEGORY","field":"g"}],` +
-		`"cell":{"type":"AGG_COUNT","field":"x","weight":null}}}`)
-	axis.Crosstab.Rows[0].Weight = w
-	out["crosstab.rows/GROUP_QUANTILE"] = axis
 	// The contingency and proportion overlays are lifted (E3-S2,
 	// TestWeight_ContingencyOverlaysMatchPredict); the probit t stays
 	// refused permanently.
@@ -117,10 +115,9 @@ var permanentRefusalKeys = map[string]bool{
 }
 
 // TestWeight_InferentialRefusalsMatchPredict: every refused inferential
-// surface — each built-in TEST_* (tests and post-tests), REG_* (plain
-// and with a resample / selection modifier), ATTR_ZSCORE / TSCORE /
-// PERCENTILE, GROUP_QUANTILE (groups and a crosstab axis) and
-// Inferential overlays — is refused PULSE_WEIGHT_UNSUPPORTED at runtime
+// surface — each refused built-in TEST_* (tests and post-tests), REG_*
+// (plain and with a resample / selection modifier), ATTR_PERCENTILE and
+// the refused Inferential overlays — is refused PULSE_WEIGHT_UNSUPPORTED at runtime
 // and predict with the same code, message and details, under the
 // instance default, a request weight and a slot weight alike; a
 // permanent refusal states its reason (details.reason), a pending one
@@ -558,6 +555,112 @@ func TestWeight_RegressionAttributesMatchPredict(t *testing.T) {
 					t.Fatalf("weight did not reach the refit: Σ fitted %v both ways", sumOf(weighted))
 				}
 			})
+		}
+	}
+}
+
+// TestWeight_ScoresAndQuantileMatchPredict: ATTR_ZSCORE / ATTR_TSCORE
+// and GROUP_QUANTILE (groups and a crosstab axis) compute weighted
+// under both kinds since U12 E5-S2, from every source: predict reports
+// the slot applied, the runtime answer moves off the opted-out one, and
+// the grouper floor total_n stays the raw row count.
+func TestWeight_ScoresAndQuantileMatchPredict(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
+	freq := &types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
+	type slotCase struct {
+		slot string
+		mk   func(w types.SlotWeight) *types.Request
+	}
+	decode := func(body string) *types.Request {
+		var r types.Request
+		if err := json.Unmarshal([]byte(body), &r); err != nil {
+			t.Fatal(err)
+		}
+		r.Cohort = &types.Cohort{Filename: cohort}
+		return &r
+	}
+	cases := map[string]slotCase{}
+	for _, op := range []string{"ATTR_ZSCORE", "ATTR_TSCORE"} {
+		cases[op] = slotCase{"attributes[0]", func(w types.SlotWeight) *types.Request {
+			r := decode(strings.ReplaceAll(acceptanceTemplates[op], "$F", "x"))
+			r.Attributes[0].Weight = w
+			r.Aggregations[0].Weight, r.Aggregations[0].Label = types.NullSlotWeight(), "s"
+			return r
+		}}
+	}
+	cases["GROUP_QUANTILE"] = slotCase{"groups[0]", func(w types.SlotWeight) *types.Request {
+		r := decode(strings.ReplaceAll(acceptanceTemplates["GROUP_QUANTILE"], "$F", "x"))
+		r.Groups[0].Weight = w
+		r.Aggregations[0].Weight = types.NullSlotWeight()
+		return r
+	}}
+	cases["crosstab.rows/GROUP_QUANTILE"] = slotCase{"crosstab.rows[0]", func(w types.SlotWeight) *types.Request {
+		r := decode(`{"crosstab":{"rows":[{"type":"GROUP_QUANTILE","field":"x","interval":4}],"columns":[{"type":"GROUP_CATEGORY","field":"g"}],` +
+			`"cell":{"type":"AGG_COUNT","field":"x","weight":null}}}`)
+		r.Crosstab.Rows[0].Weight = w
+		return r
+	}}
+	for _, op := range []string{"ATTR_ZSCORE", "ATTR_TSCORE", "GROUP_QUANTILE"} {
+		if kinds := weighting.KindsOf(op); len(kinds) != 2 {
+			t.Fatalf("%s kinds %v, want both", op, kinds)
+		}
+	}
+	answer := func(resp *types.Response) string {
+		b, err := json.Marshal(map[string]any{"data": resp.Data, "crosstab": resp.Crosstab})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	for key, c := range cases {
+		for _, spec := range []*types.WeightSpec{freq, prob} {
+			for name, tc := range map[string]struct {
+				p    *pulse.Pulse
+				w    types.SlotWeight
+				reqW *types.WeightSpec
+			}{
+				"default": {weightPulse(t, fs, spec), types.SlotWeight{}, nil},
+				"request": {weightPulse(t, fs, nil), types.SlotWeight{}, spec},
+				"slot":    {weightPulse(t, fs, nil), types.SlotWeightOf(*spec), nil},
+			} {
+				t.Run(key+"/"+string(spec.Kind)+"/"+name, func(t *testing.T) {
+					mk := func(w types.SlotWeight) *types.Request {
+						r := c.mk(w)
+						r.Weight = tc.reqW
+						return r
+					}
+					pr, err := tc.p.Predict(ctx, mk(tc.w))
+					if err != nil {
+						t.Fatal(err)
+					}
+					status := map[string]string{}
+					for _, w := range pr.Weights {
+						status[w.Slot] = w.Status + "/" + w.Kind
+					}
+					if status[c.slot] != descriptor.WeightStatusApplied+"/"+string(spec.Kind) {
+						t.Fatalf("predict statuses %v, want %s applied", status, c.slot)
+					}
+					weighted, err := tc.p.Process(ctx, mk(tc.w))
+					if err != nil {
+						t.Fatalf("runtime refused: %v", err)
+					}
+					optedOut, err := tc.p.Process(ctx, mk(types.NullSlotWeight()))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if answer(weighted) == answer(optedOut) {
+						t.Fatalf("weight did not reach the slot: %s both ways", answer(weighted))
+					}
+					if c.slot == "groups[0]" {
+						gw, go_ := weighted.Components.Groupers[0], optedOut.Components.Groupers[0]
+						if gw.TotalN != go_.TotalN || gw.NNull != go_.NNull {
+							t.Fatalf("grouper floor {total_n %d, n_null %d}, unweighted {%d, %d}: must stay raw", gw.TotalN, gw.NNull, go_.TotalN, go_.NNull)
+						}
+					}
+				})
+			}
 		}
 	}
 }

@@ -119,8 +119,9 @@ declare it the same way.
 | the mean-comparison overlays — cell and reference t and z, pairwise Welch t — and the χ² (row, column, matrix, vs reference) and proportion z (cell, panel, pairwise) overlays | weighted (both kinds) | weighted |
 | the Fisher exact cell overlay | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | ordinary least squares (plain, ridge, lasso, elastic net), the GLM (binomial, poisson, gamma), the regression attributes (fitted value, residual, leverage) | weighted (both kinds) | weighted |
+| the z-score and t-score attributes, the quantile grouper (on `groups` and both crosstab axes) | weighted (both kinds) | weighted |
 | Bayesian linear regression | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| other tests, any regression with `resample` or `selection`, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| other tests, any regression with `resample` or `selection`, the percentile-rank attribute, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
 with its sample size read as Σw under `kind: frequency` (a weight of 3
@@ -212,6 +213,21 @@ n_eff under `kind: probability`, and z is the same normal critical
 value the unweighted bound uses (`qnorm(1 − α/2)`, reported as
 `t_critical`), not a t on N* − 1. They stay mergeable, so they run on
 every streaming, shard and parallel-decode path.
+
+**Weighted scores and quantile buckets.** `ATTR_ZSCORE` and
+`ATTR_TSCORE` score each row against the weighted mean and the weighted
+population standard deviation √(Σw(x − mean)²/Σw), so frequency and
+probability weights give the same scores. A row whose weight is zero or
+invalid adds nothing to the mean and spread but is still scored.
+`GROUP_QUANTILE` cuts its buckets at the weighted order statistics, by
+the same rule as the weighted percentile (probability weights rescaled
+to the row count, as in Hmisc `wtd.quantile(normwt = TRUE)`): each
+bucket holds as close to an equal share of the weight as whole rows
+allow. A heavy row is never split, so it lands whole in the higher
+bucket when it spans a cut. Bucket `count`, `total_n` and crosstab
+counts stay raw row counts. A row with no usable weight is bucketed by
+its value. The slot `weight` on a `groups[i]` or crosstab-axis quantile
+grouper opts it in or out like any other slot.
 
 **Other weighted inference is not available yet.** The last row is
 refused rather than silently computed unweighted beside weighted

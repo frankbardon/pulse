@@ -37,9 +37,13 @@ import (
 //     configuration before a row is written.
 //
 // Cases reuse weightRefInferCase: a regression case's figures are wire
-// paths under regressions[0]; an attribute case reads its per-row value
-// back as an opted-out AGG_SUM grouped by the fixture's id column, keyed
-// data[<id>].v.
+// paths under regressions[0]; an attribute case (the regression
+// attributes, and since E5-S2 ATTR_ZSCORE / ATTR_TSCORE) reads its
+// per-row value back as an opted-out AGG_SUM grouped by the fixture's id
+// column, keyed data[<id>].v; a GROUP_QUANTILE case (E5-S2) pins each
+// bucket's low / high / count under components.groupers[0] — the low,
+// the order statistic opening the bucket, from R on the expansion
+// (frequency) or Hmisc wtd.quantile(normwt = TRUE) (probability).
 //
 // Tolerances (relative; absolute below 1e-12), weightRefRegTol: Pulse
 // folds Welford moments where R solves a QR and numpy an explicit
@@ -170,6 +174,9 @@ func weightRefRegCaseSlot(t *testing.T, c weightRefInferCase) (weightSurface, st
 		Attributes []struct {
 			Type string `json:"type"`
 		} `json:"attributes"`
+		Groups []struct {
+			Type string `json:"type"`
+		} `json:"groups"`
 	}
 	if err := json.Unmarshal([]byte(c.request), &frag); err != nil {
 		t.Fatalf("%s: %v", c.name, err)
@@ -179,8 +186,10 @@ func weightRefRegCaseSlot(t *testing.T, c weightRefInferCase) (weightSurface, st
 		return weightSurfaceRegressions, frag.Regressions[0].Type
 	case len(frag.Attributes) == 1 && len(frag.Regressions) == 0:
 		return weightSurfaceAttributes, frag.Attributes[0].Type
+	case len(frag.Groups) == 1 && len(frag.Attributes) == 0 && len(frag.Regressions) == 0:
+		return weightSurfaceGroupers, frag.Groups[0].Type
 	}
-	t.Fatalf("%s: request %s does not hold exactly one regression or attribute slot", c.name, c.request)
+	t.Fatalf("%s: request %s does not hold exactly one regression, attribute or quantile grouper slot", c.name, c.request)
 	return "", ""
 }
 
@@ -190,7 +199,7 @@ func weightRefRegCaseSlot(t *testing.T, c weightRefInferCase) (weightSurface, st
 func assertWeightRefRegCoverage(t *testing.T) {
 	t.Helper()
 	have := map[weightSurface]map[string][]types.WeightKind{
-		weightSurfaceRegressions: {}, weightSurfaceAttributes: {},
+		weightSurfaceRegressions: {}, weightSurfaceAttributes: {}, weightSurfaceGroupers: {},
 	}
 	configs := map[string]map[string]bool{}
 	for _, c := range weightRefRegCases {
@@ -203,8 +212,8 @@ func assertWeightRefRegCoverage(t *testing.T) {
 		}
 		configs[op][c.weight+"_"+c.kind] = true
 	}
-	for _, s := range []weightSurface{weightSurfaceRegressions, weightSurfaceAttributes} {
-		assertWeightKindCoverage(t, s, have[s], "REG_SPECS / ATTR_SPECS in testdata/weight_reference/gen_weight_reference.py, then regenerate")
+	for _, s := range []weightSurface{weightSurfaceRegressions, weightSurfaceAttributes, weightSurfaceGroupers} {
+		assertWeightKindCoverage(t, s, have[s], "REG_SPECS / ATTR_SPECS / SCORE_SPECS / QUANTILE_KS in testdata/weight_reference/gen_weight_reference.py, then regenerate")
 		for op, kinds := range manifestWeightKinds(s) {
 			if slices.Contains(kinds, types.WeightKindProbability) && !(configs[op]["w_probability"] && configs[op]["p_probability"]) {
 				t.Errorf("%s: probability reference cases %v, want both w_probability and p_probability", op, configs[op])
@@ -287,6 +296,12 @@ func testWeightRefRegsKindsAgree(t *testing.T) {
 		s, op := weightRefRegCaseSlot(t, fc)
 		if !slices.Contains(manifestWeightKinds(s)[op], types.WeightKindProbability) {
 			continue // frequency-only: no probability twin
+		}
+		if s == weightSurfaceGroupers {
+			// Probability weights are rescaled to the row count (Hmisc
+			// normwt = TRUE), frequency weights are not: the quantile
+			// cuts differ by design, as AGG_PERCENTILE's do.
+			continue
 		}
 		pc, ok := byKey["p|probability|"+fc.name]
 		if !ok {

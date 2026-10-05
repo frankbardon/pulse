@@ -93,6 +93,16 @@ with statsmodels for kind probability, scikit-learn for the penalised β,
 the closed-form NIG posterior for Bayes linear (see "weighted
 regressions" below).
 
+ATTR_ZSCORE / ATTR_TSCORE and GROUP_QUANTILE (weighting-inferential
+E5-S2) — on the same fixture. Scores: (y − μ_w)/σ_w with the POPULATION
+sd √(Σw(y − μ_w)²/Σw); frequency = R mean / population sd of the
+expanded y, probability = that closed form cross-checked with
+statsmodels DescrStatsW(ddof=0) (scale-free, so kind-free). Quantile
+buckets on yg (distinct values): the order statistic opening each bucket
+is pinned to R on the sorted expansion (frequency) or Hmisc
+wtd.quantile(normwt=TRUE) (probability); counts and highs follow from an
+exact rational transcription of Pulse's cut ⌊⌊C − 1⌋·k/W⌋.
+
 Per-group N*: the split t / Welch / z, Welch ANOVA and prop-z read each
 group's own n_eff; ANOVA F, Pearson, paired and χ² read one n_eff over
 the contributing rows (the w* scale c = N*/Σw is whole-sample there).
@@ -1654,6 +1664,81 @@ def attr_closed_form(ws, kind):
     return out
 
 
+SCORE_SPECS = [("attr_zscore", "ATTR_ZSCORE"), ("attr_tscore", "ATTR_TSCORE")]
+QUANTILE_KS = [4, 10]
+
+
+def score_closed_form(ws, kind):
+    """ATTR_ZSCORE / ATTR_TSCORE per row id: (y − μ_w)/σ_w with the
+    weighted mean and POPULATION sd √(Σw(y − μ_w)²/Σw) over the rows whose
+    weight is valid and positive; every row is scored (statsmodels
+    DescrStatsW(ddof=0) cross-check). Scale-free, so kind-free."""
+    idx = [i for i in range(len(REG_ROWS)) if valid(ws[i], kind) and ws[i] > 0]
+    y = np.array([REG_ROWS[i][3] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    mean = float(np.sum(w * y) / sw)
+    sd = math.sqrt(float(np.sum(w * (y - mean) ** 2)) / sw)
+    d0 = DescrStatsW(y, weights=w, ddof=0)
+    assert close(d0.mean, mean, 1e-13) and close(d0.std, sd, 1e-13), (kind, d0.mean, mean, d0.std, sd)
+    out = {"attr_zscore": {}, "attr_tscore": {}}
+    for r in REG_ROWS:
+        z = (r[3] - mean) / sd
+        out["attr_zscore"][r[0]] = z
+        out["attr_tscore"][r[0]] = z * 10 + 50
+    return out
+
+
+def quantile_buckets(ws, kind, k):
+    """GROUP_QUANTILE on yg, exact rational transcription of Pulse's cut:
+    rows sorted by value; C = the cumulative weight through a row (valid,
+    positive weights only; probability weights rescaled so Σw = the
+    contributing row count n); the row's bucket ⌊⌊C − 1⌋·k / W⌋ (≥ 0).
+    Returns [(bucket, low, high, count)] for the non-empty buckets, in
+    order. The opening row of a bucket b ≥ 1 is the order statistic at
+    0-based rank ⌈b·W/k⌉ — what the external references pin."""
+    vals = [r[6] for r in REG_ROWS]
+    assert len(set(vals)) == len(vals), "GROUP_QUANTILE fixture column has ties"
+    order = sorted(range(len(REG_ROWS)), key=lambda i: vals[i])
+    contrib = [i for i in order if valid(ws[i], kind) and ws[i] > 0]
+    n = len(contrib)
+    total = sum(Fraction(ws[i]) for i in contrib)
+    acc, cum = Fraction(0), []
+    for i in order:
+        if i in contrib:
+            acc += Fraction(ws[i])
+        cum.append(acc)
+    if kind == "probability":
+        cum = [c * n / total for c in cum]
+        total = Fraction(n)
+    for c in cum:
+        # Pulse snaps a cumulative weight within 1e-9 of an integer to
+        # it; an exact value that close to (but off) an integer would
+        # disagree with this transcription — refuse such a fixture.
+        off = abs(c - round(c))
+        assert off == 0 or off > Fraction(1, 10**8), ("knife-edge cumulative weight", float(c))
+    buckets = {}
+    for i, c in zip(order, cum):
+        b = max(0, math.floor(math.floor(c - 1) * k / total))
+        buckets.setdefault(b, []).append(vals[i])
+    return [(b, min(v), max(v), len(v)) for b, v in sorted(buckets.items())], n, total
+
+
+def quantile_hmisc_cuts(ws, kind, k, nonempty):
+    """Probability: the order statistic opening each non-empty bucket
+    b ≥ 1, from Hmisc wtd.quantile(normwt=TRUE) at probs ⌈b·n/k⌉/(n − 1)
+    (order 1 + (n − 1)·p is that 1-based rank + 1, so the figure is that
+    order statistic up to an ulp-sized interpolation weight)."""
+    vals = [r[6] for r in REG_ROWS]
+    contrib = [i for i in range(len(REG_ROWS)) if valid(ws[i], kind) and ws[i] > 0]
+    n = len(contrib)
+    bs = [b for b in nonempty if b >= 1]
+    qs = [100 * math.ceil(Fraction(b * n, k)) / (n - 1) for b in bs]
+    rver, hq = hmisc_quantiles([vals[i] for i in contrib], [ws[i] for i in contrib], qs)
+    HMISC[0] = HMISC[0] or rver
+    return rver, dict(zip(bs, hq))
+
+
 def r_reg_reference(ws):
     """Run reg_reference.R on the frequency configuration."""
     import csv
@@ -1745,6 +1830,48 @@ def regression_cases():
                    "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
             out.append(dict(weight=wname, kind=kind, name=case, request=req,
                             figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        scores = score_closed_form(ws, kind)
+        for case, typ in SCORE_SPECS:
+            figs = scores[case]
+            if prob:
+                src = ("closed form: weighted mean and population sd √(Σw(y − μ)²/Σw), cross-checked with "
+                       "statsmodels " + statsmodels.__version__ + " DescrStatsW(ddof=0)")
+            else:
+                adopt_r(case, figs, rfigs[case])
+                src = f"{RREG[0]} mean / population sd of the rep()-expanded y (reg_reference.R)"
+            req = {"attributes": [{"type": typ, "field": "y", "label": "attr"}],
+                   "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+                   "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+            out.append(dict(weight=wname, kind=kind, name=case, request=req,
+                            figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        for k in QUANTILE_KS:
+            case = f"group_quantile_k{k}"
+            buckets, n, total = quantile_buckets(ws, kind, k)
+            vals = [r[6] for r in REG_ROWS]
+            if prob:
+                rver, cuts = quantile_hmisc_cuts(ws, kind, k, [b for b, *_ in buckets])
+                for b, low, *_ in buckets:
+                    if b >= 1:
+                        assert close(cuts[b], low, 1e-12), (wname, k, b, cuts[b], low)
+                src = (f"{rver} wtd.quantile(normwt=TRUE) order statistic opening each bucket; "
+                       "count / high: exact rational transcription of the cut")
+            else:
+                for b, low, *_ in buckets:
+                    rv = rfigs[case][f"cut{b}"]
+                    # Bucket 0 opens at the smallest VALUE, which may be a
+                    # row carrying no weight (absent from the expansion).
+                    assert b == 0 or rv == low, (wname, k, b, rv, low)
+                src = (f"{RREG[0]} order statistic of the sorted rep()-expanded yg opening each bucket "
+                       "(reg_reference.R); count / high: exact rational transcription of the cut")
+            figs = {}
+            for j, (b, low, high, count) in enumerate(buckets):
+                pre = f"components.groupers[0].operator.buckets[{j}]"
+                figs[pre + ".low"] = low
+                figs[pre + ".high"] = high
+                figs[pre + ".count"] = float(count)
+            req = {"groups": [{"type": "GROUP_QUANTILE", "field": "yg", "interval": k}],
+                   "aggregations": [{"type": "AGG_COUNT", "field": "yg", "label": "n", "weight": None}]}
+            out.append(dict(weight=wname, kind=kind, name=case, request=req, figs=figs, src=src))
     return out
 
 

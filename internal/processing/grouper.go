@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -689,6 +690,11 @@ type quantileBucketStat struct {
 type quantileGrouper struct {
 	buckets int
 
+	// weight is the slot's stamped weight (processing.StampWeightsWith;
+	// nil when unweighted): the buckets are then cut at the weighted
+	// order statistics (weightedBuckets).
+	weight *types.WeightSpec
+
 	// frozen* mirrors stamp the post-Group state so Components() can
 	// emit operator-specific keys without re-scanning the record set.
 	// GROUP_QUANTILE is non-mergeable (needs a sorted view of the full
@@ -711,7 +717,7 @@ func newQuantileGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 	if buckets <= 0 {
 		buckets = 4
 	}
-	return &quantileGrouper{buckets: buckets}, nil
+	return &quantileGrouper{buckets: buckets, weight: grp.Weight.Spec()}, nil
 }
 
 // quantileMethod returns the interpolation method label emitted on
@@ -774,10 +780,21 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 		prefix = "P"
 	}
 
+	// Each sorted item's bucket: rank·buckets/n unweighted, the
+	// weighted order-statistic cut under a weight (weightedBuckets).
+	bucketOf := make([]int, n)
+	if g.weight != nil {
+		g.weightedBuckets(items, bucketOf)
+	} else {
+		for rank := range n {
+			bucketOf[rank] = rank * g.buckets / n
+		}
+	}
+
 	// Pass 1: count records per bucket.
 	bucketCounts := make([]int, g.buckets)
 	for rank := range n {
-		bucket := rank * g.buckets / n
+		bucket := bucketOf[rank]
 		if bucket >= g.buckets {
 			bucket = g.buckets - 1
 		}
@@ -804,7 +821,7 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 	// Pass 2: assign each item to its pre-sized bucket, stamping
 	// the per-bucket {low, high} as we go.
 	for rank, item := range items {
-		bucket := rank * g.buckets / n
+		bucket := bucketOf[rank]
 		if bucket >= g.buckets {
 			bucket = g.buckets - 1
 		}
@@ -842,6 +859,56 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 	g.frozenEdges = edges
 
 	return groups, nil
+}
+
+// weightedBuckets writes, for each value-sorted item, its bucket under
+// the slot weight — the weighted generalisation of rank·buckets/n that
+// cuts at the U11 weighted order statistic (Hmisc wtd.quantile, the
+// AGG_PERCENTILE rule): with C the cumulative weight through an item
+// (probability weights rescaled so Σw = the contributing row count n,
+// Hmisc normwt = TRUE; frequency weights raw; snapped to an integer
+// within 1e-9, snapCumWeights) and W the total, the item's bucket is
+// ⌊⌊C − 1⌋·buckets / W⌋. Equivalently, bucket b opens at the order
+// statistic x₍ᵣ₎ with r = ⌈b·W / buckets⌉ — the first item whose
+// cumulative weight reaches the 1-based rank r + 1 (quantileOrderIndex)
+// — so a heavy row spanning a cut lands in the higher bucket, its last
+// expanded copy's. At w ≡ 1, C = rank + 1 and W = n, which is
+// rank·buckets/n exactly. Under frequency weights an item's bucket is
+// the bucket of its last copy on the expanded rows; under probability
+// weights the rescale makes the buckets invariant to multiplying every
+// weight by a constant. A row whose weight is
+// invalid or zero carries no mass but is still bucketed by its value
+// (the bucket of the item before it; the first bucket when none); the
+// bucket `count` stays a raw row count. All-zero mass puts every row in
+// the first bucket.
+func (g *quantileGrouper) weightedBuckets(items []indexedValue, out []int) {
+	cum := make([]float64, len(items))
+	total, contributing := 0.0, 0
+	for i, it := range items {
+		if w, reason := readWeight(it.record, g.weight); reason == weighting.Valid && w > 0 {
+			total += w
+			contributing++
+		}
+		cum[i] = total
+	}
+	if contributing == 0 {
+		return // out is all zero: the first bucket
+	}
+	if n := float64(contributing); g.weight.EffectiveKind() == types.WeightKindProbability && total != n {
+		for i := range cum {
+			cum[i] = cum[i] * n / total
+		}
+		total = n
+	}
+	snapCumWeights(cum)
+	k := float64(g.buckets)
+	for i, c := range cum {
+		b := int(math.Floor(math.Floor(c-1) * k / total))
+		if b < 0 {
+			b = 0
+		}
+		out[i] = b
+	}
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema

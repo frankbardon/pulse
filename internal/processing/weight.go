@@ -130,8 +130,10 @@ func StampWeights(req *types.Request, def *types.WeightSpec) *types.Request {
 // WeightAware; a weight-aware row test (`tests`: a built-in whose class
 // has a kind, read by its factory off the slot, or a WeightAware
 // extension, which reads it through extend.Record.Weight()), a
-// WeightAware extension post-test or attribute slot, and a built-in
-// regression whose class has a kind, carries its resolved weight too. When nothing names
+// WeightAware extension post-test, a weight-aware attribute (built-in
+// or extension), a built-in regression whose class has a kind and a
+// weighted grouper (GROUP_QUANTILE on groups[i] or a crosstab axis)
+// carries its resolved weight too. When nothing names
 // a weight — no request weight, no default, no slot weight, no
 // AGG_WEIGHTED_MEAN weight_field — req itself is returned, so an
 // unweighted request executes the unchanged object. Otherwise the
@@ -192,6 +194,17 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 			}
 		}
 	}
+	// A grouper reads the weight when its class has a kind
+	// (GROUP_QUANTILE's weighted cuts) — on groups[i] and on both
+	// crosstab axes; any other grouper that names a weight is stamped
+	// null (skipped). There is no extension grouper weight declaration.
+	c.Groups = stampGroups(req.Groups, req.Weight, def)
+	if c.Crosstab != nil {
+		ct := *c.Crosstab
+		ct.Rows = stampGroups(ct.Rows, req.Weight, def)
+		ct.Columns = stampGroups(ct.Columns, req.Weight, def)
+		c.Crosstab = &ct
+	}
 	if len(req.Attributes) > 0 {
 		c.Attributes = make([]*types.Attribute, len(req.Attributes))
 		for i, a := range req.Attributes {
@@ -211,6 +224,27 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 		}
 	}
 	return &c
+}
+
+// stampGroups stamps a grouper slice (groups or a crosstab axis; see
+// stampSlotWeight); a nil or empty slice is returned as-is.
+func stampGroups(groups []*types.Group, reqW, def *types.WeightSpec) []*types.Group {
+	if len(groups) == 0 {
+		return groups
+	}
+	out := make([]*types.Group, len(groups))
+	for i, g := range groups {
+		out[i] = g
+		if g == nil {
+			continue
+		}
+		if w, ok := stampSlotWeight(g.Weight, weighting.IsAware(string(g.Type)), reqW, def); ok {
+			cp := *g
+			cp.Weight = w
+			out[i] = &cp
+		}
+	}
+	return out
 }
 
 // stampTests stamps a test slice (see stampSlotWeight), aware deciding
@@ -271,7 +305,22 @@ func namesWeight(req *types.Request, def *types.WeightSpec) bool {
 			return true
 		}
 	}
+	for _, g := range requestGroupers(req) {
+		if g != nil && g.Weight.Spec() != nil {
+			return true
+		}
+	}
 	return false
+}
+
+// requestGroupers lists a request's grouper slots: groups, then the
+// crosstab rows and columns.
+func requestGroupers(req *types.Request) []*types.Group {
+	gs := req.Groups
+	if ct := req.Crosstab; ct != nil {
+		gs = append(append(append([]*types.Group(nil), gs...), ct.Rows...), ct.Columns...)
+	}
+	return gs
 }
 
 // Weight satisfies extend.Record: the engine's own row carries no
@@ -386,8 +435,9 @@ type weightTallyEntry struct {
 // NewWeightRowTally builds the tally for a stamped request's weighted
 // slots — the top-level aggregations, the crosstab cell, the crosstab
 // margin aggregations, every weight-aware row test (built-in or
-// extension), every weight-aware regression and any WeightAware
-// extension attribute; nil when no slot is weighted.
+// extension), every weight-aware regression, every weight-aware
+// attribute (built-in or extension) and every weighted grouper slot
+// (groups and both crosstab axes); nil when no slot is weighted.
 func NewWeightRowTally(req *types.Request) *WeightRowTally {
 	if req == nil {
 		return nil
@@ -419,6 +469,13 @@ func NewWeightRowTally(req *types.Request) *WeightRowTally {
 	for _, a := range req.Attributes {
 		if a != nil {
 			weights = append(weights, a.Weight.Spec())
+		}
+	}
+	// A weighted grouper (GROUP_QUANTILE) reads the row weight to cut
+	// its buckets; every other grouper was stamped null.
+	for _, g := range requestGroupers(req) {
+		if g != nil {
+			weights = append(weights, g.Weight.Spec())
 		}
 	}
 	for _, w := range weights {

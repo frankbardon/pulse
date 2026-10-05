@@ -433,9 +433,10 @@ func TestResolveWeights_DecimalRefused(t *testing.T) {
 // inferentialSlotRequests builds, per refused non-aggregator operator,
 // a request whose refused slot carries slot weight w — every refused
 // built-in TEST_* (as a test) and TEST_T as a post-test, every refused
-// REG_* (plus REG_OLS with each permanently refused modifier), the three
-// reference-distribution attributes, GROUP_QUANTILE (as a grouper and
-// on both crosstab axes) and a permanently refused overlay. The key is
+// REG_* (plus REG_OLS with each permanently refused modifier),
+// ATTR_PERCENTILE and a permanently refused overlay (ATTR_ZSCORE /
+// TSCORE and GROUP_QUANTILE compute weighted since U12 E5-S2,
+// TestResolveWeights_AwareScoresAndQuantileApplied). The key is
 // the slot path and operator.
 func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
 	out := map[string]*types.Request{}
@@ -458,24 +459,12 @@ func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
 		{Type: types.REG_OLS, Target: "x", Weight: types.NullSlotWeight()}, {Type: types.REG_OLS, Target: "x", Weight: types.NullSlotWeight()},
 		{Type: types.REG_OLS, Target: "x", Selection: "forward", Criterion: "aic", Weight: w}}}
 	out["overlays[0]/OVERLAY_PAIRWISE_PROBIT_T"] = &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindPairwiseProbitT, Weight: w}}}
-	for _, at := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_PERCENTILE} {
-		out["attributes[0]/"+string(at)] = &types.Request{Attributes: []*types.Attribute{{Type: at, Field: "x", Weight: w}}}
-	}
-	q := func() *types.Group {
-		return &types.Group{Type: types.GROUP_QUANTILE, Field: "x", Interval: 4, Weight: w}
-	}
-	cat := func() *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: "cat"} }
-	out["groups[0]/GROUP_QUANTILE"] = &types.Request{Groups: []*types.Group{q()}}
-	out["crosstab.rows[0]/GROUP_QUANTILE"] = &types.Request{Crosstab: &types.CrosstabSpec{
-		Rows: []*types.Group{q()}, Columns: []*types.Group{cat()}, Cell: &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Weight: types.NullSlotWeight()}}}
-	out["crosstab.columns[0]/GROUP_QUANTILE"] = &types.Request{Crosstab: &types.CrosstabSpec{
-		Rows: []*types.Group{cat()}, Columns: []*types.Group{q()}, Cell: &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Weight: types.NullSlotWeight()}}}
+	out["attributes[0]/ATTR_PERCENTILE"] = &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_PERCENTILE, Field: "x", Weight: w}}}
 	return out
 }
 
-// TestResolveWeights_InferentialRefused: every TEST_*, REG_*,
-// reference-distribution attribute (ATTR_ZSCORE / TSCORE / PERCENTILE)
-// and GROUP_QUANTILE is PULSE_WEIGHT_UNSUPPORTED under ANY weight in
+// TestResolveWeights_InferentialRefused: every refused TEST_* and REG_*
+// and ATTR_PERCENTILE is PULSE_WEIGHT_UNSUPPORTED under ANY weight in
 // force — slot, request or the instance default — with details {slot,
 // operator, field}; a PERMANENT refusal (permanentRefusalKeys) adds
 // details.reason and states it in the message, a pending one says it
@@ -660,6 +649,73 @@ func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
 	if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || ce.Details["kind"] != "probability" ||
 		!reflect.DeepEqual(ce.Details["supported_kinds"], []string{"frequency"}) {
 		t.Fatalf("REG_BAYES_LINEAR under probability: %s %v", ce.Code, ce.Details)
+	}
+}
+
+// TestResolveWeights_AwareScoresAndQuantileApplied: ATTR_ZSCORE /
+// ATTR_TSCORE and GROUP_QUANTILE (on groups and both crosstab axes)
+// compute weighted under both kinds since U12 E5-S2 — applied from the
+// slot, request and instance default alike.
+func TestResolveWeights_AwareScoresAndQuantileApplied(t *testing.T) {
+	both := []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
+	for _, op := range []string{string(types.ATTR_ZSCORE), string(types.ATTR_TSCORE), string(types.GROUP_QUANTILE)} {
+		if !reflect.DeepEqual(weighting.KindsOf(op), both) {
+			t.Fatalf("%s kinds %v, want both", op, weighting.KindsOf(op))
+		}
+	}
+	cell := func() *types.Aggregation {
+		return &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Weight: types.NullSlotWeight()}
+	}
+	cat := func() *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: "cat"} }
+	slots := map[string]func(w types.SlotWeight) *types.Request{
+		"attributes[0]/ATTR_ZSCORE": func(w types.SlotWeight) *types.Request {
+			return &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "x", Weight: w}}}
+		},
+		"attributes[0]/ATTR_TSCORE": func(w types.SlotWeight) *types.Request {
+			return &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_TSCORE, Field: "x", Weight: w}}}
+		},
+		"groups[0]/GROUP_QUANTILE": func(w types.SlotWeight) *types.Request {
+			return &types.Request{Groups: []*types.Group{{Type: types.GROUP_QUANTILE, Field: "x", Weight: w}}}
+		},
+		"crosstab.rows[0]/GROUP_QUANTILE": func(w types.SlotWeight) *types.Request {
+			return &types.Request{Crosstab: &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_QUANTILE, Field: "x", Weight: w}},
+				Columns: []*types.Group{cat()}, Cell: cell()}}
+		},
+		"crosstab.columns[0]/GROUP_QUANTILE": func(w types.SlotWeight) *types.Request {
+			return &types.Request{Crosstab: &types.CrosstabSpec{Rows: []*types.Group{cat()},
+				Columns: []*types.Group{{Type: types.GROUP_QUANTILE, Field: "x", Weight: w}}, Cell: cell()}}
+		},
+	}
+	for key, mk := range slots {
+		slot, _ := splitKey(key)
+		for _, kind := range both {
+			spec := &types.WeightSpec{Field: "w", Kind: kind}
+			for name, tc := range map[string]struct {
+				req *types.Request
+				def *types.WeightSpec
+			}{
+				"slot":    {mk(types.SlotWeightOf(*spec)), nil},
+				"request": {func() *types.Request { r := mk(types.SlotWeight{}); r.Weight = spec; return r }(), nil},
+				"default": {mk(types.SlotWeight{}), spec},
+			} {
+				got, err := ResolveWeights(tc.req, weightSchema(), tc.def, nil)
+				if err != nil {
+					t.Fatalf("%s/%s/%s: refused: %v", key, kind, name, err)
+				}
+				found := false
+				for _, r := range got {
+					if r.Slot == slot {
+						found = true
+						if r.Status != descriptor.WeightStatusApplied || r.Kind != string(kind) {
+							t.Fatalf("%s/%s/%s: %+v, want applied", key, kind, name, r)
+						}
+					}
+				}
+				if !found {
+					t.Fatalf("%s/%s/%s: no %s entry in %+v", key, kind, name, slot, got)
+				}
+			}
+		}
 	}
 }
 

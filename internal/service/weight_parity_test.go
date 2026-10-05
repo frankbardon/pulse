@@ -462,6 +462,15 @@ func paritySources() []paritySource {
 					a.Weight = types.SlotWeightOf(spec)
 				}
 			}
+			// Groupers (the GROUP_QUANTILE rows); any other grouper skips
+			// its weight.
+			groups := req.Groups
+			if ct := req.Crosstab; ct != nil {
+				groups = append(append(append([]*types.Group(nil), groups...), ct.Rows...), ct.Columns...)
+			}
+			for _, g := range groups {
+				g.Weight = types.SlotWeightOf(spec)
+			}
 			return nil
 		}},
 		{name: "options_default", kind: types.WeightKindProbability, apply: func(_ *types.Request, s *Service, spec types.WeightSpec) *types.WeightSpec {
@@ -594,6 +603,7 @@ func TestWeightUnityParity(t *testing.T) {
 	store := newParityStore(t, "unity", func(n int) []parityRow { return parityRows(n, unityWeight) })
 	t.Run("tests", func(t *testing.T) { testUnityParity(t, store) })
 	t.Run("regressions", func(t *testing.T) { regUnityParity(t, store) })
+	t.Run("groupers", func(t *testing.T) { groupUnityParity(t, store) })
 	for _, mode := range parityModes() {
 		for _, row := range parityOps {
 			t.Run(mode.name+"/"+string(row.op), func(t *testing.T) {
@@ -701,6 +711,7 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 	})
 	t.Run("tests", func(t *testing.T) { testExpansionParity(t, weighted, expanded, scaled) })
 	t.Run("regressions", func(t *testing.T) { regExpansionParity(t, weighted, expanded, scaled) })
+	t.Run("groupers", func(t *testing.T) { groupExpansionParity(t, weighted, expanded, scaled) })
 	kinds := []paritySource{paritySources()[0], paritySources()[1]}
 	for _, mode := range parityModes() {
 		for _, row := range parityOps {
@@ -754,6 +765,7 @@ func TestWeightProbabilityQuantileScaleInvariance(t *testing.T) {
 			return parityRows(n, func(i int) float64 { return fracWeight(i) * c })
 		})
 	}
+	t.Run("groupers", func(t *testing.T) { groupScaleInvariance(t, base, stores) })
 	src := paritySources()[0] // request_probability
 	ran := 0
 	for _, mode := range parityModes() {

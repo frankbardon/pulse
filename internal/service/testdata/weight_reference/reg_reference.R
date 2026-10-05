@@ -1,6 +1,7 @@
-# Frequency-weight reference for the weighted regressions and regression
+# Frequency-weight reference for the weighted regressions, regression
 # attributes (weighting-inferential E4-S3, .claude/reference/weighting.md
-# "Weighted inference"). Called by gen_weight_reference.py — never by CI.
+# "Weighted inference"), z / t score attributes and quantile cuts (E5-S2).
+# Called by gen_weight_reference.py — never by CI.
 #
 # Base R only (stats): every figure is the STOCK R function run on the
 # rep()-expanded rows, the definition of a frequency weight — lm() for
@@ -88,4 +89,28 @@ for (nm in names(fams)) {
   }
   out(nm, "deviance", deviance(g))
   out(nm, "null_deviance", g$null.deviance)
+}
+
+# ATTR_ZSCORE / ATTR_TSCORE (weighting-inferential E5-S2): every row's
+# score against the mean and POPULATION sd (divisor n) of the expanded
+# y — all rows expand here (x2 is irrelevant to a score); a row with no
+# copies is still scored.
+es <- d[rep(d$row, d$f), ]
+m <- mean(es$y)
+s <- sqrt(sum((es$y - m)^2) / nrow(es))
+for (r in d$row) {
+  z <- (d$y[r] - m) / s
+  out("attr_zscore", d$id[r], z)
+  out("attr_tscore", d$id[r], z * 10 + 50)
+}
+
+# GROUP_QUANTILE: the order statistic that opens each of k buckets on
+# the expanded yg — 0-based expanded index ceiling(b·W/k), b = 0..k−1
+# (W the expanded row count), i.e. the first expanded row whose
+# floor(rank·k/W) is b.
+ys <- sort(es$yg)
+for (k in c(4, 10)) {
+  for (b in 0:(k - 1)) {
+    out(sprintf("group_quantile_k%d", k), sprintf("cut%d", b), ys[ceiling(b * nrow(es) / k) + 1])
+  }
 }

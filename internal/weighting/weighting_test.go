@@ -52,9 +52,10 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	for _, at := range types.AllAttributeTypes() {
 		want[string(at)] = ClassNone
 	}
-	for _, a := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_PERCENTILE} {
-		want[string(a)] = ClassRefuse
-	}
+	want[string(types.ATTR_PERCENTILE)] = ClassRefuse
+	// U12 E5-S2: weighted population-sd z / t scores.
+	want[string(types.ATTR_ZSCORE)] = ClassAware
+	want[string(types.ATTR_TSCORE)] = ClassAware
 	want[string(types.ATTR_NORMALIZED)] = ClassNotWeightable
 	// U12 E4-S2: the regression attributes refit REG_OLS weighted.
 	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE} {
@@ -63,7 +64,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	for _, gt := range types.AllGroupTypes() {
 		want[string(gt)] = ClassNone
 	}
-	want[string(types.GROUP_QUANTILE)] = ClassRefuse
+	// U12 E5-S2: buckets cut at the weighted order statistics.
+	want[string(types.GROUP_QUANTILE)] = ClassAware
 	for _, wt := range types.AllWindowTypes() {
 		want[string(wt)] = ClassNotWeightable
 	}
