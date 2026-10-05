@@ -16,6 +16,8 @@ examples_tags: [hypothesis-test, streaming-friendly]
 | `confidence` | float | 0.95 | Confidence level in (0, 1). |
 | `method` | string | `"normal"` | `"normal"` (Welford-streamable) today; `"bootstrap"` reserved. |
 
+Bound = mean ∓ z·√(s²/n), z = `qnorm(1 − α/2)`. Weight (both kinds; `"weight": null` opts out): weighted mean, s² on w* = w·N*/Σw, stderr √(s²/N*), N* = Σw (`frequency`) or Kish n_eff (`probability`); same z. Invalid weights excluded and warned.
+
 ## Inputs
 
 | Param | Accepted field types |
@@ -24,9 +26,11 @@ examples_tags: [hypothesis-test, streaming-friendly]
 
 ## Output
 
-Scalar `float64` — upper CI bound. NaN when `n < 2` (`null` in JSON).
+Scalar `float64` — upper CI bound. NaN when `n < 2` (weighted: N* ≤ 1; `null` in JSON).
 
 ## Components
+
+Weighted: floor adds `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
 
 Universal floor `{n, n_null}` plus operator-specific:
 
@@ -35,7 +39,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 | `mean` | float64 | Welford running mean |
 | `stderr` | float64 | Standard error of the mean |
 | `alpha` | float64 | `1 - confidence` |
-| `t_critical` | float64 | Scaled critical value |
+| `t_critical` | float64 | Normal critical z (`qnorm(1 − α/2)`) |
 | `upper` | float64 | Resolved upper bound |
 
 - Mergeability: `Mergeable`
@@ -43,8 +47,8 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
-- `n < 2` → NaN.
+- Normal z, not t: small samples get narrower intervals than t.
+- `n < 2` (weighted N* ≤ 1) → NaN.
 - `"bootstrap"` method returns `PROCESSING_CONFIG` until the buffered follow-up lands.
 
 ## See

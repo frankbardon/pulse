@@ -249,17 +249,30 @@ type ciParams struct {
 }
 
 // ciAggregator accumulates Welford (n, mean, M2) and emits the
-// requested CI bound at finalize. Sample variance ((M2/(n-1))^0.5 /
-// sqrt(n)) is the standard error; multiplied by z gives the half-width.
-// Mergeable via the same Chan-Welford reduction as the variance
-// aggregator.
+// requested CI bound at finalize: mean ∓ z·stderr with the two-sided
+// normal critical value z = Φ⁻¹(1 − α/2) (method "normal") and
+// stderr = √(s²/n). Mergeable via the same Chan-Welford reduction as
+// the variance aggregator.
+//
+// Weighted (the slot carries an applied weight, see StampWeights): the
+// state is the weighted Welford-West bucket (weighting.Welford) and
+// the bound follows the one formula rule (.claude/reference/
+// weighting.md, Weighted inference) — the weighted mean, s² on
+// w* = w·N*/Σw (weighting.Welford.Variance), stderr = √(s²/N*) with
+// N* = Σw under kind frequency (= the unweighted bound on the expanded
+// rows) or Kish n_eff under kind probability, and the SAME normal
+// critical value (never a t on N* − 1: an all-ones weight must answer
+// the unweighted bound bit for bit). Partials merge through the
+// weighted Chan merge (mergeWelfordWeighted), so the slot stays
+// mergeable. A row whose weight is invalid or zero contributes
+// nothing (the floor counts the invalid ones).
 //
 // frozen{Mean,Stderr,Alpha,TCritical,Bound} mirror the post-finalize
 // CI state so Components() can emit
 // {mean, stderr, alpha, t_critical, lower|upper} after the Finalize-
-// reset wipes the live (n, mean, m2). Aggregate (buffered path) and
-// Finalize (streaming path) both stamp the same mirrors via the shared
-// bound2 helper.
+// reset wipes the live state. Aggregate (buffered path) and Finalize
+// (streaming path) both stamp the same mirrors via the shared bound2
+// helper.
 type ciAggregator struct {
 	bound      ciBound
 	confidence float64
@@ -267,6 +280,13 @@ type ciAggregator struct {
 	n          int64
 	mean       float64
 	m2         float64
+
+	// weight is the applied slot weight (Kind resolved), nil when the
+	// slot is unweighted; basis its inference basis; w the weighted
+	// live state.
+	weight *types.WeightSpec
+	basis  weighting.Basis
+	w      weighting.Welford
 
 	frozenMean      float64
 	frozenStderr    float64
@@ -311,18 +331,28 @@ func newCIAggregator(bound ciBound) AggregatorFactory {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				"AGG_CI_* method must be \"normal\" or \"bootstrap\"")
 		}
-		return &ciAggregator{bound: bound, confidence: params.Confidence, method: params.Method}, nil
+		a := &ciAggregator{bound: bound, confidence: params.Confidence, method: params.Method}
+		if spec := slotWeight(agg); spec != nil {
+			w := *spec
+			w.Kind = spec.EffectiveKind()
+			a.weight = &w
+			a.basis = weighting.BasisOf(&w)
+		}
+		return a, nil
 	}
 }
 
-func (a *ciAggregator) Aggregate(records []*Record, field string) (float64, error) {
+func (a *ciAggregator) reset() {
 	a.n, a.mean, a.m2 = 0, 0, 0
+	a.w = weighting.Welford{}
+}
+
+func (a *ciAggregator) Aggregate(records []*Record, field string) (float64, error) {
+	a.reset()
 	for _, r := range records {
-		v, ok := r.NumericValue(field)
-		if !ok {
-			continue
+		if err := a.UpdateRow(r, field); err != nil {
+			return 0, err
 		}
-		a.foldOne(v)
 	}
 	return a.bound2()
 }
@@ -332,7 +362,15 @@ func (a *ciAggregator) UpdateRow(r *Record, field string) error {
 	if !ok {
 		return nil
 	}
-	a.foldOne(v)
+	if a.weight == nil {
+		a.foldOne(v)
+		return nil
+	}
+	w, wok := r.NumericValue(a.weight.Field)
+	if weighting.Classify(w, wok, a.weight.Kind) != weighting.Valid || w == 0 {
+		return nil
+	}
+	a.w.Add(v, w)
 	return nil
 }
 
@@ -345,32 +383,49 @@ func (a *ciAggregator) foldOne(v float64) {
 
 func (a *ciAggregator) Finalize() (float64, error) {
 	out, err := a.bound2()
-	a.n, a.mean, a.m2 = 0, 0, 0
+	a.reset()
 	return out, err
+}
+
+// moments returns the bound's inputs: the (weighted) mean, the sample
+// variance (on w* when weighted) and the sample size it is divided by
+// (n, or N*); ok=false when that size is at most 1 (no spread).
+func (a *ciAggregator) moments() (mean, sampleVar, size float64, ok bool) {
+	if a.weight == nil {
+		if a.n < 2 {
+			return 0, 0, 0, false
+		}
+		return a.mean, a.m2 / float64(a.n-1), float64(a.n), true
+	}
+	nStar := a.w.NStar(a.basis)
+	if a.w.N == 0 || !(nStar > 1) {
+		return 0, 0, 0, false
+	}
+	return a.w.Mean, a.w.Variance(a.basis), nStar, true
 }
 
 func (a *ciAggregator) bound2() (float64, error) {
 	a.frozenAlpha = 1 - a.confidence
 	a.frozenHasResult = true
-	if a.n < 2 {
+	mean, sampleVar, size, ok := a.moments()
+	if !ok {
 		a.frozenMean, a.frozenStderr, a.frozenTCritical, a.frozenBound = 0, 0, 0, math.NaN()
 		return math.NaN(), nil
 	}
-	sampleVar := a.m2 / float64(a.n-1)
 	if sampleVar < 0 {
 		sampleVar = 0
 	}
-	stderr := math.Sqrt(sampleVar) / math.Sqrt(float64(a.n))
-	z := normalQuantile((1 + a.confidence) / 2)
+	stderr := math.Sqrt(sampleVar) / math.Sqrt(size)
+	z := normalCriticalTwoSided(1 - a.confidence)
 	half := z * stderr
-	a.frozenMean = a.mean
+	a.frozenMean = mean
 	a.frozenStderr = stderr
 	a.frozenTCritical = z
 	var out float64
 	if a.bound == ciLower {
-		out = a.mean - half
+		out = mean - half
 	} else {
-		out = a.mean + half
+		out = mean + half
 	}
 	a.frozenBound = out
 	return out, nil
@@ -380,6 +435,12 @@ func (a *ciAggregator) MergeOnline(other OnlineAggregator) error {
 	b, ok := other.(*ciAggregator)
 	if !ok {
 		return mergeTypeMismatch("AGG_CI")
+	}
+	if a.weight != nil {
+		mergeWelfordWeighted(&a.w.SumW, &a.w.Mean, &a.w.M2, b.w.SumW, b.w.Mean, b.w.M2)
+		a.w.N += b.w.N
+		a.w.SumWSq += b.w.SumWSq
+		return nil
 	}
 	mergeWelford(&a.n, &a.mean, &a.m2, b.n, b.mean, b.m2)
 	return nil
@@ -398,9 +459,9 @@ func (a *ciAggregator) MergeOnline(other OnlineAggregator) error {
 // writes it (and the NaN scalar) as null (types.MarshalFinite).
 //
 // t_critical surfaces the normal quantile (z) actually used to scale
-// the standard error; the schema name preserves the analyst-facing
-// vocabulary while the value reflects the implementation's
-// Beasley-Springer-Moro inverse-normal approximation.
+// the standard error (normalCriticalTwoSided, R's qnorm(1 − α/2)); the
+// schema name preserves the analyst-facing vocabulary. Weighted, mean
+// is the weighted mean and stderr √(s²/N*).
 func (a *ciAggregator) Components() (map[string]any, error) {
 	if !a.frozenHasResult {
 		// No Aggregate / Finalize call yet — emit the configured alpha
@@ -438,52 +499,3 @@ func (a *ciAggregator) Components() (map[string]any, error) {
 // time for the ciAggregator that backs both AGG_CI_LOWER and
 // AGG_CI_UPPER.
 var _ MetaAggregator = (*ciAggregator)(nil)
-
-// normalQuantile returns the inverse CDF of the standard normal at p
-// via the Beasley-Springer-Moro approximation. Accurate to ~1e-9 in
-// the central range and ~1e-7 in the tails — enough for CI bound math.
-// Source: Moro, B. "The full Monte." Risk 8(2), 1995.
-func normalQuantile(p float64) float64 {
-	if p <= 0 {
-		return math.Inf(-1)
-	}
-	if p >= 1 {
-		return math.Inf(1)
-	}
-	// Coefficients.
-	a := [4]float64{
-		2.50662823884, -18.61500062529, 41.39119773534, -25.44106049637,
-	}
-	b := [4]float64{
-		-8.47351093090, 23.08336743743, -21.06224101826, 3.13082909833,
-	}
-	c := [9]float64{
-		0.3374754822726147,
-		0.9761690190917186,
-		0.1607979714918209,
-		0.0276438810333863,
-		0.0038405729373609,
-		0.0003951896511919,
-		0.0000321767881768,
-		0.0000002888167364,
-		0.0000003960315187,
-	}
-
-	u := p - 0.5
-	if math.Abs(u) < 0.42 {
-		r := u * u
-		num := ((a[3]*r+a[2])*r+a[1])*r + a[0]
-		den := (((b[3]*r+b[2])*r+b[1])*r+b[0])*r + 1
-		return u * num / den
-	}
-	r := p
-	if u > 0 {
-		r = 1 - p
-	}
-	r = math.Log(-math.Log(r))
-	x := c[0] + r*(c[1]+r*(c[2]+r*(c[3]+r*(c[4]+r*(c[5]+r*(c[6]+r*(c[7]+r*c[8])))))))
-	if u < 0 {
-		x = -x
-	}
-	return x
-}

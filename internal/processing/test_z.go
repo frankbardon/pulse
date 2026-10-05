@@ -140,7 +140,7 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 	diff := a.Mean - b.Mean
 	zstat := diff / se
 	p := normalTwoSidedP(zstat)
-	zcrit := math.Sqrt2 * inverseErf(1-zt.alpha)
+	zcrit := normalCriticalTwoSided(zt.alpha)
 	ciLow := diff - zcrit*se
 	ciHigh := diff + zcrit*se
 	res := &types.TestResult{

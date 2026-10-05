@@ -54,6 +54,28 @@ sibling `groups` array), so a later inferential surface (rank tests,
 regressions, attributes, CIs) adds rows to the generator, not a new
 harness.
 
+## Weighted confidence bounds
+
+`AGG_CI_LOWER` / `AGG_CI_UPPER` (weighting-inferential E5-S1) are
+aggregator cases on the descriptive fixture (`weightRefCases`), one
+per weight configuration, pinning the bound and the `mean` / `stderr` /
+`t_critical` components:
+
+- kind `frequency` — stock R on the `rep()`-expanded rows, via
+  `ci_reference.R` (base R `stats` only; refuses any R but 4.6.1):
+  `mean ∓ qnorm((1 + conf) / 2) · sd / √n`;
+- kind `probability` — the closed form on w* = w·n_eff/Σw (s² on w*,
+  stderr √(s²/n_eff), the same normal critical value), cross-checked
+  against statsmodels `DescrStatsW(w*).zconfint_mean`. The same closed
+  form must equal R on the frequency configuration (1e-12) first.
+
+The test fixture's `TEST_Z_TWO_SAMPLE` / `TEST_PROP_Z` Wald and
+`TEST_PEARSON_R` Fisher-z intervals are pinned the same way since E5-S1
+replaced the approximate inverse-erf: R `qnorm(0.975)` / `prop.test` /
+`cor.test` `conf.int` under `frequency`, the formulas on N* (statsmodels
+`zconfint_diff` / `confint_proportions_2indep(method = "wald")`) under
+`probability`.
+
 ## Weighted inferential overlays
 
 The overlay references (`weightRefOverlayCases`, pinned by

@@ -312,6 +312,10 @@ var weightRefScale = map[types.AggregationType]string{
 	types.AGG_SET_FREQUENCY:       "total",
 	types.AGG_SET_CARDINALITY_SUM: "total",
 	types.AGG_SET_CARDINALITY_AVG: "free",
+	// The CI bounds read N* — Σw under frequency, n_eff under
+	// probability — so the f / p twins differ by design.
+	types.AGG_CI_LOWER: "none",
+	types.AGG_CI_UPPER: "none",
 }
 
 // TestWeightReferenceKindsAgree: the same replication pattern given as

@@ -286,9 +286,9 @@ func TestPredictWeights_Surface(t *testing.T) {
 // a resolved weight does — applied on a weight-aware aggregator;
 // skipped under the instance default but refused (PROCESSING_CONFIG)
 // under an explicit slot or request weight on a not-weightable or
-// still-pending one; PULSE_WEIGHT_UNSUPPORTED under ANY weight on the
-// inferential AGG_CI_*; skipped on an operator the table does not
-// govern. `weight: null` opts every class out.
+// still-pending one (AGG_CI_* is weight-aware since U12 E5-S1);
+// skipped on an operator the table does not govern. `weight: null`
+// opts every class out.
 func TestResolveWeights_Classes(t *testing.T) {
 	def := &types.WeightSpec{Field: "w"}
 	one := func(a *types.Aggregation, reqW *types.WeightSpec) *types.Request {
@@ -296,7 +296,8 @@ func TestResolveWeights_Classes(t *testing.T) {
 	}
 	for _, op := range []types.AggregationType{types.AGG_COUNT, types.AGG_SUM, types.AGG_AVERAGE, types.AGG_VARIANCE, types.AGG_STDDEV, types.AGG_WELFORD,
 		types.AGG_MEDIAN, types.AGG_PERCENTILE, types.AGG_MODE, types.AGG_MODE_COUNT, types.AGG_SKEWNESS, types.AGG_KURTOSIS,
-		types.AGG_FREQUENCY, types.AGG_RATIO, types.AGG_SET_FREQUENCY, types.AGG_SET_CARDINALITY_SUM, types.AGG_SET_CARDINALITY_AVG} {
+		types.AGG_FREQUENCY, types.AGG_RATIO, types.AGG_SET_FREQUENCY, types.AGG_SET_CARDINALITY_SUM, types.AGG_SET_CARDINALITY_AVG,
+		types.AGG_CI_LOWER, types.AGG_CI_UPPER} {
 		got, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x"}, def), weightSchema(), nil, nil)
 		if err != nil || got[0].Status != descriptor.WeightStatusApplied {
 			t.Fatalf("%s: %+v %v, want applied", op, got, err)
@@ -321,15 +322,7 @@ func TestResolveWeights_Classes(t *testing.T) {
 			t.Fatalf("%s opted out: %v", op, err)
 		}
 	}
-	for _, op := range []types.AggregationType{types.AGG_CI_LOWER, types.AGG_CI_UPPER} {
-		_, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x"}, nil), weightSchema(), def, nil)
-		if ce := codeOf(t, err); ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || ce.Details["operator"] != string(op) {
-			t.Fatalf("%s under default: %s %v", op, ce.Code, ce.Details)
-		}
-		if _, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x", Weight: types.NullSlotWeight()}, def), weightSchema(), def, nil); err != nil {
-			t.Fatalf("%s opted out: %v", op, err)
-		}
-	}
+
 	got, err := ResolveWeights(&types.Request{Weight: def, Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: "x * 2"}}}, weightSchema(), nil, nil)
 	if err != nil || got[0].Status != descriptor.WeightStatusSkippedNotWeightAware {
 		t.Fatalf("ungoverned operator: %+v %v", got, err)

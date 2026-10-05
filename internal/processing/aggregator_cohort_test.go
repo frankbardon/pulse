@@ -254,20 +254,3 @@ func TestAggregator_CI_NaNUnderTwoSamples(t *testing.T) {
 		t.Errorf("expected NaN for n<2, got %v", got)
 	}
 }
-
-func TestNormalQuantile_KnownPoints(t *testing.T) {
-	cases := []struct {
-		p, want, tol float64
-	}{
-		{0.5, 0.0, 1e-9},
-		{0.975, 1.959964, 1e-3},
-		{0.995, 2.575829, 1e-3},
-		{0.025, -1.959964, 1e-3},
-	}
-	for _, c := range cases {
-		got := normalQuantile(c.p)
-		if math.Abs(got-c.want) > c.tol {
-			t.Errorf("normalQuantile(%v) = %v, want %v ± %v", c.p, got, c.want, c.tol)
-		}
-	}
-}

@@ -85,8 +85,9 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_SET_DISTINCT_VALUES: ClassNotWeightable,
 	types.AGG_ZSCORE:              ClassNotWeightable,
 
-	types.AGG_CI_LOWER: ClassRefuse,
-	types.AGG_CI_UPPER: ClassRefuse,
+	// U12 E5-S1: the normal-critical bound on N* (Σw / Kish n_eff).
+	types.AGG_CI_LOWER: ClassAware,
+	types.AGG_CI_UPPER: ClassAware,
 }
 
 // attributeClasses classes the attributes the table governs: the

@@ -50,6 +50,13 @@ definition:
     fractional column w no library takes weights, so the figure is the
     exact rational weighted moment ratio M3/(W·var^1.5),
     M4/(W·var^2) − 3 (var = M2/W) evaluated in 50-digit Decimal.
+  * AGG_CI_LOWER / AGG_CI_UPPER (weighting-inferential E5-S1) — the
+    normal-critical bound mean ∓ z·√(s²/N*), z = qnorm(1 − α/2), s² on
+    w* = w·N*/Σw. Kind frequency: stock R on the rep()-expanded rows
+    (ci_reference.R: mean ∓ qnorm·sd/√n). Kind probability: that closed
+    form with N* = Kish n_eff, cross-checked against statsmodels
+    DescrStatsW(w*).zconfint_mean; the same closed form must equal R on
+    the frequency column (1e-12) first.
   * AGG_MODE / AGG_MODE_COUNT / AGG_FREQUENCY / AGG_RATIO / AGG_SET_* —
     numpy weighted sums (np.unique + np.bincount(weights=...), masked
     np.sum): Σw per value, Σw_match / Σw, Σw·num / Σw·den, Σw per
@@ -89,10 +96,14 @@ regressions" below).
 Per-group N*: the split t / Welch / z, Welch ANOVA and prop-z read each
 group's own n_eff; ANOVA F, Pearson, paired and χ² read one n_eff over
 the contributing rows (the w* scale c = N*/Σw is whole-sample there).
-Confidence bounds are pinned only where Pulse inverts the t
-distribution (statdist); the z / prop-z Wald bounds and the Pearson
-Fisher-z bounds still use an approximate inverse-erf and are left out
-until that is replaced.
+Confidence bounds are pinned everywhere (since weighting-inferential
+E5-S1 replaced the approximate inverse-erf normal critical value): the
+t bounds invert the t distribution, the z / prop-z Wald bounds and the
+Pearson Fisher-z bounds use qnorm(0.975) — R's own conf.int for prop.test
+and cor.test, the Welch standard error × qnorm for the z test;
+probability: the same formulas on N* (statsmodels zconfint_diff and
+confint_proportions_2indep(method="wald") cross-check the z and prop-z
+bounds).
 
 Row validity mirrors weighting.Classify: a weight that is negative,
 NaN/Inf, or non-integer under kind frequency excludes its row (counted
@@ -120,7 +131,7 @@ from statsmodels.genmod import families as sm_families
 from statsmodels.genmod.generalized_linear_model import GLM as SmGLM
 from statsmodels.regression.linear_model import OLS as SmOLS
 from statsmodels.tools.sm_exceptions import DomainWarning
-from statsmodels.stats.proportion import proportions_ztest
+from statsmodels.stats.proportion import confint_proportions_2indep, proportions_ztest
 from statsmodels.stats.weightstats import CompareMeans, DescrStatsW
 
 getcontext().prec = 50
@@ -275,6 +286,49 @@ def exact_shape(x, w):
 HMISC = [None]  # "R <ver>; Hmisc <ver>", set by the first probability config
 
 
+def ci_closed_form(x, w, prob, conf):
+    """The normal-critical CI on w*: mean ∓ z·√(s²/N*)."""
+    x = np.asarray(x, dtype=float)
+    w = np.asarray(w, dtype=float)
+    keep = w > 0
+    x, w = x[keep], w[keep]
+    sw = float(w.sum())
+    nstar = kish(w) if prob else sw
+    c = nstar / sw
+    mean = float(np.sum(w * x) / sw)
+    m2 = float(np.sum(w * (x - mean) ** 2))
+    s2 = c * m2 / (nstar - 1)
+    se = math.sqrt(s2 / nstar)
+    z = float(scipy.stats.norm.isf((1 - conf) / 2))
+    figs = dict(mean=mean, stderr=se, t_critical=z, lower=mean - z * se, upper=mean + z * se)
+    lo, hi = DescrStatsW(x, weights=w * c).zconfint_mean(alpha=1 - conf)
+    assert close(lo, figs["lower"], 1e-12) and close(hi, figs["upper"], 1e-12), (lo, hi, figs)
+    return figs
+
+
+def r_ci_reference(x, f, conf):
+    """ci_reference.R on the frequency rows: (version, {figure: value})."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    csv = lambda vs: ",".join(repr(float(v)) for v in vs)
+    lines = subprocess.run(
+        ["Rscript", os.path.join(here, "ci_reference.R"), repr(conf), csv(x), csv(f)],
+        check=True, capture_output=True, text=True).stdout.strip().split("\n")
+    return lines[0].strip(), {ln.split()[0]: float(ln.split()[1]) for ln in lines[1:]}
+
+
+def ci_reference(x, w, kind, conf):
+    """AGG_CI_* reference figures and their source."""
+    prob = kind == "probability"
+    figs = ci_closed_form(x, w, prob, conf)
+    if prob:
+        return figs, (f"closed form on w* = w·n_eff/Σw (scipy {scipy.__version__} norm.isf), "
+                      f"cross-checked with statsmodels {statsmodels.__version__} DescrStatsW(w*).zconfint_mean")
+    rver, rfigs = r_ci_reference(x, w, conf)
+    for k, v in rfigs.items():
+        assert close(figs[k], v, 1e-12), (k, figs[k], v)
+    return rfigs, f"{rver} stats qnorm on rep()-expanded rows (ci_reference.R)"
+
+
 def cases():
     out = []
     for wname, kind in CONFIGS:
@@ -295,6 +349,12 @@ def cases():
         add("AGG_VARIANCE", {"": d0.var}, src=sm + "(ddof=0).var")
         add("AGG_STDDEV", {"": d0.std}, src=sm + "(ddof=0).std")
         add("AGG_WELFORD", {"mean": d1.mean, "variance": d1.var}, src=sm + "(ddof=1).mean/.var")
+
+        for op, bound, conf, params in (("AGG_CI_LOWER", "lower", 0.9, '{"confidence":0.9}'),
+                                        ("AGG_CI_UPPER", "upper", 0.95, "")):
+            figs, src = ci_reference(x, w, kind, conf)
+            add(op, {"": figs[bound]}, params=params,
+                comp={k: figs[k] for k in ("mean", "stderr", "t_critical", bound)}, src=src)
 
         if kind == "frequency":
             qsrc = f"numpy {np.__version__} percentile(method=linear) on np.repeat"
@@ -531,7 +591,11 @@ def test_closed_form(case, rows, prob):
             zz, zp = cm.ztest_ind(usevar="unequal")
             p = float(2 * scipy.stats.norm.sf(abs(stat)))
             assert close(zz, stat) and close(zp, p, 1e-9), case
-            out.update(statistic=stat, p_value=p, diff=diff)
+            half = float(scipy.stats.norm.isf(0.025)) * math.sqrt(va + vb)
+            zl, zh = cm.zconfint_diff(alpha=0.05, usevar="unequal")
+            assert close(zl, diff - half) and close(zh, diff + half), case
+            out.update(statistic=stat, p_value=p, diff=diff,
+                       ci_low=diff - half, ci_high=diff + half)
         else:
             tt, tp, td = cm.ttest_ind(usevar="unequal")
             p = t_two_sided(stat, df)
@@ -606,6 +670,9 @@ def test_closed_form(case, rows, prob):
         assert close(rr, r), case
         df = sx.nstar - 2
         t = r * math.sqrt(df / (1 - r * r))
+        assert sx.n >= 4 and sx.nstar > 3, case
+        zh = float(scipy.stats.norm.isf(0.025)) / math.sqrt(sx.nstar - 3)
+        out.update(ci_low=math.tanh(math.atanh(r) - zh), ci_high=math.tanh(math.atanh(r) + zh))
         out.update(statistic=r, df=df, p_value=t_two_sided(t, df), t=t,
                    mean_x=sx.mean, mean_y=sy.mean, sum_weights=sx.sw, n=sx.n)
         if prob:
@@ -644,6 +711,12 @@ def test_closed_form(case, rows, prob):
         sz, sp = proportions_ztest(np.array(mass), np.array(ns))
         p = float(2 * scipy.stats.norm.sf(abs(z)))
         assert close(sz, z) and close(sp, p, 1e-9), case
+        diff = phat[0] - phat[1]
+        half = float(scipy.stats.norm.isf(0.025)) * math.sqrt(
+            phat[0] * (1 - phat[0]) / ns[0] + phat[1] * (1 - phat[1]) / ns[1])
+        wl, wh = confint_proportions_2indep(mass[0], ns[0], mass[1], ns[1], method="wald", compare="diff")
+        assert close(wl, diff - half) and close(wh, diff + half), case
+        out.update(ci_low=diff - half, ci_high=diff + half)
         out.update(statistic=z, p_value=p, pooled=pooled, diff=phat[0] - phat[1],
                    **{"effect_size.cohens_h": 2 * math.asin(math.sqrt(phat[0]))
                       - 2 * math.asin(math.sqrt(phat[1]))})
@@ -809,7 +882,8 @@ R_FIGURES = {
     "t_split": ("welch", {"statistic": "statistic", "df": "df", "p_value": "p_value",
                           "mean_a": "mean[a]", "mean_b": "mean[b]", "variance_a": "variance[a]",
                           "variance_b": "variance[b]", "ci_low": "ci_low", "ci_high": "ci_high"}),
-    "z": ("z", {"statistic": "statistic", "p_value": "p_value"}),
+    "z": ("z", {"statistic": "statistic", "p_value": "p_value",
+                "ci_low": "ci_low", "ci_high": "ci_high"}),
     "paired": ("paired", {"statistic": "statistic", "df": "df", "p_value": "p_value",
                           "mean_diff": "mean_diff", "ci_low": "ci_low", "ci_high": "ci_high"}),
     "anova_f": ("anova_f", {"statistic": "statistic", "df_between": "df_between",
@@ -819,12 +893,13 @@ R_FIGURES = {
                             "mean_r": "group_means[r]"}),
     "anova_welch": ("anova_welch", {"statistic": "statistic", "df_between": "df_between",
                                     "df_within": "df_within", "p_value": "p_value"}),
-    "pearson": ("pearson", {"r": "statistic", "t": "t", "df": "df", "p_value": "p_value"}),
+    "pearson": ("pearson", {"r": "statistic", "t": "t", "df": "df", "p_value": "p_value",
+                            "ci_low": "ci_low", "ci_high": "ci_high"}),
     "chisq": ("chisq", {"statistic": "statistic", "df": "df", "p_value": "p_value",
                         "expected_min": "expected_min", "cramers_v": "effect_size.cramers_v"}),
     "prop_z": ("prop_z", {"statistic": "statistic", "p_value": "p_value",
                           "proportion_a": "proportion[a]", "proportion_b": "proportion[b]",
-                          "pooled": "pooled"}),
+                          "pooled": "pooled", "ci_low": "ci_low", "ci_high": "ci_high"}),
 }
 R_FIGURES.update({
     "mann_whitney": ("mann_whitney", {"u_min": "statistic", "p_value": "p_value", "u_a": "u_a",

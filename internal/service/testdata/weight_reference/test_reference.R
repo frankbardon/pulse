@@ -56,6 +56,11 @@ nb <- sum(xs$h == "b")
 z <- (tw$estimate[1] - tw$estimate[2]) / sqrt(va / na + vb / nb)
 out("z", "statistic", z)
 out("z", "p_value", 2 * pnorm(-abs(z)))
+# Wald interval on the difference, normal critical qnorm(0.975)
+# (weighting-inferential E5-S1).
+zh <- qnorm(0.975) * sqrt(va / na + vb / nb)
+out("z", "ci_low", tw$estimate[1] - tw$estimate[2] - zh)
+out("z", "ci_high", tw$estimate[1] - tw$estimate[2] + zh)
 
 # TEST_PAIRED_T on x − y (pairs with a missing side dropped).
 tp <- t.test(e$x, e$y, paired = TRUE)
@@ -91,6 +96,8 @@ out("pearson", "r", ct$estimate)
 out("pearson", "t", ct$statistic)
 out("pearson", "df", ct$parameter)
 out("pearson", "p_value", ct$p.value)
+out("pearson", "ci_low", ct$conf.int[1])
+out("pearson", "ci_high", ct$conf.int[2])
 
 # TEST_CHISQ: h × o, no continuity correction.
 tab <- table(e$h, e$o)
@@ -109,6 +116,8 @@ out("prop_z", "statistic", sign(pt$estimate[1] - pt$estimate[2]) * sqrt(pt$stati
 out("prop_z", "p_value", pt$p.value)
 out("prop_z", "proportion_a", pt$estimate[1])
 out("prop_z", "proportion_b", pt$estimate[2])
+out("prop_z", "ci_low", pt$conf.int[1])
+out("prop_z", "ci_high", pt$conf.int[2])
 out("prop_z", "pooled", sum(succ) / sum(tot))
 
 # Rank tests (weighting-inferential E2-S1; frequency-only): the

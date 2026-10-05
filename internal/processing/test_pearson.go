@@ -250,7 +250,7 @@ func finalizePearsonR(spec *types.Test, variant string, m pearsonMoments, alpha 
 	if n >= 4 && nStar > 3 && math.Abs(r) < 1 {
 		zr := math.Atanh(r)
 		seZ := 1.0 / math.Sqrt(nStar-3)
-		zCrit := math.Sqrt2 * inverseErf(1-alpha)
+		zCrit := normalCriticalTwoSided(alpha)
 		ciLow = math.Tanh(zr - zCrit*seZ)
 		ciHigh = math.Tanh(zr + zCrit*seZ)
 	} else {

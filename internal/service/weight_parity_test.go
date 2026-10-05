@@ -75,6 +75,13 @@ type parityOp struct {
 	// property for it, and the probability contract is scale invariance
 	// (TestWeightProbabilityQuantileScaleInvariance) instead.
 	scaleNormalized bool
+	// kishScaled marks an inferential figure whose PROBABILITY weights
+	// read Kish n_eff (not Σw) as the sample size (AGG_CI_*): expansion
+	// equivalence is a frequency-weight property for it, and its
+	// probability arm in TestWeightFrequencyExpansionParity is scale
+	// invariance (weights × testScaleC answer the same figure, within
+	// tolerance) instead.
+	kishScaled bool
 }
 
 func (o parityOp) baselineOp() types.AggregationType {
@@ -115,6 +122,10 @@ var parityOps = []parityOp{
 	{op: types.AGG_SET_FREQUENCY, fields: []string{"s"}, expandExact: []string{"s"}},
 	{op: types.AGG_SET_CARDINALITY_SUM, fields: []string{"s"}, expandExact: []string{"s"}},
 	{op: types.AGG_SET_CARDINALITY_AVG, fields: []string{"s"}, expandExact: []string{"s"}},
+	// weighting-inferential E5-S1: the normal-critical CI bounds (stderr
+	// on N*), mergeable — every arm.
+	{op: types.AGG_CI_LOWER, fields: []string{"x", "y"}, params: json.RawMessage(`{"confidence":0.9}`), kishScaled: true},
+	{op: types.AGG_CI_UPPER, fields: []string{"x", "y"}, kishScaled: true},
 }
 
 // --- fixture ------------------------------------------------------------
@@ -705,6 +716,14 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 						if row.scaleNormalized && src.kind == types.WeightKindProbability {
 							t.Skip("probability weights are scale-normalized for this operator; see TestWeightProbabilityQuantileScaleInvariance")
 						}
+						if row.kishScaled && src.kind == types.WeightKindProbability {
+							want := runArm(t, weighted, mode, weighted.paths[mode.cohort], row, row.op, &src)
+							stripSteer(want)
+							got := runArm(t, scaled, mode, scaled.paths[mode.cohort], row, row.op, &src)
+							stripSteer(got)
+							assertKishScaled(t, got, want)
+							return
+						}
 						got := runArm(t, weighted, mode, weighted.paths[mode.cohort], row, row.op, &src)
 						stripSteer(got)
 						assertExpanded(t, got, base, row)
@@ -767,6 +786,28 @@ func TestWeightProbabilityQuantileScaleInvariance(t *testing.T) {
 	}
 	if ran == 0 {
 		t.Fatal("no arm ran a scale-normalized operator: the gate is vacuous")
+	}
+}
+
+// assertKishScaled: weights × testScaleC under kind probability answer
+// the same Data and operator components (n_eff, hence every Kish-read
+// figure, is scale-free) within testExpandTol; the floor's n_eff is
+// unchanged and its sum_weights × testScaleC.
+func assertKishScaled(t *testing.T, got, want *types.Response) {
+	t.Helper()
+	compareTestWire(t, "data", toJSONValue(t, got.Data), toJSONValue(t, want.Data), 1, testScaleC, nil, nil)
+	ga, wa := got.Components.Aggregations, want.Components.Aggregations
+	if len(ga) != len(wa) {
+		t.Fatalf("%d component slots, unscaled %d", len(ga), len(wa))
+	}
+	for i := range wa {
+		if ga[i].NEff == nil || wa[i].NEff == nil {
+			t.Fatalf("slot %s: no n_eff — the probability weight did not apply", ga[i].Label)
+		}
+		if !relClose(*ga[i].NEff, *wa[i].NEff, testExpandTol) || !relClose(*ga[i].SumWeights, *wa[i].SumWeights*testScaleC, testExpandTol) {
+			t.Errorf("slot %s: floor n_eff %v / sum_weights %v, unscaled %v / %v", ga[i].Label, *ga[i].NEff, *ga[i].SumWeights, *wa[i].NEff, *wa[i].SumWeights)
+		}
+		compareTestWire(t, "components."+ga[i].Label, toJSONValue(t, ga[i].Operator), toJSONValue(t, wa[i].Operator), 1, testScaleC, nil, nil)
 	}
 }
 

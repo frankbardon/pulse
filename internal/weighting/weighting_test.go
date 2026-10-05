@@ -19,7 +19,7 @@ func TestClassify_Complete(t *testing.T) {
 	if ClassOf("AGG_EXT_FOO_BAR") != ClassNone || ClassOf("TEST_EXT_FOO_BAR") != ClassNone {
 		t.Fatal("extension names must be ClassNone (their class is the registration's)")
 	}
-	if !IsAware("AGG_SUM") || !IsAware("AGG_MEDIAN") || IsAware("AGG_MIN") || IsAware("AGG_CI_LOWER") {
+	if !IsAware("AGG_SUM") || !IsAware("AGG_MEDIAN") || IsAware("AGG_MIN") || !IsAware("AGG_CI_LOWER") {
 		t.Fatal("IsAware mismatch")
 	}
 }

@@ -120,7 +120,7 @@ declare it the same way.
 | the Fisher exact cell overlay | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | ordinary least squares (plain, ridge, lasso, elastic net), the GLM (binomial, poisson, gamma), the regression attributes (fitted value, residual, leverage) | weighted (both kinds) | weighted |
 | Bayesian linear regression | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| other tests, any regression with `resample` or `selection`, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| other tests, any regression with `resample` or `selection`, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
 with its sample size read as Σw under `kind: frequency` (a weight of 3
@@ -203,6 +203,15 @@ the fitted value comes from the weighted coefficients, the residual is
 the raw y − ŷ, and the leverage is R's `hatvalues()` on the weighted
 `lm`, the diagonal of W½X(XᵀWX)⁻¹XᵀW½. A row whose weight is zero or
 invalid stays out of the refit and gets leverage 0.
+
+**Weighted confidence bounds.** `AGG_CI_LOWER` and `AGG_CI_UPPER` are
+weight-aware aggregators under either kind. The bound is the weighted
+mean ∓ z·√(s²/N*): s² is the sample variance on w* = w·N*/Σw, N* is Σw
+under `kind: frequency` (the bound on the expanded rows) or Kish's
+n_eff under `kind: probability`, and z is the same normal critical
+value the unweighted bound uses (`qnorm(1 − α/2)`, reported as
+`t_critical`), not a t on N* − 1. They stay mergeable, so they run on
+every streaming, shard and parallel-decode path.
 
 **Other weighted inference is not available yet.** The last row is
 refused rather than silently computed unweighted beside weighted

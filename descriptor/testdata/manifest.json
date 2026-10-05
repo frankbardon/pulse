@@ -469,6 +469,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "mean",
                 "type": "float64",
                 "description": "Welford-running mean of the field."
@@ -496,6 +514,11 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "compare_groups",
             "describe"
@@ -548,6 +571,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "mean",
                 "type": "float64",
                 "description": "Welford-running mean of the field."
@@ -575,6 +616,11 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "compare_groups",
             "describe"
@@ -9927,6 +9973,24 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "mean",
               "type": "float64",
               "description": "Welford-running mean of the field."
@@ -9965,6 +10029,24 @@
               "name": "n_null",
               "type": "int",
               "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
             },
             {
               "name": "mean",
@@ -11600,4 +11682,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1278173acc8e7015c44b97d54a56b96910eea39d6fbda155eae1645768c0b7f5
+// golden-hash: b0e195d8b8baf0ee17c56329c67f153afef067c3b63874a8108760ae045d4080

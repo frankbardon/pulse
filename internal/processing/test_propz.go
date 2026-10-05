@@ -179,8 +179,8 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	pvalue := normalTwoSidedP(z)
 	// Wald (unpooled) standard error for the CI on the rate diff.
 	seUnpool := math.Sqrt(pa*(1-pa)/na + pb*(1-pb)/nb)
-	// Two-sided normal critical value at alpha/2 via the inverse erf.
-	zcrit := math.Sqrt2 * inverseErf(1-p.alpha)
+	// Two-sided normal critical value at alpha/2.
+	zcrit := normalCriticalTwoSided(p.alpha)
 	ciLow := (pa - pb) - zcrit*seUnpool
 	ciHigh := (pa - pb) + zcrit*seUnpool
 	details := map[string]any{
@@ -216,24 +216,15 @@ func (p *propZRow) reset() {
 	p.order = nil
 }
 
-// inverseErf approximates erf⁻¹(x) via the Winitzki rational
-// approximation. Used to derive the two-sided normal critical value
-// for the CI bounds: z_{α/2} = √2 · erf⁻¹(1 − α). Accurate to ~1.5e-3
-// over the alpha range used by this test (α ∈ (0, 1)).
-func inverseErf(x float64) float64 {
-	if x <= -1 {
-		return math.Inf(-1)
-	}
-	if x >= 1 {
-		return math.Inf(1)
-	}
-	const a = 0.147
-	lnTerm := math.Log(1 - x*x)
-	first := 2/(math.Pi*a) + lnTerm/2
-	inner := first*first - lnTerm/a
-	root := math.Sqrt(math.Sqrt(inner) - first)
-	if x < 0 {
-		return -root
-	}
-	return root
+// normalCriticalTwoSided is the two-sided standard-normal critical
+// value z_{α/2} = Φ⁻¹(1 − α/2), taken as −Φ⁻¹(α/2) so the tail
+// probability is never formed as one minus a small number. It is
+// R's qnorm(1 − α/2) to a few ulp (standardNormalPPF is checked against
+// qnorm by TestReferenceOracle_StandardNormalPPF) and backs every
+// normal-critical confidence bound: AGG_CI_LOWER / AGG_CI_UPPER, the
+// TEST_Z_TWO_SAMPLE and TEST_PROP_Z Wald intervals and the
+// TEST_PEARSON_R Fisher-z interval. (It replaced a Winitzki inverse-erf
+// approximation whose z was ~4.7e-4 relative too small at α = 0.05.)
+func normalCriticalTwoSided(alpha float64) float64 {
+	return -standardNormalPPF(alpha / 2)
 }
