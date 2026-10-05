@@ -413,3 +413,64 @@ func asCoded(err error, target **errors.CodedError) bool {
 	}
 	return ok
 }
+
+// TestResolveDateField_Zone: a non-UTC slot zone on a `datetime` column
+// reads the LOCAL day (Europe/Berlin: 2026-03-28T23:30Z is 00:30 on Mar
+// 29, and after the spring-forward 2026-03-29T22:30Z is 00:30 on Mar
+// 30), while no zone, "UTC", a fixed-zero alias and a `date` column all
+// keep the zone-free path (zone nil) — and an unknown name is refused.
+func TestResolveDateField_Zone(t *testing.T) {
+	mar28 := epochDays(2026, time.March, 28)
+	for _, tc := range []struct {
+		name     string
+		schema   *encoding.Schema
+		tz       string
+		wantZone bool
+		v        float64
+		wantDay  int64
+	}{
+		{"berlin datetime before midnight UTC", datetimeSchema(), "Europe/Berlin", true, epochSeconds(2026, time.March, 28, 23, 30, 0), int64(mar28) + 1},
+		{"berlin datetime after spring forward", datetimeSchema(), "Europe/Berlin", true, epochSeconds(2026, time.March, 29, 22, 30, 0), int64(mar28) + 2},
+		{"berlin datetime early evening", datetimeSchema(), "Europe/Berlin", true, epochSeconds(2026, time.March, 28, 22, 30, 0), int64(mar28)},
+		{"no zone", datetimeSchema(), "", false, epochSeconds(2026, time.March, 28, 23, 30, 0), int64(mar28)},
+		{"UTC", datetimeSchema(), "UTC", false, epochSeconds(2026, time.March, 28, 23, 30, 0), int64(mar28)},
+		{"fixed-zero alias", datetimeSchema(), "Etc/UTC", false, epochSeconds(2026, time.March, 28, 23, 30, 0), int64(mar28)},
+		{"date column ignores zone", dateSchema(), "Europe/Berlin", false, mar28, int64(mar28)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			df, err := resolveDateField("OP", "enrolled", tc.tz, tc.schema, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (df.zone != nil) != tc.wantZone {
+				t.Fatalf("zone = %v, want set=%v", df.zone, tc.wantZone)
+			}
+			if got := df.epochDay(tc.v); got != tc.wantDay {
+				t.Fatalf("epochDay = %d, want %d", got, tc.wantDay)
+			}
+		})
+	}
+	_, err := resolveDateField("OP", "enrolled", "Mars/Base", datetimeSchema(), true)
+	ce, ok := err.(*errors.CodedError)
+	if !ok || ce.Code != errors.PULSE_TIMEZONE_UNKNOWN {
+		t.Fatalf("unknown zone: %v", err)
+	}
+}
+
+// TestGroupDate_SlotZoneBucketsByLocalDay: the GROUP_DATE factory reads
+// the slot `tz` (the runtime writes the resolved zone there) and keys
+// the instant by its local day.
+func TestGroupDate_SlotZoneBucketsByLocalDay(t *testing.T) {
+	inst := epochSeconds(2026, time.October, 24, 22, 30, 0) // Berlin 00:30 Oct 25 (CEST)
+	for tz, want := range map[string]string{"": "2026-10-24", "Europe/Berlin": "2026-10-25", "America/New_York": "2026-10-24"} {
+		g, err := newDateGrouper(&types.Group{Type: types.GROUP_DATE, Field: "enrolled", Params: json.RawMessage(`{"component":"day"}`), TimeZone: tz}, datetimeSchema())
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := NewRecord(datetimeSchema(), map[string]float64{"enrolled": inst})
+		key, err := g.(StreamableGrouper).KeyFor(r)
+		if err != nil || key != want {
+			t.Fatalf("tz %q: key = %q, %v; want %q", tz, key, err, want)
+		}
+	}
+}

@@ -140,10 +140,11 @@ copy of the tz database (never `$ZONEINFO` or the host's zoneinfo
 files), so the accepted set and every offset are identical on every
 host, and the lookup is case-sensitive everywhere.
 
-Zone-aware operator arithmetic has not landed yet: a non-UTC default is
-accepted at `pulse.New`, but a request in which it reaches a `datetime`
-field is refused with `PROCESSING_CONFIG` (it is never silently
-ignored). It does not apply to `date` fields at all. Predict reports the
+Where it reaches a `datetime` field, the zone-aware operators read each
+instant on its local calendar day in this zone (DST-correct). A request
+in which a non-UTC default reaches a derived field (absent from the
+schema) is refused with `PROCESSING_CONFIG` rather than silently
+ignored. It does not apply to `date` fields at all. Predict reports the
 resolved zone per slot under `time_zones`, with `source: "options"` when
 this field supplied it. There is no env var or CLI flag for it. Full
 guide: [Row Weighting](weighting.md).

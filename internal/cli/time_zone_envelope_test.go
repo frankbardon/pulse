@@ -13,7 +13,7 @@ import (
 // TestAPI_TimeZoneRefusalKeepsItsCode: a zone refusal raised by the
 // resolver reaches `--json` output under its own code through
 // writeCodedErrorEnvelope — PROCESSING_CONFIG (with the slot/operator/tz
-// details) for a non-UTC zone on a datetime GROUP_DATE, and
+// details) for a non-UTC zone on a derived-field GROUP_DATE, and
 // PULSE_TIMEZONE_UNKNOWN for an unknown name — on process, compose and
 // the rich facet leaf alike, never a PROCESS_ERROR-style placeholder.
 // Compose and chain refusals keep their location (details.request /
@@ -37,12 +37,14 @@ func TestAPI_TimeZoneRefusalKeepsItsCode(t *testing.T) {
 		}
 		return p
 	}
+	// A non-UTC zone is refused only on a derived (absent-from-schema)
+	// field; the request groups one so the refusal path is exercised.
 	request := func(tz string) map[string]any {
 		return map[string]any{
 			"cohort":       map[string]any{"filename": cohort},
 			"time_zone":    tz,
 			"aggregations": []any{map[string]any{"type": "AGG_COUNT", "field": "n"}},
-			"groups":       []any{map[string]any{"type": "GROUP_DATE", "field": "ts"}},
+			"groups":       []any{map[string]any{"type": "GROUP_DATE", "field": "derived_ts"}},
 		}
 	}
 	chain := map[string]any{
@@ -50,7 +52,7 @@ func TestAPI_TimeZoneRefusalKeepsItsCode(t *testing.T) {
 		"stages": []any{map[string]any{"request": map[string]any{
 			"time_zone":    "Asia/Tokyo",
 			"aggregations": []any{map[string]any{"type": "AGG_SUM", "field": "n", "label": "total"}},
-			"groups":       []any{map[string]any{"type": "GROUP_DATE", "field": "ts"}},
+			"groups":       []any{map[string]any{"type": "GROUP_DATE", "field": "derived_ts"}},
 		}}},
 	}
 	cases := []struct {

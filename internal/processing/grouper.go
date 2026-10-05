@@ -975,12 +975,13 @@ type dateGrouper struct {
 	component    string
 	fiscalOffset int // 0 = calendar; non-zero = FY starts at month (((offset%12)+12)%12)+1
 
-	// seconds is true when Field names a `datetime` column, whose
-	// decoded value is epoch SECONDS rather than the epoch DAYS a
-	// `date` column carries. Resolved once at construction by
-	// resolveDateFieldSeconds; applied per record by epochDayFromValue,
-	// which truncates the instant to the calendar day containing it.
-	seconds bool
+	// date reads Field: epoch SECONDS (a `datetime` column) or epoch
+	// DAYS (a `date` column), and for an instant the zone whose local
+	// calendar day it lands on (nil: the UTC day). Resolved once at
+	// construction by resolveDateField; applied per record by
+	// date.epochDay, so labels and period boundaries are local-day
+	// calendar values with no formatting change.
+	date dateField
 
 	// liveBuckets mirrors the post-Group / post-KeyForRow state per
 	// bucket key. count tracks rows assigned to the bucket; periodStart
@@ -1120,12 +1121,12 @@ func newDateGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) 
 	// Field against the schema, so widening it to `datetime` must not
 	// introduce a new rejection. The call resolves the day-vs-second
 	// reading of the column and nothing else.
-	seconds, err := resolveDateFieldSeconds("GROUP_DATE", grp.Field, schema, false)
+	date, err := resolveDateField("GROUP_DATE", grp.Field, grp.TimeZone, schema, false)
 	if err != nil {
 		return nil, err
 	}
 
-	return &dateGrouper{field: grp.Field, component: component, fiscalOffset: fiscalOffset, seconds: seconds}, nil
+	return &dateGrouper{field: grp.Field, component: component, fiscalOffset: fiscalOffset, date: date}, nil
 }
 
 // fiscalYearQuarter returns the fiscal year (end-year convention) and the
@@ -1191,7 +1192,7 @@ func (g *dateGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	t := temporal.DayToTime(epochDayFromValue(v, g.seconds))
+	t := temporal.DayToTime(g.date.epochDay(v))
 	return g.formatDateKey(t), nil
 }
 
@@ -1213,7 +1214,7 @@ func (g *dateGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
 		// tracker safe under contract drift.
 		return key, ok, nil
 	}
-	g.trackDateRow(epochDayFromValue(v, g.seconds), key)
+	g.trackDateRow(g.date.epochDay(v), key)
 	return key, ok, nil
 }
 
@@ -1242,7 +1243,7 @@ func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Reco
 			if !ok {
 				continue
 			}
-			g.trackDateRow(epochDayFromValue(v, g.seconds), key)
+			g.trackDateRow(g.date.epochDay(v), key)
 		}
 	}
 	return groups, nil
@@ -1330,12 +1331,11 @@ type dateRangesGrouper struct {
 	order          []string // supplied range labels, in author order
 	unmatchedLabel string
 
-	// seconds is true when Field names a `datetime` column (epoch
-	// seconds) rather than a `date` column (epoch days). Resolved once
-	// at construction; applied per record by epochDayFromValue so the
-	// range set — which is compiled in epoch days — is matched against
-	// the calendar day containing the instant.
-	seconds bool
+	// date reads Field (epoch seconds or days, and the slot zone).
+	// Resolved once at construction; applied per record by
+	// date.epochDay so the range set — compiled in epoch days — is
+	// matched against the (local) calendar day containing the instant.
+	date dateField
 
 	// tableName is non-empty when the grouper's source is a named range
 	// table (rather than inline ranges). Resolution is deferred to
@@ -1358,7 +1358,7 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 	// Validate against the schema when present (the runtime always
 	// supplies one); a nil schema (e.g. a probe with no field) skips
 	// the check. A `datetime` Field day-truncates per record.
-	seconds, err := resolveDateFieldSeconds("GROUP_DATE_RANGES", grp.Field, schema, true)
+	date, err := resolveDateField("GROUP_DATE_RANGES", grp.Field, grp.TimeZone, schema, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1378,7 +1378,7 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 	g := &dateRangesGrouper{
 		field:          grp.Field,
 		unmatchedLabel: unmatched,
-		seconds:        seconds,
+		date:           date,
 	}
 
 	// Source selection: exactly one of inline `ranges` or a named `table`.
@@ -1466,7 +1466,7 @@ func (g *dateRangesGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	if label, matched := g.set.Match(epochDayFromValue(v, g.seconds)); matched {
+	if label, matched := g.set.Match(g.date.epochDay(v)); matched {
 		return label, nil
 	}
 	return g.unmatchedLabel, nil

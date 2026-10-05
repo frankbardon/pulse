@@ -73,6 +73,14 @@ func sameEntry(t *testing.T, env *descriptor.Envelope, runtimeErr error) {
 	}
 }
 
+// derivedGroupDate is groupDateOverTS over a name absent from the
+// schema — a derived column a non-UTC zone cannot be applied to.
+func derivedGroupDate(cohort, slotTZ, reqTZ string) *types.Request {
+	req := groupDateOverTS(cohort, slotTZ, reqTZ)
+	req.Groups[0].Field = "derived_ts"
+	return req
+}
+
 func joinedGroupDate(cohort, field, reqTZ string) *types.Request {
 	return &types.Request{
 		Cohort:       &types.Cohort{Filename: cohort},
@@ -87,7 +95,9 @@ func joinedGroupDate(cohort, field, reqTZ string) *types.Request {
 // request's zones against the joined schema the runtime executes over.
 // An inherited non-UTC zone over a right-side `date` field is accepted
 // by both (predict echoes tz null, field_type date); over a right-side
-// `datetime` field both refuse with the same code and details.
+// `datetime` field both accept and predict echoes the zone; over a name
+// in neither schema (a derived column) both refuse with the same code
+// and details.
 func TestTimeZone_JoinPredictMatchesRuntime(t *testing.T) {
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
@@ -107,10 +117,22 @@ func TestTimeZone_JoinPredictMatchesRuntime(t *testing.T) {
 			t.Fatalf("TimeZones = %+v, want one date slot with tz null", pr.TimeZones)
 		}
 	})
-	t.Run("joined datetime refused", func(t *testing.T) {
-		_, rerr := p.Process(ctx, joinedGroupDate(cohort, "r_ts", berlin))
+	t.Run("joined datetime accepted", func(t *testing.T) {
+		if _, err := p.Process(ctx, joinedGroupDate(cohort, "r_ts", berlin)); err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		pr, err := p.Predict(ctx, joinedGroupDate(cohort, "r_ts", berlin))
+		if err != nil || !pr.Valid {
+			t.Fatalf("predict refused what runtime accepts: valid=%v err=%v", pr != nil && pr.Valid, err)
+		}
+		if len(pr.TimeZones) != 1 || pr.TimeZones[0].TZ == nil || *pr.TimeZones[0].TZ != berlin || pr.TimeZones[0].FieldType != "datetime" {
+			t.Fatalf("TimeZones = %+v, want one datetime slot resolving %s", pr.TimeZones, berlin)
+		}
+	})
+	t.Run("derived refused", func(t *testing.T) {
+		_, rerr := p.Process(ctx, joinedGroupDate(cohort, "r_derived", berlin))
 		assertRefusal(t, rerr, "groups[0]", "GROUP_DATE", berlin)
-		env := predictEnvelope(t, p, fs, cohort, joinedGroupDate(cohort, "r_ts", berlin))
+		env := predictEnvelope(t, p, fs, cohort, joinedGroupDate(cohort, "r_derived", berlin))
 		sameEntry(t, env, rerr)
 		if env.Data.(*descriptor.PredictResult).Valid {
 			t.Fatal("predict Valid=true")
@@ -171,8 +193,9 @@ func TestTimeZone_DisableDefaultsSameErrorBothSides(t *testing.T) {
 
 // TestTimeZone_ValidatorsMatchRuntime: ValidateCompose, ValidateChain
 // and ValidateFacet run the runtime's zone resolution, so each rejects
-// a non-UTC zone on a datetime slot with the code, message and details
-// (location included) the runtime returns.
+// a non-UTC zone on a derived (absent-from-schema) field with the code,
+// message and details (location included) the runtime returns, and
+// accepts one on a datetime field as the runtime does.
 func TestTimeZone_ValidatorsMatchRuntime(t *testing.T) {
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
@@ -188,11 +211,19 @@ func TestTimeZone_ValidatorsMatchRuntime(t *testing.T) {
 		mk := func() *types.ComposedRequest {
 			return &types.ComposedRequest{Requests: []*types.Request{
 				groupDateOverTS(cohort, "", "UTC"),
-				groupDateOverTS(cohort, tokyo, ""),
+				derivedGroupDate(cohort, tokyo, ""),
 			}}
 		}
 		_, rerr := p.Compose(ctx, mk())
 		sameEntry(t, descx.ValidateComposeWithOptions(mk(), opts), rerr)
+		// Non-UTC zone over the datetime field: both accept.
+		dt := &types.ComposedRequest{Requests: []*types.Request{groupDateOverTS(cohort, tokyo, "")}}
+		if _, err := p.Compose(ctx, dt); err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		if env := descx.ValidateComposeWithOptions(dt, opts); len(env.Errors) != 0 {
+			t.Fatalf("validator refused what runtime accepts: %+v", env.Errors)
+		}
 		// Inherited zone over a `date` field: both accept.
 		ok := &types.ComposedRequest{Requests: []*types.Request{{
 			Cohort: &types.Cohort{Filename: cohort}, TimeZone: tokyo, Aggregations: countAgg(),
@@ -212,7 +243,7 @@ func TestTimeZone_ValidatorsMatchRuntime(t *testing.T) {
 				Stages: []*types.ChainStage{{Request: &types.Request{
 					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "total"}},
 					Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
-					Filterers:    []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: dateRanges, TimeZone: tokyo}},
+					Filterers:    []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "derived_ts", Params: dateRanges, TimeZone: tokyo}},
 				}}},
 			}
 		}
@@ -223,7 +254,7 @@ func TestTimeZone_ValidatorsMatchRuntime(t *testing.T) {
 		mk := func() *types.FacetRequest {
 			return &types.FacetRequest{
 				Cohort: &types.Cohort{Filename: cohort}, Fields: []string{"cat"}, TimeZone: tokyo,
-				Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: dateRanges}},
+				Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "derived_ts", Params: dateRanges}},
 			}
 		}
 		_, rerr := p.FacetSchema(ctx, mk())
@@ -244,7 +275,7 @@ func TestTimeZone_RefusalCarriesLocation(t *testing.T) {
 	composed := func() *types.ComposedRequest {
 		return &types.ComposedRequest{Requests: []*types.Request{
 			groupDateOverTS(cohort, "", ""),
-			groupDateOverTS(cohort, berlin, ""),
+			derivedGroupDate(cohort, berlin, ""),
 		}}
 	}
 	check := func(t *testing.T, err error, slot, op, key string, idx int) {
@@ -264,10 +295,16 @@ func TestTimeZone_RefusalCarriesLocation(t *testing.T) {
 		check(t, err, "groups[0]", "GROUP_DATE", "request", 1)
 	})
 	stage := func(tz string) *types.Request {
+		// A zoned stage reads a derived (absent) field, the refusal
+		// under test; a zone-free one reads the datetime field and runs.
+		field := "derived_ts"
+		if tz == "" {
+			field = "ts"
+		}
 		return &types.Request{
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "total"}},
 			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
-			Filterers:    []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: dateRanges, TimeZone: tz}},
+			Filterers:    []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: field, Params: dateRanges, TimeZone: tz}},
 		}
 	}
 	t.Run("chain stage 0", func(t *testing.T) {
@@ -282,7 +319,7 @@ func TestTimeZone_RefusalCarriesLocation(t *testing.T) {
 		// as it does on every later stage.
 		_, err := p.ProcessChain(ctx, &types.ChainRequest{
 			Cohort: &types.Cohort{Filename: cohort},
-			Stages: []*types.ChainStage{{Request: groupDateOverTS("", berlin, "")}},
+			Stages: []*types.ChainStage{{Request: derivedGroupDate("", berlin, "")}},
 		})
 		check(t, err, "groups[0]", "GROUP_DATE", "stage", 0)
 	})

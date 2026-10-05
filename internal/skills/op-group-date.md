@@ -17,7 +17,7 @@ examples_tags: [time-series, streaming-friendly]
 
 ## Inputs
 
-`Field` — `date`, `datetime` (floored to the UTC day).
+`Field` — `date`, `datetime` (floored to its local day in the resolved zone; UTC by default).
 
 ## Output
 
@@ -32,7 +32,8 @@ Floor `{total_n, n_null}` + `granularity` (component used), `range_start` / `ran
 - `day_of_week` names lex-sort — sort explicitly.
 - `fiscal_offset` with sub-quarter components rejected.
 - `Group.Include` not honoured; no sub-day `component`.
-- `tz` on a `date` field, or a non-UTC zone reaching a `datetime`, → `PROCESSING_CONFIG` (not yet applied).
+- Zoned keys and `period_*` are local calendar days (DST-correct).
+- `tz` on a `date` field, or a non-UTC zone on a derived field, → `PROCESSING_CONFIG`.
 
 ## See
 

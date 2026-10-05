@@ -34,7 +34,8 @@ Floor only — `{n_in, n_out, n_null_input}`. Mergeable (additive).
 - Null/missing date → dropped.
 - Both/neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`.
 - Overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal or start>end → `PULSE_RANGE_INVALID`.
-- `tz` on `date`, a non-UTC zone on `datetime`, or any `tz` under `FilterToFileWithRequest` → `PROCESSING_CONFIG`.
+- Over `datetime`, ranges match the local day in the resolved zone.
+- `tz` on `date`, a non-UTC zone on a derived field, or any `tz` under `FilterToFileWithRequest` → `PROCESSING_CONFIG`.
 - Row-local streamable; also `facet` and `sample`.
 
 ## See

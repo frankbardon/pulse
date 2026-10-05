@@ -34,7 +34,8 @@ Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `bucke
 
 - Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; non-date field → `PROCESSING_CONFIG`.
 - Overlap / dup label / bad boundary → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
-- `tz` on `date`, or a non-UTC zone on `datetime` → `PROCESSING_CONFIG` (not yet applied).
+- Over `datetime`, ranges match the local day in the resolved zone.
+- `tz` on `date`, or a non-UTC zone on a derived field → `PROCESSING_CONFIG`.
 - `Group.Include` not honoured.
 
 ## See
