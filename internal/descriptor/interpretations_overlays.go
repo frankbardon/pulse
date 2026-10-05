@@ -100,6 +100,7 @@ var (
 			Caveats: []string{
 				"It comes from the chi-square approximation, which is unreliable when expected counts fall below about 5; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when they do.",
 				"It is meaningful only when the cells count independent rows (AGG_COUNT); on sums or averages it is not a valid p-value.",
+				"On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not the Rao-Scott correction survey software applies.",
 			},
 		},
 		{

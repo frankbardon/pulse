@@ -415,7 +415,7 @@ func TestSharedPValueRules(t *testing.T) {
 		t.Errorf("Means does not explain alpha: %q", in.Means)
 	}
 	body := strings.ToLower(strings.Join(in.Caveats, " "))
-	for _, want := range []string{"not the same as important", "does not mean there is no difference", "multiple comparisons"} {
+	for _, want := range []string{"not the same as important", "does not mean there is no difference", "multiple comparisons", "effective sample size", "not strata or clusters"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("shared p-value caveats miss %q", want)
 		}

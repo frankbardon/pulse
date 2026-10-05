@@ -49,6 +49,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 - Jackknife is `O(n)` refits; on large cohorts prefer bootstrap with moderate replicates.
 - Composes with `selection` — the resample wraps the selected-feature fit.
 - `rng_seed = 0` is deterministic per request but cohort-dependent; pin non-zero for cross-cohort reproducibility.
+- Never weighted: any row weight in force on the regression (slot, request or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; `"weight": null` on the slot runs it unweighted.
 
 ## See
 

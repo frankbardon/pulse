@@ -26,7 +26,7 @@ Pair × opposite-axis two-sided p-values. `weights`: `var = m2/(Σw−1)`, `n = 
 ## Gotchas
 
 - Skips (`PULSE_OVERLAY_REF_ZERO`): `weights` leg `Σw ≤ 1`; `kish` leg with one weighted row; zero SE.
-- Mergeable cell: stays fused. The one inferential overlay weights never refuse.
+- Mergeable cell: stays fused. Weight `kind` (both accepted) does not set n here: `n_basis` does, for THIS kind only — other weighted overlays read N* off the host's kind. Probability weights: use `kish`.
 
 ## See
 

@@ -220,7 +220,7 @@ var (
 					"the estimate is roughly worth, never more than the rows that count. It does not apply to frequency weights (a weight counting repeated units, " +
 					"such as a quantity, where the base is sum_weights) or to inverse-variance weights.",
 				"It reads 0 when no row has a usable weight; check components sum_weights before trusting a 0.",
-				"Negative weights are not refused and can push the result outside the range of the values.",
+				"Negative, NaN and infinite weights are excluded and counted in components n_weight_invalid, with a warning, so the result stays within the range of the values.",
 			},
 		},
 	}

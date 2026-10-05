@@ -8673,7 +8673,7 @@
       },
       {
         "name": "weighting",
-        "description": "Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, the unweighted-base recipe and the weighted floor keys."
+        "description": "Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, weighted inference on the effective sample size, the unweighted-base recipe and the weighted floor keys."
       },
       {
         "name": "window-design",
@@ -11697,4 +11697,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1c368752e0cae31e889edece62d1bb998362d87ea6e97f92eb226fb7997ff98c
+// golden-hash: eb6ecb06e5a46a9fe0344259216a279047bc61751bfc96a9c3884ce681385438

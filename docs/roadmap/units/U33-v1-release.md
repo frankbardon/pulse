@@ -33,7 +33,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#168** (12. Release v1.0.0) `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md))
 - [ ] **#169** (12. Release v1.0.0) Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
-- [ ] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section), signs off the U08 inferential AND the U09 descriptive guidance, and owns the statistical-review CODEOWNERS entries
+- [ ] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) and the [U12 weighted-inference review](../reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference, and owns the statistical-review CODEOWNERS entries
 - [ ] **#171** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values
 - [ ] **#173** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups
 - [ ] **#174** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator has `Purpose`, `Interpretation` (if inferential), `Since`, dependency edges and an atomic skill
@@ -47,7 +47,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 
 **In scope**
 - STABILITY.md
-- Human statistics sign-off of the U08 review record, covering U08 inferential and U09 descriptive guidance (#206) — release-blocking
+- Human statistics sign-off of the U08 review record, covering U08 inferential and U09 descriptive guidance, and of the U12 weighted-inference review (#206) — release-blocking
 - rc tag + downstream validation
 - Cross-cutting verification (TODO §13)
 - v1.0.0 tag
@@ -65,7 +65,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 
 ### E2 — Verified and released
 - S1: cross-cutting sweep (§13 items)
-- S1b: statistics sign-off (#206) — reviewer works the U08 review record's open items (U08 and U09 sections), records the sign-off in the record, lands CODEOWNERS
+- S1b: statistics sign-off (#206) — reviewer works the U08 review record's open items (U08 and U09 sections) and the U12 review's open items, records the sign-off in each record, lands CODEOWNERS
 - S2: `v1.0.0-rc.1`; downstream library validation
 - S3: `v1.0.0`
 
@@ -74,7 +74,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 - [ ] Every TODO item is ticked, or explicitly moved to post-1.0 in the theme docs
 - [ ] The rc builds through the release pipeline, and the downstream library passes its own tests against it
 - [ ] The API-compat check is active against `v1.0.0`
-- [ ] A named statistics reviewer's sign-off is recorded in `docs/roadmap/reviews/U08-statistics-review.md`, every open item there (U08 and U09 sections) resolved or deferred with a reason, and `.github/CODEOWNERS` routes the guidance registries to the reviewer
+- [ ] A named statistics reviewer's sign-off is recorded in `docs/roadmap/reviews/U08-statistics-review.md` and `docs/roadmap/reviews/U12-weighting-review.md`, every open item there (U08, U09 and U12) resolved or deferred with a reason, and `.github/CODEOWNERS` routes the guidance registries to the reviewer
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
@@ -90,7 +90,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 ## Human inputs & decisions
 
 - Maintainer runs the downstream validation and tags the release
-- **Statistics reviewer** (maintainer sources one) signs off U08's inferential and U09's descriptive guidance (#206); no `rc` is tagged before it
+- **Statistics reviewer** (maintainer sources one) signs off U08's inferential and U09's descriptive guidance and U12's weighted inference (#206); no `rc` is tagged before it
 
 ## Notes
 
@@ -110,7 +110,7 @@ U08 shipped Purpose + Interpretation for every `TEST_*`, `OVERLAY_*` and `REG_*`
 - **Convention choices.** `very small` as the label below Cohen's small; the Chinn (2000) odds-ratio conversion; Cohen 1992 f² → R² for `REG_OLS` `r2`; rank-biserial, d_z, RM partial η², rank ε², Cramér's V, ρ and τ left unbanded.
 - **Decisions the record leaves open.** `OVERLAY_PAIRWISE_PROBIT_T` is anti-conservative by design (keep inferential-flagged, warn, or hide behind a feature profile); `OVERLAY_CHISQ_VS_POP` compares only the listed categories (consider a full-dictionary comparison when `DiscreteTopK` does not truncate); the Shiffler (1988) citation for the ZSCORE_VS_TOTAL bound was not fetched; penalised-OLS p-values are plug-in approximations.
 - **`OVERLAY_INDEX_VS_MARGIN` declared scopes.** The skill lists `row` / `column` scopes and a SERIES output; the capability declares only `cell` / MATRIX. Not verified against the scope gate in U08 — resolve which is right before sign-off.
-- **Numeric correctness is U36's**, not the reviewer's: the runtime bugs the record lists (infinite Fisher OR / correlation `t`, Brown–Forsythe at zero spread, the inverse-erf CI, Shapiro n < 5) and the per-output oracles land in [U36](U36-reference-oracles.md) before this unit.
+- **Numeric correctness is U36's**, not the reviewer's: the runtime bugs the record lists (infinite Fisher OR / correlation `t`, Brown–Forsythe at zero spread, Shapiro n < 5; the inverse-erf CI was fixed by U12) and the per-output oracles land in [U36](U36-reference-oracles.md) before this unit.
 - **CODEOWNERS.** Point the reviewer's entries at the landed registries: `internal/descriptor/{purposes,purposes_*,interpretations,interpretations_*,conventions,glossary,intents}.go`, `internal/descriptor/testdata/conventions.json`, the effect-size code in `internal/processing/test_*.go`, `internal/statdist/` and `scripts/reference/`. `.github/CODEOWNERS` carries only the default `*` owner today.
 
 ## Inherited from U09
@@ -120,3 +120,11 @@ U09 gave every descriptive built-in (aggregators, attributes, windows, features,
 - **Open items.** Work the "Open items for the U33 human reviewer (U09)" list. Most are runtime behaviours the guidance now describes honestly and that are logged for [U36](U36-reference-oracles.md): truthy filters on category labels, 0 for empty groups, text-order group rows, `AGG_ZSCORE`'s shape, normal-not-t CI bounds, the unstable `ATTR_PERCENTILE` tie order, 0 / 50 for missing attribute inputs, the split-blind target encoder, synth `u4` wraparound, and numeric groupers accepting category fields.
 - **Unbanded shape readings.** Skewness, kurtosis and the descriptive z / T scores carry no bands (fixture `excluded`). Confirm that is right.
 - **CODEOWNERS** covers the descriptive registries too (`purposes_*.go` and `interpretations_*.go` already match the globs above).
+
+## Inherited from U12
+
+U12 made the significance tests, regressions, CI bounds, scores, quantile buckets and inferential overlays weight-aware on one rule (N* = Σw or Kish n_eff; the frequency formula on w*). It ran without a human reviewer: binding gates (unity byte parity, exact frequency expansion against stock R, probability scale invariance, external references) plus a one-pass advisory LLM statistician panel. The record is [`reviews/U12-weighting-review.md`](../reviews/U12-weighting-review.md). #206 signs it off there:
+
+- **Open items.** Work its "Open items for the U33 human reviewer (U12)" list — headed by WS-01 (one-way ANOVA F under between-group probability-weight variation) and the undefined-figure cases at tiny n_eff (WS-05 / WS-12). The docs story applied the documentation findings; the engine findings await owner triage.
+- **The method itself.** No external software implements Kish-w* inference, so the probability arm is verified for arithmetic and scale invariance only. Sign off (or not) the framing in `.claude/reference/weighting.md` (Weighted inference): unequal-weighting correction only, weights assumed unrelated to the outcome, not design-based, χ² first-order Kish not Rao-Scott.
+- **CODEOWNERS.** Add `internal/weighting/`, the weighted paths of `internal/processing/test_*.go` / `regression/` / `overlay*.go`, and `internal/service/testdata/weight_reference/` to the reviewer's entries.

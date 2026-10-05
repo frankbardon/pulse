@@ -134,11 +134,11 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#52** Weighted aggregators incl. percentiles; `AGG_WEIGHTED_MEAN` alias · [U11](units/U11-weighting-descriptive.md)
 - [x] **#53** Weighted crosstab cells and margins; unweighted base via `margin_aggregations` · [U11](units/U11-weighting-descriptive.md)
 - [x] **#54** Weighted share / index overlays · [U11](units/U11-weighting-descriptive.md)
-- [ ] **#55** Weighted tests and significance overlays with Kish `n_eff` (partly shipped in v0.39.1: `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` with `n_basis`) · [U12](units/U12-weighting-inferential.md)
-- [ ] **#56** Weighted attributes, `GROUP_QUANTILE`, regressions · [U12](units/U12-weighting-inferential.md)
+- [x] **#55** Weighted tests and significance overlays with Kish `n_eff` (partly shipped in v0.39.1: `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` with `n_basis`) · [U12](units/U12-weighting-inferential.md)
+- [x] **#56** Weighted attributes, `GROUP_QUANTILE`, regressions · [U12](units/U12-weighting-inferential.md)
 - [x] **#57** Components `w_sum` / `n_eff`; manifest `weight_aware`; predict reporting; extension `WeightAware` (`n_eff`, `sum_weights_sq`, `m2_weighted`, `weighted_variance` already ship on `AGG_WEIGHTED_MEAN` as of v0.39.1; `sum_weights` vs `w_sum` naming is U11's to reconcile — shipped as `sum_weights`, no `w_sum` alias) · [U11](units/U11-weighting-descriptive.md)
 - [x] **#58** SPSS weight-variable capture and suggestion · [U11](units/U11-weighting-descriptive.md)
-- [ ] **#59** `TestWeightUnityParity`, `TestWeightFrequencyExpansionParity`, reference fixtures; `weighting.md` skill · [U12](units/U12-weighting-inferential.md)
+- [x] **#59** `TestWeightUnityParity`, `TestWeightFrequencyExpansionParity`, reference fixtures; `weighting.md` skill · [U12](units/U12-weighting-inferential.md)
 
 ### Multiple comparisons ([statistical-integrity 02](v1.0.0-statistical-integrity/02-multiple-comparisons.md))
 - [ ] **#60** `processing/multiplicity`: Bonferroni, Holm, BH, BY · [U13](units/U13-multiplicity.md)
@@ -152,7 +152,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#202** Per-output R oracle for every `TEST_*` family at tight relative tolerance: Shapiro–Wilk (Shapiro–Francia W′ + p), Brown–Forsythe, Tukey q / `p_adj`, KS p, Kendall τ-b with ties, Mann–Kendall (`TEST_TREND`) p, Pearson CI, and every family's p-value (row and post twins) · [U36](units/U36-reference-oracles.md)
 - [ ] **#203** `REG_OLS` (incl. ridge / lasso / elastic net) and `REG_GLM` (binomial, poisson, gamma) coefficients, SEs and p-values, and the `REG_BAYES_LINEAR` posterior, pinned to an external reference · [U36](units/U36-reference-oracles.md)
 - [ ] **#204** De-circularised overlay oracles: `OVERLAY_CHISQ_VS_POP`, `OVERLAY_CHISQ_VS_REF`, `OVERLAY_KS_VS_POP` and `OVERLAY_PAIRWISE_PROBIT_T` checked against an independent R computation · [U36](units/U36-reference-oracles.md)
-- [ ] **#205** Runtime bugs found in U08: infinite `TEST_FISHER_EXACT` OR and Pearson / Spearman `details.t` break `--json`; `TEST_BROWN_FORSYTHE` F = 0, p = 0 at zero within-group spread; Winitzki inverse-erf CI critical z ~4.7e-4 too small; Shapiro–Francia p uncalibrated for n < 5 · [U36](units/U36-reference-oracles.md)
+- [ ] **#205** Runtime bugs found in U08: infinite `TEST_FISHER_EXACT` OR and Pearson / Spearman `details.t` break `--json`; `TEST_BROWN_FORSYTHE` F = 0, p = 0 at zero within-group spread; Shapiro–Francia p uncalibrated for n < 5 (the Winitzki inverse-erf CI critical z, ~4.7e-4 too small, was fixed by [U12](units/U12-weighting-inferential.md) E5-S1) · [U36](units/U36-reference-oracles.md)
 
 ---
 
@@ -323,7 +323,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#168** `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md)) · [U33](units/U33-v1-release.md)
 - [ ] **#169** Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library · [U33](units/U33-v1-release.md)
 - [ ] **#170** `v1.0.0` tagged · [U33](units/U33-v1-release.md)
-- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section), signs off the U08 inferential AND the U09 descriptive guidance, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
+- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) and the [U12 weighted-inference review](reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
 
 ---
 

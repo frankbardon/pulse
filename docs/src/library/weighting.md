@@ -105,8 +105,11 @@ warning is an error.
 ## What a weight applies to
 
 Check the manifest rather than this page: every operator that computes
-a weighted figure carries `weight_aware: true`. Extension operators
-declare it the same way.
+a weighted figure carries `weight_kinds` — `["frequency", "probability"]`
+when it is weighted under both kinds, `["frequency"]` when only
+frequency weights have a standard weighted form — with
+`weight_aware: true` beside it. Extension operators declare
+`weight_aware` (they have no `weight_kinds`; see the last section).
 
 | Operator class | Explicit weight (slot or request) | `DefaultWeight` only |
 |---|---|---|
@@ -121,7 +124,8 @@ declare it the same way.
 | ordinary least squares (plain, ridge, lasso, elastic net), the GLM (binomial, poisson, gamma), the regression attributes (fitted value, residual, leverage) | weighted (both kinds) | weighted |
 | the z-score and t-score attributes, the quantile grouper (on `groups` and both crosstab axes) | weighted (both kinds) | weighted |
 | Bayesian linear regression | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| other tests, any regression with `resample` or `selection`, the percentile-rank attribute, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| Shapiro-Wilk, Tukey HSD, repeated-measures ANOVA, the trend test, every post-test, any regression with `resample` or `selection`, the percentile-rank attribute, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` (permanent) | `PULSE_WEIGHT_UNSUPPORTED` (permanent) |
+| the min-max rescale attribute (`ATTR_NORMALIZED`) | `PROCESSING_CONFIG` | skipped |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
 with its sample size read as Σw under `kind: frequency` (a weight of 3
@@ -143,7 +147,15 @@ Pearson test on that table (identical to the expanded rows); under
 n_eff before the ordinary Pearson test, and the expected-count check,
 Cramér's V and φ read that scaled table. This is a first-order Kish
 approximation, not the Rao-Scott correction survey software
-(`survey::svychisq`) applies.
+(`survey::svychisq`) applies. It matches Rao-Scott only when the
+weights are unrelated to both classifications; when the weights are
+constant within each category of one margin (a sample stratified on
+the row variable, say) it is conservative.
+
+With probability weights that differ between the groups, the one-way
+ANOVA F test scales every group by one whole-sample n_eff and can be
+far too conservative; prefer the Welch ANOVA, which reads each group's
+own n_eff.
 
 The rank tests take frequency weights only. A row of weight w ranks as
 w identical rows (a run of tied values shares the mid-rank of its
@@ -229,14 +241,33 @@ counts stay raw row counts. A row with no usable weight is bucketed by
 its value. The slot `weight` on a `groups[i]` or crosstab-axis quantile
 grouper opts it in or out like any other slot.
 
-**Other weighted inference is not available yet.** The last row is
+**Refused operators.** The permanently refused row has no standard
+weighted form (or, for the post-tests, Tukey HSD and the trend test,
+reads aggregated result rows that carry no row weights), so it is
 refused rather than silently computed unweighted beside weighted
-figures. To
-run one of those operators in a weighted request, give its slot
-`"weight": null`. On an instance with a `DefaultWeight`, every
-inferential slot needs that opt-out. A weight-aware aggregator over a
-`decimal128` field is also `PULSE_WEIGHT_UNSUPPORTED`, because the
-decimal path has no weighted form.
+figures. To run one of those operators in a weighted request, give its
+slot `"weight": null`; on an instance with a `DefaultWeight`, each such
+slot needs that opt-out. `PULSE_WEIGHT_UNSUPPORTED` says why in its
+`details`: `reason` for a permanent refusal, `alternative` when a
+weighted twin exists (the pairwise two-means z points at
+`OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`), and `kind` with
+`supported_kinds: ["frequency"]` when a frequency-only operator meets a
+probability weight. A weight-aware aggregator over a `decimal128` field
+is also `PULSE_WEIGHT_UNSUPPORTED`, because the decimal path has no
+weighted form.
+
+**What the effective sample size does and does not do.** Every weighted
+test, regression, confidence bound and inferential overlay reads one
+effective size: Σw for frequency weights, Kish's n_eff for probability
+weights. Kish's n_eff corrects for unequal weights only, and assumes the
+weights are unrelated to the outcome and to the comparison; for
+slopes, correlations, group contrasts and tables it is a rule of
+thumb. It knows nothing of strata, clusters or a finite population, so on a complex
+survey design the p-values and intervals are narrower than a
+design-based analysis (R `survey`, Stata `svy`) would give. Use Pulse's
+figures to screen and describe, and a design-based tool when the design
+matters. In every weighted result, read `n_eff` (or `sum_weights` under
+frequency weights) as the sample size, never `n`.
 
 `pulse predict` reports the outcome for every slot under
 `data.weights[]`: `{slot, operator, field, kind, status, source}`.
@@ -287,9 +318,11 @@ overlays refuse when a weight reaches the overlay itself: its own
 `weight`, the request's, or the default. Its `"weight": null` opts it
 out. A host weighted only by its own slot weight does not trigger the
 refusal.
-`OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` is the exception, built for
+`OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` is the weighted twin, built for
 weighted cells: its host is an `AGG_WEIGHTED_MEAN` cell or a weighted
-`AGG_AVERAGE` cell.
+`AGG_AVERAGE` cell. It accepts both weight kinds, and for this overlay
+only its required `n_basis` param (`weights` for Σw, `kish` for n_eff),
+not the weight's `kind`, decides the sample size.
 
 The mean-comparison overlays (`OVERLAY_T_CELL`, `OVERLAY_Z_CELL`,
 `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF`, `OVERLAY_PAIRWISE_WELCH_T`) run
@@ -380,6 +413,9 @@ refuses `Options.DefaultWeight` with `PULSE_FEATURE_PROFILE_DEPENDENCY`.
 
 Aggregators, attributes and tests registered through
 `pulse.Options.Extensions` declare `WeightAware` and read the row
-weight with `extend.Record.Weight()`. Undeclared ones are skipped or
-refused (`PULSE_EXTENSION_NOT_WEIGHT_AWARE`). The recipe is in
+weight with `extend.Record.Weight()`. A WeightAware extension runs under
+both weight kinds: there is no per-kind declaration, so an extension
+with no probability-weighted form reads the kind off its slot spec and
+refuses itself. Undeclared ones are skipped or refused
+(`PULSE_EXTENSION_NOT_WEIGHT_AWARE`). The recipe is in
 [Extension Points](../internals/extension-points.md).

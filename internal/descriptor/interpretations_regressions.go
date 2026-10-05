@@ -39,6 +39,7 @@ var (
 		Means: "Rows used in the fit, after rows with a null target or predictor were dropped.",
 		Caveats: []string{
 			"Few rows per predictor make every estimate unstable and invite overfitting.",
+			"Under a row weight it stays the row count: the fit's sample size is sum_weights (frequency weights) or n_eff, Kish's effective sample size (probability weights), and the standard errors and residual degrees of freedom read that, not n_obs.",
 		},
 	}
 	regAdjR2Caveats = []string{
