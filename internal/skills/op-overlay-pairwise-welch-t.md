@@ -15,7 +15,7 @@ Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope 
 
 `Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis.
 
-`n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert. `n_within_depth` stays accepted and inert. Detail: `pairwise-n-sources`.
+`n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert (weighted host: see Gotchas). `n_within_depth` stays accepted and inert. Detail: `pairwise-n-sources`.
 
 ## Host shape
 
@@ -27,7 +27,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values<!-- feature: OVERLAY
 
 ## Gotchas
 
-- No weighted form yet: a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the overlay to run it unweighted.
+- Weighted host (both kinds, any source): legs read N* = `sum_weights` (frequency) / `n_eff` (probability), variance from `m2` on w*, df on N*; `Summary.Parameters` adds `sum_weights` (+ `n_eff`). There `n_source` `cell_n_unweighted` / `row_margin_n` / `column_margin_n` (and `cell_weight_sum` under probability) is `PROCESSING_CONFIG` in predict AND runtime.
 - Either leg with `n <= 1` skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - RAW p-values only — direction / thresholds are the embedder's job.
 - Buffered (inferential) — and so is the HOST: the `AGG_WELFORD` cell is non-mergeable, so `CanFuseCrosstab` rejects on the cell-aggregator arm. Expected (`TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`).

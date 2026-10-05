@@ -129,3 +129,48 @@ func TestBasisOf(t *testing.T) {
 func approxEq(a, b float64) bool {
 	return math.Abs(a-b) <= 1e-12*math.Max(1, math.Max(math.Abs(a), math.Abs(b)))
 }
+
+// TestScaledVariance: the moment-holder's variance — what an overlay
+// reads off a host cell's {m2, sum_weights, n_eff} — is the bucket's
+// Variance under every basis, and c·M2/(N* − 1) in closed form.
+func TestScaledVariance(t *testing.T) {
+	var w Welford
+	for i, x := range []float64{3, 7, 4, 9, 12} {
+		w.Add(x, []float64{1, 3, 2, 1, 4}[i])
+	}
+	for _, b := range []Basis{Unweighted, Frequency, Probability} {
+		if got, want := ScaledVariance(b, w.M2, w.SumW, w.NStar(b)), w.Variance(b); got != want {
+			t.Fatalf("basis %v: %v, want %v bit for bit", b, got, want)
+		}
+	}
+	nEff := w.NEff()
+	if got, want := ScaledVariance(Probability, w.M2, w.SumW, nEff), (nEff/w.SumW)*w.M2/(nEff-1); !approxEq(got, want) {
+		t.Fatalf("probability %v, want %v", got, want)
+	}
+	if ScaledVariance(Probability, 5, 2, 1) != 0 || ScaledVariance(Frequency, 5, 1, 1) != 0 {
+		t.Fatal("N* ≤ 1 must report 0")
+	}
+}
+
+// TestNSourceRefusal: the weighted-host n_source rule — raw row counts
+// refused under both kinds, the weight sum under probability only,
+// nothing on an unweighted host or for an omitted source.
+func TestNSourceRefusal(t *testing.T) {
+	refused := map[Basis][]string{
+		Unweighted:  nil,
+		Frequency:   {"cell_n_unweighted", "row_margin_n", "column_margin_n"},
+		Probability: {"cell_n_unweighted", "row_margin_n", "column_margin_n", "cell_weight_sum"},
+	}
+	all := []string{"", "cell_n_unweighted", "row_margin_n", "column_margin_n", "cell_weight_sum", "cell_value_weighted", "n_within"}
+	for basis, want := range refused {
+		for _, s := range all {
+			isRefused := false
+			for _, r := range want {
+				isRefused = isRefused || r == s
+			}
+			if got := NSourceRefusal(s, basis) != ""; got != isRefused {
+				t.Errorf("basis %v n_source %q: refused %v, want %v", basis, s, got, isRefused)
+			}
+		}
+	}
+}

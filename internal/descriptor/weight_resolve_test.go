@@ -759,8 +759,8 @@ func TestResolveWeights_WindowsAndUnaffected(t *testing.T) {
 
 // TestResolveWeights_InferentialOverlays: the overlay refusal is keyed
 // off the manifest Inferential flag, never a hand list — every
-// Inferential kind but OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z is
-// PULSE_WEIGHT_UNSUPPORTED under a weight in force on its own slot
+// Inferential kind the class table does not lift (ClassAware /
+// ClassFrequencyOnly) is PULSE_WEIGHT_UNSUPPORTED under a weight in force on its own slot
 // (request / default / slot); `weight: null` on the overlay opts out.
 // A host weighted only by its own slot weight does not refuse an
 // overlay nothing weights (the shipped pairwise n_source modes read
@@ -779,8 +779,10 @@ func TestResolveWeights_InferentialOverlays(t *testing.T) {
 	for _, c := range OverlayCapabilities() {
 		k := c.Kind
 		refuses := overlayWeightClass(string(k)) == weighting.ClassRefuse
-		if refuses != (c.Inferential && k != types.OverlayKindPairwiseWeightedTwoMeansZ) {
-			t.Fatalf("%s: class %v disagrees with the Inferential flag and the exemption", k, overlayWeightClass(string(k)))
+		w, listed := overlayWeightClasses[k]
+		lifted := listed && w.class != weighting.ClassRefuse
+		if refuses != (c.Inferential && !lifted) {
+			t.Fatalf("%s: class %v disagrees with the Inferential flag and the lifted kinds", k, overlayWeightClass(string(k)))
 		}
 		if refuses {
 			inferential++

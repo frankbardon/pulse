@@ -818,6 +818,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 	colCount := len(targetMx.ColumnKeys)
 	cells := buildEmptyMatrixLike(rowCount, colCount)
 
+	var tally weightedLegTally
 	targetLabel := composeFirstTargetLabel(spec)
 	var (
 		warnings []types.OverlayWarning
@@ -856,14 +857,14 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				continue
 			}
 
-			tMean, tVar, tN, tHasTriple := extractCellComponentsTriple(target, i, j)
+			tLeg, tHasTriple := extractCellComponentsTriple(target, i, j)
 			refCoord, refCoordOK := refCoordLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			var (
-				rMean, rVar, rN float64
-				rHasTriple      bool
+				rLeg       meanLeg
+				rHasTriple bool
 			)
 			if refCoordOK {
-				rMean, rVar, rN, rHasTriple = extractCellComponentsTriple(reference, refCoord.Row, refCoord.Col)
+				rLeg, rHasTriple = extractCellComponentsTriple(reference, refCoord.Row, refCoord.Col)
 			}
 			tScalar, tHasScalar := scalarFromCell(cell)
 			rScalar, rHasScalar := scalarFromCell(refCell)
@@ -893,12 +894,14 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				refVal        float64
 			)
 			if tHasTriple {
-				meanT = tMean
-				vT = tVar
-				nT = tN
-				meanR = rMean
-				vR = rVar
-				nR = rN
+				meanT = tLeg.mean
+				vT = tLeg.variance
+				nT = tLeg.nStar
+				meanR = rLeg.mean
+				vR = rLeg.variance
+				nR = rLeg.nStar
+				tally.add(tLeg)
+				tally.add(rLeg)
 				targetVal = meanT
 				refVal = meanR
 			} else if tHasScalar && rHasScalar {
@@ -952,6 +955,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 		zeroCount := 0
 		summary.Count = &zeroCount
 	}
+	tally.stamp(summary)
 	layer := composeMatrixOverlayLayer(spec, targetMx, cells, summary)
 	return layer, warnings, nil
 }

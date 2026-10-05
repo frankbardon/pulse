@@ -116,7 +116,8 @@ declare it the same way.
 | filters, features, row-local attributes, other groupers | skipped | skipped |
 | the moment tests — t (one- and two-sample), Welch t, paired t, two-sample z, one-way ANOVA F, Welch ANOVA, Pearson r — plus the two-proportion z-test and the χ² independence test | weighted (both kinds) | weighted |
 | the rank tests — Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ, Kendall τ-b — plus Fisher's exact test, the two-sample Kolmogorov-Smirnov test and Brown-Forsythe | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, inferential overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| the mean-comparison overlays — cell and reference t and z, pairwise Welch t | weighted (both kinds) | weighted |
+| other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, other inferential overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
 with its sample size read as Σw under `kind: frequency` (a weight of 3
@@ -225,6 +226,22 @@ own slot weight does not trigger the refusal.
 `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` is the exception, built for
 weighted cells: its host is an `AGG_WEIGHTED_MEAN` cell or a weighted
 `AGG_AVERAGE` cell.
+
+The mean-comparison overlays (`OVERLAY_T_CELL`, `OVERLAY_Z_CELL`,
+`OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF`, `OVERLAY_PAIRWISE_WELCH_T`) run
+weighted under both kinds. A host cell is weighted when its components
+carry `sum_weights`, whatever set the weight — including the cell's own
+slot weight. Such a cell's sample size is Σw (`frequency`) or n_eff
+(`probability`), never its raw row count, and its variance is
+recomputed from `m2` on the rescaled weights; degrees of freedom may be
+fractional. The layer summary's `parameters` add `sum_weights` (and
+`n_eff` under `probability`) over the cells the layer read. Before
+this release a host weighted only by its own slot weight ran these
+overlays on raw row counts, which gave standard errors that were too
+small; that was a bug and is fixed. On a weighted host the pairwise
+Welch t refuses an `n_source` that reads raw row counts
+(`cell_n_unweighted`, `row_margin_n`, `column_margin_n`), and
+`cell_weight_sum` under `probability`, with `PROCESSING_CONFIG`.
 
 ## Reading weighted components
 

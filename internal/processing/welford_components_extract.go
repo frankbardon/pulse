@@ -25,38 +25,22 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// extractCellComponentsTriple reads `(mean, variance, n)` from the
-// per-cell components map at Response.Components.Crosstab.CellComponents
-// [r][c]. Returns (0, 0, 0, false) when the response carries no
-// Components.Crosstab.CellComponents matrix, the (r, c) coordinate is
-// out of range, the entry is nil, or any of the `mean` / `variance` /
-// `n` keys are missing or non-numeric.
+// extractCellComponentsTriple reads the per-cell components map at
+// Response.Components.Crosstab.CellComponents[r][c] through the
+// weighted-host rule (readMeanLeg): `(mean, variance, n)` on an
+// unweighted cell, `(mean, variance on w*, N*)` on a weighted one.
+// ok=false when the response carries no Components.Crosstab
+// CellComponents matrix, the (r, c) coordinate is out of range, the
+// entry is nil, or any of the `mean` / `variance` / `n` keys are
+// missing or non-numeric.
 //
-// Callers route a (false, false) outcome through the scalar + Params
+// Callers route an ok=false outcome through the scalar + Params
 // fallback path for the scalar-cell case.
-func extractCellComponentsTriple(resp *types.Response, r, c int) (mean, variance, n float64, ok bool) {
+func extractCellComponentsTriple(resp *types.Response, r, c int) (meanLeg, bool) {
 	if resp == nil || resp.Components == nil || resp.Components.Crosstab == nil {
-		return 0, 0, 0, false
+		return meanLeg{}, false
 	}
-	matrix := resp.Components.Crosstab.CellComponents
-	if r < 0 || r >= len(matrix) {
-		return 0, 0, 0, false
-	}
-	row := matrix[r]
-	if c < 0 || c >= len(row) {
-		return 0, 0, 0, false
-	}
-	cell := row[c]
-	if cell == nil {
-		return 0, 0, 0, false
-	}
-	meanV, meanOK := componentsNumeric(cell, "mean")
-	varV, varOK := componentsNumeric(cell, "variance")
-	nV, nOK := componentsNumeric(cell, "n")
-	if !meanOK || !varOK || !nOK {
-		return 0, 0, 0, false
-	}
-	return meanV, varV, nV, true
+	return newCrosstabHostViewWithComponents(nil, resp.Components.Crosstab).MeanLeg(r, c)
 }
 
 // componentsNumeric coerces a components-map value to float64. Accepts
@@ -97,10 +81,10 @@ func componentsNumeric(m map[string]any, key string) (float64, bool) {
 // the entry is addressable; both false means the row had no numeric /
 // map-shaped value column.
 type seriesRowComponents struct {
-	Scalar    float64
-	Mean      float64
-	Variance  float64
-	N         float64
+	Scalar float64
+	// Leg is the triple read through the weighted-host rule
+	// (readMeanLeg); set when HasTriple.
+	Leg       meanLeg
 	HasScalar bool
 	HasTriple bool
 }
@@ -120,9 +104,9 @@ type seriesRowComponents struct {
 // hasScalar=true; an empty row returns both flags false. Maps lacking
 // any of the three triple keys fall through to the next column (mirrors
 // encodeSeriesRowAny's per-column probe order).
-func encodeSeriesRowAnyMap(row map[string]any) (key string, valueCol string, scalar float64, mean float64, variance float64, n float64, hasScalar bool, hasTriple bool) {
+func encodeSeriesRowAnyMap(row map[string]any) (key string, valueCol string, scalar float64, leg meanLeg, hasScalar bool, hasTriple bool) {
 	if len(row) == 0 {
-		return "", "", 0, 0, 0, 0, false, false
+		return "", "", 0, meanLeg{}, false, false
 	}
 	cols := make([]string, 0, len(row))
 	for k := range row {
@@ -133,15 +117,12 @@ func encodeSeriesRowAnyMap(row map[string]any) (key string, valueCol string, sca
 	hasValue := false
 	for _, col := range cols {
 		v := row[col]
-		if m, tMean, tVar, tN, mapOK := tripleProbe(v); mapOK {
+		if tLeg, mapOK := tripleProbe(v); mapOK {
 			if !hasValue {
 				valueCol = col
-				mean = tMean
-				variance = tVar
-				n = tN
+				leg = tLeg
 				hasTriple = true
 				hasValue = true
-				_ = m
 				continue
 			}
 			keyParts = append(keyParts, col+"="+anyToCanonicalString(v))
@@ -161,36 +142,24 @@ func encodeSeriesRowAnyMap(row map[string]any) (key string, valueCol string, sca
 		keyParts = append(keyParts, col+"="+anyToCanonicalString(v))
 	}
 	if len(keyParts) == 0 {
-		return "", valueCol, scalar, mean, variance, n, hasScalar, hasTriple
+		return "", valueCol, scalar, leg, hasScalar, hasTriple
 	}
 	out := keyParts[0]
 	for i := 1; i < len(keyParts); i++ {
 		out += "|" + keyParts[i]
 	}
-	return out, valueCol, scalar, mean, variance, n, hasScalar, hasTriple
+	return out, valueCol, scalar, leg, hasScalar, hasTriple
 }
 
 // tripleProbe checks whether an `any` is a `map[string]any` carrying
-// the `{mean, variance, n}` key set. Returns the underlying map plus
-// the extracted triple when so, or nil/false otherwise.
-func tripleProbe(v any) (map[string]any, float64, float64, float64, bool) {
+// the `{mean, variance, n}` key set, and reads it through the
+// weighted-host rule (readMeanLeg) when so.
+func tripleProbe(v any) (meanLeg, bool) {
 	m, isMap := v.(map[string]any)
 	if !isMap {
-		return nil, 0, 0, 0, false
+		return meanLeg{}, false
 	}
-	meanV, meanOK := componentsNumeric(m, "mean")
-	if !meanOK {
-		return m, 0, 0, 0, false
-	}
-	varV, varOK := componentsNumeric(m, "variance")
-	if !varOK {
-		return m, 0, 0, 0, false
-	}
-	nV, nOK := componentsNumeric(m, "n")
-	if !nOK {
-		return m, 0, 0, 0, false
-	}
-	return m, meanV, varV, nV, true
+	return readMeanLeg(m)
 }
 
 // matrixCellCoord is the (r, c) integer-pair returned by
@@ -243,15 +212,13 @@ func buildSeriesRowLookupAnyMap(rows []map[string]any) map[string]seriesRowCompo
 		return out
 	}
 	for _, row := range rows {
-		keyStr, _, scalar, mean, variance, n, hasScalar, hasTriple := encodeSeriesRowAnyMap(row)
+		keyStr, _, scalar, leg, hasScalar, hasTriple := encodeSeriesRowAnyMap(row)
 		if !hasScalar && !hasTriple {
 			continue
 		}
 		out[keyStr] = seriesRowComponents{
 			Scalar:    scalar,
-			Mean:      mean,
-			Variance:  variance,
-			N:         n,
+			Leg:       leg,
 			HasScalar: hasScalar,
 			HasTriple: hasTriple,
 		}

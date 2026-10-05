@@ -294,10 +294,13 @@ func sortedKeys(m map[string]*types.Request) []string {
 }
 
 // TestWeight_ComposeInferentialOverlayMatchesValidator: a Compose-host
-// Inferential overlay (OVERLAY_Z_VS_REF) over slots an instance default
-// weight reaches is PULSE_WEIGHT_UNSUPPORTED at runtime and in
-// ValidateComposeWithOptions with the same code, message and details;
-// `weight: null` on the host slots' aggregations runs it.
+// Inferential overlay lifted under both weight kinds (OVERLAY_Z_VS_REF,
+// weighting-inferential E3-S1) over slots an instance default weight
+// reaches runs at runtime and validates clean in
+// ValidateComposeWithOptions — the two arms agree; `weight: null` on
+// the host slots' aggregations runs it too. The refusal arm of the same
+// shared rule (ComposeOverlayWeightRefusal) is pinned per still-refused
+// kind by internal/descriptor TestComposeOverlayWeightRefusal.
 func TestWeight_ComposeInferentialOverlayMatchesValidator(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
@@ -318,19 +321,14 @@ func TestWeight_ComposeInferentialOverlayMatchesValidator(t *testing.T) {
 			Overlays: []types.ComposeOverlaySpec{{Kind: types.OverlayKindZVsRef, Scope: types.OverlayScopeGroup, Reference: "control", Targets: []string{"variant"}}},
 		}
 	}
-	_, rerr := p.Compose(ctx, mk(types.SlotWeight{}))
-	ce := requireCode(t, rerr, errors.PULSE_WEIGHT_UNSUPPORTED)
-	if ce.Details["host"] != "requests[0].aggregations[0]" || ce.Details["operator"] != "OVERLAY_Z_VS_REF" {
-		t.Fatalf("details = %v", ce.Details)
-	}
 	opts := &descx.PredictOptions{SchemaLoader: schemaLoaderFor(fs), DefaultWeight: def}
-	sameEntry(t, descx.ValidateComposeWithOptions(mk(types.SlotWeight{}), opts), rerr)
-
-	if _, err := p.Compose(ctx, mk(types.NullSlotWeight())); err != nil {
-		t.Fatalf("host opted out: %v", err)
-	}
-	if env := descx.ValidateComposeWithOptions(mk(types.NullSlotWeight()), opts); len(env.Errors) != 0 {
-		t.Fatalf("validator refused the opted-out host: %+v", env.Errors)
+	for name, w := range map[string]types.SlotWeight{"weighted": {}, "opted out": types.NullSlotWeight()} {
+		if _, err := p.Compose(ctx, mk(w)); err != nil {
+			t.Fatalf("%s: runtime refused the lifted overlay: %v", name, err)
+		}
+		if env := descx.ValidateComposeWithOptions(mk(w), opts); len(env.Errors) != 0 {
+			t.Fatalf("%s: validator refused the lifted overlay: %+v", name, env.Errors)
+		}
 	}
 }
 
@@ -437,5 +435,59 @@ func TestWeight_NormalizedNotWeightableMatchesPredict(t *testing.T) {
 			t.Fatalf("%s: details = %v", name, ce.Details)
 		}
 		sameEntry(t, predictEnvelope(t, plain, fs, cohort, req()), rerr)
+	}
+}
+
+// TestWeight_PairwiseNSourceMatchesPredict: the weighted-host n_source
+// rule (weighting-inferential E3-S1) refuses at runtime and in predict
+// with the same code and message. The host is weighted by its cell's
+// OWN slot weight — the slot-only host that, before E3-S1, ran the
+// overlay on raw row counts — under each kind; the raw-row-count
+// sources are PROCESSING_CONFIG under both, the weight sum under
+// probability only, and an omitted source runs and predicts clean.
+func TestWeight_PairwiseNSourceMatchesPredict(t *testing.T) {
+	p, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	mk := func(w types.WeightSpec, nSource string) *types.Request {
+		var params json.RawMessage
+		if nSource != "" {
+			params = json.RawMessage(`{"n_source":"` + nSource + `"}`)
+		}
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: cohort},
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 20}},
+				Cell:    &types.Aggregation{Type: types.AGG_WELFORD, Field: "x", Label: "m", Weight: types.SlotWeightOf(w)},
+			},
+			Overlays: []types.OverlaySpec{{Name: "pw", Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeRow, Params: params}},
+		}
+	}
+	for name, w := range map[string]types.WeightSpec{
+		"frequency":   {Field: "t_u8", Kind: types.WeightKindFrequency},
+		"probability": {Field: "y", Kind: types.WeightKindProbability},
+	} {
+		refused := []string{types.PairwiseNSourceCellNUnweighted, types.PairwiseNSourceRowMarginN, types.PairwiseNSourceColumnMarginN}
+		if w.Kind == types.WeightKindProbability {
+			refused = append(refused, types.PairwiseNSourceCellWeightSum)
+		}
+		for _, s := range refused {
+			_, rerr := p.Process(ctx, mk(w, s))
+			ce := requireCode(t, rerr, errors.PROCESSING_CONFIG)
+			env := predictEnvelope(t, p, fs, cohort, mk(w, s))
+			if len(env.Errors) != 1 || env.Errors[0].Code != string(ce.Code) || env.Errors[0].Message != ce.Message {
+				t.Fatalf("%s n_source %s: predict %+v, runtime %s %q", name, s, env.Errors, ce.Code, ce.Message)
+			}
+		}
+		resp, err := p.Process(ctx, mk(w, ""))
+		if err != nil {
+			t.Fatalf("%s omitted n_source: %v", name, err)
+		}
+		if len(resp.Overlays) != 1 || resp.Overlays[0].Summary.Parameters["sum_weights"] <= 0 {
+			t.Fatalf("%s: layer summary %+v, want the host's sum_weights", name, resp.Overlays[0].Summary)
+		}
+		if env := predictEnvelope(t, p, fs, cohort, mk(w, "")); len(env.Errors) != 0 {
+			t.Fatalf("%s omitted n_source: predict errors %+v", name, env.Errors)
+		}
 	}
 }

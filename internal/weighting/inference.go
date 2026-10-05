@@ -114,11 +114,27 @@ func (b *Welford) NEff() float64 { return KishNEff(b.SumW, b.SumWSq) }
 // M2·n_eff/(Σw·(n_eff − 1)) under Probability. 0 when N* ≤ 1, so the
 // caller detects degeneracy itself.
 func (b *Welford) Variance(basis Basis) float64 {
-	nStar := b.NStar(basis)
+	return ScaledVariance(basis, b.M2, b.SumW, b.NStar(basis))
+}
+
+// ScaledVariance is the sample variance on w* of a sample summarised
+// by its M2 = Σw·(x − mean)², Σw and N* (its NStar under basis):
+// c·M2/(N* − 1) with c = N*/Σw under Probability and 1 otherwise —
+// Welford.Variance's exact operation order, for a reader that holds the
+// moments rather than the bucket (an overlay reading a host cell's m2,
+// sum_weights and n_eff). 0 when N* ≤ 1.
+func ScaledVariance(basis Basis, m2, sumW, nStar float64) float64 {
 	if !(nStar > 1) {
 		return 0
 	}
-	return b.ScaledM2(basis) / (nStar - 1)
+	if basis == Probability {
+		c := 0.0
+		if sumW != 0 {
+			c = nStar / sumW
+		}
+		m2 = c * m2
+	}
+	return m2 / (nStar - 1)
 }
 
 // ScaledM2 is M2 on w*: c·M2 (M2 itself under Unweighted / Frequency).
@@ -127,4 +143,39 @@ func (b *Welford) ScaledM2(basis Basis) float64 {
 		return b.M2
 	}
 	return basis.Scale(b.SumW, b.SumWSq) * b.M2
+}
+
+// Weighted-host n_source rule (.claude/reference/weighting.md, Overlays).
+// An overlay on a weighted host — a host cell carrying the weighted floor
+// keys, whatever the weight's source — takes its sample size from N*
+// (sum_weights under frequency, n_eff under probability). An explicit
+// n_source selector is judged against that: a raw-row-count source is
+// never a valid sample size there, and Σw is one only under frequency.
+
+// Overlay n_source spellings the rule names (types.PairwiseNSource*).
+const (
+	nSourceCellNUnweighted = "cell_n_unweighted"
+	nSourceRowMarginN      = "row_margin_n"
+	nSourceColumnMarginN   = "column_margin_n"
+	nSourceCellWeightSum   = "cell_weight_sum"
+)
+
+// NSourceRefusal is why an explicit overlay n_source cannot stand on a
+// host weighted under basis, "" when it can (an omitted source reads
+// the kind-driven N*; a source the rule does not name keeps its own
+// contract). The predict validator and the overlay runtime both raise
+// it as PROCESSING_CONFIG, so the two arms refuse identically.
+func NSourceRefusal(nSource string, basis Basis) string {
+	if !basis.Weighted() {
+		return ""
+	}
+	switch nSource {
+	case nSourceCellNUnweighted, nSourceRowMarginN, nSourceColumnMarginN:
+		return "raw row count is not a valid sample size on a weighted host; omit n_source to read the weighted sample size N* (sum_weights under kind frequency, n_eff under kind probability)"
+	case nSourceCellWeightSum:
+		if basis == Probability {
+			return "the weight sum overstates the sample size under weight kind probability; omit n_source to read Kish n_eff"
+		}
+	}
+	return ""
 }

@@ -310,6 +310,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 
 	entries := make([]types.SeriesEntry, 0, len(target.Data))
 	targetLabel := composeFirstTargetLabel(spec)
+	var tally weightedLegTally
 	var (
 		warnings []types.OverlayWarning
 		minV     float64
@@ -318,7 +319,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	)
 
 	for i, row := range target.Data {
-		keyStr, _, scalar, mean, variance, n, hasScalar, hasTriple := encodeSeriesRowAnyMap(row)
+		keyStr, _, scalar, leg, hasScalar, hasTriple := encodeSeriesRowAnyMap(row)
 		if !hasScalar && !hasTriple {
 			continue
 		}
@@ -328,9 +329,10 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			targetN    float64
 		)
 		if hasTriple {
-			targetMean = mean
-			targetVar = variance
-			targetN = n
+			targetMean = leg.mean
+			targetVar = leg.variance
+			targetN = leg.nStar
+			tally.add(leg)
 		} else {
 			targetMean = scalar
 			targetVar = varTargetDefault
@@ -382,9 +384,10 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			refN    float64
 		)
 		if refEntry.HasTriple {
-			refMean = refEntry.Mean
-			refVar = refEntry.Variance
-			refN = refEntry.N
+			refMean = refEntry.Leg.mean
+			refVar = refEntry.Leg.variance
+			refN = refEntry.Leg.nStar
+			tally.add(refEntry.Leg)
 		} else {
 			refMean = refEntry.Scalar
 			refVar = varRefDefault
@@ -451,6 +454,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 		zeroCount := 0
 		summary.Count = &zeroCount
 	}
+	tally.stamp(summary)
 	layer.Summary = summary
 	return layer, warnings, nil
 }

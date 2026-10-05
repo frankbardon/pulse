@@ -119,6 +119,14 @@ var overlayWeightClasses = map[types.OverlayKind]overlayWeighting{
 	// Computes its own weighted z from the host's weighted moments,
 	// under either kind (its n_basis is the caller's choice).
 	types.OverlayKindPairwiseWeightedTwoMeansZ: {class: weighting.ClassAware},
+	// Mean comparisons on AGG_WELFORD legs read through the weighted-host
+	// rule (processing.CrosstabHostView.MeanLeg): N* off the floor keys,
+	// the variance recomputed from m2 on w*, Welch df on N*.
+	types.OverlayKindTCell:          {class: weighting.ClassAware},
+	types.OverlayKindTVsRef:         {class: weighting.ClassAware},
+	types.OverlayKindZCell:          {class: weighting.ClassAware},
+	types.OverlayKindZVsRef:         {class: weighting.ClassAware},
+	types.OverlayKindPairwiseWelchT: {class: weighting.ClassAware},
 	types.OverlayKindPairwiseTwoMeansZ: {class: weighting.ClassRefuse,
 		reason: "its unweighted Welford triple cannot carry a weighted variance; its weighted twin computes the weighted z",
 		twin:   types.OverlayKindPairwiseWeightedTwoMeansZ},
@@ -693,6 +701,33 @@ func inheritedHostWeight(req *types.Request, defaultWeight *types.WeightSpec, in
 		}
 	}
 	return "", "", ""
+}
+
+// crosstabCellWeightBasis is the weight basis of req's crosstab cell —
+// the weighted-host signal a per-Request overlay reads: the cell's
+// resolved weight (slot → request → Options.DefaultWeight; `weight:
+// null` opts out) when APPLIED, so the cell carries the weighted floor
+// keys at runtime, whatever the weight's source. Unweighted when the
+// cell resolves none, is not weight-aware, or the request is refused
+// on another slot (that refusal is reported on its own).
+func crosstabCellWeightBasis(req *types.Request, opts *PredictOptions) weighting.Basis {
+	if req == nil || req.Crosstab == nil {
+		return weighting.Unweighted
+	}
+	var def *types.WeightSpec
+	if opts != nil {
+		def = opts.DefaultWeight
+	}
+	rws, err := ResolveWeights(req, nil, def, opts.instance())
+	if err != nil {
+		return weighting.Unweighted
+	}
+	for _, rw := range rws {
+		if rw.Slot == "crosstab.cell" && rw.Status == descriptor.WeightStatusApplied {
+			return weighting.BasisOf(&types.WeightSpec{Field: rw.Field, Kind: types.WeightKind(rw.Kind)})
+		}
+	}
+	return weighting.Unweighted
 }
 
 // ComposeOverlayWeightRefusal is the Compose-host half of the overlay

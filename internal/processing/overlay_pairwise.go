@@ -130,7 +130,10 @@ type pwInputs struct {
 	m1, m2 float64
 	v1, v2 float64
 	n1, n2 int
-	w1, w2 weightedMoments
+	// nf1 / nf2 are the Welford legs' sample sizes: the raw n on an
+	// unweighted cell, N* on a weighted one (CrosstabHostView.MeanLeg).
+	nf1, nf2 float64
+	w1, w2   weightedMoments
 }
 
 // pwKernel computes one pair's two-sided p-value. ok=false with a reason
@@ -168,6 +171,18 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires AGG_WELFORD cells (Welford triple on CellComponents); host matrix has none",
 			map[string]any{"kind": string(spec.Kind)})
+	}
+	// Weighted-host n_source rule (weighting.NSourceRefusal): on a host
+	// whose cells carry the weighted floor keys the Welford legs read N*,
+	// so a raw-row-count n_source — or the weight sum under kind
+	// probability — is PROCESSING_CONFIG, as predict reports it.
+	weightedWelford := false
+	if shape == pwShapeWelford {
+		basis := host.WeightBasis()
+		if err := overlayNSourceWeightedRefusal(spec.Kind, params.NSource, basis); err != nil {
+			return types.OverlayLayer{}, nil, err
+		}
+		weightedWelford = basis.Weighted()
 	}
 	// The weighted kind needs the weighted moments on at least one cell
 	// — emitted by AGG_WEIGHTED_MEAN and by a WEIGHTED AGG_AVERAGE (its
@@ -271,6 +286,19 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	}
 
 	tally := newPairwiseTally()
+	// The weighted legs the layer read, each cell once (a cell is a leg
+	// of every pair it sits in), for the summary's Parameters.
+	var legs weightedLegTally
+	legSeen := map[[2]int]bool{}
+	addLeg := func(r, c int) {
+		if legSeen[[2]int{r, c}] {
+			return
+		}
+		legSeen[[2]int{r, c}] = true
+		if l, ok := host.MeanLeg(r, c); ok {
+			legs.add(l)
+		}
+	}
 
 	// pvals[pairPos][opp] — laid out pair-major; transposed into the
 	// output MatrixPayload below per scope.
@@ -285,6 +313,10 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 				tally.add("ORBIT_STATS_SKIP_EXTRACT_FAILED", o)
 				continue
 			}
+			if weightedWelford {
+				addLeg(r1, c1)
+				addLeg(r2, c2)
+			}
 			pv, reason, ok := kernel(in)
 			if !ok {
 				tally.add(reason, o)
@@ -295,6 +327,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	}
 
 	layer := buildPairwiseLayer(spec, host, pairs, pvals, rowScope)
+	legs.stamp(layer.Summary)
 	// Attach the per-reason skip diagnostics to the layer's own carrier
 	// (in addition to the returned slice the orchestrator promotes to
 	// Response.Warnings) so a per-Request consumer that reads layers
@@ -414,12 +447,15 @@ func extractPairInputs(host *CrosstabHostView, params types.PairwiseOverlayParam
 			v1: math.NaN(), v2: math.NaN()}, true
 	}
 	if shape == pwShapeWelford {
-		m1, v1, n1, ok1 := host.WelfordTriple(r1, c1)
-		m2, v2, n2, ok2 := host.WelfordTriple(r2, c2)
+		// Through the weighted-host rule: a weighted cell answers its
+		// variance on w* and N*, never the triple's raw n.
+		l1, ok1 := host.MeanLeg(r1, c1)
+		l2, ok2 := host.MeanLeg(r2, c2)
 		if !ok1 || !ok2 {
 			return pwInputs{}, false
 		}
-		return pwInputs{m1: m1, m2: m2, v1: v1, v2: v2, n1: n1, n2: n2,
+		return pwInputs{m1: l1.mean, m2: l2.mean, v1: l1.variance, v2: l2.variance,
+			nf1: l1.nStar, nf2: l2.nStar,
 			p1: math.NaN(), p2: math.NaN()}, true
 	}
 	p1, ok1 := pairwiseProportion(host, params, r1, c1)
@@ -640,10 +676,10 @@ func pairwiseProbitTKernel(in pwInputs) (float64, string, bool) {
 // pairwiseWelchTKernel is the Welch–Satterthwaite t-test on Welford
 // triples.
 func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
-	if in.n1 <= 1 || in.n2 <= 1 {
+	n1f, n2f := in.nf1, in.nf2
+	if !(n1f > 1) || !(n2f > 1) {
 		return 0, "ORBIT_STATS_SKIP_N_TOO_SMALL", false
 	}
-	n1f, n2f := float64(in.n1), float64(in.n2)
 	a := in.v1 / n1f
 	b := in.v2 / n2f
 	if a+b <= 0 {
@@ -672,11 +708,11 @@ func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
 // pairwiseTwoMeansZKernel is the two-means z-test on Welford triples
 // (normal CDF tail, no df adjustment).
 func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
-	if in.n1 <= 1 || in.n2 <= 1 {
+	if !(in.nf1 > 1) || !(in.nf2 > 1) {
 		return 0, "ORBIT_STATS_SKIP_N_TOO_SMALL", false
 	}
-	a := in.v1 / float64(in.n1)
-	b := in.v2 / float64(in.n2)
+	a := in.v1 / in.nf1
+	b := in.v2 / in.nf2
 	if a+b <= 0 {
 		return 0, "ORBIT_STATS_SKIP_VARIANCE_INVALID", false
 	}

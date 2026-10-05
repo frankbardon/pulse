@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -223,7 +224,18 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	if types.PairwiseKindUsesWelford(spec.Kind) {
 		const welfordReason = "n, mean and variance all come from the AGG_WELFORD triple {mean, variance, n}, so the mode selector is inert on this kind"
 		refused := nBasisRefused
-		if params.NSource != "" {
+		// Weighted-host n_source rule (weighting.NSourceRefusal): on a
+		// weighted cell the legs read N*, so a raw-row-count source (or
+		// the weight sum under kind probability) is PROCESSING_CONFIG —
+		// the runtime's code (processing.runPairwiseOverlay) — in place
+		// of the inertness refusal below.
+		if reason := weighting.NSourceRefusal(params.NSource, crosstabCellWeightBasis(req, opts)); reason != "" {
+			env.AddError(string(errors.PROCESSING_CONFIG),
+				"overlay "+string(spec.Kind)+" n_source "+params.NSource+": "+reason,
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
+					"n_source": params.NSource})
+			refused = true
+		} else if params.NSource != "" {
 			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+welfordReason+
 					". Remove n_source"+pairwiseProportionAdvice(opts, "read a proportion and a separate n leg"),

@@ -70,6 +70,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 	cells := buildEmptyMatrixLike(rowCount, colCount)
 
 	targetLabel := composeFirstTargetLabel(spec)
+	var tally weightedLegTally
 	var (
 		warnings []types.OverlayWarning
 		minV     float64
@@ -107,20 +108,23 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				continue
 			}
 			refCoord, refCoordOK := refCoordLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
-			targetMean, targetVar, targetN, okT := extractCellWelchInputsFromComponents(target, cell, i, j, varTargetDefault, nTargetDefault)
+			tLeg, okT := extractCellWelchInputsFromComponents(target, cell, i, j, varTargetDefault, nTargetDefault)
 			var (
-				refMean, refVar, refN float64
-				okR                   bool
+				rLeg meanLeg
+				okR  bool
 			)
 			if refCoordOK {
-				refMean, refVar, refN, okR = extractCellWelchInputsFromComponents(reference, refCell, refCoord.Row, refCoord.Col, varRefDefault, nRefDefault)
+				rLeg, okR = extractCellWelchInputsFromComponents(reference, refCell, refCoord.Row, refCoord.Col, varRefDefault, nRefDefault)
 			} else {
-				refMean, refVar, refN, okR = extractCellWelchInputsScalar(refCell, varRefDefault, nRefDefault)
+				rLeg, okR = extractCellWelchInputsScalar(refCell, varRefDefault, nRefDefault)
 			}
 			if !okT || !okR {
 				continue
 			}
-			p, ok := welchZTest(targetMean, targetVar, targetN, refMean, refVar, refN)
+			tally.add(tLeg)
+			tally.add(rLeg)
+			targetMean, refMean := tLeg.mean, rLeg.mean
+			p, ok := welchZTest(targetMean, tLeg.variance, tLeg.nStar, refMean, rLeg.variance, rLeg.nStar)
 			if !ok {
 				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -155,6 +159,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 		zeroCount := 0
 		summary.Count = &zeroCount
 	}
+	tally.stamp(summary)
 	layer := composeMatrixOverlayLayer(spec, targetMx, cells, summary)
 	return layer, warnings, nil
 }
@@ -201,25 +206,25 @@ func welchZTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 	return p, true
 }
 
-// extractCellWelchInputsFromComponents reads `(mean, variance, n)` from
-// the per-cell Components map at Response.Components.Crosstab.
-// CellComponents[r][c] when the operator emitted a `{mean, variance,
-// n}` triple. Falls back to the supplied `varDefault` + `nDefault`
-// when the components map is absent / missing keys but the cell carries
-// a scalar value (the additive scalar-cell contract).
+// extractCellWelchInputsFromComponents reads the cell's two-sample
+// inputs from the per-cell Components map at Response.Components.
+// Crosstab.CellComponents[r][c] when the operator emitted a `{mean,
+// variance, n}` triple — through the weighted-host rule
+// (extractCellComponentsTriple → readMeanLeg), so a weighted cell
+// answers (mean, variance on w*, N*). Falls back to the supplied
+// `varDefault` + `nDefault` when the components map is absent / missing
+// keys but the cell carries a scalar value (the additive scalar-cell
+// contract).
 //
-// Absent / non-numeric cells with no components triple return
-// `(0, 0, 0, false)` so the caller can skip the cell. The MatrixCell
-// is still consulted for the scalar fallback path so the additive
-// pre-Components scalar contract stays byte-equal; the WelfordTriple
-// type-assertion on MatrixCell.Value is gone — the universal
-// Components surface is the only triple source.
-func extractCellWelchInputsFromComponents(resp *types.Response, cell types.MatrixCell, r, c int, varDefault, nDefault float64) (mean, variance, n float64, ok bool) {
+// Absent / non-numeric cells with no components triple return ok=false
+// so the caller can skip the cell. The universal Components surface is
+// the only triple source.
+func extractCellWelchInputsFromComponents(resp *types.Response, cell types.MatrixCell, r, c int, varDefault, nDefault float64) (meanLeg, bool) {
 	if !cell.Present {
-		return 0, 0, 0, false
+		return meanLeg{}, false
 	}
-	if tMean, tVar, tN, tripleOK := extractCellComponentsTriple(resp, r, c); tripleOK {
-		return tMean, tVar, tN, true
+	if leg, tripleOK := extractCellComponentsTriple(resp, r, c); tripleOK {
+		return leg, true
 	}
 	return extractCellWelchInputsScalar(cell, varDefault, nDefault)
 }
@@ -228,13 +233,13 @@ func extractCellWelchInputsFromComponents(resp *types.Response, cell types.Matri
 // scalar MatrixCell.Value as the cell mean and supplies the Params
 // defaults for `(variance, n)`, keeping the additive contract for
 // non-triple cells intact.
-func extractCellWelchInputsScalar(cell types.MatrixCell, varDefault, nDefault float64) (mean, variance, n float64, ok bool) {
+func extractCellWelchInputsScalar(cell types.MatrixCell, varDefault, nDefault float64) (meanLeg, bool) {
 	if !cell.Present {
-		return 0, 0, 0, false
+		return meanLeg{}, false
 	}
 	scalar, scalarOK := scalarFromCell(cell)
 	if !scalarOK {
-		return 0, 0, 0, false
+		return meanLeg{}, false
 	}
-	return scalar, varDefault, nDefault, true
+	return meanLeg{mean: scalar, variance: varDefault, nStar: nDefault}, true
 }

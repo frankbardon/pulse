@@ -9483,7 +9483,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_PANEL_INDEX_VS_REF",
@@ -9628,7 +9632,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_T_VS_REF",
@@ -9644,7 +9652,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_YOY",
@@ -9748,7 +9760,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_Z_VS_REF",
@@ -9764,7 +9780,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       }
     ],
     "components_schemas": {
@@ -11523,4 +11543,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f67eb2a5fe208ffe7e4cc8bddc3be6928315c7c036aa52597f863226807d70fe
+// golden-hash: 570e3171a94f8f907563d3c217ee5f5275b0a96ff97cc04ad4c4f255471877b0
