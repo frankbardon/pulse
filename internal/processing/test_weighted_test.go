@@ -499,7 +499,7 @@ func TestWeightedTests_ProcessorStampsAndTallies(t *testing.T) {
 		t.Fatalf("streaming and buffered differ:\n%s\n%s", results[0], results[1])
 	}
 	stamped := StampWeights(&types.Request{Weight: w,
-		Tests:     []*types.Test{{Type: types.TEST_PEARSON_R}, {Type: types.TEST_CHISQ}},
+		Tests:     []*types.Test{{Type: types.TEST_PEARSON_R}, {Type: types.TEST_FISHER_EXACT}},
 		PostTests: []*types.Test{{Type: types.TEST_PEARSON_R}}}, nil)
 	if stamped.Tests[0].Weight.Spec() == nil || stamped.Tests[1].Weight.Spec() != nil || stamped.PostTests[0].Weight.Spec() != nil {
 		t.Fatalf("stamping: tests %v %v post %v", stamped.Tests[0].Weight, stamped.Tests[1].Weight, stamped.PostTests[0].Weight)

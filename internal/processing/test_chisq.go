@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -15,6 +16,13 @@ import (
 // drains, Finalize materializes a dense observed matrix, computes
 // expected counts under independence, and emits the χ² statistic with
 // (R-1)(C-1) degrees of freedom.
+//
+// Weighted (.claude/reference/weighting.md, Weighted inference) the
+// table holds Σw per cell. Frequency: ordinary Pearson on the Σw table
+// (the expanded rows). Probability: the cell proportions scaled to the
+// table's Kish n_eff, T* = n_eff·Σw_ij/Σw, then ordinary Pearson on T*
+// — a first-order Kish approximation, NOT the Rao-Scott design-effect
+// correction. Cramér's V, φ and expected_min read the scaled table.
 type chiSqRow struct {
 	spec   *types.Test
 	schema *encoding.Schema
@@ -31,6 +39,12 @@ type chiSqRow struct {
 	rowTotals  []int64
 	colTotals  []int64
 	grandTotal int64
+
+	// Weighted state: Σw per cell / margin / table and the table's Σw².
+	cellW        map[int]float64
+	rowW, colW   []float64
+	sumW, sumWSq float64
+	testWeight
 }
 
 func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -66,6 +80,8 @@ func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		rowIndex:   make(map[string]int),
 		colIndex:   make(map[string]int),
 		cellCounts: make(map[int]int64),
+		cellW:      make(map[int]float64),
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -78,12 +94,17 @@ func (c *chiSqRow) UpdateRow(record *Record) error {
 	if !cOk {
 		return nil
 	}
+	w, ok := c.rowWeight(record)
+	if !ok {
+		return nil
+	}
 	ri, exists := c.rowIndex[rowVal]
 	if !exists {
 		ri = len(c.rowLabels)
 		c.rowLabels = append(c.rowLabels, rowVal)
 		c.rowIndex[rowVal] = ri
 		c.rowTotals = append(c.rowTotals, 0)
+		c.rowW = append(c.rowW, 0)
 	}
 	ci, exists := c.colIndex[colVal]
 	if !exists {
@@ -91,12 +112,18 @@ func (c *chiSqRow) UpdateRow(record *Record) error {
 		c.colLabels = append(c.colLabels, colVal)
 		c.colIndex[colVal] = ci
 		c.colTotals = append(c.colTotals, 0)
+		c.colW = append(c.colW, 0)
 	}
 	key := ri*(1<<20) + ci
 	c.cellCounts[key]++
 	c.rowTotals[ri]++
 	c.colTotals[ci]++
 	c.grandTotal++
+	c.cellW[key] += w
+	c.rowW[ri] += w
+	c.colW[ci] += w
+	c.sumW += w
+	c.sumWSq += w * w
 	return nil
 }
 
@@ -118,20 +145,37 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 		ci := key % (1 << 20)
 		observed[ri][ci] = count
 	}
+	// The table the statistic reads: Σw per cell, scaled by
+	// c = N*/Σw (exactly 1 — no multiply — unweighted and under
+	// frequency, where Σw cells are the exact integer counts).
+	scale := c.basis.Scale(c.sumW, c.sumWSq)
+	N := c.basis.NStar(c.sumW, c.sumWSq)
+	scaled := func(x float64) float64 {
+		if c.basis == weighting.Probability {
+			return scale * x
+		}
+		return x
+	}
+	cellW := make([][]float64, r)
+	for i := range cellW {
+		cellW[i] = make([]float64, col)
+	}
+	for key, w := range c.cellW {
+		cellW[key/(1<<20)][key%(1<<20)] = w
+	}
 	var stat, expectedMin float64
 	expectedMin = -1
 	lowExpectedCells := 0
-	N := float64(c.grandTotal)
 	for ri := range r {
 		for ci := range col {
-			expected := float64(c.rowTotals[ri]) * float64(c.colTotals[ci]) / N
+			expected := scaled(c.rowW[ri]) * scaled(c.colW[ci]) / N
 			if expectedMin < 0 || expected < expectedMin {
 				expectedMin = expected
 			}
 			if expected < 5 {
 				lowExpectedCells++
 			}
-			obs := float64(observed[ri][ci])
+			obs := scaled(cellW[ri][ci])
 			if expected > 0 {
 				diff := obs - expected
 				stat += diff * diff / expected
@@ -154,6 +198,13 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 		"n":            c.grandTotal,
 		"expected_min": expectedMin,
 	}
+	if c.basis.Weighted() {
+		// The observed table and margins as Σw (unscaled weighted counts).
+		details["contingency"] = cellW
+		details["row_totals"] = append([]float64(nil), c.rowW...)
+		details["col_totals"] = append([]float64(nil), c.colW...)
+	}
+	c.noteScalar(details, c.sumW, c.sumWSq)
 	setEffectSize(details, "cramers_v", cramersV(stat, N, r, col))
 	if r == 2 && col == 2 {
 		setEffectSize(details, "phi", phiCoefficient(stat, N))
@@ -181,4 +232,8 @@ func (c *chiSqRow) reset() {
 	c.rowTotals = nil
 	c.colTotals = nil
 	c.grandTotal = 0
+	c.cellW = make(map[int]float64)
+	c.rowW = nil
+	c.colW = nil
+	c.sumW, c.sumWSq = 0, 0
 }

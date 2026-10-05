@@ -104,7 +104,10 @@ var attributeClasses = map[types.AttributeType]Class{
 // testClasses are the built-in tests whose weighted computation exists
 // (every other TEST_* refuses). The moment tests read the shared
 // weighted Welford bucket (Welford, inference.go) on w* under both
-// kinds; a row test reads its slot's stamped weight.
+// kinds; TEST_PROP_Z reads Σw_success/Σw_g with N*_g and TEST_CHISQ
+// the Σw table (scaled to n_eff under probability — a first-order Kish
+// approximation, not Rao-Scott). A row test reads its slot's stamped
+// weight.
 var testClasses = map[types.TestType]Class{
 	types.TEST_T:            ClassAware,
 	types.TEST_WELCH:        ClassAware,
@@ -113,6 +116,8 @@ var testClasses = map[types.TestType]Class{
 	types.TEST_ANOVA_F:      ClassAware,
 	types.TEST_ANOVA_WELCH:  ClassAware,
 	types.TEST_PEARSON_R:    ClassAware,
+	types.TEST_PROP_Z:       ClassAware,
+	types.TEST_CHISQ:        ClassAware,
 }
 
 // refusalReasons are the PERMANENT refusals: operators with no standard

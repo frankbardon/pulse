@@ -114,7 +114,7 @@ declare it the same way.
 | other aggregators (min, max, range, distinct-style, null count, set union / intersection) | `PROCESSING_CONFIG` | skipped |
 | windows | request weight: `PROCESSING_CONFIG` | skipped |
 | filters, features, row-local attributes, other groupers | skipped | skipped |
-| the moment tests — t (one- and two-sample), Welch t, paired t, two-sample z, one-way ANOVA F, Welch ANOVA, Pearson r | weighted (both kinds) | weighted |
+| the moment tests — t (one- and two-sample), Welch t, paired t, two-sample z, one-way ANOVA F, Welch ANOVA, Pearson r — plus the two-proportion z-test and the χ² independence test | weighted (both kinds) | weighted |
 | other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, inferential overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
@@ -127,6 +127,17 @@ the raw row count; `sum_weights` and, for probability weights, `n_eff`
 appear beside it in the same shape. A group whose n_eff falls below
 the test's minimum warns `PULSE_WEIGHT_LOW_NEFF` (an error under
 strict mode). This is not design-based (strata / cluster) variance.
+
+The two-proportion z-test reads each group's rate as Σw of successes
+over Σw, with the group's sample size read as above; `successes`
+becomes the weighted success total. The χ² independence test builds
+its table from Σw per cell: under `kind: frequency` it is the ordinary
+Pearson test on that table (identical to the expanded rows); under
+`kind: probability` the cell proportions are scaled to the table's
+n_eff before the ordinary Pearson test, and the expected-count check,
+Cramér's V and φ read that scaled table. This is a first-order Kish
+approximation, not the Rao-Scott correction survey software
+(`survey::svychisq`) applies.
 
 **Other weighted inference is not available yet.** The last row is
 refused rather than silently computed unweighted beside weighted

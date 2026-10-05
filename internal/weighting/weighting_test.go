@@ -162,17 +162,18 @@ func TestClassifyWeight(t *testing.T) {
 	}
 }
 
-// TestClassify_MomentTestsAware pins the E1-S2 flip: the seven moment
-// tests compute weighted under both kinds.
+// TestClassify_MomentTestsAware pins the E1-S2 / E1-S3 flips: the seven
+// moment tests, prop-z and χ² compute weighted under both kinds.
 func TestClassify_MomentTestsAware(t *testing.T) {
 	both := []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
 	for _, op := range []types.TestType{types.TEST_T, types.TEST_WELCH, types.TEST_PAIRED_T,
-		types.TEST_Z_TWO_SAMPLE, types.TEST_ANOVA_F, types.TEST_ANOVA_WELCH, types.TEST_PEARSON_R} {
+		types.TEST_Z_TWO_SAMPLE, types.TEST_ANOVA_F, types.TEST_ANOVA_WELCH, types.TEST_PEARSON_R,
+		types.TEST_PROP_Z, types.TEST_CHISQ} {
 		if !reflect.DeepEqual(KindsOf(string(op)), both) {
 			t.Errorf("%s: kinds %v, want both", op, KindsOf(string(op)))
 		}
 	}
-	if IsAware(string(types.TEST_CHISQ)) {
-		t.Fatal("TEST_CHISQ has no weighted computation yet")
+	if IsAware(string(types.TEST_FISHER_EXACT)) {
+		t.Fatal("TEST_FISHER_EXACT has no weighted computation yet")
 	}
 }

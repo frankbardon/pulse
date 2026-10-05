@@ -14,6 +14,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
+- `weight` — slot weight (`null` opts out), both kinds: p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
 - `success` — string, required. Dictionary value of Field treated as a "success".
 
 ## Inputs
@@ -26,7 +27,6 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - `success` must match a dictionary value; otherwise `PULSE_TEST_INVALID_SUCCESS`.
 - Streamable — per-group counts feed both numerator and pooled denominator in one pass.
 - More than two `SplitBy` groups is a `(SplitBy × Field)` contingency-table question, not this test.

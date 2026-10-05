@@ -4572,6 +4572,10 @@
         "intents": [
           "compare_groups",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4773,6 +4777,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -11491,4 +11499,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 71ee5a2574d136e644f35b8f6a60e07d26bbff33040914c7a2d933188994c814
+// golden-hash: fc0e05df80deb48c5f09d7b3780612a41cb8f46eb4cc4c078c3bce60d31d687e
