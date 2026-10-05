@@ -424,6 +424,10 @@
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
       },
       {
+        "name": "time-zones",
+        "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
+      },
+      {
         "name": "tool-errors-lookup",
         "description": "Look up Pulse error code metadata — message and fixup hints."
       },
@@ -568,4 +572,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fdd5b472d9f3dbb73ca83a77863197d8917f6c66b337e909d8c1b7646a0cdeb2
+// golden-hash: b1d543f5dfc17e7eb3e27286bda2400ab8768d0dbacb1a46e969807f876eaa94

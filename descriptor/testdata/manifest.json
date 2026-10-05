@@ -8537,6 +8537,10 @@
         "description": "Entry point for synthetic data — `pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), the spec shape, the distribution registry, the determinism rule, and which focused synth skill answers each question."
       },
       {
+        "name": "time-zones",
+        "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
+      },
+      {
         "name": "tool-compose",
         "description": "Execute a batch of processing requests in one round-trip."
       },
@@ -11738,4 +11742,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 07107cade8a91c372c1c6a49cbb378893d92aa2f33f658dc36157e2f2ec51b4d
+// golden-hash: b93f7dae8067c708a953d561643b75d8dbb7d274b1fdf340848f767189fc155d
