@@ -27,7 +27,7 @@ Use an overlay for a figure DERIVED from the result — a share, an index agains
 
 `kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within` (same-axis rollup, opposite-axis prefix).
 
-Predict and runtime refuse a misshapen spec under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …). A fault always carries its real `PULSE_OVERLAY_*` code as `errors[0].code`, so `pulse_errors_lookup` resolves it; `PROCESSING_INTERNAL` means a caller-side invariant break (nil spec / host), never a user error.
+Predict and runtime refuse a misshapen spec under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …), carried as `errors[0].code` so `pulse_errors_lookup` resolves it.
 
 ## Six reference families
 
@@ -46,22 +46,28 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 ## Three payload shapes
 
-`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary{statistic, p_value, parameters}`. Series — `payload.series.entries[i].{key, value, summary}`, aligned to host keys. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z) and is absent for inferential kinds (manifest `inferential: true`).
+`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, value, summary}`, aligned to host keys. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z) and is absent for inferential kinds (manifest `inferential: true`).
 
 ## Host-arm wiring
 
 Which request carries the spec decides the host, and the host decides which kinds are legal:
 
-- **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise.<!-- feature: capability:crosstab --> Pairwise sample-size sources: `pairwise-n-sources`.<!-- /feature -->
+- **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise.<!-- feature: capability:crosstab --> Pairwise n: `pairwise-n-sources`.<!-- /feature -->
 - **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year).
 - **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
 - **FORMULA** — an expression over earlier layers, referenced by `name`.
-- **COMPOSE** — the Compose post-slot fold compares slots (`reference` vs `targets`) after every slot ran; slots must align on label, keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]`, buffered only<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
+- **COMPOSE** — the Compose post-slot fold compares slots (`reference` vs `targets`) after every slot ran; slots must align on keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]`, buffered only<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
 Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (a reference value of zero, so the ratio is undefined), `PULSE_OVERLAY_EXPECTED_LOW` (χ² expected count below 5). A warning lands on the layer that raised it; on Compose and chain hosts it rides `Overlays[i].Warnings` of the matching layer. Warnings never fail the request — read them before reporting a figure.
+
+<!-- feature: capability:multiplicity -->
+## Multiplicity
+
+Inferential layers take `multiplicity` (`layer` / `row` / `column` / `request` / `compose`): adds `p_adjusted` figures and a layer echo, base payload untouched (`multiple-comparisons`).
+<!-- /feature -->
 
 ## Streamability
 

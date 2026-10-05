@@ -173,6 +173,24 @@ guide: [Row Weighting](weighting.md).
 p, err := pulse.New(pulse.Options{DefaultWeight: &types.WeightSpec{Field: "wt"}})
 ```
 
+### `DefaultMultiplicity *types.Multiplicity`
+
+The multiple-comparison correction a test or inferential overlay falls
+back to when neither its own `multiplicity` block nor its request's
+(nor, in Compose, the `ComposedRequest`'s) names one. Each of `method`,
+`family` and `alpha` falls through on its own: slot, request,
+`ComposedRequest`, `DefaultMultiplicity`, none. `pulse.New` validates it
+(`PULSE_MULTIPLICITY_INVALID`); a family the surface does not offer
+falls back to the surface default rather than failing. It reaches
+Process, Compose slots, ProcessChain stages and Facet overlays. Unset
+(the default) corrects nothing and leaves every response
+byte-identical. There is no env var or CLI flag for it. Full guide:
+[Multiple-Comparison Correction](multiplicity.md).
+
+```go
+p, err := pulse.New(pulse.Options{DefaultMultiplicity: &types.Multiplicity{Method: types.MultiplicityMethodHolm}})
+```
+
 ### `FeatureProfile *FeatureProfile` / `FeatureProfileFile string`
 
 Declare the instance's feature set: a Go value, or a JSON file read

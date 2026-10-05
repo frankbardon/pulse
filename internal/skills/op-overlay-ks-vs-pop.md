@@ -15,6 +15,10 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 `Scope` must be `group`. `Ref.Population.Cohort` required — the comparison-population cohort; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0`.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+<!-- /feature -->
+
 ## Host shape
 
 FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (the χ²-vs-population sibling covers the discrete arm). Reuses `kolmogorovSurvival`, the KS test's survival helper.

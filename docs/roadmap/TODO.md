@@ -141,12 +141,12 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#59** `TestWeightUnityParity`, `TestWeightFrequencyExpansionParity`, reference fixtures; `weighting.md` skill · [U12](units/U12-weighting-inferential.md)
 
 ### Multiple comparisons ([statistical-integrity 02](v1.0.0-statistical-integrity/02-multiple-comparisons.md))
-- [ ] **#60** `processing/multiplicity`: Bonferroni, Holm, BH, BY · [U13](units/U13-multiplicity.md)
-- [ ] **#61** `multiplicity {method, family}` on Request / OverlaySpec / Test / MatrixSpec; `Options.DefaultMultiplicity` (shipped `none`; correction is opt-in) · [U13](units/U13-multiplicity.md)
-- [ ] **#62** Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots · [U13](units/U13-multiplicity.md)
-- [ ] **#63** Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs · [U13](units/U13-multiplicity.md)
-- [ ] **#64** Advisory + Explain hooks; glossary terms · [U13](units/U13-multiplicity.md)
-- [ ] **#65** Reference-value, identity and family-boundary gates; `multiple-comparisons.md` skill · [U13](units/U13-multiplicity.md)
+- [x] **#60** `processing/multiplicity`: Bonferroni, Holm, BH, BY · [U13](units/U13-multiplicity.md)
+- [x] **#61** `multiplicity {method, family}` on Request / OverlaySpec / Test / MatrixSpec; `Options.DefaultMultiplicity` (shipped `none`; correction is opt-in) · [U13](units/U13-multiplicity.md)
+- [x] **#62** Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots · [U13](units/U13-multiplicity.md)
+- [x] **#63** Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs · [U13](units/U13-multiplicity.md)
+- [x] **#64** Advisory + Explain hooks; glossary terms · [U13](units/U13-multiplicity.md)
+- [x] **#65** Reference-value, identity and family-boundary gates; `multiple-comparisons.md` skill · [U13](units/U13-multiplicity.md)
 
 ### Reference oracles (found in U08; [review record](reviews/U08-statistics-review.md))
 - [ ] **#202** Per-output R oracle for every `TEST_*` family at tight relative tolerance: Shapiro–Wilk (Shapiro–Francia W′ + p), Brown–Forsythe, Tukey q / `p_adj`, KS p, Kendall τ-b with ties, Mann–Kendall (`TEST_TREND`) p, Pearson CI, and every family's p-value (row and post twins) · [U36](units/U36-reference-oracles.md)

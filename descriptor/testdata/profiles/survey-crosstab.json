@@ -5,6 +5,7 @@
     "capability:process",
     "capability:crosstab",
     "capability:facet",
+    "capability:multiplicity",
     "AGG_AVERAGE",
     "AGG_COUNT",
     "AGG_MODE_COUNT",

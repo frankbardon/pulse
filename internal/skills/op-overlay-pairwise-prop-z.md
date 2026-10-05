@@ -15,6 +15,10 @@ One host-matrix slot against another ALONG one axis of the SAME crosstab — the
 
 `Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix; any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. `params.n_source` (default `cell_n_unweighted`), `params.n_within_depth` (default `0`) and `params.p_source` (default `cell_value_pct`) are the family-wide vocabulary — nine sample-size modes, three of them distinct-KEY: `pairwise-n-sources`.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+<!-- /feature -->
+
 ## Host shape
 
 MATRIX crosstab (`Response.Crosstab.Matrix`) + `Response.Components.Crosstab`. Components-disabled host → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.

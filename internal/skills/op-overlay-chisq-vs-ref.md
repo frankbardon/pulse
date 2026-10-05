@@ -15,6 +15,10 @@ Compose-only. Overlays decorate the host; no `Response.Components`.
 
 `Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one target slot label.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+<!-- /feature -->
+
 ## Host shape
 
 COMPOSE — MATRIX crosstab on reference + target. Schema-match + key-alignment gates at the slot barrier; `OverlayOptions.DictPrefixFast` enables the byte-equal dictionary prefix probe.

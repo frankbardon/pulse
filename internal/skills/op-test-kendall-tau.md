@@ -18,6 +18,10 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiple-comparisons`).
+<!-- /feature -->
+
 ## Inputs
 
 `Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `Field2` — numeric (same set).

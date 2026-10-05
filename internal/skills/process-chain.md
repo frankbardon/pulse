@@ -58,6 +58,12 @@ Two independent overlay slots:
 A complete three-stage request with a whole-chain index: `pulse_examples_get chain-whole-chain-index-vs-stage`.
 <!-- /feature -->
 
+<!-- feature: capability:multiplicity -->
+## Multiplicity
+
+Each stage corrects its own request; no family spans stages, and `ChainOverlaySpec` takes no block (`multiple-comparisons`).
+<!-- /feature -->
+
 ## `StageRef` resolution
 
 `ref` and `target` each take exactly one of `index` (zero-based) or `name` (matches `stages[i].name`); both or neither is a configuration error. In Go, `Index` is a `*int` so stage 0 is distinguishable from "unset" — pass `&zero`.

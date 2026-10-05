@@ -15,6 +15,10 @@ Compose-only. Overlays decorate the host; no `Response.Components`.
 
 `Scope` must be `cell`. `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+<!-- /feature -->
+
 ## Host shape
 
 COMPOSE — MATRIX crosstab on both reference + target slot. Cell value = success count; matching row margin = sample size. Sample reference reuses the two-proportion z-test's pooled-SE recurrence.

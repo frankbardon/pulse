@@ -15,6 +15,10 @@ Weighted pairwise two-means z: pairs rows (`row` scope) or columns (`column`) on
 
 `Scope` (required) — `row` or `column`. `Ref` empty. `params.n_basis` (REQUIRED, no default) — `weights` or `kish`. `params.pair_along_dim` (int) — same-bucket pairs. `n_source` / `p_source` / bad `n_basis` → `PULSE_OVERLAY_PARAM_MISSING`; `weights` on a probability-weighted cell (incl. `weight_field`) → `PROCESSING_CONFIG`.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+<!-- /feature -->
+
 ## Host shape
 
 MATRIX crosstab, weighted-moment cell:<!-- feature: AGG_WEIGHTED_MEAN --> `AGG_WEIGHTED_MEAN`<!-- /feature --><!-- feature: AGG_AVERAGE, capability:weighting --> or a weighted `AGG_AVERAGE`<!-- /feature -->. Reads `weighted_mean`, `m2_weighted`, `sum_weights`, `sum_weights_sq` — never floor `n`. Else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.

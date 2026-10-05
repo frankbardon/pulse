@@ -3,7 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
-    "feature_set_digest": "fs1:1e8df9efcf57420cfe4b49f4d9014ff1cdeb1b5e97048892d11d91f8ae9bcdee",
+    "feature_set_digest": "fs1:f2ee3b2cc68990c0b6919f17a812b374e4385b83bf1d06c54cca45f635d3cb64",
     "commands": [
       {
         "name": "process",
@@ -710,7 +710,7 @@
     "post_tests": [],
     "regressions": [],
     "synth_distributions": [],
-    "error_codes_count": 149,
+    "error_codes_count": 151,
     "error_domains": [
       "CLI",
       "DATA",
@@ -798,6 +798,8 @@
       "PULSE_LABEL_FIELD_UNKNOWN",
       "PULSE_LABEL_LOOKUP_MISS",
       "PULSE_LABEL_TABLE_UNKNOWN",
+      "PULSE_MULTIPLICITY_CONFLICT",
+      "PULSE_MULTIPLICITY_INVALID",
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
       "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED",
       "PULSE_OVERLAY_EXPECTED_LOW",
@@ -1283,6 +1285,10 @@
       {
         "name": "intents",
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
+      },
+      {
+        "name": "multiple-comparisons",
+        "description": "Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected."
       },
       {
         "name": "op-agg-average",
@@ -2005,4 +2011,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a5a41aa6e48b2e4cd9b587e105873cd3d204de4333f94de8db4f2c8e6a897fbe
+// golden-hash: e9fb383e2ab652c7f9459dbd9595301f8d698c2949dd6034c782f87d2c93b66d

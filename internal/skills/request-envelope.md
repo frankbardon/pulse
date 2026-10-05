@@ -26,7 +26,7 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 
 | Operation (CLI) | Wire type | Top-level keys |
 |---|---|---|
-| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs` |
+| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature --> |
 <!-- feature: capability:compose -->
 | compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`) |
 <!-- /feature -->
@@ -114,7 +114,7 @@ Rules: never override explicit `type`; never cross categories; `Nullable` irrele
 
 Precedence per slot: `tz` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator (the year-over-year overlay) inherits its host grouper's zone; extension operators are never capable.
 
-Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `tz` on a `date` field (even `"UTC"`); and — until zone-aware operator math lands — any non-UTC zone reaching a `datetime` (or derived) field. Compose/chain refusals add `details.request`/`stage`. An inherited zone on a `date` field is not applied. UTC (and fixed-zero aliases like `Etc/UTC`) is byte-identical to no zone.
+Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `tz` on a `date` field (even `"UTC"`); and — until zone-aware operator math lands — any non-UTC zone reaching a `datetime` (or derived) field. An inherited zone on a `date` field is not applied. UTC (and fixed-zero aliases like `Etc/UTC`) is byte-identical to no zone.
 
 ## Predict-specific data fields
 
@@ -122,4 +122,4 @@ Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `t
 
 ## Cross-links
 
-`response-components` (the `Response.Components` block) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes)<!-- feature: capability:compose --> · `compose-requests`<!-- /feature --><!-- feature: capability:facet --> · `facet-design`<!-- /feature --> · `streaming-and-watching` (stream chunks, request hashing).
+`response-components` (the `Response.Components` block) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes)<!-- feature: capability:compose --> · `compose-requests`<!-- /feature --><!-- feature: capability:facet --> · `facet-design`<!-- /feature --> · `streaming-and-watching` (stream chunks, request hashing)<!-- feature: capability:multiplicity --> · `multiple-comparisons`<!-- /feature -->.

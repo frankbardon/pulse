@@ -16,6 +16,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `mu` — float, default `0.0`. Hypothesized mean, one-sample only; ignored when `SplitBy` is set.
 - `weight` — slot weight (`null` opts out), both kinds: moments on w*, N* = Σw (frequency) or Kish n_eff (probability); `df` = N*−1 (two-sample: Welch df on N*_g), may be fractional. `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiple-comparisons`).
+<!-- /feature -->
 
 ## Inputs
 

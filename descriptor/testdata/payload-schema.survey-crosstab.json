@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:1e8df9efcf57420cfe4b49f4d9014ff1cdeb1b5e97048892d11d91f8ae9bcdee",
+  "$comment": "feature_set_digest: fs1:f2ee3b2cc68990c0b6919f17a812b374e4385b83bf1d06c54cca45f635d3cb64",
   "$defs": {
     "Aggregation": {
       "additionalProperties": false,
@@ -70,6 +70,42 @@
         "AGG_WELFORD"
       ],
       "type": "string"
+    },
+    "AppliedMultiplicity": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "family": {
+          "$ref": "#/$defs/MultiplicityFamily"
+        },
+        "m": {
+          "type": "integer"
+        },
+        "m_per": {
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/MultiplicityMethod"
+        }
+      },
+      "required": [
+        "alpha",
+        "family",
+        "m",
+        "method"
+      ],
+      "type": "object"
     },
     "Attribute": {
       "additionalProperties": false,
@@ -1043,6 +1079,41 @@
       ],
       "type": "object"
     },
+    "Multiplicity": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": "number"
+        },
+        "family": {
+          "$ref": "#/$defs/MultiplicityFamily"
+        },
+        "method": {
+          "$ref": "#/$defs/MultiplicityMethod"
+        }
+      },
+      "type": "object"
+    },
+    "MultiplicityFamily": {
+      "enum": [
+        "column",
+        "compose",
+        "layer",
+        "request",
+        "row"
+      ],
+      "type": "string"
+    },
+    "MultiplicityMethod": {
+      "enum": [
+        "bh",
+        "bonferroni",
+        "by",
+        "holm",
+        "none"
+      ],
+      "type": "string"
+    },
     "OrderKey": {
       "additionalProperties": false,
       "properties": {
@@ -1119,6 +1190,9 @@
       "properties": {
         "kind": {
           "$ref": "#/$defs/OverlayKind"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
         },
         "name": {
           "type": "string"
@@ -1217,6 +1291,9 @@
         "matrix": {
           "$ref": "#/$defs/MatrixPayload"
         },
+        "p_adjusted": {
+          "$ref": "#/$defs/MatrixPayload"
+        },
         "scalar": {
           "type": [
             "number",
@@ -1233,6 +1310,9 @@
             "series"
           ],
           "type": "string"
+        },
+        "significant_adjusted": {
+          "$ref": "#/$defs/MatrixPayload"
         }
       },
       "required": [
@@ -1328,6 +1408,9 @@
         "level": {
           "type": "integer"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "name": {
           "type": "string"
         },
@@ -1375,6 +1458,12 @@
             "null"
           ]
         },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "p_value": {
           "type": [
             "number",
@@ -1389,6 +1478,9 @@
             ]
           },
           "type": "object"
+        },
+        "significant_adjusted": {
+          "type": "boolean"
         },
         "statistic": {
           "type": [
@@ -1739,6 +1831,9 @@
             "null"
           ]
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "outputs": {
           "items": {
             "$ref": "#/$defs/Output"
@@ -2050,6 +2145,9 @@
         "label": {
           "type": "string"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "order_by": {
           "items": {
             "$ref": "#/$defs/OrderKey"
@@ -2102,6 +2200,15 @@
         "label": {
           "type": "string"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "p_value": {
           "type": [
             "number",
@@ -2109,6 +2216,9 @@
           ]
         },
         "reject_null": {
+          "type": "boolean"
+        },
+        "significant_adjusted": {
           "type": "boolean"
         },
         "statistic": {
@@ -2220,4 +2330,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 03500486c9c5efeaedec66bc34413594e32b9825d2f48ee2a90764051df721cc
+// golden-hash: 171185678653ca7e466565e767c4d6ee9ba4ec740154decb3ad41102afbfbaff
