@@ -365,7 +365,8 @@ func yoyEqual(a, b map[string]float64) bool {
 // TestTimeZone_YoYFollowsHostZone: OVERLAY_YOY has no zone of its own —
 // it compares host key strings, so over a Berlin-zoned GROUP_DATE host
 // its entries are keyed on Berlin labels and compare Berlin buckets,
-// on the daily (exact-key) arm and the coarse (ordinal) monthly arm,
+// on the daily and hourly (exact-key) arms and the coarse (ordinal)
+// monthly arm,
 // whether the zone rides the host slot or the request. Each fixture
 // puts rows at 23:30Z, which is the NEXT Berlin day (and month), so
 // the UTC answer differs.
@@ -401,6 +402,17 @@ func TestTimeZone_YoYFollowsHostZone(t *testing.T) {
 			}
 		}
 	}
+	// hourly: every UTC hour of 2025-06-10 and 2026-06-10 (365 days
+	// apart), counts varying by hour and year; Berlin (+2) relabels
+	// every bucket, so the UTC layer is keyed differently.
+	var hourly []int64
+	for y := 2025; y <= 2026; y++ {
+		for h := range 24 {
+			for range h%5 + 1 + (y-2025)*(h%3) {
+				hourly = append(hourly, at(y, time.June, 10, h, 15))
+			}
+		}
+	}
 
 	arms := []struct {
 		name, component, frequency, layout string
@@ -414,6 +426,11 @@ func TestTimeZone_YoYFollowsHostZone(t *testing.T) {
 		{"monthly", "month", "monthly", "2006-01", monthly, func(k string) string {
 			d, _ := time.Parse("2006-01", k)
 			return d.AddDate(-1, 0, 0).Format("2006-01")
+		}},
+		// GROUP_DATE `hour` feeds the hourly exact-key arm end to end.
+		{"hourly", "hour", "hourly", "2006-01-02T15", hourly, func(k string) string {
+			d, _ := time.Parse("2006-01-02T15", k)
+			return d.Add(-365 * 24 * time.Hour).Format("2006-01-02T15")
 		}},
 	}
 	ctx := context.Background()

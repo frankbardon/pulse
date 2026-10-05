@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "category": "groupers",
+    "description": "Bucket orders into Sunday-start weeks using GROUP_DATE component=week with week_start=sunday; each key is the date of the week's first Sunday (period_start / period_end follow it) instead of an ISO week label.",
+    "intents": [
+      "change_over_time"
+    ],
+    "name": "group_date_week_start_sunday",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "week",
+        "week_start": "sunday"
+      }
+    }
+  ],
+  "sort": [
+    {
+      "field": "order_date"
+    }
+  ]
+}

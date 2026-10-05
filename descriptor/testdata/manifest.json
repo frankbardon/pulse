@@ -3430,7 +3430,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). A datetime field is truncated to the UTC calendar day containing its instant before bucketing. Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour its wall-clock hour (datetime only). Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -3441,10 +3441,27 @@
               "enum_values": [
                 "day",
                 "day_of_week",
+                "hour",
                 "month",
                 "quarter",
                 "week",
                 "year"
+              ]
+            },
+            {
+              "name": "week_start",
+              "type": "enum",
+              "required": false,
+              "default": "monday",
+              "description": "Day a week bucket begins on; valid only with component=week. monday (default) keeps ISO-8601 week keys (2026-W09); any other day keys a week by the date of its first day (2026-03-01), and period_start / period_end follow it.",
+              "enum_values": [
+                "friday",
+                "monday",
+                "saturday",
+                "sunday",
+                "thursday",
+                "tuesday",
+                "wednesday"
               ]
             },
             {
@@ -3459,7 +3476,7 @@
             "date",
             "datetime"
           ],
-          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
+          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03)",
           "streamable": false,
           "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
           "component_schema": {
@@ -3477,17 +3494,17 @@
               {
                 "name": "granularity",
                 "type": "string",
-                "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+                "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
               },
               {
                 "name": "range_start",
                 "type": "string",
-                "description": "ISO date string of the earliest period observed."
+                "description": "ISO date string of the earliest period observed (YYYY-MM-DDTHH for component=hour)."
               },
               {
                 "name": "range_end",
                 "type": "string",
-                "description": "ISO date string of the latest period observed."
+                "description": "ISO date string of the latest period observed (YYYY-MM-DDTHH for component=hour)."
               },
               {
                 "name": "n_buckets",
@@ -7927,7 +7944,7 @@
       },
       {
         "name": "op-group-date",
-        "description": "Partition date/datetime records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
+        "description": "Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter."
       },
       {
         "name": "op-group-date-ranges",
@@ -8686,7 +8703,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 170,
+    "examples_count": 172,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -11213,17 +11230,17 @@
             {
               "name": "granularity",
               "type": "string",
-              "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+              "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
             },
             {
               "name": "range_start",
               "type": "string",
-              "description": "ISO date string of the earliest period observed."
+              "description": "ISO date string of the earliest period observed (YYYY-MM-DDTHH for component=hour)."
             },
             {
               "name": "range_end",
               "type": "string",
-              "description": "ISO date string of the latest period observed."
+              "description": "ISO date string of the latest period observed (YYYY-MM-DDTHH for component=hour)."
             },
             {
               "name": "n_buckets",
@@ -11703,4 +11720,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 37b6e2ab9e97a6be152d78917f44477a91a35b2c01bbfc0f815cedd4bb5d1517
+// golden-hash: 625048c095c8e7fcf08aa1f3e95a8e874452b583a2e6e3bac727737c5a66e652

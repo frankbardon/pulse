@@ -140,6 +140,22 @@ func (d dateField) localDay(v float64) int64 {
 	return temporal.LocalDay(int64(v), d.zone)
 }
 
+// epochHour is the bucket unit of GROUP_DATE's `hour` component: the
+// local epoch hour of an instant in the column's zone (the UTC hour when
+// no zone applies). A day count — only reachable on the schema-less
+// probe paths, since `hour` refuses a non-datetime field against a
+// schema — reads as hour 00 of that day.
+func (d dateField) epochHour(v float64) int64 {
+	if !d.seconds {
+		return temporal.LocalHour(temporal.DayToUnix(int64(v)), temporal.UTC)
+	}
+	z := d.zone
+	if z == nil {
+		z = temporal.UTC
+	}
+	return temporal.LocalHour(int64(v), z)
+}
+
 // epochDayFromValue converts a decoded record value for a date-family
 // column into the epoch-day integer every date operator buckets on.
 // seconds is the flag resolveDateFieldSeconds returned for that column:

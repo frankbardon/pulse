@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/dategroup"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -952,28 +953,19 @@ func (g *quantileGrouper) Components() (map[string]any, error) {
 	}, nil
 }
 
-type dateGroupParams struct {
-	Component    string `json:"component"`
-	FiscalOffset *int   `json:"fiscal_offset,omitempty"`
-}
-
-var validDateGroupComponents = map[string]bool{
-	"year": true, "quarter": true, "month": true,
-	"week": true, "day": true, "day_of_week": true,
-}
-
-// fiscalComponents lists the only components that meaningfully accept a
-// fiscal_offset. Month/week/day/day_of_week buckets do not shift under a
-// fiscal calendar, so combining them with fiscal_offset is rejected at
-// construction time.
-var fiscalComponents = map[string]bool{
-	"year": true, "quarter": true,
-}
-
 type dateGrouper struct {
 	field        string
 	component    string
 	fiscalOffset int // 0 = calendar; non-zero = FY starts at month (((offset%12)+12)%12)+1
+
+	// weekStart is the weekday a `week` bucket begins on (time.Monday,
+	// the ISO week, by default). datedWeeks: a non-Monday start keys a
+	// week by the local date of its first day instead of `YYYY-Www`.
+	weekStart  time.Weekday
+	datedWeeks bool
+	// hour: the `hour` component, whose bucket unit is the local epoch
+	// HOUR (temporal.LocalHour) rather than the local epoch day.
+	hour bool
 
 	// date reads Field: epoch SECONDS (a `datetime` column) or epoch
 	// DAYS (a `date` column), and for an instant the zone whose local
@@ -991,8 +983,9 @@ type dateGrouper struct {
 	// NOT touch the live map (fused crosstab path) — see categoryGrouper
 	// for the rationale.
 	liveBuckets map[string]dateBucketStat
-	// rangeMinDay / rangeMaxDay carry the earliest / latest days-
-	// since-epoch value observed across all rows. Used to populate
+	// rangeMinDay / rangeMaxDay carry the earliest / latest bucket unit
+	// (days since epoch; hours since epoch for `hour`) observed across
+	// all rows. Used to populate
 	// {range_start, range_end} on Components() in the same ISO-8601
 	// formatter family that produces per-bucket period_start /
 	// period_end. liveRangeSet flips to true on the first non-null row
@@ -1015,13 +1008,16 @@ type dateBucketStat struct {
 }
 
 // dateRangeBoundaries returns ISO-8601 (YYYY-MM-DD) strings for the
-// start and end of the calendar period containing epoch day day under the
-// configured granularity. Day collapses to a single date; week
-// returns Monday..Sunday of the ISO week; month / quarter / year
-// return the first day and last day of their span. day_of_week and
-// the fiscal variants do not have a contiguous calendar range, so
-// they return empty strings — Components() emits them verbatim.
-func (g *dateGrouper) dateRangeBoundaries(day int64) (string, string) {
+// start and end of the calendar period containing bucket unit u (an
+// epoch day; an epoch hour for `hour`) under the configured granularity.
+// Day collapses to a single date and hour to a single `YYYY-MM-DDTHH`
+// label (both bounds inclusive at the bucket's own resolution); week
+// returns the week's first and last day (Monday..Sunday for the ISO
+// week, else week_start..week_start+6); month / quarter / year return
+// the first day and last day of their span. day_of_week and the fiscal
+// variants do not have a contiguous calendar range, so they return
+// empty strings — Components() emits them verbatim.
+func (g *dateGrouper) dateRangeBoundaries(u int64) (string, string) {
 	if g.fiscalOffset != 0 {
 		// Fiscal-offset year / quarter spans rotate off the calendar
 		// year. The Components contract sticks to calendar ISO-8601
@@ -1030,21 +1026,20 @@ func (g *dateGrouper) dateRangeBoundaries(day int64) (string, string) {
 		// strings rather than guess the wrong calendar boundary.
 		return "", ""
 	}
+	if g.hour {
+		s := temporal.HourToTime(u).Format(hourKeyLayout)
+		return s, s
+	}
+	day := u
 	t := temporal.DayToTime(day)
 	switch g.component {
 	case "day":
 		s := t.Format("2006-01-02")
 		return s, s
 	case "week":
-		// ISO week starts Monday. Go's time.Weekday() returns Sunday=0,
-		// Monday=1, ..., Saturday=6. Shift so Monday=0, Sunday=6, then
-		// subtract to land on Monday.
-		wd := int(t.Weekday())
-		// Normalize so Monday=0 ... Sunday=6.
-		mondayOffset := (wd + 6) % 7
-		monday := t.AddDate(0, 0, -mondayOffset)
-		sunday := monday.AddDate(0, 0, 6)
-		return monday.Format("2006-01-02"), sunday.Format("2006-01-02")
+		first := temporal.DayToTime(temporal.WeekStartDay(day, g.weekStart))
+		last := first.AddDate(0, 0, 6)
+		return first.Format("2006-01-02"), last.Format("2006-01-02")
 	case "month":
 		first := temporal.MonthStart(day)
 		last := first.AddDate(0, 1, -1)
@@ -1062,71 +1057,64 @@ func (g *dateGrouper) dateRangeBoundaries(day int64) (string, string) {
 	return "", ""
 }
 
-// trackDateRow folds a single (record day, bucket key) observation
+// hourKeyLayout is the `hour` component's key: the local wall-clock date
+// and hour, the layout OVERLAY_YOY's hourly arm parses.
+const hourKeyLayout = "2006-01-02T15"
+
+// trackDateRow folds a single (record bucket unit, bucket key) observation
 // into the date grouper's live components state. Called once per
 // row-producing observation by both Group() (buffered) and KeyForRow
 // (streaming) so the two code paths fill liveBuckets identically.
-func (g *dateGrouper) trackDateRow(dayUnix int64, key string) {
+func (g *dateGrouper) trackDateRow(u int64, key string) {
 	if g.liveBuckets == nil {
 		g.liveBuckets = make(map[string]dateBucketStat)
 	}
 	stat, exists := g.liveBuckets[key]
 	if !exists {
-		ps, pe := g.dateRangeBoundaries(dayUnix)
+		ps, pe := g.dateRangeBoundaries(u)
 		stat = dateBucketStat{periodStart: ps, periodEnd: pe}
 	}
 	stat.count++
 	g.liveBuckets[key] = stat
-	if !g.liveRangeSet || dayUnix < g.rangeMinDay {
-		g.rangeMinDay = dayUnix
+	if !g.liveRangeSet || u < g.rangeMinDay {
+		g.rangeMinDay = u
 	}
-	if !g.liveRangeSet || dayUnix > g.rangeMaxDay {
-		g.rangeMaxDay = dayUnix
+	if !g.liveRangeSet || u > g.rangeMaxDay {
+		g.rangeMaxDay = u
 	}
 	g.liveRangeSet = true
 }
 
 func newDateGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
-	component := "month"
-	fiscalOffset := 0
-	if len(grp.Params) > 0 {
-		var params dateGroupParams
-		if err := json.Unmarshal(grp.Params, &params); err != nil {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("invalid GROUP_DATE params: %v", err))
-		}
-		if params.Component != "" {
-			component = params.Component
-		}
-		if params.FiscalOffset != nil {
-			fiscalOffset = *params.FiscalOffset
-		}
-	}
-
-	if !validDateGroupComponents[component] {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("invalid date group component %q: must be one of year, quarter, month, week, day, day_of_week", component))
-	}
-
-	if fiscalOffset < -11 || fiscalOffset > 11 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("invalid GROUP_DATE fiscal_offset %d: must be in range [-11, 11]", fiscalOffset))
-	}
-	if fiscalOffset != 0 && !fiscalComponents[component] {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("GROUP_DATE fiscal_offset only applies to component=year or component=quarter, got %q", component))
+	// dategroup.Parse is shared with predict, so both refuse a request
+	// with the same code and message.
+	spec, err := dategroup.Parse(grp.Params)
+	if err != nil {
+		return nil, err
 	}
 
 	// Non-strict posture: GROUP_DATE has never rejected a non-temporal
 	// Field against the schema, so widening it to `datetime` must not
 	// introduce a new rejection. The call resolves the day-vs-second
-	// reading of the column and nothing else.
+	// reading of the column and nothing else. Only `hour` — which needs
+	// a time of day — insists on a datetime (dategroup.CheckField).
 	date, err := resolveDateField("GROUP_DATE", grp.Field, grp.TimeZone, schema, false)
 	if err != nil {
 		return nil, err
 	}
+	if err := dategroup.CheckField(spec, grp.Field, schema); err != nil {
+		return nil, err
+	}
 
-	return &dateGrouper{field: grp.Field, component: component, fiscalOffset: fiscalOffset, date: date}, nil
+	return &dateGrouper{
+		field:        grp.Field,
+		component:    spec.Component,
+		fiscalOffset: spec.FiscalOffset,
+		weekStart:    spec.WeekStart,
+		datedWeeks:   spec.DatedWeeks(),
+		hour:         spec.Component == dategroup.ComponentHour,
+		date:         date,
+	}, nil
 }
 
 // fiscalYearQuarter returns the fiscal year (end-year convention) and the
@@ -1168,6 +1156,9 @@ func (g *dateGrouper) formatDateKey(t time.Time) string {
 	case "month":
 		return t.Format("2006-01")
 	case "week":
+		if g.datedWeeks {
+			return temporal.DayToTime(temporal.WeekStartDay(temporal.TimeToDay(t), g.weekStart)).Format("2006-01-02")
+		}
 		y, w := t.ISOWeek()
 		return fmt.Sprintf("%d-W%02d", y, w)
 	case "day":
@@ -1192,8 +1183,21 @@ func (g *dateGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
+	if g.hour {
+		return temporal.HourToTime(g.date.epochHour(v)).Format(hourKeyLayout), nil
+	}
 	t := temporal.DayToTime(g.date.epochDay(v))
 	return g.formatDateKey(t), nil
+}
+
+// unit is the bucket unit of a decoded value: its (local) epoch day, or
+// its local epoch hour for the `hour` component. Components() boundaries
+// and range_start / range_end are derived from it.
+func (g *dateGrouper) unit(v float64) int64 {
+	if g.hour {
+		return g.date.epochHour(v)
+	}
+	return g.date.epochDay(v)
 }
 
 // KeyForRow is the StreamingGrouper-shape adapter on top of KeyFor.
@@ -1214,7 +1218,7 @@ func (g *dateGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
 		// tracker safe under contract drift.
 		return key, ok, nil
 	}
-	g.trackDateRow(g.date.epochDay(v), key)
+	g.trackDateRow(g.unit(v), key)
 	return key, ok, nil
 }
 
@@ -1243,7 +1247,7 @@ func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Reco
 			if !ok {
 				continue
 			}
-			g.trackDateRow(g.date.epochDay(v), key)
+			g.trackDateRow(g.unit(v), key)
 		}
 	}
 	return groups, nil

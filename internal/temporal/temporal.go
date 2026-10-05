@@ -80,3 +80,44 @@ func DayToUnixFloat(day float64) float64 {
 func IsWholeDay(sec int64) bool {
 	return sec%SecondsPerDay == 0
 }
+
+// SecondsPerHour is the conversion factor between epoch seconds and
+// epoch HOURS — the unit GROUP_DATE's `hour` component buckets on.
+const SecondsPerHour = 3600
+
+// HourToTime returns the UTC time.Time at the start of epoch hour hour.
+// Fed a LOCAL epoch hour (LocalHour), its fields are the wall-clock
+// date and hour a clock in that zone shows.
+func HourToTime(hour int64) time.Time {
+	return time.Unix(hour*SecondsPerHour, 0).UTC()
+}
+
+// HourToDay returns the epoch day containing epoch hour hour, truncating
+// toward the past as DateTimeToDay does.
+func HourToDay(hour int64) int64 {
+	return DateTimeToDay(hour * SecondsPerHour)
+}
+
+// WeekStartDay returns the epoch day on which the week containing epoch
+// day day begins, for weeks that begin on weekday start. With start ==
+// time.Monday it is the Monday of the day's ISO week.
+func WeekStartDay(day int64, start time.Weekday) int64 {
+	// Epoch day 0 (1970-01-01) was a Thursday; the double modulo keeps
+	// the weekday non-negative for days before the epoch.
+	wd := ((day % 7) + 7 + int64(time.Thursday)) % 7
+	return day - (wd-int64(start)+7)%7
+}
+
+// weekdayNames is the lowercase English spelling ParseWeekday accepts.
+var weekdayNames = map[string]time.Weekday{
+	"sunday": time.Sunday, "monday": time.Monday, "tuesday": time.Tuesday,
+	"wednesday": time.Wednesday, "thursday": time.Thursday,
+	"friday": time.Friday, "saturday": time.Saturday,
+}
+
+// ParseWeekday maps a lowercase English day name ("monday" … "sunday")
+// to its time.Weekday. Any other spelling (case included) is refused.
+func ParseWeekday(name string) (time.Weekday, bool) {
+	wd, ok := weekdayNames[name]
+	return wd, ok
+}

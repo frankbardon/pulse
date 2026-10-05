@@ -23,7 +23,7 @@ Read the intent first (`pulse_skills_get intents`): `compare_groups`, `compositi
 
 - **One bucket per distinct value** of a categorical, boolean or low-cardinality field? → the category grouper.
 - **A number in bands?** Fixed-width bands with a `"low-high"` key, or bands keyed by their rounded-down floor — or EQUAL-COUNT bands (by rank, so equal values may straddle two)? Equal-count bands buffer the whole input.
-- **Calendar periods** (day, ISO week, month, quarter, fiscal year, weekday)? → the date grouper. **Custom named periods** (campaign windows, irregular fiscal quarters)? → the date-ranges grouper.
+- **Calendar periods** (hour, day, week — ISO or any start day, month, quarter, fiscal year, weekday)? → the date grouper. **Custom named periods** (campaign windows, irregular fiscal quarters)? → the date-ranges grouper.
 - **A multi-select field?** One bucket per OPTION (a record lands in every option it chose — fan-out) or one bucket per exact COMBINATION?
 
 Each grouper's `Purpose.NotFor` names the sibling to use when the choice is wrong.

@@ -70,7 +70,7 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.GROUP_DATE),
 			Category:    "grouper",
-			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). A datetime field is truncated to the UTC calendar day containing its instant before bucketing. Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour its wall-clock hour (datetime only). Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
 			Params: []descriptor.Param{
 				{
 					Name:        "component",
@@ -78,7 +78,15 @@ func grouperCapabilities() []descriptor.Operator {
 					Required:    false,
 					Default:     "month",
 					Description: "Calendar component to bucket by.",
-					EnumValues:  []string{"day", "day_of_week", "month", "quarter", "week", "year"},
+					EnumValues:  []string{"day", "day_of_week", "hour", "month", "quarter", "week", "year"},
+				},
+				{
+					Name:        "week_start",
+					Type:        "enum",
+					Required:    false,
+					Default:     "monday",
+					Description: "Day a week bucket begins on; valid only with component=week. monday (default) keeps ISO-8601 week keys (2026-W09); any other day keys a week by the date of its first day (2026-03-01), and period_start / period_end follow it.",
+					EnumValues:  []string{"friday", "monday", "saturday", "sunday", "thursday", "tuesday", "wednesday"},
 				},
 				{
 					Name:        "fiscal_offset",
@@ -89,13 +97,13 @@ func grouperCapabilities() []descriptor.Operator {
 				},
 			},
 			AcceptsTypes:   []string{"date", "datetime"},
-			EmitsTypeNote:  "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
+			EmitsTypeNote:  "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03)",
 			Streamable:     false,
 			StreamableHint: "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
 			ComponentSchema: groupSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "granularity", Type: "string", Description: "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."},
-				descriptor.ComponentKey{Name: "range_start", Type: "string", Description: "ISO date string of the earliest period observed."},
-				descriptor.ComponentKey{Name: "range_end", Type: "string", Description: "ISO date string of the latest period observed."},
+				descriptor.ComponentKey{Name: "granularity", Type: "string", Description: "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."},
+				descriptor.ComponentKey{Name: "range_start", Type: "string", Description: "ISO date string of the earliest period observed (YYYY-MM-DDTHH for component=hour)."},
+				descriptor.ComponentKey{Name: "range_end", Type: "string", Description: "ISO date string of the latest period observed (YYYY-MM-DDTHH for component=hour)."},
 				descriptor.ComponentKey{Name: "n_buckets", Type: "int", Description: "Number of distinct calendar buckets observed."},
 				descriptor.ComponentKey{Name: "buckets", Type: "[]bucket", Description: "Per-bucket records, ordered by emission; each entry carries {key, period_start, period_end, count}."},
 			),

@@ -74,6 +74,23 @@ var utcIdentityCases = []identityCase{
 	{name: "GROUP_DATE/month", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
 		return identityGroupReq(c, r, &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"month"}`), TimeZone: s})
 	}},
+	{name: "GROUP_DATE/hour", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
+		return identityGroupReq(c, r, &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"hour"}`), TimeZone: s})
+	}},
+	{name: "GROUP_DATE/week-iso", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
+		return identityGroupReq(c, r, &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"week"}`), TimeZone: s})
+	}},
+	{name: "GROUP_DATE/week-sunday", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
+		return identityGroupReq(c, r, &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"week","week_start":"sunday"}`), TimeZone: s})
+	}},
+	{name: "crosstab/GROUP_DATE-hour-fused", slotTZ: true, zoneSensitive: true, arms: []string{"process", "compose"}, mk: func(c, s, r string) *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: c}, TimeZone: r, Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"hour"}`), TimeZone: s}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "n", Label: "count"},
+			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+		}}
+	}},
 	{name: "GROUP_DATE_RANGES/inline", slotTZ: true, zoneSensitive: true, mk: func(c, s, r string) *types.Request {
 		return identityGroupReq(c, r, &types.Group{Type: types.GROUP_DATE_RANGES, Field: "ts", Params: json.RawMessage(identityHalvesInline), TimeZone: s})
 	}},
@@ -331,12 +348,37 @@ func (f *dstFixture) rangeLabel(day string) string {
 // dstOp is one zone-aware operator under the DST fixtures: mk builds the
 // request (zone on the slot or the request), key is the response column
 // counted by, want is the time.In reference. Add a row per newly
-// zone-aware operator (hour, week_start, ...).
+// zone-aware operator.
 type dstOp struct {
 	name string
 	key  string
 	mk   func(f *dstFixture, slotTZ, reqTZ string) *types.Request
-	want func(f *dstFixture, day func(int64) string) map[string]float64
+	// want is the reference; at reads an instant on the clock under
+	// test (the zone's, or UTC for the control).
+	want func(f *dstFixture, at func(int64) time.Time) map[string]float64
+}
+
+// dstDay is the calendar day at shows for instant s.
+func dstDay(at func(int64) time.Time, s int64) string { return at(s).Format("2006-01-02") }
+
+// weekStart is the week start the week_start row uses on f: the weekday
+// of f's first focus day, so a week boundary falls on a local midnight
+// inside the window in every zone (Berlin / Sydney transition on a
+// Sunday; the Kolkata anchor day is a Tuesday).
+func (f *dstFixture) weekStart() time.Weekday {
+	d, _ := time.Parse("2006-01-02", f.focusDays[0])
+	return d.Weekday()
+}
+
+// weekKey is the time.In reference for a GROUP_DATE week key under
+// week start ws: ISO `YYYY-Www` for Monday, else the date of the week's
+// first day.
+func weekKey(t time.Time, ws time.Weekday) string {
+	if ws == time.Monday {
+		y, w := t.ISOWeek()
+		return fmt.Sprintf("%d-W%02d", y, w)
+	}
+	return t.AddDate(0, 0, -((int(t.Weekday()) - int(ws) + 7) % 7)).Format("2006-01-02")
 }
 
 var dstOps = []dstOp{
@@ -345,10 +387,39 @@ var dstOps = []dstOp{
 		mk: func(f *dstFixture, s, r string) *types.Request {
 			return identityGroupReq(f.cohort, r, &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"day"}`), TimeZone: s})
 		},
-		want: func(f *dstFixture, day func(int64) string) map[string]float64 {
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
 			out := map[string]float64{}
 			for _, s := range f.instants {
-				out[day(s)]++
+				out[dstDay(at, s)]++
+			}
+			return out
+		},
+	},
+	{
+		// The fall-back hour merges (one bucket, twice the rows); the
+		// spring-forward hour has no bucket — time.In formats the same.
+		name: "GROUP_DATE/hour", key: "ts",
+		mk: func(f *dstFixture, s, r string) *types.Request {
+			return identityGroupReq(f.cohort, r, &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"hour"}`), TimeZone: s})
+		},
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
+			out := map[string]float64{}
+			for _, s := range f.instants {
+				out[at(s).Format("2006-01-02T15")]++
+			}
+			return out
+		},
+	},
+	{
+		name: "GROUP_DATE/week_start", key: "ts",
+		mk: func(f *dstFixture, s, r string) *types.Request {
+			params := fmt.Sprintf(`{"component":"week","week_start":%q}`, strings.ToLower(f.weekStart().String()))
+			return identityGroupReq(f.cohort, r, &types.Group{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(params), TimeZone: s})
+		},
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
+			out := map[string]float64{}
+			for _, s := range f.instants {
+				out[weekKey(at(s), f.weekStart())]++
 			}
 			return out
 		},
@@ -358,10 +429,10 @@ var dstOps = []dstOp{
 		mk: func(f *dstFixture, s, r string) *types.Request {
 			return identityGroupReq(f.cohort, r, &types.Group{Type: types.GROUP_DATE_RANGES, Field: "ts", Params: json.RawMessage(f.rangeSpecs()), TimeZone: s})
 		},
-		want: func(f *dstFixture, day func(int64) string) map[string]float64 {
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
 			out := map[string]float64{}
 			for _, s := range f.instants {
-				out[f.rangeLabel(day(s))]++
+				out[f.rangeLabel(dstDay(at, s))]++
 			}
 			return out
 		},
@@ -371,10 +442,10 @@ var dstOps = []dstOp{
 		mk: func(f *dstFixture, s, r string) *types.Request {
 			return identityFilterReq(f.cohort, r, &types.Filterer{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: json.RawMessage(f.rangeSpecs()), TimeZone: s})
 		},
-		want: func(f *dstFixture, day func(int64) string) map[string]float64 {
+		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
 			out := map[string]float64{}
 			for i, s := range f.instants {
-				if f.rangeLabel(day(s)) != "unmatched" {
+				if f.rangeLabel(dstDay(at, s)) != "unmatched" {
 					out[[]string{"a", "b", "c"}[i%3]]++
 				}
 			}
@@ -474,12 +545,13 @@ func TestDSTBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	utcDay := func(s int64) string { return time.Unix(s, 0).UTC().Format("2006-01-02") }
+	utcAt := func(s int64) time.Time { return time.Unix(s, 0).UTC() }
 	for _, zc := range dstZoneCases {
 		f := buildDSTFixture(t, p, fs, zc)
+		localAt := func(s int64) time.Time { return time.Unix(s, 0).In(f.loc) }
 		for _, op := range dstOps {
-			want := op.want(f, f.localDay)
-			if maps.Equal(want, op.want(f, utcDay)) {
+			want := op.want(f, localAt)
+			if maps.Equal(want, op.want(f, utcAt)) {
 				t.Fatalf("%s/%s: fixture proves nothing — the local and UTC answers coincide", zc.zone, op.name)
 			}
 			for _, src := range []struct{ name, slot, req string }{{"slot", zc.zone, ""}, {"request", "", zc.zone}} {

@@ -208,6 +208,35 @@ func BenchmarkDateOps_GroupDate(b *testing.B) {
 	}
 }
 
+// BenchmarkDateOps_GroupDateCalendar: GROUP_DATE week (ISO and
+// week_start sunday) and hour over the datetime column, SUM(v) per
+// bucket (zone-aware-operators E2-S1).
+func BenchmarkDateOps_GroupDateCalendar(b *testing.B) {
+	cfg, _ := dateOpsFixture(b)
+	for _, comp := range []struct{ name, params string }{
+		{"week", `{"component":"week"}`},
+		{"week-sunday", `{"component":"week","week_start":"sunday"}`},
+		{"hour", `{"component":"hour"}`},
+	} {
+		for _, order := range dateOpsOrders {
+			for _, tz := range dateOpsZones {
+				b.Run(fmt.Sprintf("component=%s/order=%s/tz=%s", comp.name, order, dateOpsTZName(tz)), func(b *testing.B) {
+					svc := New(cfg)
+					mk := func() *types.Request {
+						return &types.Request{
+							Cohort:       &types.Cohort{Filename: "dates_" + order + ".pulse"},
+							TimeZone:     tz,
+							Groups:       []*types.Group{{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(comp.params)}},
+							Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "s"}},
+						}
+					}
+					runDateOpsBench(b, svc, mk, tz)
+				})
+			}
+		}
+	}
+}
+
 // BenchmarkDateOps_FilterDateRanges: FILTER_DATE_RANGES (2024 quarters)
 // over the datetime column, SUM(v) over the survivors.
 func BenchmarkDateOps_FilterDateRanges(b *testing.B) {
