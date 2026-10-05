@@ -25,7 +25,7 @@ SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; 
 
 ## Gotchas
 
-- Weighted slots (both kinds): cells are Σw; under probability the target table is scaled to its Kish `n_eff` (the reference is the fixed distribution; expected-low on the scaled table) — first-order Kish, not Rao-Scott. `Summary.Parameters` adds the target's `sum_weights` (+ `n_eff`).
+- Weighted slots (both kinds): cells are Σw; under probability the target table is scaled to its Kish `n_eff` (the reference is the fixed distribution; expected-low on the scaled table) — first-order Kish, not Rao-Scott. `Summary.Parameters` adds the target's `sum_weights` (+ `n_eff`). A probability TARGET with components disabled ⇒ `PROCESSING_CONFIG` (predict AND runtime).
 - Reference scaled to target N: `expected = ref_cell × (target_N / ref_N)`. Reuses `chiSquareSurvival` — byte-equal to the χ² test on the same contingency.
 - `df = (target cells with expected > 0) - 1`.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer (canonical χ² low-count rule).

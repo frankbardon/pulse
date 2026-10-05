@@ -44,7 +44,7 @@ MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-ma
 
 ## Gotchas
 
-- Weighted slots (both kinds): the value modes read p̂ = cell/margin (Σw) and n = the base's N* (margin or slab Σw under frequency, Kish `n_eff` under probability); `cell_n_unweighted` / `row_margin_distinct_within` on a weighted slot are `PROCESSING_CONFIG` (predict AND runtime). `Summary.Parameters` adds `sum_weights` (+ `n_eff`).
+- Weighted slots (both kinds): the value modes read p̂ = cell/margin (Σw) and n = the base's N* (margin or slab Σw under frequency, Kish `n_eff` under probability); `cell_n_unweighted` / `row_margin_distinct_within` on a weighted slot are `PROCESSING_CONFIG` (predict AND runtime). `Summary.Parameters` adds `sum_weights` (+ `n_eff`). A probability slot it reads with components disabled ⇒ `PROCESSING_CONFIG` (predict AND runtime).
 - Pairs byte-equal the cell proportion z (shared `twoProportionZ`).
 - Degenerate `(n == 0, pooled ∈ {0,1}, se == 0)` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
 - Absent value → nil slice + `REF_ZERO` `ref_missing`; an unreadable counted n adds `n_missing` + `slot_index`.

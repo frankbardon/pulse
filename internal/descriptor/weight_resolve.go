@@ -823,6 +823,63 @@ func composeOverlayWeightRefusal(i int, spec *types.ComposeOverlaySpec, requests
 	return nil
 }
 
+// ComposeOverlayHiddenFloorRefusal is the Compose-host half of the
+// components-disabled refusal (weighting.HiddenFloorRefusal,
+// weighting-inferential E3-S3): a kind that scales a slot's Σw by the
+// n_eff on its floor (OVERLAY_PROP_Z_CELL, OVERLAY_PROP_Z_PANEL,
+// OVERLAY_CHISQ_VS_REF) over a slot whose crosstab cell is weighted
+// under kind probability (any source: the cell's own weight, the
+// request's, defaultWeight) and whose components are disabled —
+// disabled(slot) is the runtime's effective setting. Without the floor
+// the slot reads as unweighted and its Σw as the sample size. The
+// proportion kinds test every slot they read (reference and targets);
+// OVERLAY_CHISQ_VS_REF reads the reference only as a distribution, so
+// only its targets count. requests and labels are parallel (labels
+// defaulted); the runtime (Service.applyComposeOverlays) and
+// ValidateComposeWithOptions both call it with the raw slots.
+func ComposeOverlayHiddenFloorRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, defaultWeight *types.WeightSpec, inst *InstanceSnapshot, disabled func(*types.Request) bool) error {
+	for i := range overlays {
+		if err := composeOverlayHiddenFloorRefusal(i, &overlays[i], requests, labels, defaultWeight, inst, disabled); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func composeOverlayHiddenFloorRefusal(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string, defaultWeight *types.WeightSpec, inst *InstanceSnapshot, disabled func(*types.Request) bool) error {
+	if !weighting.ScalesByHostFloor(spec.Kind) || inst.Hidden(string(spec.Kind)) {
+		return nil
+	}
+	readsRef := spec.Kind != types.OverlayKindChiSqVsRef
+	reads := func(label string) bool {
+		if label == spec.Reference {
+			return readsRef
+		}
+		if len(spec.Targets) == 0 {
+			return true
+		}
+		for _, t := range spec.Targets {
+			if t == label {
+				return true
+			}
+		}
+		return false
+	}
+	opts := &PredictOptions{DefaultWeight: defaultWeight, Instance: inst}
+	for j, r := range requests {
+		if r == nil || j >= len(labels) || !reads(labels[j]) || !disabled(r) {
+			continue
+		}
+		if crosstabCellWeightBasis(r, opts) != weighting.Probability {
+			continue
+		}
+		msg, details := weighting.HiddenFloorRefusal(fmt.Sprintf("overlays[%d]", i), spec.Kind, fmt.Sprintf("requests[%d]", j))
+		details["slot_label"] = labels[j]
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, msg, details)
+	}
+	return nil
+}
+
 // resolveRequestWeights is the validators' mirror of one runtime
 // resolution: smart defaults on a clone (unless opts.DisableDefaults)
 // against schema, then ResolveWeights with the options' default weight.

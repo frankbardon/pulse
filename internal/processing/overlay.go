@@ -397,6 +397,14 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 			msg, details := weighting.FrequencyOnlyHostRefusal("overlays["+intToString(int64(i))+"]", string(spec.Kind))
 			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED, msg, details)
 		}
+		// A χ² kind on a probability-weighted host built with components
+		// disabled: no floor, so no n_eff to scale the Σw table by
+		// (weighting-inferential E3-S3). Predict raises the same refusal
+		// (descriptor.validateOverlaySpec).
+		if weighting.ScalesByHostFloor(route) && host.WeightBasis() == weighting.Probability && !host.HasComponents() {
+			msg, details := weighting.HiddenFloorRefusal("overlays["+intToString(int64(i))+"]", spec.Kind, "crosstab.cell")
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, msg, details)
+		}
 		handler, ok := overlayHandlers[route]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(

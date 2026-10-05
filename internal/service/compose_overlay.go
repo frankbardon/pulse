@@ -131,6 +131,14 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	if err := descx.ComposeOverlayWeightRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance); err != nil {
 		return nil, nil, err
 	}
+	// A kind that scales a probability-weighted slot's Σw by the n_eff
+	// on its floor cannot run over a slot built with components
+	// disabled — the floor is the only place the slot's weight shows
+	// (weighting-inferential E3-S3). Same rule, same slots as
+	// ValidateComposeWithOptions.
+	if err := descx.ComposeOverlayHiddenFloorRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance, s.effectiveDisableComponents); err != nil {
+		return nil, nil, err
+	}
 	// The requests-aware entry point, not the bare one: the panel's
 	// within-prefix slab gate turns on each slot's authored
 	// Crosstab.Rows grouper types, which no materialised *Response

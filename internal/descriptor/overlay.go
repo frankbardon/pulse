@@ -1270,6 +1270,21 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 // `opts.Extensions` for embedder-side state. Most kinds do not
 // consume opts today; the FORMULA dispatch reads
 // `opts.Extensions.ExprFunctions` to widen the allowed identifier set.
+// validateOverlayHiddenFloor is the predict twin of the runtime's
+// components-disabled refusal (processing.ApplyOverlaysWithExtensions,
+// weighting-inferential E3-S3): a kind that scales the host's Σw by the
+// n_eff on its floor, over a crosstab cell weighted under kind
+// probability whose components are disabled (the request's
+// disable_components, else Options.DisableComponents).
+func validateOverlayHiddenFloor(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
+	if !weighting.ScalesByHostFloor(spec.Kind) || !opts.componentsDisabled(req) ||
+		crosstabCellWeightBasis(req, opts) != weighting.Probability {
+		return
+	}
+	msg, details := weighting.HiddenFloorRefusal("overlays["+strconv.Itoa(index)+"]", spec.Kind, "crosstab.cell")
+	env.AddError(string(errors.PROCESSING_CONFIG), msg, details)
+}
+
 func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if spec == nil {
 		return
@@ -1293,10 +1308,13 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	switch spec.Kind {
 	case types.OverlayKindChiSqCol:
 		validateOverlayChiSqCol(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqMatrix:
 		validateOverlayChiSqMatrix(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqRow:
 		validateOverlayChiSqRow(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqVsPop,
 		types.OverlayKindIndexVsPop,
 		types.OverlayKindKSVsPop,

@@ -2,6 +2,7 @@ package weighting
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -177,5 +178,32 @@ func TestNSourceRefusal(t *testing.T) {
 				t.Errorf("basis %v n_source %q: refused %v, want %v", basis, s, got, isRefused)
 			}
 		}
+	}
+}
+
+// TestHiddenFloorRefusal: the floor-scaling kinds are exactly the χ²
+// and Compose proportion kinds (the pairwise proportion kind already
+// needs components to run at all; Fisher has no probability form; the
+// mean kinds read their own legs), and the refusal names the overlay
+// slot, the kind and the host.
+func TestHiddenFloorRefusal(t *testing.T) {
+	want := map[types.OverlayKind]bool{
+		types.OverlayKindChiSqRow: true, types.OverlayKindChiSqCol: true, types.OverlayKindChiSqMatrix: true,
+		types.OverlayKindChiSqVsRef: true, types.OverlayKindPropZCell: true, types.OverlayKindPropZPanel: true,
+	}
+	for _, k := range types.AllOverlayKinds() {
+		if ScalesByHostFloor(k) != want[k] {
+			t.Errorf("ScalesByHostFloor(%s) = %v, want %v", k, !want[k], want[k])
+		}
+	}
+	msg, d := HiddenFloorRefusal("overlays[2]", types.OverlayKindChiSqVsRef, "requests[1]")
+	for _, s := range []string{"overlays[2]", "OVERLAY_CHISQ_VS_REF", "requests[1]", "components disabled"} {
+		if !strings.Contains(msg, s) {
+			t.Errorf("message %q does not name %q", msg, s)
+		}
+	}
+	if d["slot"] != "overlays[2]" || d["operator"] != "OVERLAY_CHISQ_VS_REF" || d["host"] != "requests[1]" ||
+		d["kind"] != "probability" || d["reason"] != "components_disabled" {
+		t.Errorf("details %v", d)
 	}
 }

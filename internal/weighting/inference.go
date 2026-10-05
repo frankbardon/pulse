@@ -200,3 +200,36 @@ func FrequencyOnlyHostRefusal(slot, operator string) (string, map[string]any) {
 	return msg, map[string]any{"slot": slot, "operator": operator, "host": "crosstab.cell",
 		"kind": string(types.WeightKindProbability), "supported_kinds": []string{string(types.WeightKindFrequency)}}
 }
+
+// ScalesByHostFloor reports whether an overlay kind reads its host's
+// payload Σw (a cell, a margin, a table) as counts and, under weight
+// kind probability, scales them onto Kish n_eff with the n_eff it reads
+// off the host's weighted floor (Response.Components): the χ² kinds and
+// the Compose proportion kinds. Under kind frequency Σw already IS N*,
+// so the floor is not needed there.
+func ScalesByHostFloor(kind types.OverlayKind) bool {
+	switch kind {
+	case types.OverlayKindChiSqRow, types.OverlayKindChiSqCol, types.OverlayKindChiSqMatrix,
+		types.OverlayKindChiSqVsRef, types.OverlayKindPropZCell, types.OverlayKindPropZPanel:
+		return true
+	}
+	return false
+}
+
+// HiddenFloorRefusal is the PROCESSING_CONFIG refusal of a
+// ScalesByHostFloor kind whose host is weighted under kind probability
+// but built with components disabled (Options.DisableComponents or the
+// request's disable_components): the floor that carries n_eff is
+// absent, so the overlay would read Σw as a sample size — silently
+// anti-conservative. slot is the overlay's slot ("overlays[i]"), host
+// the host slot ("crosstab.cell", or "requests[j]" on Compose). The
+// predict validators and the runtime raise it with one message and one
+// details map.
+func HiddenFloorRefusal(slot string, kind types.OverlayKind, host string) (string, map[string]any) {
+	msg := slot + ": " + string(kind) + " on a host weighted under kind \"" + string(types.WeightKindProbability) +
+		"\" scales its weight sums to Kish n_eff read from the host's components, and " + host +
+		" was built with components disabled, so the weight sums would be read as the sample size; " +
+		"enable components on that host (drop disable_components / Options.DisableComponents) or use a frequency weight"
+	return msg, map[string]any{"slot": slot, "operator": string(kind), "host": host,
+		"kind": string(types.WeightKindProbability), "reason": "components_disabled"}
+}

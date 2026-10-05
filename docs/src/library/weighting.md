@@ -268,6 +268,15 @@ under `frequency` only. A `probability` weight on its host cell is
 refused with `PULSE_WEIGHT_UNSUPPORTED`, even when the overlay itself
 carries no weight.
 
+Under `probability` the χ² and Compose proportion overlays read each
+host's n_eff from its components. A host built with components
+disabled (`disable_components`, `--no-components` or
+`Options.DisableComponents`) has none to read, so those overlays are
+refused on it with `PROCESSING_CONFIG` naming the host, in predict and
+at run time. Before, they read Σw as the sample size without a
+warning. Turn components back on for that host, or use a `frequency`
+weight, where Σw is the sample size.
+
 ## Reading weighted components
 
 A weighted slot's components add three floor keys beside `{n, n_null}`:

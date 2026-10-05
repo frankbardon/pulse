@@ -25,7 +25,7 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per column
 
 ## Gotchas
 
-- Weighted host (both kinds, any source): cells are Σw; under probability each column is scaled to its margin's Kish `n_eff` (expected-low on the scaled column) — first-order Kish, not Rao-Scott. Each entry's `Parameters` adds that column's `sum_weights` (+ `n_eff`).
+- Weighted host (both kinds, any source): cells are Σw; under probability each column is scaled to its margin's Kish `n_eff` (expected-low on the scaled column) — first-order Kish, not Rao-Scott. Each entry's `Parameters` adds that column's `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
 - Reuses `chiSquareSurvival` — p-values byte-equal to every χ² test and overlay on the same contingency.
 - Any `expected < 5` in a column emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending column.
 - Absent host cell treated as observed count of 0.

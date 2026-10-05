@@ -330,6 +330,13 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	if werr := composeOverlayWeightRefusal(specIdx, spec, req.Requests, labels, defaultWeight, opts.instance()); werr != nil {
 		addCodedError(env, werr)
 	}
+	// Gate 2c: a kind that scales a probability-weighted slot's Σw by
+	// the n_eff on its floor, over a slot built with components
+	// disabled (PROCESSING_CONFIG) — the runtime's check in
+	// Service.applyComposeOverlays.
+	if ferr := composeOverlayHiddenFloorRefusal(specIdx, spec, req.Requests, labels, defaultWeight, opts.instance(), opts.componentsDisabled); ferr != nil {
+		addCodedError(env, ferr)
+	}
 
 	// Gate 3: multi-reference panel target cap. Fires before the
 	// per-target shape walk so a wildly over-cap spec does not also
