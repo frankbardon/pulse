@@ -146,7 +146,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#62** Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots · [U13](units/U13-multiplicity.md)
 - [x] **#63** Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs · [U13](units/U13-multiplicity.md)
 - [x] **#64** Advisory + Explain hooks; glossary terms · [U13](units/U13-multiplicity.md)
-- [x] **#65** Reference-value, identity and family-boundary gates; `multiple-comparisons.md` skill · [U13](units/U13-multiplicity.md)
+- [x] **#65** Reference-value, identity and family-boundary gates; `multiplicity-correction.md` skill · [U13](units/U13-multiplicity.md)
 
 ### Reference oracles (found in U08; [review record](reviews/U08-statistics-review.md))
 - [ ] **#202** Per-output R oracle for every `TEST_*` family at tight relative tolerance: Shapiro–Wilk (Shapiro–Francia W′ + p), Brown–Forsythe, Tukey q / `p_adj`, KS p, Kendall τ-b with ties, Mann–Kendall (`TEST_TREND`) p, Pearson CI, and every family's p-value (row and post twins) · [U36](units/U36-reference-oracles.md)

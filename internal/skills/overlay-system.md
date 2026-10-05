@@ -66,7 +66,7 @@ Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — o
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
 
-Inferential layers take `multiplicity` (`layer` / `row` / `column` / `request` / `compose`): adds `p_adjusted` figures and a layer echo, base payload untouched (`multiple-comparisons`).
+Inferential layers take `multiplicity` (`layer` / `row` / `column` / `request` / `compose`): adds `p_adjusted` figures and a layer echo, base payload untouched (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Streamability

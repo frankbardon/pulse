@@ -16,7 +16,7 @@ Overlays decorate the host; no `Response.Components`.
 `Scope` must be `cell`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Host shape

@@ -16,7 +16,7 @@ Intra-matrix pairwise along one axis of the SAME crosstab: `row` scope pairs row
 `Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source`, `params.n_within_depth` and `params.p_source` are the family-wide vocabulary, identical to `op-overlay-pairwise-prop-z`: `pairwise-n-sources`.
 
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Host shape

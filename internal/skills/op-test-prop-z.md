@@ -17,7 +17,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - `weight` — slot weight (`null` opts out), both kinds: p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
 - `success` — string, required. Dictionary value of Field treated as a "success".
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Inputs

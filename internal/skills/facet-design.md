@@ -74,7 +74,7 @@ Mixing streamable + buffered kinds forces the orchestrator buffered; descriptive
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
 
-Facet overlay specs take `multiplicity` (family `layer`); each layer is corrected alone (`multiple-comparisons`).
+Facet overlay specs take `multiplicity` (family `layer`); each layer is corrected alone (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Picking FacetSchema vs Process

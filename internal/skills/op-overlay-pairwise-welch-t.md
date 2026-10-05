@@ -18,7 +18,7 @@ Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope 
 `n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert (weighted host: see Gotchas). `n_within_depth` stays accepted and inert. Detail: `pairwise-n-sources`.
 
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Host shape

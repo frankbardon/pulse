@@ -16,7 +16,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): the exact test on the Σw table — equals the expanded rows. `contingency` becomes the Σw table; `n` stays raw rows, `sum_weights` beside it.
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Inputs

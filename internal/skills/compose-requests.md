@@ -73,7 +73,7 @@ Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
 
-`ComposedRequest.multiplicity` is every slot's default; `compose` family pools all slots and Compose-host layers, the rest stay per slot; serial == parallel, `--stream` emits no corrections (`multiple-comparisons`).
+`ComposedRequest.multiplicity` is every slot's default; `compose` family pools all slots and Compose-host layers, the rest stay per slot; serial == parallel, `--stream` emits no corrections (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Per-slot Components contract

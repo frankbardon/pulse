@@ -15,7 +15,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Inputs

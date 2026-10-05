@@ -268,7 +268,7 @@ Complete for U12 (no release tag cut by the unit; the next pre-release carries i
 
 ## Changes from U13 (multiple-comparison correction)
 
-Complete for U13 (no release tag cut by the unit; the next pre-release carries it). Contract: `.claude/reference/execution-modes.md` (Multiplicity), `.claude/reference/predict-inspect.md` (Predict); agent skill `skills/multiple-comparisons.md`; wire shape `docs/src/contract/payload-schema.md` (Multiplicity slots). A request that names no `multiplicity` block (and an instance with no `Options.DefaultMultiplicity`) is byte-identical, including `CanonicalHash`; `format_version` stays `"1.1"`. Correction is opt-in: the default is none.
+Complete for U13 (no release tag cut by the unit; the next pre-release carries it). Contract: `.claude/reference/execution-modes.md` (Multiplicity), `.claude/reference/predict-inspect.md` (Predict); agent skill `skills/multiplicity-correction.md`; wire shape `docs/src/contract/payload-schema.md` (Multiplicity slots). A request that names no `multiplicity` block (and an instance with no `Options.DefaultMultiplicity`) is byte-identical, including `CanonicalHash`; `format_version` stays `"1.1"`. Correction is opt-in: the default is none.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|

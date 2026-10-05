@@ -122,4 +122,4 @@ Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `t
 
 ## Cross-links
 
-`response-components` (the `Response.Components` block) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes)<!-- feature: capability:compose --> · `compose-requests`<!-- /feature --><!-- feature: capability:facet --> · `facet-design`<!-- /feature --> · `streaming-and-watching` (stream chunks, request hashing)<!-- feature: capability:multiplicity --> · `multiple-comparisons`<!-- /feature -->.
+`response-components` (the `Response.Components` block) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes)<!-- feature: capability:compose --> · `compose-requests`<!-- /feature --><!-- feature: capability:facet --> · `facet-design`<!-- /feature --> · `streaming-and-watching` (stream chunks, request hashing)<!-- feature: capability:multiplicity --> · `multiplicity-correction`<!-- /feature -->.

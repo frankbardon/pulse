@@ -61,7 +61,7 @@ A complete three-stage request with a whole-chain index: `pulse_examples_get cha
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
 
-Each stage corrects its own request; no family spans stages, and `ChainOverlaySpec` takes no block (`multiple-comparisons`).
+Each stage corrects its own request; no family spans stages, and `ChainOverlaySpec` takes no block (`multiplicity-correction`).
 <!-- /feature -->
 
 ## `StageRef` resolution

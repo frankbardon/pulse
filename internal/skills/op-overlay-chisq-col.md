@@ -16,7 +16,7 @@ Overlays decorate the host; no `Response.Components`.
 `Scope` (enum, required) — must be `column`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Host shape

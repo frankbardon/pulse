@@ -19,7 +19,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 `Field` + `OrderBy` (≥ 1 key) both required. **Tier-2 typical** — list in `Request.PostTests`; tier-1 works when the raw field has an ordering key.
 
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Inputs

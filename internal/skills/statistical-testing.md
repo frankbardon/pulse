@@ -74,7 +74,7 @@ After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tes
 - Regression inference uses Wald-z, not Student-t — the `TEST_*` families never mix the two.
 - Multi-group headline tracks worst group; per-group detail in `Details.per_group`.
 <!-- feature: capability:multiplicity -->
-- Many tests: `multiplicity` adds `p_adjusted` beside raw p (`multiple-comparisons`).
+- Many tests: `multiplicity` adds `p_adjusted` beside raw p (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Streamability

@@ -80,4 +80,4 @@ Row-level `tests` / `post_tests` run on raw rows beside a crosstab. Crosstab is 
 
 ## See
 
-- <!-- feature: capability:multiplicity -->`multiple-comparisons`, <!-- /feature -->`crosstab-margin-aggregations`, `response-components`, `overlay-system`, `grouper-design`, `aggregation-design` (margin reducibility), `statistical-testing`.
+- <!-- feature: capability:multiplicity -->`multiplicity-correction`, <!-- /feature -->`crosstab-margin-aggregations`, `response-components`, `overlay-system`, `grouper-design`, `aggregation-design` (margin reducibility), `statistical-testing`.

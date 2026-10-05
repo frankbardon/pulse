@@ -149,7 +149,7 @@ Fold sites (raw p never written; every output additive `omitempty`):
 - **ProcessChain** — each stage folds its own plan (stage 0 in `Service.process`, later stages in `runChainStage`); one `request` family per stage, never spanning stages; the whole-chain `ChainOverlaySpec` has no slot. The v1 stage gate refuses tests and crosstab, so no gate-passing stage reaches a p-site yet.
 - **Facet** — `applyFacetOverlays` folds each spec's layers alone under `ResolveFacetMultiplicity`.
 
-`row` / `column` are coordinate-based on the layer's own MATRIX (pairwise rows are the compared groups); a panel cell's vector elements each join their cell's family; the layer echo carries `m_per`. Extension `TEST_*` operators join like built-ins. Feature `capability:multiplicity`. Skill: `skills/multiple-comparisons.md`; update-demand row: Multiplicity.
+`row` / `column` are coordinate-based on the layer's own MATRIX (pairwise rows are the compared groups); a panel cell's vector elements each join their cell's family; the layer echo carries `m_per`. Extension `TEST_*` operators join like built-ins. Feature `capability:multiplicity`. Skill: `skills/multiplicity-correction.md`; update-demand row: Multiplicity.
 
 ## Time zones
 

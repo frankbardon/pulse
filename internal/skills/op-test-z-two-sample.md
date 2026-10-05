@@ -18,7 +18,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 - `weight` — slot weight (`null` opts out), both kinds: per-group moments on w*, SE reads N*_g (Σw frequency, Kish n_eff probability). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Inputs

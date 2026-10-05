@@ -16,7 +16,7 @@ Compose-only. Overlays decorate the host; no `Response.Components`.
 `Scope` must be `cell`. `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels.
 
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Host shape

@@ -19,7 +19,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 
 <!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiple-comparisons`).
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Inputs

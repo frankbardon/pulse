@@ -34,7 +34,7 @@ One correction core (Bonferroni, Holm, BH, BY) with explicit test families, expo
 - [x] **#62** (4. Statistical integrity › Multiple comparisons) Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots
 - [x] **#63** (4. Statistical integrity › Multiple comparisons) Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs
 - [x] **#64** (4. Statistical integrity › Multiple comparisons) Advisory + Explain hooks; glossary terms
-- [x] **#65** (4. Statistical integrity › Multiple comparisons) Reference-value, identity and family-boundary gates; `multiple-comparisons.md` skill
+- [x] **#65** (4. Statistical integrity › Multiple comparisons) Reference-value, identity and family-boundary gates; `multiplicity-correction.md` skill
 
 ## Scope
 
@@ -80,7 +80,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(multiplicity/E<n>
 
 - Payload-schema golden
 - CLAUDE.md Output Format Contract (additive fields)
-- `skills/multiple-comparisons.md`; overlay and test atomic skills `## Params`
+- `skills/multiplicity-correction.md`; overlay and test atomic skills `## Params`
 - `update-demand.md` row for `Multiplicity`
 
 ## Human inputs & decisions
@@ -89,7 +89,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(multiplicity/E<n>
 
 ## Shipped: deviations and decisions
 
-Contract: `.claude/reference/execution-modes.md` (Multiplicity), `.claude/reference/predict-inspect.md` (Predict); agent skill `skills/multiple-comparisons.md`; wire shape `docs/src/contract/payload-schema.md` (Multiplicity slots); user guide `docs/src/library/multiplicity.md`; embedder rows `03-embedder-migration.md` (Changes from U13).
+Contract: `.claude/reference/execution-modes.md` (Multiplicity), `.claude/reference/predict-inspect.md` (Predict); agent skill `skills/multiplicity-correction.md`; wire shape `docs/src/contract/payload-schema.md` (Multiplicity slots); user guide `docs/src/library/multiplicity.md`; embedder rows `03-embedder-migration.md` (Changes from U13).
 
 - **Families.** `layer`, `row`, `column`, `request`, `compose` — the planned `matrix` family waits for the matrix units (U28), and `MatrixSpec.multiplicity` is not shipped (no `MatrixSpec` exists yet).
 - **A Compose family.** `compose` is new here: it pools every `compose`-family member across all slots and the Compose-host overlay layers. Every other family stays per slot.

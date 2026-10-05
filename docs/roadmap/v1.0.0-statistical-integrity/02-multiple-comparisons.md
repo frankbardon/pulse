@@ -65,7 +65,7 @@ Correction is applied at the overlay/test fold, **after** all p-values in a fami
 - [x] Families `layer` / `row` / `column` / `request` / `matrix`, including across Compose slots
 - [x] Additive `p_adjusted` / `significant_adjusted` / `multiplicity` on overlay summaries, `TestResult` and `MatrixResult`
 - [x] Predict advisory and Explain narration hooks; glossary terms
-- [x] Reference-value, identity and family-boundary gates; topical skill `multiple-comparisons.md`
+- [x] Reference-value, identity and family-boundary gates; topical skill `multiplicity-correction.md`
 
 ## Decisions
 

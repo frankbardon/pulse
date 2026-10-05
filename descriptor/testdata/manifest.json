@@ -7670,7 +7670,7 @@
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
-        "name": "multiple-comparisons",
+        "name": "multiplicity-correction",
         "description": "Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected."
       },
       {
@@ -11703,4 +11703,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fc381406247c3dde9a37ec75b66f3d3bad380025368a3e459eecd474ea72cbf0
+// golden-hash: 37b6e2ab9e97a6be152d78917f44477a91a35b2c01bbfc0f815cedd4bb5d1517

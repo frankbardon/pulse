@@ -1,5 +1,5 @@
 ---
-name: multiple-comparisons
+name: multiplicity-correction
 description: Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected.
 type: guide
 kind: design
