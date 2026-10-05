@@ -190,6 +190,19 @@ own block, and no explicit correction on the Tukey HSD post-test. Members
 of one `request` or `compose` family that resolve to different methods
 are refused `PULSE_MULTIPLICITY_CONFLICT`.
 
+When a correction runs, each corrected `TestResult` (in `tests[]` and
+`post_tests[]`) gains three additive `omitempty` keys BESIDE its raw
+`p_value` / `reject_null`, which never change: `p_adjusted` (number, or
+`null` when the raw p is undefined — such a p is left out of the family
+size), `significant_adjusted` (`p_adjusted` < the test's own `alpha`;
+absent when `p_adjusted` is null) and `multiplicity`
+(`#/$defs/AppliedMultiplicity` `{method, family, alpha, m}`, `m` the
+number of defined p-values corrected together). Each test contributes
+one headline p; the Tukey HSD post-test never joins a family. No block,
+or a method resolving to `none`, emits none of them — the response is
+byte-identical. On an instance that hides `capability:multiplicity` the
+three keys and `AppliedMultiplicity` are absent from the schema too.
+
 ## Weight slots
 
 Row weighting adds two additive slot shapes (`format_version` stays

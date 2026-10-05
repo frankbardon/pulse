@@ -691,6 +691,22 @@ type TestResult struct {
 	// RejectNull is true when PValue < Alpha.
 	RejectNull bool `json:"reject_null"`
 
+	// PAdjusted is PValue after the multiple-comparison correction of
+	// the test's family (see Multiplicity); nil when no correction ran
+	// over this test. Points at NaN (JSON null) when PValue is
+	// undefined — such a p is excluded from the family size. PValue
+	// and RejectNull are never modified.
+	PAdjusted *float64 `json:"p_adjusted,omitempty"`
+
+	// SignificantAdjusted is PAdjusted < Alpha (the test's own alpha);
+	// nil when no correction ran or PAdjusted is undefined.
+	SignificantAdjusted *bool `json:"significant_adjusted,omitempty"`
+
+	// Multiplicity echoes the correction that produced PAdjusted:
+	// method, family, the alpha SignificantAdjusted reads (the test's
+	// own Alpha) and the family size m. Nil when no correction ran.
+	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
+
 	// Details holds operator-specific payload (per-group n/mean/variance,
 	// contingency table, pairwise comparisons, confidence intervals,
 	// effect-size measures). Marshals naturally as a nested JSON object.

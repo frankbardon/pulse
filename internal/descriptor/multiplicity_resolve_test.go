@@ -490,7 +490,8 @@ func TestSlotRefusal_MultiplicityAtEveryNestingLevel(t *testing.T) {
 }
 
 // TestPayloadSchema_MultiplicityHidden: the instance schema drops every
-// `multiplicity` property and the Multiplicity defs with capability:
+// `multiplicity` property, the Multiplicity defs and the adjusted test
+// outputs (`p_adjusted`, `significant_adjusted`) with capability:
 // multiplicity hidden, and carries them (with the closed method /
 // family enums) when it is enabled.
 func TestPayloadSchema_MultiplicityHidden(t *testing.T) {
@@ -510,7 +511,8 @@ func TestPayloadSchema_MultiplicityHidden(t *testing.T) {
 				t.Fatal(err)
 			}
 			s := string(b)
-			for _, tok := range []string{`"multiplicity"`, `"Multiplicity"`, `"MultiplicityMethod"`, `"MultiplicityFamily"`} {
+			for _, tok := range []string{`"multiplicity"`, `"Multiplicity"`, `"MultiplicityMethod"`, `"MultiplicityFamily"`,
+				`"AppliedMultiplicity"`, `"p_adjusted"`, `"significant_adjusted"`} {
 				if got := strings.Contains(s, tok); got != c.want {
 					t.Errorf("%s present = %v, want %v", tok, got, c.want)
 				}

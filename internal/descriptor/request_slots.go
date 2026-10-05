@@ -105,6 +105,15 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.OverlaySpec{}):        {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Group{}):              {weightSlotGate},
 	reflect.TypeOf(types.ComposeOverlaySpec{}): {multiplicitySlotGate},
+	// The adjusted outputs a correction writes beside a test's raw p
+	// ride the same capability, so a hidden instance's payload schema
+	// names no multiplicity surface at all (no request ever reaches
+	// them there).
+	reflect.TypeOf(types.TestResult{}): {
+		multiplicitySlotGate,
+		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
+		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
+	},
 	reflect.TypeOf(types.ComposedRequest{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		multiplicitySlotGate,

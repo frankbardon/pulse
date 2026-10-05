@@ -592,10 +592,29 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// The multiplicity blocks resolve before any dispatch (every arm —
 	// crosstab, join, shard, parallel decode, serial — shares it); a
 	// Compose slot was resolved with the whole ComposedRequest.
-	if err := s.resolveMultiplicity(ctx, req); err != nil {
+	plan, err := s.resolveMultiplicity(ctx, req)
+	if err != nil {
 		return nil, err
 	}
 
+	resp, err := s.processDispatch(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	// The multiplicity post-hook: every arm's response — crosstab,
+	// join, shard-parallel, parallel decode, serial (streaming or
+	// buffered orchestration) — is corrected here, once, after the arm
+	// returns. Raw p-values are never modified.
+	if err := foldRequestMultiplicity(plan, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// processDispatch routes a validated, multiplicity-resolved Request to
+// its execution arm: crosstab, join, shard-parallel, parallel decode,
+// or the serial scan. process wraps it with the multiplicity fold.
+func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*types.Response, error) {
 	if req.Crosstab != nil {
 		return s.processCrosstab(ctx, req)
 	}

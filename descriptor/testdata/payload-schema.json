@@ -99,6 +99,33 @@
       ],
       "type": "string"
     },
+    "AppliedMultiplicity": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "family": {
+          "$ref": "#/$defs/MultiplicityFamily"
+        },
+        "m": {
+          "type": "integer"
+        },
+        "method": {
+          "$ref": "#/$defs/MultiplicityMethod"
+        }
+      },
+      "required": [
+        "alpha",
+        "family",
+        "m",
+        "method"
+      ],
+      "type": "object"
+    },
     "Attribute": {
       "additionalProperties": false,
       "properties": {
@@ -2682,6 +2709,15 @@
         "label": {
           "type": "string"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "p_value": {
           "type": [
             "number",
@@ -2689,6 +2725,9 @@
           ]
         },
         "reject_null": {
+          "type": "boolean"
+        },
+        "significant_adjusted": {
           "type": "boolean"
         },
         "statistic": {
@@ -2866,4 +2905,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 072eb55dd5e613d86bc08275d1375f9d0c8e77ae144334c4948a4b8fe95ab550
+// golden-hash: 58e2a4982197abdcda3a3e18cfc3a4e1a66df864cd995b3319994a6807d82e07

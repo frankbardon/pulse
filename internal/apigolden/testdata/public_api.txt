@@ -3100,6 +3100,11 @@ pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllTestTypes() []pulse/types.TestType
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
+pulse/types: type AppliedMultiplicity struct
+pulse/types: type AppliedMultiplicity field Alpha float64 "json:\"alpha\""
+pulse/types: type AppliedMultiplicity field Family pulse/types.MultiplicityFamily "json:\"family\""
+pulse/types: type AppliedMultiplicity field M int "json:\"m\""
+pulse/types: type AppliedMultiplicity field Method pulse/types.MultiplicityMethod "json:\"method\""
 pulse/types: type Attribute struct
 pulse/types: type Attribute field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Attribute field Expression string "json:\"expression,omitempty\""
@@ -3832,8 +3837,11 @@ pulse/types: type TestResult field Alpha float64 "json:\"alpha\""
 pulse/types: type TestResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type TestResult field Details map[string]any "json:\"details,omitempty\""
 pulse/types: type TestResult field Label string "json:\"label,omitempty\""
+pulse/types: type TestResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type TestResult field PAdjusted *float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type TestResult field PValue float64 "json:\"p_value\""
 pulse/types: type TestResult field RejectNull bool "json:\"reject_null\""
+pulse/types: type TestResult field SignificantAdjusted *bool "json:\"significant_adjusted,omitempty\""
 pulse/types: type TestResult field Statistic float64 "json:\"statistic\""
 pulse/types: type TestResult field Type pulse/types.TestType "json:\"type\""
 pulse/types: type TestResult field Variant string "json:\"variant,omitempty\""
@@ -3878,4 +3886,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8a0ce4e044ba4f439180b0c77a1cbf2665b96364b503ed695db5ab8a6d5c6c63
+// golden-hash: d5bf963a291d48275a1c10c586babc6ecc1b5382ac4bea8132793d518bc35c19

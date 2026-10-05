@@ -53,7 +53,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// the order ValidateChain reports in (stage 0 re-resolves inside
 	// Process, identically).
 	for i, st := range req.Stages {
-		if err := s.resolveMultiplicity(ctx, st.Request); err != nil {
+		if _, err := s.resolveMultiplicity(ctx, st.Request); err != nil {
 			return nil, locate(err, "stage", i)
 		}
 	}

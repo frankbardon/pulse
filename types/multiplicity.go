@@ -108,3 +108,17 @@ func AllMultiplicityFamilies() []MultiplicityFamily {
 // DefaultMultiplicityAlpha is the overlay significance level a
 // resolved multiplicity block carries when nothing sets `alpha`.
 const DefaultMultiplicityAlpha = 0.05
+
+// AppliedMultiplicity echoes a correction that ran over a result's
+// p-value: the resolved Method and Family, the Alpha its
+// `significant_adjusted` flag compared against (a test's own
+// Test.Alpha), and M, the family size — the number of defined
+// (non-NaN) p-values corrected together. It rides beside the raw
+// p-value, never in place of it, and is absent when no correction ran
+// (no block resolved, or the method resolved to none).
+type AppliedMultiplicity struct {
+	Method MultiplicityMethod `json:"method"`
+	Family MultiplicityFamily `json:"family"`
+	Alpha  float64            `json:"alpha"`
+	M      int                `json:"m"`
+}

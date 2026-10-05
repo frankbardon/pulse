@@ -51,14 +51,18 @@ func isComposeSlot(ctx context.Context) bool {
 // (internal/descriptor.ResolveMultiplicity — the function predict
 // calls) for one standalone Request: Process (every arm), ProcessStream
 // and every ProcessChain stage. A Compose slot is skipped: its batch
-// resolved it (resolveComposeMultiplicity). A located refusal: a chain
-// adds details.stage.
-func (s *Service) resolveMultiplicity(ctx context.Context, req *types.Request) error {
+// resolved it (resolveComposeMultiplicity) and folds its families, so
+// the plan is nil. A located refusal: a chain adds details.stage. The
+// plan feeds foldRequestMultiplicity once the response exists.
+func (s *Service) resolveMultiplicity(ctx context.Context, req *types.Request) (*descx.MultiplicityPlan, error) {
 	if isComposeSlot(ctx) {
-		return nil
+		return nil, nil
 	}
-	_, err := descx.ResolveMultiplicity(req, s.defaultMultiplicity, s.instance)
-	return markLocated(err)
+	plan, err := descx.ResolveMultiplicity(req, s.defaultMultiplicity, s.instance)
+	if err != nil {
+		return nil, markLocated(err)
+	}
+	return plan, nil
 }
 
 // resolveComposeMultiplicity is resolveMultiplicity for a whole
