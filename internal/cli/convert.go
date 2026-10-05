@@ -29,7 +29,12 @@ func ConvertCommand() *cli.Command {
 			&cli.StringFlag{Name: "keep-pulse", Usage: "Also write intermediate .pulse file at this path"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage + ". A zoned naive value is written to the target as its UTC instant (…Z)"},
+			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
 		},
+		// A --source-tz col=Zone value is one flag even when the column
+		// name carries a ','.
+		DisableSliceFlagSeparator: true,
 		Commands: []*cli.Command{
 			convertPredictCmd(),
 		},
@@ -101,6 +106,12 @@ func ConvertCommand() *cli.Command {
 			job.FS = fs
 			job.SampleRows = sampleRows
 			job.KeepPulseAt = keepPulse
+			if zerr := applyConvertZoneFlags(cmd, job); zerr != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", zerr)
+				}
+				return zerr
+			}
 
 			if schemaPath != "" {
 				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
@@ -115,6 +126,7 @@ func ConvertCommand() *cli.Command {
 
 			report, err := job.Run(ctx)
 			if err != nil {
+				err = cliSourceZoneError(err)
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err)
 				}
@@ -142,6 +154,7 @@ func ConvertCommand() *cli.Command {
 			// Width promotions of an inferred schema (import_widen.go)
 			// are the import half's diagnostics; they ride the same list.
 			warnings = append(warnings, report.WidthWarnings...)
+			warnings = append(warnings, report.ZoneWarnings...)
 
 			if jsonOut {
 				return writeEnvelopeWithWarnings(cmd.Writer, report, warnings)
@@ -172,7 +185,10 @@ func convertPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
+			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
+			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
 		},
+		DisableSliceFlagSeparator: true,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
 			if args.Len() < 2 {
@@ -219,9 +235,16 @@ func convertPredictCmd() *cli.Command {
 			job := iio.NewConvertJob(reader, writer)
 			job.FS = fs
 			job.SampleRows = sampleRows
+			if zerr := applyConvertZoneFlags(cmd, job); zerr != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", zerr)
+				}
+				return zerr
+			}
 
 			report, err := job.Predict(ctx)
 			if err != nil {
+				err = cliSourceZoneError(err)
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
 				}
@@ -229,12 +252,13 @@ func convertPredictCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, append(append([]*perrors.CodedError(nil), report.SourceWarnings...), report.ZoneWarnings...))
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
 			writeText(cmd.Writer, "Estimated rows: %d\n", report.EstimatedRows)
 			writeSourceWarnings(cmd.Writer, report.SourceWarnings)
+			writeSourceWarnings(cmd.Writer, report.ZoneWarnings)
 			return nil
 		},
 	}

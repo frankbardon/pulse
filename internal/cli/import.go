@@ -238,6 +238,8 @@ func importPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "elide-constants", Usage: "Report the fields 'import <format> --elide-constants' would elide and the bytes saved"},
 			&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Ratio floor the --group and --suggest-groups verdicts are judged against"},
 			&cli.BoolFlag{Name: "strict", Usage: "Fail as 'import <format> --strict' would when a --group draws a viability warning"},
+			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
+			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
@@ -283,6 +285,12 @@ func importPredictCmd() *cli.Command {
 				}
 				job.Groups = append(job.Groups, g)
 			}
+			if zerr := applySourceZoneFlags(cmd, job); zerr != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", zerr)
+				}
+				return zerr
+			}
 
 			if schemaPath != "" {
 				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
@@ -297,6 +305,7 @@ func importPredictCmd() *cli.Command {
 
 			report, err := job.Predict(ctx)
 			if err != nil {
+				err = cliSourceZoneError(err)
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
 				}
@@ -304,11 +313,12 @@ func importPredictCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, report, append(append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...), report.WidthWarnings...))
+				return writeEnvelopeWithWarnings(cmd.Writer, report, append(append(append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...), report.WidthWarnings...), report.ZoneWarnings...))
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
 			writeSourceWarnings(cmd.Writer, report.WidthWarnings)
+			writeSourceWarnings(cmd.Writer, report.ZoneWarnings)
 			writeText(cmd.Writer, "Estimated rows: %d\n", report.EstimatedRows)
 			for _, w := range report.Warnings {
 				writeText(cmd.Writer, "Warning [%s]: %s\n", w.Column, w.Message)

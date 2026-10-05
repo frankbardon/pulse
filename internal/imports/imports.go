@@ -105,6 +105,22 @@ type Spec struct {
 	// io.ImportJob.ColumnTypeOverrides.
 	ColumnTypeOverrides map[string]string
 
+	// SourceTZ, ColumnSourceTZ and DSTPolicy read the source's naive
+	// datetime literals in a source zone, exactly as io.ImportJob's
+	// fields of the same names do (same spellings, same refusals:
+	// SERVICE_VALIDATION for an unknown policy or a ColumnSourceTZ key
+	// naming no datetime field, PULSE_TIMEZONE_UNKNOWN for a zone).
+	// Persisted onto the sidecar beside ColumnTypeOverrides, so the
+	// handle records which zone its instants were read in. A re-import
+	// in another zone is a new conversion — Open never reuses an
+	// existing handle (PULSE_IMPORT_HANDLE_EXISTS without Overwrite) —
+	// so no cohort read in one zone is ever served for another. Empty
+	// (the default) reads naive literals as UTC, byte-identically. Inert
+	// on a .pulse passthrough, whose instants are already stored.
+	SourceTZ       string
+	ColumnSourceTZ map[string]string
+	DSTPolicy      pio.DSTPolicy
+
 	// Groups declares parent groups exactly as io.ImportJob.Groups does:
 	// each stores its distinct member tuples once in the schema block
 	// and every record a u32 index into them (a format 0x02 cohort).
@@ -185,6 +201,11 @@ type Result struct {
 	// candidate's {key, members} is a ready-to-use Spec.Groups entry.
 	// Omitted unless SuggestGroups was set.
 	GroupCandidates *pio.GroupDetection `json:"group_candidates,omitempty"`
+	// ZoneWarnings carries the one PULSE_IMPORT_DST_RESOLVED warning a
+	// Spec.DSTPolicy of earlier / later raises when it resolved a
+	// source-zone local time. Mirrors io.ImportReport.ZoneWarnings;
+	// omitted when nothing was resolved.
+	ZoneWarnings []*perr.CodedError `json:"zone_warnings,omitempty"`
 }
 
 // Sidecar is the JSON payload written next to a managed .pulse file.
@@ -207,6 +228,12 @@ type Sidecar struct {
 	// column type (dictionary is still built from observed values
 	// during the row pass). Empty / nil means no overrides.
 	ColumnTypeOverrides map[string]string `json:"column_type_overrides,omitempty"`
+	// SourceTZ / ColumnSourceTZ / DSTPolicy record the source zone the
+	// handle's naive datetimes were read in (Spec fields of the same
+	// names). All omitted for a UTC import, so its sidecar is unchanged.
+	SourceTZ       string            `json:"source_tz,omitempty"`
+	ColumnSourceTZ map[string]string `json:"column_source_tz,omitempty"`
+	DSTPolicy      string            `json:"dst_policy,omitempty"`
 }
 
 // Entry is one row of Manager.List output — the snapshot returned to

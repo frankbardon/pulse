@@ -392,7 +392,8 @@ declarations as structured `groups: [{key, members}]` entries, plus
 
 ### `--source-tz` / `--dst-policy`
 
-Available on: every `import <format>` leaf.
+Available on: every `import <format>` leaf, `import auto`, `import predict`,
+`convert` and `convert predict`.
 
 `--source-tz Zone` reads every naive `datetime` value (no `Z`, no
 `±HH:MM`) as a wall clock in `Zone` and stores the UTC instant it names;
@@ -416,6 +417,18 @@ the pre-transition offset (an overlap's first occurrence; Berlin
 `PULSE_IMPORT_DST_RESOLVED` warning carries `ambiguous_n` /
 `nonexistent_n` (`warnings` and `data.ZoneWarnings` under `--json`). The
 policy is inert without a zone and under a fixed offset.
+
+On `import auto` the zone, per-column map and policy are persisted onto
+the managed sidecar (`source_tz`, `column_source_tz`, `dst_policy`); a
+handle is never reused across zones — re-importing in another zone needs
+`--overwrite`. `import predict` and `convert predict` raise the refusal
+the real run would and report the resolved count. `convert` is a text
+pass, so a zoned naive value is written to the target as the canonical
+UTC literal of the instant it names (`2026-07-01T16:00:00Z`); a value
+with its own `Z` / offset, an unparseable cell and every other column
+pass through verbatim, and a `--keep-pulse` cohort is imported in the
+same zone. `pulse_import` (MCP) takes `source_tz`, `column_source_tz`
+(`{column: zone}`) and `dst_policy`.
 
 ```bash
 pulse import csv -i orders.csv -o orders.pulse \
@@ -471,7 +484,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

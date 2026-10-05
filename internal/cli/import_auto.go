@@ -32,7 +32,7 @@ func importAutoCmd() *cli.Command {
 		Name:      "auto",
 		Usage:     "Auto-detect a source format and import into the managed pool",
 		ArgsUsage: "SOURCE",
-		Flags: []cli.Flag{
+		Flags: append([]cli.Flag{
 			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Format override (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss, pulse)"},
 			&cli.StringFlag{Name: "handle", Usage: "Managed handle name (defaults to source basename)"},
 			&cli.StringFlag{Name: "ttl", Value: "7d", Usage: "Lifetime in the managed pool: Go duration (24h, 30m), day form (7d), or \"pin\""},
@@ -41,7 +41,7 @@ func importAutoCmd() *cli.Command {
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing managed handle"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group, as on 'import <format> --group': KEY[,KEY...]:MEMBER[,MEMBER...] or MEMBER[,MEMBER...]. Repeatable, one group per flag; judged at the default ratio floor, findings reported as warnings (writes format 0x02)"},
 			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
-		},
+		}, sourceZoneCLIFlags()...),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
 			if args.Len() < 1 {
@@ -75,6 +75,7 @@ func importAutoCmd() *cli.Command {
 			}
 			res, err := p.ImportFile(ctx, spec)
 			if err != nil {
+				err = cliSourceZoneError(err)
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
 				}
@@ -82,7 +83,7 @@ func importAutoCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, res, append(append(append([]*errors.CodedError(nil), res.SourceWarnings...), res.GroupWarnings...), res.WidthWarnings...))
+				return writeEnvelopeWithWarnings(cmd.Writer, res, append(append(append(append([]*errors.CodedError(nil), res.SourceWarnings...), res.GroupWarnings...), res.WidthWarnings...), res.ZoneWarnings...))
 			}
 			if res.Managed {
 				writeText(cmd.Writer, "Imported %d rows into managed handle %q at %s\n", res.RowsImported, res.Handle, res.Path)
@@ -91,6 +92,7 @@ func importAutoCmd() *cli.Command {
 						errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(res.PromotedFields, ", "))
 				}
 				writeSourceWarnings(cmd.Writer, res.WidthWarnings)
+				writeSourceWarnings(cmd.Writer, res.ZoneWarnings)
 				writeSourceWarnings(cmd.Writer, res.SourceWarnings)
 				writeGroupReports(cmd.Writer, res.Groups)
 				writeSourceWarnings(cmd.Writer, res.GroupWarnings)
@@ -127,6 +129,9 @@ func importAutoCmd() *cli.Command {
 // two surfaces cannot disagree on the syntax. There is no --dedup-ratio-floor
 // or --strict here: neither changes a byte the managed import writes (see
 // imports.Spec.Groups), and `import <format>` carries both.
+//
+// --source-tz / --dst-policy parse with the per-format leaves' own
+// parseSourceZoneFlags; the spec persists them onto the sidecar.
 func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.ImportSpec, error) {
 	spec := pulse.ImportSpec{
 		SourcePath: source,
@@ -144,6 +149,11 @@ func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.I
 		}
 		spec.Groups = append(spec.Groups, g)
 	}
+	zf, err := parseSourceZoneFlags(cmd)
+	if err != nil {
+		return pulse.ImportSpec{}, err
+	}
+	spec.SourceTZ, spec.ColumnSourceTZ, spec.DSTPolicy = zf.tz, zf.cols, zf.policy
 	return spec, nil
 }
 

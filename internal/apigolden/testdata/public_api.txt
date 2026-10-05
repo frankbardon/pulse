@@ -433,9 +433,12 @@ pulse: type ImportResult field Schema *pulse/encoding.Schema "json:\"-\""
 pulse: type ImportResult field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
 pulse: type ImportResult field TTLSeconds int64 "json:\"ttl_seconds,omitempty\""
 pulse: type ImportResult field WidthWarnings []*pulse/errors.CodedError "json:\"width_warnings,omitempty\""
+pulse: type ImportResult field ZoneWarnings []*pulse/errors.CodedError "json:\"zone_warnings,omitempty\""
 pulse: type ImportSidecar = pulse/internal/imports.Sidecar
 pulse: type ImportSidecar underlying struct
+pulse: type ImportSidecar field ColumnSourceTZ map[string]string "json:\"column_source_tz,omitempty\""
 pulse: type ImportSidecar field ColumnTypeOverrides map[string]string "json:\"column_type_overrides,omitempty\""
+pulse: type ImportSidecar field DSTPolicy string "json:\"dst_policy,omitempty\""
 pulse: type ImportSidecar field ExpiresAt time.Time "json:\"expires_at,omitzero\""
 pulse: type ImportSidecar field Format string "json:\"format\""
 pulse: type ImportSidecar field Handle string "json:\"handle\""
@@ -443,12 +446,15 @@ pulse: type ImportSidecar field ImportedAt time.Time "json:\"imported_at\""
 pulse: type ImportSidecar field RowsImported int "json:\"rows_imported\""
 pulse: type ImportSidecar field SourceFormat string "json:\"source_format\""
 pulse: type ImportSidecar field SourcePath string "json:\"source_path\""
+pulse: type ImportSidecar field SourceTZ string "json:\"source_tz,omitempty\""
 pulse: type ImportSidecar field TTLSeconds int64 "json:\"ttl_seconds\""
 pulse: type ImportSidecar method (ImportSidecar) Pinned() bool
 pulse: type ImportSpec = pulse/internal/imports.Spec
 pulse: type ImportSpec underlying struct
 pulse: type ImportSpec field Charset string
+pulse: type ImportSpec field ColumnSourceTZ map[string]string
 pulse: type ImportSpec field ColumnTypeOverrides map[string]string
+pulse: type ImportSpec field DSTPolicy pulse/io.DSTPolicy
 pulse: type ImportSpec field Format string
 pulse: type ImportSpec field Groups []pulse/io.GroupDecl
 pulse: type ImportSpec field Handle string
@@ -457,6 +463,7 @@ pulse: type ImportSpec field Overwrite bool
 pulse: type ImportSpec field SetInferenceMinPct int
 pulse: type ImportSpec field Sheet string
 pulse: type ImportSpec field SourcePath string
+pulse: type ImportSpec field SourceTZ string
 pulse: type ImportSpec field SuggestGroups bool
 pulse: type ImportSpec field TTL time.Duration
 pulse: type IndexFreshnessReason = pulse/internal/service.IndexFreshnessReason
@@ -2122,6 +2129,8 @@ pulse/io: type CohortWriter imethod WriteHeader(columns []string) error
 pulse/io: type CohortWriter imethod WriteRow(values []any) error
 pulse/io: type ConvertJob = pulse/internal/io.ConvertJob
 pulse/io: type ConvertJob underlying struct
+pulse/io: type ConvertJob field ColumnSourceTZ map[string]string
+pulse/io: type ConvertJob field DSTPolicy pulse/internal/io.DSTPolicy
 pulse/io: type ConvertJob field FS github.com/spf13/afero.Fs
 pulse/io: type ConvertJob field IncludeOverlays *bool
 pulse/io: type ConvertJob field Includes []string
@@ -2132,6 +2141,7 @@ pulse/io: type ConvertJob field Overlays []*pulse/types.OverlayLayer
 pulse/io: type ConvertJob field SampleRows int
 pulse/io: type ConvertJob field Schema *pulse/encoding.Schema
 pulse/io: type ConvertJob field Source pulse/internal/io.Reader
+pulse/io: type ConvertJob field SourceTZ string
 pulse/io: type ConvertJob field Target pulse/internal/io.Writer
 pulse/io: type ConvertJob method (*ConvertJob) Hash() string
 pulse/io: type ConvertJob method (*ConvertJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
@@ -2146,6 +2156,7 @@ pulse/io: type ConvertReport field Schema *pulse/encoding.Schema
 pulse/io: type ConvertReport field SourceWarnings []*pulse/errors.CodedError
 pulse/io: type ConvertReport field TargetWarnings []*pulse/errors.CodedError
 pulse/io: type ConvertReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
+pulse/io: type ConvertReport field ZoneWarnings []*pulse/errors.CodedError "json:\"ZoneWarnings,omitempty\""
 pulse/io: type ConvertSource = pulse/internal/iocore.ConvertSource
 pulse/io: type ConvertSource underlying struct
 pulse/io: type ConvertSource field Schema *pulse/encoding.Schema
@@ -3915,4 +3926,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2c327789a89f7dcafd19974eb761d5c1ae88ac4ef979eb61d586c5e737022a5e
+// golden-hash: 478a5bed3f1a2061057d152f03ffc6586f85623d8a998ac9d3f425ec57833d06

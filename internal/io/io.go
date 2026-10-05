@@ -120,6 +120,10 @@ type ConvertReport struct {
 	// carries the promoted types. Nil for a declared schema, and when
 	// nothing outgrew its width.
 	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
+	// ZoneWarnings carries the one PULSE_IMPORT_DST_RESOLVED warning a
+	// ConvertJob.DSTPolicy of earlier / later raises when it resolved a
+	// source-zone local time (see ImportReport.ZoneWarnings).
+	ZoneWarnings []*errors.CodedError `json:"ZoneWarnings,omitempty"`
 }
 
 // RowError records a per-row error during import or export.
@@ -463,6 +467,18 @@ type ConvertJob struct {
 	// .pulse file (when KeepPulseAt is set) never carries overlay
 	// payloads.
 	Overlays []*types.OverlayLayer
+	// SourceTZ, ColumnSourceTZ and DSTPolicy read the source's naive
+	// datetime literals in a source zone, with ImportJob's exact
+	// semantics and refusals (see ImportJob.SourceTZ). Convert is a TEXT
+	// pass, so a zoned naive literal reaches the target as the canonical
+	// UTC literal of the instant it names (`2026-01-15T14:00:00Z`) — the
+	// value a source-zone import stores — while a literal with its own
+	// `Z` / offset, an unparseable cell and every non-zoned column pass
+	// through verbatim. The KeepPulseAt intermediate is imported in the
+	// same zone. Empty (the default) changes nothing.
+	SourceTZ       string
+	ColumnSourceTZ map[string]string
+	DSTPolicy      DSTPolicy
 }
 
 // NewConvertJob creates a ConvertJob with default settings.

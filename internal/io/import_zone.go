@@ -168,6 +168,35 @@ func (sz *sourceZones) zoned(i int) bool {
 // layout accepts returns ParseDateTime's own error (a row error, as
 // today); a DST refusal returns the fatal PULSE_IMPORT_DST_* code.
 func (sz *sourceZones) parse(i int, raw, col string, rowNum int) (uint64, error) {
+	v, _, err := sz.parseKind(i, raw, col, rowNum)
+	return v, err
+}
+
+// render is convert's twin of parse: it turns a present cell of zoned
+// field i into the text the convert target receives. A naive literal
+// becomes the canonical UTC literal of the instant it names
+// (encoding.FormatDateTime, `…Z`), so every target — text, a row-path
+// `.sav` rebuild, a later import — reads the instant, not a wall clock
+// it would take for UTC. A literal carrying its own `Z` / offset already
+// names its instant and passes through verbatim, as does one no layout
+// accepts (convert hands unparseable cells through, as it always has). A
+// DST refusal is returned as parse returns it.
+func (sz *sourceZones) render(i int, raw, col string, rowNum int) (string, error) {
+	v, kind, err := sz.parseKind(i, raw, col, rowNum)
+	if err != nil {
+		if isDSTRefusal(err) {
+			return "", err
+		}
+		return raw, nil
+	}
+	if kind == temporal.LocalOffset {
+		return raw, nil
+	}
+	return encoding.FormatDateTime(v), nil
+}
+
+// parseKind is parse plus temporal's verdict on the literal's kind.
+func (sz *sourceZones) parseKind(i int, raw, col string, rowNum int) (uint64, temporal.LocalKind, error) {
 	sec, kind, err := temporal.ParseLocal(raw, sz.zones[i], sz.policy)
 	if err != nil {
 		code := errors.Code("")
@@ -178,9 +207,9 @@ func (sz *sourceZones) parse(i int, raw, col string, rowNum int) (uint64, error)
 		case stderrors.Is(err, temporal.ErrLocalNonexistent):
 			code, what = errors.PULSE_IMPORT_DST_NONEXISTENT, "does not exist: the zone skips it (a DST spring-forward)"
 		default:
-			return 0, err
+			return 0, 0, err
 		}
-		return 0, errors.NewCodedErrorWithDetails(code,
+		return 0, 0, errors.NewCodedErrorWithDetails(code,
 			fmt.Sprintf("row %d, column %q: local time %q in %s %s; choose a DST policy (earlier or later) or give the value an offset", rowNum, col, raw, sz.names[i], what),
 			map[string]any{"row": rowNum, "column": col, "value": raw, "zone": sz.names[i]})
 	}
@@ -190,7 +219,7 @@ func (sz *sourceZones) parse(i int, raw, col string, rowNum int) (uint64, error)
 	case temporal.LocalNonexistent:
 		sz.nonexistentN++
 	}
-	return uint64(sec), nil
+	return uint64(sec), kind, nil
 }
 
 // resetCounts forgets the resolved counts (a re-measured predict pass

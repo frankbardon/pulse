@@ -146,7 +146,7 @@ Cheaper probes are available without going through `pulse_process`:
 
 `pulse_import` lets the LLM hand the server any tabular file and address it from then on as if it were a `.pulse`.
 
-- **Convertible formats** (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) are imported into `$PULSE_DATA_DIR/imports/<handle>.pulse` with a sidecar `<handle>.pulse.meta.json` carrying `imported_at`, `expires_at`, `ttl_seconds`, source path, source format, and row count. `result.managed=true`.
+- **Convertible formats** (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) are imported into `$PULSE_DATA_DIR/imports/<handle>.pulse` with a sidecar `<handle>.pulse.meta.json` carrying `imported_at`, `expires_at`, `ttl_seconds`, source path, source format, and row count — plus `source_tz` / `column_source_tz` / `dst_policy` when the import read naive datetimes in a source zone (the `pulse_import` fields of the same names; omitted for a UTC import). `result.managed=true`.
 - **Pulse passthroughs** (`.pulse` extension) under `PULSE_DATA_DIR` are not copied — the server returns the relative path verbatim with `managed=false`. A `.pulse` outside `PULSE_DATA_DIR` is copied into the managed pool.
 
 **Source path resolution.** Relative `source` paths resolve against `PULSE_DATA_DIR`. Absolute paths read from the host filesystem through a separate "source fs."
