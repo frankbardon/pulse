@@ -467,7 +467,7 @@ var (
 			{When: "you only need the weighted averages themselves", Use: "AGG_WEIGHTED_MEAN"},
 		},
 		Assumptions: []string{
-			"Cells must use AGG_WEIGHTED_MEAN or a weighted AGG_AVERAGE; n_basis is required. With weights the sum of weights is the sample size, which overstates precision when weights are scaled up to a population; kish uses the effective sample size and suits survey weights.",
+			"Cells must use AGG_WEIGHTED_MEAN or a weighted AGG_AVERAGE; n_basis is required. With weights the sum of weights is the sample size, which suits weights that count repeated rows and is refused when the cell carries sampling weights; kish uses the effective sample size and suits survey weights.",
 			"It accounts for weighting only, not for clustering or other design effects, so with such designs the p-values come out too small.",
 			"The two groups in each pair are independent samples. The null hypothesis for each pair is equal weighted means; each p-value is two-sided from the normal curve.",
 			overlayRawPValues,

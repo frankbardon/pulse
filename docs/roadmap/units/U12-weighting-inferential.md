@@ -118,7 +118,7 @@ Contract: `.claude/reference/weighting.md` ("Classification by family", "Weighte
 | Item | Owner |
 |---|---|
 | Human glance at the `n_eff` semantics and the lifted formulas: [`reviews/U12-weighting-review.md`](../reviews/U12-weighting-review.md) | U33 (#206) |
-| Engine findings of the U12 review awaiting triage: WS-01 (ANOVA F whole-sample Kish scale — high), WS-05 / WS-12 (undefined figures at tiny n_eff), WS-06 (weighted two-means z `n_basis: weights` on a probability host), WS-10 (weighted KS ties), WS-13 (prop-z scaled-expected guard), WS-07 / WS-08 / WS-09 (reason texts) | maintainer triage → U36 / new |
+| Engine findings of the U12 review still open: WS-10 (weighted KS ties warning), WS-13 (prop-z scaled-expected guard). WS-01 (per-group ANOVA F scale), WS-05 (null OLS figures at residual df ≤ 0), WS-06 (`n_basis: weights` refused on a probability host), WS-07 / WS-08 / WS-09 (reason texts) and WS-12 (Pearson refusal at n_eff ≤ 2) were fixed in this PR (`fix(weighting-inferential/review)` commits; migration rows in the U12 table) | maintainer triage → U36 / new |
 | `OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF` over an engine `AGG_WELFORD` series emit an EMPTY layer (the series arm does not parse `processing.WelfordTriple`; pre-existing, weighted or not); a fix must carry `sum_weights` / `n_eff` / `m2` through | U36 |
 | Weighted GLM gamma dispersion (fixed at 1, as unweighted) and the weighted rows of the per-output oracles at U36's tolerances | U36 |
 | Extension `weight_kinds` declaration (a WeightAware extension is applied under both kinds today) | U34 / new (on demand) |

@@ -190,6 +190,20 @@ func NSourceRefusal(nSource string, basis Basis) string {
 	return ""
 }
 
+// NBasisRefusal is why OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z's n_basis
+// cannot stand on a host weighted under basis, "" when it can: n_basis
+// "weights" reads Σw as each leg's sample size, which under kind
+// probability is exactly the reading NSourceRefusal refuses for
+// cell_weight_sum (U12 review WS-06). "kish" and every frequency or
+// unweighted host stand. The predict validator and the overlay runtime
+// both raise it as PROCESSING_CONFIG with one message.
+func NBasisRefusal(nBasis string, basis Basis) string {
+	if basis == Probability && nBasis == types.PairwiseNBasisWeights {
+		return WeightSumNotSampleSize + "; set n_basis to " + types.PairwiseNBasisKish + " to read Kish n_eff"
+	}
+	return ""
+}
+
 // FrequencyOnlyHostRefusal is the PULSE_WEIGHT_UNSUPPORTED refusal of a
 // frequency-only overlay (OVERLAY_FISHER_EXACT_CELL) whose HOST crosstab
 // cell is weighted under kind probability — the case the slot-level

@@ -195,6 +195,24 @@ func TestNSourceRefusal_WeightSumReason(t *testing.T) {
 	}
 }
 
+// TestNBasisRefusal (U12 review WS-06): n_basis "weights" is refused on
+// a probability host only, with NSourceRefusal's weight-sum reason; kish
+// and every frequency / unweighted host stand.
+func TestNBasisRefusal(t *testing.T) {
+	for _, basis := range []Basis{Unweighted, Frequency, Probability} {
+		for _, nb := range []string{types.PairwiseNBasisWeights, types.PairwiseNBasisKish, ""} {
+			got := NBasisRefusal(nb, basis)
+			want := basis == Probability && nb == types.PairwiseNBasisWeights
+			if (got != "") != want {
+				t.Errorf("basis %v n_basis %q: refused %v, want %v", basis, nb, got != "", want)
+			}
+			if want && (!strings.HasPrefix(got, WeightSumNotSampleSize) || !strings.Contains(got, "kish")) {
+				t.Errorf("reason %q must open with the n_source weight-sum reason and point at kish", got)
+			}
+		}
+	}
+}
+
 // TestRefusalReasons_ShapiroWilkStatesObstacle (U12 review WS-09): the
 // permanent Shapiro-Wilk refusal names the practical obstacle to a
 // frequency form instead of claiming W' is undefined for weighted data.

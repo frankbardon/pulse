@@ -70,6 +70,14 @@ func applyPairwiseWeightedTwoMeansZ(spec *types.OverlaySpec, host *CrosstabHostV
 	if err := checkWeightedTwoMeansZParams(spec, params); err != nil {
 		return types.OverlayLayer{}, nil, err
 	}
+	// n_basis "weights" on a probability host reads Σw as n — refused
+	// like the n_source weight sum (weighting.NBasisRefusal, U12 review
+	// WS-06); predict raises the same code and message.
+	if reason := weighting.NBasisRefusal(params.NBasis, host.WeightBasis()); reason != "" {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			"overlay "+string(spec.Kind)+" n_basis "+params.NBasis+": "+reason,
+			map[string]any{"kind": string(spec.Kind), "param": "n_basis", "n_basis": params.NBasis})
+	}
 	return runPairwiseOverlay(spec, host, pairwiseWeightedTwoMeansZKernel(params.NBasis), pwShapeWeighted)
 }
 

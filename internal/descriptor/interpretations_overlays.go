@@ -332,7 +332,7 @@ var (
 			Shared: SharedPValue,
 			Caveats: []string{
 				"Each cell holds the two-sided z-test p-value for one pair of weighted means; params.n_basis sets the sample size (sum of weights, or Kish's effective sample size).",
-				"It accounts for weighting only, not clustering or other design effects, and n_basis = weights overstates precision when weights are scaled to a population; either way the p-values then come out too small.",
+				"It accounts for weighting only, not clustering or other design effects, so with such designs the p-values come out too small.",
 				overlayPairMultiComp,
 				overlayPairNoEffect,
 			},

@@ -2,21 +2,26 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
 // pwWeightedRequest is pwWelfordRequest with the cell the weighted kind
-// actually reads: AGG_WEIGHTED_MEAN. cellType overrides it when non-nil.
+// actually reads: AGG_WEIGHTED_MEAN under a FREQUENCY slot weight, so
+// n_basis "weights" stands (on a probability host it is refused, U12
+// review WS-06 — TestValidateOverlays_WeightedTwoMeansZNBasisOnProbabilityHost).
+// cellType overrides it when non-nil.
 func pwWeightedRequest(kind types.OverlayKind, params string, cellType *types.AggregationType) *types.Request {
 	req := pwWelfordRequest(kind, params)
 	req.Crosstab.Cell = &types.Aggregation{
 		Type:   types.AGG_WEIGHTED_MEAN,
 		Field:  "score",
-		Params: json.RawMessage(`{"weight_field":"w"}`),
+		Weight: types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}),
 	}
 	if cellType != nil {
 		req.Crosstab.Cell = &types.Aggregation{Type: *cellType, Field: "score"}
@@ -70,6 +75,37 @@ func TestValidateOverlays_WeightedTwoMeansZParams(t *testing.T) {
 				t.Fatalf("params %s: refusal names param %v, want %s", tc.params, got.Details["param"], tc.param)
 			}
 		})
+	}
+}
+
+// TestValidateOverlays_WeightedTwoMeansZNBasisOnProbabilityHost (U12
+// review WS-06): n_basis "weights" on a probability-weighted cell — the
+// weight_field sugar, or a slot weight of kind probability — reads Σw as
+// n and is PROCESSING_CONFIG naming param n_basis, with
+// weighting.NBasisRefusal's reason; "kish" on the same host is clean.
+func TestValidateOverlays_WeightedTwoMeansZNBasisOnProbabilityHost(t *testing.T) {
+	kind := types.OverlayKindPairwiseWeightedTwoMeansZ
+	for name, cell := range map[string]*types.Aggregation{
+		"sugar":       {Type: types.AGG_WEIGHTED_MEAN, Field: "score", Params: json.RawMessage(`{"weight_field":"w"}`)},
+		"slot weight": {Type: types.AGG_WEIGHTED_MEAN, Field: "score", Weight: types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})},
+	} {
+		for _, nb := range []string{types.PairwiseNBasisWeights, types.PairwiseNBasisKish} {
+			req := pwWelfordRequest(kind, `{"n_basis":"`+nb+`"}`)
+			req.Crosstab.Cell = cell
+			env := descriptor.NewEnvelope(nil)
+			ValidateOverlays(env, req, nil, nil)
+			got := pwPartFindError(env, string(errors.PROCESSING_CONFIG))
+			if nb == types.PairwiseNBasisKish {
+				if len(env.Errors) != 0 {
+					t.Fatalf("%s kish: expected clean, got %v", name, pwPartErrorCodes(env))
+				}
+				continue
+			}
+			if got == nil || got.Details["param"] != "n_basis" || len(env.Errors) != 1 ||
+				!strings.Contains(got.Message, weighting.NBasisRefusal(nb, weighting.Probability)) {
+				t.Fatalf("%s weights: errors %v (%+v)", name, pwPartErrorCodes(env), got)
+			}
+		}
 	}
 }
 

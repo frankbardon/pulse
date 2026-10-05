@@ -318,6 +318,16 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 					"n_basis":   params.NBasis,
 					"supported": []string{types.PairwiseNBasisWeights, types.PairwiseNBasisKish}})
 			refused = true
+		} else if reason := weighting.NBasisRefusal(params.NBasis, crosstabCellWeightBasis(req, opts)); reason != "" {
+			// n_basis "weights" on a probability-weighted cell reads Σw
+			// as n (U12 review WS-06): the runtime twin is
+			// processing.applyPairwiseWeightedTwoMeansZ, same code and
+			// message.
+			env.AddError(string(errors.PROCESSING_CONFIG),
+				"overlay "+string(spec.Kind)+" n_basis "+params.NBasis+": "+reason,
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_basis",
+					"n_basis": params.NBasis})
+			refused = true
 		}
 		if refused {
 			return

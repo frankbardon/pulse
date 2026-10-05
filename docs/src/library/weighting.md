@@ -330,9 +330,12 @@ out. A host weighted only by its own slot weight does not trigger the
 refusal.
 `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` is the weighted twin, built for
 weighted cells: its host is an `AGG_WEIGHTED_MEAN` cell or a weighted
-`AGG_AVERAGE` cell. It accepts both weight kinds, and for this overlay
-only its required `n_basis` param (`weights` for Σw, `kish` for n_eff),
-not the weight's `kind`, decides the sample size.
+`AGG_AVERAGE` cell. It accepts both weight kinds, and its required
+`n_basis` param (`weights` for Σw, `kish` for n_eff) decides the sample
+size. `weights` needs frequency weights: on a cell weighted under
+`kind: probability` (an `AGG_WEIGHTED_MEAN` `weight_field` included)
+the weight sum is not a sample size, so `n_basis: "weights"` is refused
+with `PROCESSING_CONFIG`; use `kish` there.
 
 The mean-comparison overlays (`OVERLAY_T_CELL`, `OVERLAY_Z_CELL`,
 `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF`, `OVERLAY_PAIRWISE_WELCH_T`) run

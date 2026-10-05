@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Crosstab of region x segment with an AGG_WEIGHTED_MEAN cell (revenue weighted by session_minutes) decorated with OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z at ROW scope under both n_basis conventions: each tests one region's weighted mean revenue against another within each segment column, reading the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from Response.Components.Crosstab.CellComponents. n_basis is required with no default: weights treats the weights as frequencies (var = m2/(sum_weights - 1), n = sum_weights); kish uses the Kish effective base (n = n_eff = sum_weights^2 / sum_weights_sq). z = (m_i - m_j) / sqrt(var_i/n_i + var_j/n_j) with a normal-CDF tail; each cell holds the pair's two-sided p-value. Unlike the AGG_WELFORD sibling the weighted-mean cell is mergeable, so the crosstab scan stays fused. The family emits RAW p-values only; direction and thresholds are the embedder's presentation concern.",
+    "description": "Crosstab of region x segment with an AGG_WEIGHTED_MEAN cell (revenue weighted by session_minutes) decorated with OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z at ROW scope: each tests one region's weighted mean revenue against another within each segment column, reading the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from Response.Components.Crosstab.CellComponents. n_basis is required with no default: kish uses the Kish effective base (n = n_eff = sum_weights^2 / sum_weights_sq), the right reading for these sampling-style weights (weight_field is a probability weight); weights treats the weights as frequencies (var = m2/(sum_weights - 1), n = sum_weights) and is accepted only on a frequency-weighted cell, so on this host it is refused PROCESSING_CONFIG. z = (m_i - m_j) / sqrt(var_i/n_i + var_j/n_j) with a normal-CDF tail; each cell holds the pair's two-sided p-value. Unlike the AGG_WELFORD sibling the weighted-mean cell is mergeable, so the crosstab scan stays fused. The family emits RAW p-values only; direction and thresholds are the embedder's presentation concern.",
     "intents": [
       "compare_groups"
     ],
@@ -47,14 +47,6 @@
     }
   },
   "overlays": [
-    {
-      "name": "region_weighted_z_weights",
-      "kind": "OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z",
-      "scope": "row",
-      "params": {
-        "n_basis": "weights"
-      }
-    },
     {
       "name": "region_weighted_z_kish",
       "kind": "OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z",

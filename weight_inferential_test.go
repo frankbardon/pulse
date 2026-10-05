@@ -755,6 +755,61 @@ func TestWeight_PairwiseNSourceMatchesPredict(t *testing.T) {
 	}
 }
 
+// TestWeight_PairwiseWeightedNBasisMatchesPredict (U12 review WS-06):
+// OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z with n_basis "weights" on a
+// probability-weighted host reads Σw as the sample size — what the
+// n_source rule refuses for cell_weight_sum — so it is PROCESSING_CONFIG
+// at runtime and in predict with one message, whether the host cell is a
+// weighted AGG_AVERAGE or AGG_WEIGHTED_MEAN through its weight_field
+// sugar (kind probability). "kish" on the same host, and "weights" on a
+// frequency host, run and predict clean.
+func TestWeight_PairwiseWeightedNBasisMatchesPredict(t *testing.T) {
+	p, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	freq := types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
+	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
+	mk := func(cell *types.Aggregation, nBasis string) *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: cohort},
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 20}},
+				Cell:    cell,
+			},
+			Overlays: []types.OverlaySpec{{Name: "wz", Kind: types.OverlayKindPairwiseWeightedTwoMeansZ, Scope: types.OverlayScopeRow,
+				Params: json.RawMessage(`{"n_basis":"` + nBasis + `"}`)}},
+		}
+	}
+	avg := func(w types.WeightSpec) *types.Aggregation {
+		return &types.Aggregation{Type: types.AGG_AVERAGE, Field: "x", Label: "m", Weight: types.SlotWeightOf(w)}
+	}
+	sugar := &types.Aggregation{Type: types.AGG_WEIGHTED_MEAN, Field: "x", Label: "m", Params: json.RawMessage(`{"weight_field":"y"}`)}
+	for name, cell := range map[string]*types.Aggregation{"average probability": avg(prob), "weighted mean sugar": sugar} {
+		req := func() *types.Request { return mk(cell, types.PairwiseNBasisWeights) }
+		_, rerr := p.Process(ctx, req())
+		ce := requireCode(t, rerr, errors.PROCESSING_CONFIG)
+		if !strings.Contains(ce.Message, weighting.WeightSumNotSampleSize) || ce.Details["n_basis"] != types.PairwiseNBasisWeights {
+			t.Fatalf("%s: %q details %v", name, ce.Message, ce.Details)
+		}
+		env := predictEnvelope(t, p, fs, cohort, req())
+		if len(env.Errors) != 1 || env.Errors[0].Code != string(ce.Code) || env.Errors[0].Message != ce.Message {
+			t.Fatalf("%s: predict %+v, runtime %s %q", name, env.Errors, ce.Code, ce.Message)
+		}
+		if _, err := p.Process(ctx, mk(cell, types.PairwiseNBasisKish)); err != nil {
+			t.Fatalf("%s kish: %v", name, err)
+		}
+		if env := predictEnvelope(t, p, fs, cohort, mk(cell, types.PairwiseNBasisKish)); len(env.Errors) != 0 {
+			t.Fatalf("%s kish: predict errors %+v", name, env.Errors)
+		}
+	}
+	if _, err := p.Process(ctx, mk(avg(freq), types.PairwiseNBasisWeights)); err != nil {
+		t.Fatalf("frequency weights: %v", err)
+	}
+	if env := predictEnvelope(t, p, fs, cohort, mk(avg(freq), types.PairwiseNBasisWeights)); len(env.Errors) != 0 {
+		t.Fatalf("frequency weights: predict errors %+v", env.Errors)
+	}
+}
+
 // TestWeight_ContingencyOverlaysMatchPredict: the contingency and
 // proportion overlays (weighting-inferential E3-S2) run on a weighted
 // crosstab under both kinds — request or slot-only cell weight — and
