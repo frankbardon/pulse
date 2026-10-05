@@ -2806,13 +2806,24 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WEIGHT_UNSUPPORTED: {
-		Message: "A row weight is in force on a slot whose operator cannot honour one yet — an inferential test (`tests` / `post_tests`), regression, reference-distribution attribute (z-score, t-score, percentile rank or normalised value), quantile grouper (on `groups` or a crosstab axis), confidence-interval aggregator or inferential overlay, or an aggregation over a decimal128 field. Weighted inference needs design-based variance, which is not implemented yet — it is planned as its own roadmap unit (U12) — so the request is refused rather than answered unweighted or wrongly weighted. An instance default weight refuses these slots too: each must opt out explicitly. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default. For a decimal128 aggregation the decimal column is under `value_field`: the decimal path has no weighted form, so it is refused even under the instance default rather than answered unweighted inside a weighted table.",
+		Message: "A row weight is in force on a slot whose operator cannot honour it, so the request is refused rather than answered unweighted or wrongly weighted. Three cases: the operator has a weighted form only under weight kind `frequency` (integer replication counts) and the weight in force is kind `probability` — `kind` names the kind in force and `supported_kinds` the kinds the operator accepts; the operator has no standard weighted form at all — a post-test (it reads aggregated rows), a regression resample or selection modifier, certain tests, attributes and overlays — and `reason` says why (`alternative` names a weighted twin where one exists); or the operator's weighted form has not landed yet. An aggregation over a decimal128 field is refused too, with the decimal column under `value_field`: the decimal path has no weighted form. An instance default weight refuses these slots exactly like an explicit one: each must opt out. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"weight"},
-				Hint:     "Set `weight: null` on the refused slot (the test, regression, attribute, grouper, aggregation or overlay named in `slot`) to run that slot unweighted while the rest of the request stays weighted — null opts out, an absent key inherits the request weight and then the instance default. Until weighted inference ships (roadmap unit U12) this is the only way to run the slot under a weight.",
+				Hint:     "Set `weight: null` on the refused slot (named in `slot`) to run that slot unweighted while the rest of the request stays weighted — null opts out, an absent key inherits the request weight and then the instance default.",
 				Examples: []any{nil},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"weight", "kind"},
+				Hint:     "When `supported_kinds` lists only `frequency` and your weights are integer replication counts, weight the slot with `kind: frequency` instead; a probability (sampling) weight has no standard form for that operator.",
+				Examples: []any{"frequency"},
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"type"},
+				Hint:   "When `alternative` is present, use that operator: it computes the weighted form of the refused one.",
 			},
 			{
 				Action: FixupRemoveParam,

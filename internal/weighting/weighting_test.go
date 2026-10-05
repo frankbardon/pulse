@@ -2,6 +2,7 @@ package weighting
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -25,11 +26,11 @@ func TestClassify_Complete(t *testing.T) {
 
 // TestClassify_NonAggregatorFamilies pins the non-aggregator classes
 // (.claude/reference/weighting.md, Refusal rules): every built-in
-// TEST_* and REG_*, the reference-distribution attributes and
-// GROUP_QUANTILE refuse under any weight; every WIN_* is not weightable
-// (skipped under a default, refused under an explicit weight); every
-// other attribute, grouper, filterer and feature is untouched
-// (ClassNone).
+// TEST_* and REG_*, ATTR_ZSCORE / TSCORE / PERCENTILE and
+// GROUP_QUANTILE refuse under any weight; ATTR_NORMALIZED and every
+// WIN_* are not weightable (skipped under a default, refused under an
+// explicit weight); every other attribute, grouper, filterer and
+// feature is untouched (ClassNone). None carries a weight kind yet.
 func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	want := map[string]Class{}
 	for _, tt := range types.AllTestTypes() {
@@ -41,9 +42,10 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	for _, at := range types.AllAttributeTypes() {
 		want[string(at)] = ClassNone
 	}
-	for _, a := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_PERCENTILE, types.ATTR_NORMALIZED} {
+	for _, a := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_PERCENTILE} {
 		want[string(a)] = ClassRefuse
 	}
+	want[string(types.ATTR_NORMALIZED)] = ClassNotWeightable
 	for _, gt := range types.AllGroupTypes() {
 		want[string(gt)] = ClassNone
 	}
@@ -61,9 +63,62 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 		if got := ClassOf(op); got != c {
 			t.Errorf("ClassOf(%s) = %v, want %v", op, got, c)
 		}
-		if IsAware(op) {
-			t.Errorf("%s must not be weight-aware", op)
+		if IsAware(op) || KindsOf(op) != nil {
+			t.Errorf("%s must not be weight-aware (kinds %v)", op, KindsOf(op))
 		}
+	}
+}
+
+// TestKindsOf: the kinds accessor is table-driven off the class —
+// both kinds (frequency first) for ClassAware, frequency alone for
+// ClassFrequencyOnly, none otherwise — and IsAware agrees with it.
+func TestKindsOf(t *testing.T) {
+	both := []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
+	freq := []types.WeightKind{types.WeightKindFrequency}
+	for _, at := range types.AllAggregationTypes() {
+		op := string(at)
+		var want []types.WeightKind
+		if ClassOf(op) == ClassAware {
+			want = both
+		}
+		if !reflect.DeepEqual(KindsOf(op), want) {
+			t.Errorf("KindsOf(%s) = %v, want %v", op, KindsOf(op), want)
+		}
+		if IsAware(op) != (want != nil) {
+			t.Errorf("IsAware(%s) disagrees with KindsOf", op)
+		}
+	}
+	restore := OverrideClassForTest("TEST_STUB_FREQ_ONLY", ClassFrequencyOnly)
+	if !reflect.DeepEqual(KindsOf("TEST_STUB_FREQ_ONLY"), freq) || !IsAware("TEST_STUB_FREQ_ONLY") {
+		t.Fatalf("frequency-only stub: kinds %v aware %v", KindsOf("TEST_STUB_FREQ_ONLY"), IsAware("TEST_STUB_FREQ_ONLY"))
+	}
+	restore()
+	if ClassOf("TEST_STUB_FREQ_ONLY") != ClassNone {
+		t.Fatal("restore left the stub classed")
+	}
+	for _, c := range []Class{ClassNone, ClassNotWeightable, ClassRefuse} {
+		if KindsOfClass(c) != nil {
+			t.Errorf("class %v carries kinds %v", c, KindsOfClass(c))
+		}
+	}
+}
+
+// TestRefusalReasons_AreRefused: every permanent refusal is a refused
+// operator, the named ones carry a reason, and a pending refusal
+// (TEST_T) does not.
+func TestRefusalReasons_AreRefused(t *testing.T) {
+	for op := range refusalReasons {
+		if ClassOf(op) != ClassRefuse {
+			t.Errorf("%s has a refusal reason but class %v", op, ClassOf(op))
+		}
+	}
+	for _, op := range []string{"TEST_SHAPIRO_WILK", "TEST_TUKEY_HSD", "TEST_ANOVA_RM", "TEST_TREND", "ATTR_PERCENTILE"} {
+		if RefusalReason(op) == "" {
+			t.Errorf("%s: no permanent refusal reason", op)
+		}
+	}
+	if RefusalReason("TEST_T") != "" || RefusalReason("AGG_SUM") != "" {
+		t.Fatal("a liftable operator carries a permanent reason")
 	}
 }
 

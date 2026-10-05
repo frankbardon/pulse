@@ -25,7 +25,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
+- Never weighted (no standard weighted form exists): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — requires the ordered values.
 - p calibrated for 5..5000 rows; outside, it still runs and `per_group[].warning` marks p advisory. Check a QQ plot.
 - Not a gate: few rows miss real departures, many flag trivial ones.

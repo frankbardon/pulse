@@ -83,36 +83,127 @@ type weightSlot struct {
 	// extAware is its registration's WeightAware declaration.
 	extCategory string
 	extAware    bool
+	// reason is a slot-level PERMANENT refusal of a built-in operator
+	// that is otherwise classed by the table: every post-test (it reads
+	// aggregated rows) and a regression carrying a resample or
+	// selection modifier.
+	reason string
 }
 
-// weightExemptOverlays are the Inferential overlay kinds that already
-// read a weighted host correctly, so a weight in force does not refuse
-// them: OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z computes its own
-// weighted z from the host's weighted components. A kind added here
-// owes its weighted contract in .claude/reference/weighting.md.
-var weightExemptOverlays = map[types.OverlayKind]bool{
-	types.OverlayKindPairwiseWeightedTwoMeansZ: true,
+// Slot-level permanent refusal reasons (weightSlot.reason).
+const (
+	reasonPostTest  = "a post-test reads the aggregated result rows, which carry no row weights"
+	reasonResample  = "row resampling under weights is replicate-weight (design-based) territory with no standard form"
+	reasonSelection = "an information criterion has no standard form under weights (a probability-weighted likelihood is only a pseudo-likelihood)"
+)
+
+// overlayWeighting is one overlay kind's weight class: the kinds it
+// honours a weight under (ClassAware: both; ClassFrequencyOnly:
+// frequency), or a permanent refusal with its reason and, where one
+// exists, the weighted twin the refusal points at.
+type overlayWeighting struct {
+	class  weighting.Class
+	reason string
+	twin   types.OverlayKind
 }
 
-// overlayWeightClass classes an overlay kind off its manifest
-// Inferential flag (capabilities_overlay.go), never a hand list: an
-// Inferential kind refuses a weight in force unless exempt; every
-// descriptive kind (shares, indices, deltas, z-scores) reads the host
-// payload and is untouched.
+// overlayWeightClasses is the per-kind overlay class table. A kind it
+// does not list is classed off its manifest Inferential flag
+// (overlayWeightClass): an Inferential kind is refused until its
+// weighted form lands here; a descriptive kind (shares, indices,
+// deltas, z-scores) reads the host payload and is untouched. A kind
+// flipped to ClassAware / ClassFrequencyOnly owes its weighted contract
+// in .claude/reference/weighting.md — and never before its weighted
+// computation exists.
+var overlayWeightClasses = map[types.OverlayKind]overlayWeighting{
+	// Computes its own weighted z from the host's weighted moments,
+	// under either kind (its n_basis is the caller's choice).
+	types.OverlayKindPairwiseWeightedTwoMeansZ: {class: weighting.ClassAware},
+	types.OverlayKindPairwiseTwoMeansZ: {class: weighting.ClassRefuse,
+		reason: "its unweighted Welford triple cannot carry a weighted variance; its weighted twin computes the weighted z",
+		twin:   types.OverlayKindPairwiseWeightedTwoMeansZ},
+	types.OverlayKindPairwiseProbitT: {class: weighting.ClassRefuse,
+		reason: "the probit-transformed proportion t is a market-research convention with no reference weighted form"},
+}
+
+// overlayWeightClass classes an overlay kind: its overlayWeightClasses
+// entry, else ClassRefuse for an Inferential kind (manifest flag,
+// capabilities_overlay.go) and ClassNone for a descriptive one.
 func overlayWeightClass(kind string) weighting.Class {
 	k := types.OverlayKind(kind)
-	if weightExemptOverlays[k] || !overlayCapabilityFor(k).Inferential {
-		return weighting.ClassNone
+	if w, ok := overlayWeightClasses[k]; ok {
+		return w.class
 	}
-	return weighting.ClassRefuse
+	if overlayCapabilityFor(k).Inferential {
+		return weighting.ClassRefuse
+	}
+	return weighting.ClassNone
 }
 
-// weightUnsupported is the PULSE_WEIGHT_UNSUPPORTED refusal of an
-// inferential slot (U12 owns weighted inference).
-func weightUnsupported(s weightSlot, field string) error {
+// OverlayWeightKinds returns the weight kinds an overlay kind honours
+// a weight under (manifest weight_kinds), nil for a refused or
+// descriptive kind.
+func OverlayWeightKinds(kind types.OverlayKind) []types.WeightKind {
+	return weighting.KindsOfClass(overlayWeightClass(string(kind)))
+}
+
+// permanentReason is why the slot's operator is refused permanently
+// under a weight, "" when it is not: a slot-level reason (a post-test,
+// a regression modifier) first, then the overlay table, then the
+// operator table.
+func permanentReason(s weightSlot) string {
+	switch {
+	case s.reason != "":
+		return s.reason
+	case s.overlay:
+		return overlayWeightClasses[types.OverlayKind(s.operator)].reason
+	}
+	return weighting.RefusalReason(s.operator)
+}
+
+// refusalHead is the shared head of a refused slot's
+// PULSE_WEIGHT_UNSUPPORTED: "<slot>: <op> ..." naming the permanent
+// reason or the pending gap, its details ({slot, operator, field}, plus
+// `reason` when permanent and `alternative` for an overlay with a
+// weighted twin the instance offers), and the alternative's prose
+// suffix ("" when none).
+func refusalHead(s weightSlot, field string, inst *InstanceSnapshot) (head string, details map[string]any, alt string) {
+	details = map[string]any{"slot": s.slot, "operator": s.operator, "field": field}
+	reason := permanentReason(s)
+	if reason == "" {
+		return fmt.Sprintf("%s: %s has no weighted form yet", s.slot, s.operator), details, ""
+	}
+	details["reason"] = reason
+	if twin := overlayWeightClasses[types.OverlayKind(s.operator)].twin; s.overlay && twin != "" && !inst.Hidden(string(twin)) {
+		details["alternative"] = string(twin)
+		alt = fmt.Sprintf(", or use %s for the weighted comparison", twin)
+	}
+	return fmt.Sprintf("%s: %s cannot be weighted: %s", s.slot, s.operator, reason), details, alt
+}
+
+// weightUnsupported is the PULSE_WEIGHT_UNSUPPORTED refusal of a
+// refused slot: permanent (details.reason) or pending (no weighted form
+// yet).
+func weightUnsupported(s weightSlot, field string, inst *InstanceSnapshot) error {
+	head, details, alt := refusalHead(s, field, inst)
 	return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
-		fmt.Sprintf("%s: %s has no weighted form yet (weighted inference is not implemented); opt the slot out with \"weight\": null to run it unweighted", s.slot, s.operator),
-		map[string]any{"slot": s.slot, "operator": s.operator, "field": field})
+		head+"; opt the slot out with \"weight\": null to run it unweighted"+alt, details)
+}
+
+// kindOnlyHead is the head and details of a frequency-only slot
+// refused under a weight of another kind.
+func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, map[string]any) {
+	return fmt.Sprintf("%s: %s has a weighted form only under weight kind %q, and the weight in force is kind %q", s.slot, s.operator, types.WeightKindFrequency, kind),
+		map[string]any{"slot": s.slot, "operator": s.operator, "field": field, "kind": string(kind),
+			"supported_kinds": []string{string(types.WeightKindFrequency)}}
+}
+
+// weightKindUnsupported is the PULSE_WEIGHT_UNSUPPORTED refusal of a
+// frequency-only slot under a probability weight.
+func weightKindUnsupported(s weightSlot, spec *types.WeightSpec) error {
+	head, details := kindOnlyHead(s, spec.Field, spec.EffectiveKind())
+	return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
+		head+"; use a frequency weight (integer replication counts) or opt the slot out with \"weight\": null to run it unweighted", details)
 }
 
 // extensionNotWeightAware is the PULSE_EXTENSION_NOT_WEIGHT_AWARE
@@ -259,11 +350,20 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		if t != nil {
 			add(fmt.Sprintf("post_tests[%d]", i), string(t.Type), t.Weight)
 			ext(extCategoryTest)
+			if slots[len(slots)-1].extCategory == "" {
+				slots[len(slots)-1].reason = reasonPostTest
+			}
 		}
 	}
 	for i, r := range req.Regressions {
 		if r != nil {
 			add(fmt.Sprintf("regressions[%d]", i), string(r.Type), r.Weight)
+			switch {
+			case r.Resample != "":
+				slots[len(slots)-1].reason = reasonResample
+			case r.Selection != "":
+				slots[len(slots)-1].reason = reasonSelection
+			}
 		}
 	}
 	for i, a := range req.Attributes {
@@ -372,11 +472,14 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //     resolved weight does: weight-aware ⇒ applied; not weightable ⇒
 //     skipped under the instance default but PROCESSING_CONFIG under
 //     an explicit (slot or request) weight — a WIN_* slot has no slot
-//     weight, so only the request weight is explicit there; inferential
-//     (AGG_CI_LOWER / AGG_CI_UPPER, every built-in TEST_* and REG_*,
-//     ATTR_ZSCORE / TSCORE / PERCENTILE / NORMALIZED, GROUP_QUANTILE on
-//     `groups` or a crosstab axis) ⇒ PULSE_WEIGHT_UNSUPPORTED under any
-//     weight, the instance default included; every operator the table
+//     weight, so only the request weight is explicit there; refused
+//     (ClassRefuse — a pending inferential operator, or a permanent
+//     refusal carrying details.reason: weighting.RefusalReason, every
+//     built-in post-test, a regression with a resample or selection
+//     modifier) ⇒ PULSE_WEIGHT_UNSUPPORTED under any weight, the
+//     instance default included; frequency-only ⇒ applied under kind
+//     frequency, PULSE_WEIGHT_UNSUPPORTED naming the kind under kind
+//     probability (the default included); every operator the table
 //     does not govern ⇒ skipped;
 //   - an extension aggregator, attribute or test (the instance's
 //     ExtensionsSnapshot) is classed by its registration's WeightAware
@@ -388,10 +491,10 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //     default included (it may read the whole population, like the
 //     built-in tests and reference attributes). A hidden extension is
 //     never-registered (skipped);
-//   - an overlay is classed by its kind's manifest Inferential flag
-//     (overlayWeightClass; sole exemption
-//     OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z): an Inferential kind is
-//     PULSE_WEIGHT_UNSUPPORTED under a weight resolved on its OWN slot
+//   - an overlay is classed by overlayWeightClass (the per-kind
+//     overlayWeightClasses table, else its manifest Inferential flag):
+//     a refused kind is PULSE_WEIGHT_UNSUPPORTED (a frequency-only one
+//     only under kind probability) under a weight resolved on its OWN slot
 //     (slot → request → default, so a request or instance weight that
 //     weights the host weights the overlay too); its `weight: null`
 //     opts out. A host weighted only by its own slot weight (or
@@ -485,6 +588,11 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 		default:
 			class = weighting.ClassOf(s.operator)
 		}
+		if s.reason != "" && !s.hidden {
+			// A slot-level permanent refusal (post-test, regression
+			// modifier) refuses whatever the operator's own class.
+			class = weighting.ClassRefuse
+		}
 		if spec == nil {
 			// AGG_WEIGHTED_MEAN IS a weighted figure: with nothing
 			// resolving (no weight anywhere, or the slot opted out)
@@ -515,7 +623,11 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 		}
 		switch class {
 		case weighting.ClassRefuse:
-			return nil, weightUnsupported(s, spec.Field)
+			return nil, weightUnsupported(s, spec.Field, inst)
+		case weighting.ClassFrequencyOnly:
+			if spec.EffectiveKind() != types.WeightKindFrequency {
+				return nil, weightKindUnsupported(s, spec)
+			}
 		case weighting.ClassNotWeightable:
 			if explicit && s.noSlotWeight {
 				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
@@ -535,7 +647,9 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			out = append(out, rw)
 			continue
 		}
-		if rw.Source == descriptor.WeightSourceOptions && schema != nil {
+		// An overlay reads its host's weighted figures, never the weight
+		// column itself, so an inherited default is judged on the host.
+		if rw.Source == descriptor.WeightSourceOptions && schema != nil && !s.overlay {
 			if schema.Field(spec.Field) == nil {
 				return nil, refusal(fmt.Sprintf("%s: Options.DefaultWeight references unknown field: %s", s.slot, spec.Field),
 					map[string]any{"field": spec.Field, "slot": s.slot, "operator": s.operator})
@@ -560,39 +674,44 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 
 // inheritedHostWeight returns the first overlay-host slot of req (an
 // aggregation or the crosstab cell) that a request-level or instance
-// default weight is APPLIED to, and that weight's field; "" when none.
-// A host weighted only by its own slot weight (or AGG_WEIGHTED_MEAN's
-// params.weight_field) does not count — the same line the per-request
-// overlay rule draws. A request the resolver refuses reports none: its
-// own slot fails first.
-func inheritedHostWeight(req *types.Request, defaultWeight *types.WeightSpec, inst *InstanceSnapshot) (string, string) {
+// default weight is APPLIED to and whose kind refuses accepts, plus
+// that weight's field and kind; "" when none. A host weighted only by
+// its own slot weight (or AGG_WEIGHTED_MEAN's params.weight_field) does
+// not count — the same line the per-request overlay rule draws. A
+// request the resolver refuses reports none: its own slot fails first.
+func inheritedHostWeight(req *types.Request, defaultWeight *types.WeightSpec, inst *InstanceSnapshot, refuses func(kind string) bool) (slot, field, kind string) {
 	rws, err := ResolveWeights(req, nil, defaultWeight, inst)
 	if err != nil {
-		return "", ""
+		return "", "", ""
 	}
 	for _, rw := range rws {
-		if rw.Status != descriptor.WeightStatusApplied || rw.Source == descriptor.WeightSourceSlot {
+		if rw.Status != descriptor.WeightStatusApplied || rw.Source == descriptor.WeightSourceSlot || !refuses(rw.Kind) {
 			continue
 		}
 		if rw.Slot == "crosstab.cell" || strings.HasPrefix(rw.Slot, "aggregations[") {
-			return rw.Slot, rw.Field
+			return rw.Slot, rw.Field, rw.Kind
 		}
 	}
-	return "", ""
+	return "", "", ""
 }
 
-// ComposeOverlayWeightRefusal is the Compose-host half of the
-// inferential-overlay refusal. A ComposeOverlaySpec carries no weight
-// of its own, so an Inferential kind (overlayWeightClass) is refused
-// PULSE_WEIGHT_UNSUPPORTED when a slot it reads — its reference or a
-// target, every slot when Targets is empty — has a request-level or
-// instance default weight applied to an aggregation or crosstab cell.
-// The opt-out is on the host: `weight: null` on the slot's weighted
-// aggregations (the overlay then compares unweighted figures). requests
-// and labels are parallel (labels already defaulted); the runtime
-// (Service.applyComposeOverlays) and ValidateComposeWithOptions both
-// call it with the RAW slots, so they refuse identically. Details:
-// {slot: overlays[i], operator, field, host: requests[j].<slot>}.
+// ComposeOverlayWeightRefusal is the Compose-host half of the overlay
+// weight refusal, keyed off the same per-kind class as the per-request
+// rule (overlayWeightClass). A ComposeOverlaySpec carries no weight of
+// its own, so a refused kind is PULSE_WEIGHT_UNSUPPORTED when a slot it
+// reads — its reference or a target, every slot when Targets is empty —
+// has a request-level or instance default weight applied to an
+// aggregation or crosstab cell; a frequency-only kind is refused only
+// when that weight is of kind probability; a kind weighted under both
+// kinds, and a descriptive one, never. The opt-out is on the host:
+// `weight: null` on the slot's weighted aggregations (the overlay then
+// compares unweighted figures). requests and labels are parallel
+// (labels already defaulted); the runtime (Service.applyComposeOverlays)
+// and ValidateComposeWithOptions both call it with the RAW slots, so
+// they refuse identically. Details: {slot: overlays[i], operator,
+// field, host: requests[j].<slot>}, plus `reason` (and `alternative`)
+// for a permanent refusal and `kind` / `supported_kinds` for a
+// frequency-only one.
 func ComposeOverlayWeightRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, defaultWeight *types.WeightSpec, inst *InstanceSnapshot) error {
 	for i := range overlays {
 		if err := composeOverlayWeightRefusal(i, &overlays[i], requests, labels, defaultWeight, inst); err != nil {
@@ -604,7 +723,16 @@ func ComposeOverlayWeightRefusal(overlays []types.ComposeOverlaySpec, requests [
 
 func composeOverlayWeightRefusal(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string, defaultWeight *types.WeightSpec, inst *InstanceSnapshot) error {
 	kind := string(spec.Kind)
-	if inst.Hidden(kind) || overlayWeightClass(kind) != weighting.ClassRefuse {
+	if inst.Hidden(kind) {
+		return nil
+	}
+	var refuses func(string) bool
+	switch overlayWeightClass(kind) {
+	case weighting.ClassRefuse:
+		refuses = func(string) bool { return true }
+	case weighting.ClassFrequencyOnly:
+		refuses = func(k string) bool { return k != string(types.WeightKindFrequency) }
+	default:
 		return nil
 	}
 	reads := func(label string) bool {
@@ -622,15 +750,26 @@ func composeOverlayWeightRefusal(i int, spec *types.ComposeOverlaySpec, requests
 		if r == nil || j >= len(labels) || !reads(labels[j]) {
 			continue
 		}
-		slot, field := inheritedHostWeight(r, defaultWeight, inst)
+		slot, field, wkind := inheritedHostWeight(r, defaultWeight, inst, refuses)
 		if slot == "" {
 			continue
 		}
 		host := fmt.Sprintf("requests[%d].%s", j, slot)
-		where := fmt.Sprintf("overlays[%d]", i)
-		return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
-			fmt.Sprintf("%s: %s has no weighted form yet (weighted inference is not implemented) and its host %s (slot %q) is weighted by %q; set \"weight\": null on that slot to compare unweighted figures", where, kind, host, labels[j], field),
-			map[string]any{"slot": where, "operator": kind, "field": field, "host": host})
+		s := weightSlot{slot: fmt.Sprintf("overlays[%d]", i), operator: kind, overlay: true}
+		hostProse := fmt.Sprintf("its host %s (slot %q) is weighted by %q", host, labels[j], field)
+		var (
+			msg     string
+			details map[string]any
+		)
+		if overlayWeightClass(kind) == weighting.ClassFrequencyOnly {
+			head, d := kindOnlyHead(s, field, types.WeightKind(wkind))
+			msg, details = head+"; "+hostProse+"; use a frequency weight on that slot or set \"weight\": null on it to compare unweighted figures", d
+		} else {
+			head, d, alt := refusalHead(s, field, inst)
+			msg, details = head+"; "+hostProse+"; set \"weight\": null on that slot to compare unweighted figures"+alt, d
+		}
+		details["host"] = host
+		return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED, msg, details)
 	}
 	return nil
 }

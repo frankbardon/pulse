@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,7 +30,7 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 	for _, rt := range types.AllRegressionTypes() {
 		ops = append(ops, string(rt))
 	}
-	ops = append(ops, "ATTR_ZSCORE", "ATTR_TSCORE", "ATTR_PERCENTILE", "ATTR_NORMALIZED", "GROUP_QUANTILE")
+	ops = append(ops, "ATTR_ZSCORE", "ATTR_TSCORE", "ATTR_PERCENTILE", "GROUP_QUANTILE")
 	out := map[string]*types.Request{}
 	decode := func(body string) *types.Request {
 		var r types.Request
@@ -71,6 +72,19 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 		r.PostTests[0].Weight = w
 		out["post/"+op] = r
 	}
+	// A post-test of a family whose tier-1 form is liftable: refused
+	// permanently for being a post-test.
+	welch := decode(`{"groups":[{"type":"GROUP_CATEGORY","field":"subj"}],"aggregations":[` +
+		`{"type":"AGG_AVERAGE","field":"x","label":"m","weight":null},{"type":"AGG_COUNT","field":"x","label":"n","weight":null},` +
+		`{"type":"AGG_VARIANCE","field":"x","label":"v","weight":null}],` +
+		`"post_tests":[{"type":"TEST_ANOVA_WELCH","field":"m","split_by":"subj","params":{"n_col":"n","variance_col":"v"}}]}`)
+	welch.PostTests[0].Weight = w
+	out["post/TEST_ANOVA_WELCH"] = welch
+	for _, mod := range []string{`"resample":"bootstrap","bootstrap_iters":20,"rng_seed":1`, `"selection":"forward","criterion":"aic"`} {
+		r := decode(`{"regressions":[{"type":"REG_OLS","name":"r","target":"x","predictors":["y"],` + mod + `}]}`)
+		r.Regressions[0].Weight = w
+		out["modifier/"+strings.SplitN(mod, `"`, 3)[1]] = r
+	}
 	axis := decode(`{"crosstab":{"rows":[{"type":"GROUP_QUANTILE","field":"x","interval":4}],"columns":[{"type":"GROUP_CATEGORY","field":"g"}],` +
 		`"cell":{"type":"AGG_COUNT","field":"x","weight":null}}}`)
 	axis.Crosstab.Rows[0].Weight = w
@@ -85,14 +99,25 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 	return out
 }
 
-// TestWeight_InferentialRefusalsMatchPredict: every inferential
-// surface U12 owns — each built-in TEST_* (tests and post-tests),
-// REG_*, ATTR_ZSCORE / TSCORE / PERCENTILE / NORMALIZED, GROUP_QUANTILE
-// (groups and a crosstab axis) and Inferential overlays — is refused
-// PULSE_WEIGHT_UNSUPPORTED at runtime and predict with the same code,
-// message and details, under the instance default, a request weight and
-// a slot weight alike; the slot's `weight: null` opts out on both sides
-// (an instance with Options.DefaultWeight still runs TEST_T).
+// permanentRefusalKeys are the inferentialRefusalRequests keys refused
+// PERMANENTLY: the refusal carries details.reason and states it.
+var permanentRefusalKeys = map[string]bool{
+	"TEST_SHAPIRO_WILK": true, "TEST_ANOVA_RM": true, "ATTR_PERCENTILE": true,
+	"post/TEST_TREND": true, "post/TEST_TUKEY_HSD": true, "post/TEST_ANOVA_WELCH": true,
+	"modifier/resample": true, "modifier/selection": true,
+}
+
+// TestWeight_InferentialRefusalsMatchPredict: every refused inferential
+// surface — each built-in TEST_* (tests and post-tests), REG_* (plain
+// and with a resample / selection modifier), ATTR_ZSCORE / TSCORE /
+// PERCENTILE, GROUP_QUANTILE (groups and a crosstab axis) and
+// Inferential overlays — is refused PULSE_WEIGHT_UNSUPPORTED at runtime
+// and predict with the same code, message and details, under the
+// instance default, a request weight and a slot weight alike; a
+// permanent refusal states its reason (details.reason), a pending one
+// says it has no weighted form yet, and none names the roadmap. The
+// slot's `weight: null` opts out on both sides (an instance with
+// Options.DefaultWeight still runs TEST_T).
 func TestWeight_InferentialRefusalsMatchPredict(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
@@ -124,6 +149,15 @@ func TestWeight_InferentialRefusalsMatchPredict(t *testing.T) {
 				ce := requireCode(t, rerr, errors.PULSE_WEIGHT_UNSUPPORTED)
 				if ce.Details["field"] != "y" || ce.Details["slot"] == nil || ce.Details["operator"] == nil {
 					t.Fatalf("details = %v", ce.Details)
+				}
+				reason, _ := ce.Details["reason"].(string)
+				switch {
+				case permanentRefusalKeys[key] && (reason == "" || !strings.Contains(ce.Message, "cannot be weighted: "+reason)):
+					t.Fatalf("permanent refusal without its reason: %s %v", ce.Message, ce.Details)
+				case !permanentRefusalKeys[key] && (reason != "" || !strings.Contains(ce.Message, "has no weighted form yet")):
+					t.Fatalf("pending refusal: %s %v", ce.Message, ce.Details)
+				case strings.Contains(ce.Message, "U12") || strings.Contains(ce.Message, "not implemented"):
+					t.Fatalf("refusal names the roadmap: %s", ce.Message)
 				}
 				sameEntry(t, predictEnvelope(t, src.p, fs, cohort, mk()), rerr)
 			})
@@ -274,5 +308,88 @@ func TestWeight_ComposeInferentialOverlayMatchesValidator(t *testing.T) {
 	}
 	if env := descx.ValidateComposeWithOptions(mk(types.NullSlotWeight()), opts); len(env.Errors) != 0 {
 		t.Fatalf("validator refused the opted-out host: %+v", env.Errors)
+	}
+}
+
+// TestWeight_FrequencyOnlyMatchesPredict: a frequency-only operator
+// (TEST_MANN_WHITNEY_U stands in until a later change flips a real one)
+// is refused PULSE_WEIGHT_UNSUPPORTED naming the kind under a
+// probability weight — instance default, request and slot — at runtime
+// and predict identically, and is not refused under a frequency weight.
+func TestWeight_FrequencyOnlyMatchesPredict(t *testing.T) {
+	defer weighting.OverrideClassForTest(string(types.TEST_MANN_WHITNEY_U), weighting.ClassFrequencyOnly)()
+	_, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
+	freq := &types.WeightSpec{Field: "y", Kind: types.WeightKindFrequency}
+	mk := func(w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
+		var r types.Request
+		if err := json.Unmarshal([]byte(strings.ReplaceAll(acceptanceTemplates["TEST_MANN_WHITNEY_U"], "$F", "x")), &r); err != nil {
+			t.Fatal(err)
+		}
+		r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
+		r.Tests[0].Weight = w
+		return &r
+	}
+	for name, tc := range map[string]struct {
+		p    *pulse.Pulse
+		w    types.SlotWeight
+		reqW *types.WeightSpec
+	}{
+		"default": {weightPulse(t, fs, prob), types.SlotWeight{}, nil},
+		"request": {weightPulse(t, fs, nil), types.SlotWeight{}, prob},
+		"slot":    {weightPulse(t, fs, freq), types.SlotWeightOf(*prob), nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, rerr := tc.p.Process(ctx, mk(tc.w, tc.reqW))
+			ce := requireCode(t, rerr, errors.PULSE_WEIGHT_UNSUPPORTED)
+			if ce.Details["kind"] != "probability" || !strings.Contains(ce.Message, `kind "probability"`) {
+				t.Fatalf("refusal does not name the kind: %s %v", ce.Message, ce.Details)
+			}
+			sameEntry(t, predictEnvelope(t, tc.p, fs, cohort, mk(tc.w, tc.reqW)), rerr)
+		})
+	}
+	p := weightPulse(t, fs, nil)
+	if env := predictEnvelope(t, p, fs, cohort, mk(types.SlotWeight{}, freq)); len(env.Errors) != 0 {
+		t.Fatalf("predict refused a frequency weight: %+v", env.Errors)
+	}
+	if _, err := p.Process(ctx, mk(types.SlotWeight{}, freq)); err != nil {
+		t.Fatalf("runtime refused a frequency weight: %v", err)
+	}
+}
+
+// TestWeight_NormalizedNotWeightableMatchesPredict: ATTR_NORMALIZED (a
+// min-max rescale, no weighted meaning) runs under the instance default
+// and is PROCESSING_CONFIG under an explicit request or slot weight, at
+// runtime and predict identically.
+func TestWeight_NormalizedNotWeightableMatchesPredict(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	def := &types.WeightSpec{Field: "y"}
+	mk := func(w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
+		var r types.Request
+		if err := json.Unmarshal([]byte(strings.ReplaceAll(acceptanceTemplates["ATTR_NORMALIZED"], "$F", "x")), &r); err != nil {
+			t.Fatal(err)
+		}
+		r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
+		r.Attributes[0].Weight = w
+		r.Aggregations[0].Weight = types.NullSlotWeight()
+		return &r
+	}
+	withDefault := weightPulse(t, fs, def)
+	if _, err := withDefault.Process(ctx, mk(types.SlotWeight{}, nil)); err != nil {
+		t.Fatalf("default weight not skipped: %v", err)
+	}
+	plain := weightPulse(t, fs, nil)
+	for name, req := range map[string]func() *types.Request{
+		"request": func() *types.Request { return mk(types.SlotWeight{}, def) },
+		"slot":    func() *types.Request { return mk(types.SlotWeightField("y"), nil) },
+	} {
+		_, rerr := plain.Process(ctx, req())
+		ce := requireCode(t, rerr, errors.PROCESSING_CONFIG)
+		if ce.Details["operator"] != "ATTR_NORMALIZED" || ce.Details["slot"] != "attributes[0]" {
+			t.Fatalf("%s: details = %v", name, ce.Details)
+		}
+		sameEntry(t, predictEnvelope(t, plain, fs, cohort, req()), rerr)
 	}
 }

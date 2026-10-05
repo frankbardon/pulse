@@ -24,8 +24,8 @@ func weightFloorKeys() []descriptor.ComponentKey {
 
 // withWeightAware stamps each weight-aware aggregator (the
 // internal/weighting class table — the one the resolver and the engine
-// read) with WeightAware and splices the optional weighted floor keys
-// in after {n, n_null}. A key the operator already declares among its
+// read) with WeightAware and its WeightKinds and splices the optional
+// weighted floor keys in after {n, n_null}. A key the operator already declares among its
 // own keys (AGG_WEIGHTED_MEAN carries sum_weights and n_eff in its
 // operator map) is not repeated.
 func withWeightAware(ops []descriptor.Operator) []descriptor.Operator {
@@ -34,6 +34,7 @@ func withWeightAware(ops []descriptor.Operator) []descriptor.Operator {
 			continue
 		}
 		ops[i].WeightAware = true
+		ops[i].WeightKinds = weighting.KindsOf(ops[i].Name)
 		keys := ops[i].ComponentSchema.Keys
 		have := make(map[string]bool, len(keys))
 		for _, k := range keys {
@@ -51,4 +52,32 @@ func withWeightAware(ops []descriptor.Operator) []descriptor.Operator {
 		ops[i].ComponentSchema.Keys = out
 	}
 	return ops
+}
+
+// withWeightKinds stamps WeightAware + WeightKinds on each operator of
+// a non-aggregator family (attributes, groupers) the class table marks
+// weighted under at least one kind. No floor keys: the weighted floor
+// is the aggregator Components contract.
+func withWeightKinds(ops []descriptor.Operator) []descriptor.Operator {
+	for i := range ops {
+		if kinds := weighting.KindsOf(ops[i].Name); kinds != nil {
+			ops[i].WeightAware, ops[i].WeightKinds = true, kinds
+		}
+	}
+	return ops
+}
+
+// stampWeightKinds sets weight_kinds on the manifest's tests (tier 1
+// only — a post-test reads aggregated rows), regressions and overlays.
+// Called only when capability:weighting is offered.
+func stampWeightKinds(m *descriptor.Manifest) {
+	for i := range m.Tests {
+		m.Tests[i].WeightKinds = weighting.KindsOf(m.Tests[i].Family)
+	}
+	for i := range m.Regressions {
+		m.Regressions[i].WeightKinds = weighting.KindsOf(m.Regressions[i].Name)
+	}
+	for i := range m.Overlays {
+		m.Overlays[i].WeightKinds = OverlayWeightKinds(m.Overlays[i].Kind)
+	}
 }

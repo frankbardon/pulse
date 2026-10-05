@@ -294,6 +294,9 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	attrs := filterOps(attributeCapabilities(), on)
 	filts := filterOps(filtererCapabilities(), on)
 	grps := filterOps(grouperCapabilities(), on)
+	if on(featWeighting) {
+		attrs, grps = withWeightKinds(attrs), withWeightKinds(grps)
+	}
 	wins := filterOps(windowCapabilities(), on)
 	feats := filterOps(featureCapabilities(), on)
 	errCodes := errorCodeNamesFor(on)
@@ -332,7 +335,9 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap),
 		Intents:            instanceIntentIDs(inst),
 	}
-	if !on(featWeighting) {
+	if on(featWeighting) {
+		stampWeightKinds(m)
+	} else {
 		// An extension's WeightAware declaration is moot too.
 		for _, metas := range [][]descriptor.OperatorMeta{
 			m.Extensions.Aggregators, m.Extensions.Attributes, m.Extensions.Tests,

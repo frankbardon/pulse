@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -194,11 +195,14 @@ func TestPayloadSchema_WeightingHidden(t *testing.T) {
 
 // TestManifest_WeightingHidden: with capability:weighting hidden the
 // instance manifest carries no weight_aware flag — built-in or
-// extension — and no weighted floor key; enabled, both are there.
+// extension — no weight_kinds on any family (aggregator, attribute,
+// grouper, test, regression, overlay) and no weighted floor key;
+// enabled, all are there.
 func TestManifest_WeightingHidden(t *testing.T) {
 	const ext = "AGG_ACME_WSUM"
 	inst := func(with bool) *InstanceSnapshot {
-		names := []string{featProcess, "AGG_SUM", "AGG_WEIGHTED_MEAN", ext}
+		names := []string{featProcess, "AGG_SUM", "AGG_WEIGHTED_MEAN", ext, "TEST_MANN_WHITNEY_U", "REG_BAYES_LINEAR", "ATTR_ZSCORE", "GROUP_QUANTILE",
+			string(types.OverlayKindPairwiseWeightedTwoMeansZ)}
 		if with {
 			names = append(names, featWeighting)
 		}
@@ -212,7 +216,14 @@ func TestManifest_WeightingHidden(t *testing.T) {
 		}
 		return string(raw)
 	}
+	// Stand-ins for the non-aggregator families a later change flips.
+	for _, op := range []string{"TEST_MANN_WHITNEY_U", "REG_BAYES_LINEAR", "ATTR_ZSCORE", "GROUP_QUANTILE"} {
+		defer weighting.OverrideClassForTest(op, weighting.ClassFrequencyOnly)()
+	}
 	on := render(true)
+	if n := strings.Count(on, `"weight_kinds"`); n != 7 {
+		t.Fatalf("vacuous: weighting-enabled manifest carries %d weight_kinds, want 7 (2 aggregators, test, regression, attribute, grouper, overlay)", n)
+	}
 	for _, want := range []string{`"weight_aware":true`, `"n_weight_invalid"`} {
 		if !strings.Contains(on, want) {
 			t.Fatalf("vacuous: weighting-enabled manifest lacks %s", want)
@@ -223,7 +234,7 @@ func TestManifest_WeightingHidden(t *testing.T) {
 		t.Fatalf("vacuous: extension not weight-aware when enabled: %+v", m.Extensions.Aggregators)
 	}
 	off := render(false)
-	for _, gone := range []string{`"weight_aware"`, `"n_weight_invalid"`} {
+	for _, gone := range []string{`"weight_aware"`, `"weight_kinds"`, `"n_weight_invalid"`} {
 		if strings.Contains(off, gone) {
 			t.Errorf("weighting-hidden manifest still carries %s", gone)
 		}

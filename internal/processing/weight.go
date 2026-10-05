@@ -136,6 +136,9 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 	if req == nil || !namesWeight(req, def) {
 		return req
 	}
+	// weighting.IsAware covers ClassFrequencyOnly too: the resolver
+	// has already refused a probability weight on such a slot, so a
+	// weight that reaches it here is a frequency weight to apply.
 	aware := func(op string) bool {
 		return weighting.IsAware(op) || exts.IsExtensionWeightAware("aggregator", op)
 	}

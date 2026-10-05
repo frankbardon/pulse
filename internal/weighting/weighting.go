@@ -34,10 +34,21 @@ const (
 	// (slot or request) is PROCESSING_CONFIG.
 	ClassNotWeightable
 
-	// ClassRefuse: the operator is inferential (U12's territory); any
-	// weight in force on its slot — the instance default included — is
-	// PULSE_WEIGHT_UNSUPPORTED. The slot's `weight: null` opts out.
+	// ClassRefuse: the operator has no weighted form; any weight in
+	// force on its slot — the instance default included — is
+	// PULSE_WEIGHT_UNSUPPORTED. The slot's `weight: null` opts out. An
+	// operator with a RefusalReason is refused permanently and the
+	// refusal states why; one without is an inferential operator whose
+	// weighted computation has not landed yet.
 	ClassRefuse
+
+	// ClassFrequencyOnly: the operator computes a weighted figure under
+	// kind frequency only (exact on the expanded rows) and has no
+	// standard probability-weighted form. A frequency weight is applied;
+	// a probability weight in force on its slot — the instance default
+	// included — is PULSE_WEIGHT_UNSUPPORTED naming the kind. The slot's
+	// `weight: null` opts out.
+	ClassFrequencyOnly
 )
 
 // aggregatorClasses classifies every built-in aggregator. TestClassify
@@ -78,20 +89,37 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_CI_UPPER: ClassRefuse,
 }
 
-// refusedAttributes are the reference-distribution attributes: each
-// row's value is placed against a whole-cohort mean / spread / rank,
-// whose weighted form is U12's.
-var refusedAttributes = map[types.AttributeType]bool{
-	types.ATTR_ZSCORE:     true,
-	types.ATTR_TSCORE:     true,
-	types.ATTR_PERCENTILE: true,
-	types.ATTR_NORMALIZED: true,
+// attributeClasses classes the attributes the table governs: the
+// reference-distribution attributes place each row's value against a
+// whole-cohort mean / spread / rank (refused until weighted, or
+// permanently — RefusalReason); a min-max rescale has no weighted
+// meaning. Every other attribute is row-local (ClassNone).
+var attributeClasses = map[types.AttributeType]Class{
+	types.ATTR_ZSCORE:     ClassRefuse,
+	types.ATTR_TSCORE:     ClassRefuse,
+	types.ATTR_PERCENTILE: ClassRefuse,
+	types.ATTR_NORMALIZED: ClassNotWeightable,
+}
+
+// refusalReasons are the PERMANENT refusals: operators with no standard
+// weighted form any reference software reproduces. The reason rides
+// the PULSE_WEIGHT_UNSUPPORTED refusal (message and details.reason).
+// Every key must be ClassRefuse (TestRefusalReasons_AreRefused).
+var refusalReasons = map[string]string{
+	string(types.TEST_SHAPIRO_WILK): "the Shapiro-Francia W' statistic and its p-value calibration are defined only for unweighted samples; no standard weighted form exists",
+	string(types.TEST_TUKEY_HSD):    "it reads the aggregated per-group result rows, which carry no row weights, and weighted Tukey-Kramer has no reference form",
+	string(types.TEST_ANOVA_RM):     "a per-row weight has no defined meaning in the subject-by-condition table repeated-measures ANOVA reads",
+	string(types.TEST_TREND):        "it runs Mann-Kendall over the aggregated result rows, which carry no row weights",
+	string(types.ATTR_PERCENTILE):   "a weighted percentile rank shares tied rows inclusively, which cannot reproduce the unweighted attribute's distinct ranks at unit weights",
 }
 
 // operatorClasses is the whole built-in table: the aggregators above
 // plus the non-aggregator families (.claude/reference/weighting.md,
 // Refusal rules) — every TEST_* and REG_*, the reference-distribution
-// attributes and GROUP_QUANTILE refuse; every WIN_* is not weightable.
+// attributes and GROUP_QUANTILE refuse (each flips to ClassAware or
+// ClassFrequencyOnly only once its weighted computation exists, never
+// before: that would run it unweighted silently); ATTR_NORMALIZED and
+// every WIN_* are not weightable.
 var operatorClasses = func() map[string]Class {
 	m := make(map[string]Class, len(aggregatorClasses))
 	for op, c := range aggregatorClasses {
@@ -103,8 +131,8 @@ var operatorClasses = func() map[string]Class {
 	for _, r := range types.AllRegressionTypes() {
 		m[string(r)] = ClassRefuse
 	}
-	for a := range refusedAttributes {
-		m[string(a)] = ClassRefuse
+	for a, c := range attributeClasses {
+		m[string(a)] = c
 	}
 	m[string(types.GROUP_QUANTILE)] = ClassRefuse
 	for _, w := range types.AllWindowTypes() {
@@ -120,8 +148,50 @@ func ClassOf(op string) Class {
 }
 
 // IsAware reports whether the named built-in operator computes a
-// weighted figure.
-func IsAware(op string) bool { return ClassOf(op) == ClassAware }
+// weighted figure under at least one weight kind (ClassAware or
+// ClassFrequencyOnly); KindsOf says which.
+func IsAware(op string) bool { return len(KindsOf(op)) > 0 }
+
+// KindsOf returns the weight kinds under which the named built-in
+// operator computes a weighted figure, in manifest order: frequency
+// then probability for ClassAware, frequency alone for
+// ClassFrequencyOnly, nil for every other class. A fresh slice per
+// call.
+func KindsOf(op string) []types.WeightKind {
+	return KindsOfClass(ClassOf(op))
+}
+
+// KindsOfClass is KindsOf over a class already looked up (the overlay
+// classes live in internal/descriptor).
+func KindsOfClass(c Class) []types.WeightKind {
+	switch c {
+	case ClassAware:
+		return []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
+	case ClassFrequencyOnly:
+		return []types.WeightKind{types.WeightKindFrequency}
+	}
+	return nil
+}
+
+// RefusalReason returns why the named built-in operator is refused
+// permanently under a weight, "" when it is not (a pending ClassRefuse
+// operator, or any other class).
+func RefusalReason(op string) string { return refusalReasons[op] }
+
+// OverrideClassForTest sets op's class until the returned restore is
+// called. Test seam only — a stand-in for an operator whose class a
+// later change flips — and not safe alongside parallel tests.
+func OverrideClassForTest(op string, c Class) (restore func()) {
+	prev, had := operatorClasses[op]
+	operatorClasses[op] = c
+	return func() {
+		if had {
+			operatorClasses[op] = prev
+		} else {
+			delete(operatorClasses, op)
+		}
+	}
+}
 
 // Reason classifies one row's weight value.
 type Reason int

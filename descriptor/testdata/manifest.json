@@ -414,6 +414,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -639,6 +643,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -819,6 +827,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -902,6 +914,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "distribution_shape"
           ]
@@ -1020,6 +1036,10 @@
             "mergeability": "none"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe",
             "distribution_shape"
@@ -1147,6 +1167,10 @@
             "mergeability": "partial"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -1223,6 +1247,10 @@
             "mergeability": "partial"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -1367,6 +1395,10 @@
             "mergeability": "none"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe",
             "distribution_shape"
@@ -1515,6 +1547,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -1579,6 +1615,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -1637,6 +1677,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -1754,6 +1798,10 @@
             "mergeability": "partial"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -1930,6 +1978,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "distribution_shape"
           ]
@@ -2008,6 +2060,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe",
             "distribution_shape"
@@ -2072,6 +2128,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -2146,6 +2206,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe",
             "distribution_shape"
@@ -2234,6 +2298,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -2307,6 +2375,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "compare_groups",
             "describe"
@@ -9329,7 +9401,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_PAIRWISE_WELCH_T",
@@ -11386,4 +11462,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f717ba998e0c1d974da7bb7515ed657dcc57cbdcd97a2e59c6a4921e11f2f2e6
+// golden-hash: 08acf799fad3f040d0004f9d7c6a55546c64e3191df9b7ba6ce67e496334616f

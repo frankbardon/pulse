@@ -1,5 +1,7 @@
 package descriptor
 
+import "github.com/frankbardon/pulse/types"
+
 // Operator describes a single registered processing component (aggregator,
 // attribute, filterer, grouper, window operator, or feature operator). The
 // manifest exposes one Operator entry per registered component. LLM clients
@@ -102,6 +104,15 @@ type Operator struct {
 	// which happened.
 	WeightAware bool `json:"weight_aware,omitempty"`
 
+	// WeightKinds lists the weight kinds the operator computes a
+	// weighted figure under: ["frequency","probability"] for an
+	// operator weighted under both, ["frequency"] for a frequency-only
+	// one (a probability weight in force on its slot is
+	// PULSE_WEIGHT_UNSUPPORTED naming the kind). Omitted for an
+	// operator that honours no weight, and on an instance that hides
+	// capability:weighting.
+	WeightKinds []types.WeightKind `json:"weight_kinds,omitempty"`
+
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
 	// operator answers, sorted. Omitted when the operator declares no
 	// purpose.
@@ -185,6 +196,14 @@ type TestMeta struct {
 	// family answers, sorted. Tier-2 entries carry their Family's.
 	// Omitted when the family declares no purpose.
 	Intents []string `json:"intents,omitempty"`
+
+	// WeightKinds lists the weight kinds the tier-1 test computes a
+	// weighted figure under (["frequency","probability"] or
+	// ["frequency"]); omitted when it honours no weight, on every tier-2
+	// entry (a post-test reads aggregated rows, never row weights), and
+	// on an instance that hides capability:weighting. See
+	// Operator.WeightKinds.
+	WeightKinds []types.WeightKind `json:"weight_kinds,omitempty"`
 }
 
 // DistributionMeta describes a synth distribution entry. One entry per

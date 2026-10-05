@@ -1295,6 +1295,7 @@ pulse/descriptor: type Operator field Params []pulse/descriptor.Param "json:\"pa
 pulse/descriptor: type Operator field Streamable bool "json:\"streamable\""
 pulse/descriptor: type Operator field StreamableHint string "json:\"streamable_hint,omitempty\""
 pulse/descriptor: type Operator field WeightAware bool "json:\"weight_aware,omitempty\""
+pulse/descriptor: type Operator field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
 pulse/descriptor: type Operator field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type OperatorMeta struct
 pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omitempty\""
@@ -1334,6 +1335,7 @@ pulse/descriptor: type OverlayCapability field Kind pulse/types.OverlayKind "jso
 pulse/descriptor: type OverlayCapability field RefKinds []string "json:\"ref_kinds\""
 pulse/descriptor: type OverlayCapability field Scopes []pulse/types.OverlayScope "json:\"scopes\""
 pulse/descriptor: type OverlayCapability field Shapes []pulse/types.OverlayShape "json:\"shapes\""
+pulse/descriptor: type OverlayCapability field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
 pulse/descriptor: type OverlayCapability field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
@@ -1400,6 +1402,7 @@ pulse/descriptor: type RegressionMeta field Name string "json:\"name\""
 pulse/descriptor: type RegressionMeta field Params []pulse/descriptor.Param "json:\"params\""
 pulse/descriptor: type RegressionMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type RegressionMeta field StreamableHint string "json:\"streamable_hint,omitempty\""
+pulse/descriptor: type RegressionMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
 pulse/descriptor: type RegressionModifier struct
 pulse/descriptor: type RegressionModifier field Description string "json:\"description\""
 pulse/descriptor: type RegressionModifier field EnumValues []string "json:\"enum_values\""
@@ -1462,6 +1465,7 @@ pulse/descriptor: type TestMeta field Requires []string "json:\"requires,omitemp
 pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
+pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
 pulse/descriptor: const WeightSourceNone untyped string = "none"
 pulse/descriptor: const WeightSourceOptions untyped string = "options"
 pulse/descriptor: const WeightSourceRequest untyped string = "request"
@@ -3842,4 +3846,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6d0d1492438088948343b41ff0defea2a6185b995ddc75ed0c7649d88ba7244c
+// golden-hash: c3b4009b8559297f01e543fd64b93bf40e72f09141f02c2c63e07f34941464fc

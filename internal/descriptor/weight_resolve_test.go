@@ -3,11 +3,13 @@ package descriptor
 import (
 	stderrors "errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -436,10 +438,12 @@ func TestResolveWeights_DecimalRefused(t *testing.T) {
 }
 
 // inferentialSlotRequests builds, per refused non-aggregator operator,
-// a one-slot request carrying slot weight w — every built-in TEST_*
-// (as a test and, for TEST_T, a post-test), every REG_*, the four
-// reference-distribution attributes and GROUP_QUANTILE (as a grouper
-// and on both crosstab axes). The key is the slot path.
+// a request whose refused slot carries slot weight w — every built-in
+// TEST_* (as a test and, for TEST_T, a post-test), every REG_* (plus
+// REG_OLS with each permanently refused modifier), the three
+// reference-distribution attributes, GROUP_QUANTILE (as a grouper and
+// on both crosstab axes) and a permanently refused overlay. The key is
+// the slot path and operator.
 func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
 	out := map[string]*types.Request{}
 	for _, tt := range types.AllTestTypes() {
@@ -449,7 +453,13 @@ func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
 	for _, rt := range types.AllRegressionTypes() {
 		out["regressions[0]/"+string(rt)] = &types.Request{Regressions: []*types.RegressionSpec{{Type: rt, Target: "x", Weight: w}}}
 	}
-	for _, at := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_PERCENTILE, types.ATTR_NORMALIZED} {
+	out["regressions[1]/REG_OLS"] = &types.Request{Regressions: []*types.RegressionSpec{
+		{Type: types.REG_OLS, Target: "x", Weight: types.NullSlotWeight()}, {Type: types.REG_OLS, Target: "x", Resample: "bootstrap", Weight: w}}}
+	out["regressions[2]/REG_OLS"] = &types.Request{Regressions: []*types.RegressionSpec{
+		{Type: types.REG_OLS, Target: "x", Weight: types.NullSlotWeight()}, {Type: types.REG_OLS, Target: "x", Weight: types.NullSlotWeight()},
+		{Type: types.REG_OLS, Target: "x", Selection: "forward", Criterion: "aic", Weight: w}}}
+	out["overlays[0]/OVERLAY_PAIRWISE_PROBIT_T"] = &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindPairwiseProbitT, Weight: w}}}
+	for _, at := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_PERCENTILE} {
 		out["attributes[0]/"+string(at)] = &types.Request{Attributes: []*types.Attribute{{Type: at, Field: "x", Weight: w}}}
 	}
 	q := func() *types.Group {
@@ -465,10 +475,13 @@ func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
 }
 
 // TestResolveWeights_InferentialRefused: every TEST_*, REG_*,
-// reference-distribution attribute and GROUP_QUANTILE is
-// PULSE_WEIGHT_UNSUPPORTED under ANY weight in force — slot, request
-// or the instance default — with details {slot, operator, field}; the
-// slot's `weight: null` opts it out on all three.
+// reference-distribution attribute (ATTR_ZSCORE / TSCORE / PERCENTILE)
+// and GROUP_QUANTILE is PULSE_WEIGHT_UNSUPPORTED under ANY weight in
+// force — slot, request or the instance default — with details {slot,
+// operator, field}; a PERMANENT refusal (permanentRefusalKeys) adds
+// details.reason and states it in the message, a pending one says it
+// has no weighted form yet. The slot's `weight: null` opts it out on
+// all three.
 func TestResolveWeights_InferentialRefused(t *testing.T) {
 	def := &types.WeightSpec{Field: "w"}
 	sources := map[string]func(map[string]*types.Request) (map[string]*types.Request, *types.WeightSpec){
@@ -486,8 +499,20 @@ func TestResolveWeights_InferentialRefused(t *testing.T) {
 		ce := codeOf(t, err)
 		slot, op := splitKey(key)
 		want := map[string]any{"slot": slot, "operator": op, "field": "w"}
+		reason, permanent := permanentRefusalKeys[key]
+		if permanent {
+			want["reason"] = reason
+		}
 		if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || !reflect.DeepEqual(ce.Details, want) {
 			t.Fatalf("%s: got %s %v, want PULSE_WEIGHT_UNSUPPORTED %v", key, ce.Code, ce.Details, want)
+		}
+		switch {
+		case permanent && !strings.Contains(ce.Message, "cannot be weighted: "+reason):
+			t.Fatalf("%s: permanent refusal does not state its reason: %s", key, ce.Message)
+		case !permanent && !strings.Contains(ce.Message, "has no weighted form yet"):
+			t.Fatalf("%s: pending refusal prose: %s", key, ce.Message)
+		case strings.Contains(ce.Message, "U12") || strings.Contains(ce.Message, "not implemented"):
+			t.Fatalf("%s: refusal names the roadmap: %s", key, ce.Message)
 		}
 	}
 	for name, src := range sources {
@@ -513,6 +538,160 @@ func TestResolveWeights_InferentialRefused(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// permanentRefusalKeys are the inferentialSlotRequests keys refused
+// PERMANENTLY, with the reason each must state.
+var permanentRefusalKeys = map[string]string{
+	"tests[0]/TEST_SHAPIRO_WILK":            weighting.RefusalReason("TEST_SHAPIRO_WILK"),
+	"tests[0]/TEST_TUKEY_HSD":               weighting.RefusalReason("TEST_TUKEY_HSD"),
+	"tests[0]/TEST_ANOVA_RM":                weighting.RefusalReason("TEST_ANOVA_RM"),
+	"tests[0]/TEST_TREND":                   weighting.RefusalReason("TEST_TREND"),
+	"attributes[0]/ATTR_PERCENTILE":         weighting.RefusalReason("ATTR_PERCENTILE"),
+	"post_tests[0]/TEST_T":                  reasonPostTest,
+	"regressions[1]/REG_OLS":                reasonResample,
+	"regressions[2]/REG_OLS":                reasonSelection,
+	"overlays[0]/OVERLAY_PAIRWISE_PROBIT_T": "",
+}
+
+func init() {
+	// The overlay reasons live in the overlay class table.
+	permanentRefusalKeys["overlays[0]/OVERLAY_PAIRWISE_PROBIT_T"] = overlayWeightClasses[types.OverlayKindPairwiseProbitT].reason
+}
+
+// TestResolveWeights_PermanentReasonsNonEmpty: every permanent refusal
+// the resolver can raise states a non-empty reason, and the overlay
+// pointing at a weighted twin names it (details.alternative) unless the
+// instance hides the twin.
+func TestResolveWeights_PermanentReasonsNonEmpty(t *testing.T) {
+	for key, reason := range permanentRefusalKeys {
+		if reason == "" {
+			t.Errorf("%s: empty permanent reason", key)
+		}
+	}
+	twin := types.OverlayKindPairwiseWeightedTwoMeansZ
+	req := &types.Request{Weight: &types.WeightSpec{Field: "w"}, Overlays: []types.OverlaySpec{{Kind: types.OverlayKindPairwiseTwoMeansZ}}}
+	_, err := ResolveWeights(req, weightSchema(), nil, nil)
+	ce := codeOf(t, err)
+	if ce.Details["alternative"] != string(twin) || ce.Details["reason"] == nil || !strings.Contains(ce.Message, string(twin)) {
+		t.Fatalf("twin pointer: %s %v", ce.Message, ce.Details)
+	}
+	_, err = ResolveWeights(req, weightSchema(), nil, scopedExcept(string(twin)))
+	ce = codeOf(t, err)
+	if _, ok := ce.Details["alternative"]; ok || strings.Contains(ce.Message, string(twin)) {
+		t.Fatalf("hidden twin named: %s %v", ce.Message, ce.Details)
+	}
+}
+
+// TestResolveWeights_RegressionModifiersRefused: a regression carrying
+// a resample or selection modifier is refused permanently under any
+// weight in force, whatever the regression's own class; `weight: null`
+// opts out.
+func TestResolveWeights_RegressionModifiersRefused(t *testing.T) {
+	restore := weighting.OverrideClassForTest(string(types.REG_OLS), weighting.ClassAware)
+	defer restore()
+	def := &types.WeightSpec{Field: "w"}
+	for name, tc := range map[string]struct {
+		spec   *types.RegressionSpec
+		reason string
+	}{
+		"resample":  {&types.RegressionSpec{Type: types.REG_OLS, Target: "x", Resample: "bootstrap"}, reasonResample},
+		"selection": {&types.RegressionSpec{Type: types.REG_OLS, Target: "x", Selection: "forward", Criterion: "aic"}, reasonSelection},
+	} {
+		_, err := ResolveWeights(&types.Request{Regressions: []*types.RegressionSpec{tc.spec}}, weightSchema(), def, nil)
+		ce := codeOf(t, err)
+		if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || ce.Details["reason"] != tc.reason {
+			t.Fatalf("%s: %s %v", name, ce.Code, ce.Details)
+		}
+		tc.spec.Weight = types.NullSlotWeight()
+		if _, err := ResolveWeights(&types.Request{Regressions: []*types.RegressionSpec{tc.spec}}, weightSchema(), def, nil); err != nil {
+			t.Fatalf("%s opted out: %v", name, err)
+		}
+	}
+	// The plain (now stubbed aware) regression applies.
+	got, err := ResolveWeights(&types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "x"}}}, weightSchema(), def, nil)
+	if err != nil || got[0].Status != descriptor.WeightStatusApplied {
+		t.Fatalf("plain regression: %+v %v", got, err)
+	}
+}
+
+// TestResolveWeights_FrequencyOnly: a ClassFrequencyOnly operator runs
+// under a frequency weight (slot, request or default) and is
+// PULSE_WEIGHT_UNSUPPORTED naming the kind under a probability one —
+// the instance default included — with details {slot, operator, field,
+// kind, supported_kinds}; `weight: null` opts it out. TEST_MANN_WHITNEY_U
+// stands in until a later change flips a real operator.
+func TestResolveWeights_FrequencyOnly(t *testing.T) {
+	restore := weighting.OverrideClassForTest(string(types.TEST_MANN_WHITNEY_U), weighting.ClassFrequencyOnly)
+	defer restore()
+	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
+	freq := &types.WeightSpec{Field: "wi", Kind: types.WeightKindFrequency}
+	test := func(w types.SlotWeight) *types.Test {
+		return &types.Test{Type: types.TEST_MANN_WHITNEY_U, Field: "x", SplitBy: "cat", Weight: w}
+	}
+	refused := map[string]struct {
+		req  *types.Request
+		def  *types.WeightSpec
+		kind string
+	}{
+		"default":            {&types.Request{Tests: []*types.Test{test(types.SlotWeight{})}}, prob, "probability"},
+		"default kind empty": {&types.Request{Tests: []*types.Test{test(types.SlotWeight{})}}, &types.WeightSpec{Field: "w"}, "probability"},
+		"request":            {&types.Request{Weight: prob, Tests: []*types.Test{test(types.SlotWeight{})}}, nil, "probability"},
+		"slot":               {&types.Request{Tests: []*types.Test{test(types.SlotWeightField("w"))}}, freq, "probability"},
+	}
+	for name, tc := range refused {
+		_, err := ResolveWeights(tc.req, weightSchema(), tc.def, nil)
+		ce := codeOf(t, err)
+		want := map[string]any{"slot": "tests[0]", "operator": "TEST_MANN_WHITNEY_U", "field": "w", "kind": tc.kind, "supported_kinds": []string{"frequency"}}
+		if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || !reflect.DeepEqual(ce.Details, want) {
+			t.Fatalf("%s: %s %v, want %v", name, ce.Code, ce.Details, want)
+		}
+		if !strings.Contains(ce.Message, `kind "probability"`) || !strings.Contains(ce.Message, "frequency weight") || !strings.Contains(ce.Message, `"weight": null`) {
+			t.Fatalf("%s: message does not name the kind and the remedies: %s", name, ce.Message)
+		}
+	}
+	applied := map[string]struct {
+		req *types.Request
+		def *types.WeightSpec
+	}{
+		"default": {&types.Request{Tests: []*types.Test{test(types.SlotWeight{})}}, freq},
+		"request": {&types.Request{Weight: freq, Tests: []*types.Test{test(types.SlotWeight{})}}, prob},
+		"slot":    {&types.Request{Tests: []*types.Test{test(types.SlotWeightOf(*freq))}}, prob},
+	}
+	for name, tc := range applied {
+		got, err := ResolveWeights(tc.req, weightSchema(), tc.def, nil)
+		if err != nil || got[0].Status != descriptor.WeightStatusApplied || got[0].Kind != "frequency" {
+			t.Fatalf("%s: %+v %v, want applied frequency", name, got, err)
+		}
+	}
+	got, err := ResolveWeights(&types.Request{Weight: prob, Tests: []*types.Test{test(types.NullSlotWeight())}}, weightSchema(), prob, nil)
+	if err != nil || got[0].Status != descriptor.WeightStatusOptedOut {
+		t.Fatalf("opted out: %+v %v", got, err)
+	}
+}
+
+// TestResolveWeights_NormalizedNotWeightable: ATTR_NORMALIZED (min-max
+// rescale, no weighted meaning) is skipped under the instance default
+// and PROCESSING_CONFIG under an explicit slot or request weight.
+func TestResolveWeights_NormalizedNotWeightable(t *testing.T) {
+	def := &types.WeightSpec{Field: "w"}
+	attr := func(w types.SlotWeight) []*types.Attribute {
+		return []*types.Attribute{{Type: types.ATTR_NORMALIZED, Field: "x", Weight: w}}
+	}
+	got, err := ResolveWeights(&types.Request{Attributes: attr(types.SlotWeight{})}, weightSchema(), def, nil)
+	if err != nil || got[0].Status != descriptor.WeightStatusSkippedNotWeightAware {
+		t.Fatalf("default: %+v %v", got, err)
+	}
+	for name, req := range map[string]*types.Request{
+		"request": {Weight: def, Attributes: attr(types.SlotWeight{})},
+		"slot":    {Attributes: attr(types.SlotWeightField("w"))},
+	} {
+		_, err := ResolveWeights(req, weightSchema(), nil, nil)
+		ce := codeOf(t, err)
+		if want := (map[string]any{"slot": "attributes[0]", "operator": "ATTR_NORMALIZED", "field": "w"}); ce.Code != errors.PROCESSING_CONFIG || !reflect.DeepEqual(ce.Details, want) {
+			t.Fatalf("%s: %s %v", name, ce.Code, ce.Details)
+		}
 	}
 }
 
@@ -595,7 +774,10 @@ func TestResolveWeights_InferentialOverlays(t *testing.T) {
 	var inferential int
 	for _, c := range OverlayCapabilities() {
 		k := c.Kind
-		refuses := c.Inferential && k != types.OverlayKindPairwiseWeightedTwoMeansZ
+		refuses := overlayWeightClass(string(k)) == weighting.ClassRefuse
+		if refuses != (c.Inferential && k != types.OverlayKindPairwiseWeightedTwoMeansZ) {
+			t.Fatalf("%s: class %v disagrees with the Inferential flag and the exemption", k, overlayWeightClass(string(k)))
+		}
 		if refuses {
 			inferential++
 		}
@@ -617,7 +799,7 @@ func TestResolveWeights_InferentialOverlays(t *testing.T) {
 				continue
 			}
 			ce := codeOf(t, err)
-			want := map[string]any{"slot": "overlays[0]", "operator": string(k), "field": "w"}
+			want := overlayRefusalDetails(k, map[string]any{"slot": "overlays[0]", "operator": string(k), "field": "w"})
 			if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || !reflect.DeepEqual(ce.Details, want) {
 				t.Fatalf("%s %s: got %s %v (weights %+v), want %v", k, name, ce.Code, ce.Details, got, want)
 			}
@@ -651,7 +833,7 @@ func TestComposeOverlayWeightRefusal(t *testing.T) {
 	var checked int
 	for _, c := range OverlayCapabilities() {
 		k := c.Kind
-		refuses := c.Inferential && k != types.OverlayKindPairwiseWeightedTwoMeansZ
+		refuses := overlayWeightClass(string(k)) == weighting.ClassRefuse
 		ov := []types.ComposeOverlaySpec{{Kind: k, Reference: "a", Targets: []string{"b"}}}
 		run := func(reqs []*types.Request, defW *types.WeightSpec) error {
 			return ComposeOverlayWeightRefusal(ov, reqs, labels, defW, nil)
@@ -665,7 +847,7 @@ func TestComposeOverlayWeightRefusal(t *testing.T) {
 		}
 		checked++
 		ce := codeOf(t, err)
-		want := map[string]any{"slot": "overlays[0]", "operator": string(k), "field": "w", "host": "requests[1].aggregations[0]"}
+		want := overlayRefusalDetails(k, map[string]any{"slot": "overlays[0]", "operator": string(k), "field": "w", "host": "requests[1].aggregations[0]"})
 		if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || !reflect.DeepEqual(ce.Details, want) {
 			t.Fatalf("%s request weight: %s %v", k, ce.Code, ce.Details)
 		}
@@ -688,5 +870,99 @@ func TestComposeOverlayWeightRefusal(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Fatal("no Inferential kind checked")
+	}
+}
+
+// overlayRefusalDetails adds a permanently refused overlay kind's
+// reason (and weighted twin) to the base refusal details.
+func overlayRefusalDetails(k types.OverlayKind, base map[string]any) map[string]any {
+	if w := overlayWeightClasses[k]; w.reason != "" {
+		base["reason"] = w.reason
+		if w.twin != "" {
+			base["alternative"] = string(w.twin)
+		}
+	}
+	return base
+}
+
+// stubOverlayClass sets an overlay kind's class until the returned
+// restore runs (a stand-in for a kind a later change flips).
+func stubOverlayClass(k types.OverlayKind, c weighting.Class) func() {
+	prev, had := overlayWeightClasses[k]
+	overlayWeightClasses[k] = overlayWeighting{class: c}
+	return func() {
+		if had {
+			overlayWeightClasses[k] = prev
+		} else {
+			delete(overlayWeightClasses, k)
+		}
+	}
+}
+
+// TestOverlayWeightClasses_Table: the per-kind table holds the weighted
+// twin under both kinds, the two permanent refusals with reasons, and
+// every listed kind is a real kind; OverlayWeightKinds reads it.
+func TestOverlayWeightClasses_Table(t *testing.T) {
+	known := map[types.OverlayKind]bool{}
+	for _, k := range types.AllOverlayKinds() {
+		known[k] = true
+	}
+	for k, w := range overlayWeightClasses {
+		if !known[k] {
+			t.Errorf("%s is not an overlay kind", k)
+		}
+		if (w.class == weighting.ClassRefuse) != (w.reason != "") {
+			t.Errorf("%s: a listed refusal must state a reason, and only a refusal may", k)
+		}
+	}
+	if got := OverlayWeightKinds(types.OverlayKindPairwiseWeightedTwoMeansZ); !reflect.DeepEqual(got, []types.WeightKind{"frequency", "probability"}) {
+		t.Fatalf("weighted twin kinds = %v", got)
+	}
+	for _, k := range []types.OverlayKind{types.OverlayKindPairwiseTwoMeansZ, types.OverlayKindPairwiseProbitT, types.OverlayKindChiSqMatrix, types.OverlayKindShareOfRow} {
+		if got := OverlayWeightKinds(k); got != nil {
+			t.Fatalf("%s kinds = %v, want none", k, got)
+		}
+	}
+}
+
+// TestOverlayWeight_FrequencyOnly: a frequency-only overlay kind runs
+// under a frequency weight and is refused naming the kind under a
+// probability one — on Request.Overlays (its own resolved weight) and
+// on Compose (the host's inherited weight kind). OVERLAY_FISHER_EXACT_CELL
+// stands in until a later change flips it.
+func TestOverlayWeight_FrequencyOnly(t *testing.T) {
+	k := types.OverlayKindFisherExactCell
+	defer stubOverlayClass(k, weighting.ClassFrequencyOnly)()
+	freq := &types.WeightSpec{Field: "wi", Kind: types.WeightKindFrequency}
+	prob := &types.WeightSpec{Field: "w"}
+	req := func(reqW *types.WeightSpec) *types.Request {
+		return &types.Request{Weight: reqW, Overlays: []types.OverlaySpec{{Kind: k}}}
+	}
+	got, err := ResolveWeights(req(freq), weightSchema(), nil, nil)
+	if err != nil || got[0].Status != descriptor.WeightStatusApplied {
+		t.Fatalf("frequency: %+v %v", got, err)
+	}
+	_, err = ResolveWeights(req(prob), weightSchema(), nil, nil)
+	ce := codeOf(t, err)
+	if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || ce.Details["kind"] != "probability" || !reflect.DeepEqual(ce.Details["supported_kinds"], []string{"frequency"}) {
+		t.Fatalf("probability: %s %v", ce.Code, ce.Details)
+	}
+
+	host := func(reqW *types.WeightSpec) *types.Request {
+		return &types.Request{Weight: reqW, Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x"}}}
+	}
+	ov := []types.ComposeOverlaySpec{{Kind: k, Reference: "a"}}
+	if err := ComposeOverlayWeightRefusal(ov, []*types.Request{host(freq), host(nil)}, []string{"a", "b"}, nil, nil); err != nil {
+		t.Fatalf("compose frequency host refused: %v", err)
+	}
+	ce = codeOf(t, ComposeOverlayWeightRefusal(ov, []*types.Request{host(freq), host(prob)}, []string{"a", "b"}, nil, nil))
+	want := map[string]any{"slot": "overlays[0]", "operator": string(k), "field": "w", "kind": "probability",
+		"supported_kinds": []string{"frequency"}, "host": "requests[1].aggregations[0]"}
+	if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || !reflect.DeepEqual(ce.Details, want) {
+		t.Fatalf("compose probability host: %s %v", ce.Code, ce.Details)
+	}
+	// The instance default (kind probability by default) refuses too.
+	if err := ComposeOverlayWeightRefusal(ov, []*types.Request{host(nil)}, []string{"a"}, prob, nil); err == nil {
+		t.Fatal("compose: probability default not refused")
 	}
 }

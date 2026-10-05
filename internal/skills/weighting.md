@@ -39,17 +39,18 @@ Never coerced. Zero is valid and contributes nothing. Null, negative, NaN / ±In
 
 ## What honours a weight
 
-The manifest is the table: an entry with `weight_aware: true` computes a weighted figure (counts become Σw floats; extensions declare it in their `extensions` entry).
+The manifest is the table: an entry's `weight_kinds` lists the kinds it computes a weighted figure under (`weight_aware: true` beside it; counts become Σw floats; extensions declare `weight_aware`).
 
 | Class | Explicit weight (slot / request) | Only `Options.DefaultWeight` |
 |---|---|---|
-| `weight_aware: true` | weighted | weighted |
-| other aggregators (min / max / distinct-style) | `PROCESSING_CONFIG` | skipped |
+| `weight_kinds` both kinds | weighted | weighted |
+| `weight_kinds: ["frequency"]` | weighted under `frequency`; `probability` ⇒ `PULSE_WEIGHT_UNSUPPORTED` (`details.kind`) | same |
+| other aggregators (min / max / distinct-style), min-max rescale | `PROCESSING_CONFIG` | skipped |
 | windows | request weight `PROCESSING_CONFIG` | skipped |
 | filters, features, row-local attributes, most groupers | skipped | skipped |
-| inferential: tests, regressions, reference-distribution attributes, the quantile grouper, confidence bounds, `Inferential` overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| inferential, no `weight_kinds` | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
-- **Weighted inference is not available yet.** Opt each refused slot out with `"weight": null` — under an instance default that means EVERY inferential slot.
+- `details.reason` marks a permanent refusal (post-tests, regression resample / selection, a few tests); `details.alternative` names a weighted twin. Opt out with `"weight": null` — under an instance default, every refused slot.
 - A weight-aware aggregator over a `decimal128` value field: `PULSE_WEIGHT_UNSUPPORTED` under any weight in force; `null` opts out.
 - Quantiles follow Hmisc `wtd.quantile`: `frequency` = type 7 on the duplicated rows; `probability` rescaled so Σw = n (scale-invariant).
 - <!-- feature: AGG_WEIGHTED_MEAN, AGG_AVERAGE -->`AGG_WEIGHTED_MEAN` is weighted `AGG_AVERAGE`; its `params.weight_field` is slot-weight sugar (absent ⇒ inherits).<!-- /feature -->
