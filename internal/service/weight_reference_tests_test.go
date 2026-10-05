@@ -21,7 +21,9 @@ import (
 // each weight-aware tier-1 test, per weight configuration, to figures an
 // EXTERNAL tool computed offline: kind frequency is stock R on the
 // rep()-expanded rows (testdata/weight_reference/test_reference.R —
-// t.test, oneway.test, aov, cor.test, chisq.test, prop.test); kind
+// t.test, oneway.test, aov, cor.test, chisq.test, prop.test, and for
+// the frequency-only rank tests wilcox.test, kruskal.test and
+// cor.test(method = "spearman" / "kendall", exact = FALSE)); kind
 // probability is the closed form of the one formula rule on w*, its
 // moment step cross-checked against statsmodels DescrStatsW /
 // CompareMeans / proportions_ztest and scipy chi2_contingency — and the
@@ -205,6 +207,19 @@ func weightRefFigureTol(path string) float64 {
 	return 1e-12
 }
 
+// weightRefTestExpectedWarnings are the warning codes a case's result
+// carries by construction. A frequency weight w makes a row a tie of
+// size w on the expansion, so the rank tests see ≥ 50% tied mass
+// (PULSE_TEST_TIES_DOMINATE — the reference is the same expanded
+// sample); the fixture's null-x row is a dropped Wilcoxon pair.
+var weightRefTestExpectedWarnings = map[string][]string{
+	"mann_whitney": {"PULSE_TEST_TIES_DOMINATE"},
+	"wilcoxon_sr":  {"PULSE_TEST_PAIRED_LENGTH_MISMATCH", "PULSE_TEST_TIES_DOMINATE"},
+	"kruskal":      {"PULSE_TEST_TIES_DOMINATE"},
+	"spearman":     {"PULSE_TEST_TIES_DOMINATE"},
+	"kendall":      {"PULSE_TEST_TIES_DOMINATE"},
+}
+
 // testWeightRefTests is TestWeightReferenceValues' test-slot half.
 func testWeightRefTests(t *testing.T) {
 	t.Run("coverage", assertWeightRefTestCoverage)
@@ -231,9 +246,12 @@ func testWeightRefTests(t *testing.T) {
 					streamed++
 				}
 				// The fixture clears every guard: a result warning means
-				// it no longer exercises the plain path.
+				// it no longer exercises the plain path — bar the ones a
+				// case expects (weightRefTestExpectedWarnings).
 				if ws, _ := wirePath(wire, "tests[0].warnings"); ws != nil {
-					t.Errorf("%s: unexpected test warnings %v", arm, ws)
+					if codes := warningCodes(ws); !slices.Equal(codes, weightRefTestExpectedWarnings[c.name]) {
+						t.Errorf("%s: test warnings %v, expected codes %v", arm, ws, weightRefTestExpectedWarnings[c.name])
+					}
 				}
 				for _, path := range sortedNames(c.figures) {
 					want := c.figures[path]
@@ -326,9 +344,13 @@ func testWeightRefTestsKindsAgree(t *testing.T) {
 		byKey[c.weight+"|"+c.kind+"|"+c.name] = c
 	}
 	compared := 0
+	kinds := manifestWeightKinds(weightSurfaceTests)
 	for _, fc := range weightRefTestCases {
 		if fc.weight != "f" {
 			continue
+		}
+		if !slices.Contains(kinds[weightRefCaseType(t, fc)], types.WeightKindProbability) {
+			continue // frequency-only: no probability twin to agree with
 		}
 		paths, ok := weightRefTestPointEstimates[fc.name]
 		if !ok || len(paths) == 0 {

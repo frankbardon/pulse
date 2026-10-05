@@ -334,50 +334,69 @@ func TestWeight_ComposeInferentialOverlayMatchesValidator(t *testing.T) {
 	}
 }
 
-// TestWeight_FrequencyOnlyMatchesPredict: a frequency-only operator
-// (TEST_MANN_WHITNEY_U stands in until a later change flips a real one)
-// is refused PULSE_WEIGHT_UNSUPPORTED naming the kind under a
-// probability weight — instance default, request and slot — at runtime
-// and predict identically, and is not refused under a frequency weight.
+// TestWeight_FrequencyOnlyMatchesPredict: every frequency-only test
+// (the rank tests) is refused PULSE_WEIGHT_UNSUPPORTED naming the kind
+// under a probability weight — instance default, request and slot — at
+// runtime and predict identically, and runs weighted under a frequency
+// weight (predict reports it applied, the result carries sum_weights).
 func TestWeight_FrequencyOnlyMatchesPredict(t *testing.T) {
-	defer weighting.OverrideClassForTest(string(types.TEST_MANN_WHITNEY_U), weighting.ClassFrequencyOnly)()
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
 	freq := &types.WeightSpec{Field: "y", Kind: types.WeightKindFrequency}
-	mk := func(w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
-		var r types.Request
-		if err := json.Unmarshal([]byte(strings.ReplaceAll(acceptanceTemplates["TEST_MANN_WHITNEY_U"], "$F", "x")), &r); err != nil {
-			t.Fatal(err)
+	// y is fractional (every row invalid as a frequency weight); the
+	// weighted run reads the integer column t_u8.
+	freqRun := &types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
+	var ops []string
+	for _, tt := range types.AllTestTypes() {
+		if weighting.ClassOf(string(tt)) == weighting.ClassFrequencyOnly {
+			ops = append(ops, string(tt))
 		}
-		r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
-		r.Tests[0].Weight = w
-		return &r
 	}
-	for name, tc := range map[string]struct {
-		p    *pulse.Pulse
-		w    types.SlotWeight
-		reqW *types.WeightSpec
-	}{
-		"default": {weightPulse(t, fs, prob), types.SlotWeight{}, nil},
-		"request": {weightPulse(t, fs, nil), types.SlotWeight{}, prob},
-		"slot":    {weightPulse(t, fs, freq), types.SlotWeightOf(*prob), nil},
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, rerr := tc.p.Process(ctx, mk(tc.w, tc.reqW))
-			ce := requireCode(t, rerr, errors.PULSE_WEIGHT_UNSUPPORTED)
-			if ce.Details["kind"] != "probability" || !strings.Contains(ce.Message, `kind "probability"`) {
-				t.Fatalf("refusal does not name the kind: %s %v", ce.Message, ce.Details)
+	if len(ops) == 0 {
+		t.Fatal("no frequency-only test: the gate is vacuous")
+	}
+	for _, op := range ops {
+		mk := func(w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
+			var r types.Request
+			if err := json.Unmarshal([]byte(strings.NewReplacer("$F", "y", "$S", "a").Replace(acceptanceTemplates[op])), &r); err != nil {
+				t.Fatalf("%s template: %v", op, err)
 			}
-			sameEntry(t, predictEnvelope(t, tc.p, fs, cohort, mk(tc.w, tc.reqW)), rerr)
+			r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
+			r.Tests[0].Weight = w
+			return &r
+		}
+		for name, tc := range map[string]struct {
+			p    *pulse.Pulse
+			w    types.SlotWeight
+			reqW *types.WeightSpec
+		}{
+			"default": {weightPulse(t, fs, prob), types.SlotWeight{}, nil},
+			"request": {weightPulse(t, fs, nil), types.SlotWeight{}, prob},
+			"slot":    {weightPulse(t, fs, freq), types.SlotWeightOf(*prob), nil},
+		} {
+			t.Run(op+"/"+name, func(t *testing.T) {
+				_, rerr := tc.p.Process(ctx, mk(tc.w, tc.reqW))
+				ce := requireCode(t, rerr, errors.PULSE_WEIGHT_UNSUPPORTED)
+				if ce.Details["kind"] != "probability" || !strings.Contains(ce.Message, `kind "probability"`) {
+					t.Fatalf("refusal does not name the kind: %s %v", ce.Message, ce.Details)
+				}
+				sameEntry(t, predictEnvelope(t, tc.p, fs, cohort, mk(tc.w, tc.reqW)), rerr)
+			})
+		}
+		t.Run(op+"/frequency", func(t *testing.T) {
+			p := weightPulse(t, fs, nil)
+			if env := predictEnvelope(t, p, fs, cohort, mk(types.SlotWeight{}, freq)); len(env.Errors) != 0 {
+				t.Fatalf("predict refused a frequency weight: %+v", env.Errors)
+			}
+			resp, err := p.Process(ctx, mk(types.SlotWeight{}, freqRun))
+			if err != nil {
+				t.Fatalf("runtime refused a frequency weight: %v", err)
+			}
+			if len(resp.Tests) == 0 || resp.Tests[0].Details["sum_weights"] == nil {
+				t.Fatalf("frequency weight did not apply: %+v", resp.Tests)
+			}
 		})
-	}
-	p := weightPulse(t, fs, nil)
-	if env := predictEnvelope(t, p, fs, cohort, mk(types.SlotWeight{}, freq)); len(env.Errors) != 0 {
-		t.Fatalf("predict refused a frequency weight: %+v", env.Errors)
-	}
-	if _, err := p.Process(ctx, mk(types.SlotWeight{}, freq)); err != nil {
-		t.Fatalf("runtime refused a frequency weight: %v", err)
 	}
 }
 

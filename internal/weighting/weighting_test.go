@@ -67,7 +67,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 		if got := ClassOf(op); got != c {
 			t.Errorf("ClassOf(%s) = %v, want %v", op, got, c)
 		}
-		if (c == ClassAware) != IsAware(op) || (c == ClassAware) != (KindsOf(op) != nil) {
+		aware := c == ClassAware || c == ClassFrequencyOnly
+		if aware != IsAware(op) || aware != (KindsOf(op) != nil) {
 			t.Errorf("%s: aware %v (kinds %v) disagrees with class %v", op, IsAware(op), KindsOf(op), c)
 		}
 	}
@@ -90,6 +91,11 @@ func TestKindsOf(t *testing.T) {
 		}
 		if IsAware(op) != (want != nil) {
 			t.Errorf("IsAware(%s) disagrees with KindsOf", op)
+		}
+	}
+	for _, tt := range []types.TestType{types.TEST_MANN_WHITNEY_U, types.TEST_WILCOXON_SR, types.TEST_KRUSKAL_WALLIS, types.TEST_SPEARMAN_R, types.TEST_KENDALL_TAU} {
+		if !reflect.DeepEqual(KindsOf(string(tt)), freq) {
+			t.Errorf("KindsOf(%s) = %v, want frequency only", tt, KindsOf(string(tt)))
 		}
 	}
 	restore := OverrideClassForTest("TEST_STUB_FREQ_ONLY", ClassFrequencyOnly)

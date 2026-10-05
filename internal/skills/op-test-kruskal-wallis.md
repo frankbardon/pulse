@@ -14,6 +14,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
+- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): a row of weight w ranks as w identical rows — equals the test on the expanded rows. `Details` add `sum_weights` shaped like `n`; `n` / `n_total` stay raw row counts.
 
 ## Inputs
 
@@ -25,7 +26,6 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — combined values ranked across all groups under tie correction.
 - Nonparametric alternative to one-way ANOVA for skewed or heavy-tailed data.
 - Global only — no Dunn / Conover post-hoc<!-- feature: TEST_MANN_WHITNEY_U -->; use pairwise `TEST_MANN_WHITNEY_U` + manual Holm/Bonferroni<!-- /feature -->.

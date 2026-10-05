@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -39,6 +40,12 @@ type testParityOp struct {
 	// success mass): they move by c when every weight is scaled by c.
 	// sum_weights is always one.
 	totals []string
+	// raw are details keys holding RAW row counts beside `n` (a total
+	// row count, a dropped-row count): they stay raw under a weight, so
+	// the expansion arm does not compare them. "warnings" there means a
+	// warning's text counts raw rows: the expansion arm then compares
+	// the warning codes only.
+	raw []string
 }
 
 var testParityOps = []testParityOp{
@@ -54,6 +61,13 @@ var testParityOps = []testParityOp{
 		totals: []string{"contingency", "row_totals", "col_totals"}},
 	{name: "prop_z", spec: types.Test{Type: types.TEST_PROP_Z, Field: "o", SplitBy: "h", Params: json.RawMessage(`{"success":"yes"}`)},
 		totals: []string{"successes"}},
+	// Frequency-only rank tests (E2-S1): the probability arm is skipped by
+	// the manifest's weight_kinds.
+	{name: "mann_whitney", spec: types.Test{Type: types.TEST_MANN_WHITNEY_U, Field: "x", SplitBy: "h"}},
+	{name: "wilcoxon_sr", spec: types.Test{Type: types.TEST_WILCOXON_SR, Field: "x", Field2: "y"}, raw: []string{"zero_diffs", "warnings"}},
+	{name: "kruskal", spec: types.Test{Type: types.TEST_KRUSKAL_WALLIS, Field: "x", SplitBy: "k"}, raw: []string{"n_total"}},
+	{name: "spearman", spec: types.Test{Type: types.TEST_SPEARMAN_R, Field: "x", Field2: "y"}},
+	{name: "kendall", spec: types.Test{Type: types.TEST_KENDALL_TAU, Field: "x", Field2: "y"}},
 }
 
 // build returns the row's request builder over path.
@@ -234,7 +248,7 @@ func testExpansionParity(t *testing.T, weighted, expanded, scaled *parityStore) 
 							stripSteer(base)
 							got := runArmRequest(t, weighted, mode, weighted.paths[mode.cohort], row.build(weighted.paths[mode.cohort]), &s)
 							stripSteer(got)
-							assertTestsExpanded(t, got, base)
+							assertTestsExpanded(t, got, base, row.raw)
 						case types.WeightKindProbability:
 							if runArmRequest(t, weighted, mode, weighted.paths[mode.cohort], row.build(weighted.paths[mode.cohort]), nil) == nil {
 								t.Skipf("%s does not run on the %s arm", row.spec.Type, mode.name)
@@ -271,10 +285,11 @@ func testsWire(t *testing.T, resp *types.Response) []map[string]any {
 }
 
 // assertTestsExpanded: every figure of the frequency-weighted result
-// matches the expanded run within testExpandTol; the raw `n` is not
-// compared (it stays the row count) — sum_weights equals the expanded
-// n exactly instead, and no n_eff appears.
-func assertTestsExpanded(t *testing.T, got, want *types.Response) {
+// matches the expanded run within testExpandTol; the raw `n` (and the
+// row's other raw counts) is not compared (it stays the row count) —
+// sum_weights equals the expanded n exactly instead, and no n_eff
+// appears.
+func assertTestsExpanded(t *testing.T, got, want *types.Response, raw []string) {
 	t.Helper()
 	g, w := testsWire(t, got), testsWire(t, want)
 	if len(g) != len(w) {
@@ -292,7 +307,16 @@ func assertTestsExpanded(t *testing.T, got, want *types.Response) {
 		if gs, wn := wireFloats(gd["sum_weights"]), wireFloats(wd["n"]); !slices.Equal(gs, wn) {
 			t.Errorf("result %d: sum_weights %v, expanded n %v", i, gs, wn)
 		}
-		compareTestWire(t, fmt.Sprintf("result %d", i), g[i], w[i], 1, 1, nil, map[string]bool{"n": true, "sum_weights": true})
+		skip := map[string]bool{"n": true, "sum_weights": true}
+		for _, k := range raw {
+			skip[k] = true
+		}
+		compareTestWire(t, fmt.Sprintf("result %d", i), g[i], w[i], 1, 1, nil, skip)
+		if skip["warnings"] {
+			if gc, wc := warningCodes(g[i]["warnings"]), warningCodes(w[i]["warnings"]); !slices.Equal(gc, wc) {
+				t.Errorf("result %d: warning codes %v, expanded %v", i, gc, wc)
+			}
+		}
 	}
 }
 
@@ -370,6 +394,18 @@ func compareTestWire(t *testing.T, where string, got, want any, factor, c float6
 			t.Errorf("%s = %v, want %v", where, got, want)
 		}
 	}
+}
+
+// warningCodes is the code prefix ("CODE: text") of each wire warning.
+func warningCodes(v any) []string {
+	ws, _ := v.([]any)
+	out := make([]string, 0, len(ws))
+	for _, w := range ws {
+		s, _ := w.(string)
+		code, _, _ := strings.Cut(s, ":")
+		out = append(out, code)
+	}
+	return out
 }
 
 func wireFloats(v any) []float64 {

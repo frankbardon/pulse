@@ -31,7 +31,11 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
 
 - kind `frequency` — stock R on the `rep()`-expanded rows, via
   `test_reference.R` (base R `stats` only, no package to install; the
-  script refuses any R but 4.6.1);
+  script refuses any R but 4.6.1). The frequency-only rank tests
+  (`FREQUENCY_ONLY`: `wilcox.test`, `kruskal.test`,
+  `cor.test(exact = FALSE)` for Spearman / Kendall with continuity) have
+  only this row, cross-checked against scipy on the same expansion
+  (Kendall: tau only — scipy's p omits the continuity correction);
 - kind `probability` — the w* closed form in the generator, its moment
   step cross-checked against statsmodels (`DescrStatsW` on w*,
   `CompareMeans`, `proportions_ztest`) and scipy `chi2_contingency`. The

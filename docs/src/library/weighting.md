@@ -115,6 +115,7 @@ declare it the same way.
 | windows | request weight: `PROCESSING_CONFIG` | skipped |
 | filters, features, row-local attributes, other groupers | skipped | skipped |
 | the moment tests — t (one- and two-sample), Welch t, paired t, two-sample z, one-way ANOVA F, Welch ANOVA, Pearson r — plus the two-proportion z-test and the χ² independence test | weighted (both kinds) | weighted |
+| the rank tests — Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ, Kendall τ-b | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, inferential overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
@@ -138,6 +139,19 @@ n_eff before the ordinary Pearson test, and the expected-count check,
 Cramér's V and φ read that scaled table. This is a first-order Kish
 approximation, not the Rao-Scott correction survey software
 (`survey::svychisq`) applies.
+
+The rank tests take frequency weights only. A row of weight w ranks as
+w identical rows (a run of tied values shares the mid-rank of its
+total weight), the tie corrections read those expanded tie sizes and
+Kendall's τ-b counts a row pair w_i·w_j times, so each answer equals
+the unweighted test on the physically expanded rows. `details.n` and
+the other row counts stay raw; `sum_weights` appears beside `n`.
+Because every weighted row is itself a tie on the expansion, a
+frequency-weighted rank test often warns `PULSE_TEST_TIES_DOMINATE`.
+There is no standard probability-weighted rank test, so a probability
+weight is refused with a message naming the kind; switch the weight to
+`kind: frequency` (if the weights are replication counts) or set the
+slot's `weight: null`.
 
 **Other weighted inference is not available yet.** The last row is
 refused rather than silently computed unweighted beside weighted

@@ -106,8 +106,12 @@ var attributeClasses = map[types.AttributeType]Class{
 // weighted Welford bucket (Welford, inference.go) on w* under both
 // kinds; TEST_PROP_Z reads Σw_success/Σw_g with N*_g and TEST_CHISQ
 // the Σw table (scaled to n_eff under probability — a first-order Kish
-// approximation, not Rao-Scott). A row test reads its slot's stamped
-// weight.
+// approximation, not Rao-Scott). The rank tests are frequency-only:
+// weighted mid-ranks (a row of weight w ranks as w identical rows), the
+// tie corrections on the expanded tie sizes and Kendall's pair weights
+// w_i·w_j equal the unweighted test on the expanded rows; no standard
+// probability-weighted rank test exists. A row test reads its slot's
+// stamped weight.
 var testClasses = map[types.TestType]Class{
 	types.TEST_T:            ClassAware,
 	types.TEST_WELCH:        ClassAware,
@@ -118,6 +122,12 @@ var testClasses = map[types.TestType]Class{
 	types.TEST_PEARSON_R:    ClassAware,
 	types.TEST_PROP_Z:       ClassAware,
 	types.TEST_CHISQ:        ClassAware,
+
+	types.TEST_MANN_WHITNEY_U: ClassFrequencyOnly,
+	types.TEST_WILCOXON_SR:    ClassFrequencyOnly,
+	types.TEST_KRUSKAL_WALLIS: ClassFrequencyOnly,
+	types.TEST_SPEARMAN_R:     ClassFrequencyOnly,
+	types.TEST_KENDALL_TAU:    ClassFrequencyOnly,
 }
 
 // refusalReasons are the PERMANENT refusals: operators with no standard

@@ -93,6 +93,22 @@ func (tw *testWeight) noteGroups(details map[string]any, buckets []*weighting.We
 	}
 }
 
+// noteGroupSums is noteGroups for a test that keeps per-group Σw and
+// Σw² itself (the buffered rank tests) rather than Welford buckets.
+func (tw *testWeight) noteGroupSums(details map[string]any, sums, sumSqs []float64) {
+	if !tw.basis.Weighted() {
+		return
+	}
+	details["sum_weights"] = append([]float64(nil), sums...)
+	if tw.basis == weighting.Probability {
+		neffs := make([]float64, len(sums))
+		for i := range sums {
+			neffs[i] = weighting.KishNEff(sums[i], sumSqs[i])
+		}
+		details["n_eff"] = neffs
+	}
+}
+
 // checkNEff records a shortfall when, under kind probability, nEff is
 // below the test's raw-n floor min. group names the short group of a
 // split test ("" and split=false for an unsplit test or a whole-sample

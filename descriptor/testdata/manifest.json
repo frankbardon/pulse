@@ -4623,6 +4623,9 @@
         ],
         "intents": [
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4646,6 +4649,9 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4693,6 +4699,9 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4826,6 +4835,9 @@
         ],
         "intents": [
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4911,6 +4923,9 @@
         "intents": [
           "change_over_time",
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -11499,4 +11514,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fc0e05df80deb48c5f09d7b3780612a41cb8f46eb4cc4c078c3bce60d31d687e
+// golden-hash: 588fa5422b581bd19423a78c37ee908f7eb8b7b0fa31a965df77b4aaa227ecc2

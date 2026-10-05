@@ -27,6 +27,12 @@ import (
 //	σ²_U = (n_A n_B / 12) · ( (N+1) − Σ(t³−t) / (N(N−1)) )
 //	z    = (U_A − μ_U) / σ_U   (continuity-corrected by ½)
 //	p    = 2 · Φ(−|z|)
+//
+// Frequency-weighted (ClassFrequencyOnly), each row stands for w
+// identical rows: weighted mid-ranks, R_A = Σ w·rank, n_A / n_B / N
+// read Σw and the tie correction the expanded tie sizes — exactly the
+// unweighted test on the expanded rows. Details keep the raw `n` and
+// add `sum_weights` shaped like it.
 type mannWhitneyRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema
@@ -34,8 +40,10 @@ type mannWhitneyRow struct {
 	splitBy string
 	alpha   float64
 
-	values map[string][]float64
+	values map[string]*rankSample
 	order  []string
+
+	testWeight
 }
 
 func newMannWhitneyRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -69,12 +77,13 @@ func newMannWhitneyRow(spec *types.Test, schema *encoding.Schema) (RowTest, erro
 		}
 	}
 	return &mannWhitneyRow{
-		spec:    spec,
-		schema:  schema,
-		field:   spec.Field,
-		splitBy: spec.SplitBy,
-		alpha:   alpha,
-		values:  make(map[string][]float64),
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		splitBy:    spec.SplitBy,
+		alpha:      alpha,
+		values:     make(map[string]*rankSample),
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -87,10 +96,17 @@ func (m *mannWhitneyRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	if _, exists := m.values[key]; !exists {
+	w, ok := m.rowWeight(record)
+	if !ok {
+		return nil
+	}
+	s, exists := m.values[key]
+	if !exists {
+		s = &rankSample{}
+		m.values[key] = s
 		m.order = append(m.order, key)
 	}
-	m.values[key] = append(m.values[key], v)
+	s.add(v, w)
 	return nil
 }
 
@@ -110,28 +126,27 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 	}
 	a := m.values[keys[0]]
 	b := m.values[keys[1]]
-	nA, nB := len(a), len(b)
+	nA, nB := a.n(), b.n()
 	if nA < 2 || nB < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_MANN_WHITNEY_U requires n ≥ 2 per group, got %d / %d", nA, nB),
 			map[string]any{"n": []int{nA, nB}, "min_required": 2})
 	}
-	combined := make([]float64, 0, nA+nB)
-	combined = append(combined, a...)
-	combined = append(combined, b...)
-	ranks, ties := midRanks(combined)
+	combined, _ := concatRankSamples([]*rankSample{a, b})
+	ranks, ties := weightedMidRanks(combined.values, combined.weights)
 	var rA float64
 	for i := range nA {
-		rA += ranks[i]
+		rA += combined.weights[i] * ranks[i]
 	}
-	N := float64(nA + nB)
-	nAf := float64(nA)
-	nBf := float64(nB)
+	// Σw per group (the row counts unweighted).
+	nAf := a.sumW
+	nBf := b.sumW
+	N := nAf + nBf
 	uA := rA - nAf*(nAf+1)/2
 	uB := nAf*nBf - uA
 	uMin := math.Min(uA, uB)
 	muU := nAf * nBf / 2
-	tc := tieCorrection(ties)
+	tc := tieCorrectionW(ties)
 	varU := (nAf * nBf / 12.0) * ((N + 1) - tc/(N*(N-1)))
 	var z, p float64
 	switch {
@@ -183,7 +198,8 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 	res.Details["r_b"] = N*(N+1)/2 - rA
 	// Signed: > 0 ⇒ groups[0] tends larger (same direction as z).
 	setEffectSize(res.Details, "rank_biserial", rankBiserialIndependent(uA, nAf, nBf))
-	if tiesDominate(ties, nA+nB) {
+	m.noteGroupSums(res.Details, []float64{a.sumW, b.sumW}, []float64{a.sumWSq, b.sumWSq})
+	if tiesDominateW(ties, N) {
 		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
 			": ≥ 50% of values are tied; the asymptotic p-value is unreliable")
 	}
@@ -191,6 +207,6 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 }
 
 func (m *mannWhitneyRow) reset() {
-	m.values = make(map[string][]float64)
+	m.values = make(map[string]*rankSample)
 	m.order = nil
 }

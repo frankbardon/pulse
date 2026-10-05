@@ -110,3 +110,50 @@ out("prop_z", "p_value", pt$p.value)
 out("prop_z", "proportion_a", pt$estimate[1])
 out("prop_z", "proportion_b", pt$estimate[2])
 out("prop_z", "pooled", sum(succ) / sum(tot))
+
+# Rank tests (weighting-inferential E2-S1; frequency-only): the
+# asymptotic forms Pulse computes, each on the expanded rows.
+# TEST_MANN_WHITNEY_U: x by h, a vs b; continuity-corrected normal.
+mw <- wilcox.test(x ~ h, data = xs, exact = FALSE, correct = TRUE)
+nma <- sum(xs$h == "a")
+nmb <- sum(xs$h == "b")
+out("mann_whitney", "u_a", mw$statistic)
+out("mann_whitney", "u_min", min(mw$statistic, nma * nmb - mw$statistic))
+out("mann_whitney", "p_value", mw$p.value)
+out("mann_whitney", "rank_biserial", 2 * mw$statistic / (nma * nmb) - 1)
+
+# TEST_WILCOXON_SR on x − y (pairs with a missing side and zero
+# differences dropped); continuity-corrected normal.
+pr <- e[!is.na(e$x), ]
+ws <- suppressWarnings(wilcox.test(pr$x, pr$y, paired = TRUE, exact = FALSE, correct = TRUE))
+dz <- pr$x - pr$y
+nz <- sum(dz != 0)
+vp <- ws$statistic
+vm <- nz * (nz + 1) / 2 - vp
+out("wilcoxon_sr", "w_plus", vp)
+out("wilcoxon_sr", "w_minus", vm)
+out("wilcoxon_sr", "statistic", min(vp, vm))
+out("wilcoxon_sr", "p_value", ws$p.value)
+out("wilcoxon_sr", "rank_biserial", (vp - vm) / (vp + vm))
+
+# TEST_KRUSKAL_WALLIS: x by k, tie-corrected H.
+kw <- kruskal.test(x ~ k, data = xs)
+out("kruskal", "statistic", kw$statistic)
+out("kruskal", "df", kw$parameter)
+out("kruskal", "p_value", kw$p.value)
+rs <- tapply(rank(xs$x), xs$k, sum)
+for (g in names(rs)) out("kruskal", paste0("rank_sum_", g), rs[[g]])
+
+# TEST_SPEARMAN_R: rho and the t_{n-2} p-value (exact = FALSE).
+sp <- suppressWarnings(cor.test(pr$x, pr$y, method = "spearman", exact = FALSE))
+nsp <- nrow(pr)
+out("spearman", "rho", sp$estimate)
+out("spearman", "p_value", sp$p.value)
+out("spearman", "t", sp$estimate * sqrt((nsp - 2) / (1 - sp$estimate^2)))
+out("spearman", "df", nsp - 2)
+
+# TEST_KENDALL_TAU: tau-b, tie-adjusted variance, continuity-corrected z.
+kt <- cor.test(pr$x, pr$y, method = "kendall", exact = FALSE, continuity = TRUE)
+out("kendall", "tau", kt$estimate)
+out("kendall", "z", kt$statistic)
+out("kendall", "p_value", kt$p.value)

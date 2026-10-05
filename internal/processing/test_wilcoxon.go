@@ -23,6 +23,12 @@ import (
 //
 // Drop-pair semantics on null mismatch; the mismatch count surfaces as
 // a PULSE_TEST_PAIRED_LENGTH_MISMATCH warning so the caller knows.
+//
+// Frequency-weighted (ClassFrequencyOnly), each pair stands for w
+// identical pairs: weighted mid-ranks of |d|, W⁺ = Σ w·rank over
+// positive diffs, n = Σw in μ_W / σ²_W and the expanded tie sizes —
+// exactly the unweighted test on the expanded pairs. Details keep the
+// raw `n` (and raw `zero_diffs` row count) and add `sum_weights`.
 type wilcoxonSRRow struct {
 	spec   *types.Test
 	schema *encoding.Schema
@@ -31,9 +37,11 @@ type wilcoxonSRRow struct {
 	field2 string
 	alpha  float64
 
-	diffs    []float64
+	diffs    rankSample
 	dropped  int
 	mismatch int
+
+	testWeight
 }
 
 func newWilcoxonSRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -63,11 +71,12 @@ func newWilcoxonSRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error
 		}
 	}
 	return &wilcoxonSRRow{
-		spec:   spec,
-		schema: schema,
-		field:  spec.Field,
-		field2: spec.Field2,
-		alpha:  alpha,
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		field2:     spec.Field2,
+		alpha:      alpha,
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -80,39 +89,43 @@ func (w *wilcoxonSRRow) UpdateRow(record *Record) error {
 		}
 		return nil
 	}
+	wt, ok := w.rowWeight(record)
+	if !ok {
+		return nil
+	}
 	d := x - y
 	if d == 0 {
 		w.dropped++
 		return nil
 	}
-	w.diffs = append(w.diffs, d)
+	w.diffs.add(d, wt)
 	return nil
 }
 
 func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 	defer w.reset()
-	n := len(w.diffs)
+	n := w.diffs.n()
 	if n < 6 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_WILCOXON_SR requires n ≥ 6 non-zero pairs, got %d", n),
 			map[string]any{"n": n, "min_required": 6})
 	}
 	abs := make([]float64, n)
-	for i, d := range w.diffs {
+	for i, d := range w.diffs.values {
 		abs[i] = math.Abs(d)
 	}
-	ranks, ties := midRanks(abs)
+	ranks, ties := weightedMidRanks(abs, w.diffs.weights)
 	var wPlus, wMinus float64
-	for i, d := range w.diffs {
+	for i, d := range w.diffs.values {
 		if d > 0 {
-			wPlus += ranks[i]
+			wPlus += w.diffs.weights[i] * ranks[i]
 		} else {
-			wMinus += ranks[i]
+			wMinus += w.diffs.weights[i] * ranks[i]
 		}
 	}
-	nf := float64(n)
+	nf := w.diffs.sumW // the pair count unweighted
 	muW := nf * (nf + 1) / 4
-	varW := nf*(nf+1)*(2*nf+1)/24 - tieCorrection(ties)/48
+	varW := nf*(nf+1)*(2*nf+1)/24 - tieCorrectionW(ties)/48
 	var z, p float64
 	if varW <= 0 {
 		z = 0
@@ -158,7 +171,8 @@ func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %d row(s) had one paired value null; pair dropped",
 			errors.PULSE_TEST_PAIRED_LENGTH_MISMATCH, w.mismatch))
 	}
-	if tiesDominate(ties, n) {
+	w.noteScalar(res.Details, w.diffs.sumW, w.diffs.sumWSq)
+	if tiesDominateW(ties, nf) {
 		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
 			": ≥ 50% of |diff| values are tied; asymptotic p-value is unreliable")
 	}
@@ -166,7 +180,7 @@ func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 }
 
 func (w *wilcoxonSRRow) reset() {
-	w.diffs = nil
+	w.diffs = rankSample{}
 	w.dropped = 0
 	w.mismatch = 0
 }

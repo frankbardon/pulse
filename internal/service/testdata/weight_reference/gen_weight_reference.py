@@ -424,7 +424,17 @@ TEST_SPECS = [
     ("chisq", {"type": "TEST_CHISQ", "rows": "h", "cols": "o"}),
     ("prop_z", {"type": "TEST_PROP_Z", "field": "o", "split_by": "h",
                 "params": {"success": TEST_SUCCESS}}),
+    # Rank tests (E2-S1): frequency-only — FREQUENCY_ONLY below.
+    ("mann_whitney", {"type": "TEST_MANN_WHITNEY_U", "field": "x", "split_by": "h"}),
+    ("wilcoxon_sr", {"type": "TEST_WILCOXON_SR", "field": "x", "field2": "y"}),
+    ("kruskal", {"type": "TEST_KRUSKAL_WALLIS", "field": "x", "split_by": "k"}),
+    ("spearman", {"type": "TEST_SPEARMAN_R", "field": "x", "field2": "y"}),
+    ("kendall", {"type": "TEST_KENDALL_TAU", "field": "x", "field2": "y"}),
 ]
+
+# Cases with no probability-weighted form (refused under that kind): a
+# frequency reference only, = the unweighted test on the expansion.
+FREQUENCY_ONLY = {"mann_whitney", "wilcoxon_sr", "kruskal", "spearman", "kendall"}
 
 
 def kish(w):
@@ -610,6 +620,74 @@ def test_closed_form(case, rows, prob):
                    **{"effect_size.cohens_h": 2 * math.asin(math.sqrt(phat[0]))
                       - 2 * math.asin(math.sqrt(phat[1]))})
         return out
+    if case in FREQUENCY_ONLY:
+        assert not prob, case
+        return rank_closed_form(case, xr)
+    raise ValueError(case)
+
+
+def rank_closed_form(case, xr):
+    """A frequency-weighted rank test = scipy's unweighted test on the
+    np.repeat-expanded rows (raw n / Σw reported per Pulse's details).
+    R on the same expansion must agree (test_cases); scipy's Kendall p
+    omits the continuity correction Pulse and R apply, so only tau is
+    cross-checked there."""
+    out = {}
+    if case in ("mann_whitney", "kruskal"):
+        col, levels = (2, H_LEVELS) if case == "mann_whitney" else (3, K_LEVELS)
+        groups = []
+        for g in levels:
+            gx = np.array([r[0] for r in xr if r[col] == g])
+            gw = np.array([r[5] for r in xr if r[col] == g])
+            groups.append(np.repeat(gx, gw.astype(int)))
+            out[f"n[{g}]"] = len(gx)
+            out[f"sum_weights[{g}]"] = float(gw.sum())
+        if case == "mann_whitney":
+            res = scipy.stats.mannwhitneyu(groups[0], groups[1], use_continuity=True,
+                                           alternative="two-sided", method="asymptotic")
+            na, nb = len(groups[0]), len(groups[1])
+            ua = float(res.statistic)
+            out.update(statistic=min(ua, na * nb - ua), p_value=float(res.pvalue), u_a=ua,
+                       u_min=min(ua, na * nb - ua),
+                       **{"effect_size.rank_biserial": 2 * ua / (na * nb) - 1})
+        else:
+            res = scipy.stats.kruskal(*groups)
+            ranks = scipy.stats.rankdata(np.concatenate(groups))
+            off = 0
+            for g, gx in zip(levels, groups):
+                out[f"rank_sums[{g}]"] = float(ranks[off:off + len(gx)].sum())
+                off += len(gx)
+            n = sum(len(g) for g in groups)
+            out.update(statistic=float(res.statistic), df=len(levels) - 1, p_value=float(res.pvalue),
+                       **{"effect_size.epsilon_squared": float(res.statistic) / (n - 1)})
+        return out
+    x = np.array([r[0] for r in xr])
+    y = np.array([r[1] for r in xr])
+    w = np.array([r[5] for r in xr])
+    if case == "wilcoxon_sr":
+        nz = (x - y) != 0
+        d = np.repeat((x - y)[nz], w[nz].astype(int))
+        res = scipy.stats.wilcoxon(d, zero_method="wilcox", correction=True, method="asymptotic")
+        r = scipy.stats.rankdata(np.abs(d))
+        wp, wm = float(r[d > 0].sum()), float(r[d < 0].sum())
+        out.update(statistic=min(wp, wm), p_value=float(res.pvalue), w_plus=wp, w_minus=wm,
+                   n=int(nz.sum()), sum_weights=float(w[nz].sum()),
+                   **{"effect_size.rank_biserial": (wp - wm) / (wp + wm)})
+        assert close(res.statistic, min(wp, wm)), case
+        return out
+    ex, ey = np.repeat(x, w.astype(int)), np.repeat(y, w.astype(int))
+    n = len(ex)
+    out.update(n=len(x), sum_weights=float(w.sum()))
+    if case == "spearman":
+        res = scipy.stats.spearmanr(ex, ey)
+        rho = float(res.statistic)
+        out.update(statistic=rho, p_value=float(res.pvalue), df=n - 2,
+                   t=rho * math.sqrt((n - 2) / (1 - rho * rho)))
+        return out
+    if case == "kendall":
+        res = scipy.stats.kendalltau(ex, ey, variant="b", method="asymptotic")
+        out.update(statistic=float(res.statistic))
+        return out
     raise ValueError(case)
 
 
@@ -643,6 +721,19 @@ R_FIGURES = {
                           "proportion_a": "proportion[a]", "proportion_b": "proportion[b]",
                           "pooled": "pooled"}),
 }
+R_FIGURES.update({
+    "mann_whitney": ("mann_whitney", {"u_min": "statistic", "p_value": "p_value", "u_a": "u_a",
+                                      "rank_biserial": "effect_size.rank_biserial"}),
+    "wilcoxon_sr": ("wilcoxon_sr", {"statistic": "statistic", "p_value": "p_value",
+                                    "w_plus": "w_plus", "w_minus": "w_minus",
+                                    "rank_biserial": "effect_size.rank_biserial"}),
+    "kruskal": ("kruskal", {"statistic": "statistic", "df": "df", "p_value": "p_value",
+                            "rank_sum_p": "rank_sums[p]", "rank_sum_q": "rank_sums[q]",
+                            "rank_sum_r": "rank_sums[r]"}),
+    "spearman": ("spearman", {"rho": "statistic", "p_value": "p_value", "t": "t", "df": "df"}),
+    # scipy's Kendall p has no continuity correction: z / p are R's only.
+    "kendall": ("kendall", {"tau": "statistic", "z": "z", "p_value": "p_value"}),
+})
 R_FIGURES["welch"] = R_FIGURES["t_split"]
 
 # Top-level TestResult fields; everything else lives under details.
@@ -685,6 +776,8 @@ def test_cases():
         if not prob:
             RTEST[0], rfigs = r_test_reference([g[:5] + (int(g[5]),) for g in good])
         for case, spec in TEST_SPECS:
+            if prob and case in FREQUENCY_ONLY:
+                continue
             figs = test_closed_form(case, good, prob)
             if case == "chisq":
                 # The fixture must clear the expected-count guard under
@@ -699,7 +792,10 @@ def test_cases():
                 for rname, fname in names.items():
                     rv = rfigs[rcase][rname]
                     # The closed form IS stock R on the expansion here.
-                    assert close(figs[fname], rv, 1e-9), (case, fname, figs[fname], rv)
+                    if fname in figs:
+                        assert close(figs[fname], rv, 1e-9), (case, fname, figs[fname], rv)
+                    else:
+                        assert case == "kendall", (case, fname)  # R-only z / p
                     figs[fname] = rv
                 src = f"{RTEST[0]} stats on rep()-expanded rows (test_reference.R)"
             out.append(dict(weight=wname, kind=kind, name=case, spec=spec, figs=figs, src=src))

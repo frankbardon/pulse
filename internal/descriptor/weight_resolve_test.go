@@ -623,11 +623,12 @@ func TestResolveWeights_RegressionModifiersRefused(t *testing.T) {
 // under a frequency weight (slot, request or default) and is
 // PULSE_WEIGHT_UNSUPPORTED naming the kind under a probability one —
 // the instance default included — with details {slot, operator, field,
-// kind, supported_kinds}; `weight: null` opts it out. TEST_MANN_WHITNEY_U
-// stands in until a later change flips a real operator.
+// kind, supported_kinds}; `weight: null` opts it out. Subject: the
+// rank test TEST_MANN_WHITNEY_U (frequency-only since E2-S1).
 func TestResolveWeights_FrequencyOnly(t *testing.T) {
-	restore := weighting.OverrideClassForTest(string(types.TEST_MANN_WHITNEY_U), weighting.ClassFrequencyOnly)
-	defer restore()
+	if weighting.ClassOf(string(types.TEST_MANN_WHITNEY_U)) != weighting.ClassFrequencyOnly {
+		t.Fatal("TEST_MANN_WHITNEY_U is no longer frequency-only: pick another subject")
+	}
 	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	freq := &types.WeightSpec{Field: "wi", Kind: types.WeightKindFrequency}
 	test := func(w types.SlotWeight) *types.Test {
@@ -971,9 +972,11 @@ func TestOverlayWeight_FrequencyOnly(t *testing.T) {
 }
 
 // TestResolveWeights_AwareTestsApplied: a built-in row test whose
-// weighted computation exists (both kinds) resolves `applied` under a
-// slot, request or default weight of either kind, while the same
-// operator on post_tests stays refused permanently.
+// weighted computation exists resolves `applied` under a slot, request
+// or default weight of each kind it advertises (both kinds, or
+// frequency alone for a frequency-only test — the probability refusal
+// is TestResolveWeights_FrequencyOnly's), while the same operator on
+// post_tests stays refused permanently.
 func TestResolveWeights_AwareTestsApplied(t *testing.T) {
 	var aware []types.TestType
 	for _, tt := range types.AllTestTypes() {
@@ -985,7 +988,7 @@ func TestResolveWeights_AwareTestsApplied(t *testing.T) {
 		t.Fatalf("only %d aware tests", len(aware))
 	}
 	for _, tt := range aware {
-		for _, kind := range []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability} {
+		for _, kind := range weighting.KindsOf(string(tt)) {
 			spec := &types.WeightSpec{Field: "w", Kind: kind}
 			for name, tc := range map[string]struct {
 				req *types.Request

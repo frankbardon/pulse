@@ -14,6 +14,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
+- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): a pair of weight w ranks as w identical pairs; `DF` = Σw − 2 — equals the test on the expanded pairs. `Details` add `sum_weights` beside `n` (raw rows).
 
 Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
@@ -27,7 +28,6 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — mid-ranks each column under tie correction before running Pearson on the ranks.
 - Detects monotonic association; robust to outliers (rank transform).
 - Tier-2 variant `TEST_SPEARMAN_R/rank_pearson_post` runs over result columns.
