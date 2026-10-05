@@ -1,6 +1,7 @@
 package pulse_test
 
 import (
+	"bytes"
 	"context"
 	stderrors "errors"
 	"reflect"
@@ -82,9 +83,10 @@ func multRefusalCases() map[string]multRefusalCase {
 }
 
 // TestMultiplicity_RefusalsMatchPredict is the predict-vs-runtime table:
-// every resolver refusal is raised by Process (and ProcessStream, and a
-// ProcessChain stage, located) with the code, message and details
-// PredictBytes reports first.
+// every resolver refusal is raised by Process (and ProcessStream, and
+// ProcessChain stage 0 or a later stage, located) with the code,
+// message and details PredictBytes (the chain validator for a chain)
+// reports first.
 func TestMultiplicity_RefusalsMatchPredict(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
@@ -118,19 +120,30 @@ func TestMultiplicity_RefusalsMatchPredict(t *testing.T) {
 				t.Errorf("ProcessStream message %q, Process %q", sce.Message, ce.Message)
 			}
 
-			// A later chain stage resolves standalone too, located by stage.
-			stage1 := c.mk(cohort)
-			stage1.Cohort = nil
-			chain := &types.ChainRequest{
-				Cohort: &types.Cohort{Filename: cohort},
-				Stages: []*types.ChainStage{
-					{Request: &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}}},
-					{Request: stage1},
-				},
+			// Every chain stage — stage 0 and a later one — resolves
+			// standalone too, located by stage, with the code, message
+			// and details the chain validator reports first.
+			data, err := afero.ReadFile(fs, cohort)
+			if err != nil {
+				t.Fatal(err)
 			}
-			_, cerr := p.ProcessChain(ctx, chain)
-			if cce := requireCode(t, cerr, c.code); cce.Details["stage"] != 1 || cce.Message != ce.Message {
-				t.Errorf("chain refusal = %q %v", cce.Message, cce.Details)
+			opts := &descx.PredictOptions{DefaultMultiplicity: c.def}
+			for at := 0; at < 2; at++ {
+				chain := func() *types.ChainRequest {
+					plain := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}}
+					refused := c.mk(cohort)
+					refused.Cohort = nil
+					stages := []*types.ChainStage{{Request: plain}, {Request: refused}}
+					if at == 0 {
+						stages[0], stages[1] = stages[1], stages[0]
+					}
+					return &types.ChainRequest{Cohort: &types.Cohort{Filename: cohort}, Stages: stages}
+				}
+				_, cerr := p.ProcessChain(ctx, chain())
+				if cce := requireCode(t, cerr, c.code); cce.Details["stage"] != at || cce.Message != ce.Message {
+					t.Errorf("chain stage %d refusal = %q %v", at, cce.Message, cce.Details)
+				}
+				sameEntry(t, descx.ValidateChainWithOptions(bytes.NewReader(data), chain(), opts), cerr)
 			}
 		})
 	}
