@@ -101,6 +101,20 @@ var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_NORMALIZED: ClassNotWeightable,
 }
 
+// testClasses are the built-in tests whose weighted computation exists
+// (every other TEST_* refuses). The moment tests read the shared
+// weighted Welford bucket (Welford, inference.go) on w* under both
+// kinds; a row test reads its slot's stamped weight.
+var testClasses = map[types.TestType]Class{
+	types.TEST_T:            ClassAware,
+	types.TEST_WELCH:        ClassAware,
+	types.TEST_PAIRED_T:     ClassAware,
+	types.TEST_Z_TWO_SAMPLE: ClassAware,
+	types.TEST_ANOVA_F:      ClassAware,
+	types.TEST_ANOVA_WELCH:  ClassAware,
+	types.TEST_PEARSON_R:    ClassAware,
+}
+
 // refusalReasons are the PERMANENT refusals: operators with no standard
 // weighted form any reference software reproduces. The reason rides
 // the PULSE_WEIGHT_UNSUPPORTED refusal (message and details.reason).
@@ -127,6 +141,9 @@ var operatorClasses = func() map[string]Class {
 	}
 	for _, t := range types.AllTestTypes() {
 		m[string(t)] = ClassRefuse
+	}
+	for t, c := range testClasses {
+		m[string(t)] = c
 	}
 	for _, r := range types.AllRegressionTypes() {
 		m[string(r)] = ClassRefuse

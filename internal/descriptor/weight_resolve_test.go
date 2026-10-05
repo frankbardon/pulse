@@ -438,8 +438,8 @@ func TestResolveWeights_DecimalRefused(t *testing.T) {
 }
 
 // inferentialSlotRequests builds, per refused non-aggregator operator,
-// a request whose refused slot carries slot weight w — every built-in
-// TEST_* (as a test and, for TEST_T, a post-test), every REG_* (plus
+// a request whose refused slot carries slot weight w — every refused
+// built-in TEST_* (as a test) and TEST_T as a post-test, every REG_* (plus
 // REG_OLS with each permanently refused modifier), the three
 // reference-distribution attributes, GROUP_QUANTILE (as a grouper and
 // on both crosstab axes) and a permanently refused overlay. The key is
@@ -447,6 +447,9 @@ func TestResolveWeights_DecimalRefused(t *testing.T) {
 func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
 	out := map[string]*types.Request{}
 	for _, tt := range types.AllTestTypes() {
+		if weighting.ClassOf(string(tt)) != weighting.ClassRefuse {
+			continue // computes weighted (TestResolveWeights_AwareTestsApplied)
+		}
 		out["tests[0]/"+string(tt)] = &types.Request{Tests: []*types.Test{{Type: tt, Field: "x", Weight: w}}}
 	}
 	out["post_tests[0]/TEST_T"] = &types.Request{PostTests: []*types.Test{{Type: types.TEST_T, Field: "x", Weight: w}}}
@@ -964,5 +967,46 @@ func TestOverlayWeight_FrequencyOnly(t *testing.T) {
 	// The instance default (kind probability by default) refuses too.
 	if err := ComposeOverlayWeightRefusal(ov, []*types.Request{host(nil)}, []string{"a"}, prob, nil); err == nil {
 		t.Fatal("compose: probability default not refused")
+	}
+}
+
+// TestResolveWeights_AwareTestsApplied: a built-in row test whose
+// weighted computation exists (both kinds) resolves `applied` under a
+// slot, request or default weight of either kind, while the same
+// operator on post_tests stays refused permanently.
+func TestResolveWeights_AwareTestsApplied(t *testing.T) {
+	var aware []types.TestType
+	for _, tt := range types.AllTestTypes() {
+		if weighting.IsAware(string(tt)) {
+			aware = append(aware, tt)
+		}
+	}
+	if len(aware) < 7 {
+		t.Fatalf("only %d aware tests", len(aware))
+	}
+	for _, tt := range aware {
+		for _, kind := range []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability} {
+			spec := &types.WeightSpec{Field: "w", Kind: kind}
+			for name, tc := range map[string]struct {
+				req *types.Request
+				def *types.WeightSpec
+			}{
+				"slot":    {&types.Request{Tests: []*types.Test{{Type: tt, Field: "x", Weight: types.SlotWeightOf(*spec)}}}, nil},
+				"request": {&types.Request{Weight: spec, Tests: []*types.Test{{Type: tt, Field: "x"}}}, nil},
+				"default": {&types.Request{Tests: []*types.Test{{Type: tt, Field: "x"}}}, spec},
+			} {
+				got, err := ResolveWeights(tc.req, weightSchema(), tc.def, nil)
+				if err != nil {
+					t.Fatalf("%s/%s/%s: refused: %v", tt, kind, name, err)
+				}
+				if len(got) != 1 || got[0].Status != descriptor.WeightStatusApplied || got[0].Kind != string(kind) {
+					t.Fatalf("%s/%s/%s: %+v, want applied", tt, kind, name, got)
+				}
+			}
+		}
+		post := &types.Request{Weight: &types.WeightSpec{Field: "w"}, PostTests: []*types.Test{{Type: tt, Field: "x"}}}
+		if _, err := ResolveWeights(post, weightSchema(), nil, nil); err == nil {
+			t.Fatalf("%s as a post-test accepted a weight", tt)
+		}
 	}
 }

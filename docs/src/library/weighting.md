@@ -114,10 +114,23 @@ declare it the same way.
 | other aggregators (min, max, range, distinct-style, null count, set union / intersection) | `PROCESSING_CONFIG` | skipped |
 | windows | request weight: `PROCESSING_CONFIG` | skipped |
 | filters, features, row-local attributes, other groupers | skipped | skipped |
-| tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank, normalized), the quantile grouper, confidence-interval bounds, inferential overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| the moment tests — t (one- and two-sample), Welch t, paired t, two-sample z, one-way ANOVA F, Welch ANOVA, Pearson r | weighted (both kinds) | weighted |
+| other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, inferential overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
-**Weighted inference is not available yet.** The last row is refused
-rather than silently computed unweighted beside weighted figures. To
+**Weighted tests.** A weighted moment test uses the frequency formula
+with its sample size read as Σw under `kind: frequency` (a weight of 3
+is three identical rows) or as Kish's effective n,
+n_eff = (Σw)²/Σw², under `kind: probability`. Means and r are the same
+under either kind; standard errors and degrees of freedom (which may be
+fractional) read that effective size. The result's `details.n` stays
+the raw row count; `sum_weights` and, for probability weights, `n_eff`
+appear beside it in the same shape. A group whose n_eff falls below
+the test's minimum warns `PULSE_WEIGHT_LOW_NEFF` (an error under
+strict mode). This is not design-based (strata / cluster) variance.
+
+**Other weighted inference is not available yet.** The last row is
+refused rather than silently computed unweighted beside weighted
+figures. To
 run one of those operators in a weighted request, give its slot
 `"weight": null`. On an instance with a `DefaultWeight`, every
 inferential slot needs that opt-out. A weight-aware aggregator over a

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,8 +36,12 @@ type anovaWelchRow struct {
 	splitBy string
 	alpha   float64
 
-	groups map[string]*welfordBucket
+	groups map[string]*weighting.Welford
 	order  []string
+
+	// testWeight: weighted, each group's moments are read on its own
+	// w* (N*_j), so v_j = N*_j/s_j² and the tail sum reads N*_j − 1.
+	testWeight
 }
 
 func newAnovaWelchRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -70,12 +75,13 @@ func newAnovaWelchRow(spec *types.Test, schema *encoding.Schema) (RowTest, error
 		}
 	}
 	return &anovaWelchRow{
-		spec:    spec,
-		schema:  schema,
-		field:   spec.Field,
-		splitBy: spec.SplitBy,
-		alpha:   alpha,
-		groups:  make(map[string]*welfordBucket),
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		splitBy:    spec.SplitBy,
+		alpha:      alpha,
+		groups:     make(map[string]*weighting.Welford),
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -88,13 +94,17 @@ func (a *anovaWelchRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
+	w, ok := a.rowWeight(record)
+	if !ok {
+		return nil
+	}
 	b, exists := a.groups[key]
 	if !exists {
-		b = &welfordBucket{}
+		b = &weighting.Welford{}
 		a.groups[key] = b
 		a.order = append(a.order, key)
 	}
-	b.add(v)
+	b.Add(v, w)
 	return nil
 }
 
@@ -109,18 +119,22 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"groups": keys, "min_required": 2})
 	}
 	ns := make([]int64, k)
+	nStar := make([]float64, k)
 	means := make([]float64, k)
 	vars_ := make([]float64, k)
+	buckets := make([]*weighting.Welford, k)
 	for i, key := range keys {
 		b := a.groups[key]
-		if b.n < 2 {
+		if b.N < 2 {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-				fmt.Sprintf("TEST_ANOVA_WELCH requires n ≥ 2 per group; %q has %d", key, b.n),
-				map[string]any{"group": key, "n": b.n, "min_required": 2})
+				fmt.Sprintf("TEST_ANOVA_WELCH requires n ≥ 2 per group; %q has %d", key, b.N),
+				map[string]any{"group": key, "n": b.N, "min_required": 2})
 		}
-		ns[i] = b.n
-		means[i] = b.mean
-		s2 := b.sampleVariance()
+		buckets[i] = b
+		ns[i] = b.N
+		nStar[i] = b.NStar(a.basis)
+		means[i] = b.Mean
+		s2 := b.Variance(a.basis)
 		if s2 == 0 {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 				fmt.Sprintf("TEST_ANOVA_WELCH: group %q has zero variance", key),
@@ -131,7 +145,7 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 	weights := make([]float64, k)
 	var W, weightedMean float64
 	for i := range k {
-		weights[i] = float64(ns[i]) / vars_[i]
+		weights[i] = nStar[i] / vars_[i]
 		W += weights[i]
 		weightedMean += weights[i] * means[i]
 	}
@@ -141,7 +155,7 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 		diff := means[i] - weightedMean
 		num += weights[i] * diff * diff
 		share := 1 - weights[i]/W
-		tailSum += share * share / float64(ns[i]-1)
+		tailSum += share * share / (nStar[i] - 1)
 	}
 	num /= float64(k - 1)
 	kf := float64(k)
@@ -170,15 +184,19 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 			"df_within":       df2,
 		},
 	}
-	var totalN int64
-	for _, ni := range ns {
+	var totalN float64
+	for _, ni := range nStar {
 		totalN += ni
 	}
-	setEffectSize(res.Details, "omega_squared", welchOmegaSquared(F, df1, float64(totalN)))
+	setEffectSize(res.Details, "omega_squared", welchOmegaSquared(F, df1, totalN))
+	a.noteGroups(res.Details, buckets)
+	for i, key := range keys {
+		a.checkNEff(a.spec, true, key, buckets[i].NEff(), 2)
+	}
 	return res, nil
 }
 
 func (a *anovaWelchRow) reset() {
-	a.groups = make(map[string]*welfordBucket)
+	a.groups = make(map[string]*weighting.Welford)
 	a.order = nil
 }

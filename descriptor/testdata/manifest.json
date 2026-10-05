@@ -4468,6 +4468,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4516,6 +4520,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4705,6 +4713,10 @@
         "intents": [
           "change_over_time",
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4728,6 +4740,10 @@
         ],
         "intents": [
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4832,6 +4848,10 @@
         "intents": [
           "benchmark",
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4855,6 +4875,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4902,6 +4926,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       }
     ],
@@ -5942,7 +5970,7 @@
         ]
       }
     ],
-    "error_codes_count": 257,
+    "error_codes_count": 258,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6203,6 +6231,7 @@
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
       "PULSE_WEIGHT_INVALID_ROWS",
+      "PULSE_WEIGHT_LOW_NEFF",
       "PULSE_WEIGHT_UNSUPPORTED",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
@@ -11462,4 +11491,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 08acf799fad3f040d0004f9d7c6a55546c64e3191df9b7ba6ce67e496334616f
+// golden-hash: 71ee5a2574d136e644f35b8f6a60e07d26bbff33040914c7a2d933188994c814

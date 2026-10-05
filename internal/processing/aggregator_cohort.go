@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -63,14 +64,10 @@ func weightedVariance(m2, wSum float64) float64 {
 	return m2 / (wSum - 1)
 }
 
-// kishNEff is Kish's effective sample size (Σw)² / Σw². An empty cell
-// (Σw² == 0) reports 0.
-func kishNEff(wSum, wSumSq float64) float64 {
-	if wSumSq == 0 {
-		return 0
-	}
-	return wSum * wSum / wSumSq
-}
+// kishNEff is Kish's effective sample size (Σw)² / Σw² — the one
+// definition weighted inference reads too (weighting.KishNEff). An
+// empty cell (Σw² == 0) reports 0.
+func kishNEff(wSum, wSumSq float64) float64 { return weighting.KishNEff(wSum, wSumSq) }
 
 type ratioParams struct {
 	NumeratorField   string `json:"numerator_field"`

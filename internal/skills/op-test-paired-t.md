@@ -16,6 +16,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 
 Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pre / before value).
+- `weight` — slot weight (`null` opts out), both kinds: one weight per row = per pair (a null in either field drops the pair); one-sample t on d over w*, `df` = N*−1 (Σw or Kish n_eff). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
 
 ## Inputs
 
@@ -27,7 +28,6 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Pairing is **per-row**: Field and Field2 must already encode the (post, pre) pair on the same record. If pairing is across rows, build a paired column upstream first.
 - Streamable — Welford runs on d = Field − Field2 in a single pass.
 - A null in Field or Field2 drops the pair; `n` counts complete pairs.

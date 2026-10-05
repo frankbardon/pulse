@@ -2805,6 +2805,22 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_WEIGHT_LOW_NEFF: {
+		Message: "A weighted test ran on a group whose effective sample size is below what the test needs. Under weight kind `probability` the test's standard errors and degrees of freedom read Kish's effective n, n_eff = (Σw)²/Σw², not the row count — uneven weights shrink it, so a group with enough rows can still carry very little information. The test was computed, but treat its p-value as fragile. `test` and `type` name the test, `group` the short group (absent on an unsplit test), `n_eff` its effective n and `min_required` the floor the test applies to a row count. This is a WARNING; under strict mode it is an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"split_by"},
+				Hint:   "Split on a coarser categorical (fewer, larger groups), or widen the filters, so the short group gathers more rows.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"weight", "kind"},
+				Hint:     "If the weights are integer replication counts rather than sampling weights, set `kind` to frequency: the test then reads Σw as its sample size.",
+				Examples: []any{"frequency"},
+			},
+		},
+	},
 	PULSE_WEIGHT_UNSUPPORTED: {
 		Message: "A row weight is in force on a slot whose operator cannot honour it, so the request is refused rather than answered unweighted or wrongly weighted. Three cases: the operator has a weighted form only under weight kind `frequency` (integer replication counts) and the weight in force is kind `probability` — `kind` names the kind in force and `supported_kinds` the kinds the operator accepts; the operator has no standard weighted form at all — a post-test (it reads aggregated rows), a regression resample or selection modifier, certain tests, attributes and overlays — and `reason` says why (`alternative` names a weighted twin where one exists); or the operator's weighted form has not landed yet. An aggregation over a decimal128 field is refused too, with the decimal column under `value_field`: the decimal path has no weighted form. An instance default weight refuses these slots exactly like an explicit one: each must opt out. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default.",
 		Fixups: []Fixup{

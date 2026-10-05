@@ -2410,6 +2410,16 @@ const (
 	// non_integer_frequency}. Promoted to an error under Options.Strict.
 	PULSE_WEIGHT_INVALID_ROWS Code = "PULSE_WEIGHT_INVALID_ROWS"
 
+	// PULSE_WEIGHT_LOW_NEFF is the run WARNING that a weighted test ran
+	// on a group whose Kish effective sample size n_eff (kind
+	// probability) is below the minimum the test needs (the raw-n floor
+	// still passed): its degrees of freedom and standard errors read
+	// n_eff, so the inference is fragile. One warning per short group;
+	// details carry "test", "type", "group" (when the test splits),
+	// "n_eff" and "min_required". Promoted to an error under
+	// Options.Strict.
+	PULSE_WEIGHT_LOW_NEFF Code = "PULSE_WEIGHT_LOW_NEFF"
+
 	// PULSE_WEIGHT_UNSUPPORTED indicates a row weight is in force on a
 	// surface that cannot honour it yet — an inferential operator or
 	// overlay, a confidence-interval aggregator, or a decimal128 value
@@ -2904,6 +2914,7 @@ var allCodes = []Code{
 	PULSE_FEATURE_PROFILE_UNKNOWN,
 	PULSE_FEATURE_PROFILE_DEPENDENCY,
 	PULSE_WEIGHT_INVALID_ROWS,
+	PULSE_WEIGHT_LOW_NEFF,
 	PULSE_WEIGHT_UNSUPPORTED,
 	PULSE_EXTENSION_NOT_WEIGHT_AWARE,
 }

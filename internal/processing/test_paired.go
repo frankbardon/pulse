@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -26,7 +27,11 @@ type pairedTRow struct {
 	field  string
 	field2 string
 	alpha  float64
-	diffs  *welfordBucket
+	diffs  *weighting.Welford
+
+	// testWeight: the weight rides the ROW, i.e. the pair; the test is
+	// the one-sample weighted t on d.
+	testWeight
 }
 
 func newPairedTRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -60,12 +65,13 @@ func newPairedTRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		}
 	}
 	return &pairedTRow{
-		spec:   spec,
-		schema: schema,
-		field:  spec.Field,
-		field2: spec.Field2,
-		alpha:  alpha,
-		diffs:  &welfordBucket{},
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		field2:     spec.Field2,
+		alpha:      alpha,
+		diffs:      &weighting.Welford{},
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -78,32 +84,39 @@ func (p *pairedTRow) UpdateRow(record *Record) error {
 	if !bOk {
 		return nil
 	}
-	p.diffs.add(a - b)
+	// A null in either field dropped the pair above, before its
+	// weight is judged.
+	w, ok := p.rowWeight(record)
+	if !ok {
+		return nil
+	}
+	p.diffs.Add(a-b, w)
 	return nil
 }
 
 func (p *pairedTRow) Finalize() (*types.TestResult, error) {
 	defer p.reset()
 	b := p.diffs
-	if b.n < 2 {
+	if b.N < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_PAIRED_T requires n ≥ 2 complete pairs, got %d", b.n),
-			map[string]any{"n": b.n, "min_required": 2})
+			fmt.Sprintf("TEST_PAIRED_T requires n ≥ 2 complete pairs, got %d", b.N),
+			map[string]any{"n": b.N, "min_required": 2})
 	}
-	variance := b.sampleVariance()
+	variance := b.Variance(p.basis)
 	if variance == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_PAIRED_T: sample variance of paired differences is zero",
-			map[string]any{"n": b.n, "mean_diff": b.mean})
+			map[string]any{"n": b.N, "mean_diff": b.Mean})
 	}
+	nStar := b.NStar(p.basis)
 	sd := math.Sqrt(variance)
-	se := sd / math.Sqrt(float64(b.n))
-	tstat := b.mean / se
-	df := float64(b.n - 1)
+	se := sd / math.Sqrt(nStar)
+	tstat := b.Mean / se
+	df := nStar - 1
 	pvalue := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(p.alpha, df)
-	ciLow := b.mean - tcrit*se
-	ciHigh := b.mean + tcrit*se
+	ciLow := b.Mean - tcrit*se
+	ciHigh := b.Mean + tcrit*se
 	res := &types.TestResult{
 		Label:      testLabel(p.spec),
 		Type:       types.TEST_PAIRED_T,
@@ -114,18 +127,20 @@ func (p *pairedTRow) Finalize() (*types.TestResult, error) {
 		Alpha:      p.alpha,
 		RejectNull: pvalue < p.alpha,
 		Details: map[string]any{
-			"n":         b.n,
-			"mean_diff": b.mean,
+			"n":         b.N,
+			"mean_diff": b.Mean,
 			"variance":  variance,
 			"ci_low":    ciLow,
 			"ci_high":   ciHigh,
 		},
 	}
 	// Cohen's d for paired samples: mean_diff / sd_diff.
-	setEffectSize(res.Details, "cohens_d", cohensDOneSample(b.mean, 0, sd))
+	setEffectSize(res.Details, "cohens_d", cohensDOneSample(b.Mean, 0, sd))
+	p.noteScalar(res.Details, b.SumW, b.SumWSq)
+	p.checkNEff(p.spec, false, "", b.NEff(), 2)
 	return res, nil
 }
 
 func (p *pairedTRow) reset() {
-	p.diffs = &welfordBucket{}
+	p.diffs = &weighting.Welford{}
 }

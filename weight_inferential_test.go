@@ -25,6 +25,9 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 	field := map[string]string{"TEST_CHISQ": "subj", "TEST_FISHER_EXACT": "g", "TEST_PROP_Z": "g", "TEST_PAIRED_T": "y"}
 	var ops []string
 	for _, tt := range types.AllTestTypes() {
+		if weighting.IsAware(string(tt)) {
+			continue // computes weighted: TestWeight_DefaultInstanceWeightsTTest
+		}
 		ops = append(ops, string(tt))
 	}
 	for _, rt := range types.AllRegressionTypes() {
@@ -183,12 +186,14 @@ func TestWeight_InferentialRefusalsMatchPredict(t *testing.T) {
 	}
 }
 
-// TestWeight_DefaultInstanceRunsTTestOptedOut is the story's named
-// case: an instance with Options.DefaultWeight refuses a bare TEST_T and
-// runs it with `weight: null`.
-func TestWeight_DefaultInstanceRunsTTestOptedOut(t *testing.T) {
+// TestWeight_DefaultInstanceWeightsTTest: since E1-S2 an instance with
+// Options.DefaultWeight WEIGHTS a bare TEST_T (predict says applied,
+// details carry sum_weights and n_eff, raw n unchanged) and `weight:
+// null` runs it unweighted, byte-identical to a plain instance.
+func TestWeight_DefaultInstanceWeightsTTest(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
 	p := weightPulse(t, fs, &types.WeightSpec{Field: "y"})
+	plain := weightPulse(t, fs, nil)
 	ctx := context.Background()
 	tt := func(w types.SlotWeight) *types.Request {
 		return &types.Request{
@@ -196,14 +201,32 @@ func TestWeight_DefaultInstanceRunsTTestOptedOut(t *testing.T) {
 			Tests:  []*types.Test{{Type: types.TEST_T, Field: "x", Params: json.RawMessage(`{"mu":10}`), Weight: w}},
 		}
 	}
-	_, err := p.Process(ctx, tt(types.SlotWeight{}))
-	requireCode(t, err, errors.PULSE_WEIGHT_UNSUPPORTED)
-	resp, err := p.Process(ctx, tt(types.NullSlotWeight()))
+	weighted, err := p.Process(ctx, tt(types.SlotWeight{}))
+	if err != nil {
+		t.Fatalf("weighted TEST_T: %v", err)
+	}
+	wd := weighted.Tests[0].Details
+	if wd["sum_weights"] == nil || wd["n_eff"] == nil || wd["n"] != int64(48) {
+		t.Fatalf("weighted details = %v", wd)
+	}
+	if env := predictEnvelope(t, p, fs, cohort, tt(types.SlotWeight{})); len(env.Errors) != 0 {
+		t.Fatalf("predict refused the weighted TEST_T: %+v", env.Errors)
+	}
+	optedOut, err := p.Process(ctx, tt(types.NullSlotWeight()))
 	if err != nil {
 		t.Fatalf("opted-out TEST_T: %v", err)
 	}
-	if len(resp.Tests) != 1 || resp.Tests[0].Type != types.TEST_T {
-		t.Fatalf("TEST_T result = %+v", resp.Tests)
+	unweighted, err := plain.Process(ctx, tt(types.SlotWeight{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := json.Marshal(optedOut.Tests)
+	b, _ := json.Marshal(unweighted.Tests)
+	if string(a) != string(b) {
+		t.Fatalf("opted-out TEST_T differs from unweighted:\n%s\n%s", a, b)
+	}
+	if weighted.Tests[0].Statistic == unweighted.Tests[0].Statistic {
+		t.Fatal("the default weight did not change TEST_T")
 	}
 }
 

@@ -1034,6 +1034,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
+	// One PULSE_WEIGHT_LOW_NEFF warning per weighted row-test group
+	// whose Kish n_eff fell below the test's floor.
+	if err := applyLowNEff(resp, rowTests, p.strictWeights); err != nil {
+		return nil, err
+	}
 
 	return resp, nil
 }

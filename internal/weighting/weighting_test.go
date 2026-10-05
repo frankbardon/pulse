@@ -30,11 +30,15 @@ func TestClassify_Complete(t *testing.T) {
 // GROUP_QUANTILE refuse under any weight; ATTR_NORMALIZED and every
 // WIN_* are not weightable (skipped under a default, refused under an
 // explicit weight); every other attribute, grouper, filterer and
-// feature is untouched (ClassNone). None carries a weight kind yet.
+// feature is untouched (ClassNone). The tests whose weighted computation
+// exists (testClasses: the seven moment tests) are ClassAware.
 func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	want := map[string]Class{}
 	for _, tt := range types.AllTestTypes() {
 		want[string(tt)] = ClassRefuse
+	}
+	for tt, c := range testClasses {
+		want[string(tt)] = c
 	}
 	for _, rt := range types.AllRegressionTypes() {
 		want[string(rt)] = ClassRefuse
@@ -63,8 +67,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 		if got := ClassOf(op); got != c {
 			t.Errorf("ClassOf(%s) = %v, want %v", op, got, c)
 		}
-		if IsAware(op) || KindsOf(op) != nil {
-			t.Errorf("%s must not be weight-aware (kinds %v)", op, KindsOf(op))
+		if (c == ClassAware) != IsAware(op) || (c == ClassAware) != (KindsOf(op) != nil) {
+			t.Errorf("%s: aware %v (kinds %v) disagrees with class %v", op, IsAware(op), KindsOf(op), c)
 		}
 	}
 }
@@ -104,7 +108,7 @@ func TestKindsOf(t *testing.T) {
 }
 
 // TestRefusalReasons_AreRefused: every permanent refusal is a refused
-// operator, the named ones carry a reason, and a pending refusal
+// operator, the named ones carry a reason, and a lifted operator
 // (TEST_T) does not.
 func TestRefusalReasons_AreRefused(t *testing.T) {
 	for op := range refusalReasons {
@@ -155,5 +159,20 @@ func TestClassifyWeight(t *testing.T) {
 	}
 	if Valid.Key() != "valid" {
 		t.Fatal("valid key")
+	}
+}
+
+// TestClassify_MomentTestsAware pins the E1-S2 flip: the seven moment
+// tests compute weighted under both kinds.
+func TestClassify_MomentTestsAware(t *testing.T) {
+	both := []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
+	for _, op := range []types.TestType{types.TEST_T, types.TEST_WELCH, types.TEST_PAIRED_T,
+		types.TEST_Z_TWO_SAMPLE, types.TEST_ANOVA_F, types.TEST_ANOVA_WELCH, types.TEST_PEARSON_R} {
+		if !reflect.DeepEqual(KindsOf(string(op)), both) {
+			t.Errorf("%s: kinds %v, want both", op, KindsOf(string(op)))
+		}
+	}
+	if IsAware(string(types.TEST_CHISQ)) {
+		t.Fatal("TEST_CHISQ has no weighted computation yet")
 	}
 }
