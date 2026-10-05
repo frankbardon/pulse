@@ -218,18 +218,25 @@ func writeCustomers(r *rand.Rand, n int) error {
 func writeOrders(r *rand.Rand, n int) error {
 	w, close := openCSV("orders.csv")
 	defer close()
-	if err := w.Write([]string{"id", "order_date", "revenue"}); err != nil {
+	if err := w.Write([]string{"id", "order_date", "revenue", "ordered_at"}); err != nil {
 		return err
 	}
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	for i := range n {
 		offset := r.Intn(365)
-		date := start.AddDate(0, 0, offset).Format(dateFormat)
+		day := start.AddDate(0, 0, offset)
+		date := day.Format(dateFormat)
 		revenue := math.Exp(6.0 + 0.8*r.NormFloat64())
+		// ordered_at: the order's instant (a `datetime`) on order_date,
+		// its UTC time of day derived from the row index so the column
+		// draws nothing from r and every other fixture stays
+		// byte-identical.
+		at := day.Add(time.Duration((i*7)%24)*time.Hour + time.Duration((i*13)%60)*time.Minute)
 		if err := w.Write([]string{
 			itoa(i + 1),
 			date,
 			fmt.Sprintf("%.2f", revenue),
+			at.Format(time.RFC3339),
 		}); err != nil {
 			return err
 		}

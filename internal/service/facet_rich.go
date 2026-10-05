@@ -67,7 +67,8 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err := validateFacetSchemaRequest(req, schema, s.InstanceSnapshot()); err != nil {
 		return nil, err
 	}
-	if err := s.resolveFacetZones(req, schema); err != nil {
+	zones, err := s.resolveFacetZones(req, schema)
+	if err != nil {
 		return nil, err
 	}
 	if err := s.checkFacetFieldRefs(req, schema); err != nil {
@@ -86,6 +87,9 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err := s.validateFacetLabels(req, schema); err != nil {
 		return nil, err
 	}
+	// The filterers below are built from the zoned request (a copy when
+	// an inherited non-UTC zone is written; req itself otherwise).
+	req = descx.ZonedFacetRequest(req, zones, s.ZoneLoader())
 
 	bins, err := resolveHistogramBins(req)
 	if err != nil {

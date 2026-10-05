@@ -136,3 +136,21 @@ func LocalParts(sec int64, z *Zone) Parts {
 	p.ISOYear, p.ISOWeek = t.ISOWeek()
 	return p
 }
+
+// LocalHour returns the local epoch HOUR of instant sec in zone z:
+// floor((sec + z.Offset(sec)) / SecondsPerHour), the wall-clock hour a
+// clock in z shows, counted as hours since 1970-01-01T00 on that clock.
+// A fall-back transition repeats a wall-clock hour, so the two instants
+// an hour apart that read it share one local hour; a spring-forward
+// transition skips one, which no instant reads. LocalHour(sec, UTC) is
+// the UTC hour. Allocation-free.
+func LocalHour(sec int64, z *Zone) int64 {
+	if !z.utc {
+		sec += int64(z.Offset(sec))
+	}
+	h := sec / SecondsPerHour
+	if sec < 0 && sec%SecondsPerHour != 0 {
+		h--
+	}
+	return h
+}

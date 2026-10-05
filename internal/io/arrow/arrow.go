@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 )
@@ -40,7 +41,16 @@ type Reader struct {
 	// as a null. Rebuilt in place per row; valid only inside the
 	// callback.
 	nulls []bool
+
+	// truncated tallies the native timestamp cells the latest ReadRows
+	// pass floored to whole seconds (iocore.SourceWarningEmitter).
+	truncated TimestampTally
 }
+
+// Warnings implements iocore.SourceWarningEmitter: the one
+// PULSE_IMPORT_TIMESTAMP_TRUNCATED warning of the latest ReadRows pass,
+// or nil.
+func (r *Reader) Warnings() []*errors.CodedError { return r.truncated.Warnings() }
 
 // RowNulls implements iocore.NullAwareReader. Entry i is the validity bit
 // of the current row's column i — Arrow's own answer, not a reading of
@@ -167,14 +177,23 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		r.nulls = make([]bool, numCols)
 	}
 	r.nulls = r.nulls[:numCols]
+	r.truncated.Reset()
 
 	for _, batch := range r.batches {
 		nRows := int(batch.NumRows())
 		// Snapshot the column arrays for this batch up front to avoid
 		// re-fetching on every row.
 		cols := make([]arrow.Array, numCols)
+		var ts []timestampCol
 		for out, src := range hostColIdx {
 			cols[out] = batch.Column(src)
+			if a, ok := cols[out].(*array.Timestamp); ok {
+				if ts == nil {
+					ts = make([]timestampCol, numCols)
+				}
+				dt := a.DataType().(*arrow.TimestampType)
+				ts[out] = timestampCol{arr: a, unit: dt.Unit, naive: TimestampIsNaive(dt)}
+			}
 		}
 
 		for i := 0; i < nRows; i++ {
@@ -190,6 +209,14 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 					row[c] = ""
 					continue
 				}
+				if ts != nil && ts[c].arr != nil {
+					var cut bool
+					row[c], cut = FormatTimestamp(ts[c].arr.Value(i), ts[c].unit, ts[c].naive)
+					if cut {
+						r.truncated.Note(r.header[c])
+					}
+					continue
+				}
 				row[c] = FormatValue(cols[c], i)
 			}
 
@@ -203,6 +230,14 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	}
 
 	return nil
+}
+
+// timestampCol is one native timestamp column of the current batch, with
+// its unit and instant-vs-naive reading resolved once.
+type timestampCol struct {
+	arr   *array.Timestamp
+	unit  arrow.TimeUnit
+	naive bool
 }
 
 // ReadOverlays extracts the embedded overlay layers from the top-level
@@ -769,4 +804,5 @@ var _ iocore.Writer = (*Writer)(nil)
 var _ iocore.SchemaAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareReader = (*Reader)(nil)
+var _ iocore.SourceWarningEmitter = (*Reader)(nil)
 var _ iocore.OverlayAwareWriter = (*Writer)(nil)

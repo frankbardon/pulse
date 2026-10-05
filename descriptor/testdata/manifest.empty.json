@@ -3,6 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
+    "tzdata_version": "2026c",
     "feature_set_digest": "fs1:1c5ad020df10845fc4a72a0ad875b6c85250697c5f3e62ad646609c1d61b105d",
     "commands": [
       {
@@ -408,7 +409,7 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
@@ -421,6 +422,10 @@
       {
         "name": "streaming-and-watching",
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
+      },
+      {
+        "name": "time-zones",
+        "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
       },
       {
         "name": "tool-errors-lookup",
@@ -567,4 +572,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4fcd0c631d3bf3d267716060f25d021012a45376c5d95faaabe925add0429ef4
+// golden-hash: b1d543f5dfc17e7eb3e27286bda2400ab8768d0dbacb1a46e969807f876eaa94

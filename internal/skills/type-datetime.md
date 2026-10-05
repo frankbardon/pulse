@@ -14,7 +14,7 @@ Fixed-width: 8 bytes per record, little-endian. Not bit-packed. Stride contribut
 
 The full signed `int64` second range, so pre-1970 instants (negative counts) round-trip losslessly through `encoding.ParseDateTime` / `FormatDateTime`, and order, filter, aggregate and export correctly across the epoch. Canonical text form is `2006-01-02T15:04:05Z` (`encoding.CanonicalDateTimeLayout`); accepted inputs are `encoding.DateTimeFormats`. Ambiguous slash forms (`03/04/2024`) and date-only literals are rejected with `ENCODING_INVALID`.
 
-Honest limits: resolution is **seconds** — any fractional part is truncated toward the epoch, so microsecond data still belongs in `u64`. Timezone is **naive UTC**: an offset-bearing literal is normalised to the same instant and the offset is discarded (`...T10:11:12+02:00` → `...T08:11:12Z`). The date-family groupers and filters accept the type and truncate to the UTC calendar day via `encoding.DateTimeToDay`, flooring toward the past (`1969-12-31T23:59:59Z` is day −1).
+Honest limits: resolution is **seconds** — a fraction floors toward the past (native Arrow/Parquet timestamps warn `PULSE_IMPORT_TIMESTAMP_TRUNCATED`); keep microseconds in `u64`. Timezone is **naive UTC**: an offset-bearing literal is normalised to the same instant and the offset is discarded (`...T10:11:12+02:00` → `...T08:11:12Z`). Export `--tz Zone` renders the same instant back with a local offset (`...T08:00:00+05:30`). The date-family groupers and filters accept the type and truncate to the UTC calendar day via `encoding.DateTimeToDay`, flooring toward the past (`1969-12-31T23:59:59Z` is day −1).
 
 ## Null
 
@@ -27,4 +27,4 @@ Absent. Datetimes are never dictionary-encoded.
 ## See
 
 - Skill: `cohort-schema-design` (Field-type matrix), `grouper-design`.
-- Cross-link: `type-date` for day resolution, `type-u64` for sub-second timestamps.
+- Cross-link: `time-zones` (local days, import and export zones), `type-date` for day resolution, `type-u64` for sub-second timestamps.

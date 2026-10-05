@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -103,10 +104,10 @@ func TestPredictTimeZones_RefusalsAreErrors(t *testing.T) {
 		opt  string
 		code errors.Code
 	}{
-		{"non-UTC slot on datetime", &types.Request{Aggregations: agg,
-			Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "ts", TimeZone: "Europe/Berlin"}}}, "", errors.PROCESSING_CONFIG},
-		{"non-UTC options on datetime", &types.Request{Aggregations: agg,
-			Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "ts"}}}, "Asia/Tokyo", errors.PROCESSING_CONFIG},
+		{"non-UTC slot on derived column", &types.Request{Aggregations: agg,
+			Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "not_in_schema", TimeZone: "Europe/Berlin"}}}, "", errors.PROCESSING_CONFIG},
+		{"non-UTC options on derived column", &types.Request{Aggregations: agg,
+			Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "not_in_schema"}}}, "Asia/Tokyo", errors.PROCESSING_CONFIG},
 		{"non-UTC on derived column", &types.Request{Aggregations: agg, TimeZone: "Europe/Berlin",
 			Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "not_in_schema"}}}, "", errors.PROCESSING_CONFIG},
 		{"explicit tz on date", &types.Request{Aggregations: agg,
@@ -131,11 +132,12 @@ func TestPredictTimeZones_RefusalsAreErrors(t *testing.T) {
 	}
 }
 
-// TestResolveZones_RefusalDetails pins the U03 refusal's details keys.
+// TestResolveZones_RefusalDetails pins the derived-field refusal's
+// details keys.
 func TestResolveZones_RefusalDetails(t *testing.T) {
 	req := &types.Request{Crosstab: &types.CrosstabSpec{
 		Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}},
-		Columns: []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "ts"}},
+		Columns: []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "derived_ts"}},
 	}, TimeZone: "America/New_York"}
 	_, err := ResolveZones(req, zoneSchema(), "", nil, nil)
 	ce, ok := err.(*errors.CodedError)
@@ -145,6 +147,9 @@ func TestResolveZones_RefusalDetails(t *testing.T) {
 	want := map[string]any{"slot": "crosstab.columns[0]", "operator": "GROUP_DATE_RANGES", "tz": "America/New_York"}
 	if len(ce.Details) != len(want) {
 		t.Fatalf("details = %v, want %v", ce.Details, want)
+	}
+	if !strings.Contains(ce.Message, "zone cannot be applied to a derived field") {
+		t.Fatalf("message = %q", ce.Message)
 	}
 	for k, v := range want {
 		if ce.Details[k] != v {
@@ -240,5 +245,88 @@ func TestPredict_EmptyTypeRefused(t *testing.T) {
 	}
 	if req.Groups[0].Type != "" {
 		t.Fatal("predict mutated the caller's request")
+	}
+}
+
+// TestResolveZones_NonUTCOnDatetimeAccepted: a non-UTC zone from any
+// source resolving onto a `datetime` schema field is accepted and
+// echoed — the zone-aware operators apply it.
+func TestResolveZones_NonUTCOnDatetimeAccepted(t *testing.T) {
+	for name, tc := range map[string]struct {
+		req   *types.Request
+		def   string
+		wantS string
+	}{
+		"slot":    {&types.Request{Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "ts", TimeZone: "Europe/Berlin"}}}, "", descriptor.ZoneSourceSlot},
+		"request": {&types.Request{TimeZone: "Europe/Berlin", Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts"}}}, "", descriptor.ZoneSourceRequest},
+		"options": {&types.Request{Crosstab: &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "ts"}}}}, "Europe/Berlin", descriptor.ZoneSourceOptions},
+	} {
+		t.Run(name, func(t *testing.T) {
+			zs, err := ResolveZones(tc.req, zoneSchema(), tc.def, nil, nil)
+			if err != nil || len(zs) != 1 || zs[0].TZ == nil || *zs[0].TZ != "Europe/Berlin" || zs[0].Source != tc.wantS {
+				t.Fatalf("ResolveZones = %+v, %v", zs, err)
+			}
+		})
+	}
+}
+
+// TestZonedRequest: only an inherited non-UTC zone is written, onto a
+// copy of exactly the slots that resolved it; the zone-free, UTC,
+// slot-sourced and date-field cases return the request itself, and the
+// input is never mutated.
+func TestZonedRequest(t *testing.T) {
+	mk := func(reqTZ string) *types.Request {
+		return &types.Request{
+			TimeZone:  reqTZ,
+			Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts"}},
+			Groups: []*types.Group{
+				{Type: types.GROUP_DATE, Field: "d"},
+				{Type: types.GROUP_DATE, Field: "ts", TimeZone: "Asia/Tokyo"},
+				{Type: types.GROUP_DATE, Field: "ts"},
+			},
+			Crosstab: &types.CrosstabSpec{Columns: []*types.Group{{Type: types.GROUP_DATE, Field: "ts"}}},
+		}
+	}
+	for _, tz := range []string{"", "UTC", "Etc/UTC"} {
+		req := mk(tz)
+		zs, err := ResolveZones(req, zoneSchema(), "", nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := ZonedRequest(req, zs, nil); got != req {
+			t.Fatalf("tz %q: ZonedRequest returned a copy for a zone-free request", tz)
+		}
+	}
+	req := mk("Europe/Berlin")
+	zs, err := ResolveZones(req, zoneSchema(), "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := ZonedRequest(req, zs, nil)
+	if got == req {
+		t.Fatal("no copy for an inherited non-UTC zone")
+	}
+	for i, want := range []string{"", "Asia/Tokyo", "Europe/Berlin"} {
+		if got.Groups[i].TimeZone != want {
+			t.Errorf("groups[%d] tz = %q, want %q", i, got.Groups[i].TimeZone, want)
+		}
+	}
+	if got.Filterers[0].TimeZone != "Europe/Berlin" || got.Crosstab.Columns[0].TimeZone != "Europe/Berlin" {
+		t.Errorf("filterer tz %q, crosstab column tz %q", got.Filterers[0].TimeZone, got.Crosstab.Columns[0].TimeZone)
+	}
+	if got.Groups[0] != req.Groups[0] || got.Groups[1] != req.Groups[1] {
+		t.Error("an unwritten slot was copied")
+	}
+	if req.Filterers[0].TimeZone != "" || req.Groups[2].TimeZone != "" || req.Crosstab.Columns[0].TimeZone != "" {
+		t.Error("the input request was mutated")
+	}
+
+	freq := &types.FacetRequest{TimeZone: "Europe/Berlin", Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts"}}}
+	fz, err := ResolveFacetZones(freq, zoneSchema(), "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fgot := ZonedFacetRequest(freq, fz, nil); fgot == freq || fgot.Filterers[0].TimeZone != "Europe/Berlin" || freq.Filterers[0].TimeZone != "" {
+		t.Fatalf("ZonedFacetRequest: %+v", fgot.Filterers[0])
 	}
 }

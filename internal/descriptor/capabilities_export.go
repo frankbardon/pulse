@@ -19,18 +19,23 @@ import "github.com/frankbardon/pulse/descriptor"
 // rather than from the rendered row stream, so it is the one target for
 // which overlays never reach the adapter at all.
 //
+// TimeZone mirrors the --tz contract: every row-stream format renders
+// local offset literals, and the cohort-path `.sav` writer refuses a
+// non-UTC zone (TestManifestExportCapability_TimeZone pins it against
+// the real writers' behaviour).
+//
 // Sorted alphabetically by Name so the golden manifest stays stable.
 func exportCapability() descriptor.ExportCapability {
 	return descriptor.ExportCapability{
 		Formats: []descriptor.ExportFormatCapability{
-			{Name: "arrow", OverlaySupport: "sidecar"},
-			{Name: "csv", OverlaySupport: "warn_and_skip"},
-			{Name: "excel", OverlaySupport: "sheets"},
-			{Name: "jsonarray", OverlaySupport: "warn_and_skip"},
-			{Name: "ndjson", OverlaySupport: "trailing_block"},
-			{Name: "parquet", OverlaySupport: "sidecar"},
-			{Name: "spss", OverlaySupport: "warn_and_skip"},
-			{Name: "tsv", OverlaySupport: "warn_and_skip"},
+			{Name: "arrow", OverlaySupport: "sidecar", TimeZone: "local_offset"},
+			{Name: "csv", OverlaySupport: "warn_and_skip", TimeZone: "local_offset"},
+			{Name: "excel", OverlaySupport: "sheets", TimeZone: "local_offset"},
+			{Name: "jsonarray", OverlaySupport: "warn_and_skip", TimeZone: "local_offset"},
+			{Name: "ndjson", OverlaySupport: "trailing_block", TimeZone: "local_offset"},
+			{Name: "parquet", OverlaySupport: "sidecar", TimeZone: "local_offset"},
+			{Name: "spss", OverlaySupport: "warn_and_skip", TimeZone: "refused"},
+			{Name: "tsv", OverlaySupport: "warn_and_skip", TimeZone: "local_offset"},
 		},
 	}
 }

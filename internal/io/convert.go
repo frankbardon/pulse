@@ -99,6 +99,13 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	widenable := widenableFields(schema, inferredSchema, nil)
 	var widened []widening
 
+	// Source-zone options are judged against the resolved schema before
+	// the target sees a header, exactly as ImportJob.Run judges them.
+	zones, err := j.zoneJob().resolveSourceZones(schema)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build dictionaries for categorical fields.
 	dicts := make(map[int]*encoding.Dictionary)
 	for i := range schema.Fields {
@@ -172,6 +179,9 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			SampleRows:     j.SampleRows,
 			FS:             fs,
 			InferredSchema: inferredSchema,
+			SourceTZ:       j.SourceTZ,
+			ColumnSourceTZ: j.ColumnSourceTZ,
+			DSTPolicy:      j.DSTPolicy,
 		}
 	}
 
@@ -198,6 +208,17 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			}
 
 			values[i] = raw
+			if zones.zoned(i) && !isNullToken(raw) {
+				// A naive literal leaves as the UTC instant the source
+				// zone names; a DST refusal stops the convert, before any
+				// KeepPulseAt intermediate, as it stops an import.
+				txt, zerr := zones.render(i, raw, f.Name, rowNum)
+				if zerr != nil {
+					return zerr
+				}
+				values[i] = txt
+				continue
+			}
 			if !convertTracksWidth(f.Type, widenable[i]) || isNullToken(raw) {
 				continue
 			}
@@ -206,7 +227,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			// its dictionary, and an inferred field whose value
 			// outgrows its sample-inferred width is promoted. The cell
 			// TEXT is what the target receives either way.
-			_, steps, cerr := convertOrWiden(schema, i, raw, dicts[i], DefaultSetDelimiter, widenable[i], rowNum)
+			_, steps, cerr := convertOrWiden(schema, i, raw, dicts[i], DefaultSetDelimiter, widenable[i], rowNum, nil)
 			widened = append(widened, steps...)
 			if cerr == nil || !f.Type.IsCategorical() {
 				// A number that does not convert at all is passed
@@ -306,6 +327,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		RowsConverted:  converted,
 		Schema:         schema,
 		WidthWarnings:  widthWarnings(schema, widened),
+		ZoneWarnings:   zones.warnings(),
 		RowErrors:      rowErrors,
 		SourceWarnings: j.sourceWarnings(),
 		TargetWarnings: targetWarnings(j.Target),
@@ -359,10 +381,32 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		}
 	}
 
-	// Count rows.
+	zones, err := j.zoneJob().resolveSourceZones(schema)
+	if err != nil {
+		return nil, err
+	}
+
+	// Count rows. A zoned datetime cell is parsed as Run parses it, so a
+	// DST refusal Run would raise is predicted and a resolved count is
+	// reported; without a source zone no cell is read.
 	rowCount := 0
-	err := j.Source.ReadRows(ctx, func(row []string) error {
+	err = j.Source.ReadRows(ctx, func(row []string) error {
 		rowCount++
+		if zones == nil {
+			return nil
+		}
+		for i, f := range schema.Fields {
+			if !zones.zoned(i) || f.CsvColumnIdx >= len(row) {
+				continue
+			}
+			raw := strings.TrimSpace(row[f.CsvColumnIdx])
+			if isNullToken(raw) {
+				continue
+			}
+			if _, zerr := zones.render(i, raw, f.Name, rowCount); zerr != nil {
+				return zerr
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -374,7 +418,15 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		EstimatedRows:  rowCount,
 		Warnings:       warnings,
 		SourceWarnings: j.sourceWarnings(),
+		ZoneWarnings:   zones.warnings(),
 	}, nil
+}
+
+// zoneJob carries the convert's source-zone options in the ImportJob
+// shape resolveSourceZones judges, so the two verbs share one set of
+// refusals.
+func (j *ConvertJob) zoneJob() *ImportJob {
+	return &ImportJob{SourceTZ: j.SourceTZ, ColumnSourceTZ: j.ColumnSourceTZ, DSTPolicy: j.DSTPolicy}
 }
 
 // offerConvertSource hands the source's declared facts to a

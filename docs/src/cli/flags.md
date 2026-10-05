@@ -390,6 +390,83 @@ declarations as structured `groups: [{key, members}]` entries, plus
 `suggest_groups` to return measured candidates in the same shape. See
 [parent groups](../format/parent-groups.md).
 
+### `--source-tz` / `--dst-policy`
+
+Available on: every `import <format>` leaf, `import auto`, `import predict`,
+`convert` and `convert predict`.
+
+`--source-tz Zone` reads every naive `datetime` value (no `Z`, no
+`±HH:MM`) as a wall clock in `Zone` and stores the UTC instant it names;
+storage is UTC epoch seconds either way, so the `.pulse` format is
+unchanged. `Zone` is an IANA name (`America/New_York`), `UTC`, or — for
+imports only — a fixed offset `+HH:MM` / `-HH:MM`. Repeatable
+`--source-tz col=Zone` sets one column and wins over the bare form; it is
+`CLI_INPUT` when `col` is not a column, or is not `datetime` (a `date` is
+a calendar day and has no zone). The bare form skips `date` columns. A
+value carrying its own `Z` or offset names that instant and ignores the
+zone. Without `--source-tz` the cohort is byte-identical to before.
+
+`--dst-policy` decides a naive value a DST transition makes ambiguous (a
+fall-back repeats the hour) or nonexistent (a spring-forward skips it):
+`error` (default) fails the import at the first such row with
+`PULSE_IMPORT_DST_AMBIGUOUS` / `PULSE_IMPORT_DST_NONEXISTENT`, naming
+`row`, `column`, `value` and `zone`, and writes nothing; `earlier` uses
+the pre-transition offset (an overlap's first occurrence; Berlin
+`2026-03-29 02:30` → `01:30Z`), `later` the post-transition offset
+(second occurrence; → `00:30Z`). A resolved value is never silent: one
+`PULSE_IMPORT_DST_RESOLVED` warning carries `ambiguous_n` /
+`nonexistent_n` (`warnings` and `data.ZoneWarnings` under `--json`). The
+policy is inert without a zone and under a fixed offset.
+
+On `import auto` the zone, per-column map and policy are persisted onto
+the managed sidecar (`source_tz`, `column_source_tz`, `dst_policy`); a
+handle is never reused across zones — re-importing in another zone needs
+`--overwrite`. `import predict` and `convert predict` raise the refusal
+the real run would and report the resolved count. `convert` is a text
+pass, so a zoned naive value is written to the target as the canonical
+UTC literal of the instant it names (`2026-07-01T16:00:00Z`); a value
+with its own `Z` / offset, an unparseable cell and every other column
+pass through verbatim, and a `--keep-pulse` cohort is imported in the
+same zone. `pulse_import` (MCP) takes `source_tz`, `column_source_tz`
+(`{column: zone}`) and `dst_policy`.
+
+```bash
+pulse import csv -i orders.csv -o orders.pulse \
+  --source-tz America/New_York --source-tz shipped_at=Europe/London \
+  --dst-policy later
+```
+
+### `--tz` (export)
+
+Available on: every `export <format>` leaf and `export predict`.
+
+`--tz Zone` renders every `datetime` cell on `Zone`'s wall clock with
+its numeric offset — an RFC 3339 literal such as
+`2026-03-29T08:00:00+05:30` under `Asia/Kolkata`, `+01:00` / `+02:00`
+either side of a Europe/Berlin transition (a fall-back hour's two
+readings differ only by offset) — instead of the canonical UTC
+`2026-03-29T02:30:00Z`. The literal names the same instant, so
+re-importing the export (offset literals keep their instant) round-trips
+every value exactly. `date` columns are calendar days and never move.
+`Zone` is an IANA name or `UTC` — no fixed offsets, abbreviations or
+`Local` (`PULSE_TIMEZONE_UNKNOWN`, from `export predict` too). Absent,
+`UTC` or a UTC-equivalent zone (`Etc/UTC`) is byte-identical to today's
+output. An instant whose historical offset is not a whole minute (a
+pre-1900 local mean time) keeps the `…Z` form: RFC 3339 cannot spell it.
+
+Text formats carry the literal as text, and so do `arrow` / `parquet`,
+whose `datetime` columns are UTF8 strings. `export spss` refuses a
+non-UTC zone (`PULSE_SPSS_EXPORT_UNSUPPORTED`, `details.option` =
+`--tz`), and `export predict --format spss --tz ...` predicts that: a
+`.sav` DATETIME is a naive wall-clock count with no offset slot. The
+library knob is `io.ExportJob.TimeZone`; the manifest's
+`export.formats[].time_zone` says per format (`local_offset` /
+`refused`).
+
+```bash
+pulse export csv -i orders.pulse -o orders.csv --tz Asia/Kolkata
+```
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it
@@ -438,7 +515,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

@@ -225,8 +225,8 @@ var (
 		},
 		Assumptions: []string{
 			featBeforeFilters,
-			"Accepts a date field only; day of week is 0 for Sunday through 6 for Saturday.",
-			"A missing date gives missing values in all five columns.",
+			"Accepts a date or datetime field; a datetime is read on the local clock of its time zone and adds an hour column. Day of week is 0 for Sunday through 6 for Saturday.",
+			"A missing date gives missing values in every column.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value"},

@@ -48,6 +48,10 @@ type rowConverter struct {
 	// PULSE_IMPORT_OVERRIDE_INVALID, not a skipped row (see
 	// import_override.go). Nil when no override is in force.
 	forced []bool
+
+	// zones is the pass's source-zone context (import_zone.go); nil
+	// when no field reads in a source zone.
+	zones *sourceZones
 }
 
 // force marks the fields overrides names (by field name) as forced.
@@ -159,13 +163,18 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 		// column fails this row: a categorical's dictionary already
 		// holds more entries than the old rung addresses, and Predict's
 		// measured pass takes the same steps in the same order.
-		v, steps, err := convertOrWiden(c.schema, i, raw, c.dicts[i], c.delimFor(f.Name), c.widenable[i], rowNum)
+		v, steps, err := convertOrWiden(c.schema, i, raw, c.dicts[i], c.delimFor(f.Name), c.widenable[i], rowNum, c.zones)
 		if len(steps) > 0 {
 			c.widened = append(c.widened, steps...)
 			c.pending = append(c.pending, steps...)
 			f = c.schema.Fields[i]
 		}
 		if err != nil {
+			if isDSTRefusal(err) {
+				// Already names row, column, value and zone; fatal,
+				// never a skipped row (the caller checks).
+				return &RowError{Row: rowNum, Err: err}
+			}
 			if c.isForced(i) {
 				return &RowError{Row: rowNum, Err: overrideRefusal(f.Name, f.Type, raw, rowNum, err)}
 			}

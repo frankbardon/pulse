@@ -149,6 +149,30 @@ does not), share the type map with neighbouring formats via the
 `internal/io/arrow` package the way Parquet already does. CSV / TSV / NDJSON
 / JSON-array share `internal/io/jsonshared` for value coercion.
 
+### Native datetimes: instant or wall clock
+
+The row path is text, and an import source zone (`ImportJob.SourceTZ`)
+applies only to a datetime literal with no `Z` and no offset. A reader
+with a native datetime type must therefore decide, per column, which of
+two literals it emits — and the choice IS the zone contract:
+
+- A value that names an **instant** (an Arrow timestamp with a
+  `TimeZone`, a Parquet `TIMESTAMP` with `isAdjustedToUTC=true`) renders
+  as the canonical UTC literal (`encoding.FormatDateTime`, `…Z`), which
+  no source zone reinterprets.
+- A **wall clock** (a zone-less Arrow timestamp, `isAdjustedToUTC=false`,
+  legacy Parquet `INT96`, every SPSS `DATETIME`) renders as a naive
+  literal (`2006-01-02T15:04:05`), so the source zone and DST policy
+  apply; with no zone it reads as UTC, the same instant as before.
+
+Floor sub-second values toward the past (also before 1970) and report
+any floored fraction through `SourceWarningEmitter` as one
+`PULSE_IMPORT_TIMESTAMP_TRUNCATED` per pass — never per row, never
+silently. Reset the tally at the top of each `ReadRows` so an inference
+sample followed by the row pass does not double it. The Arrow helpers
+(`internal/io/arrow` `FormatTimestamp`, `TimestampTally`) are shared
+with Parquet.
+
 ### The external form of a `set_*` cell
 
 A set column's *external* form is its selected **labels**, never the
@@ -540,6 +564,7 @@ type CohortSource struct {
     Path     string   // the `.pulse` cohort path; also where a format sidecar rides
     Includes []string // ExportJob.Includes verbatim
     Labelled bool     // a label resolver is rewriting or augmenting cells
+    TimeZone string   // ExportJob.TimeZone when NOT UTC-equivalent, else ""
 }
 
 type CohortWriter interface {
@@ -556,12 +581,16 @@ double-decoded: the row loop does not run, and `WriteRow` is never
 called on that path. Writers that do not implement it take the unchanged
 row path, byte for byte.
 
-**`Includes` and `Labelled` are carried so you can REFUSE them,** not
+**`Includes`, `Labelled` and `TimeZone` are carried so you can REFUSE them,** not
 because a cohort writer is expected to implement them. A writer that
 silently ignored `Includes` would answer `pulse export spss --include age`
 with a file carrying every column, which is the quiet wrong answer this
 whole surface exists to avoid. Return a coded error naming the option
 instead. The returned count becomes `ExportReport.RowsExported`.
+`TimeZone` is set only when the row stream would have rendered
+`datetime` cells off UTC (`--tz`); a writer whose format cannot carry an
+offset-bearing instant refuses it — `internal/io/spss` does, because a
+`.sav` DATETIME is a naive wall-clock count.
 
 **A writer can implement both paths.** `internal/io/spss` does: `WriteCohort` for
 an export whose source is a cohort, and a buffering `WriteRow` for
@@ -728,7 +757,7 @@ Unlike `CohortWriter`, a validator is reached **without** `SetPulseSchema`
 and **without** `WriteHeader` — predict starts no write lifecycle on a
 writer it will never `Close`. Everything a validator needs rides
 `CohortSource`: `FS` + `Path` locate the cohort and any format sidecar
-beside it, and `Includes` / `Labelled` carry the row-stream
+beside it, and `Includes` / `Labelled` / `TimeZone` carry the row-stream
 transformations so they can be refused here on the same terms
 `WriteCohort` refuses them.
 

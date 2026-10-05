@@ -111,6 +111,14 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 	_ = inferWarnings
 
+	// Source zones are checked against the resolved schema (inferred,
+	// authoritative or explicit alike) before the row pass. Nil — the
+	// common case — leaves every cell on the naive-UTC path.
+	zones, err := j.resolveSourceZones(schema)
+	if err != nil {
+		return nil, err
+	}
+
 	// Parent-group declarations are checked against the resolved schema
 	// BEFORE the row pass, so a typo'd field name or a field claimed by
 	// two groups fails fast instead of after reading the whole source.
@@ -197,6 +205,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// shared with the detecting import predict; see rowConverter.
 	conv := newRowConverter(schema, inferredSchema, dicts, setDelimiterFor, widenable)
 	conv.force(j.ColumnTypeOverrides)
+	conv.zones = zones
 	// bufTypes is the field layout the rows already in recordsBuf were
 	// written with; a promotion re-strides them to the new width.
 	bufTypes := make([]encoding.FieldType, len(schema.Fields))
@@ -237,7 +246,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		if re != nil {
 			// A forced column's value the override cannot hold refuses
 			// the whole import; it is never a skipped row.
-			if isOverrideRefusal(re.Err) {
+			if isOverrideRefusal(re.Err) || isDSTRefusal(re.Err) {
 				return re.Err
 			}
 			rowErrors = append(rowErrors, *re)
@@ -331,6 +340,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		PromotedFields: promotedFields,
 		WidthWarnings:  widthWarnings(schema, conv.widened),
 		SourceWarnings: j.sourceWarnings(),
+		ZoneWarnings:   zones.warnings(),
 	}
 	if elision != nil && elision.Spec != nil {
 		report.ElidedConstants = elision.Fields
@@ -486,6 +496,12 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		}
 	}
 
+	// Source zones: the same verdict Run reaches before its row pass.
+	zones, err := j.resolveSourceZones(schema)
+	if err != nil {
+		return nil, err
+	}
+
 	// Declared groups, constant elision or group detection need the
 	// MEASURED pass: every row converted exactly as Run converts it.
 	if j.measuring() {
@@ -503,7 +519,7 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 			return DefaultSetDelimiter
 		}
 		widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides)
-		if err := j.predictMeasured(ctx, schema, inferredSchema, widenable, delimFor, report); err != nil {
+		if err := j.predictMeasured(ctx, schema, inferredSchema, widenable, delimFor, zones, report); err != nil {
 			return nil, err
 		}
 		report.SourceWarnings = j.sourceWarnings()
@@ -521,8 +537,29 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	// an empty cell the source calls PRESENT would not match the one
 	// Run writes.
 	nullSource, _ := j.Source.(NullAwareReader)
-	err := j.Source.ReadRows(ctx, func(row []string) error {
+	err = j.Source.ReadRows(ctx, func(row []string) error {
 		rowCount++
+		// Every source-zone datetime cell goes through the row pass's
+		// own decision (convertOrWiden), so a DST refusal Run would
+		// raise is Predict's error and the resolved counts match. A
+		// literal that does not parse at all is a row Run would skip;
+		// the plain predict does not report row errors, so it is
+		// passed over here too.
+		if zones != nil {
+			for i := range schema.Fields {
+				colIdx := schema.Fields[i].CsvColumnIdx
+				if !zones.zoned(i) || colIdx >= len(row) {
+					continue
+				}
+				raw := strings.TrimSpace(row[colIdx])
+				if isNullToken(raw) {
+					continue
+				}
+				if _, _, err := convertOrWiden(schema, i, raw, nil, "", false, rowCount, zones); isDSTRefusal(err) {
+					return err
+				}
+			}
+		}
 		if inferredSchema {
 			var declaredNulls []bool
 			if nullSource != nil {
@@ -560,6 +597,7 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		EstimatedRows:  rowCount,
 		Warnings:       warnings,
 		SourceWarnings: j.sourceWarnings(),
+		ZoneWarnings:   zones.warnings(),
 	}, nil
 }
 

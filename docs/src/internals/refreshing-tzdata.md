@@ -37,4 +37,7 @@ nothing.
    against the stdlib over the same embedded locations, so they hold
    across releases; a changed zone shows up only if a pinned example
    (for instance a DST-at-midnight zone) changed its rules.
-4. Commit the zip and `tzdata.go` together.
+4. The manifest reports the release as top-level `tzdata_version`, so
+   regenerate the manifest goldens:
+   `go test ./descriptor/ -run 'Test.*Golden' -update`.
+5. Commit the zip, `tzdata.go` and the regenerated goldens together.

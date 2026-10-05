@@ -27,6 +27,9 @@ import (
 //     identical Source / Includes / Labels but different overlay
 //     emission produce different artefacts, so the cache must
 //     distinguish.
+//   - TimeZone — the datetime render zone, verbatim. A zone renders
+//     different literals; `omitempty` keeps every zone-free job's
+//     hash unchanged.
 //
 // LabelResolver is intentionally excluded — it is a runtime carrier
 // built from Labels + the embedder's registered tables, not a
@@ -37,6 +40,7 @@ type exportJobHashShape struct {
 	Includes        []string              `json:"includes,omitempty"`
 	Labels          []*types.LabelBinding `json:"labels,omitempty"`
 	IncludeOverlays *bool                 `json:"include_overlays,omitempty"`
+	TimeZone        string                `json:"time_zone,omitempty"`
 }
 
 // Hash returns the canonical content hash of the ExportJob. Two jobs
@@ -63,6 +67,7 @@ func (j *ExportJob) Hash() string {
 		Includes:        j.Includes,
 		Labels:          j.Labels,
 		IncludeOverlays: j.IncludeOverlays,
+		TimeZone:        j.TimeZone,
 	})
 }
 

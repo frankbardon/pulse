@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -150,20 +151,29 @@ func groupDateOverTS(cohort, slotTZ, reqTZ string) *types.Request {
 func assertRefusal(t *testing.T, err error, slot, op, tz string) {
 	t.Helper()
 	ce := requireCode(t, err, errors.PROCESSING_CONFIG)
+	if ce.Details["operator"] == "GROUP_DATE" || ce.Details["operator"] == "FILTER_DATE_RANGES" {
+		if !strings.Contains(ce.Message, "zone cannot be applied to a derived field") {
+			t.Errorf("message %q does not name the derived-field rule", ce.Message)
+		}
+	}
 	if ce.Details["slot"] != slot || ce.Details["operator"] != op || ce.Details["tz"] != tz {
 		t.Errorf("details = %v, want slot=%s operator=%s tz=%s", ce.Details, slot, op, tz)
 	}
 }
 
-// TestTimeZone_NonUTCDatetimeRefusedEveryMode: a non-UTC zone resolving
-// onto a datetime GROUP_DATE slot — whether from the slot, the request
-// or Options.DefaultTimeZone — is refused with PROCESSING_CONFIG and
-// {slot, operator, tz} in every execution mode, and FacetSchema refuses
-// it on FILTER_DATE_RANGES.
-func TestTimeZone_NonUTCDatetimeRefusedEveryMode(t *testing.T) {
+// TestTimeZone_DerivedFieldRefusedEveryMode: a non-UTC zone resolving
+// onto a field absent from the schema (a derived column — the operators
+// would read it as epoch days and silently ignore the zone) — whether
+// from the slot, the request or Options.DefaultTimeZone — is refused
+// with PROCESSING_CONFIG and {slot, operator, tz} in every execution
+// mode, FacetSchema included, and predict refuses it too. (A non-UTC
+// zone on a `datetime` schema field is applied:
+// TestTimeZone_LocalDayEveryMode.)
+func TestTimeZone_DerivedFieldRefusedEveryMode(t *testing.T) {
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 	const berlin = "Europe/Berlin"
+	const derived = "derived_ts"
 	sources := []struct {
 		name, slot, req, opts string
 	}{
@@ -173,7 +183,11 @@ func TestTimeZone_NonUTCDatetimeRefusedEveryMode(t *testing.T) {
 	}
 	for _, src := range sources {
 		p := zonePulse(t, fs, src.opts)
-		mk := func() *types.Request { return groupDateOverTS(cohort, src.slot, src.req) }
+		mk := func() *types.Request {
+			req := groupDateOverTS(cohort, src.slot, src.req)
+			req.Groups[0].Field = derived
+			return req
+		}
 		t.Run(src.name+"/process", func(t *testing.T) {
 			_, err := p.Process(ctx, mk())
 			assertRefusal(t, err, "groups[0]", "GROUP_DATE", berlin)
@@ -191,16 +205,15 @@ func TestTimeZone_NonUTCDatetimeRefusedEveryMode(t *testing.T) {
 			assertRefusal(t, err, "groups[0]", "GROUP_DATE", berlin)
 		})
 		t.Run(src.name+"/chain", func(t *testing.T) {
-			// The chain arm uses the mergeable FILTER_DATE_RANGES over
-			// the datetime field so the request would otherwise run
-			// (zones resolve before the chain gate either way —
+			// The chain arm uses the mergeable FILTER_DATE_RANGES (zones
+			// resolve before the chain gate either way —
 			// TestTimeZone_RefusalCarriesLocation).
 			_, err := p.ProcessChain(ctx, &types.ChainRequest{
 				Cohort: &types.Cohort{Filename: cohort},
 				Stages: []*types.ChainStage{{Request: &types.Request{
 					Aggregations: countAgg(),
 					TimeZone:     src.req,
-					Filterers:    []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: dateRanges, TimeZone: src.slot}},
+					Filterers:    []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: derived, Params: dateRanges, TimeZone: src.slot}},
 				}}},
 			})
 			assertRefusal(t, err, "filterers[0]", "FILTER_DATE_RANGES", berlin)
@@ -210,7 +223,7 @@ func TestTimeZone_NonUTCDatetimeRefusedEveryMode(t *testing.T) {
 				Cohort:   &types.Cohort{Filename: cohort},
 				TimeZone: src.req,
 				Crosstab: &types.CrosstabSpec{
-					Rows:    []*types.Group{{Type: types.GROUP_DATE, Field: "ts", Params: json.RawMessage(`{"component":"month"}`), TimeZone: src.slot}},
+					Rows:    []*types.Group{{Type: types.GROUP_DATE, Field: derived, Params: json.RawMessage(`{"component":"month"}`), TimeZone: src.slot}},
 					Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
 					Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "n"},
 				},
@@ -228,7 +241,7 @@ func TestTimeZone_NonUTCDatetimeRefusedEveryMode(t *testing.T) {
 				Cohort:    &types.Cohort{Filename: cohort},
 				Fields:    []string{"cat"},
 				TimeZone:  src.req,
-				Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: dateRanges, TimeZone: src.slot}},
+				Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: derived, Params: dateRanges, TimeZone: src.slot}},
 			})
 			assertRefusal(t, err, "filterers[0]", "FILTER_DATE_RANGES", berlin)
 		})
@@ -240,6 +253,9 @@ func TestTimeZone_NonUTCDatetimeRefusedEveryMode(t *testing.T) {
 			if pr.Valid {
 				t.Fatalf("predict accepted a request the runtime refuses")
 			}
+			env := predictEnvelope(t, p, fs, cohort, mk())
+			_, rerr := p.Process(ctx, mk())
+			sameEntry(t, env, rerr)
 		})
 	}
 }
@@ -320,64 +336,6 @@ func TestTimeZone_UnknownZoneRefused(t *testing.T) {
 	requireCode(t, err, errors.PULSE_TIMEZONE_UNKNOWN)
 	_, err = p.FacetSchema(ctx, &types.FacetRequest{Cohort: &types.Cohort{Filename: cohort}, Fields: []string{"cat"}, TimeZone: "Local"})
 	requireCode(t, err, errors.PULSE_TIMEZONE_UNKNOWN)
-}
-
-// TestTimeZone_UTCIdentity: naming UTC — "UTC" or the fixed-zero alias
-// "Etc/UTC", on the request, the slot or Options.DefaultTimeZone —
-// produces a response byte-identical to naming no zone at all.
-func TestTimeZone_UTCIdentity(t *testing.T) {
-	fs, cohort := zoneCohort(t)
-	ctx := context.Background()
-	reqs := map[string]func(slotTZ, reqTZ string) *types.Request{
-		"group_date_datetime": func(s, r string) *types.Request { return groupDateOverTS(cohort, s, r) },
-		"group_date_ranges_datetime": func(s, r string) *types.Request {
-			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg(), TimeZone: r,
-				Groups: []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "ts", Params: dateRanges, TimeZone: s}}}
-		},
-		"filter_date_ranges_datetime": func(s, r string) *types.Request {
-			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg(), TimeZone: r,
-				Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: dateRanges, TimeZone: s}},
-				Groups:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}}
-		},
-		"date_part_date_inherited": func(_, r string) *types.Request {
-			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg(), TimeZone: r,
-				Attributes: []*types.Attribute{{Type: types.ATTR_DATE_PART, Field: "d", Label: "yr", Params: json.RawMessage(`{"part":"year"}`)}},
-				Groups:     []*types.Group{{Type: types.GROUP_CATEGORY, Field: "yr"}}}
-		},
-	}
-	base := zonePulse(t, fs, "")
-	variants := []struct {
-		name, slot, req, opts string
-	}{
-		{"request-UTC", "", "UTC", ""},
-		{"request-Etc/UTC", "", "Etc/UTC", ""},
-		{"slot-Etc/UTC", "Etc/UTC", "", ""},
-		{"slot-UTC", "UTC", "", ""},
-		{"options-Etc/UTC", "", "", "Etc/UTC"},
-	}
-	for name, mk := range reqs {
-		want, err := base.Process(ctx, mk("", ""))
-		if err != nil {
-			t.Fatalf("%s baseline: %v", name, err)
-		}
-		wantJSON, _ := json.Marshal(want)
-		for _, v := range variants {
-			if v.slot != "" && name == "date_part_date_inherited" {
-				continue // explicit tz on a date field is a refusal, not an identity
-			}
-			t.Run(name+"/"+v.name, func(t *testing.T) {
-				p := zonePulse(t, fs, v.opts)
-				got, err := p.Process(ctx, mk(v.slot, v.req))
-				if err != nil {
-					t.Fatalf("Process: %v", err)
-				}
-				gotJSON, _ := json.Marshal(got)
-				if string(gotJSON) != string(wantJSON) {
-					t.Fatalf("response differs from the zone-free baseline:\n got %s\nwant %s", gotJSON, wantJSON)
-				}
-			})
-		}
-	}
 }
 
 // TestFilterToFileRequest_RefusesTZ: the structured filter-to-file

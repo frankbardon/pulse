@@ -93,6 +93,11 @@ type ImportIn struct {
 	Sheet     string `json:"sheet,omitempty" jsonschema:"Excel sheet name; ignored for non-Excel sources"`
 	Charset   string `json:"charset,omitempty" jsonschema:"SPSS ONLY: character encoding override for a .sav / .zsav source (e.g. 'windows-1252', 'cp1252', 'latin1'; spelling is forgiving). Ignored for every other format. Empty leaves the file's own declaration in force. Reach for it when an import fails PULSE_SPSS_CHARSET_INVALID or PULSE_SPSS_CHARSET_UNSUPPORTED — typically a file that kept a stale record 7/20 name after being transcoded, or a pre-Unicode file that declares no encoding at all and so fails the strict UTF-8 default on its first 8-bit byte. Decoding only; the file's own declaration is still retained."`
 	Overwrite bool   `json:"overwrite,omitempty" jsonschema:"Replace an existing handle of the same name. Default false."`
+	// SourceTZ / ColumnSourceTZ / DSTPolicy are io.ImportJob's
+	// source-zone options, persisted onto the managed sidecar.
+	SourceTZ       string            `json:"source_tz,omitempty" jsonschema:"Zone the source's naive datetime values (no Z, no offset) were recorded in: an IANA name such as 'America/New_York', 'UTC', or a fixed '+HH:MM' / '-HH:MM' offset. Applies to every datetime column (date columns are skipped); the stored value is always the UTC instant. A value with its own Z or offset ignores it. Empty (default) reads naive values as UTC. Unknown zone: PULSE_TIMEZONE_UNKNOWN."`
+	ColumnSourceTZ map[string]string `json:"column_source_tz,omitempty" jsonschema:"Per-column source zone, {column: zone}, same spellings as source_tz; wins over source_tz for that column. A key naming no column, or a column that is not datetime, is SERVICE_VALIDATION."`
+	DSTPolicy      string            `json:"dst_policy,omitempty" jsonschema:"How a naive value a DST transition makes ambiguous (repeated hour) or nonexistent (skipped hour) resolves under a source zone: 'error' (default; the import fails with PULSE_IMPORT_DST_AMBIGUOUS / PULSE_IMPORT_DST_NONEXISTENT naming the row), 'earlier' (pre-transition offset) or 'later' (post-transition offset). A resolved value is counted in a PULSE_IMPORT_DST_RESOLVED entry on zone_warnings."`
 	// Groups and SuggestGroups carry the parent-group surface. See the
 	// slot-policy note below for why there is no ratio-floor or strict
 	// slot beside them.

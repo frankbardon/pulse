@@ -9,6 +9,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/imports"
+	pio "github.com/frankbardon/pulse/io"
 )
 
 // This file holds the SDK-free typed tool handlers: one exported
@@ -228,14 +229,17 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 		return ImportOut{}, errMissingArg("source")
 	}
 	spec := imports.Spec{
-		SourcePath:    in.Source,
-		Format:        in.Format,
-		Handle:        in.Handle,
-		Sheet:         in.Sheet,
-		Charset:       in.Charset,
-		Overwrite:     in.Overwrite,
-		Groups:        in.Groups,
-		SuggestGroups: in.SuggestGroups,
+		SourcePath:     in.Source,
+		Format:         in.Format,
+		Handle:         in.Handle,
+		Sheet:          in.Sheet,
+		Charset:        in.Charset,
+		Overwrite:      in.Overwrite,
+		Groups:         in.Groups,
+		SuggestGroups:  in.SuggestGroups,
+		SourceTZ:       in.SourceTZ,
+		ColumnSourceTZ: in.ColumnSourceTZ,
+		DSTPolicy:      pio.DSTPolicy(in.DSTPolicy),
 	}
 	if in.TTL != "" {
 		d, err := imports.ParseTTL(in.TTL)

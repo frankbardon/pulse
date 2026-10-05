@@ -175,7 +175,18 @@ func f32AtRangeEdge(bits uint64) bool {
 // (rowConverter), the measured import predict and ConvertJob.Run all
 // call it, so a field widens at the same row to the same type whichever
 // verb reads the source.
-func convertOrWiden(schema *encoding.Schema, i int, raw string, dict *encoding.Dictionary, delim string, widenable bool, rowNum int) (uint64, []widening, error) {
+//
+// It is also the ONE source-zone decision: a datetime field sz zones
+// (ImportJob.SourceTZ / ColumnSourceTZ) parses through sz.parse —
+// temporal.ParseLocal under the job's DST policy — and every other cell,
+// including every cell of a job without a source zone (sz nil), takes
+// convertValue exactly as before. A datetime never widens, so the zoned
+// arm returns before the ladder.
+func convertOrWiden(schema *encoding.Schema, i int, raw string, dict *encoding.Dictionary, delim string, widenable bool, rowNum int, sz *sourceZones) (uint64, []widening, error) {
+	if sz.zoned(i) {
+		v, err := sz.parse(i, raw, schema.Fields[i].Name, rowNum)
+		return v, nil, err
+	}
 	ft := schema.Fields[i].Type
 	v, err := convertValue(raw, ft, dict, delim)
 	if !widenable || err == nil && (ft != encoding.FieldTypeF32 || !f32AtRangeEdge(v) || f32Holds(raw)) {

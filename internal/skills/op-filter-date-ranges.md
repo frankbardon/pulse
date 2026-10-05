@@ -11,19 +11,19 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Params
 
-One range source in `Params` (not `Values`) — `ranges` XOR `table`:
+One source in `Params` (not `Values`) — `ranges` XOR `table`:
 
 - `ranges` — `[]{label,start,end}`, ISO; null bound = open; inclusive.
-- `table` — registered `RangeTable` (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`).
-- `tz` — slot key, not `params`; IANA zone, beats `time_zone`.
+- `table` — registered `RangeTable` (Extensions or `PULSE_RANGE_TABLES_DIR`).
+- `tz` — slot key (not `params`); IANA, beats `time_zone`.
 
 ## Inputs
 
-`Field` — `date` or `datetime`, else `PROCESSING_CONFIG`. `datetime` floors to the UTC day: a range's last day keeps `23:59:59`.
+`Field` — `date` or `datetime`, else `PROCESSING_CONFIG`. `datetime` floors to its local day in the resolved zone (UTC default); bounds (inline or `table`; tables carry no zone) are local days.
 
 ## Output
 
-Keeps rows whose day lies in any range; `label` is unused. No column.
+Keeps rows whose day is in any range; `label` unused, no column.
 
 ## Components
 
@@ -31,13 +31,13 @@ Floor only — `{n_in, n_out, n_null_input}`. Mergeable (additive).
 
 ## Gotchas
 
-- Null/missing date → dropped.
+- Null date → dropped.
 - Both/neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`.
-- Overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal or start>end → `PULSE_RANGE_INVALID`.
-- `tz` on `date`, a non-UTC zone on `datetime`, or any `tz` under `FilterToFileWithRequest` → `PROCESSING_CONFIG`.
-- Row-local streamable; also `facet` and `sample`.
+- Overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal, start>end → `_INVALID`.
+- `start: 2026-03-01`, `tz: Europe/Berlin` keeps `2026-02-28T23:30Z`.
+- `tz` on `date`, non-UTC on a derived field, any `tz` under `FilterToFileWithRequest` → `PROCESSING_CONFIG`.
+- Row-local streamable.
 
 ## See
 
-- `pulse_examples_search tags=[cohort-analysis]`
 - Skills: `op-group-date-ranges`, `facet-design`, `request-envelope` (Time zones)

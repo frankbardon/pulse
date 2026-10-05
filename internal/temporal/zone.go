@@ -39,8 +39,13 @@ type Zone struct {
 	offs   []int32
 
 	// last is the span index of the most recent table hit — the cache
-	// that makes clustered lookups O(1).
+	// that makes clustered lookups O(1). It sits on its own cache line
+	// (the pads) so a store never invalidates the line holding the
+	// read-only fields above, nor — Fork allocates one Zone per worker —
+	// a neighbouring fork's cache.
+	_    [64]byte
 	last atomic.Int64
+	_    [56]byte
 }
 
 // UTC is the UTC sentinel: zero offset everywhere, no table, and every
@@ -168,6 +173,25 @@ func firstChange(loc *time.Location, lo, hi int64) int64 {
 		}
 	}
 	return hi
+}
+
+// Fork returns a Zone equal to z — same name, location and every
+// answer — that shares z's read-only transition table but owns its own
+// last-span lookup cache. Every goroutine that looks up offsets at a high
+// rate (one parallel decode / shard worker) should hold its own fork:
+// all of them storing into ONE shared cache keep invalidating it for
+// each other (measured: a Europe/Berlin FILTER_DATE_RANGES overhead of
+// ~5% single-threaded grew to ~35% across 8 decode workers). A fork is
+// itself safe for concurrent use, so sharing one is merely slower.
+// The UTC sentinel has no cache and returns itself. One allocation per
+// call; never per lookup.
+func (z *Zone) Fork() *Zone {
+	if z.utc {
+		return z
+	}
+	f := &Zone{name: z.name, loc: z.loc, zeroFixed: z.zeroFixed, starts: z.starts, offs: z.offs}
+	f.last.Store(z.last.Load())
+	return f
 }
 
 // Name returns the zone name as given to LoadZone.

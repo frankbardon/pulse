@@ -89,7 +89,8 @@ is **always** `null` for an SPSS import — see
 | string (`A*`) | `categorical_*` | Near-unique columns warn `PULSE_SPSS_CARDINALITY_HIGH` and still import |
 | very long string (wider than 255 bytes) | one `categorical_*` column | Reassembled from the record `7/14` segments — see [Very long strings](#very-long-strings) |
 | `DATE` / `ADATE` / `EDATE` / `SDATE` / `JDATE` | `date`, or `datetime` with `PULSE_SPSS_DATE_WIDENED` | Widens only when a value carries a time of day; pre-1970 dates stay `date` (signed epoch days) |
-| `DATETIME` / `TIME` / `DTIME` | `datetime` (epoch seconds) | A fractional-second / non-finite / out-of-`int64` value demotes the column to `f64` raw SPSS seconds with `PULSE_SPSS_TEMPORAL_PRECISION` |
+| `DATETIME` | `datetime` (epoch seconds) | A naive wall clock, so `--source-tz` applies. A fractional-second / non-finite / out-of-`int64` value demotes the column to `f64` raw SPSS seconds with `PULSE_SPSS_TEMPORAL_PRECISION` |
+| `TIME` / `DTIME` | `f64` (seconds) | Durations, not instants: never a `datetime`, and `--source-tz` never touches them |
 | system-missing (sysmis) | null (bitmap bit) | The one missing state the format has a sentinel for |
 | numeric user-missing values | null, plus a generated `<var>_missing` sibling column | See [Missing values](#missing-values) — the analytic column stays arithmetically clean and the reason is kept beside it |
 | categorical user-missing values (string, or a value-labelled numeric) | ordinary dictionary entries, flagged in the sidecar | See [Categorical user-missing codes](#categorical-user-missing-codes) — the value *is* the label, so nothing is lost and a sibling would be redundant |

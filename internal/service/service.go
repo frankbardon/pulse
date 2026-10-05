@@ -634,7 +634,8 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	// omitted, based on each named field's schema type. Caller can opt
 	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
 	s.applyDefaults(req, cohort.Schema())
-	if err := s.resolveZones(req, cohort.Schema()); err != nil {
+	zones, err := s.resolveZones(req, cohort.Schema())
+	if err != nil {
 		return nil, err
 	}
 	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
@@ -670,6 +671,11 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 			)
 		}
 	}
+
+	// Every arm below runs the zoned request: an inherited non-UTC zone
+	// rides on its slot (a copy — req itself stays as the caller sees
+	// it). Zone-free and UTC requests run req unchanged.
+	req = s.zoned(req, zones)
 
 	// Per-shard parallel fast path: when the cohort is archive-backed,
 	// the request is mergeable, and ShardWorkers != 1, fan out across

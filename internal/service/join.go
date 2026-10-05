@@ -34,7 +34,8 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	clone.Cohort = nil
 
 	s.applyDefaults(&clone, joinedSchema)
-	if err := s.resolveZones(&clone, joinedSchema); err != nil {
+	zones, err := s.resolveZones(&clone, joinedSchema)
+	if err != nil {
 		return nil, err
 	}
 	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
@@ -42,7 +43,7 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	}
 
 	proc := s.newProcessor(joinedSchema, req)
-	resp, err := proc.Process(ctx, &clone, join)
+	resp, err := proc.Process(ctx, s.zoned(&clone, zones), join)
 	if err != nil {
 		return nil, err
 	}

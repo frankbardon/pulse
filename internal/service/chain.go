@@ -80,7 +80,8 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// stage 0 resolves inside Process against the joined schema
 	// instead (its refusal is located below).
 	if len(stage0.Joins) == 0 {
-		if err := s.resolveZones(stage0, cohort.Schema()); err != nil {
+		// Validation only: Process re-resolves stage 0 and runs it zoned.
+		if _, err := s.resolveZones(stage0, cohort.Schema()); err != nil {
 			return nil, locate(err, "stage", 0)
 		}
 	}
@@ -134,7 +135,8 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		}
 
 		s.applyDefaults(stage, synthSchema)
-		if err := s.resolveZones(stage, synthSchema); err != nil {
+		zones, err := s.resolveZones(stage, synthSchema)
+		if err != nil {
 			return nil, locate(err, "stage", i)
 		}
 		if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
@@ -151,7 +153,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 			})
 		}
 
-		resp, err := s.runChainStage(ctx, stage, plans[i], synthSchema, records)
+		resp, err := s.runChainStage(ctx, s.zoned(stage, zones), plans[i], synthSchema, records)
 		if err != nil {
 			return nil, err
 		}

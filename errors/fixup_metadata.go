@@ -326,6 +326,52 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_DST_AMBIGUOUS: {
+		Message: "A naive datetime literal (no `Z`, no ±HH:MM offset) in a column read in an import source zone names a wall-clock time that zone shows twice — the repeated hour of a DST fall-back — and the DST policy is the default \"error\", so the import is refused at the first such row and nothing is written. Details carry `row` (the 1-based source data row), `column`, `value` and `zone`. A literal that carries its own `Z` or offset is never ambiguous: it names its instant and the source zone is not consulted.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"DSTPolicy"},
+				Hint:   "Choose how the repeated hour resolves: --dst-policy earlier (ImportJob.DSTPolicy \"earlier\") takes the first occurrence, at the pre-transition offset; later takes the second. Every resolved value is counted in a PULSE_IMPORT_DST_RESOLVED warning.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Or fix the source: write the value with its offset (2026-10-25T02:30:00+02:00) or in UTC with a `Z` suffix, which no source zone reinterprets.",
+			},
+		},
+	},
+	PULSE_IMPORT_DST_NONEXISTENT: {
+		Message: "A naive datetime literal (no `Z`, no ±HH:MM offset) in a column read in an import source zone names a wall-clock time that zone never shows — the skipped hour of a DST spring-forward — and the DST policy is the default \"error\", so the import is refused at the first such row and nothing is written. Details carry `row` (the 1-based source data row), `column`, `value` and `zone`. A fixed ±HH:MM source zone has no transitions and never raises this.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"DSTPolicy"},
+				Hint:   "Choose how the skipped time resolves: --dst-policy earlier (ImportJob.DSTPolicy \"earlier\") reads it at the pre-transition offset (Europe/Berlin 2026-03-29 02:30 → 01:30Z); later at the post-transition offset (→ 00:30Z). Every resolved value is counted in a PULSE_IMPORT_DST_RESOLVED warning.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Or fix the source: a wall clock the zone skips usually means the column was not recorded in that zone — check --source-tz, or write the values with their offset or a `Z` suffix.",
+			},
+		},
+	},
+	PULSE_IMPORT_DST_RESOLVED: {
+		Message: "Warning-class — an import with a source zone and a non-default DST policy (\"earlier\" or \"later\") resolved at least one naive wall-clock value that the zone showed twice (a fall-back overlap) or never (a spring-forward gap). The import succeeded; this warning exists so the shift is never silent. Details carry `policy`, `ambiguous_n` and `nonexistent_n` — counts of resolved values across the whole source pass. Under the default policy \"error\" such a value refuses the import instead (PULSE_IMPORT_DST_AMBIGUOUS / PULSE_IMPORT_DST_NONEXISTENT).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action is required when the policy is the intended reading. To see exactly which rows were resolved, re-run with the default --dst-policy error, which refuses at the first one naming its row.",
+			},
+		},
+	},
+	PULSE_IMPORT_TIMESTAMP_TRUNCATED: {
+		Message: "Warning-class — an Arrow or Parquet source carried native timestamp values with a non-zero sub-second fraction (millisecond, microsecond or nanosecond units). A `datetime` field holds whole epoch seconds, so each such value was floored to the earlier second — toward the past, also before 1970 — and the import succeeded. Raised once per source pass, never per row; details carry `truncated_n` (values floored) and `columns` (sorted names of the affected columns). Values that were already whole seconds raise nothing.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action is required when second resolution is enough. To keep the fraction, store it in its own numeric column at the source (e.g. milliseconds within the second) or round the timestamps there before importing.",
+			},
+		},
+	},
 	PULSE_EXPORT_ROW_ERROR: {
 		Message: "A row could not be exported due to a per-cell value-to-string conversion failure, or because the target format's writer refused it. Raised per row on ExportReport.RowErrors while SOME rows still export — and raised as the FATAL return of ExportJob.Run when a non-empty cohort yields zero exported rows, in which case details carry `rows_read`, `rows_failed`, `first_row` and `first_error`. An empty cohort exports zero rows legitimately and is not this error.",
 		Fixups: []Fixup{
@@ -2692,6 +2738,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema"},
 				Hint:   "If the details name a column, that column is the problem. An empty set_* dictionary has no members to emit — drop the column from the export or populate it. A value with no recorded SPSS code comes from a cohort whose categorical dictionary moved since import; re-import from the source .sav, or export with --ignore-sidecar to synthesise a fresh dictionary from the cohort's own text.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"TimeZone"},
+				Hint:   "If details.option is --tz: a .sav DATETIME is a naive wall-clock count with no offset slot, so a non-UTC render zone cannot be honoured. Drop --tz (the .sav carries UTC wall-clock values), or export a text format with --tz for offset-bearing local literals.",
 			},
 			{
 				Action: FixupReplaceField,

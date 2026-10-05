@@ -389,6 +389,8 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// message.
 	validateOperatorTypes(env, req)
 	validateAggregationParams(env, req, opts.instance())
+	validateGroupDateParams(env, req, schema, opts.instance())
+	validateDatePartParams(env, req, schema, opts.instance())
 
 	// Validate pre-filter feature operators and compute the post-feature
 	// column set so downstream stages can reference derived columns.

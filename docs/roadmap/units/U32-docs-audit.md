@@ -101,6 +101,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 
 - **CLAUDE.md headroom is 54 bytes** (49,946 / 50,000 after U13). U13 already displaced the labeled-date-ranges prose into `.claude/reference/execution-modes.md` and shortened the weighted-slots paragraph. Audit CLAUDE.md for further long form to move into `.claude/reference/` so later contracts have room; never raise `claudeMdSizeCeiling`.
 
+## Inherited from U14
+
+- **`skills/tool-import.md` is ~6.6K body chars against the 2,000-char `tool-*` budget** (over before U14; U14's source-zone rows grew it ~400). Bring it within budget before #161 flips `TestSkillTokenBudget` to hard-failing — candidates: move the per-format flag rows to `docs/src/cli/flags.md` and the zone/DST detail to `skills/time-zones.md`, leaving pointers.
+- **`op-overlay-yoy.md` sits at its 1,200-char budget** and does not say `GROUP_DATE` `hour` feeds the hourly arm (covered in `skills/time-zones.md`). Re-check after any trim.
+- **CLAUDE.md headroom is 65 bytes** (49,935 / 50,000 after U14). Displace long form before the next contract lands.
+
 ## Human inputs & decisions
 
 - Maintainer sign-off; a fresh reader (developer without a statistics background) for the review

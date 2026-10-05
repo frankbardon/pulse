@@ -47,7 +47,8 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	}
 
 	s.applyDefaults(req, cohort.Schema())
-	if err := s.resolveZones(req, cohort.Schema()); err != nil {
+	zones, err := s.resolveZones(req, cohort.Schema())
+	if err != nil {
 		return nil, err
 	}
 	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
@@ -60,6 +61,10 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	if err := s.validateProcessLabels(req, cohort.Schema()); err != nil {
 		return nil, err
 	}
+
+	// Both crosstab arms (and the fusion gate's construct probe) build
+	// their axes from the zoned request.
+	req = s.zoned(req, zones)
 
 	// Dispatch to the fused streaming path when the gate accepts.
 	// The gate is the load-bearing exclusion check — features, tier-1
@@ -172,7 +177,8 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	clone.Joins = nil
 
 	s.applyDefaults(&clone, joinedSchema)
-	if err := s.resolveZones(&clone, joinedSchema); err != nil {
+	zones, err := s.resolveZones(&clone, joinedSchema)
+	if err != nil {
 		return nil, err
 	}
 	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
@@ -194,7 +200,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	}
 
 	proc := s.newProcessor(joinedSchema, req)
-	resp, err := proc.RunCrosstab(ctx, &clone, records)
+	resp, err := proc.RunCrosstab(ctx, s.zoned(&clone, zones), records)
 	if err != nil {
 		return nil, err
 	}

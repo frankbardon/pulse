@@ -50,12 +50,12 @@ type zoneSlot struct {
 //   - an INHERITED zone on a non-`datetime` field is not applied: the
 //     slot echoes a null `tz`;
 //   - a zone that is not UTC-equivalent (temporal.Zone.IsUTC — "UTC" and
-//     the fixed-zero Etc aliases are equivalent) resolving onto a
-//     `datetime` field, or onto a field absent from the schema (a
-//     derived column that may carry instants), → PROCESSING_CONFIG with
-//     details {slot, operator, tz}. Zone-aware operator arithmetic is
-//     not implemented yet; refusing keeps a zone from being silently
-//     ignored.
+//     the fixed-zero Etc aliases are equivalent) resolving onto a field
+//     absent from the schema (a derived or chain-synthesised column) →
+//     PROCESSING_CONFIG with details {slot, operator, tz}: the operators
+//     read an absent field as epoch days, so the zone would be silently
+//     ignored. Onto a `datetime` schema field it is accepted and applied
+//     (the runtime writes it onto the executing slot — ZonedRequest).
 //
 // A slot with an empty operator Type is skipped (it is a type error,
 // not a zone error, and type validation reports it identically with or
@@ -213,9 +213,9 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 		if err != nil {
 			return nil, err
 		}
-		if !z.IsUTC() && schemaKnown {
+		if !z.IsUTC() && schemaKnown && !known {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("%s: %s resolves time zone %q (from %s); zone-aware evaluation of datetime fields is not supported yet — only UTC (or a fixed-zero alias such as \"Etc/UTC\") is accepted", s.slot, s.operator, name, source),
+				fmt.Sprintf("%s: %s resolves time zone %q (from %s) onto field %q, which is not in the schema; a zone cannot be applied to a derived field — name a datetime schema field, or use UTC (or a fixed-zero alias such as \"Etc/UTC\")", s.slot, s.operator, name, source, s.field),
 				map[string]any{"slot": s.slot, "operator": s.operator, errors.DetailTimeZone: name})
 		}
 		n := name
@@ -356,4 +356,123 @@ func zoneCapableAdvice(inst *InstanceSnapshot) string {
 		return "no operator this instance offers takes a per-slot time zone"
 	}
 	return "only zone-capable operators (" + strings.Join(offered, ", ") + ") take a per-slot time zone"
+}
+
+// ZonedRequest returns the Request an execution arm runs: req itself
+// when no INHERITED zone (request `time_zone` or the options default)
+// that is not UTC-equivalent resolved onto a slot, otherwise a shallow
+// copy whose affected slots are copies carrying that zone in their
+// `tz`. zones is ResolveZones' result for req; load resolves a name
+// (nil: temporal.LoadZone).
+//
+// The operator factories see only the slot and the schema, so the zone
+// rides on the slot: every arm (buffered, streaming, fused crosstab,
+// parallel decode, shard reduce, chain stages) builds its operators
+// from the returned request and sees the zone with no further
+// plumbing. An explicit slot `tz` is already on the slot, an inherited
+// zone on a non-`datetime` field resolved to a null TZ and is never
+// written, and a UTC-equivalent zone is never written — so the zone-free
+// request executes the unchanged object. req is never mutated: the
+// caller's request (request echo, request hashing, the Compose echo)
+// stays exactly as the caller wrote it plus smart defaults.
+func ZonedRequest(req *types.Request, zones []descriptor.ResolvedZone, load ZoneLoader) *types.Request {
+	writes := inheritedZoneWrites(zones, load)
+	if req == nil || writes == nil {
+		return req
+	}
+	c := *req
+	c.Filterers = zonedFilterers(req.Filterers, writes)
+	if s, ok := zonedSlots(req.Features, "features", writes, func(f *types.Feature, tz string) *types.Feature { cp := *f; cp.TimeZone = tz; return &cp }); ok {
+		c.Features = s
+	}
+	if s, ok := zonedSlots(req.Attributes, "attributes", writes, func(a *types.Attribute, tz string) *types.Attribute { cp := *a; cp.TimeZone = tz; return &cp }); ok {
+		c.Attributes = s
+	}
+	if s, ok := zonedSlots(req.Groups, "groups", writes, zonedGroup); ok {
+		c.Groups = s
+	}
+	if req.Crosstab != nil {
+		rows, rok := zonedSlots(req.Crosstab.Rows, "crosstab.rows", writes, zonedGroup)
+		cols, cok := zonedSlots(req.Crosstab.Columns, "crosstab.columns", writes, zonedGroup)
+		if rok || cok {
+			ct := *req.Crosstab
+			if rok {
+				ct.Rows = rows
+			}
+			if cok {
+				ct.Columns = cols
+			}
+			c.Crosstab = &ct
+		}
+	}
+	return &c
+}
+
+// ZonedFacetRequest is ZonedRequest for a FacetRequest's filterers;
+// zones is ResolveFacetZones' result for req.
+func ZonedFacetRequest(req *types.FacetRequest, zones []descriptor.ResolvedZone, load ZoneLoader) *types.FacetRequest {
+	writes := inheritedZoneWrites(zones, load)
+	if req == nil || writes == nil {
+		return req
+	}
+	c := *req
+	c.Filterers = zonedFilterers(req.Filterers, writes)
+	return &c
+}
+
+// inheritedZoneWrites maps each slot path that inherited a zone which is
+// not UTC-equivalent to that zone's name; nil when there is none (the
+// zone-free and UTC paths, which then allocate nothing). A slot-sourced
+// zone is already on its slot and the default source is always "UTC".
+func inheritedZoneWrites(zones []descriptor.ResolvedZone, load ZoneLoader) map[string]string {
+	if load == nil {
+		load = temporal.LoadZone
+	}
+	var writes map[string]string
+	for _, z := range zones {
+		if z.TZ == nil || z.Source == descriptor.ZoneSourceSlot || z.Source == descriptor.ZoneSourceDefault {
+			continue
+		}
+		zone, err := load(*z.TZ)
+		if err != nil || zone.IsUTC() {
+			continue
+		}
+		if writes == nil {
+			writes = make(map[string]string)
+		}
+		writes[z.Slot] = *z.TZ
+	}
+	return writes
+}
+
+func zonedGroup(g *types.Group, tz string) *types.Group {
+	cp := *g
+	cp.TimeZone = tz
+	return &cp
+}
+
+func zonedFilterers(in []*types.Filterer, writes map[string]string) []*types.Filterer {
+	out, ok := zonedSlots(in, "filterers", writes, func(f *types.Filterer, tz string) *types.Filterer { cp := *f; cp.TimeZone = tz; return &cp })
+	if !ok {
+		return in
+	}
+	return out
+}
+
+// zonedSlots returns a copy of in with each slot named in writes
+// replaced by with(slot, zone), and whether any slot was; in is never
+// mutated.
+func zonedSlots[T any](in []*T, family string, writes map[string]string, with func(*T, string) *T) ([]*T, bool) {
+	var out []*T
+	for i, s := range in {
+		tz, ok := writes[fmt.Sprintf("%s[%d]", family, i)]
+		if !ok || s == nil {
+			continue
+		}
+		if out == nil {
+			out = append([]*T(nil), in...)
+		}
+		out[i] = with(s, tz)
+	}
+	return out, out != nil
 }

@@ -1,6 +1,6 @@
 ---
 name: op-group-date
-description: Partition date/datetime records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar.
+description: Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter.
 kind: operator
 category: GROUP
 operator: GROUP_DATE
@@ -11,28 +11,28 @@ examples_tags: [time-series, streaming-friendly]
 
 ## Params
 
-- `component` — enum, default `month`: `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
-- `fiscal_offset` — int, default 0. Months after Jan the FY starts; `year`/`quarter` only. Non-zero prefixes keys `FY` (end-year).
-- `tz` — slot key, not `params`; IANA zone, beats `time_zone`.
+- `component`: enum, default `month`: `hour`, `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
+- `week_start`: `week` only; `monday` (default, ISO `2026-W09`) .. `sunday` (key = first day: 2026-03-01).
+- `fiscal_offset`: int -11..11; `year`/`quarter` only; keys `FY` (end-year).
+- `tz`: slot key (IANA), beats `time_zone`.
 
 ## Inputs
 
-`Field` — `date`, `datetime` (floored to the UTC day).
+`Field`: `date`, `datetime` (in the resolved zone). `hour`: `datetime` only.
 
 ## Output
 
-String key per row (`2024-Q1`, `FY2025-Q1`). Smart default for `date` and `datetime`.
+String key (`2024-Q1`, `FY2025-Q1`, `2026-03-29T03`). Smart default (date-family).
 
 ## Components
 
-Floor `{total_n, n_null}` + `granularity` (component used), `range_start` / `range_end` (ISO), `n_buckets` (int), `buckets` (`[]bucket` of `{key, period_start, period_end, count}`). `Mergeable`; `Streamable=false`<!-- feature: GROUP_CATEGORY, ATTR_DATE_PART --> (to stream: `GROUP_CATEGORY` over `ATTR_DATE_PART`)<!-- /feature -->.
+Floor `{total_n, n_null}` + `granularity`, `range_start` / `range_end`, `n_buckets`, `buckets` (`{key, period_start, period_end, count}`; `hour` period = label). `Mergeable`; `Streamable=false`<!-- feature: GROUP_CATEGORY, ATTR_DATE_PART --> (stream: `GROUP_CATEGORY` over `ATTR_DATE_PART`)<!-- /feature -->.
 
 ## Gotchas
 
-- `day_of_week` names lex-sort — sort explicitly.
-- `fiscal_offset` with sub-quarter components rejected.
-- `Group.Include` not honoured; no sub-day `component`.
-- `tz` on a `date` field, or a non-UTC zone reaching a `datetime`, → `PROCESSING_CONFIG` (not yet applied).
+- `day_of_week` lex-sorts; `Group.Include` ignored.
+- Local wall clock: a skipped DST hour has no bucket; a repeated one is ONE.
+- `PROCESSING_CONFIG`: `tz` on `date`, zone on a derived field, `hour` off `datetime`, misplaced `week_start` / `fiscal_offset`.
 
 ## See
 

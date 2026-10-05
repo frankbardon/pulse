@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/temporal"
@@ -33,10 +34,21 @@ func (s *Service) ZoneLoader() descx.ZoneLoader {
 // one Request against the schema it executes over. Every execution
 // mode calls it exactly once per Request, after smart defaults and
 // before any record is read; a refusal is returned as the coded error
-// itself.
-func (s *Service) resolveZones(req *types.Request, schema *encoding.Schema) error {
-	_, err := descx.ResolveZones(req, schema, s.defaultZone, s.ZoneLoader(), s.instance)
-	return markLocated(err)
+// itself. The resolved zones feed zoned, which the mode applies to the
+// request it hands its arm.
+func (s *Service) resolveZones(req *types.Request, schema *encoding.Schema) ([]descriptor.ResolvedZone, error) {
+	zones, err := descx.ResolveZones(req, schema, s.defaultZone, s.ZoneLoader(), s.instance)
+	return zones, markLocated(err)
+}
+
+// zoned returns the request an execution arm runs
+// (internal/descriptor.ZonedRequest): req itself unless an inherited
+// non-UTC zone must be written onto a slot, in which case a copy — so
+// the caller's request (echo, hashing) never changes. Each mode calls it
+// after its last caller-visible mutation of req (auto labels), right
+// before dispatching to its arm.
+func (s *Service) zoned(req *types.Request, zones []descriptor.ResolvedZone) *types.Request {
+	return descx.ZonedRequest(req, zones, s.ZoneLoader())
 }
 
 // checkFieldRefs runs the one field-reference rule
@@ -69,7 +81,7 @@ func (s *Service) checkFacetFieldRefs(req *types.FacetRequest, schema *encoding.
 }
 
 // resolveFacetZones is resolveZones for a FacetRequest's filterers.
-func (s *Service) resolveFacetZones(req *types.FacetRequest, schema *encoding.Schema) error {
-	_, err := descx.ResolveFacetZones(req, schema, s.defaultZone, s.ZoneLoader(), s.instance)
-	return markLocated(err)
+func (s *Service) resolveFacetZones(req *types.FacetRequest, schema *encoding.Schema) ([]descriptor.ResolvedZone, error) {
+	zones, err := descx.ResolveFacetZones(req, schema, s.defaultZone, s.ZoneLoader(), s.instance)
+	return zones, markLocated(err)
 }

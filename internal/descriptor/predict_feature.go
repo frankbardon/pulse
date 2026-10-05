@@ -147,10 +147,10 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 			validateTargetEncodeParams(env, feat, schema)
 		}
 	case types.FEAT_DATE_FEATURES:
-		if f.Type != encoding.FieldTypeDate {
+		if f.Type != encoding.FieldTypeDate && f.Type != encoding.FieldTypeDateTime {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
-				"feature FEAT_DATE_FEATURES requires a date field",
+				"feature FEAT_DATE_FEATURES requires a date or datetime field",
 				map[string]any{"field": feat.Field, "feature": string(feat.Type)},
 			)
 		}
@@ -377,13 +377,20 @@ func featureOutputLabels(feat *types.Feature, schema *encoding.Schema) []string 
 		if prefix == "" {
 			prefix = feat.Field
 		}
-		return []string{
+		out := []string{
 			prefix + "_year",
 			prefix + "_month",
 			prefix + "_day",
 			prefix + "_dow",
 			prefix + "_quarter",
 		}
+		// A `datetime` also carries the wall-clock hour.
+		if schema != nil {
+			if f := schema.Field(feat.Field); f != nil && f.Type == encoding.FieldTypeDateTime {
+				out = append(out, prefix+"_hour")
+			}
+		}
+		return out
 	case types.FEAT_POLY:
 		prefix := feat.Label
 		if prefix == "" {

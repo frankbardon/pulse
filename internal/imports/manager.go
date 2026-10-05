@@ -379,6 +379,9 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		TTLSeconds:          ttlSeconds(ttl),
 		RowsImported:        report.RowsImported,
 		ColumnTypeOverrides: spec.ColumnTypeOverrides,
+		SourceTZ:            spec.SourceTZ,
+		ColumnSourceTZ:      spec.ColumnSourceTZ,
+		DSTPolicy:           string(spec.DSTPolicy),
 	}
 	if ttl > 0 {
 		sidecar.ExpiresAt = now.Add(ttl)
@@ -404,6 +407,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		Groups:          report.Groups,
 		GroupWarnings:   report.GroupWarnings,
 		GroupCandidates: candidates,
+		ZoneWarnings:    report.ZoneWarnings,
 	}
 	if !sidecar.ExpiresAt.IsZero() {
 		exp := sidecar.ExpiresAt
@@ -576,6 +580,9 @@ func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, erro
 		job.ColumnTypeOverrides = overrides
 	}
 	job.Groups = spec.Groups
+	job.SourceTZ = spec.SourceTZ
+	job.ColumnSourceTZ = spec.ColumnSourceTZ
+	job.DSTPolicy = spec.DSTPolicy
 	return job, nil
 }
 

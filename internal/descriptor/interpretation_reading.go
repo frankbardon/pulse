@@ -56,7 +56,7 @@ var multiColumnOutputs = map[string]string{
 	string(types.AGG_SET_FREQUENCY):  "Rich() emits a label -> row-count map (internal/processing/aggregator_set.go)",
 	string(types.FEAT_POLY):          "one column <prefix>_<k> per power k = 2..degree (internal/processing/feature/poly.go)",
 	string(types.FEAT_ONE_HOT):       "one column <prefix>_<category> per dictionary entry",
-	string(types.FEAT_DATE_FEATURES): "five columns <prefix>_year / _month / _day / _dow / _quarter",
+	string(types.FEAT_DATE_FEATURES): "five columns <prefix>_year / _month / _day / _dow / _quarter, plus _hour over a datetime",
 }
 
 // needsReadingOperators — descriptive built-ins whose result needs an

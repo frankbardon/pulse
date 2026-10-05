@@ -59,6 +59,14 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		return nil, err
 	}
 
+	// Resolve the render zone before a single byte is written: an
+	// unknown name refuses the export outright. nil means the canonical
+	// UTC literal — today's path, byte for byte.
+	zone, err := exportZone(j.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+
 	// Resolve the include mask. Nil / empty Includes selects every
 	// field; otherwise every entry must name a field in schema or the
 	// caller is rejected up-front with PULSE_EXPORT_FIELD_UNKNOWN.
@@ -135,6 +143,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			Path:     j.Source,
 			Includes: j.Includes,
 			Labelled: j.LabelResolver != nil,
+			TimeZone: zoneName(zone),
 		})
 		if err != nil {
 			return nil, err
@@ -228,7 +237,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 				hitEOF = true
 				break
 			}
-			values[i] = formatFieldValue(f.Type, raw, f.Dictionary)
+			values[i] = formatFieldValue(f.Type, raw, f.Dictionary, zone)
 		}
 
 		if hitEOF {
@@ -525,6 +534,13 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		return nil, err
 	}
 
+	// The same zone check Run makes, so predict refuses an unknown zone
+	// on the same terms.
+	zone, err := exportZone(j.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+
 	// Estimate record count from remaining bytes and per-record size.
 	recordSize := schema.RecordByteSize()
 	estimatedRows := 0
@@ -553,6 +569,7 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 			Path:     j.Source,
 			Includes: j.Includes,
 			Labelled: j.LabelResolver != nil,
+			TimeZone: zoneName(zone),
 		})
 		if err != nil {
 			return nil, err
@@ -565,10 +582,39 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	return report, nil
 }
 
+// exportZone resolves ExportJob.TimeZone. Empty, "UTC" and every
+// UTC-equivalent zone return nil — the canonical `…Z` path, so the
+// output stays byte-identical to a zone-free export. Any other name must
+// pass temporal.LoadZone (IANA only) or the job refuses with its
+// PULSE_TIMEZONE_UNKNOWN error.
+func exportZone(name string) (*temporal.Zone, error) {
+	if name == "" {
+		return nil, nil
+	}
+	z, err := temporal.LoadZone(name)
+	if err != nil {
+		return nil, err
+	}
+	if z.IsUTC() {
+		return nil, nil
+	}
+	return z, nil
+}
+
+// zoneName is the CohortSource.TimeZone spelling of a resolved export
+// zone: empty for the UTC path.
+func zoneName(z *temporal.Zone) string {
+	if z == nil {
+		return ""
+	}
+	return z.Name()
+}
+
 // formatFieldValue converts a raw uint64 value back to a string representation.
 // Null state is applied separately by the export loop via the per-record
-// bitmap; this function never sees a null cell.
-func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictionary) string {
+// bitmap; this function never sees a null cell. zone is the resolved
+// ExportJob.TimeZone — nil for the canonical UTC rendering.
+func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictionary, zone *temporal.Zone) string {
 	switch ft {
 	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
 		return strconv.FormatUint(raw, 10)
@@ -591,8 +637,12 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 		// encoding.CanonicalDateTimeLayout — the exact inverse of the
 		// encoding.ParseDateTime call internal/io/import.go's convertValue makes,
 		// so a datetime survives export → re-import byte-for-byte
-		// including its time-of-day. Always rendered in UTC, matching
-		// the naive-UTC storage policy.
+		// including its time-of-day. Rendered in UTC unless the job
+		// names a zone; then on that zone's wall clock WITH its offset
+		// (temporal.FormatLocal), which re-parses to the same instant.
+		if zone != nil {
+			return temporal.FormatLocal(encoding.DateTimeSeconds(raw), zone)
+		}
 		return encoding.FormatDateTime(raw)
 
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:

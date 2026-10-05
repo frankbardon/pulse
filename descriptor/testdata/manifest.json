@@ -3,6 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
+    "tzdata_version": "2026c",
     "feature_set_digest": "fs1:9222a2849c290c3984869787d7e9013c6d7af966f5f10b7f77615f9567f93c12",
     "commands": [
       {
@@ -2495,7 +2496,7 @@
         {
           "name": "ATTR_DATE_PART",
           "category": "attribute",
-          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day) from a date field.",
+          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
           "params": [
             {
               "name": "part",
@@ -2504,6 +2505,7 @@
               "description": "Which calendar component to extract.",
               "enum_values": [
                 "day",
+                "hour",
                 "month",
                 "month_day",
                 "year",
@@ -2513,7 +2515,8 @@
             }
           ],
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
           "emits_type": "f64",
           "emits_type_note": "encoded integer per record (e.g. year_month=YYYYMM)",
@@ -3430,7 +3433,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). A datetime field is truncated to the UTC calendar day containing its instant before bucketing. Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour its wall-clock hour (datetime only). Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -3441,10 +3444,27 @@
               "enum_values": [
                 "day",
                 "day_of_week",
+                "hour",
                 "month",
                 "quarter",
                 "week",
                 "year"
+              ]
+            },
+            {
+              "name": "week_start",
+              "type": "enum",
+              "required": false,
+              "default": "monday",
+              "description": "Day a week bucket begins on; valid only with component=week. monday (default) keeps ISO-8601 week keys (2026-W09); any other day keys a week by the date of its first day (2026-03-01), and period_start / period_end follow it.",
+              "enum_values": [
+                "friday",
+                "monday",
+                "saturday",
+                "sunday",
+                "thursday",
+                "tuesday",
+                "wednesday"
               ]
             },
             {
@@ -3459,7 +3479,7 @@
             "date",
             "datetime"
           ],
-          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
+          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03)",
           "streamable": false,
           "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
           "component_schema": {
@@ -3477,17 +3497,17 @@
               {
                 "name": "granularity",
                 "type": "string",
-                "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+                "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
               },
               {
                 "name": "range_start",
                 "type": "string",
-                "description": "ISO date string of the earliest period observed."
+                "description": "ISO date string of the earliest period observed (YYYY-MM-DDTHH for component=hour)."
               },
               {
                 "name": "range_end",
                 "type": "string",
-                "description": "ISO date string of the latest period observed."
+                "description": "ISO date string of the latest period observed (YYYY-MM-DDTHH for component=hour)."
               },
               {
                 "name": "n_buckets",
@@ -4285,12 +4305,13 @@
         {
           "name": "FEAT_DATE_FEATURES",
           "category": "feature",
-          "description": "Expand a date field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns.",
+          "description": "Expand a date or datetime field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns, plus hour over a datetime; a datetime reads the wall clock of its resolved time zone.",
           "params": null,
           "accepts_types": [
-            "date"
+            "date",
+            "datetime"
           ],
-          "emits_type_note": "multiple columns: \u003clabel\u003e_year, \u003clabel\u003e_month, \u003clabel\u003e_day, \u003clabel\u003e_dow, \u003clabel\u003e_quarter",
+          "emits_type_note": "multiple columns: \u003clabel\u003e_year, \u003clabel\u003e_month, \u003clabel\u003e_day, \u003clabel\u003e_dow, \u003clabel\u003e_quarter; a datetime adds \u003clabel\u003e_hour",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -6089,7 +6110,7 @@
         ]
       }
     ],
-    "error_codes_count": 260,
+    "error_codes_count": 264,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6187,6 +6208,9 @@
       "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
       "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
       "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
+      "PULSE_IMPORT_DST_AMBIGUOUS",
+      "PULSE_IMPORT_DST_NONEXISTENT",
+      "PULSE_IMPORT_DST_RESOLVED",
       "PULSE_IMPORT_FORMAT_UNKNOWN",
       "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_NULL_PROMOTED",
@@ -6196,6 +6220,7 @@
       "PULSE_IMPORT_SET_OVERFLOW",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
+      "PULSE_IMPORT_TIMESTAMP_TRUNCATED",
       "PULSE_IMPORT_WIDTH_PROMOTED",
       "PULSE_INDEX_MANIFEST_INVALID",
       "PULSE_INDEX_MANIFEST_STALE",
@@ -7476,6 +7501,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_DATE_PART",
           "ATTR_FORMULA"
         ],
         "compatible_filterers": [
@@ -7498,6 +7524,7 @@
           "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
+          "FEAT_DATE_FEATURES",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -7795,7 +7822,7 @@
       },
       {
         "name": "op-attr-date-part",
-        "description": "Extract a calendar component (year, month, day, year_month, ...) from a date field."
+        "description": "Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field."
       },
       {
         "name": "op-attr-formula",
@@ -7843,7 +7870,7 @@
       },
       {
         "name": "op-feat-date-features",
-        "description": "Expand a date field into year / month / day / day-of-week / quarter columns."
+        "description": "Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns."
       },
       {
         "name": "op-feat-frequency-encode",
@@ -7927,7 +7954,7 @@
       },
       {
         "name": "op-group-date",
-        "description": "Partition date/datetime records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
+        "description": "Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter."
       },
       {
         "name": "op-group-date-ranges",
@@ -8371,7 +8398,7 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
@@ -8508,6 +8535,10 @@
       {
         "name": "synthetic-data",
         "description": "Entry point for synthetic data — `pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), the spec shape, the distribution registry, the determinism rule, and which focused synth skill answers each question."
+      },
+      {
+        "name": "time-zones",
+        "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
       },
       {
         "name": "tool-compose",
@@ -8686,7 +8717,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 170,
+    "examples_count": 174,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -8981,35 +9012,43 @@
       "formats": [
         {
           "name": "arrow",
-          "overlay_support": "sidecar"
+          "overlay_support": "sidecar",
+          "time_zone": "local_offset"
         },
         {
           "name": "csv",
-          "overlay_support": "warn_and_skip"
+          "overlay_support": "warn_and_skip",
+          "time_zone": "local_offset"
         },
         {
           "name": "excel",
-          "overlay_support": "sheets"
+          "overlay_support": "sheets",
+          "time_zone": "local_offset"
         },
         {
           "name": "jsonarray",
-          "overlay_support": "warn_and_skip"
+          "overlay_support": "warn_and_skip",
+          "time_zone": "local_offset"
         },
         {
           "name": "ndjson",
-          "overlay_support": "trailing_block"
+          "overlay_support": "trailing_block",
+          "time_zone": "local_offset"
         },
         {
           "name": "parquet",
-          "overlay_support": "sidecar"
+          "overlay_support": "sidecar",
+          "time_zone": "local_offset"
         },
         {
           "name": "spss",
-          "overlay_support": "warn_and_skip"
+          "overlay_support": "warn_and_skip",
+          "time_zone": "refused"
         },
         {
           "name": "tsv",
-          "overlay_support": "warn_and_skip"
+          "overlay_support": "warn_and_skip",
+          "time_zone": "local_offset"
         }
       ]
     },
@@ -11213,17 +11252,17 @@
             {
               "name": "granularity",
               "type": "string",
-              "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+              "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
             },
             {
               "name": "range_start",
               "type": "string",
-              "description": "ISO date string of the earliest period observed."
+              "description": "ISO date string of the earliest period observed (YYYY-MM-DDTHH for component=hour)."
             },
             {
               "name": "range_end",
               "type": "string",
-              "description": "ISO date string of the latest period observed."
+              "description": "ISO date string of the latest period observed (YYYY-MM-DDTHH for component=hour)."
             },
             {
               "name": "n_buckets",
@@ -11703,4 +11742,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 37b6e2ab9e97a6be152d78917f44477a91a35b2c01bbfc0f815cedd4bb5d1517
+// golden-hash: b93f7dae8067c708a953d561643b75d8dbb7d274b1fdf340848f767189fc155d

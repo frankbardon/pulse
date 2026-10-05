@@ -1,5 +1,6 @@
 [
   {"name": "id", "type": "u32", "description": "Unique order identifier (1..N)"},
   {"name": "order_date", "type": "date", "description": "Order placement date spanning the 2025 calendar year"},
-  {"name": "revenue", "type": "f64", "description": "Order revenue in USD; log-normally distributed"}
+  {"name": "revenue", "type": "f64", "description": "Order revenue in USD; log-normally distributed"},
+  {"name": "ordered_at", "type": "datetime", "description": "Instant the order was placed (UTC epoch seconds) on its order_date"}
 ]

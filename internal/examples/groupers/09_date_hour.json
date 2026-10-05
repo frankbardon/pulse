@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "category": "groupers",
+    "description": "Bucket order instants by local wall-clock hour using GROUP_DATE component=hour on a datetime field, read in America/New_York; keys are YYYY-MM-DDTHH and a repeated fall-back hour is one bucket.",
+    "intents": [
+      "change_over_time"
+    ],
+    "name": "group_date_hour_local",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "time_zone": "America/New_York",
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "ordered_at",
+      "params": {
+        "component": "hour"
+      }
+    }
+  ],
+  "sort": [
+    {
+      "field": "ordered_at"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // TestManifestExportCapability verifies the manifest carries the
@@ -154,5 +155,13 @@ func TestManifestImportCapability_ExportFlagMatchesExportBlock(t *testing.T) {
 			t.Errorf("Import.Formats[%q].Export = %v but Export.Formats %s the format",
 				f.Name, f.Export, map[bool]string{true: "carries", false: "omits"}[writable[f.Name]])
 		}
+	}
+}
+
+// TestManifestTZDataVersion: the manifest reports the embedded tz
+// database release, on the default and the instance builders alike.
+func TestManifestTZDataVersion(t *testing.T) {
+	if got := BuildManifest().TZDataVersion; got != temporal.TZDataVersion || got == "" {
+		t.Fatalf("manifest tzdata_version = %q, want %q", got, temporal.TZDataVersion)
 	}
 }

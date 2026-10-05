@@ -17,8 +17,12 @@ var exportFlags = []cli.Flag{
 	&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output file path", Required: true},
 	&cli.StringSliceFlag{Name: "include", Usage: "Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order."},
 	&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: field=table[:replace|augment]. Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
+	&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 }
+
+// exportTZFlagUsage is shared by the export leaves and `export predict`.
+const exportTZFlagUsage = "Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -> 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset)."
 
 // The `.sav` writer's four flags, each mapping onto one
 // spss.WriterOptions field. The usage strings are constants so the
@@ -145,6 +149,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 	job := pio.NewExportJob(input, writer)
 	job.FS = fs
 	job.Includes = includes
+	job.TimeZone = cmd.String("tz")
 
 	if len(labelArgs) > 0 {
 		bindings, perr := parseLabelBindings(labelArgs)
@@ -269,6 +274,7 @@ func exportPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
 			&cli.StringFlag{Name: "charset", Usage: writeCharsetFlagUsage},
 			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
+			&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -279,8 +285,9 @@ func exportPredictCmd() *cli.Command {
 			fs := afero.NewOsFs()
 
 			job := &pio.ExportJob{
-				Source: input,
-				FS:     fs,
+				Source:   input,
+				FS:       fs,
+				TimeZone: cmd.String("tz"),
 			}
 
 			// The target writer exists only to be asked a question. It is

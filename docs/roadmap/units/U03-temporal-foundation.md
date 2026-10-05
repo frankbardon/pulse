@@ -69,7 +69,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(temporal-foundati
 - [x] Every golden is byte-identical after the migration
 - [x] The gate fails on a deliberately planted `86400` outside `internal/temporal` (in-memory falsification sub-test)
 - [x] `LocalDay` matches `time.In(loc)` on a property test across DST transitions in at least four zones (incl. half-hour and southern-hemisphere zones)
-- [x] `Request.TimeZone: "UTC"` and an absent zone produce identical output (`TestTimeZone_UTCIdentity`)
+- [x] `Request.TimeZone: "UTC"` and an absent zone produce identical output (`TestUTCZoneIsIdentity` (was `TestTimeZone_UTCIdentity`, renamed in U14))
 - [x] `format_version` stays "1.1"
 - [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
@@ -77,7 +77,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(temporal-foundati
 
 - `TestNoZoneMathOutsideTemporal`
 - `TestDateFieldRejectsTZ`
-- `TestTimeZone_NonUTCDatetimeRefusedEveryMode`, `TestTimeZone_UTCIdentity`
+- `TestTimeZone_NonUTCDatetimeRefusedEveryMode` (replaced in U14 by `TestTimeZone_LocalDayEveryMode` + `TestTimeZone_DerivedFieldRefusedEveryMode`), `TestUTCZoneIsIdentity` (was `TestTimeZone_UTCIdentity`)
 - `TestZoneCapabilities_ExactSet`, `TestZoneCapabilities_EveryRegisteredName`, `TestManifest_ZoneKey`
 
 ## Update Demand companions

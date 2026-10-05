@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/spf13/afero"
 )
 
@@ -183,10 +184,10 @@ func TestConvertValue_DateTime(t *testing.T) {
 
 // TestFormatFieldValue_DateTime pins the export-side canonical string.
 func TestFormatFieldValue_DateTime(t *testing.T) {
-	if got := formatFieldValue(encoding.FieldTypeDateTime, 1709547072, nil); got != "2024-03-04T10:11:12Z" {
+	if got := formatFieldValue(encoding.FieldTypeDateTime, 1709547072, nil, nil); got != "2024-03-04T10:11:12Z" {
 		t.Errorf("formatFieldValue = %q, want %q", got, "2024-03-04T10:11:12Z")
 	}
-	if got := formatFieldValue(encoding.FieldTypeDateTime, 0, nil); got != "1970-01-01T00:00:00Z" {
+	if got := formatFieldValue(encoding.FieldTypeDateTime, 0, nil, nil); got != "1970-01-01T00:00:00Z" {
 		t.Errorf("formatFieldValue(0) = %q, want epoch", got)
 	}
 }
@@ -205,7 +206,7 @@ func TestConvertValue_DateTimeSurvivesFormatRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("convertValue(%q): %v", lit, err)
 		}
-		text := formatFieldValue(encoding.FieldTypeDateTime, first, nil)
+		text := formatFieldValue(encoding.FieldTypeDateTime, first, nil, nil)
 		second, err := convertValue(text, encoding.FieldTypeDateTime, nil, "")
 		if err != nil {
 			t.Fatalf("convertValue(%q) (exported form of %q): %v", text, lit, err)
@@ -259,6 +260,27 @@ func TestImportExport_DateTimeEndToEnd(t *testing.T) {
 		want := tuples[i%len(tuples)][0]
 		if got := row[0]; got != want {
 			t.Fatalf("row %d stamp = %v, want %q", i, got, want)
+		}
+	}
+}
+
+// TestExportZone_UTCArmMatchesCanonical: temporal.FormatLocal's UTC arm
+// (nil or a UTC-equivalent zone) is byte-for-byte encoding.FormatDateTime,
+// so a zone that resolves to UTC can never change an export.
+func TestExportZone_UTCArmMatchesCanonical(t *testing.T) {
+	etc, err := temporal.LoadZone("Etc/UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sec := range []int64{0, 1709547072, -1, -2208988800, 4102444799} {
+		want := encoding.FormatDateTime(uint64(sec))
+		for _, z := range []*temporal.Zone{nil, temporal.UTC, etc} {
+			if got := temporal.FormatLocal(sec, z); got != want {
+				t.Fatalf("FormatLocal(%d, %v) = %s, want %s", sec, z, got, want)
+			}
+		}
+		if got := formatFieldValue(encoding.FieldTypeDateTime, uint64(sec), nil, nil); got != want {
+			t.Fatalf("formatFieldValue(%d) = %s, want %s", sec, got, want)
 		}
 	}
 }

@@ -108,6 +108,13 @@ type Manifest struct {
 	// version, then "devel[+rev]"). It identifies the build, not the
 	// payload contract — that is the envelope format_version.
 	PulseVersion string `json:"pulse_version"`
+	// TZDataVersion is the IANA tz database release embedded in the
+	// build (e.g. "2026c"). Every zone name Pulse accepts and every
+	// offset it applies comes from that copy alone — never the host's
+	// zoneinfo — so two builds with the same value resolve every zone
+	// identically. A build fact like PulseVersion: not part of
+	// feature_set_digest.
+	TZDataVersion string `json:"tzdata_version"`
 	// FeatureSetDigest identifies the feature set the manifest
 	// describes: "fs1:" + sha256hex over the instance's sorted enabled
 	// feature names and its effective behaviour switches. Two manifests

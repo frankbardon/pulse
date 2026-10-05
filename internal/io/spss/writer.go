@@ -220,6 +220,9 @@ func (w *Writer) WriteRow(values []any) error {
 // It is the fidelity path: raw storage in, the metadata sidecar consulted,
 // nothing re-derived from rendered text.
 func (w *Writer) WriteCohort(ctx context.Context, src iocore.CohortSource) (int, error) {
+	if src.TimeZone != "" {
+		return 0, cannotRenderZone(src.TimeZone)
+	}
 	if len(src.Includes) > 0 {
 		return 0, w.cannotProject("--include", strings.Join(src.Includes, ", "))
 	}
@@ -254,6 +257,9 @@ func (w *Writer) WriteCohort(ctx context.Context, src iocore.CohortSource) (int,
 // renames, and `done` unset — so validating is not a half-performed encode
 // and a Writer stays usable afterwards.
 func (w *Writer) ValidateCohort(ctx context.Context, src iocore.CohortSource) ([]*errors.CodedError, error) {
+	if src.TimeZone != "" {
+		return nil, cannotRenderZone(src.TimeZone)
+	}
 	if len(src.Includes) > 0 {
 		return nil, w.cannotProject("--include", strings.Join(src.Includes, ", "))
 	}
@@ -644,6 +650,21 @@ func stringify(v any) string {
 // It names the flag rather than describing the mechanism, because the caller
 // asked for the flag. See the file comment for why silently ignoring it is
 // not on the table.
+// cannotRenderZone refuses an export asked to render datetimes on a
+// non-UTC wall clock (ExportJob.TimeZone / --tz). A `.sav` DATETIME is a
+// naive wall-clock second count with no offset slot: writing the local
+// reading would drop the offset that tells a repeated fall-back hour's
+// two instants apart, and writing UTC would ignore the request. Neither
+// is what was asked for, so the export stops instead.
+func cannotRenderZone(zone string) error {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_EXPORT_UNSUPPORTED,
+		"spss: --tz "+zone+" is not available on a .sav export. A .sav DATETIME is a naive wall-clock second "+
+			"count with no offset, so a local rendering cannot carry the offset that keeps every instant exact; "+
+			"the .sav writer always writes UTC wall-clock values. Export without --tz, or export to a text "+
+			"format (csv, ndjson, …) for offset-bearing local literals.",
+		map[string]any{"option": "--tz", errors.DetailTimeZone: zone})
+}
+
 func (w *Writer) cannotProject(flag, what string) error {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_EXPORT_UNSUPPORTED,
 		"spss: "+flag+" is not available on a .sav export ("+what+"). The .sav writer encodes from the "+

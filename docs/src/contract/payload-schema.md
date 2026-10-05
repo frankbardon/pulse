@@ -154,9 +154,10 @@ name set or which operators accept `tz`; three rules are enforced by
   `"zone": "capable"`, and never on a `date` field — otherwise
   `PROCESSING_CONFIG`;
 - precedence is slot `tz` → `time_zone` → the engine's
-  `DefaultTimeZone` → `UTC`, and a resolved non-UTC zone reaching a
-  `datetime` field is currently refused with `PROCESSING_CONFIG`
-  (zone-aware operator arithmetic has not landed).
+  `DefaultTimeZone` → `UTC`; a resolved zone on a `datetime` field
+  reads each instant on its local calendar day, and a non-UTC zone
+  reaching a derived field (absent from the schema) is refused with
+  `PROCESSING_CONFIG`.
 
 The resolved zone per slot is echoed by predict as
 `data.time_zones[]` — `{slot, operator, field_type, tz, source}` —

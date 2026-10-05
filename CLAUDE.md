@@ -100,9 +100,7 @@ When a request slot names a field but omits `Type`, engine infers from schema ty
 
 `Field.Nullable` orthogonal — never changes inferred operator. Defaults apply only when `Field` set and `Type` empty; never override explicit `Type`; never cross categories; never default tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
 
-**Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept BOTH `date` (epoch days, `int32`) and `datetime` (epoch seconds, `int64`); past the operator boundary everything speaks epoch DAYS. **All epoch-day / calendar / zone math lives in `internal/temporal`** (`TestNoZoneMathOutsideTemporal` bans `86400` / zone loading elsewhere). Zones: slot `tz` → request `time_zone` → `Options.DefaultTimeZone` → UTC; non-UTC on a `datetime` is `PROCESSING_CONFIG` until U14. Long form: `execution-modes.md` (Date-family field types, Time zones).
-
-**Labeled date ranges.** `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES` share one compiled `{label, start, end}` model; detail in `execution-modes.md` (Labeled date ranges). Skills: `skills/op-group-date-ranges.md`, `skills/op-filter-date-ranges.md`.
+**Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept BOTH `date` (epoch days, `int32`) and `datetime` (epoch seconds, `int64`); past the operator boundary everything speaks epoch DAYS. **All epoch-day / calendar / zone math lives in `internal/temporal`** (`TestNoZoneMathOutsideTemporal` bans `86400` / zone loading elsewhere). Zones: slot `tz` → request `time_zone` → `Options.DefaultTimeZone` → UTC; a `datetime` buckets and filters on its LOCAL day in every mode, a non-UTC zone on a derived field is `PROCESSING_CONFIG`, UTC is byte-identical to no zone. Long form: `execution-modes.md` (Date-family field types, Time zones, Labeled date ranges); skill `skills/time-zones.md`.
 
 ## Output Format Contract
 
@@ -206,7 +204,7 @@ Other load-bearing contract gates are **not** prefix-matched (they are enforced 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 
 - `PULSE_DATA_DIR` — base directory for `.pulse` cohorts, used by `fs.Default()`. The only required env var; bypass with `Options{DataDir}` or `Options{FS}`.
-- `PULSE_IMPORTS_DIR` — managed-imports subdir under the fs root (default `imports`), honoured by `imports.Manager`.
+- `PULSE_IMPORTS_DIR` — managed-imports subdir under the fs root (default `imports`), honoured by `imports.Manager`; sidecar read settings (`source_tz`, `dst_policy`, …): `skills/session-bootstrap.md`.
 - `PULSE_IMPORT_TTL` — default TTL for managed imports: Go duration (`24h`), day form (`7d`), or `pin`. Default `7d`.
 - `PULSE_LABEL_TABLES_DIR` — directory whose `*.json` files auto-load as `LabelTables` at `pulse.New` time, keyed by filename. Detail: `skills/label-display.md`.
 - `PULSE_RANGE_TABLES_DIR` — same shape for `RangeTables` (bare `{label,start,end}` array or a `{"description","ranges"}` wrapper; filename minus `.json` is the table name), validated through the shared range-compilation pass. A name declared both programmatically and on disk is a hard error.

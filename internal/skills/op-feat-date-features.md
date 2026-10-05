@@ -1,6 +1,6 @@
 ---
 name: op-feat-date-features
-description: Expand a date field into year / month / day / day-of-week / quarter columns.
+description: Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns.
 kind: operator
 category: FEAT
 operator: FEAT_DATE_FEATURES
@@ -13,33 +13,31 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
-None. `Field` (required, `date`) — `params` block is unused.
+None. `Field` (required) — `params` block is unused.
 
 ## Inputs
 
-`Field` — `date` only — rejects every other type including categorical.
+`Field` — `date` or `datetime`; any other type is refused.
 
 ## Output
 
-FIVE columns prefixed by `Label` (default the field name):
+Columns prefixed by `Label` (default the field name):
 
 | Column | Type | Range |
 |---|---|---|
-| `<prefix>_year` | f64 | calendar year |
+| `<prefix>_year` | f64 | year |
 | `<prefix>_month` | f64 | `1..12` |
 | `<prefix>_day` | f64 | `1..31` |
-| `<prefix>_dow` | f64 | `0..6` — `time.Weekday`, `0` = Sunday |
+| `<prefix>_dow` | f64 | `0..6`, `0` = Sunday |
 | `<prefix>_quarter` | f64 | `1..4` |
-
-Epoch days decoded as UTC.
+| `<prefix>_hour` | f64 | `0..23` — `datetime` only |
 
 ## Gotchas
 
-- Non-`date` source → `PROCESSING_CONFIG` at construction.
-- Null date → all five columns `null`.
-- `dow` `0` = Sunday (Go), NOT ISO `1` = Monday.
-- Emitted suffixes are `dow` / `quarter` (not the historical `day_of_week` / `is_weekend`).
-- Zone-capable, but `date`-only: explicit slot `tz` → `PROCESSING_CONFIG`; inherited `time_zone` not applied.
+- Null source → every column `null`.
+- `dow` `0` = Sunday, NOT ISO; ignores `week_start`.
+- Suffixes are `dow` / `quarter` (not `day_of_week` / `is_weekend`).
+- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` → `time_zone` → default → UTC). A `date` ignores zones: explicit `tz` refused, inherited not applied.
 - Streamable per-row.
 
 ## See
