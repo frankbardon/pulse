@@ -359,7 +359,11 @@ func TestWeight_FrequencyOnlyMatchesPredict(t *testing.T) {
 	for _, op := range ops {
 		mk := func(w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
 			var r types.Request
-			if err := json.Unmarshal([]byte(strings.NewReplacer("$F", "y", "$S", "a").Replace(acceptanceTemplates[op])), &r); err != nil {
+			field := "y"
+			if op == "TEST_FISHER_EXACT" {
+				field = "g" // rows g × cols g: a 2×2 table on the two-level split
+			}
+			if err := json.Unmarshal([]byte(strings.NewReplacer("$F", field, "$S", "a").Replace(acceptanceTemplates[op])), &r); err != nil {
 				t.Fatalf("%s template: %v", op, err)
 			}
 			r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
@@ -387,7 +391,7 @@ func TestWeight_FrequencyOnlyMatchesPredict(t *testing.T) {
 		t.Run(op+"/frequency", func(t *testing.T) {
 			p := weightPulse(t, fs, nil)
 			if env := predictEnvelope(t, p, fs, cohort, mk(types.SlotWeight{}, freq)); len(env.Errors) != 0 {
-				t.Fatalf("predict refused a frequency weight: %+v", env.Errors)
+				t.Fatalf("predict refused a frequency weight: %+v", *env.Errors[0])
 			}
 			resp, err := p.Process(ctx, mk(types.SlotWeight{}, freqRun))
 			if err != nil {

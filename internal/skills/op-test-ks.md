@@ -14,6 +14,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`. Always two-sided; there is no one-sided form.
+- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): ECDFs step by Σw, p on the Σw sizes — equals the expanded rows. `Details` add `sum_weights` beside `n` (raw rows).
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 
@@ -27,7 +28,6 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — both ECDFs must materialize and sort before comparison.
 - Sensitive to distribution shape, not just mean.
 - Small-n approximation drifts; only n < 2 per group is refused (`PULSE_TEST_INSUFFICIENT_N`).

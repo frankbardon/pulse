@@ -93,7 +93,8 @@ func TestKindsOf(t *testing.T) {
 			t.Errorf("IsAware(%s) disagrees with KindsOf", op)
 		}
 	}
-	for _, tt := range []types.TestType{types.TEST_MANN_WHITNEY_U, types.TEST_WILCOXON_SR, types.TEST_KRUSKAL_WALLIS, types.TEST_SPEARMAN_R, types.TEST_KENDALL_TAU} {
+	for _, tt := range []types.TestType{types.TEST_MANN_WHITNEY_U, types.TEST_WILCOXON_SR, types.TEST_KRUSKAL_WALLIS, types.TEST_SPEARMAN_R, types.TEST_KENDALL_TAU,
+		types.TEST_FISHER_EXACT, types.TEST_KS, types.TEST_BROWN_FORSYTHE} {
 		if !reflect.DeepEqual(KindsOf(string(tt)), freq) {
 			t.Errorf("KindsOf(%s) = %v, want frequency only", tt, KindsOf(string(tt)))
 		}
@@ -179,7 +180,7 @@ func TestClassify_MomentTestsAware(t *testing.T) {
 			t.Errorf("%s: kinds %v, want both", op, KindsOf(string(op)))
 		}
 	}
-	if IsAware(string(types.TEST_FISHER_EXACT)) {
-		t.Fatal("TEST_FISHER_EXACT has no weighted computation yet")
+	if IsAware(string(types.TEST_SHAPIRO_WILK)) {
+		t.Fatal("TEST_SHAPIRO_WILK has no weighted computation yet")
 	}
 }

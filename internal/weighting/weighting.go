@@ -110,7 +110,11 @@ var attributeClasses = map[types.AttributeType]Class{
 // weighted mid-ranks (a row of weight w ranks as w identical rows), the
 // tie corrections on the expanded tie sizes and Kendall's pair weights
 // w_i·w_j equal the unweighted test on the expanded rows; no standard
-// probability-weighted rank test exists. A row test reads its slot's
+// probability-weighted rank test exists. Fisher's exact test (the
+// exact test on the Σw table), KS (weighted ECDFs, asymptotic p on the
+// expanded sizes) and Brown-Forsythe (ANOVA on |x − the frequency
+// weighted median|) are frequency-only for the same reason: each is the
+// unweighted test on the expanded rows. A row test reads its slot's
 // stamped weight.
 var testClasses = map[types.TestType]Class{
 	types.TEST_T:            ClassAware,
@@ -128,6 +132,9 @@ var testClasses = map[types.TestType]Class{
 	types.TEST_KRUSKAL_WALLIS: ClassFrequencyOnly,
 	types.TEST_SPEARMAN_R:     ClassFrequencyOnly,
 	types.TEST_KENDALL_TAU:    ClassFrequencyOnly,
+	types.TEST_FISHER_EXACT:   ClassFrequencyOnly,
+	types.TEST_KS:             ClassFrequencyOnly,
+	types.TEST_BROWN_FORSYTHE: ClassFrequencyOnly,
 }
 
 // refusalReasons are the PERMANENT refusals: operators with no standard

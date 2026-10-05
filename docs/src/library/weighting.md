@@ -115,7 +115,7 @@ declare it the same way.
 | windows | request weight: `PROCESSING_CONFIG` | skipped |
 | filters, features, row-local attributes, other groupers | skipped | skipped |
 | the moment tests — t (one- and two-sample), Welch t, paired t, two-sample z, one-way ANOVA F, Welch ANOVA, Pearson r — plus the two-proportion z-test and the χ² independence test | weighted (both kinds) | weighted |
-| the rank tests — Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ, Kendall τ-b | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
+| the rank tests — Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ, Kendall τ-b — plus Fisher's exact test, the two-sample Kolmogorov-Smirnov test and Brown-Forsythe | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, inferential overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
@@ -152,6 +152,18 @@ There is no standard probability-weighted rank test, so a probability
 weight is refused with a message naming the kind; switch the weight to
 `kind: frequency` (if the weights are replication counts) or set the
 slot's `weight: null`.
+
+Fisher's exact test, the Kolmogorov-Smirnov test and Brown-Forsythe
+take frequency weights only, for the same reason. Fisher's exact test
+runs on the Σw table (`details.contingency` reports it); KS steps each
+empirical CDF by a row's weight and reads its asymptotic p-value on the
+Σw group sizes; Brown-Forsythe takes each group's median of the
+expanded rows (the frequency weighted median of `AGG_MEDIAN`) and runs
+the one-way ANOVA on the weighted absolute deviations. Each equals the
+unweighted test on the expanded rows. The KS statistic compares the two
+CDFs only after every row tied at a value is counted on both sides,
+which is also the unweighted rule (ties inside one sample no longer
+inflate D).
 
 **Other weighted inference is not available yet.** The last row is
 refused rather than silently computed unweighted beside weighted

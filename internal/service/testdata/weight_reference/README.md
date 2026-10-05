@@ -35,7 +35,13 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
   (`FREQUENCY_ONLY`: `wilcox.test`, `kruskal.test`,
   `cor.test(exact = FALSE)` for Spearman / Kendall with continuity) have
   only this row, cross-checked against scipy on the same expansion
-  (Kendall: tau only — scipy's p omits the continuity correction);
+  (Kendall: tau only — scipy's p omits the continuity correction).
+  Fisher / KS / Brown-Forsythe (E2-S2) likewise: `fisher.test` p (its
+  estimate is the conditional MLE, so the sample odds ratio is
+  scipy-only), `ks.test` D (Pulse's p is the Stephens-corrected
+  asymptotic, pinned via `scipy.special.kolmogorov`), and
+  `anova(lm(|x − group median| ~ k))` — what `car::leveneTest(center =
+  median)` computes, in base R, so no package pin;
 - kind `probability` — the w* closed form in the generator, its moment
   step cross-checked against statsmodels (`DescrStatsW` on w*,
   `CompareMeans`, `proportions_ztest`) and scipy `chi2_contingency`. The

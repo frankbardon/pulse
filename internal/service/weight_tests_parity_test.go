@@ -46,6 +46,9 @@ type testParityOp struct {
 	// warning's text counts raw rows: the expansion arm then compares
 	// the warning codes only.
 	raw []string
+	// filters, when set, ride the request (a 2×2 Fisher table from the
+	// three-level o).
+	filters []*types.Filterer
 }
 
 var testParityOps = []testParityOp{
@@ -68,6 +71,11 @@ var testParityOps = []testParityOp{
 	{name: "kruskal", spec: types.Test{Type: types.TEST_KRUSKAL_WALLIS, Field: "x", SplitBy: "k"}, raw: []string{"n_total"}},
 	{name: "spearman", spec: types.Test{Type: types.TEST_SPEARMAN_R, Field: "x", Field2: "y"}},
 	{name: "kendall", spec: types.Test{Type: types.TEST_KENDALL_TAU, Field: "x", Field2: "y"}},
+	// Frequency-only exact / distribution / spread tests (E2-S2).
+	{name: "fisher_exact", spec: types.Test{Type: types.TEST_FISHER_EXACT, Rows: "h", Cols: "o"},
+		filters: []*types.Filterer{{Type: types.FILTER_EXCLUDE, Field: "o", Values: []string{"maybe"}}}},
+	{name: "ks", spec: types.Test{Type: types.TEST_KS, Field: "x", SplitBy: "h"}},
+	{name: "brown_forsythe", spec: types.Test{Type: types.TEST_BROWN_FORSYTHE, Field: "x", SplitBy: "k"}},
 }
 
 // build returns the row's request builder over path.
@@ -76,7 +84,7 @@ func (o testParityOp) build(path string) func() *types.Request {
 		spec := o.spec
 		spec.Label = "test_" + o.name
 		return &types.Request{Cohort: &types.Cohort{Filename: path}, Tests: []*types.Test{&spec},
-			Aggregations: []*types.Aggregation{testSteerCount()}}
+			Filterers: o.filters, Aggregations: []*types.Aggregation{testSteerCount()}}
 	}
 }
 

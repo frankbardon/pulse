@@ -14,6 +14,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
+- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): weighted group medians, ANOVA on Σw — equals the expanded rows. `Details` add `sum_weights` beside `n` (raw rows).
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 2 groups).
 
@@ -27,7 +28,6 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — per-group medians require a sort.
 - Not a pre-ANOVA gate: a large p is not evidence of equal spread.
 - More robust than Levene (mean-based) under non-normality — that's the whole point.

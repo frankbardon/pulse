@@ -102,6 +102,7 @@ from fractions import Fraction
 
 import numpy as np
 import scipy
+import scipy.special
 import scipy.stats
 import statsmodels
 from statsmodels.stats.proportion import proportions_ztest
@@ -430,11 +431,23 @@ TEST_SPECS = [
     ("kruskal", {"type": "TEST_KRUSKAL_WALLIS", "field": "x", "split_by": "k"}),
     ("spearman", {"type": "TEST_SPEARMAN_R", "field": "x", "field2": "y"}),
     ("kendall", {"type": "TEST_KENDALL_TAU", "field": "x", "field2": "y"}),
+    # Exact / distribution / spread tests (E2-S2): frequency-only too.
+    # Fisher reads the 2×2 h × o table with o = "maybe" filtered out.
+    ("fisher", {"type": "TEST_FISHER_EXACT", "rows": "h", "cols": "o"}),
+    ("ks", {"type": "TEST_KS", "field": "x", "split_by": "h"}),
+    ("brown_forsythe", {"type": "TEST_BROWN_FORSYTHE", "field": "x", "split_by": "k"}),
 ]
+
+# Request-level slots a case adds beside its tests[0] slot.
+TEST_EXTRA = {
+    "fisher": {"filterers": [{"type": "FILTER_EXCLUDE", "field": "o", "values": ["maybe"]}]},
+}
+FISHER_OUT = "maybe"
 
 # Cases with no probability-weighted form (refused under that kind): a
 # frequency reference only, = the unweighted test on the expansion.
-FREQUENCY_ONLY = {"mann_whitney", "wilcoxon_sr", "kruskal", "spearman", "kendall"}
+FREQUENCY_ONLY = {"mann_whitney", "wilcoxon_sr", "kruskal", "spearman", "kendall",
+                  "fisher", "ks", "brown_forsythe"}
 
 
 def kish(w):
@@ -622,6 +635,8 @@ def test_closed_form(case, rows, prob):
         return out
     if case in FREQUENCY_ONLY:
         assert not prob, case
+        if case in ("fisher", "ks", "brown_forsythe"):
+            return exact_closed_form(case, rows, xr)
         return rank_closed_form(case, xr)
     raise ValueError(case)
 
@@ -691,6 +706,81 @@ def rank_closed_form(case, xr):
     raise ValueError(case)
 
 
+def exact_closed_form(case, rows, xr):
+    """Fisher / KS / Brown-Forsythe on the np.repeat-expanded rows (raw
+    n / Σw reported per Pulse's details). R on the same expansion must
+    agree (test_cases).
+
+    - fisher: scipy fisher_exact's two-sided p (tables no more likely
+      than observed) on the Σw table; the statistic is the SAMPLE odds
+      ratio ad/bc in first-seen row / column order, as Pulse reports it
+      (R's estimate is the conditional MLE, so only R's p is compared).
+    - ks: scipy ks_2samp's D (ties handled at value boundaries, as R);
+      Pulse's p is the Stephens-corrected Kolmogorov asymptotic,
+      Q_KS((√en + 0.12 + 0.11/√en)·D) with en = n₁n₂/(n₁+n₂) on the
+      expanded sizes — scipy.special.kolmogorov — not R's uncorrected
+      asymptotic, so R pins D only.
+    - brown_forsythe: scipy levene(center="median") on the expansion =
+      one-way ANOVA on |x − group median|."""
+    out = {}
+    if case == "fisher":
+        fr = [r for r in rows if r[4] != FISHER_OUT]
+        rord, cord, cells = [], [], {}
+        for r in fr:
+            if r[2] not in rord:
+                rord.append(r[2])
+            if r[4] not in cord:
+                cord.append(r[4])
+            cells[(r[2], r[4])] = cells.get((r[2], r[4]), 0) + int(r[5])
+        assert len(rord) == 2 and len(cord) == 2, (rord, cord)
+        (a, b), (c, d) = [[cells.get((ri, ci), 0) for ci in cord] for ri in rord]
+        assert b > 0 and c > 0 and a > 0 and d > 0, "fixture must avoid a zero cell (U36 #205 OR)"
+        res = scipy.stats.fisher_exact([[a, b], [c, d]], alternative="two-sided")
+        orr = a * d / (b * c)
+        out.update(statistic=orr, odds_ratio=orr, p_value=float(res.pvalue),
+                   n=len(fr), sum_weights=float(a + b + c + d))
+        return out
+    if case == "ks":
+        groups, sizes = [], []
+        for g in H_LEVELS:
+            gx = np.array([r[0] for r in xr if r[2] == g])
+            gw = np.array([r[5] for r in xr if r[2] == g])
+            groups.append(np.repeat(gx, gw.astype(int)))
+            out[f"n[{g}]"] = len(gx)
+            out[f"sum_weights[{g}]"] = float(gw.sum())
+            sizes.append(float(gw.sum()))
+        D = float(scipy.stats.ks_2samp(groups[0], groups[1], method="asymp").statistic)
+        en = math.sqrt(sizes[0] * sizes[1] / (sizes[0] + sizes[1]))
+        out.update(statistic=D, p_value=float(scipy.special.kolmogorov((en + 0.12 + 0.11 / en) * D)))
+        return out
+    if case == "brown_forsythe":
+        groups, meds, devs = [], [], []
+        for g in K_LEVELS:
+            gx = np.array([r[0] for r in xr if r[3] == g])
+            gw = np.array([r[5] for r in xr if r[3] == g])
+            e = np.repeat(gx, gw.astype(int))
+            groups.append(e)
+            m = float(np.median(e))
+            meds.append(m)
+            devs.append(np.abs(e - m))
+            out[f"n[{g}]"] = len(gx)
+            out[f"sum_weights[{g}]"] = float(gw.sum())
+            out[f"group_medians[{g}]"] = m
+            out[f"abs_dev_means[{g}]"] = float(devs[-1].mean())
+        res = scipy.stats.levene(*groups, center="median")
+        alld = np.concatenate(devs)
+        grand = float(alld.mean())
+        ssb = float(sum(len(z) * (z.mean() - grand) ** 2 for z in devs))
+        ssw = float(sum(((z - z.mean()) ** 2).sum() for z in devs))
+        k, n = len(K_LEVELS), len(alld)
+        F = (ssb / (k - 1)) / (ssw / (n - k))
+        assert close(F, res.statistic), (F, res.statistic)
+        out.update(statistic=F, df=k - 1, df_between=k - 1, df_within=n - k,
+                   p_value=float(res.pvalue), ss_between=ssb, ss_within=ssw)
+        return out
+    raise ValueError(case)
+
+
 def close(a, b, rel=1e-10):
     a, b = float(a), float(b)
     return abs(a - b) <= rel * max(abs(b), 1e-300) or a == b
@@ -733,6 +823,17 @@ R_FIGURES.update({
     "spearman": ("spearman", {"rho": "statistic", "p_value": "p_value", "t": "t", "df": "df"}),
     # scipy's Kendall p has no continuity correction: z / p are R's only.
     "kendall": ("kendall", {"tau": "statistic", "z": "z", "p_value": "p_value"}),
+    # R's fisher.test estimate is the conditional MLE (not Pulse's
+    # sample OR) and its ks.test p is the uncorrected asymptotic: R pins
+    # Fisher's p and KS's D; Brown-Forsythe is car::leveneTest's own
+    # anova(lm(|x − median| ~ k)) in base R.
+    "fisher": ("fisher", {"p_value": "p_value"}),
+    "ks": ("ks", {"statistic": "statistic"}),
+    "brown_forsythe": ("brown_forsythe", {"statistic": "statistic", "df_between": "df",
+                                          "df_within": "df_within", "p_value": "p_value",
+                                          "ss_between": "ss_between", "ss_within": "ss_within",
+                                          "median_p": "group_medians[p]", "median_q": "group_medians[q]",
+                                          "median_r": "group_medians[r]"}),
 })
 R_FIGURES["welch"] = R_FIGURES["t_split"]
 
@@ -886,7 +987,7 @@ def emit(out, tout):
     w("// weightRefTestCases: one slot per case, figures keyed by wire path.")
     w("var weightRefTestCases = []weightRefInferCase{")
     for c in tout:
-        req = json.dumps({"tests": [c["spec"]]}, separators=(",", ":"))
+        req = json.dumps({"tests": [c["spec"]], **TEST_EXTRA.get(c["name"], {})}, separators=(",", ":"))
         figs = ", ".join(f'"tests[0].{figure_path(k)}": {gofloat(v)}' for k, v in sorted(c["figs"].items()))
         w(f'\t{{weight: "{c["weight"]}", kind: "{c["kind"]}", name: "{c["name"]}", '
           f'request: `{req}`, figures: map[string]float64{{{figs}}}, source: "{c["src"]}"}},')

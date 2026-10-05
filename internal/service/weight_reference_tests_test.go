@@ -23,7 +23,8 @@ import (
 // rep()-expanded rows (testdata/weight_reference/test_reference.R —
 // t.test, oneway.test, aov, cor.test, chisq.test, prop.test, and for
 // the frequency-only rank tests wilcox.test, kruskal.test and
-// cor.test(method = "spearman" / "kendall", exact = FALSE)); kind
+// cor.test(method = "spearman" / "kendall", exact = FALSE), fisher.test,
+// ks.test and anova(lm(|x − median| ~ k)) for Brown-Forsythe); kind
 // probability is the closed form of the one formula rule on w*, its
 // moment step cross-checked against statsmodels DescrStatsW /
 // CompareMeans / proportions_ztest and scipy chi2_contingency — and the

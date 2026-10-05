@@ -157,3 +157,30 @@ kt <- cor.test(pr$x, pr$y, method = "kendall", exact = FALSE, continuity = TRUE)
 out("kendall", "tau", kt$estimate)
 out("kendall", "z", kt$statistic)
 out("kendall", "p_value", kt$p.value)
+
+# Exact / distribution / spread tests (weighting-inferential E2-S2;
+# frequency-only), each on the expanded rows.
+# TEST_FISHER_EXACT: h × o with o = "maybe" filtered out; the two-sided
+# p (R's estimate is the conditional MLE, not Pulse's sample odds ratio).
+fe <- e[e$o != "maybe", ]
+ft <- fisher.test(table(fe$h, factor(fe$o)))
+out("fisher", "p_value", ft$p.value)
+
+# TEST_KS: x by h; D only (Pulse's p is the Stephens-corrected
+# asymptotic, not ks.test's).
+ks <- suppressWarnings(ks.test(xs$x[xs$h == "a"], xs$x[xs$h == "b"], exact = FALSE))
+out("ks", "statistic", ks$statistic)
+
+# TEST_BROWN_FORSYTHE: x by k — car::leveneTest(center = median)'s own
+# computation, anova(lm(|x − group median| ~ group)), in base R (no car
+# dependency to pin).
+md <- ave(xs$x, xs$k, FUN = median)
+bf <- anova(lm(abs(xs$x - md) ~ xs$k))
+out("brown_forsythe", "statistic", bf[["F value"]][1])
+out("brown_forsythe", "df_between", bf[["Df"]][1])
+out("brown_forsythe", "df_within", bf[["Df"]][2])
+out("brown_forsythe", "p_value", bf[["Pr(>F)"]][1])
+out("brown_forsythe", "ss_between", bf[["Sum Sq"]][1])
+out("brown_forsythe", "ss_within", bf[["Sum Sq"]][2])
+gmd <- tapply(xs$x, xs$k, median)
+for (g in names(gmd)) out("brown_forsythe", paste0("median_", g), gmd[[g]])

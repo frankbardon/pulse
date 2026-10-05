@@ -4548,6 +4548,9 @@
         "intents": [
           "compare_groups",
           "distribution_shape"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4600,6 +4603,9 @@
         "intents": [
           "compare_groups",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4676,6 +4682,9 @@
         "intents": [
           "compare_groups",
           "distribution_shape"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -11514,4 +11523,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 588fa5422b581bd19423a78c37ee908f7eb8b7b0fa31a965df77b4aaa227ecc2
+// golden-hash: f67eb2a5fe208ffe7e4cc8bddc3be6928315c7c036aa52597f863226807d70fe
