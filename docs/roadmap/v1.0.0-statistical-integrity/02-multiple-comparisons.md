@@ -60,14 +60,15 @@ Correction is applied at the overlay/test fold, **after** all p-values in a fami
 
 ## Deliverables
 
-- [ ] `processing/multiplicity`: Bonferroni, Holm, BH, BY
-- [ ] `multiplicity {method, family}` on `Request`, `OverlaySpec`, `Test`, `MatrixSpec`; `Options.DefaultMultiplicity`
-- [ ] Families `layer` / `row` / `column` / `request` / `matrix`, including across Compose slots
-- [ ] Additive `p_adjusted` / `significant_adjusted` / `multiplicity` on overlay summaries, `TestResult` and `MatrixResult`
-- [ ] Predict advisory and Explain narration hooks; glossary terms
-- [ ] Reference-value, identity and family-boundary gates; topical skill `multiple-comparisons.md`
+- [x] `processing/multiplicity`: Bonferroni, Holm, BH, BY
+- [x] `multiplicity {method, family}` on `Request`, `OverlaySpec`, `Test`, `MatrixSpec`; `Options.DefaultMultiplicity`
+- [x] Families `layer` / `row` / `column` / `request` / `matrix`, including across Compose slots
+- [x] Additive `p_adjusted` / `significant_adjusted` / `multiplicity` on overlay summaries, `TestResult` and `MatrixResult`
+- [x] Predict advisory and Explain narration hooks; glossary terms
+- [x] Reference-value, identity and family-boundary gates; topical skill `multiplicity-correction.md`
 
 ## Decisions
 
 - **Shipped default:** `none`. Correction is opt-in per request, slot or instance (`Options.DefaultMultiplicity`). Changing a default that moves visible significance flags would conflict with the determinism promise in `STABILITY.md`.
 - **`OVERLAY_CORR_PVALUE`:** dropped in favour of `MatrixSpec.multiplicity`.
+- **Shipped as U13** ([unit](../units/U13-multiplicity.md)): regression coefficient p-values are out of scope and `TEST_TUKEY_HSD` is never corrected (already family-wise); the `compose` family pools every slot and Compose-host layer, other families stay per slot; ProcessChain is wired per stage (no family spans stages); the `matrix` family and `MatrixSpec.multiplicity` wait for the matrix units; the predict advisory is the data field `p_values` (threshold 10) rather than an advisory code, for the recommend layer to read.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -78,7 +79,14 @@ import (
 // finalised FacetResult and attaches the resulting layers in spec
 // order. No-op when req.Overlays is empty (additive byte-identity
 // contract).
-func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetRequest, result *types.FacetResult) error {
+//
+// mult is the overlays' resolved multiplicity
+// (descx.ResolveFacetMultiplicity, index-aligned with req.Overlays; nil
+// when nothing names a block). Each spec's layers fold on their own
+// right after dispatch: a facet overlay offers only the per-layer
+// families (`layer`, and `row` / `column` on a MATRIX kind), so no
+// family ever spans two specs.
+func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetRequest, result *types.FacetResult, mult []descx.ResolvedMultiplicity) error {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
 	}
@@ -130,6 +138,13 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 		dispatched, warnings, err := processing.ApplyOverlaysFacetWithExtensions(singleSpec, hostField, popView, s.extensions)
 		if err != nil {
 			return err
+		}
+		if i < len(mult) && mult[i].Member {
+			fams := newMultFamilies()
+			collectOverlaySites(fams, "facet.", mult[i:i+1], dispatched)
+			if err := fams.fold(); err != nil {
+				return err
+			}
 		}
 		layers = append(layers, dispatched...)
 		for _, w := range warnings {

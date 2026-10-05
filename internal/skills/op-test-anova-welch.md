@@ -15,6 +15,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), both kinds: per-group moments on w*, `weights` = N*_j/s²_j, df on N*_j−1 (Σw or Kish n_eff). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
+<!-- /feature -->
 
 ## Inputs
 
@@ -29,7 +32,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - Streamable — same per-group Welford as classic one-way ANOVA; only the statistic + denominator change.
 - Use when group spreads may differ.
 - Tier-2 `welch_one_way_post` reads per-group `{mean, variance, n}`; same keys.
-- Post-hoc: Tukey HSD assumes equal variance<!-- feature: TEST_WELCH -->; for unequal fall back to pairwise `TEST_WELCH` + Bonferroni<!-- /feature -->.
+- Post-hoc: Tukey HSD assumes equal variance<!-- feature: TEST_WELCH -->; for unequal fall back to pairwise `TEST_WELCH` with a `multiplicity` block<!-- /feature -->.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 
 ## See

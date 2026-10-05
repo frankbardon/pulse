@@ -52,6 +52,10 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
 	}
+	mult, err := descx.ResolveFacetMultiplicity(req, s.defaultMultiplicity, s.instance)
+	if err != nil {
+		return nil, err
+	}
 
 	path := resolveCohortPath(req.Cohort)
 	cohort, err := s.Open(ctx, path)
@@ -186,7 +190,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	// resulting layers in spec order. The hook is a no-op when
 	// req.Overlays is empty so the overlay-free shape stays byte-
 	// identical (additive byte-identity contract).
-	if err := s.applyFacetOverlays(ctx, req, result); err != nil {
+	if err := s.applyFacetOverlays(ctx, req, result, mult); err != nil {
 		return nil, err
 	}
 

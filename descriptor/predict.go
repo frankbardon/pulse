@@ -195,6 +195,53 @@ type PredictResult struct {
 	// weight field. Never applied. Omitted when there is nothing to
 	// suggest, a weight resolves, or the instance hides row weighting.
 	SuggestedWeight *SuggestedWeight `json:"suggested_weight,omitempty"`
+
+	// PValues counts the inferential p-values the request would emit —
+	// one per test and post-test (the Tukey HSD post-test excluded: its
+	// p-values are already corrected) plus every p-value an inferential
+	// overlay layer carries — and how many of them no multiple-comparison
+	// correction reaches. It is trigger data for suggesting a
+	// `multiplicity` block, never an advisory: compare Uncorrected with
+	// Threshold. Omitted when the request emits no p-value, when its
+	// multiplicity blocks are refused, or when the instance hides the
+	// multiple-comparison capability.
+	PValues *PValueCount `json:"p_values,omitempty"`
+}
+
+// MultiplicityTriggerThreshold is the uncorrected p-value count at or
+// above which correction is worth suggesting: with ten independent
+// tests at alpha 0.05 the chance of at least one false positive is
+// already about 40%. Echoed on PValueCount.Threshold.
+const MultiplicityTriggerThreshold = 10
+
+// How a PValueCount was derived, weakest contribution wins.
+const (
+	// PValueBasisExact: every contribution is fixed by the request
+	// shape (a test, a whole-table overlay).
+	PValueBasisExact = "exact"
+	// PValueBasisDictionary: at least one overlay's count was read off
+	// a crosstab axis's categorical dictionary, assuming every
+	// dictionary entry is a populated bucket (an unobserved entry
+	// lowers the real count, a null bucket raises it).
+	PValueBasisDictionary = "dictionary"
+	// PValueBasisLowerBound: at least one overlay's extent could not be
+	// derived from the schema (a numeric or multi-field axis); it
+	// counted as one p-value, so Total and Uncorrected are floors.
+	PValueBasisLowerBound = "lower_bound"
+)
+
+// PValueCount is PredictResult.PValues.
+type PValueCount struct {
+	// Total is the number of inferential p-values the request emits.
+	Total int `json:"total"`
+	// Uncorrected is how many of Total no correction reaches (their
+	// slot's resolved method is none).
+	Uncorrected int `json:"uncorrected"`
+	// Basis is how the counts were derived: PValueBasisExact,
+	// PValueBasisDictionary or PValueBasisLowerBound.
+	Basis string `json:"basis"`
+	// Threshold is MultiplicityTriggerThreshold.
+	Threshold int `json:"threshold"`
 }
 
 // Zone-resolution sources reported on ResolvedZone.Source.

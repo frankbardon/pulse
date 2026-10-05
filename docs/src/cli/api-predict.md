@@ -78,6 +78,14 @@ absent for a request without a crosstab. Output is identical on either
 arm. An engine built with `Options.DisableCrosstabFusion` answers
 `false` with that reason.
 
+When the request emits inferential p-values, `p_values` reports
+`{total, uncorrected, basis, threshold}`: how many it emits and how many
+no `multiplicity` block corrects. An `uncorrected` count at or above
+`threshold` (10) is the cue to add one. `basis` is `exact`, `dictionary`
+(assumes every dictionary entry of a category axis becomes a bucket, so
+it can over- or under-count) or `lower_bound`. See
+[Multiple-Comparison Correction](../library/multiplicity.md).
+
 `request` echoes the request **after defaults have been applied** so
 you can see what would actually run. To suppress defaults, run with
 `--no-defaults` on the executing leaf (`api process`,

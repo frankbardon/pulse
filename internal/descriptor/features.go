@@ -116,7 +116,15 @@ var (
 	featSynth        = FeatureName(FeatureKindCapability, "synth")
 	featExport       = FeatureName(FeatureKindCapability, "export")
 	featWeighting    = FeatureWeighting
+	featMultiplicity = FeatureMultiplicity
 )
+
+// FeatureMultiplicity is capability:multiplicity — the multiple-
+// comparison correction surface: every `multiplicity` slot (Request,
+// Test, OverlaySpec, ComposeOverlaySpec, ComposedRequest) and
+// pulse.Options.DefaultMultiplicity. Exported because the root facade
+// (DefaultMultiplicity refusal) reads it too.
+const FeatureMultiplicity = "capability:multiplicity"
 
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
@@ -155,6 +163,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("labels"),         // label tables + resolve
 	capability("range_tables"),   // range tables
 	capability("weighting"),      // Request.Weight + every per-slot weight + Options.DefaultWeight
+	capability("multiplicity"),   // every `multiplicity` slot + Options.DefaultMultiplicity
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),

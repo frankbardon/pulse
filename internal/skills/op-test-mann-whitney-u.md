@@ -15,6 +15,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): a row of weight w ranks as w identical rows — equals the test on the expanded rows. `Details` add `sum_weights` shaped like `n` (raw rows).
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
+<!-- /feature -->
 
 ## Inputs
 

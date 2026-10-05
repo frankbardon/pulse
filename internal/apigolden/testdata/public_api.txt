@@ -125,6 +125,7 @@ pulse: type ComposeOptions field MaxWorkers int
 pulse: type ComposeOptions field PerRequestTimeout time.Duration
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
+pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse: type ComposedRequest method (*ComposedRequest) Hash() string
@@ -532,6 +533,7 @@ pulse: type Options struct
 pulse: type Options field AutoLabels []pulse.LabelBinding
 pulse: type Options field DataDir string
 pulse: type Options field DecodeWorkers int
+pulse: type Options field DefaultMultiplicity *pulse/types.Multiplicity
 pulse: type Options field DefaultTimeZone string
 pulse: type Options field DefaultWeight *pulse/types.WeightSpec
 pulse: type Options field DisableComponents bool
@@ -698,6 +700,7 @@ pulse: type Request field Groups []*pulse/types.Group "json:\"groups,omitempty\"
 pulse: type Request field Joins []*pulse/types.JoinSpec "json:\"joins,omitempty\""
 pulse: type Request field Label string "json:\"label,omitempty\""
 pulse: type Request field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
+pulse: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
@@ -1250,6 +1253,7 @@ pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:
 pulse/descriptor: type Manifest field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
 pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"tests\""
 pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeable"
+pulse/descriptor: const MultiplicityTriggerThreshold untyped int = 10
 pulse/descriptor: func NewEnvelope(data any) *pulse/descriptor.Envelope
 pulse/descriptor: func NewEnvelopeWithRequest(data any, request any) *pulse/descriptor.Envelope
 pulse/descriptor: const None pulse/types.ComponentsMergeability = "none"
@@ -1337,6 +1341,14 @@ pulse/descriptor: type OverlayCapability field Scopes []pulse/types.OverlayScope
 pulse/descriptor: type OverlayCapability field Shapes []pulse/types.OverlayShape "json:\"shapes\""
 pulse/descriptor: type OverlayCapability field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
 pulse/descriptor: type OverlayCapability field Zone string "json:\"zone,omitempty\""
+pulse/descriptor: const PValueBasisDictionary untyped string = "dictionary"
+pulse/descriptor: const PValueBasisExact untyped string = "exact"
+pulse/descriptor: const PValueBasisLowerBound untyped string = "lower_bound"
+pulse/descriptor: type PValueCount struct
+pulse/descriptor: type PValueCount field Basis string "json:\"basis\""
+pulse/descriptor: type PValueCount field Threshold int "json:\"threshold\""
+pulse/descriptor: type PValueCount field Total int "json:\"total\""
+pulse/descriptor: type PValueCount field Uncorrected int "json:\"uncorrected\""
 pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
@@ -1356,6 +1368,7 @@ pulse/descriptor: type PredictResult field Groups []pulse/descriptor.GroupPredic
 pulse/descriptor: type PredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse/descriptor: type PredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
 pulse/descriptor: type PredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
+pulse/descriptor: type PredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse/descriptor: type PredictResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type PredictResult field Request *pulse/types.Request "json:\"request\""
 pulse/descriptor: type PredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
@@ -1869,6 +1882,8 @@ pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMB
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
+pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
+pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
 pulse/errors: const PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
 pulse/errors: const PULSE_OVERLAY_COMPONENTS_REQUIRED pulse/errors.Code = "PULSE_OVERLAY_COMPONENTS_REQUIRED"
 pulse/errors: const PULSE_OVERLAY_DICT_PREFIX_DRIFT pulse/errors.Code = "PULSE_OVERLAY_DICT_PREFIX_DRIFT"
@@ -3089,10 +3104,18 @@ pulse/types: func AllAttributeTypes() []pulse/types.AttributeType
 pulse/types: func AllFeatureTypes() []pulse/types.FeatureType
 pulse/types: func AllFiltererTypes() []pulse/types.FiltererType
 pulse/types: func AllGroupTypes() []pulse/types.GroupType
+pulse/types: func AllMultiplicityFamilies() []pulse/types.MultiplicityFamily
+pulse/types: func AllMultiplicityMethods() []pulse/types.MultiplicityMethod
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllTestTypes() []pulse/types.TestType
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
+pulse/types: type AppliedMultiplicity struct
+pulse/types: type AppliedMultiplicity field Alpha float64 "json:\"alpha\""
+pulse/types: type AppliedMultiplicity field Family pulse/types.MultiplicityFamily "json:\"family\""
+pulse/types: type AppliedMultiplicity field M int "json:\"m\""
+pulse/types: type AppliedMultiplicity field MPer []int "json:\"m_per,omitempty\""
+pulse/types: type AppliedMultiplicity field Method pulse/types.MultiplicityMethod "json:\"method\""
 pulse/types: type Attribute struct
 pulse/types: type Attribute field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Attribute field Expression string "json:\"expression,omitempty\""
@@ -3150,6 +3173,7 @@ pulse/types: const ComponentsPartial pulse/types.ComponentsMergeability = "parti
 pulse/types: type ComposeOverlaySpec struct
 pulse/types: type ComposeOverlaySpec field Kind pulse/types.OverlayKind "json:\"kind\""
 pulse/types: type ComposeOverlaySpec field Level int "json:\"level,omitempty\""
+pulse/types: type ComposeOverlaySpec field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposeOverlaySpec field Name string "json:\"name,omitempty\""
 pulse/types: type ComposeOverlaySpec field Options *pulse/types.OverlayOptions "json:\"options,omitempty\""
 pulse/types: type ComposeOverlaySpec field Params map[string]any "json:\"params,omitempty\""
@@ -3158,6 +3182,7 @@ pulse/types: type ComposeOverlaySpec field Scope pulse/types.OverlayScope "json:
 pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omitempty\""
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
+pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
@@ -3227,6 +3252,7 @@ pulse/types: type CrosstabSpec method (*CrosstabSpec) ShapeOrDefault() pulse/typ
 pulse/types: func DecodePairwiseParams(raw encoding/json.RawMessage) (pulse/types.PairwiseOverlayParams, error)
 pulse/types: func DecodePanelParams(raw encoding/json.RawMessage) (pulse/types.PanelOverlayParams, error)
 pulse/types: func DecodePanelParamsMap(params map[string]any) (pulse/types.PanelOverlayParams, error)
+pulse/types: const DefaultMultiplicityAlpha untyped float = 1/20
 pulse/types: type ExtensionGroupFanOutFunc func(pulse/types.GroupType) (fansOut bool, known bool)
 pulse/types: const FEAT_BUCKETIZE pulse/types.FeatureType = "FEAT_BUCKETIZE"
 pulse/types: const FEAT_DATE_FEATURES pulse/types.FeatureType = "FEAT_DATE_FEATURES"
@@ -3435,6 +3461,22 @@ pulse/types: type MatrixPayload field RowHeader pulse/types.AxisHeader "json:\"r
 pulse/types: type MatrixPayload field RowKeys []pulse/types.AxisKey "json:\"row_keys\""
 pulse/types: type MatrixPayload field RowMargins []pulse/types.MatrixCell "json:\"row_margins,omitempty\""
 pulse/types: type MatrixPayload method (MatrixPayload) MarshalJSON() ([]byte, error)
+pulse/types: type Multiplicity struct
+pulse/types: type Multiplicity field Alpha float64 "json:\"alpha,omitempty\""
+pulse/types: type Multiplicity field Family pulse/types.MultiplicityFamily "json:\"family,omitempty\""
+pulse/types: type Multiplicity field Method pulse/types.MultiplicityMethod "json:\"method,omitempty\""
+pulse/types: type MultiplicityFamily string
+pulse/types: const MultiplicityFamilyColumn pulse/types.MultiplicityFamily = "column"
+pulse/types: const MultiplicityFamilyCompose pulse/types.MultiplicityFamily = "compose"
+pulse/types: const MultiplicityFamilyLayer pulse/types.MultiplicityFamily = "layer"
+pulse/types: const MultiplicityFamilyRequest pulse/types.MultiplicityFamily = "request"
+pulse/types: const MultiplicityFamilyRow pulse/types.MultiplicityFamily = "row"
+pulse/types: type MultiplicityMethod string
+pulse/types: const MultiplicityMethodBH pulse/types.MultiplicityMethod = "bh"
+pulse/types: const MultiplicityMethodBY pulse/types.MultiplicityMethod = "by"
+pulse/types: const MultiplicityMethodBonferroni pulse/types.MultiplicityMethod = "bonferroni"
+pulse/types: const MultiplicityMethodHolm pulse/types.MultiplicityMethod = "holm"
+pulse/types: const MultiplicityMethodNone pulse/types.MultiplicityMethod = "none"
 pulse/types: func NormalizedString(mode string) pulse/types.CrosstabNormalize
 pulse/types: func NullSlotWeight() pulse/types.SlotWeight
 pulse/types: type OnPair struct
@@ -3499,6 +3541,7 @@ pulse/types: const OverlayKindZScoreVsTotal pulse/types.OverlayKind = "OVERLAY_Z
 pulse/types: const OverlayKindZVsRef pulse/types.OverlayKind = "OVERLAY_Z_VS_REF"
 pulse/types: type OverlayLayer struct
 pulse/types: type OverlayLayer field Kind pulse/types.OverlayKind "json:\"kind\""
+pulse/types: type OverlayLayer field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type OverlayLayer field Name string "json:\"name\""
 pulse/types: type OverlayLayer field Payload pulse/types.OverlayPayload "json:\"payload\""
 pulse/types: type OverlayLayer field Ref pulse/types.OverlayRef "json:\"ref\""
@@ -3513,9 +3556,11 @@ pulse/types: type OverlayOptions field DictPrefixFast bool "json:\"dict_prefix_f
 pulse/types: type OverlayOptions field MaxPanelTargets int "json:\"max_panel_targets,omitempty\""
 pulse/types: type OverlayPayload struct
 pulse/types: type OverlayPayload field Matrix *pulse/types.MatrixPayload "json:\"matrix,omitempty\""
+pulse/types: type OverlayPayload field PAdjusted *pulse/types.MatrixPayload "json:\"p_adjusted,omitempty\""
 pulse/types: type OverlayPayload field Scalar *float64 "json:\"scalar,omitempty\""
 pulse/types: type OverlayPayload field Series *pulse/types.SeriesPayload "json:\"series,omitempty\""
 pulse/types: type OverlayPayload field Shape pulse/types.OverlayShape "json:\"shape\""
+pulse/types: type OverlayPayload field SignificantAdjusted *pulse/types.MatrixPayload "json:\"significant_adjusted,omitempty\""
 pulse/types: type OverlayPayload method (OverlayPayload) MarshalJSON() ([]byte, error)
 pulse/types: type OverlayPopulationRef struct
 pulse/types: type OverlayPopulationRef field Cohort string "json:\"cohort,omitempty\""
@@ -3551,6 +3596,7 @@ pulse/types: type OverlaySlotRef field Name string "json:\"name,omitempty\""
 pulse/types: type OverlaySpec struct
 pulse/types: type OverlaySpec field Kind pulse/types.OverlayKind "json:\"kind\""
 pulse/types: type OverlaySpec field Level int "json:\"level,omitempty\""
+pulse/types: type OverlaySpec field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type OverlaySpec field Name string "json:\"name,omitempty\""
 pulse/types: type OverlaySpec field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type OverlaySpec field Ref pulse/types.OverlayRef "json:\"ref\""
@@ -3564,8 +3610,10 @@ pulse/types: type OverlaySummary field Baseline *float64 "json:\"baseline,omitem
 pulse/types: type OverlaySummary field Count *int "json:\"count,omitempty\""
 pulse/types: type OverlaySummary field Max *float64 "json:\"max,omitempty\""
 pulse/types: type OverlaySummary field Min *float64 "json:\"min,omitempty\""
+pulse/types: type OverlaySummary field PAdjusted *float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type OverlaySummary field PValue *float64 "json:\"p_value,omitempty\""
 pulse/types: type OverlaySummary field Parameters map[string]float64 "json:\"parameters,omitempty\""
+pulse/types: type OverlaySummary field SignificantAdjusted *bool "json:\"significant_adjusted,omitempty\""
 pulse/types: type OverlaySummary field Statistic *float64 "json:\"statistic,omitempty\""
 pulse/types: type OverlaySummary method (OverlaySummary) MarshalJSON() ([]byte, error)
 pulse/types: type OverlayWarning struct
@@ -3701,6 +3749,7 @@ pulse/types: type Request field Groups []*pulse/types.Group "json:\"groups,omite
 pulse/types: type Request field Joins []*pulse/types.JoinSpec "json:\"joins,omitempty\""
 pulse/types: type Request field Label string "json:\"label,omitempty\""
 pulse/types: type Request field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
+pulse/types: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
@@ -3791,6 +3840,7 @@ pulse/types: type Test field Cols string "json:\"cols,omitempty\""
 pulse/types: type Test field Field string "json:\"field,omitempty\""
 pulse/types: type Test field Field2 string "json:\"field2,omitempty\""
 pulse/types: type Test field Label string "json:\"label,omitempty\""
+pulse/types: type Test field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Test field OrderBy []pulse/types.OrderKey "json:\"order_by,omitempty\""
 pulse/types: type Test field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Test field Rows string "json:\"rows,omitempty\""
@@ -3803,8 +3853,11 @@ pulse/types: type TestResult field Alpha float64 "json:\"alpha\""
 pulse/types: type TestResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type TestResult field Details map[string]any "json:\"details,omitempty\""
 pulse/types: type TestResult field Label string "json:\"label,omitempty\""
+pulse/types: type TestResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type TestResult field PAdjusted *float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type TestResult field PValue float64 "json:\"p_value\""
 pulse/types: type TestResult field RejectNull bool "json:\"reject_null\""
+pulse/types: type TestResult field SignificantAdjusted *bool "json:\"significant_adjusted,omitempty\""
 pulse/types: type TestResult field Statistic float64 "json:\"statistic\""
 pulse/types: type TestResult field Type pulse/types.TestType "json:\"type\""
 pulse/types: type TestResult field Variant string "json:\"variant,omitempty\""
@@ -3849,4 +3902,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 88bab3c6efed70e2c18476d1c2459af4a88df41b6531a5811381364c7902c872
+// golden-hash: 6bcab5da222b09fd4f717c911c52671cae924fd14702d637bdc571b1e530d444

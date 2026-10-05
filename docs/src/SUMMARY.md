@@ -44,6 +44,7 @@
 - [Point Lookup & Index Management](library/point-lookup.md)
 - [Request Templating](library/request-templating.md)
 - [Row Weighting](library/weighting.md)
+- [Multiple-Comparison Correction](library/multiplicity.md)
 - [Feature Profiles](library/feature-profiles.md)
 - [Guided-Analysis Vocabulary](library/guided-analysis.md)
 

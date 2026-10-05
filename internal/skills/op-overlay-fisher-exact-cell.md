@@ -15,6 +15,10 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` must be `cell`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
+<!-- /feature -->
+
 ## Host shape
 
 MATRIX crosstab. Implicit-margin family (no `Ref`). Canonical low-count χ² backstop — the correct surface when `expected < 5` breaks χ² approximation.

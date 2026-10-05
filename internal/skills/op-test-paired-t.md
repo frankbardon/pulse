@@ -17,6 +17,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pre / before value).
 - `weight` — slot weight (`null` opts out), both kinds: one weight per row = per pair (a null in either field drops the pair); one-sample t on d over w*, `df` = N*−1 (Σw or Kish n_eff). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
+<!-- /feature -->
 
 ## Inputs
 

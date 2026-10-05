@@ -15,6 +15,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), both kinds: SS on w*, each group on its own N*_g (Σw_g or Kish n_eff_g); `df_within` = ΣN*_g−k, may be fractional. `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < k+1 warns `PULSE_WEIGHT_LOW_NEFF`.
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
+<!-- /feature -->
 
 ## Inputs
 

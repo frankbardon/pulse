@@ -66,7 +66,7 @@ Records fold into per-cell / per-margin state in one decode pass — memory `O(c
 - every axis grouper keys one record at a time — all but the rank-based quantile one, fan-out included, any axis (extension: declared `Streamable` / `FansOut`);
 - nothing needs whole-cohort context: no join, no tests, features, formula attributes or expression filters, no decimal cell field.
 
-Overlays never prevent fusing. A fan-out axis makes margins non-additive on BOTH paths — a 3-option record counts 3× across row margins, once in the grand total.
+Overlays never prevent fusing. A fan-out axis makes margins non-additive on both paths (a 3-option record counts 3× across row margins).
 
 **Joins.** A joined crosstab runs buffered over the JOINED rows: axes / cell may name `as`-prefixed right fields; an unmatched left row is counted nowhere; a 1:N match counts once per joined row<!-- feature: capability:joins --> (`join-design`)<!-- /feature -->.
 
@@ -80,4 +80,4 @@ Row-level `tests` / `post_tests` run on raw rows beside a crosstab. Crosstab is 
 
 ## See
 
-- `crosstab-margin-aggregations`, `response-components`, `overlay-system`, `grouper-design`, `aggregation-design` (margin reducibility), `statistical-testing`.
+- <!-- feature: capability:multiplicity -->`multiplicity-correction`, <!-- /feature -->`crosstab-margin-aggregations`, `response-components`, `overlay-system`, `grouper-design`, `aggregation-design` (margin reducibility), `statistical-testing`.

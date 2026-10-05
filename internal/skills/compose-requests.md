@@ -70,6 +70,12 @@ Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` ag
 
 Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by byte-equal dictionary PREFIX — only when you have verified prefix-equal dictionaries) and `MaxPanelTargets` (default 16; caps a multi-slot panel's targets, overflow ⇒ `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`).
 
+<!-- feature: capability:multiplicity -->
+## Multiplicity
+
+`ComposedRequest.multiplicity` is every slot's default; `compose` family pools all slots and Compose-host layers, the rest stay per slot; serial == parallel, `--stream` emits no corrections (`multiplicity-correction`).
+<!-- /feature -->
+
 ## Per-slot Components contract
 
 Every slot's `components` is emitted independently — the universal floor (`{n, n_null}` per aggregator, `{total_n, n_null}` per grouper, `{n_in, n_out, n_null_input}` per filterer) plus each operator's own keys. The overlay fold runs AFTER that emission and treats it as read-only input, so a client can render per-slot components immediately and the overlay layer on top. `--no-components` / `DisableComponents` suppresses them on every slot (`response-components`).

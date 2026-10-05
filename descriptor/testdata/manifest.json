@@ -3,7 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
-    "feature_set_digest": "fs1:276b855083140502543b326015fa94e916daec31687d0033a304d07d3849f222",
+    "feature_set_digest": "fs1:9222a2849c290c3984869787d7e9013c6d7af966f5f10b7f77615f9567f93c12",
     "commands": [
       {
         "name": "process",
@@ -6089,7 +6089,7 @@
         ]
       }
     ],
-    "error_codes_count": 258,
+    "error_codes_count": 260,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6221,6 +6221,8 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MULTIPLICITY_CONFLICT",
+      "PULSE_MULTIPLICITY_INVALID",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
       "PULSE_OVERLAY_DICT_PREFIX_DRIFT",
@@ -7666,6 +7668,10 @@
       {
         "name": "label-display",
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
+      },
+      {
+        "name": "multiplicity-correction",
+        "description": "Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected."
       },
       {
         "name": "op-agg-average",
@@ -11697,4 +11703,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5db25053ab8ada6806e6bf2199ac594dc7d42c84918eafacd78aafd2ccd98e3e
+// golden-hash: 37b6e2ab9e97a6be152d78917f44477a91a35b2c01bbfc0f815cedd4bb5d1517

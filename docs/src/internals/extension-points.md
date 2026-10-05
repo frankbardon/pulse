@@ -467,6 +467,12 @@ ignored. A tier-1 test declared `Streamable=true` co-streams with
 online aggregators (`UpdateRow` folds during the single pass);
 `Streamable=false` forces the request buffered.
 
+An extension `TEST_*` joins multiple-comparison families exactly like a
+built-in: its headline `PValue` is one member of the `request` (or
+`compose`) family under the resolved `multiplicity` block, and the fold
+adds `p_adjusted`, `significant_adjusted` and `multiplicity` to its
+`TestResult`. The registration declares nothing for it.
+
 ### Synth distribution
 
 Reserved for embedders shipping bespoke samplers. There is no `extend`

@@ -399,6 +399,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_WEIGHT_UNSUPPORTED:         own(featWeighting, "AGG_WEIGHTED_MEAN"),
 	errors.PULSE_WEIGHT_LOW_NEFF:            own(featWeighting),
 	errors.PULSE_EXTENSION_NOT_WEIGHT_AWARE: own(featWeighting),
+
+	// Multiple-comparison correction is capability:multiplicity: with
+	// it hidden every `multiplicity` key and
+	// Options.DefaultMultiplicity are refused before either code can
+	// fire.
+	errors.PULSE_MULTIPLICITY_INVALID:  own(featMultiplicity),
+	errors.PULSE_MULTIPLICITY_CONFLICT: own(featMultiplicity),
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

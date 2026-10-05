@@ -18,6 +18,10 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
+<!-- /feature -->
+
 ## Inputs
 
 `Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.

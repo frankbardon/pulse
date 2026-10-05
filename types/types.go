@@ -649,6 +649,13 @@ type Test struct {
 	// slot out (it runs unweighted); a field-name string or a
 	// {field, kind} object sets the slot's own weight. See SlotWeight.
 	Weight SlotWeight `json:"weight,omitzero"`
+
+	// Multiplicity is the test's own multiple-comparison correction
+	// block: its method and family override the request's, then
+	// pulse.Options.DefaultMultiplicity; a test's family is `request`
+	// (default) or `compose`. Alpha is refused here — the adjusted flag
+	// reads the test's own Alpha. Nil inherits. See Multiplicity.
+	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
 }
 
 // TestResult is the per-test outcome embedded in Response.Tests and
@@ -683,6 +690,22 @@ type TestResult struct {
 
 	// RejectNull is true when PValue < Alpha.
 	RejectNull bool `json:"reject_null"`
+
+	// PAdjusted is PValue after the multiple-comparison correction of
+	// the test's family (see Multiplicity); nil when no correction ran
+	// over this test. Points at NaN (JSON null) when PValue is
+	// undefined — such a p is excluded from the family size. PValue
+	// and RejectNull are never modified.
+	PAdjusted *float64 `json:"p_adjusted,omitempty"`
+
+	// SignificantAdjusted is PAdjusted < Alpha (the test's own alpha);
+	// nil when no correction ran or PAdjusted is undefined.
+	SignificantAdjusted *bool `json:"significant_adjusted,omitempty"`
+
+	// Multiplicity echoes the correction that produced PAdjusted:
+	// method, family, the alpha SignificantAdjusted reads (the test's
+	// own Alpha) and the family size m. Nil when no correction ran.
+	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
 
 	// Details holds operator-specific payload (per-group n/mean/variance,
 	// contingency table, pairwise comparisons, confidence intervals,
@@ -1108,6 +1131,13 @@ type Request struct {
 	// Nil inherits pulse.Options.DefaultWeight; with neither, the
 	// request runs unweighted. See .claude/reference/weighting.md.
 	Weight *WeightSpec `json:"weight,omitempty"`
+
+	// Multiplicity is the request-level multiple-comparison correction
+	// block every test, post-test and overlay inherits field by field
+	// when its own block leaves a field empty. Nil inherits
+	// pulse.Options.DefaultMultiplicity; with neither, nothing is
+	// corrected. See Multiplicity.
+	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -1449,6 +1479,13 @@ type ComposedRequest struct {
 	// TestComposedRequest_OverlayFreeByteIdentity in
 	// types/hash_test.go).
 	Overlays []ComposeOverlaySpec `json:"overlays,omitempty"`
+
+	// Multiplicity is the Compose-level multiple-comparison correction
+	// block: every slot request inherits it after its own block, and
+	// every Compose-host overlay after its own. Family `compose` pools
+	// the members across slots. Nil inherits
+	// pulse.Options.DefaultMultiplicity. See Multiplicity.
+	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest

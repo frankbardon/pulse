@@ -15,6 +15,10 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` (enum, required) — must be `row`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
+<!-- /feature -->
+
 ## Host shape
 
 MATRIX crosstab (`Response.Crosstab.Matrix`). Family: implicit-margin χ² (no `Ref`). Compatible with any crosstab regardless of cell aggregator; row-axis twin of the column χ².

@@ -4,7 +4,7 @@ slug: multiplicity
 title: "Analysts can correct for multiple comparisons in one consistent way"
 track: Statistical integrity
 size: M
-status: not-started
+status: done
 depends_on: [U04]
 soft_depends_on: [U07]
 blocks: [U22, U28]
@@ -29,12 +29,12 @@ One correction core (Bonferroni, Holm, BH, BY) with explicit test families, expo
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#60** (4. Statistical integrity › Multiple comparisons) `processing/multiplicity`: Bonferroni, Holm, BH, BY
-- [ ] **#61** (4. Statistical integrity › Multiple comparisons) `multiplicity {method, family}` on Request / OverlaySpec / Test / MatrixSpec; `Options.DefaultMultiplicity` (shipped `none`; correction is opt-in)
-- [ ] **#62** (4. Statistical integrity › Multiple comparisons) Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots
-- [ ] **#63** (4. Statistical integrity › Multiple comparisons) Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs
-- [ ] **#64** (4. Statistical integrity › Multiple comparisons) Advisory + Explain hooks; glossary terms
-- [ ] **#65** (4. Statistical integrity › Multiple comparisons) Reference-value, identity and family-boundary gates; `multiple-comparisons.md` skill
+- [x] **#60** (4. Statistical integrity › Multiple comparisons) `processing/multiplicity`: Bonferroni, Holm, BH, BY
+- [x] **#61** (4. Statistical integrity › Multiple comparisons) `multiplicity {method, family}` on Request / OverlaySpec / Test / MatrixSpec; `Options.DefaultMultiplicity` (shipped `none`; correction is opt-in)
+- [x] **#62** (4. Statistical integrity › Multiple comparisons) Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots
+- [x] **#63** (4. Statistical integrity › Multiple comparisons) Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs
+- [x] **#64** (4. Statistical integrity › Multiple comparisons) Advisory + Explain hooks; glossary terms
+- [x] **#65** (4. Statistical integrity › Multiple comparisons) Reference-value, identity and family-boundary gates; `multiplicity-correction.md` skill
 
 ## Scope
 
@@ -64,11 +64,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(multiplicity/E<n>
 
 ## Acceptance criteria
 
-- [ ] Adjusted values match R `p.adjust` on reference vectors for every method
-- [ ] Absent `multiplicity` (the default) is byte-identical to today
-- [ ] A `layer` family never mixes p-values across layers; `row` never across rows
-- [ ] Raw p-values are never modified
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] Adjusted values match R `p.adjust` on reference vectors for every method
+- [x] Absent `multiplicity` (the default) is byte-identical to today
+- [x] A `layer` family never mixes p-values across layers; `row` never across rows
+- [x] Raw p-values are never modified
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -80,9 +80,33 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(multiplicity/E<n>
 
 - Payload-schema golden
 - CLAUDE.md Output Format Contract (additive fields)
-- `skills/multiple-comparisons.md`; overlay and test atomic skills `## Params`
+- `skills/multiplicity-correction.md`; overlay and test atomic skills `## Params`
 - `update-demand.md` row for `Multiplicity`
 
 ## Human inputs & decisions
 
 - None.
+
+## Shipped: deviations and decisions
+
+Contract: `.claude/reference/execution-modes.md` (Multiplicity), `.claude/reference/predict-inspect.md` (Predict); agent skill `skills/multiplicity-correction.md`; wire shape `docs/src/contract/payload-schema.md` (Multiplicity slots); user guide `docs/src/library/multiplicity.md`; embedder rows `03-embedder-migration.md` (Changes from U13).
+
+- **Families.** `layer`, `row`, `column`, `request`, `compose` — the planned `matrix` family waits for the matrix units (U28), and `MatrixSpec.multiplicity` is not shipped (no `MatrixSpec` exists yet).
+- **A Compose family.** `compose` is new here: it pools every `compose`-family member across all slots and the Compose-host overlay layers. Every other family stays per slot.
+- **ProcessChain is wired.** Each stage folds its own plan; no family spans stages and the whole-chain `ChainOverlaySpec` has no slot. A v1 stage reaches no p-value site yet (tests gated out, crosstab cannot be a stage), so the wiring is exercised by tests only.
+- **Regressions out.** Coefficient p-values are not corrected; `TEST_TUKEY_HSD` is already family-wise and never joins a family (an explicit block on it is refused, an inherited one skipped).
+- **Advisory is data, not a code.** `PULSE_ADVISORY_MANY_TESTS` is not added; predict reports `p_values {total, uncorrected, basis, threshold}` with `descriptor.MultiplicityTriggerThreshold` = 10, for U22 to read.
+- **Row and column are coordinate-based** on the layer's own matrix (a pairwise overlay's rows are the compared groups); panel vector elements each join their cell's family; the echo carries `m_per`.
+- **Reference values.** R 4.6.1 `p.adjust` fixtures (generator under `internal/processing/multiplicity/testdata/padjust_reference/`); BY to 1e-13.
+- **Hidden by profile.** Feature `capability:multiplicity` hides the keys, the schema entries and predict's `p_values`.
+
+## Handed on
+
+| Item | Owner |
+|---|---|
+| Recommend / Explain consume `p_values` and `descriptor.MultiplicityTriggerThreshold` (field `p_values`, no advisory code) | [U22](U22-recommend-explain.md) |
+| `p_values` is counted on Request predict only — `ComposeValidationResult`, `ChainValidationResult` and `FacetValidationResult` carry no count (a compose-host count is cohort-free, so always `lower_bound`) | [U22](U22-recommend-explain.md) |
+| `MatrixSpec.multiplicity` and the `matrix` family | [U28](U28-matrix-overlays.md) |
+| Hand-built MCP tool input schemas in `internal/mcp/bind.go` do not name `multiplicity` (the payload schema does; root keys still strict-decode) — add the properties and drop them when `capability:multiplicity` is hidden | [U23](U23-guidance-mcp.md) |
+| Purpose and Interpretation prose names the `multiplicity` slot and `p_adjusted` unconditionally; the prose scrub keys on operator / tool tokens, not slot names, so an instance hiding `capability:multiplicity` reads prose naming an absent slot | [U21](U21-guidance-generated-docs.md) |
+| CLAUDE.md is at 49,946 / 50,000 bytes after U13 — the next contract addition must displace long form into `.claude/reference/` first | [U32](U32-docs-audit.md) |

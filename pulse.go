@@ -333,6 +333,18 @@ type Options struct {
 	// default applies. See .claude/reference/weighting.md.
 	DefaultWeight *types.WeightSpec
 
+	// DefaultMultiplicity is the engine-wide multiple-comparison
+	// correction block that tests, post-tests and overlays inherit,
+	// field by field, when neither their own `multiplicity` nor the
+	// request's (a Compose slot: then the composed request's) sets the
+	// field. It reaches Process, Compose, ProcessChain stages and
+	// FacetSchema overlays. Nil (the shipped default) means none: no
+	// p-value is corrected unless a request asks. New() refuses an
+	// unknown method or family or an alpha outside (0, 1)
+	// (PULSE_MULTIPLICITY_INVALID); a family a surface does not offer
+	// falls back to that surface's default there.
+	DefaultMultiplicity *types.Multiplicity
+
 	// Strict promotes request-validation warnings into hard errors at
 	// runtime. Today this covers the numeric-aggregation-on-categorical
 	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
@@ -544,6 +556,9 @@ func New(opts Options) (*Pulse, error) {
 	if err := descx.ValidateWeightSpec(opts.DefaultWeight, "Options.DefaultWeight"); err != nil {
 		return nil, err
 	}
+	if err := descx.ValidateMultiplicitySpec(opts.DefaultMultiplicity, "Options.DefaultMultiplicity"); err != nil {
+		return nil, err
+	}
 
 	var fsCfg *fs.Config
 
@@ -613,6 +628,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetDisableCrosstabFusion(opts.DisableCrosstabFusion)
 	svc.SetTimeZones(opts.DefaultTimeZone, zones)
 	svc.SetDefaultWeight(opts.DefaultWeight)
+	svc.SetDefaultMultiplicity(opts.DefaultMultiplicity)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:                opts.ImportsDir,
@@ -1103,6 +1119,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		Instance:              p.svc.InstanceSnapshot(),
 		DefaultTimeZone:       p.svc.DefaultTimeZone(),
 		DefaultWeight:         p.svc.DefaultWeight(),
+		DefaultMultiplicity:   p.svc.DefaultMultiplicity(),
 		ZoneLoader:            p.svc.ZoneLoader(),
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		DisableComponents:     p.svc.DisableComponents(),
@@ -1176,6 +1193,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		Instance:              p.svc.InstanceSnapshot(),
 		DefaultTimeZone:       p.svc.DefaultTimeZone(),
 		DefaultWeight:         p.svc.DefaultWeight(),
+		DefaultMultiplicity:   p.svc.DefaultMultiplicity(),
 		ZoneLoader:            p.svc.ZoneLoader(),
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		DisableComponents:     p.svc.DisableComponents(),

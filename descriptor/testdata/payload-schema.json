@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:276b855083140502543b326015fa94e916daec31687d0033a304d07d3849f222",
+  "$comment": "feature_set_digest: fs1:9222a2849c290c3984869787d7e9013c6d7af966f5f10b7f77615f9567f93c12",
   "$defs": {
     "Aggregation": {
       "additionalProperties": false,
@@ -98,6 +98,42 @@
         "AGG_ZSCORE"
       ],
       "type": "string"
+    },
+    "AppliedMultiplicity": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "family": {
+          "$ref": "#/$defs/MultiplicityFamily"
+        },
+        "m": {
+          "type": "integer"
+        },
+        "m_per": {
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/MultiplicityMethod"
+        }
+      },
+      "required": [
+        "alpha",
+        "family",
+        "m",
+        "method"
+      ],
+      "type": "object"
     },
     "Attribute": {
       "additionalProperties": false,
@@ -330,6 +366,9 @@
         "level": {
           "type": "integer"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "name": {
           "type": "string"
         },
@@ -368,6 +407,9 @@
     "ComposedRequest": {
       "additionalProperties": false,
       "properties": {
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "overlays": {
           "items": {
             "$ref": "#/$defs/ComposeOverlaySpec"
@@ -1441,6 +1483,41 @@
       ],
       "type": "object"
     },
+    "Multiplicity": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": "number"
+        },
+        "family": {
+          "$ref": "#/$defs/MultiplicityFamily"
+        },
+        "method": {
+          "$ref": "#/$defs/MultiplicityMethod"
+        }
+      },
+      "type": "object"
+    },
+    "MultiplicityFamily": {
+      "enum": [
+        "column",
+        "compose",
+        "layer",
+        "request",
+        "row"
+      ],
+      "type": "string"
+    },
+    "MultiplicityMethod": {
+      "enum": [
+        "bh",
+        "bonferroni",
+        "by",
+        "holm",
+        "none"
+      ],
+      "type": "string"
+    },
     "OnPair": {
       "additionalProperties": false,
       "properties": {
@@ -1575,6 +1652,9 @@
         "kind": {
           "$ref": "#/$defs/OverlayKind"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
         "name": {
           "type": "string"
         },
@@ -1684,6 +1764,9 @@
         "matrix": {
           "$ref": "#/$defs/MatrixPayload"
         },
+        "p_adjusted": {
+          "$ref": "#/$defs/MatrixPayload"
+        },
         "scalar": {
           "type": [
             "number",
@@ -1700,6 +1783,9 @@
             "series"
           ],
           "type": "string"
+        },
+        "significant_adjusted": {
+          "$ref": "#/$defs/MatrixPayload"
         }
       },
       "required": [
@@ -1795,6 +1881,9 @@
         "level": {
           "type": "integer"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "name": {
           "type": "string"
         },
@@ -1845,6 +1934,12 @@
             "null"
           ]
         },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "p_value": {
           "type": [
             "number",
@@ -1859,6 +1954,9 @@
             ]
           },
           "type": "object"
+        },
+        "significant_adjusted": {
+          "type": "boolean"
         },
         "statistic": {
           "type": [
@@ -2225,6 +2323,9 @@
             "null"
           ]
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "outputs": {
           "items": {
             "$ref": "#/$defs/Output"
@@ -2577,6 +2678,9 @@
         "label": {
           "type": "string"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "order_by": {
           "items": {
             "$ref": "#/$defs/OrderKey"
@@ -2632,6 +2736,15 @@
         "label": {
           "type": "string"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "p_value": {
           "type": [
             "number",
@@ -2639,6 +2752,9 @@
           ]
         },
         "reject_null": {
+          "type": "boolean"
+        },
+        "significant_adjusted": {
           "type": "boolean"
         },
         "statistic": {
@@ -2816,4 +2932,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6d10c67a6445f867b82b1f605d545f33ca10d60b90276a755063fb53fc87c03b
+// golden-hash: 13026fd17ec7a24e8b20621e0234b1b8211da09a61486e669deb074dfe91f10d

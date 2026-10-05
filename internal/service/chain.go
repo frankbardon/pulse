@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -47,6 +48,21 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// opens (details.stage locates a stage's).
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
+	}
+	// Every stage's multiplicity blocks resolve before the cohort opens
+	// — each stage a standalone Request with its own `request` family,
+	// the order ValidateChain reports in. plans is index-aligned with
+	// req.Stages: stage 0 re-resolves and folds inside Process
+	// (identically), so plans[0] is never folded here; every later
+	// stage folds its own plan in runChainStage. No family spans
+	// stages.
+	plans := make([]*descx.MultiplicityPlan, len(req.Stages))
+	for i, st := range req.Stages {
+		plan, err := s.resolveMultiplicity(ctx, st.Request)
+		if err != nil {
+			return nil, locate(err, "stage", i)
+		}
+		plans[i] = plan
 	}
 
 	// Stage 0 runs against the on-disk cohort.
@@ -135,7 +151,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 			})
 		}
 
-		resp, err := s.runChainStage(ctx, stage, synthSchema, records)
+		resp, err := s.runChainStage(ctx, stage, plans[i], synthSchema, records)
 		if err != nil {
 			return nil, err
 		}
@@ -280,8 +296,22 @@ func snapshotRequest(req *types.Request) *types.Request {
 // constructed from the prior stage's output. The synthesised schema
 // has no on-wire byte layout — it exists purely to satisfy field
 // lookups and dictionary resolution in operators downstream.
-func (s *Service) runChainStage(ctx context.Context, req *types.Request, schema *encoding.Schema, records []*processing.Record) (*types.Response, error) {
+//
+// A later stage bypasses Service.Process, so it carries the
+// multiplicity post-hook itself: plan (the stage's own resolution) is
+// folded into the stage's response once the processor has applied the
+// stage's own Request.Overlays — a per-stage `request` family exactly
+// as a standalone Process of the stage request would correct it. A
+// nil or inactive plan is a no-op (byte-identical output).
+func (s *Service) runChainStage(ctx context.Context, req *types.Request, plan *descx.MultiplicityPlan, schema *encoding.Schema, records []*processing.Record) (*types.Response, error) {
 	iter := processing.NewSliceIterator(records)
 	proc := s.newProcessor(schema, req)
-	return proc.Process(ctx, req, iter)
+	resp, err := proc.Process(ctx, req, iter)
+	if err != nil {
+		return nil, err
+	}
+	if err := foldRequestMultiplicity(plan, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }

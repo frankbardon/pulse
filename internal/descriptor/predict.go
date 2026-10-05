@@ -129,6 +129,12 @@ type PredictOptions struct {
 	// the request's `weight` names one. Nil means none.
 	DefaultWeight *types.WeightSpec
 
+	// DefaultMultiplicity is pulse.Options.DefaultMultiplicity — the
+	// multiple-comparison block every test, post-test and overlay
+	// inherits field by field after its own block and its request's.
+	// Nil means none.
+	DefaultMultiplicity *types.Multiplicity
+
 	// ZoneLoader resolves zone names (nil: temporal.LoadZone). The
 	// facade passes its per-instance cache so predict and the runtime
 	// resolve through the same loader.
@@ -195,6 +201,14 @@ func (o *PredictOptions) instance() *InstanceSnapshot {
 		return nil
 	}
 	return o.Instance
+}
+
+// defaultMultiplicity is the nil-safe DefaultMultiplicity read.
+func (o *PredictOptions) defaultMultiplicity() *types.Multiplicity {
+	if o == nil {
+		return nil
+	}
+	return o.DefaultMultiplicity
 }
 
 // opRoute returns t, or "" — a name no operator table, switch or
@@ -289,6 +303,14 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		addCodedError(env, jerr)
 	}
 
+	// Multiplicity resolution — the same single pass the runtime runs
+	// right after the join-count rule, before any dispatch
+	// (ResolveMultiplicity). Schema-free.
+	multPlan, merr := ResolveMultiplicity(req, opts.DefaultMultiplicity, opts.Instance)
+	if merr != nil {
+		addCodedError(env, merr)
+	}
+
 	// A join executes over the joined schema; validate against it.
 	// SchemaInfo above stays the cohort's own schema.
 	cohortSchema := schema
@@ -316,6 +338,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// execute. PredictResult.Request remains the raw input (back-compat).
 	if opts.EchoRequest {
 		env.Request = resolved
+	}
+
+	// Multiple-comparison trigger data: the inferential p-values the
+	// request emits and how many no correction reaches. Counted on the
+	// defaults-resolved request (crosstab axes may take a defaulted
+	// grouper) against the schema it executes over; withheld when the
+	// blocks are refused or the instance hides the capability.
+	if merr == nil && opts.instance().Enabled(featMultiplicity) {
+		result.PValues = countPValues(req, schema, multPlan, opts)
 	}
 
 	// Zone resolution — the same single pass the runtime runs before

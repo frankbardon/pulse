@@ -34,6 +34,10 @@ An explicit depth SUMS across rows, so they must partition the key set. A fan-ou
 
 Two WHOLESALE refusals, never a per-slot drop (dropping changes `M`): one unadmitted slot, AND slots that are each admitted but name DIFFERENT aggregators — keys-that-summed vs distinct non-null values are not the same UNIT, and a pair's two legs must never be counted in different units.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
+<!-- /feature -->
+
 ## Host shape
 
 COMPOSE — MATRIX crosstab per slot, order `{Reference, Targets…}`. `cell_n_unweighted` and `row_margin_distinct_within` need components on EVERY slot: disabled / non-crosstab ⇒ `PULSE_OVERLAY_COMPONENTS_REQUIRED`, unresolved ⇒ `PULSE_OVERLAY_SLOT_NOT_CROSSTAB`. Mode-scoped — the default never gates.

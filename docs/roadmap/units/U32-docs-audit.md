@@ -97,6 +97,10 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 - `.claude/reference/skill-pack.md` (budget regime now hard)
 - `docs/src/SUMMARY.md` (Getting Started / embedder guide placement)
 
+## Inherited from U13
+
+- **CLAUDE.md headroom is 54 bytes** (49,946 / 50,000 after U13). U13 already displaced the labeled-date-ranges prose into `.claude/reference/execution-modes.md` and shortened the weighted-slots paragraph. Audit CLAUDE.md for further long form to move into `.claude/reference/` so later contracts have room; never raise `claudeMdSizeCeiling`.
+
 ## Human inputs & decisions
 
 - Maintainer sign-off; a fresh reader (developer without a statistics background) for the review

@@ -129,6 +129,12 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		result.Valid = false
 		return env
 	}
+	// Multiplicity over the whole batch — the pass Compose runs before
+	// any slot starts (ResolveComposeMultiplicity).
+	if _, merr := ResolveComposeMultiplicity(req, opts.defaultMultiplicity(), opts.instance()); merr != nil {
+		addCodedError(env, merr)
+		result.Valid = false
+	}
 	// Zone resolution per slot — the pass Compose runs inside each
 	// slot's Process — against the slot's cohort (or joined) schema
 	// read through opts.SchemaLoader. A refusal carries the slot index

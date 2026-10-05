@@ -34,6 +34,7 @@ One row per category: trigger → companions → gates. **The exhaustive per-slo
 | The request-template document model, variable/target sets, or `$var` / `{{}}` / `$when` | **`request-templating.md`** + `skills/request-templating.md` + `docs/src/library/request-templating.md` + CLAUDE.md "Request templating" | `TestTemplatePackage_ImportBoundary` |
 | Any `synth/` / `internal/synth/` surface — capture, `SpecFromProfile`, `Spec`, generation, structural rules, `--suggest-rules`, fidelity report | **`synthetic-data.md`** + `skills/synthetic-data.md` + `skills/synth-models.md` + `skills/synth-structural-rules.md` | `TestSkillsCoverAllSynthDistributions` |
 | A feature (operator, capability, I/O format, MCP tool or prompt) or the feature-profile model | **`feature-profiles.md`** + a `features.go` row (`Since` + dependency edges) + `docs/src/library/feature-profiles.md`; never a runtime skill | `TestFeaturesHaveSince`, `TestProfileDependenciesComplete` |
+| A `multiplicity` block, `Options.DefaultMultiplicity`, its adjusted outputs, predict `p_values` or the fold | `update-demand.md` Multiplicity row (load first) + `skills/multiplicity-correction.md` + p-emitting atomic `## Params` | `TestMultiplicityNoneIsIdentity` |
 | A registered operator (any category) → its `Purpose` (+ `Interpretation` if inferential); the intent taxonomy, glossary, virtual skills or extension guidance hook | **`guided-analysis.md`** + `builtinPurposes` / `builtinInterpretations` | `TestSkillsCoverAllPurposes`, `TestInterpretationCoversOutputs`, `TestManifestGuidanceBudget` |
 | A skill file's stem, frontmatter, required sections or budget; a feature name in a skill (fence it) | **`skill-pack.md`** + the file itself | ATOMIC, `TestSkillsCoverFeatureFences` |
 | `Request.Weight`, a per-slot `weight` (null ≠ absent), `Options.DefaultWeight`, an operator's weight class, or the weighted floor keys | **`weighting.md`** + `skills/weighting.md` + the operator's atomic skill + **`response-components.md`** + the payload-schema golden | the weighting row in `update-demand.md` |
@@ -101,7 +102,7 @@ When a request slot names a field but omits `Type`, engine infers from schema ty
 
 **Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept BOTH `date` (epoch days, `int32`) and `datetime` (epoch seconds, `int64`); past the operator boundary everything speaks epoch DAYS. **All epoch-day / calendar / zone math lives in `internal/temporal`** (`TestNoZoneMathOutsideTemporal` bans `86400` / zone loading elsewhere). Zones: slot `tz` → request `time_zone` → `Options.DefaultTimeZone` → UTC; non-UTC on a `datetime` is `PROCESSING_CONFIG` until U14. Long form: `execution-modes.md` (Date-family field types, Time zones).
 
-**Labeled date ranges.** `GROUP_DATE_RANGES` (explicit-only) and `FILTER_DATE_RANGES` share one compiled `{label, start, end}` model (`daterange.Compile`): inline `ranges` XOR a named `table:` (`RangeTable`). Structured ranges ride the additive `omitempty` `types.Filterer.Params` slot — `format_version` stays `"1.1"`. Skills: `skills/op-group-date-ranges.md`, `skills/op-filter-date-ranges.md`.
+**Labeled date ranges.** `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES` share one compiled `{label, start, end}` model; detail in `execution-modes.md` (Labeled date ranges). Skills: `skills/op-group-date-ranges.md`, `skills/op-filter-date-ranges.md`.
 
 ## Output Format Contract
 
@@ -115,6 +116,8 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; its shape follows the operation (one of the five request roots). Streaming skips the echo. Additive `omitempty`; no `format_version` bump.
 
 **Compose envelope (`pulse api compose --json`).** Since the v1.1 lift, `data` is a `ComposedResponse` OBJECT — not the legacy `[]*Response` array — carrying `responses` (one `Response` per `ComposedRequest.Requests` slot, in input order) and `overlays` (one `OverlayLayer` per `ComposedRequest.Overlays` spec, omitted when there are none). Streaming (`--stream`) bypasses the envelope entirely and emits per-row `{"index", "row"}` NDJSON; Compose overlays surface only at terminal flush in non-streaming mode (`skills/streaming-and-watching.md`).
+
+**Multiplicity outputs.** Opt-in `multiplicity {method, family, alpha}` (absent ⇒ byte-identical; `format_version` stays `"1.1"`) adds BESIDE the raw p, which never moves: `TestResult` / `OverlaySummary` `p_adjusted` + `significant_adjusted`, matching `OverlayPayload` matrices, `multiplicity {…, m}` echoes. NaN p ⇒ null. Contract: `execution-modes.md` (Multiplicity).
 
 ### Response.Components
 
@@ -130,7 +133,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 **Opt-out.** `Options.DisableComponents bool` (engine default) + `types.Request.DisableComponents *bool` (per-request, `nil` inherits engine); CLI `--no-components` on `pulse api process` / `process-chain` / `compose`. Disabled leaves `Components` `nil` and the wire form byte-identical to the pre-Components baseline — `format_version` is NOT bumped.
 
-**Weighted slots** add `sum_weights`, `n_eff` (probability weights only) and `n_weight_invalid` to the aggregator floor — `omitempty`, present only when weighted, so absence means unweighted; `n` / `n_null` and every count (`CellCounts`, margin counts, `total_n`) stay raw ints. Long form: `.claude/reference/weighting.md`.
+**Weighted slots** add `omitempty` aggregator-floor keys `sum_weights`, `n_eff` (probability only), `n_weight_invalid` — absent means unweighted; `n` / `n_null` and every count stay raw ints. Long form: `.claude/reference/weighting.md`.
 
 **Long form: `.claude/reference/response-components.md`** — the auxiliary `crosstab.margin_aggregations` figures (ADMISSION rule, `present` semantics, display-flag gate, allocation/emission gap), the full opt-out contract and the Compose per-slot / per-layer surface. Skill: `skills/response-components.md`.
 

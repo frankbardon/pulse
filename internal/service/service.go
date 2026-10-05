@@ -91,6 +91,10 @@ type Service struct {
 	// defaultWeight is pulse.Options.DefaultWeight (nil = none); it
 	// feeds resolveWeights and the projected field set.
 	defaultWeight *types.WeightSpec
+
+	// defaultMultiplicity is pulse.Options.DefaultMultiplicity (nil =
+	// none); it feeds resolveMultiplicity.
+	defaultMultiplicity *types.Multiplicity
 }
 
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
@@ -585,6 +589,32 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 		return nil, markLocated(err)
 	}
 
+	// The multiplicity blocks resolve before any dispatch (every arm —
+	// crosstab, join, shard, parallel decode, serial — shares it); a
+	// Compose slot was resolved with the whole ComposedRequest.
+	plan, err := s.resolveMultiplicity(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.processDispatch(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	// The multiplicity post-hook: every arm's response — crosstab,
+	// join, shard-parallel, parallel decode, serial (streaming or
+	// buffered orchestration) — is corrected here, once, after the arm
+	// returns. Raw p-values are never modified.
+	if err := foldRequestMultiplicity(plan, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// processDispatch routes a validated, multiplicity-resolved Request to
+// its execution arm: crosstab, join, shard-parallel, parallel decode,
+// or the serial scan. process wraps it with the multiplicity fold.
+func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*types.Response, error) {
 	if req.Crosstab != nil {
 		return s.processCrosstab(ctx, req)
 	}
@@ -979,6 +1009,11 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) 
 	if err := s.slotRefusal(composed); err != nil {
 		return nil, err
 	}
+	multPlan, err := s.resolveComposeMultiplicity(composed)
+	if err != nil {
+		return nil, err
+	}
+	ctx = withinCompose(ctx)
 
 	requests, err := applyComposeLabelDefaults(composed)
 	if err != nil {
@@ -1023,6 +1058,13 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) 
 		// surface identical layer-warning shapes. Mirrors the
 		// chain-host convention in service.applyChainOverlays.
 		out.Overlays = distributeComposeWarnings(layers, warnings)
+	}
+	// The multiplicity barrier fold: every slot and every Compose-host
+	// layer has finished, so the `compose` family pools them all and
+	// each slot's own families correct inside the slot. Shared with the
+	// other orchestrator, so serial and parallel answer identically.
+	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+		return nil, err
 	}
 
 	return out, nil

@@ -35,7 +35,10 @@ with a feature profile gets a narrower document:
 - a request slot the instance does not offer (`crosstab`, `joins`,
   `overlays`, `weight`) is not a property of its request root; without
   `capability:weighting` no per-slot `weight` is a property either (so
-  `SlotWeight` and `WeightSpec` are absent);
+  `SlotWeight` and `WeightSpec` are absent), and without
+  `capability:multiplicity` no `multiplicity` block is a property of any
+  root or slot (so `Multiplicity`, `MultiplicityMethod` and
+  `MultiplicityFamily` are absent);
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
@@ -159,6 +162,76 @@ The resolved zone per slot is echoed by predict as
 `data.time_zones[]` — `{slot, operator, field_type, tz, source}` —
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
+
+## Multiplicity slots
+
+Multiple-comparison correction adds one additive block shape,
+`#/$defs/Multiplicity` `{method, family, alpha}` (every key optional;
+`format_version` stays `"1.1"`; a request that names no block is
+byte-identical to the earlier wire form and hashes identically). It rides
+as `multiplicity` on `Request`, `Test` (`tests[]` and `post_tests[]`),
+`OverlaySpec` (request and facet overlays), `ComposeOverlaySpec` and
+`ComposedRequest`. `method` is the closed enum `MultiplicityMethod`
+(`none`, `bonferroni`, `holm`, `bh`, `by`) and `family` the closed enum
+`MultiplicityFamily` (`layer`, `row`, `column`, `request`, `compose`);
+both are full vocabularies on every instance (not features). `alpha` is a
+number in (0, 1).
+
+Each key falls through on its own: slot → request (a Compose slot: then
+the `ComposedRequest`) → the engine's `DefaultMultiplicity` → none, and an
+omitted family takes the surface default (`request` for tests, `layer`
+for overlays). `{"method": "none"}` is the explicit opt-out. What the
+schema cannot say is enforced identically by `pulse predict` and the
+runtime (`PULSE_MULTIPLICITY_INVALID`): the families each surface offers
+(`row` / `column` only on a MATRIX-payload overlay kind, `compose` only
+inside Compose, never `request` on a Compose overlay or anything but
+`layer` / `row` / `column` on a facet overlay), no `alpha` on a test's
+own block, and no explicit correction on the Tukey HSD post-test. Members
+of one `request` or `compose` family that resolve to different methods
+are refused `PULSE_MULTIPLICITY_CONFLICT`.
+
+When a correction runs, each corrected `TestResult` (in `tests[]` and
+`post_tests[]`) gains three additive `omitempty` keys BESIDE its raw
+`p_value` / `reject_null`, which never change: `p_adjusted` (number, or
+`null` when the raw p is undefined — such a p is left out of the family
+size), `significant_adjusted` (`p_adjusted` < the test's own `alpha`;
+absent when `p_adjusted` is null) and `multiplicity`
+(`#/$defs/AppliedMultiplicity` `{method, family, alpha, m}`, `m` the
+number of defined p-values corrected together). Each test contributes
+one headline p; the Tukey HSD post-test never joins a family. No block,
+or a method resolving to `none`, emits none of them — the response is
+byte-identical. On an instance that hides `capability:multiplicity` the
+three keys and `AppliedMultiplicity` are absent from the schema too.
+
+An inferential overlay layer is corrected the same way, its adjusted
+figures riding the layer's own additive slots — the base payload (the
+`matrix` cells, `scalar`, each summary's `p_value` / `statistic`) never
+changes. Where they land follows where the kind carries its p-values:
+an `OverlaySummary` (the layer's, for the χ² / KS kinds whose p is
+`summary.p_value`; each SERIES entry's, for `OVERLAY_CHISQ_ROW` /
+`_COL`, and for `OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF` whose p is the
+entry's `statistic`) gains `p_adjusted` and `significant_adjusted`; a
+MATRIX payload whose cells are p-values (the pairwise, Fisher and
+`*_CELL` kinds) gains two parallel `MatrixPayload`s, `payload.p_adjusted`
+and `payload.significant_adjusted`, on identical headers, keys and
+`[row][column]` coordinates (a panel kind's cell vector maps element for
+element: `[]number|null` and `[]boolean|null`); a base cell that is
+absent stays absent, an undefined adjusted p is `null` and its
+significance cell absent. The layer gains a `multiplicity` echo
+(`AppliedMultiplicity`), present only when a correction ran.
+`significant_adjusted` compares against the resolved
+`multiplicity.alpha` (default `0.05`). A `layer` family never mixes
+layers; a `request`-family layer pools with the request's tests and
+post-tests, so its echo's `m` is the pooled count. A `row` (`column`)
+family is one family per row (column) index of the layer's own MATRIX
+payload — purely coordinate-based, never crossing rows (columns) or
+layers — and every element of a panel cell joins its cell's row
+(column); its echo adds `m_per` (array of integers, `omitempty`), each
+family's size index-aligned with the matrix rows (columns), `0` for an
+index with no defined p-value, and `m` is their sum. A facet overlay
+(`FacetResult.overlays[]`) is corrected per layer with the same slots
+and the engine's `DefaultMultiplicity` applying. These keys ride
+`capability:multiplicity` like the test outputs.
 
 ## Weight slots
 

@@ -76,6 +76,10 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-mcp/E<n>
 - Search by intent / question runs over the pruned instance graph (`p.Ontology()`), the same view `pulse_skills_*` and `pulse_examples_*` already read. `pulse_skills_list` has no intent argument today; adding it belongs here or in U22.
 - toolmeta `DescExamplesSearch` / `DescExamplesGet` still say "embedded library"; reword them in the tool-description rewrite, since embedder examples are searchable.
 
+## Inherited from U13
+
+- **MCP tool input schemas miss `multiplicity`.** The hand-built schemas in `internal/mcp/bind.go` do not list the `multiplicity` block (Request, `tests[]`, `overlays[]`, ComposedRequest, compose `overlays[]`), although the payload schema does and root keys still strict-decode through `VisibleSlotKeys`. Add the properties and drop them when `capability:multiplicity` is hidden, with a parity test against `Pulse.PayloadSchema()`.
+
 ## Human inputs & decisions
 
 - None.

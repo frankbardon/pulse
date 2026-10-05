@@ -18,6 +18,10 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Field` is ignored.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
+<!-- /feature -->
+
 ## Inputs
 
 `Rows` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `Cols` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.

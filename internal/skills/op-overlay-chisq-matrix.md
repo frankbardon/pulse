@@ -15,6 +15,10 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` (enum, required) — must be `matrix`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
+<!-- feature: capability:multiplicity -->
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
+<!-- /feature -->
+
 ## Host shape
 
 MATRIX crosstab (`Response.Crosstab.Matrix`). SCALAR-payload pattern shared by sibling χ² / post-test overlays.

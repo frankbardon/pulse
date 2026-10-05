@@ -65,7 +65,7 @@ The F test rejects the global null but says nothing about *which pairs* differ. 
 1. Tier-1 one-way ANOVA; read `ms_within` / `df_within` from its `Details`.
 2. Tier-2 Tukey HSD with those two values as `params` — Tukey-Kramer studentized-range p, family-wise α controlled.
 
-After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tests and adjust the p-values yourself (for example Holm).
+After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tests with a `multiplicity` block (`holm`).
 
 ## P-value conventions
 
@@ -73,6 +73,9 @@ After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tes
 - Two-sided by default; one-sided needs caller-side post-processing on the statistic.
 - Regression inference uses Wald-z, not Student-t — the `TEST_*` families never mix the two.
 - Multi-group headline tracks worst group; per-group detail in `Details.per_group`.
+<!-- feature: capability:multiplicity -->
+- Many tests: `multiplicity` adds `p_adjusted` beside raw p (`multiplicity-correction`).
+<!-- /feature -->
 
 ## Streamability
 
@@ -80,11 +83,11 @@ A tier-1 test streams when it can run on online state (mean / variance / n, or c
 
 ## Composition with aggregators
 
-Cheapest pattern — declare the Welford aggregator on the same `(field, split_by)`; a mean-based tier-1 test reads its running `(mean, variance, n)` free. `Response.Components.Aggregations[i].Operator` mean / variance triples are byte-equal to the standalone Welch numerators on the same inputs; the same holds for the crosstab cell t / z overlays. See `aggregation-design`.
+Cheapest pattern — declare the Welford aggregator on the same `(field, split_by)`; a mean-based tier-1 test reads its running `(mean, variance, n)` free, byte-equal to the standalone Welch numerators (likewise the crosstab cell t / z overlays). See `aggregation-design`.
 
 ## Gotchas
 
-- Tier-2 `field` names match the aggregator's projected column (`AGG_<TYPE>_<field>`); aliases not honored in output schema today.
+- Tier-2 `field` names match the aggregator's projected column (`AGG_<TYPE>_<field>`).
 - Tier-2 Welch's ANOVA needs `params.n_col` + `params.variance_col` upstream.
 - Tier-2 Tukey HSD requires `params.ms_within` + `params.df_within` from a preceding tier-1 ANOVA.
 - Tiny groups → unstable p; gate with a row count and the `PULSE_TEST_INSUFFICIENT_N` floor.

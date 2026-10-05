@@ -15,7 +15,9 @@ import (
 // rubric derived from the ASA statement on p-values (Wasserstein & Lazar
 // 2016), APA JARS-Quant and SAMPL. Two rule shapes:
 //
-//   - text rules (ASA-*) scan every prose string for a banned reading;
+//   - text rules (ASA-*, MULTI-COMP-MANUAL) scan every prose string for
+//     a banned reading — MULTI-COMP-MANUAL bans telling the reader to
+//     correct p-values by hand now that a multiplicity block does it;
 //   - registry rules (PV-SHARED, ES-CONV, CORR-CAUSAL, ASSUME-INDEP,
 //     MULTI-COMP, NORM-POWER) require a declaration or caveat on the
 //     operators their scope table names.
@@ -36,6 +38,7 @@ const (
 	ruleCorrCausal   = "CORR-CAUSAL"
 	ruleAssumeIndep  = "ASSUME-INDEP"
 	ruleMultiComp    = "MULTI-COMP"
+	ruleMultiCompBan = "MULTI-COMP-MANUAL"
 	ruleNormPower    = "NORM-POWER"
 )
 
@@ -130,6 +133,10 @@ var textRules = []textRule{
 	{id: ruleASAImportant, negationGap: true, patterns: []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\bsignifican(?:t|ce)\b(?P<gap>[^.;:]{0,60}?)\b(?:important|importance|meaningful|large)\b`),
 		regexp.MustCompile(`(?i)\b(?:important|meaningful|large)\b(?P<gap>[^.;:]{0,60}?)\bsignifican(?:t|ce)\b`),
+	}},
+	{id: ruleMultiCompBan, patterns: []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b(?:adjust|correct)\w*\b[^.;:]{0,80}?\b(?:yourself|by hand|manually)\b`),
+		regexp.MustCompile(`(?i)\bPulse\s+(?:does\s+not|doesn't|never)\s+(?:adjust|correct)s?\b`),
 	}},
 }
 
@@ -518,6 +525,9 @@ func TestGuidanceProseLint_TextRules(t *testing.T) {
 		{ruleASAImportant,
 			[]string{"A significant result is important.", "Large and significant effects.", "Significance shows the effect is meaningful."},
 			[]string{"Significant is not the same as important.", "Read the effect size for how large it is."}},
+		{ruleMultiCompBan,
+			[]string{"Adjust for multiple comparisons yourself.", "Pulse does not adjust them, so correct by hand.", "Correct the p-values manually (for example Holm)."},
+			[]string{"Set multiplicity on the overlay to add adjusted p-values.", "The power-1 term is the original column, which you add yourself."}},
 	}
 	for _, c := range cases {
 		for _, s := range c.bad {

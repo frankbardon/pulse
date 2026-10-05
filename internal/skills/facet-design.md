@@ -71,6 +71,12 @@ Common contract: `Ref.Population` REQUIRED (`Cohort` names the comparison `.puls
 
 Mixing streamable + buffered kinds forces the orchestrator buffered; descriptive math stays byte-equivalent. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per entry for the series kinds; once per layer for a degenerate population on the scalar tests), `PULSE_OVERLAY_EXPECTED_LOW` (the χ² kind when any expected cell is `< 5`).
 
+<!-- feature: capability:multiplicity -->
+## Multiplicity
+
+Facet overlay specs take `multiplicity` (family `layer`); each layer is corrected alone (`multiplicity-correction`).
+<!-- /feature -->
+
 ## Picking FacetSchema vs Process
 
 - Distinct values of one field, no counts ⇒ `pulse.Facet`.
