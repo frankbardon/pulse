@@ -182,6 +182,57 @@ func TestMultiplicity_ComposeFamilyOnlyInsideCompose(t *testing.T) {
 	}
 }
 
+// TestMultiplicity_ComposeRefusalsMatchPredict: the Compose-only
+// refusals — `request` on a Compose-host overlay, a `compose` family
+// whose members (slot tests and a Compose-host layer) disagree — are
+// raised by Compose and ComposeParallel with the code, message and
+// details ValidateCompose reports first.
+func TestMultiplicity_ComposeRefusalsMatchPredict(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	p := multPulse(t, fs, nil)
+	opts := &descx.PredictOptions{SchemaLoader: schemaLoaderFor(fs)}
+	slot := func(label string, m *types.Multiplicity) *types.Request {
+		return &types.Request{
+			Label:        label,
+			Cohort:       &types.Cohort{Filename: cohort},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}},
+			Tests:        []*types.Test{{Type: types.TEST_T, Field: "x", SplitBy: "g"}},
+			Multiplicity: m,
+		}
+	}
+	cov := func(m *types.Multiplicity) []types.ComposeOverlaySpec {
+		return []types.ComposeOverlaySpec{{Name: "t", Kind: types.OverlayKindTCell, Scope: types.OverlayScopeCell, Reference: "a", Targets: []string{"b"}, Multiplicity: m}}
+	}
+	holm, bh := types.MultiplicityMethodHolm, types.MultiplicityMethodBH
+	for _, c := range []struct {
+		name string
+		code errors.Code
+		mk   func() *types.ComposedRequest
+	}{
+		{"request on a compose-host overlay", errors.PULSE_MULTIPLICITY_INVALID, func() *types.ComposedRequest {
+			return &types.ComposedRequest{Requests: []*types.Request{slot("a", nil), slot("b", nil)}, Overlays: cov(multBlock(holm, types.MultiplicityFamilyRequest, 0))}
+		}},
+		{"compose-host layer conflicts with slot members", errors.PULSE_MULTIPLICITY_CONFLICT, func() *types.ComposedRequest {
+			return &types.ComposedRequest{
+				Multiplicity: multBlock(holm, types.MultiplicityFamilyCompose, 0),
+				Requests:     []*types.Request{slot("a", nil), slot("b", nil)},
+				Overlays:     cov(multBlock(bh, "", 0)),
+			}
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			_, serr := p.Compose(ctx, c.mk())
+			ce := requireCode(t, serr, c.code)
+			sameEntry(t, descx.ValidateComposeWithOptions(c.mk(), opts), serr)
+			_, perr := p.ComposeParallel(ctx, c.mk(), pulse.ComposeOptions{MaxWorkers: 2})
+			if pce := requireCode(t, perr, c.code); pce.Message != ce.Message || !reflect.DeepEqual(pce.Details, ce.Details) {
+				t.Errorf("parallel refusal %q %v, serial %q %v", pce.Message, pce.Details, ce.Message, ce.Details)
+			}
+		})
+	}
+}
+
 // TestMultiplicity_DefaultValidatedAtNew: pulse.New refuses a bad
 // Options.DefaultMultiplicity before building anything; a valid one is
 // installed (the conflict case of the parity table proves it reaches

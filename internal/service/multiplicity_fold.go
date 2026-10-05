@@ -2,6 +2,7 @@ package service
 
 import (
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -161,5 +162,44 @@ func foldRequestMultiplicity(plan *descx.MultiplicityPlan, resp *types.Response)
 	}
 	fams := newMultFamilies()
 	collectRequestSites(fams, "", plan, resp)
+	return fams.fold()
+}
+
+// composeSlotScope is the family-key scope of Compose slot i, so its
+// `request` / `layer` / `row` / `column` families stay inside the slot.
+func composeSlotScope(i int) string {
+	return "requests[" + strconv.Itoa(i) + "]/"
+}
+
+// composeHostScope scopes the Compose-host overlay layers' own
+// (`layer` / `row` / `column`) families.
+const composeHostScope = "compose/"
+
+// foldComposeMultiplicity corrects a whole Compose batch in place under
+// its resolved plan, once, after the barrier: every slot response and
+// every Compose-host layer is collected into ONE multFamilies — each
+// slot under its own scope, so a slot's `request`, `layer`, `row` and
+// `column` families stay inside that slot exactly as a standalone
+// Process would correct them, while every `compose` member (slot tests,
+// post-tests, request-host overlays and Compose-host layers) pools into
+// one family — then each family is adjusted once. Collection walks slots
+// in index order and then the Compose-host layers in spec order, never
+// completion order, so Compose and ComposeParallel answer identically.
+// A nil or inactive plan leaves out untouched (byte-identical).
+//
+// The fold runs only on a complete batch: both orchestrators return an
+// error before the barrier when any slot fails, so a `compose` family
+// is never corrected over a partial set of members.
+func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.ComposedResponse) error {
+	if plan == nil || out == nil {
+		return nil
+	}
+	fams := newMultFamilies()
+	for i, sub := range plan.Requests {
+		if i < len(out.Responses) {
+			collectRequestSites(fams, composeSlotScope(i), sub, out.Responses[i])
+		}
+	}
+	collectOverlaySites(fams, composeHostScope, plan.Overlays, out.Overlays)
 	return fams.fold()
 }

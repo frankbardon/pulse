@@ -68,8 +68,8 @@ func (s *Service) resolveMultiplicity(ctx context.Context, req *types.Request) (
 // resolveComposeMultiplicity is resolveMultiplicity for a whole
 // ComposedRequest (descx.ResolveComposeMultiplicity), run by Compose
 // and ComposeParallel before any slot starts. A slot's refusal already
-// carries details.request.
-func (s *Service) resolveComposeMultiplicity(req *types.ComposedRequest) error {
-	_, err := descx.ResolveComposeMultiplicity(req, s.defaultMultiplicity, s.instance)
-	return err
+// carries details.request. The plan feeds foldComposeMultiplicity once
+// every slot and the Compose-host overlays have finished.
+func (s *Service) resolveComposeMultiplicity(req *types.ComposedRequest) (*descx.ComposeMultiplicityPlan, error) {
+	return descx.ResolveComposeMultiplicity(req, s.defaultMultiplicity, s.instance)
 }

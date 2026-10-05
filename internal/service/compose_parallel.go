@@ -75,7 +75,8 @@ func (s *Service) composeParallel(
 	if err := s.slotRefusal(composed); err != nil {
 		return nil, err
 	}
-	if err := s.resolveComposeMultiplicity(composed); err != nil {
+	multPlan, err := s.resolveComposeMultiplicity(composed)
+	if err != nil {
 		return nil, err
 	}
 	ctx = withinCompose(ctx)
@@ -200,6 +201,13 @@ func (s *Service) composeParallel(
 	out := &types.ComposedResponse{Responses: responses}
 	if len(layers) > 0 {
 		out.Overlays = distributeComposeWarnings(layers, warnings)
+	}
+	// The multiplicity barrier fold: every slot and every Compose-host
+	// layer has finished, so the `compose` family pools them all and
+	// each slot's own families correct inside the slot. Shared with the
+	// other orchestrator, so serial and parallel answer identically.
+	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+		return nil, err
 	}
 
 	return out, nil
