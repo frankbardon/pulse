@@ -120,17 +120,16 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	}
 
 	df := a.residualDF()
+	// NaN when df ≤ 0 (residualVariances): no clamp, so the standard
+	// errors below stay NaN rather than claiming perfect precision.
 	sigma2Gram, sigma2 := a.residualVariances(rss)
-	if sigma2 < 0 {
-		sigma2Gram, sigma2 = 0, 0
-	}
 
 	// R² and adjusted R².
 	tss := a.m2YY
 	var r2, adjR2 float64
 	if tss > 0 {
 		r2 = 1 - rss/tss
-		adjR2 = 1 - (1-r2)*(a.nStar()-1)/df
+		adjR2 = a.adjustedR2(r2, df)
 	}
 
 	// Standard errors: Var(β) = σ² · M2_xx⁻¹ (on w*: σ̂*²·(c·M2_xx)⁻¹ =
@@ -184,8 +183,9 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	}, nil
 }
 
-// sqrt clamps non-positive inputs (from rounding) to zero before
-// delegating to math.Sqrt so callers never see NaN std errors.
+// sqrt clamps non-positive inputs (rounding residue on a fit with
+// df > 0) to zero before delegating to math.Sqrt. A NaN input — the
+// undefined σ² of a fit with df ≤ 0 — passes through as NaN.
 func sqrt(x float64) float64 {
 	if x <= 0 {
 		return 0

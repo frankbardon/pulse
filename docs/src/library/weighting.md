@@ -199,8 +199,11 @@ approximations, now on N*. Bayesian linear regression takes frequency
 weights only: X'WX, X'Wy and Σw enter the conjugate posterior, which
 equals the posterior on the expanded rows. `n_obs` stays the raw row
 count. A weighted result adds `sum_weights` and, for probability
-weights, `n_eff`. A probability-weighted fit whose n_eff falls below
-the predictor count plus one warns `PULSE_WEIGHT_LOW_NEFF`. A
+weights, `n_eff`. A probability-weighted fit whose n_eff is at or
+below the predictor count plus one warns `PULSE_WEIGHT_LOW_NEFF`: its
+residual degrees of freedom are zero or negative, so the standard
+errors, p-values, residual standard error and adjusted R² are reported
+as `null` (the coefficients and R² stay defined). A
 regression with `resample` or `selection` refuses any weight, because
 neither has a standard weighted form.
 

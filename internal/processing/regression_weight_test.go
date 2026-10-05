@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 
@@ -179,6 +180,36 @@ func TestWeightedRegressions_LowNEff(t *testing.T) {
 				t.Fatalf("grouped=%v frequency warned: %+v", grouped, w)
 			}
 		}
+	}
+}
+
+// TestWeightedRegressions_LowNEffAtFloor (U12 review WS-05): an OLS fit
+// with n_eff EXACTLY p + 1 (weights 1, 1, 1, 3 → 36/12 = 3) has residual
+// df 0, so it warns too (n_eff ≤ p + 1, not just <), naming the
+// undefined figures.
+func TestWeightedRegressions_LowNEffAtFloor(t *testing.T) {
+	schema := regWeightSchema()
+	recs := regWeightRecords(schema, []float64{1, 1, 1, 3})
+	req := &types.Request{
+		Weight:       &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability},
+		Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Name: "fit", Target: "y", Predictors: []string{"x1", "x2"}}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x1", Weight: types.NullSlotWeight()}},
+	}
+	resp, err := NewProcessor(schema).Process(context.Background(), req, NewSliceIterator(recs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := resp.Regressions[0]; r.NEff != 3 || !math.IsNaN(r.ResidualStdErr) {
+		t.Fatalf("n_eff %v residual_std_err %v, want 3 / NaN", r.NEff, r.ResidualStdErr)
+	}
+	var low []*types.ResponseWarning
+	for _, w := range resp.Warnings {
+		if w.Code == string(errors.PULSE_WEIGHT_LOW_NEFF) {
+			low = append(low, w)
+		}
+	}
+	if len(low) != 1 || low[0].Details["min_required"] != 3 || !strings.Contains(low[0].Message, "undefined") {
+		t.Fatalf("low-n_eff warnings = %+v", low)
 	}
 }
 

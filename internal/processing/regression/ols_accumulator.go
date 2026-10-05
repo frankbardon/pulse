@@ -1,6 +1,10 @@
 package regression
 
-import "github.com/frankbardon/pulse/internal/weighting"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/internal/weighting"
+)
 
 // olsAccumulator is a Welford-style streaming accumulator for the
 // sufficient statistics needed by ordinary least squares.
@@ -135,13 +139,31 @@ func (a *olsAccumulator) scale() float64 { return a.basis.Scale(a.sumW, a.sumWSq
 // under probability; n − p − 1 unweighted).
 func (a *olsAccumulator) residualDF() float64 { return a.nStar() - float64(a.p) - 1 }
 
+// adjustedR2 is 1 − (1 − R²)(N* − 1)/df, NaN when df ≤ 0 (no residual
+// df, see residualVariances).
+func (a *olsAccumulator) adjustedR2(r2, df float64) float64 {
+	if !(df > 0) {
+		return math.NaN()
+	}
+	return 1 - (1-r2)*(a.nStar()-1)/df
+}
+
 // residualVariances turns a w-scale residual sum of squares RSS =
 // Σw·e² into (gram, star): gram = RSS/df is the factor Var(β) applies
 // to the w-scale inverse Gram (the c of w* cancels: σ̂*²·(c·M2)⁻¹), and
 // star = c·RSS/df is σ̂² on w* — the residual variance the result
 // reports. Both are RSS/df unless the basis is probability.
+//
+// Both are NaN when df ≤ 0 (U12 review WS-05): a fit with N* ≤ p + 1 —
+// reachable under probability weights, where N* = Kish n_eff can fall
+// below the raw-row floor — has no residual variance, so σ², the
+// residual standard error, every standard error and t p-value and the
+// adjusted R² are undefined (null on the wire), never 0 or ±Inf.
 func (a *olsAccumulator) residualVariances(rss float64) (gram, star float64) {
 	df := a.residualDF()
+	if !(df > 0) {
+		return math.NaN(), math.NaN()
+	}
 	gram = rss / df
 	if a.basis != weighting.Probability {
 		return gram, gram

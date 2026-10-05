@@ -1,8 +1,10 @@
 package regression
 
 import (
+	"encoding/json"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/statdist"
@@ -415,6 +417,60 @@ func TestWeightedRegression_StreamingMatchesBuffered(t *testing.T) {
 			}
 			if want := fitWeighted(t, spec, rows, kind); !reflect.DeepEqual(got, want) {
 				t.Fatalf("%s/%s: streaming differs:\n%+v\n%+v", name, kind, got, want)
+			}
+		}
+	}
+}
+
+// TestWeightedRegression_UndefinedAtNonPositiveDF (U12 review WS-05):
+// a probability fit whose residual df N* − p − 1 is ≤ 0 has no residual
+// variance, so σ² (hence ResidualStdErr), AdjR², every standard error and every
+// t p-value are NaN (null on the wire) — never the old clamp to 0 that
+// claimed perfect precision, nor the +Inf of a zero df. β and R² stay
+// defined. Two cases: n_eff < p + 1 (one row dominates) and n_eff =
+// p + 1 exactly (weights 1, 1, 1, 3: (6)²/12 = 3).
+func TestWeightedRegression_UndefinedAtNonPositiveDF(t *testing.T) {
+	cases := map[string][]float64{
+		"below": {1000, 1, 1, 1, 1, 1},
+		"equal": {1, 1, 1, 3},
+	}
+	for cname, ws := range cases {
+		rows := wRegFixture()[:len(ws)]
+		for i := range rows {
+			rows[i].w = ws[i]
+		}
+		for name, spec := range regSpecs() {
+			if spec.Type == types.REG_BAYES_LINEAR {
+				continue // frequency-only: N* = Σw ≥ the raw floor
+			}
+			res := fitWeighted(t, spec, rows, types.WeightKindProbability)
+			if cname == "equal" && res.NEff != 3 {
+				t.Fatalf("%s: n_eff %v, want exactly 3", name, res.NEff)
+			}
+			for what, v := range map[string]float64{"residual_std_err": res.ResidualStdErr, "adj_r2": res.AdjR2} {
+				if !math.IsNaN(v) {
+					t.Errorf("%s/%s: %s = %v, want NaN", cname, name, what, v)
+				}
+			}
+			for k, v := range res.StdErrors {
+				if !math.IsNaN(v) {
+					t.Errorf("%s/%s: std_errors[%s] = %v, want NaN", cname, name, k, v)
+				}
+			}
+			for k, v := range res.PValues {
+				if !math.IsNaN(v) && !(name != "ols" && name != "ridge" && v == 0 && res.Coefficients[k] == 0) {
+					t.Errorf("%s/%s: p_values[%s] = %v, want NaN", cname, name, k, v)
+				}
+			}
+			if math.IsNaN(res.R2) || math.IsNaN(res.Coefficients["x1"]) {
+				t.Errorf("%s/%s: R² %v / β %v must stay defined", cname, name, res.R2, res.Coefficients["x1"])
+			}
+			raw, err := json.Marshal(res)
+			if err != nil {
+				t.Fatalf("%s/%s marshal: %v", cname, name, err)
+			}
+			if !strings.Contains(string(raw), `"adj_r2":null`) {
+				t.Errorf("%s/%s: wire form lacks adj_r2 null: %s", cname, name, raw)
 			}
 		}
 	}

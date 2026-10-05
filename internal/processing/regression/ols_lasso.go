@@ -185,15 +185,14 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 	}
 
 	df := a.residualDF()
+	// NaN when df ≤ 0 (residualVariances): no clamp, so the standard
+	// errors below stay NaN rather than claiming perfect precision.
 	sigma2Gram, sigma2 := a.residualVariances(rss)
-	if sigma2 < 0 {
-		sigma2Gram, sigma2 = 0, 0
-	}
 	tss := a.m2YY
 	var r2, adjR2 float64
 	if tss > 0 {
 		r2 = 1 - rss/tss
-		adjR2 = 1 - (1-r2)*(a.nStar()-1)/df
+		adjR2 = a.adjustedR2(r2, df)
 	}
 
 	// Naive plug-in SE for the active set. The SE of a coordinate that

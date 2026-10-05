@@ -61,9 +61,10 @@ func (rw rowWeights) note(res *types.RegressionResult, sumW, sumWSq float64) {
 	}
 }
 
-// LowNEffFloor is the Kish n_eff below which a probability-weighted fit
-// of spec reports PULSE_WEIGHT_LOW_NEFF: the raw-row floor p + 1 the
-// fit itself enforces (PROCESSING_REGRESSION_INSUFFICIENT_DATA), p
-// being the predictor count. Its residual df N* − p − 1 is then
-// negative, so the t p-values are undefined.
+// LowNEffFloor is the raw-row floor p + 1 the fit itself enforces
+// (PROCESSING_REGRESSION_INSUFFICIENT_DATA), p being the predictor
+// count. A probability-weighted OLS fit whose Kish n_eff is at or below
+// it reports PULSE_WEIGHT_LOW_NEFF: its residual df N* − p − 1 is ≤ 0,
+// so σ², the standard errors, the t p-values and the adjusted R² are
+// NaN (U12 review WS-05). A REG_GLM warns only strictly below it.
 func LowNEffFloor(spec *types.RegressionSpec) int { return len(spec.Predictors) + 1 }
