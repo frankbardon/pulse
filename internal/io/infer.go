@@ -542,6 +542,14 @@ func allDate(values []string) bool {
 //
 // ParseDateTime rejects every date-only layout, so a column of plain
 // dates returns false here and reaches the allDate probe unchanged.
+//
+// The probe is deliberately ZONE-FREE under ImportJob.SourceTZ: it
+// decides the literal's SHAPE, and temporal.ParseLocal accepts exactly
+// ParseDateTime's layouts (pinned by a parity test), so the verdict is
+// the same in every zone. Probing under the DST policy instead would let
+// one sampled wall clock in a DST gap demote the whole column to
+// categorical — a silent reinterpretation — where the row pass refuses
+// it loudly with PULSE_IMPORT_DST_NONEXISTENT naming the row.
 func allDateTime(values []string) bool {
 	for _, v := range values {
 		if _, err := encoding.ParseDateTime(v); err != nil {

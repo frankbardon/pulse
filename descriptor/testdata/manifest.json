@@ -6109,7 +6109,7 @@
         ]
       }
     ],
-    "error_codes_count": 260,
+    "error_codes_count": 263,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6207,6 +6207,9 @@
       "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
       "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
       "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
+      "PULSE_IMPORT_DST_AMBIGUOUS",
+      "PULSE_IMPORT_DST_NONEXISTENT",
+      "PULSE_IMPORT_DST_RESOLVED",
       "PULSE_IMPORT_FORMAT_UNKNOWN",
       "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_NULL_PROMOTED",
@@ -8393,7 +8396,7 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, and the four .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
@@ -11725,4 +11728,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 46a1240a912abfd5ba63ccbec0af645b50fb355ca9a873e0887c7c0672d9cc27
+// golden-hash: 789c33b5d86c4ce42d2186766150cae1d69f5476140db37a5c3d5b8223ca0f52

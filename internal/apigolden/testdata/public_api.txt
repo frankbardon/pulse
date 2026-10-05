@@ -1848,6 +1848,9 @@ pulse/errors: const PULSE_GROUP_TOO_NARROW pulse/errors.Code = "PULSE_GROUP_TOO_
 pulse/errors: const PULSE_IMPORT_CATEGORICAL_OVERFLOW pulse/errors.Code = "PULSE_IMPORT_CATEGORICAL_OVERFLOW"
 pulse/errors: const PULSE_IMPORT_CATEGORICAL_UNBOUNDED pulse/errors.Code = "PULSE_IMPORT_CATEGORICAL_UNBOUNDED"
 pulse/errors: const PULSE_IMPORT_DESCRIPTION_TOO_LONG pulse/errors.Code = "PULSE_IMPORT_DESCRIPTION_TOO_LONG"
+pulse/errors: const PULSE_IMPORT_DST_AMBIGUOUS pulse/errors.Code = "PULSE_IMPORT_DST_AMBIGUOUS"
+pulse/errors: const PULSE_IMPORT_DST_NONEXISTENT pulse/errors.Code = "PULSE_IMPORT_DST_NONEXISTENT"
+pulse/errors: const PULSE_IMPORT_DST_RESOLVED pulse/errors.Code = "PULSE_IMPORT_DST_RESOLVED"
 pulse/errors: const PULSE_IMPORT_FORMAT_UNKNOWN pulse/errors.Code = "PULSE_IMPORT_FORMAT_UNKNOWN"
 pulse/errors: const PULSE_IMPORT_HANDLE_EXISTS pulse/errors.Code = "PULSE_IMPORT_HANDLE_EXISTS"
 pulse/errors: const PULSE_IMPORT_NULL_PROMOTED pulse/errors.Code = "PULSE_IMPORT_NULL_PROMOTED"
@@ -2147,6 +2150,11 @@ pulse/io: type ConvertSource = pulse/internal/iocore.ConvertSource
 pulse/io: type ConvertSource underlying struct
 pulse/io: type ConvertSource field Schema *pulse/encoding.Schema
 pulse/io: type ConvertSource field Sidecar pulse/internal/iocore.SidecarEmitter
+pulse/io: type DSTPolicy = pulse/internal/io.DSTPolicy
+pulse/io: type DSTPolicy underlying string
+pulse/io: const DSTPolicyEarlier pulse/internal/io.DSTPolicy = "earlier"
+pulse/io: const DSTPolicyError pulse/internal/io.DSTPolicy = "error"
+pulse/io: const DSTPolicyLater pulse/internal/io.DSTPolicy = "later"
 pulse/io: type DedupJob = pulse/internal/io.DedupJob
 pulse/io: type DedupJob underlying struct
 pulse/io: type DedupJob field DedupRatioFloor float64
@@ -2275,7 +2283,9 @@ pulse/io: type GroupReport field Reason string "json:\"reason,omitempty\""
 pulse/io: type GroupReport field Verdict string "json:\"verdict\""
 pulse/io: type ImportJob = pulse/internal/io.ImportJob
 pulse/io: type ImportJob underlying struct
+pulse/io: type ImportJob field ColumnSourceTZ map[string]string
 pulse/io: type ImportJob field ColumnTypeOverrides map[string]pulse/encoding.FieldType
+pulse/io: type ImportJob field DSTPolicy pulse/internal/io.DSTPolicy
 pulse/io: type ImportJob field DedupRatioFloor float64
 pulse/io: type ImportJob field ElideConstants bool
 pulse/io: type ImportJob field FS github.com/spf13/afero.Fs
@@ -2286,6 +2296,7 @@ pulse/io: type ImportJob field Schema *pulse/encoding.Schema
 pulse/io: type ImportJob field SetDelimiters map[string]string
 pulse/io: type ImportJob field SetInferenceMinPct int
 pulse/io: type ImportJob field Source pulse/internal/io.Reader
+pulse/io: type ImportJob field SourceTZ string
 pulse/io: type ImportJob field StrictDedup bool
 pulse/io: type ImportJob field SuggestGroups bool
 pulse/io: type ImportJob field Target string
@@ -2309,6 +2320,7 @@ pulse/io: type ImportReport field RowsImported int
 pulse/io: type ImportReport field Schema *pulse/encoding.Schema
 pulse/io: type ImportReport field SourceWarnings []*pulse/errors.CodedError
 pulse/io: type ImportReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
+pulse/io: type ImportReport field ZoneWarnings []*pulse/errors.CodedError "json:\"ZoneWarnings,omitempty\""
 pulse/io: type InferenceWarning = pulse/internal/io.InferenceWarning
 pulse/io: type InferenceWarning underlying struct
 pulse/io: type InferenceWarning field Column string
@@ -2365,6 +2377,7 @@ pulse/io: type PredictReport field SourceWarnings []*pulse/errors.CodedError
 pulse/io: type PredictReport field TargetWarnings []*pulse/errors.CodedError
 pulse/io: type PredictReport field Warnings []pulse/internal/io.InferenceWarning
 pulse/io: type PredictReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
+pulse/io: type PredictReport field ZoneWarnings []*pulse/errors.CodedError "json:\"ZoneWarnings,omitempty\""
 pulse/io: type Reader = pulse/internal/iocore.Reader
 pulse/io: type Reader underlying interface
 pulse/io: type Reader imethod Close() error
@@ -3902,4 +3915,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6bcab5da222b09fd4f717c911c52671cae924fd14702d637bdc571b1e530d444
+// golden-hash: 2c327789a89f7dcafd19974eb761d5c1ae88ac4ef979eb61d586c5e737022a5e

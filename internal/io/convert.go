@@ -206,7 +206,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			// its dictionary, and an inferred field whose value
 			// outgrows its sample-inferred width is promoted. The cell
 			// TEXT is what the target receives either way.
-			_, steps, cerr := convertOrWiden(schema, i, raw, dicts[i], DefaultSetDelimiter, widenable[i], rowNum)
+			_, steps, cerr := convertOrWiden(schema, i, raw, dicts[i], DefaultSetDelimiter, widenable[i], rowNum, nil)
 			widened = append(widened, steps...)
 			if cerr == nil || !f.Type.IsCategorical() {
 				// A number that does not convert at all is passed

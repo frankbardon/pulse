@@ -321,7 +321,7 @@ func TestConvertOrWiden_F32Edges(t *testing.T) {
 		{"3.4028235e38", true}, {"1e39", true}, {"Inf", true}, {"-Inf", true},
 	} {
 		schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF32}}}
-		_, steps, err := convertOrWiden(schema, 0, tc.raw, nil, "", true, 7)
+		_, steps, err := convertOrWiden(schema, 0, tc.raw, nil, "", true, 7, nil)
 		if err != nil {
 			t.Errorf("%s: %v", tc.raw, err)
 			continue

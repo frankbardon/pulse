@@ -168,6 +168,28 @@ const (
 	// silently dropped, narrowed or partially imported.
 	PULSE_IMPORT_OVERRIDE_INVALID Code = "PULSE_IMPORT_OVERRIDE_INVALID"
 
+	// PULSE_IMPORT_DST_AMBIGUOUS indicates a naive datetime literal read
+	// in an import source zone (ImportJob.SourceTZ / ColumnSourceTZ)
+	// names a wall-clock time the zone shows TWICE — a DST fall-back
+	// overlap — under the default DSTPolicy "error". The import is
+	// refused at the first offending row and nothing is written
+	// (details: row, column, value, zone).
+	PULSE_IMPORT_DST_AMBIGUOUS Code = "PULSE_IMPORT_DST_AMBIGUOUS"
+
+	// PULSE_IMPORT_DST_NONEXISTENT indicates a naive datetime literal
+	// read in an import source zone names a wall-clock time the zone
+	// never shows — a DST spring-forward gap — under the default
+	// DSTPolicy "error". The import is refused at the first offending
+	// row and nothing is written (details: row, column, value, zone).
+	PULSE_IMPORT_DST_NONEXISTENT Code = "PULSE_IMPORT_DST_NONEXISTENT"
+
+	// PULSE_IMPORT_DST_RESOLVED is a WARNING-class code emitted once per
+	// import when a non-default DSTPolicy ("earlier" / "later") resolved
+	// at least one ambiguous or nonexistent source-zone wall-clock value
+	// (details: policy, ambiguous_n, nonexistent_n), so a resolved shift
+	// is never silent.
+	PULSE_IMPORT_DST_RESOLVED Code = "PULSE_IMPORT_DST_RESOLVED"
+
 	// PULSE_EXPORT_ROW_ERROR indicates a per-row export error.
 	PULSE_EXPORT_ROW_ERROR Code = "PULSE_EXPORT_ROW_ERROR"
 
@@ -2717,6 +2739,9 @@ var allCodes = []Code{
 	PULSE_IMPORT_NULL_PROMOTED,
 	PULSE_IMPORT_WIDTH_PROMOTED,
 	PULSE_IMPORT_OVERRIDE_INVALID,
+	PULSE_IMPORT_DST_AMBIGUOUS,
+	PULSE_IMPORT_DST_NONEXISTENT,
+	PULSE_IMPORT_DST_RESOLVED,
 	PULSE_EXPORT_ROW_ERROR,
 	PULSE_EXPORT_FIELD_UNKNOWN,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,

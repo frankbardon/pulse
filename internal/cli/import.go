@@ -35,6 +35,8 @@ var importFlags = []cli.Flag{
 	&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
 	&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
 	&cli.BoolFlag{Name: "strict", Usage: "Treat parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) as errors: the import fails and writes nothing"},
+	&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
+	&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
 }
 
 // importLeaf finishes an import leaf. Slice flags are not split on ','
@@ -155,6 +157,12 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 		}
 		job.Groups = append(job.Groups, g)
 	}
+	if err := applySourceZoneFlags(cmd, job); err != nil {
+		if jsonOut {
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
+		}
+		return err
+	}
 
 	if schemaPath != "" {
 		schema, err := loadSchemaFromFile(fs, schemaPath)
@@ -169,6 +177,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 
 	report, err := job.Run(ctx)
 	if err != nil {
+		err = cliSourceZoneError(err)
 		if jsonOut {
 			return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
 		}
@@ -176,11 +185,12 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	}
 
 	if jsonOut {
-		return writeEnvelopeWithWarnings(cmd.Writer, report, append(append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...), report.WidthWarnings...))
+		return writeEnvelopeWithWarnings(cmd.Writer, report, append(append(append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...), report.WidthWarnings...), report.ZoneWarnings...))
 	}
 
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)
 	writeSourceWarnings(cmd.Writer, report.WidthWarnings)
+	writeSourceWarnings(cmd.Writer, report.ZoneWarnings)
 	if len(report.ElidedConstants) > 0 {
 		writeText(cmd.Writer, "Elided constant fields (stored once, format 0x02): %s\n", strings.Join(report.ElidedConstants, ", "))
 	}

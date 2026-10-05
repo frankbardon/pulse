@@ -33,6 +33,12 @@ type ImportReport struct {
 	// JSON) when nothing outgrew its inferred width — always, for an
 	// explicit or authoritative schema. See import_widen.go.
 	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
+	// ZoneWarnings carries the one PULSE_IMPORT_DST_RESOLVED warning a
+	// non-default ImportJob.DSTPolicy raises when it resolved at least
+	// one ambiguous or nonexistent source-zone wall clock (details:
+	// policy, ambiguous_n, nonexistent_n). Empty (and omitted from
+	// JSON) otherwise — always, without a source zone.
+	ZoneWarnings []*errors.CodedError `json:"ZoneWarnings,omitempty"`
 	// SourceWarnings carries the non-fatal diagnostics the source
 	// Reader surfaced through the optional SourceWarningEmitter
 	// contract — today the PULSE_SPSS_* family raised by the `.sav`
@@ -127,6 +133,10 @@ type PredictReport struct {
 	Schema        *encoding.Schema
 	EstimatedRows int
 	Warnings      []InferenceWarning
+	// ZoneWarnings is what ImportReport.ZoneWarnings would carry: the
+	// predict converts every source-zone datetime cell exactly as Run
+	// does, so a DST refusal is Predict's error too.
+	ZoneWarnings []*errors.CodedError `json:"ZoneWarnings,omitempty"`
 	// SourceWarnings carries the source Reader's non-fatal coded
 	// diagnostics — see ImportReport.SourceWarnings. Held apart from
 	// Warnings, which is the inference pass's own untyped channel: a
@@ -211,6 +221,31 @@ type ImportJob struct {
 	// refused. Re-type an authoritative column by supplying Schema.
 	// See SchemaAwareReader and import_override.go.
 	ColumnTypeOverrides map[string]encoding.FieldType
+	// SourceTZ is the zone naive datetime literals are read in: an
+	// IANA Area/Location name, "UTC", or a fixed offset "+HH:MM" /
+	// "-HH:MM" (accepted here, never in a request). It applies to every
+	// `datetime` field of the resolved schema and skips `date` fields
+	// (a calendar day has no zone). A literal carrying its own `Z` or
+	// offset names that instant and ignores the zone. Storage is
+	// unchanged: the stored value is always UTC epoch seconds. Empty
+	// (the default) reads naive literals as UTC, byte-identically to an
+	// import without the field. An unknown zone is PULSE_TIMEZONE_UNKNOWN.
+	SourceTZ string
+	// ColumnSourceTZ sets the source zone per column (keyed by exact
+	// field name, same spelling as SourceTZ) and wins over SourceTZ for
+	// that column. A key naming no field, or a field that is not
+	// `datetime` (a `date` column included), is refused with
+	// SERVICE_VALIDATION before the row pass.
+	ColumnSourceTZ map[string]string
+	// DSTPolicy decides a naive literal a source zone's DST transition
+	// makes ambiguous (shown twice) or nonexistent (skipped): DSTPolicyError
+	// (the default; "" means it) refuses the import at the first such row
+	// with PULSE_IMPORT_DST_AMBIGUOUS / PULSE_IMPORT_DST_NONEXISTENT;
+	// DSTPolicyEarlier / DSTPolicyLater resolve with the pre- / post-
+	// transition offset and report the counts in one
+	// PULSE_IMPORT_DST_RESOLVED warning (ImportReport.ZoneWarnings).
+	// Inert without a source zone and under a fixed-offset zone.
+	DSTPolicy DSTPolicy
 	// SetDelimiters maps set-typed column name to the delimiter the
 	// importer should use when splitting cell strings into tokens
 	// for per-row mask packing. Populated by inference; absent

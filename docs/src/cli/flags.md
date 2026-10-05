@@ -390,6 +390,39 @@ declarations as structured `groups: [{key, members}]` entries, plus
 `suggest_groups` to return measured candidates in the same shape. See
 [parent groups](../format/parent-groups.md).
 
+### `--source-tz` / `--dst-policy`
+
+Available on: every `import <format>` leaf.
+
+`--source-tz Zone` reads every naive `datetime` value (no `Z`, no
+`±HH:MM`) as a wall clock in `Zone` and stores the UTC instant it names;
+storage is UTC epoch seconds either way, so the `.pulse` format is
+unchanged. `Zone` is an IANA name (`America/New_York`), `UTC`, or — for
+imports only — a fixed offset `+HH:MM` / `-HH:MM`. Repeatable
+`--source-tz col=Zone` sets one column and wins over the bare form; it is
+`CLI_INPUT` when `col` is not a column, or is not `datetime` (a `date` is
+a calendar day and has no zone). The bare form skips `date` columns. A
+value carrying its own `Z` or offset names that instant and ignores the
+zone. Without `--source-tz` the cohort is byte-identical to before.
+
+`--dst-policy` decides a naive value a DST transition makes ambiguous (a
+fall-back repeats the hour) or nonexistent (a spring-forward skips it):
+`error` (default) fails the import at the first such row with
+`PULSE_IMPORT_DST_AMBIGUOUS` / `PULSE_IMPORT_DST_NONEXISTENT`, naming
+`row`, `column`, `value` and `zone`, and writes nothing; `earlier` uses
+the pre-transition offset (an overlap's first occurrence; Berlin
+`2026-03-29 02:30` → `01:30Z`), `later` the post-transition offset
+(second occurrence; → `00:30Z`). A resolved value is never silent: one
+`PULSE_IMPORT_DST_RESOLVED` warning carries `ambiguous_n` /
+`nonexistent_n` (`warnings` and `data.ZoneWarnings` under `--json`). The
+policy is inert without a zone and under a fixed offset.
+
+```bash
+pulse import csv -i orders.csv -o orders.pulse \
+  --source-tz America/New_York --source-tz shipped_at=Europe/London \
+  --dst-policy later
+```
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it

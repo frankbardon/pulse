@@ -1,10 +1,10 @@
 ---
 name: session-format-flags
-description: Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, and the four .sav write knobs with their refusal defaults.
+description: Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, and the four .sav write knobs with their refusal defaults.
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
-covers: [CLI flags, --sheet, --spss-missing, --charset, --group, --ignore-sidecar, --uncompressed, --sanitize-names]
+covers: [CLI flags, --sheet, --spss-missing, --charset, --group, --source-tz, --dst-policy, --ignore-sidecar, --uncompressed, --sanitize-names]
 ---
 
 # Format CLI flags
@@ -24,6 +24,8 @@ Per-format READ knobs the file cannot always answer itself; all ride `io.ReaderO
 <!-- /feature -->
 
 **Parent groups on the managed path.** `pulse import auto --group KEY[,KEY]:MEMBER[,MEMBER]` (repeatable)<!-- feature: capability:import --> and `pulse_import` `groups: [{key, members}]`<!-- /feature --> declare them; `suggest_groups` returns measured `group_candidates` whose `key`/`members` paste straight back. Default ratio floor 2; findings are warnings (`group_warnings` / envelope `warnings`), never failures. No floor, strict or elision knob there — `pulse import <fmt>` carries those. Detail:<!-- feature: capability:import --> `tool-import`,<!-- /feature --> `cohort-parent-groups`.
+
+**Source zone (every `pulse import <fmt>`).** Naive datetimes import as UTC unless `--source-tz Zone` (IANA, `UTC` or `±HH:MM`; repeatable `col=Zone` wins per column; `date` columns skipped, `col=` on one is `CLI_INPUT`) says where they were recorded. Offset/`Z` literals keep their instant. DST gap/overlap is FATAL (`PULSE_IMPORT_DST_AMBIGUOUS` / `_NONEXISTENT`, naming the row) unless `--dst-policy earlier|later`, which warns `PULSE_IMPORT_DST_RESOLVED` with counts.
 
 <!-- feature: io_format:spss -->
 ## Target-format CLI flags

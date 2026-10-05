@@ -564,13 +564,13 @@ func nominate(l *measuredLayout, window []byte, eligible []bool, det *GroupDetec
 // the final widths — so its figures are the ones Run's write produces.
 // A source that never outgrows its inferred widths is read once, as
 // before.
-func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema, inferred bool, widenable []bool, delimFor func(string) string, report *PredictReport) error {
+func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema, inferred bool, widenable []bool, delimFor func(string) string, zones *sourceZones, report *PredictReport) error {
 	nullable := make([]bool, len(schema.Fields))
 	for i := range schema.Fields {
 		nullable[i] = schema.Fields[i].Nullable
 	}
 	start := *report
-	steps, err := j.measuredPass(ctx, schema, inferred, widenable, delimFor, report)
+	steps, err := j.measuredPass(ctx, schema, inferred, widenable, delimFor, zones, report)
 	if err != nil {
 		return err
 	}
@@ -592,7 +592,7 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 		}
 		relayoutOffsets(schema)
 		*report = start
-		again, err := j.measuredPass(ctx, schema, inferred, widenable, delimFor, report)
+		again, err := j.measuredPass(ctx, schema, inferred, widenable, delimFor, zones, report)
 		if err != nil {
 			return err
 		}
@@ -607,7 +607,8 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 // measuredPass is one measured pass. It returns the width promotions
 // the pass took; when there are any, the report's measured figures are
 // incomplete and predictMeasured re-runs the pass at the final widths.
-func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, inferred bool, widenable []bool, delimFor func(string) string, report *PredictReport) ([]widening, error) {
+func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, inferred bool, widenable []bool, delimFor func(string) string, zones *sourceZones, report *PredictReport) ([]widening, error) {
+	zones.resetCounts()
 	gate := j.dedupGate()
 	specs, screen, groupWarns, rescreen, err := j.screenGroups(schema, widenable)
 	if err != nil {
@@ -632,6 +633,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 	}
 	conv := newRowConverter(schema, inferred, dicts, delimFor, widenable)
 	conv.force(j.ColumnTypeOverrides)
+	conv.zones = zones
 	l := newMeasuredLayout(schema)
 	byName := make(map[string]int, len(schema.Fields))
 	for i := range schema.Fields {
@@ -696,7 +698,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 			declaredNulls = nullSource.RowNulls()
 		}
 		re := conv.convert(rowNum, row, declaredNulls)
-		if re != nil && isOverrideRefusal(re.Err) {
+		if re != nil && (isOverrideRefusal(re.Err) || isDSTRefusal(re.Err)) {
 			return re.Err
 		}
 		if len(conv.widened) > 0 {
@@ -741,6 +743,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 		return conv.widened, nil
 	}
 	report.EstimatedRows = rowNum
+	report.ZoneWarnings = zones.warnings()
 	if rescreen {
 		// The strict verdict deferred past the pass; no field widened,
 		// so the pre-pass verdicts stand and only strictness is added.

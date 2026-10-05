@@ -258,6 +258,24 @@ type GroupReport = iio.GroupReport
 // ImportJob converts tabular source data into a .pulse file.
 type ImportJob = iio.ImportJob
 
+// DSTPolicy decides a naive source-zone wall clock (ImportJob.SourceTZ /
+// ColumnSourceTZ) that a DST transition makes ambiguous (shown twice) or
+// nonexistent (skipped). See ImportJob.DSTPolicy.
+type DSTPolicy = iio.DSTPolicy
+
+const (
+	// DSTPolicyError refuses the import at the first such row with
+	// PULSE_IMPORT_DST_AMBIGUOUS / PULSE_IMPORT_DST_NONEXISTENT. The
+	// default; the empty string means it.
+	DSTPolicyError = iio.DSTPolicyError
+	// DSTPolicyEarlier resolves with the pre-transition offset (an
+	// overlap's first occurrence), counted in PULSE_IMPORT_DST_RESOLVED.
+	DSTPolicyEarlier = iio.DSTPolicyEarlier
+	// DSTPolicyLater resolves with the post-transition offset (an
+	// overlap's second occurrence), counted in PULSE_IMPORT_DST_RESOLVED.
+	DSTPolicyLater = iio.DSTPolicyLater
+)
+
 // ImportProjection is the measured pass's view of the file the import
 // would write.
 type ImportProjection = iio.ImportProjection

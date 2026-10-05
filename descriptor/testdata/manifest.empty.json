@@ -408,7 +408,7 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, and the four .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
@@ -567,4 +567,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4fcd0c631d3bf3d267716060f25d021012a45376c5d95faaabe925add0429ef4
+// golden-hash: 1f752302b9d777174f054d0b5acbb208bc55be4f6c7b4e3f67bef15a2f43ff01

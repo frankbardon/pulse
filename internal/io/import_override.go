@@ -175,7 +175,10 @@ func applyTypeOverride(colName string, values []string, override encoding.FieldT
 }
 
 // convertForced converts one present cell at a forced field's type,
-// discarding the value. A decimal with more fractional digits than the
+// discarding the value. A datetime is checked for its SHAPE only, never
+// under ImportJob.SourceTZ: a forced datetime whose sampled wall clock a
+// DST transition skips is the row pass's PULSE_IMPORT_DST_* refusal
+// (naming the row and zone), not an override refusal. A decimal with more fractional digits than the
 // column's scale is refused rather than rounded: the override promises
 // the value lands exactly.
 func convertForced(raw string, f encoding.Field, dict *encoding.Dictionary, delim string) error {
