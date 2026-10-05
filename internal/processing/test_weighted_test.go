@@ -624,3 +624,36 @@ func checkLowNEff(t *testing.T, run func(types.WeightKind, bool) (*types.Respons
 		}
 	}
 }
+
+// TestWeightedTests_PearsonRefusesNonPositiveDF (U12 review WS-12): a
+// probability-weighted Pearson test whose Kish n_eff leaves df =
+// n_eff − 2 ≤ 0 is refused PULSE_TEST_INSUFFICIENT_N with n_eff in its
+// details (mirroring TEST_ANOVA_F's N* ≤ k refusal), never answered
+// with a null t / p. The same rows under kind frequency (N* = Σw) run.
+func TestWeightedTests_PearsonRefusesNonPositiveDF(t *testing.T) {
+	rows := []wRow{{x: 1, y: 2.1, w: 1000}, {x: 2, y: 2.9, w: 1}, {x: 3, y: 4.2, w: 1}, {x: 4, y: 4.8, w: 1}}
+	schema := weightedTestSchema()
+	spec := types.Test{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y"}
+	spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
+	rt, err := rowTestRegistry[spec.Type](&spec, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rows {
+		if err := rt.UpdateRow(NewRecord(schema, map[string]float64{"x": r.x, "y": r.y, "w": r.w, "g": float64(dictIDOrAdd(schema, "g", "a"))})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err = rt.Finalize()
+	ce, ok := err.(*errors.CodedError)
+	if !ok || ce.Code != errors.PULSE_TEST_INSUFFICIENT_N {
+		t.Fatalf("err = %v, want PULSE_TEST_INSUFFICIENT_N", err)
+	}
+	neff, _ := ce.Details["n_eff"].(float64)
+	if !relEq(neff, 1003.0*1003.0/(1000.0*1000.0+3), 1e-12) || !strings.Contains(ce.Message, "n_eff") {
+		t.Fatalf("details %v / message %q must name n_eff", ce.Details, ce.Message)
+	}
+	if res := runWeightedRowTest(t, types.Test{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y"}, rows, types.WeightKindFrequency); math.IsNaN(res.PValue) {
+		t.Fatalf("frequency p = NaN")
+	}
+}

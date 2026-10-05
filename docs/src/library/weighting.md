@@ -136,7 +136,9 @@ fractional) read that effective size. The result's `details.n` stays
 the raw row count; `sum_weights` and, for probability weights, `n_eff`
 appear beside it in the same shape. A group whose n_eff falls below
 the test's minimum warns `PULSE_WEIGHT_LOW_NEFF` (an error under
-strict mode). This is not design-based (strata / cluster) variance.
+strict mode). A probability-weighted Pearson correlation test whose
+n_eff is 2 or less has no degrees of freedom left and is refused with
+`PULSE_TEST_INSUFFICIENT_N`, its details naming `n_eff`. This is not design-based (strata / cluster) variance.
 
 The two-proportion z-test reads each group's rate as Σw of successes
 over Σw, with the group's sample size read as above; `successes`

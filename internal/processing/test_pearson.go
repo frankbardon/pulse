@@ -224,6 +224,15 @@ func finalizePearsonR(spec *types.Test, variant string, m pearsonMoments, alpha 
 			fmt.Sprintf("TEST_PEARSON_R requires n ≥ 3, got %d", n),
 			map[string]any{"n": n, "min_required": 3})
 	}
+	// Probability weights: Kish n_eff can sit in [1, 2] while n ≥ 3,
+	// leaving df = N* − 2 ≤ 0 and an undefined t / p — refused like
+	// TEST_ANOVA_F's N* ≤ k (U12 review WS-12). Never under frequency
+	// or unweighted, where N* ≥ n ≥ 3.
+	if df := nStar - 2; !(df > 0) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
+			fmt.Sprintf("TEST_PEARSON_R: effective sample size n_eff = %.4g leaves df = n_eff − 2 ≤ 0; the test needs n_eff > 2", nStar),
+			map[string]any{"n": n, "n_eff": nStar, "df": df, "min_required": 3})
+	}
 	denom := math.Sqrt(m2X * m2Y)
 	if denom == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_CORRELATION_UNDEFINED,
