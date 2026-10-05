@@ -23,6 +23,7 @@ No arguments.
 - Empty registry returns an empty list, NOT an error.
 - Ranges are validated at `pulse.New` time (non-overlapping, unique labels, non-empty, parseable bounds) — a listed table is always safe to reference.
 - Both bounds are inclusive; an empty/absent `start` or `end` is an open bound.
+- Entries are calendar days with no zone of their own: over a `datetime` they match the local day in the referencing slot's resolved zone, exactly like inline ranges.
 - Reference a table by name from the grouper's `table` field or the filter's `Params.table` — do not re-inline the ranges.
 
 ## See

@@ -11,31 +11,30 @@ examples_tags: [time-series, cohort-analysis]
 
 ## Params
 
-Exactly one range source — `ranges` XOR `table`:
+One source — `ranges` XOR `table`:
 
-- `ranges` — ordered `[]{label, start, end}`; ISO, omitted bound = open, inclusive.
-- `table` — registered `RangeTable` (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`).
-- `unmatched_label` — default `unmatched`; must not equal a range label.
-- `tz` — slot key, not `params`; IANA zone, beats `time_zone`.
+- `ranges` — ordered `[]{label,start,end}`; ISO, omitted = open, inclusive.
+- `table` — registered `RangeTable` (Extensions or `PULSE_RANGE_TABLES_DIR`).
+- `unmatched_label` — default `unmatched`; not a range label.
+- `tz` — slot key (not `params`); IANA, beats `time_zone`.
 
 ## Inputs
 
-`Field` — `date`, `datetime` (floored to the UTC day).
+`Field` — `date` or `datetime` (floored to its local day in the resolved zone, UTC default). Range bounds (inline or `table`; tables carry no zone) are local days.
 
 ## Output
 
-Matching range label per row, else the unmatched label; supplied range order.
+Range label per row, else `unmatched_label`; supplied order.
 
 ## Components
 
-Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, unmatched last). `Mergeable`, `Streamable=true`.
+Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, unmatched last). Mergeable, streamable.
 
 ## Gotchas
 
-- Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; non-date field → `PROCESSING_CONFIG`.
-- Overlap / dup label / bad boundary → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
-- Over `datetime`, ranges match the local day in the resolved zone.
-- `tz` on `date`, or a non-UTC zone on a derived field → `PROCESSING_CONFIG`.
+- Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; non-date → `PROCESSING_CONFIG`.
+- Overlap / dup label / bad bound → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
+- `tz` on `date`, or non-UTC on a derived field → `PROCESSING_CONFIG`.
 - `Group.Include` not honoured.
 
 ## See

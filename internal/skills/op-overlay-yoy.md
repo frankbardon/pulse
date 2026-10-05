@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES Process host whose single grouper is `GROUP_DATE`, else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `frequency` from `spec.Params`, else `req.Groups[0].Params`. No `tz` of its own — follows the host grouper's zone (manifest `zone: following`).
+SERIES Process host whose single grouper is `GROUP_DATE`, else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `frequency` from `spec.Params`, else `req.Groups[0].Params`. No `tz` — follows the host grouper's zone (`zone: following`): keys are the host's local labels.
 
 ## Output
 
