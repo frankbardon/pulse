@@ -154,6 +154,7 @@ func TestWeightReferenceValues(t *testing.T) {
 	t.Run("coverage", assertWeightRefCoverage)
 	t.Run("tests", testWeightRefTests)
 	t.Run("overlays", testWeightRefOverlays)
+	t.Run("regressions", testWeightRefRegs)
 	if !strings.Contains(weightRefProvenance, "statsmodels") || !strings.Contains(weightRefProvenance, "numpy") || !strings.Contains(weightRefProvenance, "Hmisc") {
 		t.Fatalf("weightRefProvenance %q does not record the generating tool versions", weightRefProvenance)
 	}
@@ -322,6 +323,7 @@ var weightRefScale = map[types.AggregationType]string{
 // set.
 func TestWeightReferenceKindsAgree(t *testing.T) {
 	t.Run("tests", testWeightRefTestsKindsAgree)
+	t.Run("regressions", testWeightRefRegsKindsAgree)
 	for name := range manifestAware() {
 		if _, ok := weightRefScale[types.AggregationType(name)]; !ok {
 			t.Errorf("%s is weight_aware but has no weightRefScale entry", name)

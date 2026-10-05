@@ -14,14 +14,15 @@ import (
 // the leverage is the diagonal of W½X(XᵀWX)⁻¹XᵀW½ — R hatvalues() on a
 // weighted lm, invariant to rescaling the weights.
 
-// attrRegWeightRef: R 4.6.1, lm(y ~ x1 + x2, weights = w) over
-// regWeightRecords' ten rows with w = attrRegWeights; fitted() and
-// hatvalues().
-var (
-	attrRegWeights   = []float64{1, 3, 2, 1, 4, 2, 1, 5, 1, 2}
-	attrRegRefFitted = []float64{1.9251101423344568, 4.9915705212838031, 1.4941311497350567, 4.4457202169649745, 6.222840370191931, 4.817570964492516, 4.1862018973386625, 10.72159539355842, 9.4309857259269236, 8.8572638882843027}
-	attrRegRefHat    = []float64{0.19180997520156809, 0.46152217088158176, 0.35749278098155335, 0.068861958015064978, 0.21847638542065934, 0.20526130994229216, 0.27391324601147693, 0.70459133508064753, 0.12493003682237654, 0.39314080164277954}
-)
+// The external pins — stock R lm on the expanded rows (frequency:
+// predict(), f × hatvalues()), the scale-free closed form cross-checked
+// with statsmodels (probability) — are generated with every other
+// weighted regression's into internal/service/weight_reference_values_test.go
+// by testdata/weight_reference/gen_weight_reference.py
+// (TestWeightReferenceValues/regressions).
+
+// attrRegWeights: uneven integer weights over regWeightRecords' ten rows.
+var attrRegWeights = []float64{1, 3, 2, 1, 4, 2, 1, 5, 1, 2}
 
 var attrRegTypes = []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE}
 
@@ -45,31 +46,6 @@ func weightOf(kind types.WeightKind) types.SlotWeight {
 }
 
 var bothKinds = []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
-
-// TestAttrRegWeighted_MatchesR: fitted, residual and leverage under
-// both kinds equal R's weighted lm (probability: the same figures —
-// β and the hat diagonal are invariant to rescaling the weights).
-func TestAttrRegWeighted_MatchesR(t *testing.T) {
-	schema := regWeightSchema()
-	recs := regWeightRecords(schema, attrRegWeights)
-	for _, kind := range bothKinds {
-		fitted := computeRegAttr(t, types.ATTR_REG_FITTED, recs, weightOf(kind), "")
-		resid := computeRegAttr(t, types.ATTR_REG_RESIDUAL, recs, weightOf(kind), "")
-		hat := computeRegAttr(t, types.ATTR_REG_LEVERAGE, recs, weightOf(kind), "")
-		for i, r := range recs {
-			y, _ := r.NumericValue("y")
-			if !closeRel(fitted[i], attrRegRefFitted[i], 1e-9) {
-				t.Errorf("%s fitted[%d] = %.17g, want %.17g", kind, i, fitted[i], attrRegRefFitted[i])
-			}
-			if math.Abs(resid[i]-(y-attrRegRefFitted[i])) > 1e-9 {
-				t.Errorf("%s residual[%d] = %.17g, want raw y − ŷ %.17g", kind, i, resid[i], y-attrRegRefFitted[i])
-			}
-			if !closeRel(hat[i], attrRegRefHat[i], 1e-9) {
-				t.Errorf("%s leverage[%d] = %.17g, want %.17g", kind, i, hat[i], attrRegRefHat[i])
-			}
-		}
-	}
-}
 
 // TestAttrRegWeighted_UnityBitIdentical: all-ones weights under either
 // kind reproduce the unweighted outputs bit for bit (penalised fitted
@@ -157,7 +133,7 @@ func TestAttrRegWeighted_WeightReachesRefit(t *testing.T) {
 	schema := regWeightSchema()
 	recs := regWeightRecords(schema, attrRegWeights)
 	wantSum := 0.0
-	for _, v := range attrRegRefFitted {
+	for _, v := range computeRegAttr(t, types.ATTR_REG_FITTED, recs, weightOf(types.WeightKindFrequency), "") {
 		wantSum += v
 	}
 	unweightedSum := 0.0

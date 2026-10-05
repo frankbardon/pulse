@@ -20,8 +20,8 @@ go test ../.. -run TestWeightReference
 ```
 
 (Keep `rlib/` out of the commit.) Pinned toolchain: Python 3.12, numpy
-2.3.3, scipy 1.16.2, statsmodels 0.14.5; R 4.6.1, Hmisc 5.3.0 (the R
-scripts refuse any other R / Hmisc version). The script's docstring maps
+2.3.3, scipy 1.16.2, statsmodels 0.14.5, scikit-learn 1.7.2; R 4.6.1,
+Hmisc 5.3.0 (the R scripts refuse any other R / Hmisc version). The script's docstring maps
 each Pulse definition onto the library call configured to match it.
 
 ## Weighted significance tests
@@ -81,6 +81,42 @@ weighted `AGG_AVERAGE`; spread and n from `OV_SERIES_PARAMS`, which
 `test_reference.R` repeats), so the weight reaches them only through the
 means. `OVERLAY_FISHER_EXACT_CELL` is frequency-only. The expected
 overlay warning codes are derived from the same expected counts.
+
+## Weighted regressions and regression attributes
+
+The regression references (`weightRefRegRows` / `weightRefRegCases`,
+pinned by `TestWeightReferenceValues/regressions`) come from the same
+run, on their own fixture (x1, nullable x2; a linear, 0 / 1, count and
+positive target; the `w` / `f` / `p` weight columns):
+
+- kind `frequency` — stock R on the `rep()`-expanded rows, via
+  `reg_reference.R` (base R `stats` only; refuses any R but 4.6.1): `lm`
+  for `REG_OLS` and the `ATTR_REG_*` rows (`predict()`; leverage = f ×
+  one copy's `hatvalues()`), `glm(control = glm.control(epsilon = 1e-14,
+  maxit = 100))` with `summary(dispersion = 1)` for `REG_GLM`, refit once
+  from its own converged coefficients so the standard errors are
+  evaluated at the MLE (glm's otherwise use the last iteration's
+  starting weights, ~1e-8 away);
+- kind `probability` — the closed form on w* = w·n_eff/Σw: OLS with df
+  n_eff − q (never `lm(weights =)`, whose df is the row count), its SEs
+  cross-checked with statsmodels `GLM(freq_weights = w*)` (df_resid =
+  Σw* − q); GLM by IRLS on w*, cross-checked the same way with scale 1;
+  the attributes' scale-free closed form, leverage cross-checked with
+  statsmodels OLS influence on the √w-whitened design. Each closed form
+  must equal R on the frequency configuration (1e-9) first;
+- penalised `REG_OLS` (l2 / l1 / elasticnet) — β only, from
+  scikit-learn: `Ridge(alpha = λ·Σw)` (also checked against its closed
+  form), `Lasso` / `ElasticNet(alpha = λ)` on predictors divided by their
+  weighted population SD (β = coef / σ) — on the `np.repeat` expansion
+  under `frequency`, `sample_weight = w` under `probability`;
+- `REG_BAYES_LINEAR` (frequency-only) — no stock package fits Pulse's
+  scalar-precision Normal-Inverse-Gamma prior, so its row is that
+  conjugate posterior in closed form on the expanded rows (scipy t
+  quantiles for the credible bounds). Frequency-expansion parity
+  (`TestWeightFrequencyExpansionParity/regressions`) is its other gate.
+
+An attribute case reads each row's value back as an opted-out `AGG_SUM`
+grouped by the fixture's `id`; its figures are keyed `data[<id>].v`.
 
 ## Probability-weight quantiles: Hmisc
 

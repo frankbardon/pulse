@@ -2,6 +2,7 @@
 # requires-python = "==3.12.*"
 # dependencies = [
 #   "numpy==2.3.3",
+#   "scikit-learn==1.7.2",
 #   "scipy==1.16.2",
 #   "statsmodels==0.14.5",
 # ]
@@ -78,6 +79,13 @@ one reference row per (test, weight configuration):
     and must equal R there (1e-9), which is what licenses it as the
     probability oracle.
 
+Weighted regressions and regression attributes (weighting-inferential
+E4-S3) — their own fixture REG_ROWS; R lm / glm on the expansion
+(reg_reference.R) for kind frequency, the w* closed form cross-checked
+with statsmodels for kind probability, scikit-learn for the penalised β,
+the closed-form NIG posterior for Bayes linear (see "weighted
+regressions" below).
+
 Per-group N*: the split t / Welch / z, Welch ANOVA and prop-z read each
 group's own n_eff; ANOVA F, Pearson, paired and χ² read one n_eff over
 the contributing rows (the w* scale c = N*/Σw is whole-sample there).
@@ -97,6 +105,7 @@ import math
 import os
 import subprocess
 import sys
+import warnings
 from decimal import Decimal, getcontext
 from fractions import Fraction
 
@@ -104,7 +113,13 @@ import numpy as np
 import scipy
 import scipy.special
 import scipy.stats
+import sklearn
+import sklearn.linear_model
 import statsmodels
+from statsmodels.genmod import families as sm_families
+from statsmodels.genmod.generalized_linear_model import GLM as SmGLM
+from statsmodels.regression.linear_model import OLS as SmOLS
+from statsmodels.tools.sm_exceptions import DomainWarning
 from statsmodels.stats.proportion import proportions_ztest
 from statsmodels.stats.weightstats import CompareMeans, DescrStatsW
 
@@ -1213,6 +1228,451 @@ def overlay_cases():
     return out
 
 
+# --- weighted regressions and regression attributes (E4-S3) -------------
+#
+# Their own fixture REG_ROWS: (id, x1, x2, y, yb, yp, yg, w, f) — x2
+# nullable; y a linear response, yb / yp / yg binomial / poisson / gamma
+# targets of the same predictors; weights as the other fixtures (w
+# fractional probability with a zero / negative / NaN, f integer
+# frequency with zeros / negative / NaN / non-integer, p = c·f).
+#
+#   * REG_OLS — frequency: R lm on the rep()-expanded rows
+#     (reg_reference.R). Probability: the closed form on w* (β from the
+#     weighted normal equations, σ̂² = Σw*e²/(n_eff − q), t on n_eff − q
+#     df), its SEs cross-checked against statsmodels GLM(Gaussian,
+#     freq_weights = w*) — whose df_resid is Σw* − q = n_eff − q. NOT
+#     lm(weights = w) / WLS: those read the row count as the df.
+#   * REG_OLS penalised (l2 / l1 / elasticnet) — β only, from
+#     scikit-learn: Ridge(alpha = λ·Σw) (Pulse adds Σw·λ to the centered
+#     Gram, unstandardized); Lasso / ElasticNet(alpha = λ, l1_ratio) on
+#     predictors divided by their weighted population SD, β = coef/σ —
+#     Pulse's coordinate descent minimizes the same
+#     (1/2Σw)·Σw(y − Xβ)² + λ(α‖β_std‖₁ + (1 − α)/2‖β_std‖²).
+#     Frequency on the np.repeat expansion, unweighted; probability with
+#     sample_weight = w (β is kind-free: the penalty scales by Σw). The
+#     ridge β is also checked against its closed form.
+#   * REG_GLM (binomial / poisson / gamma, dispersion fixed at 1) —
+#     frequency: R glm on the expansion; probability: IRLS on w* in
+#     numpy, cross-checked against statsmodels GLM(freq_weights = w*,
+#     scale = 1). The same IRLS on f must equal R (1e-9).
+#   * REG_BAYES_LINEAR — frequency-only. No stock package fits Pulse's
+#     scalar-precision Normal-Inverse-Gamma prior, so the reference is
+#     that conjugate posterior in closed form evaluated on the expanded
+#     rows (np.repeat), scipy t quantiles for the credible intervals.
+#   * ATTR_REG_FITTED / RESIDUAL / LEVERAGE — frequency: R lm on the
+#     expansion (predict(); leverage = f × one copy's hatvalues());
+#     probability: the closed form (β and hᵢᵢ = wᵢ(1/Σw + dxᵀM2_w⁻¹dx)
+#     are invariant to a weight scale), the leverage cross-checked
+#     against statsmodels OLS influence on the √w-whitened design. A row with a
+#     null predictor emits 0; a zero / invalid weight keeps the row out
+#     of the refit and gives it leverage 0.
+
+REG_PREDICTORS = ["x1", "x2"]
+REG_TERMS = ["(intercept)", "x1", "x2"]
+REG_GLM_TARGETS = {"glm_binomial": ("binomial", "yb"), "glm_poisson": ("poisson", "yp"),
+                   "glm_gamma": ("gamma", "yg")}
+REG_ALPHA = {"ridge": 0.3, "lasso": 0.05, "elasticnet": 0.05}
+REG_L1_RATIO = 0.5
+# Coordinate descent runs to these so its β sits ~1e-10 from the optimum.
+REG_CD = {"tol": 1e-13, "max_iters": 100000}
+REG_GLM_CONTROL = {"tol": 1e-14, "max_iters": 100}
+
+
+def _reg_spec(extra):
+    return {"target": "y", "predictors": REG_PREDICTORS, **extra}
+
+
+REG_SPECS = [
+    ("ols", _reg_spec({"type": "REG_OLS"})),
+    ("ridge", _reg_spec({"type": "REG_OLS", "penalty": "l2", "alpha": REG_ALPHA["ridge"]})),
+    ("lasso", _reg_spec({"type": "REG_OLS", "penalty": "l1", "alpha": REG_ALPHA["lasso"], **REG_CD})),
+    ("elasticnet", _reg_spec({"type": "REG_OLS", "penalty": "elasticnet", "alpha": REG_ALPHA["elasticnet"],
+                              "l1_ratio": REG_L1_RATIO, **REG_CD})),
+    *[(case, {"type": "REG_GLM", "family": fam, "target": tgt, "predictors": REG_PREDICTORS, **REG_GLM_CONTROL})
+      for case, (fam, tgt) in REG_GLM_TARGETS.items()],
+    ("bayes", _reg_spec({"type": "REG_BAYES_LINEAR"})),
+]
+REG_FREQUENCY_ONLY = {"bayes"}
+
+# (case, attribute type, label): one per-row figure each, read back as
+# an unweighted AGG_SUM per id group.
+ATTR_SPECS = [("attr_fitted", "ATTR_REG_FITTED"), ("attr_residual", "ATTR_REG_RESIDUAL"),
+              ("attr_leverage", "ATTR_REG_LEVERAGE")]
+
+
+def build_reg_rows():
+    rng = np.random.default_rng(20261005)
+    rows = []
+    for i in range(40):
+        x1 = round(float(rng.uniform(-2.0, 2.5)), 2)
+        x2 = round(float(rng.normal(0.0, 1.0)), 2)
+        y = round(1.5 + 0.8 * x1 - 1.2 * x2 + float(rng.normal(0.0, 0.9)), 2)
+        pb = 1.0 / (1.0 + math.exp(-(-0.3 + 0.9 * x1 - 0.7 * x2)))
+        yb = float(rng.uniform() < pb)
+        yp = float(rng.poisson(math.exp(0.4 + 0.3 * x1 + 0.2 * x2)))
+        mu = 1.0 / (0.5 + 0.08 * x1 + 0.05 * x2)
+        yg = round(float(rng.gamma(4.0, mu / 4.0)), 3)
+        w = round(float(rng.uniform(0.2, 3.0)), 3)
+        f = int(rng.integers(1, 5))
+        rows.append([x1, x2, y, yb, yp, yg, w, f])
+    rows += [
+        [0.7, NULL, 2.4, 1.0, 2.0, 1.9, 1.1, 2],      # null predictor: dropped listwise
+        [1.3, -0.4, 3.1, 1.0, 3.0, 2.2, 0.0, 0],      # zero weights
+        [-1.1, 0.6, 0.2, 0.0, 1.0, 2.6, 0.9, 0],      # zero frequency weight only
+        [2.0, 1.5, 9.0, 0.0, 9.0, 9.0, -0.5, -1],     # negative weights
+        [-1.8, -1.6, -7.0, 1.0, 0.0, 0.1, NAN, NAN],  # NaN weights
+        [0.4, 0.3, 2.0, 1.0, 1.0, 1.5, 1.6, 1.5],     # non-integer f
+    ]
+    return [(f"r{i:02d}", *r) for i, r in enumerate(rows)]
+
+
+REG_ROWS = build_reg_rows()
+REG_WEIGHTS = {
+    "w": [r[7] for r in REG_ROWS],
+    "f": [float(r[8]) for r in REG_ROWS],
+    "p": [p_of(float(r[8])) for r in REG_ROWS],
+}
+REG_COL = {"x1": 1, "x2": 2, "y": 3, "yb": 4, "yp": 5, "yg": 6}
+
+
+def reg_fit_rows(ws, kind):
+    """Indices of the rows a fit uses: predictors present, weight valid
+    and positive (a zero weight contributes nothing and is not in n)."""
+    return [i for i, r in enumerate(REG_ROWS)
+            if r[2] is not NULL and valid(ws[i], kind) and ws[i] > 0]
+
+
+def reg_design(idx):
+    return np.array([[1.0, REG_ROWS[i][1], REG_ROWS[i][2]] for i in idx])
+
+
+def reg_floor(ws, idx, prob):
+    w = np.array([ws[i] for i in idx])
+    out = {"n_obs": len(idx), "sum_weights": float(w.sum())}
+    if prob:
+        out["n_eff"] = kish(w)
+    return out
+
+
+def ols_closed_form(ws, kind):
+    prob = kind == "probability"
+    idx = reg_fit_rows(ws, kind)
+    X = reg_design(idx)
+    y = np.array([REG_ROWS[i][3] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    nstar = kish(w) if prob else sw
+    wstar = w * nstar / sw
+    q = X.shape[1]
+    xtwx = X.T @ (wstar[:, None] * X)
+    beta = np.linalg.solve(xtwx, X.T @ (wstar * y))
+    e = y - X @ beta
+    df = nstar - q
+    rss = float(np.sum(wstar * e * e))
+    ybar = float(np.sum(w * y) / sw)
+    tss = float(np.sum(wstar * (y - ybar) ** 2))
+    sigma2 = rss / df
+    cov = sigma2 * np.linalg.inv(xtwx)
+    out = {}
+    for j, t in enumerate(REG_TERMS):
+        se = math.sqrt(cov[j, j])
+        out[f"coefficients.{t}"] = float(beta[j])
+        out[f"std_errors.{t}"] = se
+        out[f"p_values.{t}"] = t_two_sided(beta[j] / se, df)
+    r2 = 1 - rss / tss
+    out.update(r2=r2, adj_r2=1 - (1 - r2) * (nstar - 1) / df, residual_std_err=math.sqrt(sigma2))
+    # statsmodels' frequency-weighted Gaussian GLM reads df_resid =
+    # Σw* − q = n_eff − q: the Kish SE, independently assembled.
+    sm = SmGLM(y, X, family=sm_families.Gaussian(), freq_weights=wstar).fit()
+    assert close(sm.df_resid, df) and np.allclose(sm.params, beta, rtol=1e-10), kind
+    for j, t in enumerate(REG_TERMS):
+        assert close(sm.bse[j], out[f"std_errors.{t}"], 1e-9), (kind, t, sm.bse[j])
+    out.update(reg_floor(ws, idx, prob))
+    return out
+
+
+def weighted_scales(X, w):
+    """Weighted means and population SDs of the predictor columns."""
+    mu = (w[:, None] * X).sum(0) / w.sum()
+    sd = np.sqrt((w[:, None] * (X - mu) ** 2).sum(0) / w.sum())
+    return mu, sd
+
+
+def penalised_beta(case, ws, kind):
+    """β from scikit-learn (see the section comment)."""
+    idx = reg_fit_rows(ws, kind)
+    X = np.array([[REG_ROWS[i][1], REG_ROWS[i][2]] for i in idx])
+    y = np.array([REG_ROWS[i][3] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    if kind == "frequency":
+        reps = w.astype(int)
+        X, y, w = np.repeat(X, reps, axis=0), np.repeat(y, reps), np.ones(int(reps.sum()))
+        sample_weight = None
+    else:
+        sample_weight = w
+    sw = float(w.sum())
+    lam = REG_ALPHA[case]
+    if case == "ridge":
+        m = sklearn.linear_model.Ridge(alpha=lam * sw, fit_intercept=True, solver="cholesky", tol=1e-14)
+        m.fit(X, y, sample_weight=sample_weight)
+        coef, icpt = m.coef_, m.intercept_
+        mu, _ = weighted_scales(X, w)
+        xc = X - mu
+        yc = y - float(np.sum(w * y) / sw)
+        closed = np.linalg.solve(xc.T @ (w[:, None] * xc) + sw * lam * np.eye(2), xc.T @ (w * yc))
+        assert np.allclose(coef, closed, rtol=1e-10, atol=0), (kind, coef, closed)
+    else:
+        mu, sd = weighted_scales(X, w)
+        cls = sklearn.linear_model.Lasso if case == "lasso" else sklearn.linear_model.ElasticNet
+        kw = {} if case == "lasso" else {"l1_ratio": REG_L1_RATIO}
+        m = cls(alpha=lam, fit_intercept=True, tol=1e-15, max_iter=10_000_000, **kw)
+        m.fit(X / sd, y, sample_weight=sample_weight)
+        coef = m.coef_ / sd
+        icpt = float(np.sum(w * y) / sw) - float(coef @ mu)
+        assert close(icpt, m.intercept_, 1e-9), (case, kind, icpt, m.intercept_)
+    out = {f"coefficients.{t}": float(v) for t, v in zip(REG_TERMS, [icpt, *coef])}
+    return out
+
+
+def glm_irls(X, y, w, family):
+    """Dispersion-1 IRLS fit: (β, SE, deviance, null deviance)."""
+    if family == "binomial":
+        inv = lambda eta: 1 / (1 + np.exp(-eta))
+        dmu = lambda eta, mu: mu * (1 - mu)
+        var = lambda mu: mu * (1 - mu)
+        mu0 = (w * y + 0.5) / (w + 1)
+        eta0 = np.log(mu0 / (1 - mu0))
+
+        def dev(mu):
+            a = np.where(y > 0, y * np.log(np.where(y > 0, y, 1) / mu), 0.0)
+            b = np.where(y < 1, (1 - y) * np.log(np.where(y < 1, 1 - y, 1) / (1 - mu)), 0.0)
+            return 2 * float(np.sum(w * (a + b)))
+    elif family == "poisson":
+        inv = np.exp
+        dmu = lambda eta, mu: mu
+        var = lambda mu: mu
+        eta0 = np.log(y + 0.1)
+
+        def dev(mu):
+            a = np.where(y > 0, y * np.log(np.where(y > 0, y, 1) / mu), 0.0)
+            return 2 * float(np.sum(w * (a - (y - mu))))
+    else:  # gamma, inverse link
+        inv = lambda eta: 1 / eta
+        dmu = lambda eta, mu: -mu * mu
+        var = lambda mu: mu * mu
+        eta0 = 1 / y
+
+        def dev(mu):
+            return 2 * float(np.sum(w * (-np.log(y / mu) + (y - mu) / mu)))
+    eta = eta0
+    beta = None
+    prev = math.inf
+    for _ in range(500):
+        mu = inv(eta)
+        g = dmu(eta, mu)
+        z = eta + (y - mu) / g
+        ww = w * g * g / var(mu)
+        beta = np.linalg.solve(X.T @ (ww[:, None] * X), X.T @ (ww * z))
+        eta = X @ beta
+        d = dev(inv(eta))
+        if abs(d - prev) <= 1e-15 * (abs(d) + 0.1):
+            break
+        prev = d
+    mu = inv(eta)
+    g = dmu(eta, mu)
+    ww = w * g * g / var(mu)
+    se = np.sqrt(np.diag(np.linalg.inv(X.T @ (ww[:, None] * X))))
+    ybar = float(np.sum(w * y) / w.sum())
+    return beta, se, dev(inv(eta)), dev(np.full_like(y, ybar))
+
+
+def glm_closed_form(case, ws, kind):
+    prob = kind == "probability"
+    family, tgt = REG_GLM_TARGETS[case]
+    idx = reg_fit_rows(ws, kind)
+    X = reg_design(idx)
+    y = np.array([REG_ROWS[i][REG_COL[tgt]] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    wstar = w * ((kish(w) if prob else sw) / sw)
+    beta, se, dev, null_dev = glm_irls(X, y, wstar, family)
+    sm_fam = {"binomial": sm_families.Binomial(),
+              "poisson": sm_families.Poisson(),
+              "gamma": sm_families.Gamma(sm_families.links.InversePower())}[family]
+    with warnings.catch_warnings():
+        # Gamma's inverse link is R's default too; the fit stays in-domain.
+        warnings.simplefilter("ignore", DomainWarning)
+        sm = SmGLM(y, X, family=sm_fam, freq_weights=wstar).fit(scale=1.0, tol=1e-14, maxiter=200)
+    assert np.allclose(sm.params, beta, rtol=1e-8) and np.allclose(sm.bse, se, rtol=1e-8), (case, kind)
+    assert close(sm.deviance, dev, 1e-8) and close(sm.null_deviance, null_dev, 1e-8), (case, kind)
+    out = {}
+    for j, t in enumerate(REG_TERMS):
+        out[f"coefficients.{t}"] = float(beta[j])
+        out[f"std_errors.{t}"] = float(se[j])
+        out[f"p_values.{t}"] = float(2 * scipy.stats.norm.sf(abs(beta[j] / se[j])))
+    out.update(deviance=dev, null_deviance=null_dev, pseudo_r2=1 - dev / null_dev)
+    out.update(reg_floor(ws, idx, prob))
+    return out
+
+
+def bayes_closed_form(ws):
+    """The NIG posterior (Pulse's default prior) on the expanded rows."""
+    idx = reg_fit_rows(ws, "frequency")
+    reps = np.array([int(ws[i]) for i in idx])
+    X = np.repeat(reg_design(idx), reps, axis=0)
+    y = np.repeat(np.array([REG_ROWS[i][3] for i in idx]), reps)
+    n, q = X.shape
+    eps, a0, b0, level = 1e-3, 1e-3, 1e-3, 0.95
+    lam = X.T @ X + eps * np.eye(q)
+    mun = np.linalg.solve(lam, X.T @ y)
+    an = a0 + n / 2
+    bn = b0 + 0.5 * (float(y @ y) - float(mun @ lam @ mun))
+    s2 = bn / an
+    se = np.sqrt(s2 * np.diag(np.linalg.inv(lam)))
+    tq = float(scipy.stats.t.ppf(0.5 + level / 2, 2 * an))
+    e = y - X @ mun
+    rss = float(e @ e)
+    tss = float(np.sum((y - y.mean()) ** 2))
+    r2 = 1 - rss / tss
+    out = {}
+    for j, t in enumerate(REG_TERMS):
+        out[f"coefficients.{t}"] = float(mun[j])
+        out[f"std_errors.{t}"] = float(se[j])
+        out[f"credible_intervals.{t}[0]"] = float(mun[j] - tq * se[j])
+        out[f"credible_intervals.{t}[1]"] = float(mun[j] + tq * se[j])
+    out.update(r2=r2, adj_r2=1 - (1 - r2) * (n - 1) / (n - q), residual_std_err=math.sqrt(s2))
+    out.update(reg_floor(ws, idx, False))
+    return out
+
+
+def attr_closed_form(ws, kind):
+    """Per row id: fitted, residual, leverage (see the section comment)."""
+    idx = reg_fit_rows(ws, kind)
+    X = reg_design(idx)
+    y = np.array([REG_ROWS[i][3] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    beta = np.linalg.solve(X.T @ (w[:, None] * X), X.T @ (w * y))
+    mu, _ = weighted_scales(X[:, 1:], w)
+    xc = X[:, 1:] - mu
+    m2inv = np.linalg.inv(xc.T @ (w[:, None] * xc))
+    sw = float(w.sum())
+    # WLS hat diagonal = the OLS hat diagonal of the √w-whitened design.
+    rw = np.sqrt(w)
+    infl = SmOLS(rw * y, rw[:, None] * X).fit().get_influence().hat_matrix_diag
+    fit_pos = {i: k for k, i in enumerate(idx)}
+    out = {"attr_fitted": {}, "attr_residual": {}, "attr_leverage": {}}
+    for i, r in enumerate(REG_ROWS):
+        rid = r[0]
+        if r[2] is NULL:
+            fv = rv = lv = 0.0
+        else:
+            fv = float(beta @ np.array([1.0, r[1], r[2]]))
+            rv = r[3] - fv
+            lv = 0.0
+            if i in fit_pos:
+                dx = np.array([r[1], r[2]]) - mu
+                lv = ws[i] * (1 / sw + float(dx @ m2inv @ dx))
+                assert close(lv, infl[fit_pos[i]], 1e-9), (kind, rid, lv, infl[fit_pos[i]])
+        out["attr_fitted"][rid] = fv
+        out["attr_residual"][rid] = rv
+        out["attr_leverage"][rid] = lv
+    return out
+
+
+def r_reg_reference(ws):
+    """Run reg_reference.R on the frequency configuration."""
+    import csv
+    import tempfile
+    here = os.path.dirname(os.path.abspath(__file__))
+    with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, newline="") as fh:
+        wr = csv.writer(fh)
+        wr.writerow(["id", "x1", "x2", "y", "yb", "yp", "yg", "f"])
+        for i, r in enumerate(REG_ROWS):
+            copies = int(ws[i]) if valid(ws[i], "frequency") else 0
+            wr.writerow([r[0], repr(r[1]), "NA" if r[2] is NULL else repr(r[2]),
+                         repr(r[3]), repr(r[4]), repr(r[5]), repr(r[6]), copies])
+        path = fh.name
+    try:
+        lines = subprocess.run(["Rscript", os.path.join(here, "reg_reference.R"), path],
+                               check=True, capture_output=True, text=True).stdout.strip().split("\n")
+    finally:
+        os.unlink(path)
+    figs = {}
+    for ln in lines[1:]:
+        case, fig, v = ln.split()
+        figs.setdefault(case, {})[fig] = float(v)
+    return lines[0].strip(), figs
+
+
+RREG = [None]  # "R <ver>", set by the frequency configuration
+
+
+def adopt_r(case, figs, rfigs):
+    """Frequency: the closed form must equal stock R on the expansion
+    (1e-9); R's figure is then the one pinned."""
+    for fig, rv in rfigs.items():
+        assert fig in figs, (case, fig)
+        assert close(figs[fig], rv, 1e-9) or abs(figs[fig] - rv) <= 1e-12, (case, fig, figs[fig], rv)
+        figs[fig] = rv
+
+
+def regression_cases():
+    out = []
+    for wname, kind in CONFIGS:
+        ws = REG_WEIGHTS[wname]
+        prob = kind == "probability"
+        rfigs = None
+        if not prob:
+            RREG[0], rfigs = r_reg_reference(ws)
+        for case, spec in REG_SPECS:
+            if prob and case in REG_FREQUENCY_ONLY:
+                continue
+            if case == "ols":
+                figs = ols_closed_form(ws, kind)
+                if prob:
+                    src = ("closed form on w* = w·n_eff/Σw, df n_eff − q (scipy " + scipy.__version__ +
+                           " t tail), SEs cross-checked with statsmodels " + statsmodels.__version__ +
+                           " GLM(freq_weights = w*)")
+                else:
+                    adopt_r(case, figs, rfigs[case])
+                    src = f"{RREG[0]} lm on rep()-expanded rows (reg_reference.R)"
+            elif case in REG_ALPHA:
+                figs = penalised_beta(case, ws, kind)
+                figs.update(reg_floor(ws, reg_fit_rows(ws, kind), prob))
+                how = "np.repeat expansion" if not prob else "sample_weight = w"
+                src = f"scikit-learn {sklearn.__version__} on the {how}"
+            elif case in REG_GLM_TARGETS:
+                figs = glm_closed_form(case, ws, kind)
+                if prob:
+                    src = ("IRLS on w* = w·n_eff/Σw, dispersion 1, cross-checked with statsmodels " +
+                           statsmodels.__version__ + " GLM(freq_weights = w*, scale = 1)")
+                else:
+                    adopt_r(case, figs, rfigs[case])
+                    src = f"{RREG[0]} glm on rep()-expanded rows, summary(dispersion = 1) (reg_reference.R)"
+            else:
+                figs = bayes_closed_form(ws)
+                src = ("NIG conjugate posterior (default prior) in closed form on the np.repeat "
+                       "expansion; scipy " + scipy.__version__ + " t quantiles — no stock reference")
+            out.append(dict(weight=wname, kind=kind, name=case,
+                            request={"regressions": [spec]},
+                            figs={f"regressions[0].{k}": v for k, v in figs.items()}, src=src))
+        attrs = attr_closed_form(ws, kind)
+        for case, typ in ATTR_SPECS:
+            figs = attrs[case]
+            if prob:
+                src = ("closed form (β and hᵢᵢ invariant to a weight scale), leverage cross-checked with "
+                       "statsmodels " + statsmodels.__version__ + " OLS influence on the √w-whitened design")
+            else:
+                adopt_r(case, figs, rfigs[case])
+                src = f"{RREG[0]} lm on rep()-expanded rows: predict() / f × hatvalues() (reg_reference.R)"
+            req = {"attributes": [{"type": typ, "label": "attr", "target": "y", "predictors": REG_PREDICTORS}],
+                   "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+                   "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+            out.append(dict(weight=wname, kind=kind, name=case, request=req,
+                            figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+    return out
+
+
 def figure_path(name):
     """Reference figure name → JSON path from the TestResult root."""
     if name in TOP_LEVEL:
@@ -1227,7 +1687,7 @@ def gofloat(v):
     return r
 
 
-def emit(out, tout, oout):
+def emit(out, tout, oout, rout):
     lines = []
     w = lines.append
     w("// Code generated by testdata/weight_reference/gen_weight_reference.py; DO NOT EDIT.")
@@ -1313,6 +1773,38 @@ def emit(out, tout, oout):
           f'request: `{req}`, figures: map[string]float64{{{figs}}}, warnings: []string{{{warn}}}, '
           f'source: "{c["src"]}"}},')
     w("}")
+    w("")
+    w(f"// weightRefRegProvenance records the regression toolchain.")
+    w(f'const weightRefRegProvenance = "{RREG[0]} (stats); python {sys.version.split()[0]}, numpy {np.__version__}, '
+      f'scipy {scipy.__version__}, statsmodels {statsmodels.__version__}, scikit-learn {sklearn.__version__}"')
+    w("")
+    w("// weightRefRegRows is the regression fixture.")
+    w("var weightRefRegRows = []weightRefRegRow{")
+    for r in REG_ROWS:
+        rid, x1, x2, y, yb, yp, yg, wv, f = r
+        f = float(f)
+        fields = [
+            f'id: "{rid}"',
+            f"x1: {gofloat(x1)}",
+            f"x2: {gofloat(x2) if x2 is not NULL else '0'}",
+            f"x2Null: {'true' if x2 is NULL else 'false'}",
+            f"y: {gofloat(y)}, yb: {gofloat(yb)}, yp: {gofloat(yp)}, yg: {gofloat(yg)}",
+            f"w: {gofloat(wv)}",
+            f"f: {gofloat(f)}",
+            f"p: {gofloat(p_of(f))}",
+        ]
+        w("\t{" + ", ".join(fields) + "},")
+    w("}")
+    w("")
+    w("// weightRefRegCases: one regression or regression-attribute slot per case,")
+    w("// figures keyed by wire path (data[<id>] the row of that id group).")
+    w("var weightRefRegCases = []weightRefInferCase{")
+    for c in rout:
+        req = json.dumps(c["request"], separators=(",", ":"), ensure_ascii=False)
+        figs = ", ".join(f'"{k}": {gofloat(v)}' for k, v in sorted(c["figs"].items()))
+        w(f'\t{{weight: "{c["weight"]}", kind: "{c["kind"]}", name: "{c["name"]}", '
+          f'request: `{req}`, figures: map[string]float64{{{figs}}}, source: "{c["src"]}"}},')
+    w("}")
     return "\n".join(lines) + "\n"
 
 
@@ -1320,5 +1812,5 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     dst = os.path.join(here, "..", "..", "weight_reference_values_test.go")
     with open(dst, "w") as fh:
-        fh.write(emit(cases(), test_cases(), overlay_cases()))
+        fh.write(emit(cases(), test_cases(), overlay_cases(), regression_cases()))
     print("wrote", os.path.normpath(dst))
