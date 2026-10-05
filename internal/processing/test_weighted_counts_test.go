@@ -17,9 +17,14 @@ import (
 //   - unity: w ≡ 1 under either kind marshals byte-identically to the
 //     unweighted run once the weight-only keys are shed;
 //   - frequency: integer weights equal the expanded rows run unweighted;
-//   - probability: R 4.6.1 closed form — chisq.test(n_eff*prop.table(wtab),
-//     correct=FALSE) and prop.test(x = p̂_g·n_eff_g, n = n_eff_g,
-//     correct=FALSE) — plus the same in Go.
+//   - probability: the closed form in Go (TestWeightedCountTests_ClosedForm).
+//
+// The external pins — stock R on the expanded rows (frequency), the
+// closed form cross-checked with scipy / statsmodels (probability) —
+// are generated, with every other weighted test's, into
+// internal/service/weight_reference_values_test.go by
+// testdata/weight_reference/gen_weight_reference.py
+// (TestWeightReferenceValues/tests).
 
 type cRow struct {
 	g, o string
@@ -27,7 +32,7 @@ type cRow struct {
 }
 
 // countFixture: split g ∈ {a, b}, outcome o ∈ {yes, no, maybe}, uneven
-// integer weights. The R oracle values below were generated from it.
+// integer weights.
 func countFixture() []cRow {
 	g := strings.Split("a a a a a a a a a a b b b b b b b b b b b", " ")
 	o := strings.Split("yes no yes maybe no yes no maybe yes no no yes no no maybe yes no maybe no no yes", " ")
@@ -175,41 +180,6 @@ func TestWeightedCountTests_FrequencyIsExpansion(t *testing.T) {
 				}
 			}
 		}
-	}
-}
-
-// TestWeightedCountTests_ROracle pins both kinds to R 4.6.1:
-//
-//	wtab <- xtabs(w ~ g + o); neff <- sum(w)^2/sum(w^2)
-//	chisq.test(neff*prop.table(wtab), correct=FALSE)           # probability
-//	chisq.test(table(rep(g,w), rep(o,w)), correct=FALSE)       # frequency
-//	prop.test(x = p̂_g·N*_g, n = N*_g, correct=FALSE)           # z = ±√X²
-//
-// (scratch oracle script; the values are the 17-digit R output).
-func TestWeightedCountTests_ROracle(t *testing.T) {
-	rows := countFixture()
-	for _, c := range []struct {
-		spec        types.Test
-		kind        types.WeightKind
-		stat, p, df float64
-	}{
-		{chiSqSpec, types.WeightKindProbability, 2.5099111414900883, 0.28508851421336423, 2},
-		{chiSqSpec, types.WeightKindFrequency, 7.9480519480519485, 0.018797601933218677, 2},
-		{propZSpec, types.WeightKindProbability, 1.3720476799868218, 0.17004859529831626, 0},
-		{propZSpec, types.WeightKindFrequency, 2.4494897427831779, 0.014305878435429645, 0},
-	} {
-		got := runCountTest(t, c.spec, rows, c.kind)
-		if !relEq(got.Statistic, c.stat, 1e-12) || !relEq(got.PValue, c.p, 1e-8) || got.DF != c.df {
-			t.Fatalf("%s/%s: stat %v p %v df %v, want %v %v %v", c.spec.Type, c.kind, got.Statistic, got.PValue, got.DF, c.stat, c.p, c.df)
-		}
-	}
-	// χ² probability: the scaled table's expected minimum and n_eff.
-	prob := runCountTest(t, chiSqSpec, rows, types.WeightKindProbability)
-	if !relEq(prob.Details["expected_min"].(float64), 1.736842105263158, 1e-12) || !relEq(prob.Details["n_eff"].(float64), 15.157894736842104, 1e-12) {
-		t.Fatalf("expected_min %v n_eff %v", prob.Details["expected_min"], prob.Details["n_eff"])
-	}
-	if prob.Details["n"] != int64(len(rows)) || prob.Details["sum_weights"] != 48.0 {
-		t.Fatalf("n %v sum_weights %v", prob.Details["n"], prob.Details["sum_weights"])
 	}
 }
 

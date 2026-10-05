@@ -21,8 +21,28 @@ go test ../.. -run TestWeightReference
 
 (Keep `rlib/` out of the commit.) Pinned toolchain: Python 3.12, numpy
 2.3.3, scipy 1.16.2, statsmodels 0.14.5; R 4.6.1, Hmisc 5.3.0 (the R
-script refuses any other Hmisc version). The script's docstring maps
+scripts refuse any other R / Hmisc version). The script's docstring maps
 each Pulse definition onto the library call configured to match it.
+
+## Weighted significance tests
+
+The tier-1 test references (`weightRefTestRows` / `weightRefTestCases`,
+pinned by `TestWeightReferenceValues/tests`) come from the same run:
+
+- kind `frequency` — stock R on the `rep()`-expanded rows, via
+  `test_reference.R` (base R `stats` only, no package to install; the
+  script refuses any R but 4.6.1);
+- kind `probability` — the w* closed form in the generator, its moment
+  step cross-checked against statsmodels (`DescrStatsW` on w*,
+  `CompareMeans`, `proportions_ztest`) and scipy `chi2_contingency`. The
+  same closed form must reproduce R on the frequency column (1e-9) or
+  the generator aborts.
+
+A case is a JSON request fragment plus figures keyed by wire path
+(`tests[0].details.mean[a]`; a `[label]` index resolves through the
+sibling `groups` array), so a later inferential surface (rank tests,
+regressions, attributes, CIs) adds rows to the generator, not a new
+harness.
 
 ## Probability-weight quantiles: Hmisc
 

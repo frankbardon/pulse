@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -126,7 +127,22 @@ func paritySchema() *encoding.Schema {
 		{Name: "g", Type: encoding.FieldTypeU8, ByteOffset: 20, CsvColumnIdx: 3},
 		{Name: "w", Type: encoding.FieldTypeF64, ByteOffset: 21, CsvColumnIdx: 4},
 		{Name: "s", Type: encoding.FieldTypeSetU8, ByteOffset: 29, CsvColumnIdx: 5, Nullable: true, Dictionary: parityDict()},
+		// Categorical axes for the test-slot harness (weight_tests_parity_test.go).
+		{Name: "h", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 30, CsvColumnIdx: 6, Dictionary: parityCatDict("a", "b")},
+		{Name: "k", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 31, CsvColumnIdx: 7, Dictionary: parityCatDict("p", "q", "r")},
+		{Name: "o", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 32, CsvColumnIdx: 8, Dictionary: parityCatDict("maybe", "no", "yes")},
 	}}
+}
+
+// parityCatDict is a categorical column's dictionary (entry i = id i).
+func parityCatDict(labels ...string) *encoding.Dictionary {
+	d := encoding.NewDictionary()
+	for _, l := range labels {
+		if _, err := d.Add(l); err != nil {
+			panic(err)
+		}
+	}
+	return d
 }
 
 // parityDict is the set column's five-member dictionary.
@@ -142,7 +158,9 @@ func parityDict() *encoding.Dictionary {
 
 // parityRow is one fixture record. x is integer-valued (exact sums), y
 // fractional (operation-order sensitive); both carry nulls. s is a set
-// mask over five members (empty on some rows, null on others).
+// mask over five members (empty on some rows, null on others). h, k and
+// o are categorical dictionary ids (two-, three- and three-level) the
+// test slots split and tabulate by.
 type parityRow struct {
 	id           uint32
 	x, y, w      float64
@@ -150,6 +168,7 @@ type parityRow struct {
 	g            uint8
 	s            uint64
 	sNull        bool
+	h, k, o      uint8
 }
 
 func parityRows(n int, weight func(i int) float64) []parityRow {
@@ -165,6 +184,9 @@ func parityRows(n int, weight func(i int) float64) []parityRow {
 			w:     weight(i),
 			s:     uint64((i * 11) % 32),
 			sNull: i%13 == 6,
+			h:     uint8(i % 2),
+			k:     uint8((i / 2) % 3),
+			o:     uint8((i*5 + i/3) % 3),
 		}
 	}
 	return rows
@@ -193,7 +215,8 @@ func encodeParityRows(t testing.TB, rows []parityRow) []byte {
 	t.Helper()
 	recs := make([][]uint64, len(rows))
 	for i, r := range rows {
-		recs[i] = []uint64{uint64(r.id), math.Float64bits(r.x), math.Float64bits(r.y), uint64(r.g), math.Float64bits(r.w), r.s}
+		recs[i] = []uint64{uint64(r.id), math.Float64bits(r.x), math.Float64bits(r.y), uint64(r.g), math.Float64bits(r.w), r.s,
+			uint64(r.h), uint64(r.k), uint64(r.o)}
 	}
 	return writeNullablePulse(t, paritySchema(), recs, func(r, f int) bool {
 		return (f == 1 && rows[r].xNull) || (f == 2 && rows[r].yNull) || (f == 5 && rows[r].sNull)
@@ -412,6 +435,9 @@ func paritySources() []paritySource {
 					a.Weight = types.SlotWeightOf(spec)
 				}
 			}
+			for _, ts := range req.Tests {
+				ts.Weight = types.SlotWeightOf(spec)
+			}
 			return nil
 		}},
 		{name: "options_default", kind: types.WeightKindProbability, apply: func(_ *types.Request, s *Service, spec types.WeightSpec) *types.WeightSpec {
@@ -436,10 +462,20 @@ func parityRequest(path string, row parityOp, op types.AggregationType) *types.R
 // result means the arm does not apply to this operator.
 func runArm(t *testing.T, store *parityStore, mode parityMode, path string, row parityOp, op types.AggregationType, src *paritySource) *types.Response {
 	t.Helper()
+	return runArmRequest(t, store, mode, path, func() *types.Request { return parityRequest(path, row, op) }, src)
+}
+
+// runArmRequest is runArm for any request shape: build returns a fresh
+// request over path (the arm's shape and the weight source are applied
+// on top). The test-slot harness (weight_tests_parity_test.go) and any
+// later regression / attribute / grouper / overlay harness run through
+// it.
+func runArmRequest(t *testing.T, store *parityStore, mode parityMode, path string, build func() *types.Request, src *paritySource) *types.Response {
+	t.Helper()
 	cfg := store.cfg(mode.cohort)
 	svc := New(cfg)
 	mode.configure(svc)
-	req := parityRequest(path, row, op)
+	req := build()
 	mode.shape(req)
 	var def *types.WeightSpec
 	if src != nil {
@@ -480,19 +516,22 @@ func manifestAware() map[string]descriptor.Operator {
 
 func assertParityCoverage(t *testing.T) {
 	t.Helper()
-	aware := manifestAware()
-	rows := map[string]bool{}
+	have := map[string][]types.WeightKind{}
 	for _, r := range parityOps {
-		rows[string(r.op)] = true
-		if _, ok := aware[string(r.op)]; !ok {
-			t.Errorf("parityOps row %s: the manifest does not mark it weight_aware — drop the row or fix the class table", r.op)
+		have[string(r.op)] = paritySourceKinds()
+	}
+	assertWeightKindCoverage(t, weightSurfaceAggregators, have, "parityOps, weight_parity_test.go")
+}
+
+// paritySourceKinds is the set of kinds paritySources exercises.
+func paritySourceKinds() []types.WeightKind {
+	var out []types.WeightKind
+	for _, s := range paritySources() {
+		if !slices.Contains(out, s.kind) {
+			out = append(out, s.kind)
 		}
 	}
-	for name := range aware {
-		if !rows[name] {
-			t.Errorf("%s is weight_aware in the manifest but has no parityOps row — add one (weight_parity_test.go)", name)
-		}
-	}
+	return out
 }
 
 // stripSteer drops the arm-steering slots from a response.
@@ -529,6 +568,7 @@ func TestWeightUnityParity(t *testing.T) {
 	t.Run("coverage", assertParityCoverage)
 	aware := manifestAware()
 	store := newParityStore(t, "unity", func(n int) []parityRow { return parityRows(n, unityWeight) })
+	t.Run("tests", func(t *testing.T) { testUnityParity(t, store) })
 	for _, mode := range parityModes() {
 		for _, row := range parityOps {
 			t.Run(mode.name+"/"+string(row.op), func(t *testing.T) {
@@ -631,6 +671,12 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 	t.Run("coverage", assertParityCoverage)
 	weighted := newParityStore(t, "weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	expanded := newParityStore(t, "expanded", func(n int) []parityRow { return expandRows(parityRows(n, freqWeight)) })
+	t.Run("tests", func(t *testing.T) {
+		scaled := newParityStore(t, "scaled", func(n int) []parityRow {
+			return parityRows(n, func(i int) float64 { return freqWeight(i) * testScaleC })
+		})
+		testExpansionParity(t, weighted, expanded, scaled)
+	})
 	kinds := []paritySource{paritySources()[0], paritySources()[1]}
 	for _, mode := range parityModes() {
 		for _, row := range parityOps {
