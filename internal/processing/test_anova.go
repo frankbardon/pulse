@@ -36,8 +36,8 @@ type anovaRow struct {
 	groups map[string]*weighting.Welford
 	order  []string
 
-	// testWeight: weighted, the whole sample is rescaled to w* with
-	// ONE c = N*/Σw (N* over every row), so df_within = N* − k.
+	// testWeight: weighted, each group is rescaled to w* by its own
+	// c_g = N*_g/Σw_g, so N* = Σ_g N*_g and df_within = N* − k.
 	testWeight
 }
 
@@ -194,45 +194,40 @@ type weightedANOVAStats struct {
 
 // summariseWeightedANOVA folds k weighted Welford buckets into the
 // one-way decomposition on w* (.claude/reference/weighting.md, Weighted
-// inference): one scale c = N*/Σw over the WHOLE sample, W_g = c·Σw_g,
-// grand mean Σ W_g·m_g / N*, SSB = Σ W_g·(m_g − grand)², SSW =
-// Σ c·M2_g. Unweighted (every w = 1, c = 1) it is summariseANOVA bit
-// for bit; N stays the raw row count.
+// inference): each group scales by its OWN c_g = N*_g/Σw_g, so W_g =
+// N*_g, N* = Σ_g N*_g, grand mean Σ W_g·m_g / N*, SSB = Σ W_g·(m_g −
+// grand)², SSW = Σ c_g·M2_g — the per-group rule every other split test
+// reads (review WS-01: one whole-sample c misallocates effective size
+// when weights vary BETWEEN groups). Under Unweighted and Frequency
+// c_g = 1 and N*_g = Σw_g, so it is summariseANOVA bit for bit at
+// w ≡ 1 and the expansion under integer frequency weights; N stays the
+// raw row count.
 func summariseWeightedANOVA(order []string, groups map[string]*weighting.Welford, basis weighting.Basis) weightedANOVAStats {
 	ns := make([]int64, len(order))
 	means := make([]float64, len(order))
 	var totalN int64
-	var sumW, sumWSq float64
+	var nStar float64
 	for i, key := range order {
 		b := groups[key]
 		ns[i] = b.N
 		means[i] = b.Mean
 		totalN += b.N
-		sumW += b.SumW
-		sumWSq += b.SumWSq
+		nStar += b.NStar(basis)
 	}
 	if totalN == 0 {
 		return weightedANOVAStats{anovaStats: anovaStats{Ns: ns, Means: means}}
 	}
-	nStar := basis.NStar(sumW, sumWSq)
-	c := basis.Scale(sumW, sumWSq)
-	scaled := func(x float64) float64 {
-		if basis != weighting.Probability {
-			return x
-		}
-		return c * x
-	}
 	var grandMean float64
 	for _, key := range order {
 		b := groups[key]
-		grandMean += scaled(b.SumW) * b.Mean / nStar
+		grandMean += b.NStar(basis) * b.Mean / nStar
 	}
 	var ssb, ssw float64
 	for _, key := range order {
 		b := groups[key]
 		diff := b.Mean - grandMean
-		ssb += scaled(b.SumW) * diff * diff
-		ssw += scaled(b.M2)
+		ssb += b.NStar(basis) * diff * diff
+		ssw += b.ScaledM2(basis)
 	}
 	return weightedANOVAStats{
 		anovaStats: anovaStats{Ns: ns, Means: means, SSB: ssb, SSW: ssw, N: totalN},

@@ -152,10 +152,11 @@ weights are unrelated to both classifications; when the weights are
 constant within each category of one margin (a sample stratified on
 the row variable, say) it is conservative.
 
-With probability weights that differ between the groups, the one-way
-ANOVA F test scales every group by one whole-sample n_eff and can be
-far too conservative; prefer the Welch ANOVA, which reads each group's
-own n_eff.
+The one-way ANOVA F test credits each group with its own n_eff under
+probability weights (its own Σw under frequency weights), like the
+split t and Welch tests, so weights that differ between the groups do
+not move effective size from one group to another; `df_within` is the
+sum of the groups' n_eff minus the number of groups.
 
 The rank tests take frequency weights only. A row of weight w ranks as
 w identical rows (a run of tied values shares the mid-rank of its

@@ -327,8 +327,10 @@ var weightRefTestPointEstimates = map[string][]string{
 	"welch":        {"tests[0].details.mean[a]", "tests[0].details.mean[b]", "tests[0].details.diff"},
 	"z":            {"tests[0].details.mean[a]", "tests[0].details.mean[b]", "tests[0].details.diff"},
 	"paired":       {"tests[0].details.mean_diff"},
-	"anova_f": {"tests[0].details.group_means[p]", "tests[0].details.group_means[q]", "tests[0].details.group_means[r]",
-		"tests[0].details.effect_size.eta_squared"},
+	// eta² is NOT kind-free: SSB weighs each group by its own N*_g
+	// (review WS-01), which is Σw_g under frequency but n_eff_g under
+	// probability.
+	"anova_f":     {"tests[0].details.group_means[p]", "tests[0].details.group_means[q]", "tests[0].details.group_means[r]"},
 	"anova_welch": {"tests[0].details.group_means[p]", "tests[0].details.group_means[q]", "tests[0].details.group_means[r]"},
 	"pearson":     {"tests[0].statistic", "tests[0].details.mean_x", "tests[0].details.mean_y"},
 	"chisq":       {"tests[0].details.effect_size.cramers_v"},

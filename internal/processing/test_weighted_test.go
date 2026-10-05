@@ -315,14 +315,23 @@ func closedForm(tc weightedTestCase, prob bool) (stat, df, p float64) {
 		df = r.nStar - 1
 		return stat, df, statdist.StudentTTwoSidedP(stat, df)
 	case types.TEST_ANOVA_F:
-		all := refOf(colOf(tc.rows, x), weightsOf(tc.rows), prob)
-		var ssb, ssw float64
+		// Per-group scale c_g = N*_g/Σw_g (review WS-01): W_g = N*_g,
+		// N* = Σ N*_g, grand mean Σ N*_g·m_g / N*.
+		var gs []refSample
+		var nStar, grand float64
 		for _, g := range []string{"a", "b", "c"} {
-			rg := refOf(colOf(onlyGroups(tc.rows, g), x), weightsOf(onlyGroups(tc.rows, g)), false)
-			ssb += all.c * rg.sumW * (rg.mean - all.mean) * (rg.mean - all.mean)
-			ssw += all.c * rg.m2
+			rg := refOf(colOf(onlyGroups(tc.rows, g), x), weightsOf(onlyGroups(tc.rows, g)), prob)
+			gs = append(gs, rg)
+			nStar += rg.nStar
+			grand += rg.nStar * rg.mean
 		}
-		dfw := all.nStar - 3
+		grand /= nStar
+		var ssb, ssw float64
+		for _, rg := range gs {
+			ssb += rg.nStar * (rg.mean - grand) * (rg.mean - grand)
+			ssw += rg.c * rg.m2
+		}
+		dfw := nStar - 3
 		stat = (ssb / 2) / (ssw / dfw)
 		return stat, 2, fSurvival(stat, 2, dfw)
 	case types.TEST_ANOVA_WELCH:
@@ -380,6 +389,39 @@ func TestWeightedTests_ClosedForm(t *testing.T) {
 					t.Fatalf("%s: probability df %v is integral — N* not n_eff?", tc.name, df)
 				}
 			}
+		}
+	}
+}
+
+// TestWeightedTests_ANOVAFPerGroupNEff pins review WS-01's worked
+// example: group A is 10 rows at w = 1, group B 10 rows at w = 10. Each
+// group's own Kish n_eff is 10, so under kind probability each group is
+// credited W_g = 10 (never the whole-sample split c·Σw_g = 1.09 / 10.9),
+// N* = 20 and df_within = N* − k = 18 — exactly the unweighted run's
+// figures, since weights constant within a group carry no
+// within-group design effect.
+func TestWeightedTests_ANOVAFPerGroupNEff(t *testing.T) {
+	var rows []wRow
+	for i := 0; i < 10; i++ {
+		rows = append(rows, wRow{x: 3 + 0.4*float64(i%5) + 0.1*float64(i), g: "a", w: 1})
+		rows = append(rows, wRow{x: 4 + 0.3*float64(i%4) - 0.05*float64(i), g: "b", w: 10})
+	}
+	spec := types.Test{Type: types.TEST_ANOVA_F, Field: "x", SplitBy: "g"}
+	prob := runWeightedRowTest(t, spec, rows, types.WeightKindProbability)
+	plain := runWeightedRowTest(t, spec, rows, "")
+	if !relEq(prob.Details["df_within"].(float64), 18, 1e-12) {
+		t.Fatalf("df_within %v, want Σ n_eff_g − k = 18", prob.Details["df_within"])
+	}
+	effs := numbers(prob.Details["n_eff"])
+	if len(effs) != 2 || !relEq(effs[0], 10, 1e-12) || !relEq(effs[1], 10, 1e-12) {
+		t.Fatalf("n_eff %v, want [10 10]", prob.Details["n_eff"])
+	}
+	if !relEq(prob.Statistic, plain.Statistic, 1e-12) || !relEq(prob.PValue, plain.PValue, 1e-9) {
+		t.Fatalf("F/p %v/%v, want the unweighted %v/%v", prob.Statistic, prob.PValue, plain.Statistic, plain.PValue)
+	}
+	for _, k := range []string{"ss_between", "ss_within"} {
+		if !relEq(prob.Details[k].(float64), plain.Details[k].(float64), 1e-12) {
+			t.Fatalf("%s %v, want %v", k, prob.Details[k], plain.Details[k])
 		}
 	}
 }

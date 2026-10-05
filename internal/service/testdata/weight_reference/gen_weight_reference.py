@@ -103,9 +103,10 @@ is pinned to R on the sorted expansion (frequency) or Hmisc
 wtd.quantile(normwt=TRUE) (probability); counts and highs follow from an
 exact rational transcription of Pulse's cut ⌊⌊C − 1⌋·k/W⌋.
 
-Per-group N*: the split t / Welch / z, Welch ANOVA and prop-z read each
-group's own n_eff; ANOVA F, Pearson, paired and χ² read one n_eff over
-the contributing rows (the w* scale c = N*/Σw is whole-sample there).
+Per-group N*: the split t / Welch / z, ANOVA F (c_g = N*_g/Σw_g, so
+N* = Σ_g N*_g — review WS-01), Welch ANOVA and prop-z read each group's
+own n_eff; Pearson, paired and χ² read one n_eff over the contributing
+rows (the w* scale c = N*/Σw is whole-sample there).
 Confidence bounds are pinned everywhere (since weighting-inferential
 E5-S1 replaced the approximate inverse-erf normal critical value): the
 t bounds invert the t distribution, the z / prop-z Wald bounds and the
@@ -634,19 +635,24 @@ def test_closed_form(case, rows, prob):
             out["n_eff"] = s.nstar
         return out
     if case == "anova_f":
-        allw = Sample([r[0] for r in xr], [r[5] for r in xr], prob)
+        # Per-group scale c_g = N*_g/Σw_g (review WS-01): W_g = c_g·Σw_g
+        # = N*_g, N* = Σ_g N*_g, grand mean Σ N*_g·m_g / N*. Under
+        # frequency c_g = 1, so this is the expansion's one-way ANOVA.
+        gs = [Sample([r[0] for r in xr if r[3] == g], [r[5] for r in xr if r[3] == g], prob)
+              for g in K_LEVELS]
+        nstar = sum(sg.nstar for sg in gs)
+        grand = sum(sg.nstar * sg.mean for sg in gs) / nstar
         ssb = ssw = 0.0
-        for g in K_LEVELS:
-            sg = Sample([r[0] for r in xr if r[3] == g], [r[5] for r in xr if r[3] == g], False)
-            ssb += allw.c * sg.sw * (sg.mean - allw.mean) ** 2
-            ssw += allw.c * sg.m2
+        for g, sg in zip(K_LEVELS, gs):
+            ssb += sg.nstar * (sg.mean - grand) ** 2
+            ssw += sg.c * sg.m2
             out[f"group_means[{g}]"] = sg.mean
             out[f"n[{g}]"] = sg.n
             out[f"sum_weights[{g}]"] = sg.sw
             if prob:
                 out[f"n_eff[{g}]"] = kish(sg.w)
         k = len(K_LEVELS)
-        dfw = allw.nstar - k
+        dfw = nstar - k
         F = (ssb / (k - 1)) / (ssw / dfw)
         out.update(statistic=F, df=k - 1, df_between=k - 1, df_within=dfw,
                    p_value=float(scipy.stats.f.sf(F, k - 1, dfw)),
