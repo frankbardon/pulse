@@ -4,6 +4,7 @@ import (
 	stderrors "errors"
 	"math/rand/v2"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -356,6 +357,141 @@ func TestZone_IsUTC(t *testing.T) {
 		}
 		if got := z.IsUTC(); got != want {
 			t.Errorf("LoadZone(%q).IsUTC() = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// TestZoneFork_SameAnswersOwnCache: a fork answers exactly like its
+// parent (and the stdlib) over random and clustered walks, reports the
+// same identity, and moving its cache never moves the parent's — the
+// property that keeps parallel workers from contending.
+func TestZoneFork_SameAnswersOwnCache(t *testing.T) {
+	for _, name := range []string{"Europe/Berlin", "Asia/Kolkata", "Australia/Sydney", "America/Santiago", "Etc/UTC"} {
+		t.Run(name, func(t *testing.T) {
+			z, err := LoadZone(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f := z.Fork()
+			if f == z {
+				t.Fatal("Fork returned the parent; the cache would be shared")
+			}
+			if f.Name() != z.Name() || f.Location() != z.Location() || f.IsUTC() != z.IsUTC() {
+				t.Fatalf("fork identity (%s, %v) differs from parent (%s, %v)", f.Name(), f.IsUTC(), z.Name(), z.IsUTC())
+			}
+			before := z.last.Load()
+			rng := rand.New(rand.NewPCG(5, 6))
+			base := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC).Unix()
+			for i := range 20000 {
+				s := windowStart + rng.Int64N(windowEnd-windowStart)
+				if i%2 == 1 {
+					s = base + int64(i)*450 // clustered: walks across the 2026 changes
+				}
+				if got, want := f.Offset(s), wantOffset(z.Location(), s); got != want {
+					t.Fatalf("fork Offset(%s) = %d, want %d", time.Unix(s, 0).UTC(), got, want)
+				}
+				if got, want := LocalDay(s, f), LocalDay(s, z); got != want {
+					t.Fatalf("LocalDay over fork = %d, parent %d", got, want)
+				}
+			}
+			// The parent ran LocalDay too, so restore and re-check in
+			// isolation: fork lookups alone leave the parent's cache be.
+			z.last.Store(before)
+			for range 1000 {
+				_ = f.Offset(windowStart + rng.Int64N(windowEnd-windowStart))
+			}
+			if got := z.last.Load(); got != before {
+				t.Fatalf("fork lookups moved the parent's cache: %d -> %d", before, got)
+			}
+		})
+	}
+}
+
+func TestZoneFork_UTCIsSentinel(t *testing.T) {
+	if UTC.Fork() != UTC {
+		t.Fatal("UTC.Fork() must return the UTC sentinel")
+	}
+}
+
+// TestZoneFork_ConcurrentForks: one fork per goroutine, under -race,
+// all correct; the shared read-only table is never written.
+func TestZoneFork_ConcurrentForks(t *testing.T) {
+	z, err := LoadZone("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc := z.Location()
+	var wg sync.WaitGroup
+	errs := make(chan string, 16)
+	for g := range 16 {
+		wg.Add(1)
+		go func(seed uint64) {
+			defer wg.Done()
+			f := z.Fork()
+			rng := rand.New(rand.NewPCG(seed, seed+7))
+			for range 5000 {
+				s := windowStart + rng.Int64N(windowEnd-windowStart)
+				if got, want := f.Offset(s), wantOffset(loc, s); got != want {
+					errs <- time.Unix(s, 0).UTC().String()
+					return
+				}
+			}
+		}(uint64(g))
+	}
+	wg.Wait()
+	close(errs)
+	for e := range errs {
+		t.Errorf("forked Offset mismatch at %s", e)
+	}
+}
+
+func TestZoneFork_OffsetAllocFree(t *testing.T) {
+	z, err := LoadZone("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := z.Fork()
+	if allocs := testing.AllocsPerRun(1000, func() { _ = f.Offset(1_650_000_000); _ = f.Offset(100_000_000) }); allocs != 0 {
+		t.Errorf("fork Offset allocs/op = %v, want 0", allocs)
+	}
+}
+
+// BenchmarkZoneOffset_Parallel: every goroutine on ONE shared Zone vs
+// each on its own Fork, clustered per goroutine (disjoint time ranges,
+// as decode segments are) and random.
+var sinkParallel atomic.Int32
+
+func BenchmarkZoneOffset_Parallel(b *testing.B) {
+	z, err := LoadZone("Europe/Berlin")
+	if err != nil {
+		b.Fatal(err)
+	}
+	var seed atomic.Uint64
+	for _, mode := range []string{"shared", "fork"} {
+		for _, order := range []string{"clustered", "random"} {
+			b.Run("cache="+mode+"/order="+order, func(b *testing.B) {
+				b.ReportAllocs()
+				b.RunParallel(func(pb *testing.PB) {
+					zz := z
+					if mode == "fork" {
+						zz = z.Fork()
+					}
+					n := seed.Add(1)
+					rng := rand.New(rand.NewPCG(n, n))
+					base := windowStart + rng.Int64N(windowEnd-windowStart-1e8)
+					var i int64
+					var sink int32
+					for pb.Next() {
+						i++
+						s := base + i*157
+						if order == "random" {
+							s = windowStart + rng.Int64N(windowEnd-windowStart)
+						}
+						sink += zz.Offset(s)
+					}
+					sinkParallel.Add(sink)
+				})
+			})
 		}
 	}
 }

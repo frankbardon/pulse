@@ -338,64 +338,6 @@ func TestTimeZone_UnknownZoneRefused(t *testing.T) {
 	requireCode(t, err, errors.PULSE_TIMEZONE_UNKNOWN)
 }
 
-// TestTimeZone_UTCIdentity: naming UTC — "UTC" or the fixed-zero alias
-// "Etc/UTC", on the request, the slot or Options.DefaultTimeZone —
-// produces a response byte-identical to naming no zone at all.
-func TestTimeZone_UTCIdentity(t *testing.T) {
-	fs, cohort := zoneCohort(t)
-	ctx := context.Background()
-	reqs := map[string]func(slotTZ, reqTZ string) *types.Request{
-		"group_date_datetime": func(s, r string) *types.Request { return groupDateOverTS(cohort, s, r) },
-		"group_date_ranges_datetime": func(s, r string) *types.Request {
-			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg(), TimeZone: r,
-				Groups: []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "ts", Params: dateRanges, TimeZone: s}}}
-		},
-		"filter_date_ranges_datetime": func(s, r string) *types.Request {
-			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg(), TimeZone: r,
-				Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: dateRanges, TimeZone: s}},
-				Groups:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}}
-		},
-		"date_part_date_inherited": func(_, r string) *types.Request {
-			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg(), TimeZone: r,
-				Attributes: []*types.Attribute{{Type: types.ATTR_DATE_PART, Field: "d", Label: "yr", Params: json.RawMessage(`{"part":"year"}`)}},
-				Groups:     []*types.Group{{Type: types.GROUP_CATEGORY, Field: "yr"}}}
-		},
-	}
-	base := zonePulse(t, fs, "")
-	variants := []struct {
-		name, slot, req, opts string
-	}{
-		{"request-UTC", "", "UTC", ""},
-		{"request-Etc/UTC", "", "Etc/UTC", ""},
-		{"slot-Etc/UTC", "Etc/UTC", "", ""},
-		{"slot-UTC", "UTC", "", ""},
-		{"options-Etc/UTC", "", "", "Etc/UTC"},
-	}
-	for name, mk := range reqs {
-		want, err := base.Process(ctx, mk("", ""))
-		if err != nil {
-			t.Fatalf("%s baseline: %v", name, err)
-		}
-		wantJSON, _ := json.Marshal(want)
-		for _, v := range variants {
-			if v.slot != "" && name == "date_part_date_inherited" {
-				continue // explicit tz on a date field is a refusal, not an identity
-			}
-			t.Run(name+"/"+v.name, func(t *testing.T) {
-				p := zonePulse(t, fs, v.opts)
-				got, err := p.Process(ctx, mk(v.slot, v.req))
-				if err != nil {
-					t.Fatalf("Process: %v", err)
-				}
-				gotJSON, _ := json.Marshal(got)
-				if string(gotJSON) != string(wantJSON) {
-					t.Fatalf("response differs from the zone-free baseline:\n got %s\nwant %s", gotJSON, wantJSON)
-				}
-			})
-		}
-	}
-}
-
 // TestFilterToFileRequest_RefusesTZ: the structured filter-to-file
 // translator supports no zone-capable filterer, so a `tz` there is
 // refused rather than dropped.

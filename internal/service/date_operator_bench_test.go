@@ -289,3 +289,143 @@ func BenchmarkDateOps_CrosstabGroupDate(b *testing.B) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------
+// Parallel date-operator benchmarks (zone-aware-operators E1-S4).
+//
+// Every worker of a parallel run shares ONE *temporal.Zone (the
+// process-wide slotZones cache), whose last-span lookup cache is a
+// single atomic. These benchmarks measure whether workers contend on
+// it: compare the Europe_Berlin / absent ratio at workers=1 against
+// workers=N. (Each worker builds its own operator set, and the
+// date-family operators Fork the zone per operator — this benchmark is
+// what showed that fork is needed.) Both orders matter — clustered rows give each decode
+// segment its own time range, so workers keep overwriting each other's
+// span; random rows miss the span on nearly every lookup.
+//
+//	go test ./internal/service/ -run='^$' -bench='BenchmarkDateOps_(ParallelDecode|ShardWorkers)' -benchmem -count=6
+// ---------------------------------------------------------------------
+
+const (
+	dateOpsParallelRows   = 400_000
+	dateOpsArchiveShards  = 8
+	dateOpsParallelMaxCPU = 8
+)
+
+var dateOpsParallelZones = []string{"", "Europe/Berlin"}
+
+// dateOpsParallelTimestamps: dateOpsParallelRows strictly increasing
+// instants from 2023-01-01, ~2 years (the dateOpsTimestamps shape at
+// 4x density).
+func dateOpsParallelTimestamps() []int64 {
+	start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+	out := make([]int64, dateOpsParallelRows)
+	for i := range out {
+		out[i] = start + int64(i)*157 + int64((i*37)%150)
+	}
+	return out
+}
+
+func dateOpsOrdered(order string) []int64 {
+	ts := dateOpsParallelTimestamps()
+	if order == "random" {
+		r := rand.New(rand.NewPCG(14, 2))
+		r.Shuffle(len(ts), func(i, j int) { ts[i], ts[j] = ts[j], ts[i] })
+	}
+	return ts
+}
+
+// dateOpsParallelOps: a zone-aware request the parallel arms really
+// fan out. Both arms are mergeable-only and GROUP_DATE is not
+// mergeable (types.GroupType.Mergeable), so it always runs serial;
+// FILTER_DATE_RANGES (an ungrouped aggregation) is the tightest per-row
+// zone loop that does fan out — GROUP_DATE_RANGES shares its seam.
+func dateOpsParallelOps(path, tz string) map[string]func() *types.Request {
+	return map[string]func() *types.Request{
+		"FILTER_DATE_RANGES": func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: path}, TimeZone: tz,
+				Filterers:    []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts", Params: dateOpsQuarters2024}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "s"}}}
+		},
+	}
+}
+
+// BenchmarkDateOps_ParallelDecode: the DecodeWorkers arm over a real
+// on-disk (mmap'd) single-file cohort; the gate is asserted open for
+// workers > 1 so the arm cannot silently run serial.
+func BenchmarkDateOps_ParallelDecode(b *testing.B) {
+	dir := b.TempDir()
+	osFs := afero.NewOsFs()
+	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
+	if err != nil {
+		b.Fatal(err)
+	}
+	schema := dateOpsSchema()
+	for _, order := range dateOpsOrders {
+		if err := writeDateOpsCohort(osFs, dir+"/par_"+order+".pulse", schema, dateOpsOrdered(order)); err != nil {
+			b.Fatal(err)
+		}
+	}
+	for _, opName := range []string{"FILTER_DATE_RANGES"} {
+		for _, order := range dateOpsOrders {
+			path := dir + "/par_" + order + ".pulse"
+			for _, workers := range []int{1, 4, dateOpsParallelMaxCPU} {
+				for _, tz := range dateOpsParallelZones {
+					mk := dateOpsParallelOps(path, tz)[opName]
+					b.Run(fmt.Sprintf("op=%s/order=%s/workers=%d/tz=%s", opName, order, workers, dateOpsTZName(tz)), func(b *testing.B) {
+						svc := New(cfg)
+						svc.SetDecodeWorkers(workers)
+						if workers > 1 {
+							c, err := svc.Open(context.Background(), path)
+							if err != nil {
+								b.Fatal(err)
+							}
+							if ok, why := svc.canParallelDecode(mk(), c.Schema(), c, workers, dateOpsParallelRows); !ok {
+								b.Fatalf("parallel decode gate closed: %s", why)
+							}
+						}
+						runDateOpsBench(b, svc, mk, tz)
+					})
+				}
+			}
+		}
+	}
+}
+
+// BenchmarkDateOps_ShardWorkers: the per-shard reducer over a
+// dateOpsArchiveShards-shard archive (hermetic MemMapFs — the shard arm
+// needs no mmap).
+func BenchmarkDateOps_ShardWorkers(b *testing.B) {
+	cfg := fs.NewMemMap()
+	schema := dateOpsSchema()
+	ctx := context.Background()
+	for _, order := range dateOpsOrders {
+		ts := dateOpsOrdered(order)
+		per := len(ts) / dateOpsArchiveShards
+		var shards []string
+		for i := range dateOpsArchiveShards {
+			p := fmt.Sprintf("shard_%s_%d.pulse", order, i)
+			if err := writeDateOpsCohort(cfg.Fs(), p, schema, ts[i*per:(i+1)*per]); err != nil {
+				b.Fatal(err)
+			}
+			shards = append(shards, p)
+		}
+		if _, err := New(cfg).CreateShardArchive(ctx, "arch_"+order+".pulse", shards); err != nil {
+			b.Fatal(err)
+		}
+	}
+	for _, opName := range []string{"FILTER_DATE_RANGES"} {
+		for _, order := range dateOpsOrders {
+			for _, workers := range []int{1, dateOpsArchiveShards} {
+				for _, tz := range dateOpsParallelZones {
+					mk := dateOpsParallelOps("arch_"+order+".pulse", tz)[opName]
+					b.Run(fmt.Sprintf("op=%s/order=%s/workers=%d/tz=%s", opName, order, workers, dateOpsTZName(tz)), func(b *testing.B) {
+						svc := New(cfg)
+						svc.SetShardWorkers(workers)
+						runDateOpsBench(b, svc, mk, tz)
+					})
+				}
+			}
+		}
+	}
+}

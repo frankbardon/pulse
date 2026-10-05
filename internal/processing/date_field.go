@@ -113,7 +113,10 @@ func resolveDateField(operator, fieldName, tz string, schema *encoding.Schema, s
 		return dateField{}, err
 	}
 	if seconds && !z.IsUTC() {
-		df.zone = z
+		// A fork per constructed operator: the parallel arms build one
+		// operator set per worker, so each worker's lookup cache is its
+		// own instead of every worker contending on the shared Zone's.
+		df.zone = z.Fork()
 	}
 	return df, nil
 }
