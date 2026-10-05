@@ -2772,7 +2772,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEATURE_PROFILE_DEPENDENCY: {
-		Message: "The feature profile enables a feature without a feature it depends on, so pulse.New refused it. A feature's dependencies are an AND of any-of groups — an operator, for example, needs at least one request host (`capability:process`, `capability:compose` or `capability:process_chain`). Every unmet group is listed under the `unmet` detail, naming the enabled `feature` and the `requires_any_of` group; an extension registration's DependsOn entries are single-name groups. An instance Options value that acts on a feature is checked the same way: its `unmet` entry names the `option` instead of a `feature` (listed under `options`) — `Options.DefaultWeight` needs `capability:weighting`.",
+		Message: "The feature profile enables a feature without a feature it depends on, so pulse.New refused it. A feature's dependencies are an AND of any-of groups — an operator, for example, needs at least one request host (`capability:process`, `capability:compose` or `capability:process_chain`). Every unmet group is listed under the `unmet` detail, naming the enabled `feature` and the `requires_any_of` group; an extension registration's DependsOn entries are single-name groups. An instance Options value that acts on a feature is checked the same way: its `unmet` entry names the `option` instead of a `feature` (listed under `options`) — `Options.DefaultWeight` needs `capability:weighting`, `Options.DefaultMultiplicity` needs `capability:multiplicity`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2783,7 +2783,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupRemoveParam,
 				Path:     []string{"Options.DefaultWeight"},
-				Hint:     "For an `unmet` entry naming an `option`, either add the required feature to the profile or leave that Options value unset.",
+				Hint:     "For an `unmet` entry naming an `option` (Options.DefaultWeight, Options.DefaultMultiplicity), either add the required feature to the profile or leave that Options value unset.",
 				Examples: []any{"capability:weighting"},
 			},
 		},
@@ -2861,6 +2861,51 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"WeightAware"},
 				Hint:   "If you own the operator, read the row weight from extend.Record and declare WeightAware on its registration.",
+			},
+		},
+	},
+	PULSE_MULTIPLICITY_INVALID: {
+		Message: "A `multiplicity` block cannot be honoured, so the request is refused before any record is read — predict refuses it identically. A block sets `method` (none, bonferroni, holm, bh, by), `family` (which p-values are corrected together) and `alpha` (the overlay significance level, inside (0, 1)); each falls through on its own from the slot to the request (a Compose slot: then the Compose request) to the instance default. Families by surface: a test or post-test takes `request` (default) or `compose`; a request overlay `layer` (default), `row`, `column`, `request` or `compose`; a Compose overlay `layer`, `row`, `column` or `compose`; a facet overlay `layer`, `row` or `column`. `row` and `column` need an overlay kind with a MATRIX payload, and `compose` exists only inside Compose. An inherited family the surface does not offer falls back to the surface default; only a family set on the slot itself, or one the request or Compose request cannot use anywhere, is refused. A test reads its own `alpha`, so `alpha` on a test's block is refused, and the Tukey HSD post-test is already corrected, so an explicit non-none method on it is refused (an inherited one skips it). The slot is under `slot`, the offending key under `key`, its value under `value`, the rule under `reason` and the accepted values, where a closed set applies, under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"multiplicity", "method"},
+				Hint:     "Use one of the methods listed under `valid`: holm (family-wise error) or bh (false discovery rate) are the usual choices; none opts out.",
+				Examples: []any{"holm", "bh"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"multiplicity", "family"},
+				Hint:     "Use a family the slot's surface offers (listed under `valid`), or drop `family` to take the surface default: `request` for tests, `layer` for overlays.",
+				Examples: []any{"layer", "request"},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"multiplicity", "alpha"},
+				Hint:   "Remove `alpha` from a test's block and set the test's own `alpha` instead; elsewhere pick a value strictly between 0 and 1.",
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"multiplicity", "method"},
+				Hint:     "On the Tukey HSD post-test set `method` to none or drop the block: its p-values are already corrected for its own comparisons.",
+				Examples: []any{"none"},
+			},
+		},
+	},
+	PULSE_MULTIPLICITY_CONFLICT: {
+		Message: "Members of one `request` or `compose` correction family resolved to different methods, so the request is refused before any record is read — predict refuses it identically. A family is corrected by exactly one method: a `request` family pools one request's tests, post-tests and request-family overlays, a `compose` family every compose-family member across a Compose request's slots and its Compose overlays. Each member's method falls through from its own block to the request, the Compose request and the instance default; a member whose method resolves to none is not in the family. The family is under `family`, the distinct methods under `methods` and the first member slot holding each method under `slots`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"multiplicity", "method"},
+				Hint:     "Set the same `method` on every member named under `slots`, or set it once on the request (or Compose request) and drop it from the members.",
+				Examples: []any{"holm"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"multiplicity", "family"},
+				Hint:     "Move a member that needs its own method into another family: an overlay can correct per `layer` instead.",
+				Examples: []any{"layer"},
 			},
 		},
 	},

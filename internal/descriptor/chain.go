@@ -134,6 +134,17 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		result.Valid = false
 		return env
 	}
+	// Multiplicity per stage — each stage is a standalone Request with
+	// its own `request` family (ResolveMultiplicity), located by stage.
+	for i, st := range req.Stages {
+		if st == nil {
+			continue
+		}
+		if _, merr := ResolveMultiplicity(st.Request, opts.DefaultMultiplicity, opts.instance()); merr != nil {
+			addCodedError(env, RefusalAt(merr, "stage", i))
+			result.Valid = false
+		}
+	}
 	if req.Cohort == nil {
 		env.AddError(string(errors.SERVICE_VALIDATION), "chain request requires Cohort for stage 0", nil)
 	}

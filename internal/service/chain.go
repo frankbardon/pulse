@@ -48,6 +48,15 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
 	}
+	// Every stage's multiplicity blocks resolve before the cohort opens
+	// — each stage a standalone Request with its own `request` family,
+	// the order ValidateChain reports in (stage 0 re-resolves inside
+	// Process, identically).
+	for i, st := range req.Stages {
+		if err := s.resolveMultiplicity(ctx, st.Request); err != nil {
+			return nil, locate(err, "stage", i)
+		}
+	}
 
 	// Stage 0 runs against the on-disk cohort.
 	stage0 := req.Stages[0].Request

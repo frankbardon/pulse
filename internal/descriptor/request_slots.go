@@ -32,6 +32,9 @@ import (
 //     so also the crosstab cell and margin_aggregations —, Test,
 //     RegressionSpec, Attribute, OverlaySpec, Group — so also the
 //     crosstab axes) — capability:weighting
+//   - every `multiplicity` block (Request, Test, OverlaySpec — so also
+//     a FacetRequest's overlays —, ComposeOverlaySpec, ComposedRequest)
+//     — capability:multiplicity
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
@@ -75,6 +78,13 @@ const weightKey = "weight"
 // weightSlotGate is the one gate every `weight` key shares.
 var weightSlotGate = gatedSlot{key: weightKey, visible: capabilityGate(featWeighting)}
 
+// multiplicityKey is the JSON key of every multiple-comparison block;
+// all of them ride capability:multiplicity.
+const multiplicityKey = "multiplicity"
+
+// multiplicitySlotGate is the one gate every `multiplicity` key shares.
+var multiplicitySlotGate = gatedSlot{key: multiplicityKey, visible: capabilityGate(featMultiplicity)}
+
 // gatedSlots maps each request root (by its Go type) to its gated
 // slots, plus the nested slot objects that carry a gated key of their
 // own (the per-slot `weight`). The nested entries are what the payload
@@ -86,15 +96,18 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "joins", visible: capabilityGate(featJoins)},
 		{key: "overlays", visible: overlayGate(featCrosstab, featCompose)},
 		weightSlotGate,
+		multiplicitySlotGate,
 	},
-	reflect.TypeOf(types.Aggregation{}):    {weightSlotGate},
-	reflect.TypeOf(types.Test{}):           {weightSlotGate},
-	reflect.TypeOf(types.RegressionSpec{}): {weightSlotGate},
-	reflect.TypeOf(types.Attribute{}):      {weightSlotGate},
-	reflect.TypeOf(types.OverlaySpec{}):    {weightSlotGate},
-	reflect.TypeOf(types.Group{}):          {weightSlotGate},
+	reflect.TypeOf(types.Aggregation{}):        {weightSlotGate},
+	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
+	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate},
+	reflect.TypeOf(types.Attribute{}):          {weightSlotGate},
+	reflect.TypeOf(types.OverlaySpec{}):        {weightSlotGate, multiplicitySlotGate},
+	reflect.TypeOf(types.Group{}):              {weightSlotGate},
+	reflect.TypeOf(types.ComposeOverlaySpec{}): {multiplicitySlotGate},
 	reflect.TypeOf(types.ComposedRequest{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
+		multiplicitySlotGate,
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
@@ -272,9 +285,15 @@ func setSlots(v any) []string {
 		if r.Weight != nil {
 			out = append(out, weightKey)
 		}
+		if r.Multiplicity != nil {
+			out = append(out, multiplicityKey)
+		}
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
+		}
+		if r != nil && r.Multiplicity != nil {
+			out = append(out, multiplicityKey)
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {
@@ -399,13 +418,69 @@ func overlayWeightRefusal(overlays []types.OverlaySpec, inst *InstanceSnapshot) 
 	return nil
 }
 
+// nestedMultiplicityRefusal refuses the first `multiplicity` block set
+// inside req when inst hides capability:multiplicity, in the
+// resolver's slot order: tests, post-tests, overlays. The refusal is
+// PULSE_REQUEST_UNKNOWN_FIELD at that object (details.path), valid_keys
+// over its visible keys.
+func nestedMultiplicityRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
+	if req == nil || inst.Enabled(featMultiplicity) {
+		return nil
+	}
+	for _, tier := range []struct {
+		prefix string
+		tests  []*types.Test
+	}{{"tests", req.Tests}, {"post_tests", req.PostTests}} {
+		for i, t := range tier.tests {
+			if t != nil && t.Multiplicity != nil {
+				return unknownFieldErrorAt(fmt.Sprintf("%s[%d]", tier.prefix, i), []string{multiplicityKey},
+					VisibleSlotKeys(t, inst))
+			}
+		}
+	}
+	return overlayMultiplicityRefusal(req.Overlays, inst)
+}
+
+// overlayMultiplicityRefusal is nestedMultiplicityRefusal over one
+// overlays list (a Request's or a FacetRequest's).
+func overlayMultiplicityRefusal(overlays []types.OverlaySpec, inst *InstanceSnapshot) *errors.CodedError {
+	if inst.Enabled(featMultiplicity) {
+		return nil
+	}
+	for i := range overlays {
+		if overlays[i].Multiplicity != nil {
+			return unknownFieldErrorAt(fmt.Sprintf("overlays[%d]", i), []string{multiplicityKey},
+				VisibleSlotKeys(&overlays[i], inst))
+		}
+	}
+	return nil
+}
+
+// composeOverlayMultiplicityRefusal is overlayMultiplicityRefusal over
+// a ComposedRequest's Compose-host overlays.
+func composeOverlayMultiplicityRefusal(overlays []types.ComposeOverlaySpec, inst *InstanceSnapshot) *errors.CodedError {
+	if inst.Enabled(featMultiplicity) {
+		return nil
+	}
+	for i := range overlays {
+		if overlays[i].Multiplicity != nil {
+			return unknownFieldErrorAt(fmt.Sprintf("overlays[%d]", i), []string{multiplicityKey},
+				VisibleSlotKeys(&overlays[i], inst))
+		}
+	}
+	return nil
+}
+
 // requestSlotRefusal gates one Request: its own top-level slots, then
-// every nested slot `weight`.
+// every nested slot `weight`, then every nested `multiplicity`.
 func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
 	if ce := rootSlotRefusal(req, inst); ce != nil {
 		return ce
 	}
-	return nestedWeightRefusal(req, inst)
+	if ce := nestedWeightRefusal(req, inst); ce != nil {
+		return ce
+	}
+	return nestedMultiplicityRefusal(req, inst)
 }
 
 // SlotRefusal is the request-slot gate. v is a *types.Request,
@@ -416,7 +491,9 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 //
 //   - the root's own slots first;
 //   - then the nested per-slot `weight` keys (nestedWeightRefusal) of a
-//     Request, or of a FacetRequest's overlays;
+//     Request, or of a FacetRequest's overlays, then the nested
+//     `multiplicity` blocks (nestedMultiplicityRefusal) — for a
+//     ComposedRequest, its Compose-host overlays' first;
 //   - then, for a ComposedRequest, each Requests[i] in order with
 //     details.request = i; for a ChainRequest each Stages[i].Request
 //     with details.stage = i (the keys the service's located refusals
@@ -438,6 +515,9 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 		if ce := nestedWeightRefusal(r, inst); ce != nil {
 			return ce
 		}
+		if ce := nestedMultiplicityRefusal(r, inst); ce != nil {
+			return ce
+		}
 	case *types.FacetRequest:
 		if r == nil {
 			return nil
@@ -445,9 +525,15 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 		if ce := overlayWeightRefusal(r.Overlays, inst); ce != nil {
 			return ce
 		}
+		if ce := overlayMultiplicityRefusal(r.Overlays, inst); ce != nil {
+			return ce
+		}
 	case *types.ComposedRequest:
 		if r == nil {
 			return nil
+		}
+		if ce := composeOverlayMultiplicityRefusal(r.Overlays, inst); ce != nil {
+			return ce
 		}
 		for i, req := range r.Requests {
 			if ce := requestSlotRefusal(req, inst); ce != nil {

@@ -103,6 +103,12 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		result.Valid = false
 		return env
 	}
+	// Multiplicity on the overlays — the pass FacetSchema runs right
+	// after the slot gate (ResolveFacetMultiplicity).
+	if _, merr := ResolveFacetMultiplicity(req, opts.DefaultMultiplicity, opts.instance()); merr != nil {
+		addCodedError(env, merr)
+		result.Valid = false
+	}
 
 	pulseVersion, err := encoding.ReadHeader(fileData)
 	if err != nil {

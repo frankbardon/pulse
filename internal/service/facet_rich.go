@@ -52,6 +52,9 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
 	}
+	if _, err := descx.ResolveFacetMultiplicity(req, s.defaultMultiplicity, s.instance); err != nil {
+		return nil, err
+	}
 
 	path := resolveCohortPath(req.Cohort)
 	cohort, err := s.Open(ctx, path)

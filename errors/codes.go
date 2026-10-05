@@ -2440,6 +2440,26 @@ const (
 	// extension attribute or test. Details carry "slot", "operator" and
 	// "field".
 	PULSE_EXTENSION_NOT_WEIGHT_AWARE Code = "PULSE_EXTENSION_NOT_WEIGHT_AWARE"
+
+	// PULSE_MULTIPLICITY_INVALID indicates a `multiplicity` block (on a
+	// request, test, overlay, Compose request or Compose overlay, or
+	// pulse.Options.DefaultMultiplicity) that cannot be honoured: an
+	// unknown method or family, an alpha outside (0, 1), a family the
+	// surface does not offer (row / column on a non-MATRIX overlay
+	// kind, compose outside Compose, request on a Compose-host overlay,
+	// a layer family on a test), alpha on a test's own block, or an
+	// explicit correction on the already-corrected Tukey HSD post-test.
+	// Refused identically by predict and the runtime. Details carry
+	// "slot", "key" (method / family / alpha), "value", "reason" and,
+	// where a closed set applies, "valid".
+	PULSE_MULTIPLICITY_INVALID Code = "PULSE_MULTIPLICITY_INVALID"
+
+	// PULSE_MULTIPLICITY_CONFLICT indicates two members of one
+	// `request` or `compose` correction family resolved to different
+	// methods: a family is corrected by exactly one method. Details
+	// carry "family", "methods" (the distinct methods, sorted) and
+	// "slots" (the first member slot per method, in method order).
+	PULSE_MULTIPLICITY_CONFLICT Code = "PULSE_MULTIPLICITY_CONFLICT"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -2921,6 +2941,8 @@ var allCodes = []Code{
 	PULSE_WEIGHT_LOW_NEFF,
 	PULSE_WEIGHT_UNSUPPORTED,
 	PULSE_EXTENSION_NOT_WEIGHT_AWARE,
+	PULSE_MULTIPLICITY_INVALID,
+	PULSE_MULTIPLICITY_CONFLICT,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

@@ -8,6 +8,7 @@
     "capability:crosstab",
     "capability:labels",
     "capability:weighting",
+    "capability:multiplicity",
     "AGG_COUNT",
     "AGG_SUM",
     "AGG_AVERAGE",

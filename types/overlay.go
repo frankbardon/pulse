@@ -2904,6 +2904,13 @@ type OverlaySpec struct {
 	// slot out (it runs unweighted); a field-name string or a
 	// {field, kind} object sets the slot's own weight. See SlotWeight.
 	Weight SlotWeight `json:"weight,omitzero"`
+
+	// Multiplicity is the layer's own multiple-comparison correction
+	// block, inheriting the request's (none on the Facet host) then
+	// pulse.Options.DefaultMultiplicity. Family `layer` (default), `row`
+	// or `column` (MATRIX-payload kinds only), `request` or `compose`
+	// (Request host only). Nil inherits. See Multiplicity.
+	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
 }
 
 // OverlayOptions is the per-spec optimization knob bag for Compose-only

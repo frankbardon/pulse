@@ -75,6 +75,10 @@ func (s *Service) composeParallel(
 	if err := s.slotRefusal(composed); err != nil {
 		return nil, err
 	}
+	if err := s.resolveComposeMultiplicity(composed); err != nil {
+		return nil, err
+	}
+	ctx = withinCompose(ctx)
 
 	// Synthesize Label auto-defaults + collision-check on a clone of the
 	// slot list before the worker pool starts; see applyComposeLabelDefaults

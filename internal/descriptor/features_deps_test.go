@@ -75,6 +75,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:joins":             {requestHosts},
 		"capability:crosstab":          {requestHosts},
 		"capability:weighting":         {requestHosts},
+		"capability:multiplicity":      nil, // every block is a request slot, but Facet overlays carry one too: no host group
 		"capability:stream":            {{"capability:process"}},
 		"capability:watch":             {{"capability:process"}},
 		"capability:filter_to_file":    {{"capability:process"}, {"FILTER_EXPRESSION"}},

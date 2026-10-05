@@ -129,6 +129,12 @@ type PredictOptions struct {
 	// the request's `weight` names one. Nil means none.
 	DefaultWeight *types.WeightSpec
 
+	// DefaultMultiplicity is pulse.Options.DefaultMultiplicity — the
+	// multiple-comparison block every test, post-test and overlay
+	// inherits field by field after its own block and its request's.
+	// Nil means none.
+	DefaultMultiplicity *types.Multiplicity
+
 	// ZoneLoader resolves zone names (nil: temporal.LoadZone). The
 	// facade passes its per-instance cache so predict and the runtime
 	// resolve through the same loader.
@@ -195,6 +201,14 @@ func (o *PredictOptions) instance() *InstanceSnapshot {
 		return nil
 	}
 	return o.Instance
+}
+
+// defaultMultiplicity is the nil-safe DefaultMultiplicity read.
+func (o *PredictOptions) defaultMultiplicity() *types.Multiplicity {
+	if o == nil {
+		return nil
+	}
+	return o.DefaultMultiplicity
 }
 
 // opRoute returns t, or "" — a name no operator table, switch or
@@ -287,6 +301,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// cohort or applies a default, so predict reports it first.
 	if jerr := JoinCountRefusal(req); jerr != nil {
 		addCodedError(env, jerr)
+	}
+
+	// Multiplicity resolution — the same single pass the runtime runs
+	// right after the join-count rule, before any dispatch
+	// (ResolveMultiplicity). Schema-free.
+	if _, merr := ResolveMultiplicity(req, opts.DefaultMultiplicity, opts.Instance); merr != nil {
+		addCodedError(env, merr)
 	}
 
 	// A join executes over the joined schema; validate against it.

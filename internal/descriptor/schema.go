@@ -198,6 +198,12 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	for t, vals := range m {
 		m[t] = filterNames(vals, inst.Enabled)
 	}
+	// The multiplicity method / family sets are closed vocabularies, not
+	// features: never filtered by the instance (a hidden
+	// capability:multiplicity drops the slots that reach them, and the
+	// defs with them).
+	m[reflect.TypeFor[types.MultiplicityMethod]()] = stringify(types.AllMultiplicityMethods())
+	m[reflect.TypeFor[types.MultiplicityFamily]()] = stringify(types.AllMultiplicityFamilies())
 	return m
 }
 

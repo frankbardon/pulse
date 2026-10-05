@@ -35,7 +35,10 @@ with a feature profile gets a narrower document:
 - a request slot the instance does not offer (`crosstab`, `joins`,
   `overlays`, `weight`) is not a property of its request root; without
   `capability:weighting` no per-slot `weight` is a property either (so
-  `SlotWeight` and `WeightSpec` are absent);
+  `SlotWeight` and `WeightSpec` are absent), and without
+  `capability:multiplicity` no `multiplicity` block is a property of any
+  root or slot (so `Multiplicity`, `MultiplicityMethod` and
+  `MultiplicityFamily` are absent);
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
@@ -159,6 +162,33 @@ The resolved zone per slot is echoed by predict as
 `data.time_zones[]` — `{slot, operator, field_type, tz, source}` —
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
+
+## Multiplicity slots
+
+Multiple-comparison correction adds one additive block shape,
+`#/$defs/Multiplicity` `{method, family, alpha}` (every key optional;
+`format_version` stays `"1.1"`; a request that names no block is
+byte-identical to the earlier wire form and hashes identically). It rides
+as `multiplicity` on `Request`, `Test` (`tests[]` and `post_tests[]`),
+`OverlaySpec` (request and facet overlays), `ComposeOverlaySpec` and
+`ComposedRequest`. `method` is the closed enum `MultiplicityMethod`
+(`none`, `bonferroni`, `holm`, `bh`, `by`) and `family` the closed enum
+`MultiplicityFamily` (`layer`, `row`, `column`, `request`, `compose`);
+both are full vocabularies on every instance (not features). `alpha` is a
+number in (0, 1).
+
+Each key falls through on its own: slot → request (a Compose slot: then
+the `ComposedRequest`) → the engine's `DefaultMultiplicity` → none, and an
+omitted family takes the surface default (`request` for tests, `layer`
+for overlays). `{"method": "none"}` is the explicit opt-out. What the
+schema cannot say is enforced identically by `pulse predict` and the
+runtime (`PULSE_MULTIPLICITY_INVALID`): the families each surface offers
+(`row` / `column` only on a MATRIX-payload overlay kind, `compose` only
+inside Compose, never `request` on a Compose overlay or anything but
+`layer` / `row` / `column` on a facet overlay), no `alpha` on a test's
+own block, and no explicit correction on the Tukey HSD post-test. Members
+of one `request` or `compose` family that resolve to different methods
+are refused `PULSE_MULTIPLICITY_CONFLICT`.
 
 ## Weight slots
 

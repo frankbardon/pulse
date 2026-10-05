@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:276b855083140502543b326015fa94e916daec31687d0033a304d07d3849f222",
+  "$comment": "feature_set_digest: fs1:9222a2849c290c3984869787d7e9013c6d7af966f5f10b7f77615f9567f93c12",
   "$defs": {
     "Aggregation": {
       "additionalProperties": false,
@@ -330,6 +330,9 @@
         "level": {
           "type": "integer"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "name": {
           "type": "string"
         },
@@ -368,6 +371,9 @@
     "ComposedRequest": {
       "additionalProperties": false,
       "properties": {
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "overlays": {
           "items": {
             "$ref": "#/$defs/ComposeOverlaySpec"
@@ -1441,6 +1447,41 @@
       ],
       "type": "object"
     },
+    "Multiplicity": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": "number"
+        },
+        "family": {
+          "$ref": "#/$defs/MultiplicityFamily"
+        },
+        "method": {
+          "$ref": "#/$defs/MultiplicityMethod"
+        }
+      },
+      "type": "object"
+    },
+    "MultiplicityFamily": {
+      "enum": [
+        "column",
+        "compose",
+        "layer",
+        "request",
+        "row"
+      ],
+      "type": "string"
+    },
+    "MultiplicityMethod": {
+      "enum": [
+        "bh",
+        "bonferroni",
+        "by",
+        "holm",
+        "none"
+      ],
+      "type": "string"
+    },
     "OnPair": {
       "additionalProperties": false,
       "properties": {
@@ -1794,6 +1835,9 @@
         },
         "level": {
           "type": "integer"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
         },
         "name": {
           "type": "string"
@@ -2225,6 +2269,9 @@
             "null"
           ]
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "outputs": {
           "items": {
             "$ref": "#/$defs/Output"
@@ -2577,6 +2624,9 @@
         "label": {
           "type": "string"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
         "order_by": {
           "items": {
             "$ref": "#/$defs/OrderKey"
@@ -2816,4 +2866,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6d10c67a6445f867b82b1f605d545f33ca10d60b90276a755063fb53fc87c03b
+// golden-hash: 072eb55dd5e613d86bc08275d1375f9d0c8e77ae144334c4948a4b8fe95ab550

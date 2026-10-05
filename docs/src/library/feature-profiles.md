@@ -79,7 +79,7 @@ refused too.
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request` |
 
@@ -113,6 +113,8 @@ one name in every group must be enabled:
 - Every operator, and `capability:crosstab` / `capability:joins` /
   `capability:weighting`, needs a host that runs requests: `capability:process`, `capability:compose` or
   `capability:process_chain`.
+- `capability:multiplicity` needs nothing: its blocks ride every request
+  host and facet overlays alike.
 - `capability:stream`, `capability:watch` and `capability:filter_to_file`
   need `capability:process`.
 - An overlay kind needs a host that can run it: `capability:crosstab`
@@ -210,7 +212,7 @@ code up with `pulse errors lookup CODE`.
 |---|---|---|
 | `PULSE_FEATURE_PROFILE_INVALID` | The profile cannot be used as written | `details.reason`: `both_options_set`, `file_unreadable`, `malformed_json`, `unknown_key`, `missing_features`, `duplicate_feature` (the names are under `duplicates`), `unknown_example` (from `pulse.ExampleFeatureProfile`). `details.path` names the file when one was read |
 | `PULSE_FEATURE_PROFILE_UNKNOWN` | A name does not resolve | `details.unknown[]`, each with `name` and `reason`: `unregistered`, `pattern`, `wrong_kind` (see `did_you_mean`), `core_surface`, `newer_than_running` (see `since`; the running build is under `details.version`). An unknown extension `DependsOn` entry also carries `extension` and `category` |
-| `PULSE_FEATURE_PROFILE_DEPENDENCY` | An enabled feature is missing what it needs, or an `Options` value needs a feature the profile omits | `details.unmet[]`, each with `feature` (or `option`, for an `Options` value — listed under `details.options`) and `requires_any_of`. Add one name from the group, or remove the feature / leave the option unset. Today one option is checked: `Options.DefaultWeight` needs `capability:weighting` |
+| `PULSE_FEATURE_PROFILE_DEPENDENCY` | An enabled feature is missing what it needs, or an `Options` value needs a feature the profile omits | `details.unmet[]`, each with `feature` (or `option`, for an `Options` value — listed under `details.options`) and `requires_any_of`. Add one name from the group, or remove the feature / leave the option unset. Two options are checked: `Options.DefaultWeight` needs `capability:weighting`, `Options.DefaultMultiplicity` needs `capability:multiplicity` (both unmet: one `unmet` entry each) |
 
 ### Versions
 
@@ -283,6 +285,14 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   `params.weight_field` keep working: they are the operator's own
   parameters, not the weight surface, so its invalid-weight warning and
   decimal refusal stay listed while `AGG_WEIGHTED_MEAN` is enabled.
+- **Multiple-comparison correction.** Without `capability:multiplicity`
+  every `multiplicity` block — on the request, the composed request, a
+  test or post-test, a request, facet or Compose overlay, inside Compose
+  requests and chain stages too — fails `PULSE_REQUEST_UNKNOWN_FIELD`
+  (a nested one under `details.path`), the payload schema drops every
+  `multiplicity` property with the `Multiplicity` defs,
+  `PULSE_MULTIPLICITY_*` leave the error lists, and `pulse.New` refuses
+  `Options.DefaultMultiplicity` (`PULSE_FEATURE_PROFILE_DEPENDENCY`).
 - **Errors.** `p.ErrorLookup`, `p.ErrorsByDomain` and `p.ErrorsSearch`,
   and the manifest's error lists, show only codes the instance can
   raise. A hidden code looks up as unknown. `pulse errors lookup` on the
@@ -444,7 +454,7 @@ Pulse publishes example profiles to copy, in the repository's
 | Name | Offers |
 |---|---|
 | `minimal` | `capability:process` plus core aggregators and the default groupers |
-| `survey-crosstab` | Process, Compose, crosstab, facet, labels and row weighting, with survey tests and the crosstab, compose and facet overlays they feed, closed over their dependencies |
+| `survey-crosstab` | Process, Compose, crosstab, facet, labels, row weighting and multiple-comparison correction, with survey tests and the crosstab, compose and facet overlays they feed, closed over their dependencies |
 | `read-only-analyst` | Every analytic capability and operator; nothing that writes data (`import`, `export`, `filter_to_file`, `dedup`, `widen`, `shard`, `index`, `synth`) and no I/O formats |
 
 ```go

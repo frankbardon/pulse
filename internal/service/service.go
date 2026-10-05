@@ -91,6 +91,10 @@ type Service struct {
 	// defaultWeight is pulse.Options.DefaultWeight (nil = none); it
 	// feeds resolveWeights and the projected field set.
 	defaultWeight *types.WeightSpec
+
+	// defaultMultiplicity is pulse.Options.DefaultMultiplicity (nil =
+	// none); it feeds resolveMultiplicity.
+	defaultMultiplicity *types.Multiplicity
 }
 
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
@@ -585,6 +589,13 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 		return nil, markLocated(err)
 	}
 
+	// The multiplicity blocks resolve before any dispatch (every arm —
+	// crosstab, join, shard, parallel decode, serial — shares it); a
+	// Compose slot was resolved with the whole ComposedRequest.
+	if err := s.resolveMultiplicity(ctx, req); err != nil {
+		return nil, err
+	}
+
 	if req.Crosstab != nil {
 		return s.processCrosstab(ctx, req)
 	}
@@ -979,6 +990,10 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) 
 	if err := s.slotRefusal(composed); err != nil {
 		return nil, err
 	}
+	if err := s.resolveComposeMultiplicity(composed); err != nil {
+		return nil, err
+	}
+	ctx = withinCompose(ctx)
 
 	requests, err := applyComposeLabelDefaults(composed)
 	if err != nil {

@@ -82,4 +82,11 @@ type ComposeOverlaySpec struct {
 	// path. The available knobs (DictPrefixFast, MaxPanelTargets) live
 	// on OverlayOptions in types/overlay.go.
 	Options *OverlayOptions `json:"options,omitempty"`
+
+	// Multiplicity is the layer's own multiple-comparison correction
+	// block, inheriting ComposedRequest.Multiplicity then
+	// pulse.Options.DefaultMultiplicity. Family `layer` (default),
+	// `row` / `column` (MATRIX-payload kinds only) or `compose`; never
+	// `request`. Nil inherits. See Multiplicity.
+	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
 }

@@ -137,26 +137,46 @@ func resolveFeatureProfile(opts Options, fsys afero.Fs) (*FeatureProfile, error)
 
 // validateOptionsAgainstFeatureProfile refuses an Options value that
 // needs a feature the (already valid) profile omits — it would act on a
-// surface the instance hides. Today one: Options.DefaultWeight needs
+// surface the instance hides. Today two: Options.DefaultWeight needs
 // capability:weighting (.claude/reference/weighting.md, Feature
 // profile); a hidden weighting refuses every request `weight`, so an
-// instance default would weight requests that could not opt out. It is
-// the dependency class: PULSE_FEATURE_PROFILE_DEPENDENCY with an
-// `unmet` entry {option, requires_any_of} and an `options` list.
+// instance default would weight requests that could not opt out — and
+// Options.DefaultMultiplicity needs capability:multiplicity for the
+// same reason (every `multiplicity` block is refused). It is the
+// dependency class: PULSE_FEATURE_PROFILE_DEPENDENCY with one `unmet`
+// entry {option, requires_any_of} per unmet option and an `options`
+// list, in that order.
 func validateOptionsAgainstFeatureProfile(opts Options, fp *FeatureProfile) error {
-	if opts.DefaultWeight == nil || slices.Contains(fp.Features, descx.FeatureWeighting) {
+	checks := []struct {
+		option  string
+		set     bool
+		feature string
+	}{
+		{"Options.DefaultWeight", opts.DefaultWeight != nil, descx.FeatureWeighting},
+		{"Options.DefaultMultiplicity", opts.DefaultMultiplicity != nil, descx.FeatureMultiplicity},
+	}
+	var unmet []map[string]any
+	var options, parts []string
+	for _, c := range checks {
+		if !c.set || slices.Contains(fp.Features, c.feature) {
+			continue
+		}
+		unmet = append(unmet, map[string]any{"option": c.option, "requires_any_of": []string{c.feature}})
+		options = append(options, c.option)
+		parts = append(parts, c.option+" requires one of ["+c.feature+"]")
+	}
+	if len(unmet) == 0 {
 		return nil
 	}
-	const option = "Options.DefaultWeight"
 	details := map[string]any{
-		"unmet":   []map[string]any{{"option": option, "requires_any_of": []string{descx.FeatureWeighting}}},
-		"options": []string{option},
+		"unmet":   unmet,
+		"options": options,
 	}
 	if opts.FeatureProfileFile != "" {
 		details["path"] = opts.FeatureProfileFile
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_FEATURE_PROFILE_DEPENDENCY,
-		"feature profile: unmet dependencies: "+option+" requires one of ["+descx.FeatureWeighting+"]",
+		"feature profile: unmet dependencies: "+strings.Join(parts, "; "),
 		details)
 }
 
