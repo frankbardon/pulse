@@ -102,4 +102,4 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 ## Inherited from U14
 
 - **Extension zone capability.** Extension operators are never zone-capable (`internal/descriptor/capabilities_zone.go`; an explicit `tz` on one is `PROCESSING_CONFIG`). Decide whether registrations gain a zone declaration (`zone: capable|following`) and which `internal/temporal` helpers (`LoadZone`, `LocalDay`, `LocalParts`, `LocalMidnightUTC`, `Zone.Fork`) become a public, frozen surface in `extend` — `Zone` is still internal.
-- **`convert --tz`** renders UTC today; SPSS local wall-clock export could replace the non-UTC refusal.
+- `convert --tz`, SPSS local wall-clock export and `--json` local-offset labels are not extension work; they are tracked in [time-zones 00](../v1.0.0-time-zones/00-design.md) (Follow-ups after U14).

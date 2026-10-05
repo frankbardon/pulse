@@ -91,3 +91,10 @@ Precedence: per-slot `tz` → `Request.TimeZone` → `Options.DefaultTimeZone` �
 - [x] Zone-aware output rendering — export `--tz` local offsets (U14). `--json` date labels are the zone's local calendar labels (bucket keys); no offset form. `convert` has no `--tz`; SPSS export refuses a non-UTC `--tz`
 - [x] Predict and manifest reporting — resolved zones (U03); manifest `tzdata_version` (U14)
 - [x] Identity and DST gates (`TestUTCZoneIsIdentity`, `TestUTCZoneIsIdentity_Export`, `TestDSTBoundaries`); skills `op-*` params updated; topical skill `time-zones.md`
+
+## Follow-ups after U14 (not committed to v1.0.0; additive when picked up)
+
+- **`convert --tz`.** `convert`'s export half always renders canonical UTC (`…Z`); only `pulse export` takes `--tz`. Add the flag (and `ConvertJob.TimeZone`) reusing the export renderer (`temporal.FormatLocal`); UTC / absent must stay byte-identical.
+- **SPSS local wall-clock export.** `pulse export --tz` on SPSS refuses a non-UTC zone (`PULSE_SPSS_EXPORT_UNSUPPORTED`) because `.sav` DATETIME has no offset slot. Alternative: write local wall-clock seconds and document re-import with `--source-tz`; replaces the refusal additively (manifest `export.formats[].time_zone` flips `refused` → `local_offset`).
+- **Local-offset form for `--json` date labels.** `GROUP_DATE` keys are local calendar labels with no offset; `period_start` / `period_end` carry no instant. Decide whether an opt-in instant/offset rendering belongs in response shaping ([U17](../units/U17-response-shaping-core.md)) or stays out.
+- **Extension zone capability** — owned by [U34](../units/U34-extension-validation.md) (Inherited from U14).
