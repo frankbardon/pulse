@@ -116,8 +116,9 @@ declare it the same way.
 | filters, features, row-local attributes, other groupers | skipped | skipped |
 | the moment tests — t (one- and two-sample), Welch t, paired t, two-sample z, one-way ANOVA F, Welch ANOVA, Pearson r — plus the two-proportion z-test and the χ² independence test | weighted (both kinds) | weighted |
 | the rank tests — Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ, Kendall τ-b — plus Fisher's exact test, the two-sample Kolmogorov-Smirnov test and Brown-Forsythe | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| the mean-comparison overlays — cell and reference t and z, pairwise Welch t | weighted (both kinds) | weighted |
-| other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, other inferential overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| the mean-comparison overlays — cell and reference t and z, pairwise Welch t — and the χ² (row, column, matrix, vs reference) and proportion z (cell, panel, pairwise) overlays | weighted (both kinds) | weighted |
+| the Fisher exact cell overlay | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
+| other tests, regressions, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
 with its sample size read as Σw under `kind: frequency` (a weight of 3
@@ -219,10 +220,11 @@ counted.
 Share and index overlays (share of row / column / total, index vs
 margin, total, prior, baseline, rolling mean, sibling, reference) read
 the host's figures. On a weighted host they are therefore weighted,
-with no setting needed. An inferential overlay refuses when a weight
-reaches the overlay itself: its own `weight`, the request's, or the
-default. Its `"weight": null` opts it out. A host weighted only by its
-own slot weight does not trigger the refusal.
+with no setting needed. The pairwise two-means z and probit t
+overlays refuse when a weight reaches the overlay itself: its own
+`weight`, the request's, or the default. Its `"weight": null` opts it
+out. A host weighted only by its own slot weight does not trigger the
+refusal.
 `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` is the exception, built for
 weighted cells: its host is an `AGG_WEIGHTED_MEAN` cell or a weighted
 `AGG_AVERAGE` cell.
@@ -242,6 +244,29 @@ small; that was a bug and is fixed. On a weighted host the pairwise
 Welch t refuses an `n_source` that reads raw row counts
 (`cell_n_unweighted`, `row_margin_n`, `column_margin_n`), and
 `cell_weight_sum` under `probability`, with `PROCESSING_CONFIG`.
+
+The χ² and proportion overlays also run weighted under both kinds. A
+weighted host's cells and margins are weight sums (Σw). Under
+`frequency` the χ² overlays run Pearson's test on the Σw table, which
+equals the test on the expanded rows. Under `probability` the table
+(for `OVERLAY_CHISQ_MATRIX`), each row (`_ROW`), each column (`_COL`)
+or the target table (`_VS_REF`) is first scaled to its Kish n_eff.
+This is a first-order Kish approximation, not the Rao-Scott correction
+survey packages apply, so expect it to differ from `svychisq`. The
+low-expected-count warning reads the scaled table. The proportion
+overlays read p̂ = Σw of the successes over Σw of the base, with the
+base's n_eff (or Σw under `frequency`) as the sample size, never the
+payload's Σw under `probability`. On a weighted host the pairwise
+proportion z omits `n_source` to read that sample size. Every
+unweighted count (raw rows, `n_within`, the distinct-key modes) is
+refused with `PROCESSING_CONFIG`, and `cell_weight_sum` /
+`cell_value_weighted` are accepted under `frequency` only. This is a
+change for requests that used `cell_weight_sum` over an
+`AGG_WEIGHTED_MEAN` cell with `params.weight_field`, which is
+`probability`. The Fisher exact cell overlay runs on the Σw table
+under `frequency` only. A `probability` weight on its host cell is
+refused with `PULSE_WEIGHT_UNSUPPORTED`, even when the overlay itself
+carries no weight.
 
 ## Reading weighted components
 

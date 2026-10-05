@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -123,15 +124,17 @@ const (
 )
 
 // pwInputs carries one pair's two legs. Proportion kinds populate p1/p2 +
-// n1/n2 (m/v are NaN); Welford kinds populate m/v/n (p is NaN); the
+// nf1/nf2 (m/v are NaN); Welford kinds populate m/v/nf (p is NaN); the
 // weighted kind populates w1/w2 only.
 type pwInputs struct {
 	p1, p2 float64
 	m1, m2 float64
 	v1, v2 float64
-	n1, n2 int
-	// nf1 / nf2 are the Welford legs' sample sizes: the raw n on an
-	// unweighted cell, N* on a weighted one (CrosstabHostView.MeanLeg).
+	// nf1 / nf2 are the legs' sample sizes. Welford legs: the raw n on
+	// an unweighted cell, N* on a weighted one (CrosstabHostView.MeanLeg).
+	// Proportion legs: the n_source figure (an integer count, exactly
+	// representable) or, on a weighted host with n_source omitted, the
+	// cell's N* (pairwiseSampleSize).
 	nf1, nf2 float64
 	w1, w2   weightedMoments
 }
@@ -173,16 +176,18 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			map[string]any{"kind": string(spec.Kind)})
 	}
 	// Weighted-host n_source rule (weighting.NSourceRefusal): on a host
-	// whose cells carry the weighted floor keys the Welford legs read N*,
-	// so a raw-row-count n_source — or the weight sum under kind
-	// probability — is PROCESSING_CONFIG, as predict reports it.
-	weightedWelford := false
-	if shape == pwShapeWelford {
-		basis := host.WeightBasis()
+	// whose crosstab cell is weighted the Welford legs read N*, and so do
+	// the proportion legs when n_source is omitted; an unweighted count
+	// (raw rows, a slab, distinct keys) — or a weight sum under kind
+	// probability — is PROCESSING_CONFIG, as predict reports it. The
+	// weighted-moments kind keeps its own n_basis contract.
+	basis := host.WeightBasis()
+	weightedHost := false
+	if shape != pwShapeWeighted {
 		if err := overlayNSourceWeightedRefusal(spec.Kind, params.NSource, basis); err != nil {
 			return types.OverlayLayer{}, nil, err
 		}
-		weightedWelford = basis.Weighted()
+		weightedHost = basis.Weighted()
 	}
 	// The weighted kind needs the weighted moments on at least one cell
 	// — emitted by AGG_WEIGHTED_MEAN and by a WEIGHTED AGG_AVERAGE (its
@@ -295,7 +300,13 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			return
 		}
 		legSeen[[2]int{r, c}] = true
-		if l, ok := host.MeanLeg(r, c); ok {
+		if shape == pwShapeWelford {
+			if l, ok := host.MeanLeg(r, c); ok {
+				legs.add(l)
+			}
+			return
+		}
+		if l, ok := host.CellFloor(r, c, basis); ok {
 			legs.add(l)
 		}
 	}
@@ -308,12 +319,12 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 		for o := 0; o < oppCount; o++ {
 			r1, c1 := pairwiseLegCoord(rowScope, pairs[p].i, o)
 			r2, c2 := pairwiseLegCoord(rowScope, pairs[p].j, o)
-			in, ok := extractPairInputs(host, params, shape, rowScope, r1, c1, r2, c2)
+			in, ok := extractPairInputs(host, params, shape, basis, rowScope, r1, c1, r2, c2)
 			if !ok {
 				tally.add("ORBIT_STATS_SKIP_EXTRACT_FAILED", o)
 				continue
 			}
-			if weightedWelford {
+			if weightedHost {
 				addLeg(r1, c1)
 				addLeg(r2, c2)
 			}
@@ -435,7 +446,7 @@ func pairwiseLegCoord(rowScope bool, pairIdx, oppIdx int) (row, col int) {
 // extractPairInputs reads both legs' inputs for a pair at a fixed
 // opposite-axis coordinate. Returns ok=false when either leg is
 // unreadable (missing cell / components).
-func extractPairInputs(host *CrosstabHostView, params types.PairwiseOverlayParams, shape pwShape, rowScope bool, r1, c1, r2, c2 int) (pwInputs, bool) {
+func extractPairInputs(host *CrosstabHostView, params types.PairwiseOverlayParams, shape pwShape, basis weighting.Basis, rowScope bool, r1, c1, r2, c2 int) (pwInputs, bool) {
 	if shape == pwShapeWeighted {
 		w1, ok1 := host.WeightedMoments(r1, c1)
 		w2, ok2 := host.WeightedMoments(r2, c2)
@@ -460,12 +471,12 @@ func extractPairInputs(host *CrosstabHostView, params types.PairwiseOverlayParam
 	}
 	p1, ok1 := pairwiseProportion(host, params, r1, c1)
 	p2, ok2 := pairwiseProportion(host, params, r2, c2)
-	n1, nok1 := pairwiseSampleSize(host, params, rowScope, r1, c1)
-	n2, nok2 := pairwiseSampleSize(host, params, rowScope, r2, c2)
+	n1, nok1 := pairwiseSampleSize(host, params, basis, rowScope, r1, c1)
+	n2, nok2 := pairwiseSampleSize(host, params, basis, rowScope, r2, c2)
 	if !ok1 || !ok2 || !nok1 || !nok2 {
 		return pwInputs{}, false
 	}
-	return pwInputs{p1: p1, p2: p2, n1: n1, n2: n2,
+	return pwInputs{p1: p1, p2: p2, nf1: n1, nf2: n2,
 		m1: math.NaN(), m2: math.NaN(), v1: math.NaN(), v2: math.NaN()}, true
 }
 
@@ -482,7 +493,30 @@ func pairwiseProportion(host *CrosstabHostView, params types.PairwiseOverlayPara
 
 // pairwiseSampleSize reads the n leg per the n_source mode. rowScope names
 // the pair axis so n_within sums CellCounts along it.
-func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayParams, rowScope bool, r, c int) (int, bool) {
+//
+// Weighted host (basis weighted; weighting-inferential E3-S2): with
+// n_source omitted the leg is the cell's N* — sum_weights under kind
+// frequency, n_eff under kind probability — read off its floor, so the
+// successes p̂·N* rest on Σw_success/Σw_base (the weighted cell
+// proportion) and the base's effective size. The unweighted-count
+// modes never reach here on a weighted host (refused up front,
+// weighting.NSourceRefusal). Every count mode answers an integer,
+// exactly representable as float64, so an unweighted host's kernels
+// read the same numbers as before.
+func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayParams, basis weighting.Basis, rowScope bool, r, c int) (float64, bool) {
+	if params.NSource == "" && basis.Weighted() {
+		l, ok := host.CellFloor(r, c, basis)
+		if !ok {
+			return 0, false
+		}
+		return l.nStar, true
+	}
+	n, ok := pairwiseCountSampleSize(host, params, rowScope, r, c)
+	return float64(n), ok
+}
+
+// pairwiseCountSampleSize is the count reading of every n_source mode.
+func pairwiseCountSampleSize(host *CrosstabHostView, params types.PairwiseOverlayParams, rowScope bool, r, c int) (int, bool) {
 	switch params.NSource {
 	case types.PairwiseNSourceCellValueWeight:
 		v, ok := host.CellAt(r, c)
@@ -634,10 +668,10 @@ func joinPipe(parts []string) string {
 // pairwisePropZKernel is the pooled-SE two-proportion z-test. Reuses the
 // shared twoProportionZ helper so p-values match OVERLAY_PROP_Z_CELL.
 func pairwisePropZKernel(in pwInputs) (float64, string, bool) {
-	if in.n1 == 0 || in.n2 == 0 {
+	if in.nf1 == 0 || in.nf2 == 0 {
 		return 0, "ORBIT_STATS_SKIP_N_ZERO", false
 	}
-	n1f, n2f := float64(in.n1), float64(in.n2)
+	n1f, n2f := in.nf1, in.nf2
 	p, ok := twoProportionZ(in.p1*n1f, n1f, in.p2*n2f, n2f)
 	if !ok {
 		return 0, "ORBIT_STATS_SKIP_POOLED_SE_INVALID", false
@@ -648,17 +682,17 @@ func pairwisePropZKernel(in pwInputs) (float64, string, bool) {
 // pairwiseProbitTKernel is the probit t-test: Φ⁻¹ transform of each leg's
 // proportion, Student-t tail on df = n1 + n2 - 2.
 func pairwiseProbitTKernel(in pwInputs) (float64, string, bool) {
-	if in.n1 == 0 || in.n2 == 0 {
+	if in.nf1 == 0 || in.nf2 == 0 {
 		return 0, "ORBIT_STATS_SKIP_N_ZERO", false
 	}
-	dof := float64(in.n1 + in.n2 - 2)
+	dof := in.nf1 + in.nf2 - 2
 	if dof <= 0 {
 		return 0, "ORBIT_STATS_SKIP_DOF_INVALID", false
 	}
 	const eps = 1e-10
 	p1c := clipUnit(in.p1, eps, 1-eps)
 	p2c := clipUnit(in.p2, eps, 1-eps)
-	denom := math.Sqrt(1.0/float64(in.n1) + 1.0/float64(in.n2))
+	denom := math.Sqrt(1.0/in.nf1 + 1.0/in.nf2)
 	if denom == 0 {
 		return 0, "ORBIT_STATS_SKIP_DENOM_INVALID", false
 	}

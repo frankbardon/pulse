@@ -19,7 +19,7 @@ Every mode reads `Response.Components.Crosstab`, so a components-disabled host i
 The question is: **what does one observation mean here?**
 
 - One record per respondent, unweighted → the default, `cell_n_unweighted`.
-- Weighted data → `cell_weight_sum` (needs a cell aggregator that emits `sum_weights`).
+- Weighted host (a weight on the cell, any source) → omit `n_source`: n is N* (`sum_weights` under kind frequency, Kish `n_eff` under probability). Unweighted counts (`cell_n_unweighted`, margin `_n`, `n_within`, every distinct mode) are `PROCESSING_CONFIG` there, and `cell_weight_sum` / `cell_value_weighted` stand under frequency only.
 - The pair compares slices of a wider population (the share of a region WITHIN an issuer) → `n_within`, holding the first `n_within_depth`+1 dims fixed.
 - Several records per respondent and n must be respondents → a DISTINCT mode (below).
 - Margin bases → `row_margin_n` / `column_margin_n`, or their distinct twins.

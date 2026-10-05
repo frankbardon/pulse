@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -568,6 +569,16 @@ func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
 // A missing or zero row margin on either side yields a NaN cell plus
 // one PULSE_OVERLAY_REF_ZERO warning (`margin_missing: true`); the cell
 // value is never borrowed as the sample size.
+//
+// Weighted slots (weighting-inferential E3-S2): the cell and the row
+// margin are Σw, so p̂ = Σw_success/Σw_base; the sample size is the
+// base's N*. Under kind frequency that IS the payload margin (Σw), so
+// nothing changes; under kind probability both are scaled by the row
+// base's c = n_eff/Σw (composeRowBases), which keeps p̂ and makes n the
+// base's Kish n_eff — never the payload's Σw. A probability-weighted
+// row whose base carries no readable floor is a missing margin. The
+// layer summary's Parameters carry sum_weights (+ n_eff) over the row
+// bases read.
 func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
@@ -588,6 +599,16 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 	// reference matrices participate.
 	targetRowMargins := matrixRowMarginLookup(targetMx)
 	refRowMargins := matrixRowMarginLookup(refMx)
+	targetBases := newComposeRowBases(target)
+	refBases := newComposeRowBases(reference)
+	var tally weightedLegTally
+	tallied := map[[2]string]bool{}
+	tallyRow := func(side string, b composeRowBases, rowKey string) {
+		if l, ok := b.rows[rowKey]; ok && !tallied[[2]string{side, rowKey}] {
+			tallied[[2]string{side, rowKey}] = true
+			tally.add(l)
+		}
+	}
 
 	rowCount := len(targetMx.RowKeys)
 	colCount := len(targetMx.ColumnKeys)
@@ -636,6 +657,23 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 			}
 			nTarget := targetRowMargins[rowKeyStr]
 			nRef := refRowMargins[rowKeyStr]
+			// Probability-weighted side: successes and n onto the row
+			// base's w* (c = n_eff/Σw); no readable base ⇒ no sample
+			// size (n = 0, the missing-margin branch below).
+			if c, ok := targetBases.scaleFor(rowKeyStr); !ok {
+				nTarget = 0
+			} else if targetBases.basis == weighting.Probability {
+				targetVal *= c
+				nTarget *= c
+			}
+			if c, ok := refBases.scaleFor(rowKeyStr); !ok {
+				nRef = 0
+			} else if refBases.basis == weighting.Probability {
+				refVal *= c
+				nRef *= c
+			}
+			tallyRow("t", targetBases, rowKeyStr)
+			tallyRow("r", refBases, rowKeyStr)
 			// A missing or zero row margin on EITHER side leaves that
 			// side without a sample size: the cell is NaN with one
 			// PULSE_OVERLAY_REF_ZERO warning (U08 E4 review OS-11).
@@ -705,14 +743,18 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 		zeroCount := 0
 		summary.Count = &zeroCount
 	}
+	tally.stamp(summary)
 	layer := composeMatrixOverlayLayer(spec, targetMx, cells, summary)
 	return layer, warnings, nil
 }
 
 // matrixRowMarginLookup builds a `row-key-string → row-margin-value`
 // lookup over a MatrixPayload's RowMargins slot. Used by the per-cell
-// inferential overlays (PROP_Z_CELL, T_CELL) to resolve per-row
-// sample sizes without re-walking the matrix.
+// inferential overlays (PROP_Z_CELL, PROP_Z_PANEL) to resolve per-row
+// sample sizes without re-walking the matrix. On a weighted slot the
+// value is the row's Σw — a valid n only under kind frequency; the
+// proportion overlays rescale it onto N* under kind probability
+// (composeRowBases.scaleFor), never reading it as n there.
 func matrixRowMarginLookup(mx *types.MatrixPayload) map[string]float64 {
 	out := map[string]float64{}
 	if mx == nil {
@@ -996,6 +1038,11 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	}
 
 	refLookup := buildMatrixCellLookup(refMx)
+	// Weighted target (weighting-inferential E3-S2): its cells are Σw;
+	// the floor tally over the cells read gives its N* and Kish scale.
+	tHost := responseHostView(target)
+	tBasis := tHost.WeightBasis()
+	var tTally weightedLegTally
 
 	// Walk both matrices to compute target_N + ref_N. The
 	// per-coordinate iteration uses the target's RowKeys / ColumnKeys
@@ -1038,6 +1085,23 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 			targetN += tv
 			refN += rv
 			pairs = append(pairs, cellPair{targetVal: tv, refVal: rv})
+			if l, ok := tHost.CellFloor(i, j, tBasis); ok {
+				tTally.add(l)
+			}
+		}
+	}
+
+	// Under kind probability the target's Σw table is scaled to its
+	// Kish n_eff (c = n_eff/Σw over the cells read): χ² = N*·Σ(p_t −
+	// p_r)²/p_r with the reference as the fixed distribution. The
+	// expected counts (and the low-expected warning) read the scaled
+	// table. Not Rao-Scott. Frequency and unweighted targets are read
+	// as is (no multiply).
+	if tBasis == weighting.Probability {
+		c := tTally.scale()
+		targetN *= c
+		for k := range pairs {
+			pairs[k].targetVal *= c
 		}
 	}
 
@@ -1100,6 +1164,7 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		PValue:     &pv,
 		Parameters: map[string]float64{"df": df},
 	}
+	tTally.stamp(summary)
 	scalarValue := pValue
 	return composeScalarOverlayLayer(spec, &scalarValue, summary), warnings, nil
 }

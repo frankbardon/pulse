@@ -152,16 +152,21 @@ func TestScaledVariance(t *testing.T) {
 	}
 }
 
-// TestNSourceRefusal: the weighted-host n_source rule — raw row counts
-// refused under both kinds, the weight sum under probability only,
-// nothing on an unweighted host or for an omitted source.
+// TestNSourceRefusal: the weighted-host n_source rule — unweighted
+// counts (raw rows, n_within slabs, distinct keys; pairwise and panel
+// spellings) refused under both kinds, the weight-sum sources under
+// probability only, nothing on an unweighted host, for an omitted
+// source or for the panel's payload-margin modes.
 func TestNSourceRefusal(t *testing.T) {
+	unweightedCounts := []string{"cell_n_unweighted", "row_margin_n", "column_margin_n", "n_within",
+		"n_within_distinct", "row_margin_distinct", "column_margin_distinct", "row_margin_distinct_within"}
 	refused := map[Basis][]string{
 		Unweighted:  nil,
-		Frequency:   {"cell_n_unweighted", "row_margin_n", "column_margin_n"},
-		Probability: {"cell_n_unweighted", "row_margin_n", "column_margin_n", "cell_weight_sum"},
+		Frequency:   unweightedCounts,
+		Probability: append(append([]string(nil), unweightedCounts...), "cell_weight_sum", "cell_value_weighted"),
 	}
-	all := []string{"", "cell_n_unweighted", "row_margin_n", "column_margin_n", "cell_weight_sum", "cell_value_weighted", "n_within"}
+	all := append(append([]string(nil), unweightedCounts...), "", "cell_weight_sum", "cell_value_weighted",
+		"row_margin_value", "row_margin_value_within")
 	for basis, want := range refused {
 		for _, s := range all {
 			isRefused := false

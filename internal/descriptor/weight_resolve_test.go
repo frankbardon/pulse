@@ -798,6 +798,16 @@ func TestResolveWeights_InferentialOverlays(t *testing.T) {
 		}
 		for name, tc := range cases {
 			got, err := ResolveWeights(tc.req, weightSchema(), tc.defW, nil)
+			if overlayWeightClass(string(k)) == weighting.ClassFrequencyOnly {
+				// def is kind probability: the frequency-only kind is
+				// refused naming the kind (TestOverlayWeight_FrequencyOnly
+				// pins the frequency arm).
+				ce := codeOf(t, err)
+				if ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED || ce.Details["kind"] != "probability" {
+					t.Fatalf("%s %s: got %s %v, want the kind refusal", k, name, ce.Code, ce.Details)
+				}
+				continue
+			}
 			if !refuses {
 				if err != nil {
 					t.Fatalf("%s %s: descriptive kind refused: %v", k, name, err)
@@ -843,6 +853,9 @@ func TestComposeOverlayWeightRefusal(t *testing.T) {
 		ov := []types.ComposeOverlaySpec{{Kind: k, Reference: "a", Targets: []string{"b"}}}
 		run := func(reqs []*types.Request, defW *types.WeightSpec) error {
 			return ComposeOverlayWeightRefusal(ov, reqs, labels, defW, nil)
+		}
+		if overlayWeightClass(string(k)) == weighting.ClassFrequencyOnly {
+			continue // TestOverlayWeight_FrequencyOnly
 		}
 		err := run([]*types.Request{slot(nil, types.SlotWeight{}), slot(def, types.SlotWeight{}), slot(nil, types.SlotWeight{})}, nil)
 		if !refuses {
@@ -891,23 +904,10 @@ func overlayRefusalDetails(k types.OverlayKind, base map[string]any) map[string]
 	return base
 }
 
-// stubOverlayClass sets an overlay kind's class until the returned
-// restore runs (a stand-in for a kind a later change flips).
-func stubOverlayClass(k types.OverlayKind, c weighting.Class) func() {
-	prev, had := overlayWeightClasses[k]
-	overlayWeightClasses[k] = overlayWeighting{class: c}
-	return func() {
-		if had {
-			overlayWeightClasses[k] = prev
-		} else {
-			delete(overlayWeightClasses, k)
-		}
-	}
-}
-
 // TestOverlayWeightClasses_Table: the per-kind table holds the weighted
-// twin under both kinds, the two permanent refusals with reasons, and
-// every listed kind is a real kind; OverlayWeightKinds reads it.
+// twin and the lifted contingency / proportion kinds under both kinds,
+// Fisher under frequency only, the two permanent refusals with reasons,
+// and every listed kind is a real kind; OverlayWeightKinds reads it.
 func TestOverlayWeightClasses_Table(t *testing.T) {
 	known := map[types.OverlayKind]bool{}
 	for _, k := range types.AllOverlayKinds() {
@@ -921,10 +921,17 @@ func TestOverlayWeightClasses_Table(t *testing.T) {
 			t.Errorf("%s: a listed refusal must state a reason, and only a refusal may", k)
 		}
 	}
-	if got := OverlayWeightKinds(types.OverlayKindPairwiseWeightedTwoMeansZ); !reflect.DeepEqual(got, []types.WeightKind{"frequency", "probability"}) {
-		t.Fatalf("weighted twin kinds = %v", got)
+	for _, k := range []types.OverlayKind{types.OverlayKindPairwiseWeightedTwoMeansZ,
+		types.OverlayKindChiSqRow, types.OverlayKindChiSqCol, types.OverlayKindChiSqMatrix, types.OverlayKindChiSqVsRef,
+		types.OverlayKindPropZCell, types.OverlayKindPropZPanel, types.OverlayKindPairwisePropZ} {
+		if got := OverlayWeightKinds(k); !reflect.DeepEqual(got, []types.WeightKind{"frequency", "probability"}) {
+			t.Fatalf("%s kinds = %v, want both", k, got)
+		}
 	}
-	for _, k := range []types.OverlayKind{types.OverlayKindPairwiseTwoMeansZ, types.OverlayKindPairwiseProbitT, types.OverlayKindChiSqMatrix, types.OverlayKindShareOfRow} {
+	if got := OverlayWeightKinds(types.OverlayKindFisherExactCell); !reflect.DeepEqual(got, []types.WeightKind{"frequency"}) {
+		t.Fatalf("Fisher cell kinds = %v, want frequency only", got)
+	}
+	for _, k := range []types.OverlayKind{types.OverlayKindPairwiseTwoMeansZ, types.OverlayKindPairwiseProbitT, types.OverlayKindChiSqVsPop, types.OverlayKindShareOfRow} {
 		if got := OverlayWeightKinds(k); got != nil {
 			t.Fatalf("%s kinds = %v, want none", k, got)
 		}
@@ -934,11 +941,10 @@ func TestOverlayWeightClasses_Table(t *testing.T) {
 // TestOverlayWeight_FrequencyOnly: a frequency-only overlay kind runs
 // under a frequency weight and is refused naming the kind under a
 // probability one — on Request.Overlays (its own resolved weight) and
-// on Compose (the host's inherited weight kind). OVERLAY_FISHER_EXACT_CELL
-// stands in until a later change flips it.
+// on Compose (the host's inherited weight kind) — OVERLAY_FISHER_EXACT_CELL,
+// the one frequency-only overlay (weighting-inferential E3-S2).
 func TestOverlayWeight_FrequencyOnly(t *testing.T) {
 	k := types.OverlayKindFisherExactCell
-	defer stubOverlayClass(k, weighting.ClassFrequencyOnly)()
 	freq := &types.WeightSpec{Field: "wi", Kind: types.WeightKindFrequency}
 	prob := &types.WeightSpec{Field: "w"}
 	req := func(reqW *types.WeightSpec) *types.Request {

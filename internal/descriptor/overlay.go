@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -327,6 +328,16 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" has unknown n_source: "+params.NSource,
 			map[string]any{"index": index, "kind": string(spec.Kind), "n_source": params.NSource})
+		return
+	}
+	// Weighted-host n_source rule on the proportion kinds
+	// (weighting-inferential E3-S2): the runtime twin is
+	// processing.runPairwiseOverlay, same code and message.
+	if reason := weighting.NSourceRefusal(params.NSource, crosstabCellWeightBasis(req, opts)); reason != "" {
+		env.AddError(string(errors.PROCESSING_CONFIG),
+			"overlay "+string(spec.Kind)+" n_source "+params.NSource+": "+reason,
+			map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
+				"n_source": params.NSource})
 		return
 	}
 	if !types.ValidPairwisePSource(params.PSource) {
@@ -1318,6 +1329,14 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayDeltaVsSibling(env, req, spec, index)
 	case types.OverlayKindFisherExactCell:
 		validateOverlayFisherExactCell(env, req, spec, index)
+		// Frequency-only on a host whose crosstab cell resolves a
+		// probability weight the overlay slot itself does not see
+		// (weighting-inferential E3-S2); the runtime twin is
+		// processing.ApplyOverlaysWithExtensions, same code and message.
+		if crosstabCellWeightBasis(req, opts) == weighting.Probability {
+			msg, details := weighting.FrequencyOnlyHostRefusal("overlays["+strconv.Itoa(index)+"]", string(spec.Kind))
+			env.AddError(string(errors.PULSE_WEIGHT_UNSUPPORTED), msg, details)
+		}
 	case types.OverlayKindPairwiseProbitT,
 		types.OverlayKindPairwisePropZ,
 		types.OverlayKindPairwiseTwoMeansZ,

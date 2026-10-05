@@ -149,33 +149,54 @@ func (b *Welford) ScaledM2(basis Basis) float64 {
 // An overlay on a weighted host — a host cell carrying the weighted floor
 // keys, whatever the weight's source — takes its sample size from N*
 // (sum_weights under frequency, n_eff under probability). An explicit
-// n_source selector is judged against that: a raw-row-count source is
-// never a valid sample size there, and Σw is one only under frequency.
-
-// Overlay n_source spellings the rule names (types.PairwiseNSource*).
-const (
-	nSourceCellNUnweighted = "cell_n_unweighted"
-	nSourceRowMarginN      = "row_margin_n"
-	nSourceColumnMarginN   = "column_margin_n"
-	nSourceCellWeightSum   = "cell_weight_sum"
-)
+// n_source selector is judged against that: an UNWEIGHTED count — the
+// raw row counts (cell, margin, n_within slab) and the distinct-key
+// counts — is never a valid sample size there, and a weight-sum source
+// (cell_weight_sum, or cell_value_weighted reading a Σw cell) is one
+// only under frequency. The payload-margin modes of the Compose panel
+// (row_margin_value, row_margin_value_within) are NOT refused: they
+// read the base's Σw, which the overlay maps onto N* itself.
 
 // NSourceRefusal is why an explicit overlay n_source cannot stand on a
 // host weighted under basis, "" when it can (an omitted source reads
 // the kind-driven N*; a source the rule does not name keeps its own
 // contract). The predict validator and the overlay runtime both raise
-// it as PROCESSING_CONFIG, so the two arms refuse identically.
+// it as PROCESSING_CONFIG, so the two arms refuse identically. The
+// spellings are the pairwise family's (types.PairwiseNSource*) plus
+// the Compose panel's (types.PanelNSource*); the two share
+// cell_n_unweighted.
 func NSourceRefusal(nSource string, basis Basis) string {
 	if !basis.Weighted() {
 		return ""
 	}
 	switch nSource {
-	case nSourceCellNUnweighted, nSourceRowMarginN, nSourceColumnMarginN:
+	case types.PairwiseNSourceCellNUnweighted, types.PairwiseNSourceRowMarginN,
+		types.PairwiseNSourceColumnMarginN, types.PairwiseNSourceNWithin:
 		return "raw row count is not a valid sample size on a weighted host; omit n_source to read the weighted sample size N* (sum_weights under kind frequency, n_eff under kind probability)"
-	case nSourceCellWeightSum:
+	case types.PairwiseNSourceNWithinDistinct, types.PairwiseNSourceRowMarginDistinct,
+		types.PairwiseNSourceColumnMarginDistinct, types.PanelNSourceRowMarginDistinctWithin:
+		return "a distinct-key count is unweighted, so it is not a valid sample size on a weighted host; omit n_source to read the weighted sample size N* (sum_weights under kind frequency, n_eff under kind probability)"
+	case types.PairwiseNSourceCellWeightSum, types.PairwiseNSourceCellValueWeight:
 		if basis == Probability {
 			return "the weight sum overstates the sample size under weight kind probability; omit n_source to read Kish n_eff"
 		}
 	}
 	return ""
+}
+
+// FrequencyOnlyHostRefusal is the PULSE_WEIGHT_UNSUPPORTED refusal of a
+// frequency-only overlay (OVERLAY_FISHER_EXACT_CELL) whose HOST crosstab
+// cell is weighted under kind probability — the case the slot-level
+// class check cannot see because no weight reaches the overlay slot
+// itself (the cell carries its own slot weight, or the overlay opted
+// out with `weight: null` while the cell kept the request weight).
+// slot is the overlay's slot ("overlays[i]"). The predict validator and
+// the overlay runtime both raise it, so the two arms refuse with one
+// message and one details map.
+func FrequencyOnlyHostRefusal(slot, operator string) (string, map[string]any) {
+	msg := slot + ": " + operator + " has a weighted form only under weight kind \"" + string(types.WeightKindFrequency) +
+		"\", and its host crosstab cell is weighted under kind \"" + string(types.WeightKindProbability) +
+		"\"; use a frequency weight (integer replication counts) on the crosstab cell or set \"weight\": null on it to run it unweighted"
+	return msg, map[string]any{"slot": slot, "operator": operator, "host": "crosstab.cell",
+		"kind": string(types.WeightKindProbability), "supported_kinds": []string{string(types.WeightKindFrequency)}}
 }

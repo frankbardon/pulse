@@ -92,13 +92,14 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 		`"cell":{"type":"AGG_COUNT","field":"x","weight":null}}}`)
 	axis.Crosstab.Rows[0].Weight = w
 	out["crosstab.rows/GROUP_QUANTILE"] = axis
-	for _, kind := range []string{"OVERLAY_CHISQ_ROW", "OVERLAY_CHISQ_MATRIX"} {
-		r := decode(`{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"g"}],"columns":[{"type":"GROUP_CATEGORY","field":"subj"}],` +
-			`"cell":{"type":"AGG_COUNT","field":"x","weight":null},"margins":{"rows":true,"columns":true,"grand":true}},` +
-			`"overlays":[{"kind":"` + kind + `","scope":"` + map[string]string{"OVERLAY_CHISQ_ROW": "row", "OVERLAY_CHISQ_MATRIX": "matrix"}[kind] + `"}]}`)
-		r.Overlays[0].Weight = w
-		out["overlay/"+kind] = r
-	}
+	// The contingency and proportion overlays are lifted (E3-S2,
+	// TestWeight_ContingencyOverlaysMatchPredict); the probit t stays
+	// refused permanently.
+	probit := decode(`{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"g"}],"columns":[{"type":"GROUP_CATEGORY","field":"subj"}],` +
+		`"cell":{"type":"AGG_COUNT","field":"x","weight":null},"margins":{"rows":true,"columns":true,"grand":true}},` +
+		`"overlays":[{"kind":"OVERLAY_PAIRWISE_PROBIT_T","scope":"row"}]}`)
+	probit.Overlays[0].Weight = w
+	out["overlay/OVERLAY_PAIRWISE_PROBIT_T"] = probit
 	return out
 }
 
@@ -108,6 +109,7 @@ var permanentRefusalKeys = map[string]bool{
 	"TEST_SHAPIRO_WILK": true, "TEST_ANOVA_RM": true, "ATTR_PERCENTILE": true,
 	"post/TEST_TREND": true, "post/TEST_TUKEY_HSD": true, "post/TEST_ANOVA_WELCH": true,
 	"modifier/resample": true, "modifier/selection": true,
+	"overlay/OVERLAY_PAIRWISE_PROBIT_T": true,
 }
 
 // TestWeight_InferentialRefusalsMatchPredict: every refused inferential
@@ -489,5 +491,85 @@ func TestWeight_PairwiseNSourceMatchesPredict(t *testing.T) {
 		if env := predictEnvelope(t, p, fs, cohort, mk(w, "")); len(env.Errors) != 0 {
 			t.Fatalf("%s omitted n_source: predict errors %+v", name, env.Errors)
 		}
+	}
+}
+
+// TestWeight_ContingencyOverlaysMatchPredict: the contingency and
+// proportion overlays (weighting-inferential E3-S2) run on a weighted
+// crosstab under both kinds — request or slot-only cell weight — and
+// predict clean, each layer reporting the host's sum_weights (and n_eff
+// under probability); OVERLAY_FISHER_EXACT_CELL is frequency-only: a
+// probability cell weight it cannot see on its own slot is refused at
+// runtime and in predict with one code and message; an unweighted-count
+// n_source on the weighted host is PROCESSING_CONFIG on both arms.
+func TestWeight_ContingencyOverlaysMatchPredict(t *testing.T) {
+	p, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	freq := types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
+	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
+	mk := func(reqW *types.WeightSpec, cellW types.SlotWeight, overlays ...types.OverlaySpec) *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: cohort},
+			Weight: reqW,
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 20}},
+				Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Label: "n", Weight: cellW},
+				Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+			},
+			Overlays: overlays,
+		}
+	}
+	lifted := []types.OverlaySpec{
+		{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
+		{Name: "pz", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn},
+	}
+	for name, w := range map[string]types.WeightSpec{"frequency": freq, "probability": prob} {
+		for src, req := range map[string]*types.Request{
+			"request":   mk(&w, types.SlotWeight{}, lifted...),
+			"slot only": mk(nil, types.SlotWeightOf(w), lifted...),
+		} {
+			resp, err := p.Process(ctx, req)
+			if err != nil {
+				t.Fatalf("%s %s: %v", name, src, err)
+			}
+			if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 0 {
+				t.Fatalf("%s %s: predict errors %+v", name, src, env.Errors)
+			}
+			for _, l := range resp.Overlays {
+				_, hasNEff := l.Summary.Parameters["n_eff"]
+				if l.Summary.Parameters["sum_weights"] <= 0 || hasNEff != (w.Kind == types.WeightKindProbability) {
+					t.Fatalf("%s %s %s: Parameters %v", name, src, l.Kind, l.Summary.Parameters)
+				}
+			}
+		}
+	}
+
+	fisher := types.OverlaySpec{Name: "f", Kind: types.OverlayKindFisherExactCell, Scope: types.OverlayScopeCell}
+	if _, err := p.Process(ctx, mk(&freq, types.SlotWeight{}, fisher)); err != nil {
+		t.Fatalf("Fisher under frequency: %v", err)
+	}
+	for name, req := range map[string]*types.Request{
+		"request probability":   mk(&prob, types.SlotWeight{}, fisher),
+		"slot-only probability": mk(nil, types.SlotWeightOf(prob), fisher),
+	} {
+		_, rerr := p.Process(ctx, req)
+		ce := requireCode(t, rerr, errors.PULSE_WEIGHT_UNSUPPORTED)
+		if ce.Details["kind"] != "probability" {
+			t.Fatalf("%s: details %v", name, ce.Details)
+		}
+		sameEntry(t, predictEnvelope(t, p, fs, cohort, req), rerr)
+	}
+
+	nWithin := types.OverlaySpec{Name: "pz", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn,
+		Params: json.RawMessage(`{"n_source":"n_within"}`)}
+	req := mk(nil, types.SlotWeightOf(freq), nWithin)
+	_, rerr := p.Process(ctx, req)
+	ce := requireCode(t, rerr, errors.PROCESSING_CONFIG)
+	// Code and message (predict's details add the spec index, as for
+	// every per-Request overlay refusal the runtime raises).
+	if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 1 ||
+		env.Errors[0].Code != string(ce.Code) || env.Errors[0].Message != ce.Message {
+		t.Fatalf("n_within: predict %+v, runtime %s %q", env.Errors, ce.Code, ce.Message)
 	}
 }

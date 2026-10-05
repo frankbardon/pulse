@@ -88,12 +88,34 @@ func (h *CrosstabHostView) MeanLeg(rowIdx, colIdx int) (meanLeg, bool) {
 	return readMeanLeg(cc[rowIdx][colIdx])
 }
 
-// WeightBasis reports the host's weight basis: the basis of the first
-// cell carrying sum_weights (n_eff present ⇒ Probability, else
+// withCellWeight records the weight basis of the host's crosstab cell
+// from its STAMPED aggregation (processing.StampWeightsWith leaves the
+// cell's own `weight` set to the applied weight or null), so
+// WeightBasis answers the resolved kind rather than inferring it from
+// floor keys. An unstamped cell (`weight` absent) records nothing and
+// the floor-key inference stands. Returns h.
+func (h *CrosstabHostView) withCellWeight(cell *types.Aggregation) *CrosstabHostView {
+	if h == nil || cell == nil || cell.Weight.IsZero() {
+		return h
+	}
+	h.basis = weighting.BasisOf(cell.Weight.Spec())
+	h.basisKnown = true
+	return h
+}
+
+// WeightBasis reports the host's weight basis. When the host was built
+// from a stamped request (withCellWeight) it is the crosstab cell's
+// resolved weight — the only reliable answer on an AGG_WEIGHTED_MEAN
+// cell, whose own n_eff key is emitted under either kind. Otherwise
+// (a Compose slot, a direct caller) it is inferred: the basis of the
+// first cell carrying sum_weights (n_eff present ⇒ Probability, else
 // Frequency), Unweighted when no cell does. Every cell of one host
 // shares its cell slot's weight, so the first weighted cell speaks for
 // all of them.
 func (h *CrosstabHostView) WeightBasis() weighting.Basis {
+	if h != nil && h.basisKnown {
+		return h.basis
+	}
 	if h == nil || h.components == nil {
 		return weighting.Unweighted
 	}
@@ -155,6 +177,66 @@ func (t *weightedLegTally) stamp(summary *types.OverlaySummary) {
 	}
 }
 
+// scale is the union's c = N*/Σw — the factor that maps a Σw table (or
+// margin, or base) onto w*: the Kish n_eff over Σw under probability,
+// exactly 1 otherwise (frequency: N* = Σw; unweighted: no weights), so
+// a caller multiplies only under probability and the unweighted /
+// frequency operation order is untouched (weighting.Basis.Scale's
+// contract). 0 for an empty union.
+func (t *weightedLegTally) scale() float64 {
+	if !t.probability {
+		return 1
+	}
+	if t.sumW == 0 {
+		return 0
+	}
+	return weighting.KishNEff(t.sumW, t.sumWSq) / t.sumW
+}
+
+// floorLeg reads one components map's weighted floor under basis as a
+// weight-only leg {basis, Σw, N*} — the proportion and contingency
+// overlays' unit (they read the cell VALUE as Σw and need only its
+// N*). ok=false on an unweighted basis, a nil map, a map without
+// sum_weights, or (under probability) without n_eff.
+func floorLeg(m map[string]any, basis weighting.Basis) (meanLeg, bool) {
+	if !basis.Weighted() || m == nil {
+		return meanLeg{}, false
+	}
+	sumW, ok := componentsNumeric(m, "sum_weights")
+	if !ok {
+		return meanLeg{}, false
+	}
+	leg := meanLeg{basis: basis, sumW: sumW, nStar: sumW}
+	if basis == weighting.Probability {
+		nEff, ok := componentsNumeric(m, "n_eff")
+		if !ok {
+			return meanLeg{}, false
+		}
+		leg.nStar = nEff
+	}
+	return leg, true
+}
+
+// CellFloor reads cell (r, c)'s weighted floor under basis (floorLeg).
+func (h *CrosstabHostView) CellFloor(rowIdx, colIdx int, basis weighting.Basis) (meanLeg, bool) {
+	if h == nil || h.components == nil {
+		return meanLeg{}, false
+	}
+	cc := h.components.CellComponents
+	if rowIdx < 0 || rowIdx >= len(cc) || colIdx < 0 || colIdx >= len(cc[rowIdx]) {
+		return meanLeg{}, false
+	}
+	return floorLeg(cc[rowIdx][colIdx], basis)
+}
+
+// RowMarginFloor reads row r's margin floor under basis (floorLeg).
+func (h *CrosstabHostView) RowMarginFloor(rowIdx int, basis weighting.Basis) (meanLeg, bool) {
+	if h == nil || h.components == nil || rowIdx < 0 || rowIdx >= len(h.components.RowMarginComponents) {
+		return meanLeg{}, false
+	}
+	return floorLeg(h.components.RowMarginComponents[rowIdx], basis)
+}
+
 // overlayNSourceWeightedRefusal is the runtime half of the weighted-host
 // n_source rule (weighting.NSourceRefusal): PROCESSING_CONFIG naming the
 // kind and the source, or nil. The predict validator raises the same
@@ -167,4 +249,94 @@ func overlayNSourceWeightedRefusal(kind types.OverlayKind, nSource string, basis
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 		"overlay "+string(kind)+" n_source "+nSource+": "+reason,
 		map[string]any{"kind": string(kind), "param": "n_source", "n_source": nSource})
+}
+
+// legOf folds a tally into one weight-only leg: Σw and the union's N*
+// (Σw under frequency, Kish n_eff under probability).
+func (t *weightedLegTally) legOf() meanLeg {
+	basis := weighting.Frequency
+	nStar := t.sumW
+	if t.probability {
+		basis = weighting.Probability
+		nStar = weighting.KishNEff(t.sumW, t.sumWSq)
+	}
+	return meanLeg{basis: basis, sumW: t.sumW, nStar: nStar}
+}
+
+// responseHostView wraps a Compose slot's response as a host view over
+// its matrix and its components (nil when disabled); its WeightBasis is
+// inferred from the floor keys.
+func responseHostView(resp *types.Response) *CrosstabHostView {
+	if resp == nil || resp.Crosstab == nil {
+		return &CrosstabHostView{}
+	}
+	var comps *types.CrosstabComponents
+	if resp.Components != nil {
+		comps = resp.Components.Crosstab
+	}
+	return newCrosstabHostViewWithComponents(resp.Crosstab.Matrix, comps)
+}
+
+// composeRowBases is one Compose slot's row bases for the proportion
+// overlays (weighting-inferential E3-S2): the slot's weight basis
+// (inferred from its floor keys) and, on a weighted slot, each row's
+// base as a weight-only leg {Σw, N*}, keyed by the canonical row-key
+// string — the row margin's own floor when its components were emitted,
+// else the Kish union of the row's cells (the same figure whenever the
+// cells partition the row). An unweighted slot (or one whose components
+// are disabled, so no floor is visible) carries no rows.
+type composeRowBases struct {
+	basis weighting.Basis
+	rows  map[string]meanLeg
+	// order is rows' keys in the slot's RowKeys order, so a fold over
+	// the bases sums in a deterministic order.
+	order []string
+}
+
+func newComposeRowBases(resp *types.Response) composeRowBases {
+	host := responseHostView(resp)
+	basis := host.WeightBasis()
+	out := composeRowBases{basis: basis}
+	if !basis.Weighted() || host.Payload() == nil {
+		return out
+	}
+	mx := host.Payload()
+	out.rows = make(map[string]meanLeg, len(mx.RowKeys))
+	for i, key := range mx.RowKeys {
+		keyStr := axisKeyToString(key)
+		if _, dup := out.rows[keyStr]; dup {
+			continue
+		}
+		if l, ok := host.RowMarginFloor(i, basis); ok {
+			out.rows[keyStr] = l
+			out.order = append(out.order, keyStr)
+			continue
+		}
+		var t weightedLegTally
+		for j := range mx.ColumnKeys {
+			if l, ok := host.CellFloor(i, j, basis); ok {
+				t.add(l)
+			}
+		}
+		if t.weighted {
+			out.rows[keyStr] = t.legOf()
+			out.order = append(out.order, keyStr)
+		}
+	}
+	return out
+}
+
+// scaleFor is the row's c = N*/Σw under kind probability; ok=false when
+// the slot is probability-weighted but the row's base carries no
+// readable floor (the caller must not fall back to Σw), and (1, true)
+// on an unweighted or frequency slot, where nothing is scaled.
+func (b composeRowBases) scaleFor(rowKey string) (float64, bool) {
+	if b.basis != weighting.Probability {
+		return 1, true
+	}
+	l, ok := b.rows[rowKey]
+	if !ok || l.sumW == 0 {
+		return 0, false
+	}
+	return l.nStar / l.sumW, true
 }

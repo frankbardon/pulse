@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -227,6 +228,45 @@ func panelRowMarginSlabLookup(slot *ComposeSlotView, margins map[string]float64,
 		}
 		if readable && complete {
 			out[anchorStr] = sum
+		}
+	}
+	return out
+}
+
+// panelRowSlabScale builds ONE probability-weighted slot's within-prefix
+// Kish scale: `row-key string → c = n_eff/Σw` of the union of the row
+// bases in that row's slab (rows agreeing on the first `prefix` dims) —
+// the weighted twin of panelRowMarginSlabLookup's summed margin, over
+// the same slab walk (axisKeyPrefixEqual). A slab with a row whose base
+// has no readable floor is omitted, so the coordinate skips.
+func panelRowSlabScale(slot *ComposeSlotView, bases composeRowBases, prefix int) map[string]float64 {
+	out := map[string]float64{}
+	rows := slot.RowCount()
+	for i := 0; i < rows; i++ {
+		anchor := slot.RowKey(i)
+		if len(anchor) < prefix {
+			continue
+		}
+		anchorStr := axisKeyToString(anchor)
+		if _, done := out[anchorStr]; done {
+			continue
+		}
+		var t weightedLegTally
+		complete := true
+		for j := 0; j < rows; j++ {
+			k := slot.RowKey(j)
+			if len(k) < prefix || !axisKeyPrefixEqual(anchor, k, prefix) {
+				continue
+			}
+			l, ok := bases.rows[axisKeyToString(k)]
+			if !ok {
+				complete = false
+				break
+			}
+			t.add(l)
+		}
+		if complete && t.weighted && t.sumW != 0 {
+			out[anchorStr] = t.scale()
 		}
 	}
 	return out
@@ -583,6 +623,20 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		}
 	}
 
+	// Weighted-slot n_source rule (weighting.NSourceRefusal,
+	// weighting-inferential E3-S2): an unweighted count — the counted
+	// cell n, a distinct-key margin — is not a valid sample size on a
+	// weighted slot. Both modes read components, so every slot's floor
+	// is visible here (the gate above). PROCESSING_CONFIG, as predict
+	// reports it (descriptor.validateComposeOverlaySpec).
+	if types.PanelNSourceReadsComponents(params.NSource) {
+		for s := 0; s < m; s++ {
+			if err := overlayNSourceWeightedRefusal(spec.Kind, params.NSource, slots.Slot(s).host.WeightBasis()); err != nil {
+				return types.OverlayLayer{}, nil, err
+			}
+		}
+	}
+
 	// Distinct-key n admission — refused UP FRONT, on each slot's CELL
 	// aggregator IDENTITY, never per coordinate. The MATRIX arm's rule
 	// verbatim (internal/processing/overlay_pairwise.go): AGG_MODE_COUNT and
@@ -732,6 +786,38 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		}
 	}
 
+	// Weighted slots (weighting-inferential E3-S2). The value modes
+	// read Σw (the cell and the row margin, or a slab of margins), so
+	// p̂ = Σw_success/Σw_base; under kind probability each slot's value
+	// and n are scaled by its base's c = n_eff/Σw (the row base, or the
+	// Kish union over the slab's row bases), making n the base's N*.
+	// Frequency and unweighted slots are read as is. A probability slot
+	// whose base has no readable floor skips the coordinate (n_missing)
+	// rather than testing on Σw.
+	panelResps := append([]*types.Response{reference}, targets...)
+	bases := make([]composeRowBases, m)
+	scaleLookups := make([]map[string]float64, m)
+	var tally weightedLegTally
+	for s := 0; s < m; s++ {
+		bases[s] = newComposeRowBases(panelResps[s])
+		for _, key := range bases[s].order {
+			tally.add(bases[s].rows[key])
+		}
+		if bases[s].basis != weighting.Probability {
+			continue
+		}
+		if rowSlabLookups != nil {
+			scaleLookups[s] = panelRowSlabScale(slots.Slot(s), bases[s], *params.NWithinDepth+1)
+			continue
+		}
+		scaleLookups[s] = map[string]float64{}
+		for _, key := range bases[s].order {
+			if c, ok := bases[s].scaleFor(key); ok {
+				scaleLookups[s][key] = c
+			}
+		}
+	}
+
 	// Use the reference matrix's axis keys as the canonical iteration
 	// shape — the key-set alignment gate already guaranteed every
 	// target carries the same key set.
@@ -771,6 +857,17 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 					nMissing = true
 					missingSlot = s
 					break
+				}
+				if scaleLookups[s] != nil {
+					c, cok := scaleLookups[s][rowKeyStr]
+					if !cok {
+						anyMissing = true
+						nMissing = true
+						missingSlot = s
+						break
+					}
+					v *= c
+					nSize *= c
 				}
 				values[s] = v
 				ns[s] = nSize
@@ -862,6 +959,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	}
 	count := seen
 	summary.Count = &count
+	tally.stamp(summary)
 
 	layer := composeMatrixOverlayLayer(spec, refMx, cells, summary)
 	return layer, warnings, nil

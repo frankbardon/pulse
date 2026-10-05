@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"math"
 	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -747,13 +749,22 @@ func TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd(t *testing.T) {
 	cfg := setupTestFS(t, "wm.pulse", schema, weightedCrosstabRecords())
 	ctx := context.Background()
 
+	// The weight_field sugar is kind probability; frequency rows carry a
+	// kind-frequency slot weight on the cell instead. On the weighted
+	// host the weighted-host n_source rule (weighting-inferential E3-S2)
+	// admits cell_weight_sum under frequency only and refuses a raw
+	// margin count under both kinds — identically on both arms.
 	cases := []struct {
-		name    string
-		nSource string
+		name      string
+		nSource   string
+		frequency bool
+		wantErr   errors.Code
 	}{
-		{"default_cell_n", ""},
-		{"cell_weight_sum", types.PairwiseNSourceCellWeightSum},
-		{"row_margin_n", types.PairwiseNSourceRowMarginN},
+		{"default_n_star", "", false, ""},
+		{"default_n_star_frequency", "", true, ""},
+		{"cell_weight_sum_frequency", types.PairwiseNSourceCellWeightSum, true, ""},
+		{"cell_weight_sum_probability_refused", types.PairwiseNSourceCellWeightSum, false, errors.PROCESSING_CONFIG},
+		{"row_margin_n_refused", types.PairwiseNSourceRowMarginN, true, errors.PROCESSING_CONFIG},
 	}
 
 	for _, tc := range cases {
@@ -763,17 +774,22 @@ func TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd(t *testing.T) {
 				t.Fatalf("marshal pairwise params: %v", err)
 			}
 			buildReq := func() *types.Request {
+				cell := &types.Aggregation{
+					Type:   types.AGG_WEIGHTED_MEAN,
+					Field:  "value",
+					Label:  "wmean",
+					Params: json.RawMessage(`{"weight_field":"weight"}`),
+				}
+				if tc.frequency {
+					cell.Params = nil
+					cell.Weight = types.SlotWeightOf(types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency})
+				}
 				return &types.Request{
 					Cohort: &types.Cohort{Filename: "wm.pulse"},
 					Crosstab: &types.CrosstabSpec{
 						Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 						Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
-						Cell: &types.Aggregation{
-							Type:   types.AGG_WEIGHTED_MEAN,
-							Field:  "value",
-							Label:  "wmean",
-							Params: json.RawMessage(`{"weight_field":"weight"}`),
-						},
+						Cell:    cell,
 						Shape:   types.CrosstabShapeMatrix,
 						Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
 					},
@@ -790,16 +806,23 @@ func TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd(t *testing.T) {
 			if ok, reason := processing.CanFuseCrosstab(buildReq(), schema, svcFused.Extensions()); !ok {
 				t.Fatalf("CanFuseCrosstab rejected AGG_WEIGHTED_MEAN + PAIRWISE_PROP_Z: %s", reason)
 			}
-			fusedResp, err := svcFused.Process(ctx, buildReq())
-			if err != nil {
-				t.Fatalf("Process (fused): %v", err)
-			}
-
+			fusedResp, fusedErr := svcFused.Process(ctx, buildReq())
 			svcBuf := New(cfg)
 			svcBuf.SetDisableCrosstabFusion(true)
-			bufResp, err := svcBuf.Process(ctx, buildReq())
-			if err != nil {
-				t.Fatalf("Process (buffered): %v", err)
+			bufResp, bufErr := svcBuf.Process(ctx, buildReq())
+			if tc.wantErr != "" {
+				var fce, bce *errors.CodedError
+				if !stderrors.As(fusedErr, &fce) || !stderrors.As(bufErr, &bce) ||
+					fce.Code != tc.wantErr || bce.Code != tc.wantErr || fce.Message != bce.Message {
+					t.Fatalf("want %s on both arms: fused %v, buffered %v", tc.wantErr, fusedErr, bufErr)
+				}
+				return
+			}
+			if fusedErr != nil {
+				t.Fatalf("Process (fused): %v", fusedErr)
+			}
+			if bufErr != nil {
+				t.Fatalf("Process (buffered): %v", bufErr)
 			}
 
 			if len(fusedResp.Overlays) != 1 {

@@ -27,7 +27,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values<!-- feature: OVERLAY
 
 ## Gotchas
 
-- Weighted host (both kinds, any source): legs read N* = `sum_weights` (frequency) / `n_eff` (probability), variance from `m2` on w*, df on N*; `Summary.Parameters` adds `sum_weights` (+ `n_eff`). There `n_source` `cell_n_unweighted` / `row_margin_n` / `column_margin_n` (and `cell_weight_sum` under probability) is `PROCESSING_CONFIG` in predict AND runtime.
+- Weighted host (both kinds, any source): legs read N* = `sum_weights` (frequency) / `n_eff` (probability), variance from `m2` on w*, df on N*; `Summary.Parameters` adds `sum_weights` (+ `n_eff`). There an unweighted-count `n_source` (and a weight-sum one under probability) is `PROCESSING_CONFIG` in predict AND runtime (`pairwise-n-sources`).
 - Either leg with `n <= 1` skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - RAW p-values only — direction / thresholds are the embedder's job.
 - Buffered (inferential) — and so is the HOST: the `AGG_WELFORD` cell is non-mergeable, so `CanFuseCrosstab` rejects on the cell-aggregator arm. Expected (`TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`).

@@ -127,6 +127,20 @@ var overlayWeightClasses = map[types.OverlayKind]overlayWeighting{
 	types.OverlayKindZCell:          {class: weighting.ClassAware},
 	types.OverlayKindZVsRef:         {class: weighting.ClassAware},
 	types.OverlayKindPairwiseWelchT: {class: weighting.ClassAware},
+	// Contingency and proportion overlays read the host's Σw cells and
+	// bases (weighting-inferential E3-S2): Pearson on the Σw table
+	// (frequency) or on the table / margin scaled to its Kish n_eff
+	// (probability; not Rao-Scott); p̂ = Σw_success/Σw_base with n =
+	// N*_base. Fisher runs the exact test on the integer Σw table, so it
+	// has no probability form.
+	types.OverlayKindChiSqRow:        {class: weighting.ClassAware},
+	types.OverlayKindChiSqCol:        {class: weighting.ClassAware},
+	types.OverlayKindChiSqMatrix:     {class: weighting.ClassAware},
+	types.OverlayKindChiSqVsRef:      {class: weighting.ClassAware},
+	types.OverlayKindPropZCell:       {class: weighting.ClassAware},
+	types.OverlayKindPropZPanel:      {class: weighting.ClassAware},
+	types.OverlayKindPairwisePropZ:   {class: weighting.ClassAware},
+	types.OverlayKindFisherExactCell: {class: weighting.ClassFrequencyOnly},
 	types.OverlayKindPairwiseTwoMeansZ: {class: weighting.ClassRefuse,
 		reason: "its unweighted Welford triple cannot carry a weighted variance; its weighted twin computes the weighted z",
 		twin:   types.OverlayKindPairwiseWeightedTwoMeansZ},

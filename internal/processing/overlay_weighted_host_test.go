@@ -292,6 +292,7 @@ func TestPairwiseWelchT_WeightedHostNSource(t *testing.T) {
 		}
 		if basis == weighting.Probability {
 			refused[types.PairwiseNSourceCellWeightSum] = true
+			refused[types.PairwiseNSourceCellValueWeight] = true
 		}
 		for _, s := range append(raw, types.PairwiseNSourceCellWeightSum, types.PairwiseNSourceCellValueWeight) {
 			p, err := run(basis, s)

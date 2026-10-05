@@ -9008,7 +9008,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_CHISQ_MATRIX",
@@ -9024,7 +9028,11 @@
         "intents": [
           "relationship"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_CHISQ_ROW",
@@ -9040,7 +9048,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_CHISQ_VS_POP",
@@ -9075,7 +9087,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_DELTA_VS_BASELINE",
@@ -9199,7 +9215,10 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency"
+        ]
       },
       {
         "kind": "OVERLAY_FORMULA",
@@ -9428,7 +9447,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_PAIRWISE_TWO_MEANS_Z",
@@ -9520,7 +9543,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_PROP_Z_PANEL",
@@ -9536,7 +9563,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_RANK",
@@ -11543,4 +11574,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 570e3171a94f8f907563d3c217ee5f5275b0a96ff97cc04ad4c4f255471877b0
+// golden-hash: 456d9a3179537d0f6e7cc4ce0cfbd607abe961f7bf3d402c316ac79452f0365a
