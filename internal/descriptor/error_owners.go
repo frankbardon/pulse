@@ -118,6 +118,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_IMPORT_DST_AMBIGUOUS:        ownImportExport,
 	errors.PULSE_IMPORT_DST_NONEXISTENT:      ownImportExport,
 	errors.PULSE_IMPORT_DST_RESOLVED:         ownImportExport,
+	errors.PULSE_IMPORT_TIMESTAMP_TRUNCATED:  ownImportExport,
 	errors.PULSE_EXPORT_ROW_ERROR:            own(featExport),
 	errors.PULSE_EXPORT_FIELD_UNKNOWN:        own(featExport),
 	errors.PULSE_IMPORT_CATEGORICAL_OVERFLOW: ownImportExport,

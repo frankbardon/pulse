@@ -363,6 +363,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_TIMESTAMP_TRUNCATED: {
+		Message: "Warning-class — an Arrow or Parquet source carried native timestamp values with a non-zero sub-second fraction (millisecond, microsecond or nanosecond units). A `datetime` field holds whole epoch seconds, so each such value was floored to the earlier second — toward the past, also before 1970 — and the import succeeded. Raised once per source pass, never per row; details carry `truncated_n` (values floored) and `columns` (sorted names of the affected columns). Values that were already whole seconds raise nothing.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action is required when second resolution is enough. To keep the fraction, store it in its own numeric column at the source (e.g. milliseconds within the second) or round the timestamps there before importing.",
+			},
+		},
+	},
 	PULSE_EXPORT_ROW_ERROR: {
 		Message: "A row could not be exported due to a per-cell value-to-string conversion failure, or because the target format's writer refused it. Raised per row on ExportReport.RowErrors while SOME rows still export — and raised as the FATAL return of ExportJob.Run when a non-empty cohort yields zero exported rows, in which case details carry `rows_read`, `rows_failed`, `first_row` and `first_error`. An empty cohort exports zero rows legitimately and is not this error.",
 		Fixups: []Fixup{

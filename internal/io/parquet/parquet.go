@@ -14,6 +14,7 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	parrow "github.com/frankbardon/pulse/internal/io/arrow"
 	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
@@ -63,7 +64,23 @@ type Reader struct {
 	// empty string alike as "". Rebuilt in place per row; valid only
 	// inside the callback.
 	nulls []bool
+
+	// int96 marks the top-level fields stored as legacy Parquet INT96.
+	// pqarrow surfaces INT96 as a UTC-zoned Timestamp(ns), but INT96
+	// carries no adjustment flag and writers disagree about it, so Pulse
+	// reads it as a NAIVE wall clock: the import source zone applies, and
+	// with none it reads as UTC (the instant pqarrow reports).
+	int96 []bool
+
+	// truncated tallies the native timestamp cells the latest ReadRows
+	// pass floored to whole seconds (iocore.SourceWarningEmitter).
+	truncated parrow.TimestampTally
 }
+
+// Warnings implements iocore.SourceWarningEmitter: the one
+// PULSE_IMPORT_TIMESTAMP_TRUNCATED warning of the latest ReadRows pass,
+// or nil.
+func (r *Reader) Warnings() []*errors.CodedError { return r.truncated.Warnings() }
 
 // RowNulls implements iocore.NullAwareReader. Entry i is the validity bit
 // of the current row's column i, not a reading of the cell text.
@@ -121,6 +138,14 @@ func (r *Reader) init() error {
 		return fmt.Errorf("parquet.Reader: reading schema: %w", err)
 	}
 	r.arrowSc = sc
+
+	r.int96 = make([]bool, len(arrowReader.Manifest.Fields))
+	for i := range arrowReader.Manifest.Fields {
+		f := &arrowReader.Manifest.Fields[i]
+		if f.IsLeaf() && pqFile.MetaData().Schema.Column(f.ColIndex).PhysicalType() == pq.Types.Int96 {
+			r.int96[i] = true
+		}
+	}
 
 	// Read the full table. Arrow-Go handles internal parallelism via the
 	// Parallel flag in ArrowReadProperties — no manual row-group dispatch needed.
@@ -198,13 +223,24 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	// Build column readers - each column may have multiple chunks.
 	type colChunks struct {
 		chunks []arrow.Array
+		// ts is set for a native timestamp column; naive is its
+		// instant-vs-wall-clock reading (INT96 is always naive).
+		ts    bool
+		naive bool
+		unit  arrow.TimeUnit
 	}
 	cols := make([]colChunks, numCols)
 	for out, src := range hostColIdx {
 		col := tbl.Column(src)
 		chunks := col.Data().Chunks()
 		cols[out] = colChunks{chunks: chunks}
+		if dt, ok := col.DataType().(*arrow.TimestampType); ok {
+			cols[out].ts = true
+			cols[out].unit = dt.Unit
+			cols[out].naive = parrow.TimestampIsNaive(dt) || (src < len(r.int96) && r.int96[src])
+		}
 	}
+	r.truncated.Reset()
 
 	// Iterate over rows.
 	row := make([]string, numCols)
@@ -221,6 +257,14 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 
 		for c := 0; c < numCols; c++ {
+			if cols[c].ts {
+				var cut bool
+				row[c], r.nulls[c], cut = getTimestampAsString(cols[c].chunks, rowIdx, cols[c].unit, cols[c].naive)
+				if cut {
+					r.truncated.Note(r.header[c])
+				}
+				continue
+			}
 			row[c], r.nulls[c] = getValueAsString(cols[c].chunks, rowIdx)
 		}
 
@@ -256,6 +300,25 @@ func getValueAsString(chunks []arrow.Array, rowIdx int) (string, bool) {
 		offset -= chunk.Len()
 	}
 	return "", true
+}
+
+// getTimestampAsString is getValueAsString for a native timestamp column:
+// it renders through parrow.FormatTimestamp with the column's resolved
+// naive reading (which may differ from the Arrow type's — INT96) and
+// reports whether a sub-second fraction was floored away.
+func getTimestampAsString(chunks []arrow.Array, rowIdx int, unit arrow.TimeUnit, naive bool) (string, bool, bool) {
+	offset := rowIdx
+	for _, chunk := range chunks {
+		if offset < chunk.Len() {
+			if chunk.IsNull(offset) {
+				return "", true, false
+			}
+			s, cut := parrow.FormatTimestamp(chunk.(*array.Timestamp).Value(offset), unit, naive)
+			return s, false, cut
+		}
+		offset -= chunk.Len()
+	}
+	return "", true, false
 }
 
 // Close releases underlying resources.
@@ -643,6 +706,7 @@ var _ iocore.ResetReader = (*Reader)(nil)
 var _ iocore.Writer = (*Writer)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareReader = (*Reader)(nil)
+var _ iocore.SourceWarningEmitter = (*Reader)(nil)
 var _ iocore.SchemaAwareWriter = (*Writer)(nil)
 var _ iocore.OverlayAwareWriter = (*Writer)(nil)
 

@@ -149,6 +149,30 @@ does not), share the type map with neighbouring formats via the
 `internal/io/arrow` package the way Parquet already does. CSV / TSV / NDJSON
 / JSON-array share `internal/io/jsonshared` for value coercion.
 
+### Native datetimes: instant or wall clock
+
+The row path is text, and an import source zone (`ImportJob.SourceTZ`)
+applies only to a datetime literal with no `Z` and no offset. A reader
+with a native datetime type must therefore decide, per column, which of
+two literals it emits — and the choice IS the zone contract:
+
+- A value that names an **instant** (an Arrow timestamp with a
+  `TimeZone`, a Parquet `TIMESTAMP` with `isAdjustedToUTC=true`) renders
+  as the canonical UTC literal (`encoding.FormatDateTime`, `…Z`), which
+  no source zone reinterprets.
+- A **wall clock** (a zone-less Arrow timestamp, `isAdjustedToUTC=false`,
+  legacy Parquet `INT96`, every SPSS `DATETIME`) renders as a naive
+  literal (`2006-01-02T15:04:05`), so the source zone and DST policy
+  apply; with no zone it reads as UTC, the same instant as before.
+
+Floor sub-second values toward the past (also before 1970) and report
+any floored fraction through `SourceWarningEmitter` as one
+`PULSE_IMPORT_TIMESTAMP_TRUNCATED` per pass — never per row, never
+silently. Reset the tally at the top of each `ReadRows` so an inference
+sample followed by the row pass does not double it. The Arrow helpers
+(`internal/io/arrow` `FormatTimestamp`, `TimestampTally`) are shared
+with Parquet.
+
 ### The external form of a `set_*` cell
 
 A set column's *external* form is its selected **labels**, never the

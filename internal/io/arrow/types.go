@@ -36,6 +36,9 @@ const (
 //     There is no inverse arm for Pulse's `datetime`: TypeFromPulse maps it
 //     to UTF8 (see there), so a re-imported datetime column arrives as a
 //     string and is re-classified by internal/io/infer.go's literal probe.
+//   - A Timestamp of any unit and zone maps to FieldTypeDateTime (it
+//     fell through to the f64 default before zone-aware imports; see
+//     timestamp.go for the instant-vs-naive rendering).
 //   - String and binary (in both standard and large variants), and any
 //     dictionary-encoded type, collapse to FieldTypeCategoricalU8. The
 //     import pipeline upgrades to wider categorical widths when the
@@ -59,6 +62,8 @@ func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 		return encoding.FieldTypePackedBool
 	case arrow.DATE32, arrow.DATE64:
 		return encoding.FieldTypeDate
+	case arrow.TIMESTAMP:
+		return encoding.FieldTypeDateTime
 	case arrow.STRING, arrow.LARGE_STRING, arrow.BINARY, arrow.LARGE_BINARY:
 		return encoding.FieldTypeCategoricalU8
 	case arrow.DICTIONARY:
@@ -256,6 +261,9 @@ func decimal128FromPulse(d encoding.Decimal128) decimal128.Num {
 //   - String: the raw value verbatim.
 //   - Date32: rendered as YYYY-MM-DD using days-since-epoch.
 //   - Date64: rendered as YYYY-MM-DD; the sub-day milliseconds are dropped.
+//   - Timestamp: FormatTimestamp — the canonical UTC literal for a
+//     zoned (instant) type, a naive literal for a zone-less one; the
+//     sub-second fraction is floored (readers tally it for the warning).
 //   - Dictionary with a string value type: the resolved string label.
 //   - Anything else: falls back to fmt-formatting GetOneForMarshal, which
 //     yields the Arrow library's canonical text representation.
@@ -296,6 +304,10 @@ func FormatValue(arr arrow.Array, idx int) string {
 		ms := int64(a.Value(idx))
 		t := time.Unix(ms/1000, (ms%1000)*1e6).UTC()
 		return t.Format("2006-01-02")
+	case *array.Timestamp:
+		dt := a.DataType().(*arrow.TimestampType)
+		s, _ := FormatTimestamp(a.Value(idx), dt.Unit, TimestampIsNaive(dt))
+		return s
 	case *array.Dictionary:
 		// Dictionary-encoded: resolve to the string value.
 		dict := a.Dictionary()

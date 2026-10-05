@@ -510,8 +510,8 @@ func TestDataEncoder_ValuesSurviveTheWriteAndRead(t *testing.T) {
 			t.Fatalf("header = %v, want %v", head, want)
 		}
 		want := [][]string{
-			{"1", "1234.5", "north", "2024-03-04", "2024-03-04T05:06:07Z"},
-			{"2", "", "south", "2024-03-05", "2024-03-04T05:07:07Z"},
+			{"1", "1234.5", "north", "2024-03-04", "2024-03-04T05:06:07"},
+			{"2", "", "south", "2024-03-05", "2024-03-04T05:07:07"},
 		}
 		for i := range want {
 			if i >= len(rows) {

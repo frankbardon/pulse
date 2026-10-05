@@ -343,7 +343,7 @@ func TestReadRows_TemporalRendering(t *testing.T) {
 	}
 	r := NewReaderFromBytes(build(t, spec))
 	assertRows(t, readAll(t, r), [][]string{
-		{"2024-03-04", "2024-03-04T10:11:12Z", "3661"},
+		{"2024-03-04", "2024-03-04T10:11:12", "3661"},
 		{"", "", ""},
 	})
 
@@ -356,7 +356,7 @@ func TestReadRows_TemporalRendering(t *testing.T) {
 	if want := uint32(time.Date(2024, 3, 4, 0, 0, 0, 0, time.UTC).Unix() / 86400); day != want {
 		t.Errorf("epoch day = %d, want %d", day, want)
 	}
-	stamp, err := encoding.ParseDateTime("2024-03-04T10:11:12Z")
+	stamp, err := encoding.ParseDateTime("2024-03-04T10:11:12")
 	if err != nil {
 		t.Fatalf("ParseDateTime: %v", err)
 	}

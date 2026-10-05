@@ -190,6 +190,14 @@ const (
 	// is never silent.
 	PULSE_IMPORT_DST_RESOLVED Code = "PULSE_IMPORT_DST_RESOLVED"
 
+	// PULSE_IMPORT_TIMESTAMP_TRUNCATED is a WARNING-class code emitted
+	// once per Arrow / Parquet source pass when at least one native
+	// timestamp value carried a non-zero sub-second fraction, which a
+	// `datetime` (whole epoch seconds) cannot hold: each was floored to
+	// the earlier second (details: truncated_n, columns), so the loss is
+	// never silent.
+	PULSE_IMPORT_TIMESTAMP_TRUNCATED Code = "PULSE_IMPORT_TIMESTAMP_TRUNCATED"
+
 	// PULSE_EXPORT_ROW_ERROR indicates a per-row export error.
 	PULSE_EXPORT_ROW_ERROR Code = "PULSE_EXPORT_ROW_ERROR"
 
@@ -2742,6 +2750,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_DST_AMBIGUOUS,
 	PULSE_IMPORT_DST_NONEXISTENT,
 	PULSE_IMPORT_DST_RESOLVED,
+	PULSE_IMPORT_TIMESTAMP_TRUNCATED,
 	PULSE_EXPORT_ROW_ERROR,
 	PULSE_EXPORT_FIELD_UNKNOWN,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,

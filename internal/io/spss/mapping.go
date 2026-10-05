@@ -142,6 +142,16 @@ const spssEpochOffsetSeconds int64 = 12219379200
 // intended.
 const dateLayout = "2006-01-02"
 
+// naiveDateTimeLayout is the text form a `datetime`-mapped column renders
+// to: encoding.DateTimeFormats[1], a wall clock with NO `Z` and no
+// offset. A `.sav` DATETIME value is a naive wall-clock reading — SPSS
+// stores no zone — so the literal must stay naive for an import source
+// zone (ImportJob.SourceTZ) to apply to it; a `Z` suffix would name an
+// instant and beat the zone. With no source zone the import reads a naive
+// literal as UTC, the very instant the old `…Z` rendering named, so the
+// stored cohort is byte-identical.
+const naiveDateTimeLayout = "2006-01-02T15:04:05"
+
 // defaultCardinalityWarnFraction is the share of the case count a
 // categorical column's distinct-value count must exceed before the
 // mapping raises PULSE_SPSS_CARDINALITY_HIGH. Half the rows distinct is

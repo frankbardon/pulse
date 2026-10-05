@@ -65,7 +65,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/internal/temporal"
@@ -487,10 +486,12 @@ func (p *dataPlan) formatDate(seg []byte) string {
 	return time.Unix(sec, 0).UTC().Format(dateLayout)
 }
 
-// formatDateTime renders a temporal element as a datetime literal through
-// encoding.FormatDateTime, the exact inverse of the encoding.ParseDateTime
-// call internal/io/import.go makes — so the instant survives the round trip,
-// including before 1970.
+// formatDateTime renders a temporal element as a NAIVE datetime literal
+// (naiveDateTimeLayout — no `Z`, no offset), because a `.sav` stores a
+// wall clock and no zone. internal/io/import.go reads it back through
+// encoding.ParseDateTime as UTC — the instant the stored seconds name, so
+// the round trip is exact, including before 1970 — or, under an import
+// source zone, as that zone's wall clock (temporal.ParseLocal).
 func (p *dataPlan) formatDateTime(seg []byte) string {
 	bits := p.bo.Uint64(seg)
 	if p.isSysmis(bits) {
@@ -500,7 +501,7 @@ func (p *dataPlan) formatDateTime(seg []byte) string {
 	if !ok {
 		return p.formatNumeric(seg)
 	}
-	return encoding.FormatDateTime(uint64(sec))
+	return time.Unix(sec, 0).UTC().Format(naiveDateTimeLayout)
 }
 
 // trimStringDatum strips a string variable's padding, on the RAW bytes.
