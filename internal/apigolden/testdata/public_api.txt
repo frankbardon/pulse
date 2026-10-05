@@ -1253,6 +1253,7 @@ pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:
 pulse/descriptor: type Manifest field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
 pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"tests\""
 pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeable"
+pulse/descriptor: const MultiplicityTriggerThreshold untyped int = 10
 pulse/descriptor: func NewEnvelope(data any) *pulse/descriptor.Envelope
 pulse/descriptor: func NewEnvelopeWithRequest(data any, request any) *pulse/descriptor.Envelope
 pulse/descriptor: const None pulse/types.ComponentsMergeability = "none"
@@ -1340,6 +1341,14 @@ pulse/descriptor: type OverlayCapability field Scopes []pulse/types.OverlayScope
 pulse/descriptor: type OverlayCapability field Shapes []pulse/types.OverlayShape "json:\"shapes\""
 pulse/descriptor: type OverlayCapability field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
 pulse/descriptor: type OverlayCapability field Zone string "json:\"zone,omitempty\""
+pulse/descriptor: const PValueBasisDictionary untyped string = "dictionary"
+pulse/descriptor: const PValueBasisExact untyped string = "exact"
+pulse/descriptor: const PValueBasisLowerBound untyped string = "lower_bound"
+pulse/descriptor: type PValueCount struct
+pulse/descriptor: type PValueCount field Basis string "json:\"basis\""
+pulse/descriptor: type PValueCount field Threshold int "json:\"threshold\""
+pulse/descriptor: type PValueCount field Total int "json:\"total\""
+pulse/descriptor: type PValueCount field Uncorrected int "json:\"uncorrected\""
 pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
@@ -1359,6 +1368,7 @@ pulse/descriptor: type PredictResult field Groups []pulse/descriptor.GroupPredic
 pulse/descriptor: type PredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse/descriptor: type PredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
 pulse/descriptor: type PredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
+pulse/descriptor: type PredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse/descriptor: type PredictResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type PredictResult field Request *pulse/types.Request "json:\"request\""
 pulse/descriptor: type PredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
@@ -3892,4 +3902,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c487d14d8d3902bbc75abc7572d9e2d13ee477756414f4e19464953cccb294e9
+// golden-hash: 6bcab5da222b09fd4f717c911c52671cae924fd14702d637bdc571b1e530d444

@@ -67,7 +67,12 @@ const (
 	overlayCountsOnly = "Cells must hold counts of independent rows (AGG_COUNT); Pulse runs it on any cell aggregator, " +
 		"but sums, averages or weighted counts make the test meaningless."
 	overlayRawPValues = "Pulse reports raw p-values: with many cells or pairs some small values turn up by luck alone, " +
-		"so adjust for multiple comparisons yourself (for example Holm or Bonferroni)."
+		"so adjust for multiple comparisons: " + overlayCorrectWith
+	// overlayCorrectWith points every inferential kind at the overlay's
+	// own multiplicity block (U13) rather than at a correction done by
+	// hand.
+	overlayCorrectWith = "set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) " +
+		"to add adjusted p-values beside the raw ones."
 	overlayWelfordInputs = "Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test " +
 		"uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / " +
 		"sample_size_ref, default variance 1 and n 2). Those p-values describe the values you supplied, not each cell's own " +
@@ -131,13 +136,13 @@ var (
 		Assumptions: []string{
 			overlayCountsOnly,
 			"The null hypothesis is that the row's mix matches the overall column mix. That overall mix includes the row itself, so a large row pulls it toward itself: the statistic is smaller than a row-versus-rest test's by the factor (N - row total) / N, and the p-value is too large (conservative), most of all for big rows.",
-			"Each row is a separate test, so with many rows some small p-values turn up by luck; adjust for multiple comparisons yourself.",
+			"Each row is a separate test, so with many rows some small p-values turn up by luck; to adjust for multiple comparisons, " + overlayCorrectWith,
 			"Every expected count should be about 5 or more; a warning flags rows where some are lower.",
 		},
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
-			"chi-square", "cross-tabulation", "degrees-of-freedom", "goodness-of-fit",
-			"multiple-comparisons", "null-hypothesis", "p-value",
+			"chi-square", "cross-tabulation", "degrees-of-freedom", "false-discovery-rate", "family-wise-error",
+			"goodness-of-fit", "multiple-comparisons", "null-hypothesis", "p-value",
 		},
 	}
 
@@ -161,13 +166,13 @@ var (
 		Assumptions: []string{
 			overlayCountsOnly,
 			"The null hypothesis is that the column's mix matches the overall row mix. That overall mix includes the column itself, so a large column pulls it toward itself: the statistic is smaller than a column-versus-rest test's by the factor (N - column total) / N, and the p-value is too large (conservative), most of all for big columns.",
-			"Each column is a separate test, so with many columns some small p-values turn up by luck; adjust for multiple comparisons yourself.",
+			"Each column is a separate test, so with many columns some small p-values turn up by luck; to adjust for multiple comparisons, " + overlayCorrectWith,
 			"Every expected count should be about 5 or more; a warning flags columns where some are lower.",
 		},
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
-			"chi-square", "cross-tabulation", "degrees-of-freedom", "goodness-of-fit",
-			"multiple-comparisons", "null-hypothesis", "p-value",
+			"chi-square", "cross-tabulation", "degrees-of-freedom", "false-discovery-rate", "family-wise-error",
+			"goodness-of-fit", "multiple-comparisons", "null-hypothesis", "p-value",
 		},
 	}
 
@@ -258,13 +263,14 @@ var (
 			overlayCountsOnly,
 			"Each cell is tested as its own 2x2 table: this row versus the rest, by this column versus the rest. The null hypothesis is that the two are independent; the p-value is two-sided.",
 			"Every cell is a separate test and the tables overlap, so with many cells some small p-values turn up by luck; " +
-				"Pulse does not adjust them, so correct for multiple comparisons yourself (for example Holm or Bonferroni).",
+				"to adjust for multiple comparisons, " + overlayCorrectWith,
 			"It stays valid with small counts, which makes it the backstop when chi-square expected counts are low; the low-count warning is advisory only.",
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"chi-square", "cross-tabulation", "exact-test", "independence", "margin",
-			"multiple-comparisons", "null-hypothesis", "p-value", "two-tailed",
+			"chi-square", "cross-tabulation", "exact-test", "false-discovery-rate", "family-wise-error",
+			"independence", "margin", "multiple-comparisons", "null-hypothesis", "p-value",
+			"two-tailed",
 		},
 	}
 
@@ -291,12 +297,13 @@ var (
 			"Target and reference are separate, independent samples; rows that appear in both make the p-value wrong.",
 			"The null hypothesis is that the two shares are equal. The normal approximation needs roughly 10 successes and 10 failures on each side; the p-value is two-sided.",
 			"Every cell is a separate test, so with many cells some small p-values turn up by luck; " +
-				"Pulse does not adjust them, so correct for multiple comparisons yourself.",
+				"to adjust for multiple comparisons, " + overlayCorrectWith,
 		},
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
-			"cross-tabulation", "independence", "margin", "multiple-comparisons",
-			"null-hypothesis", "p-value", "sample-size", "standard-error", "two-tailed",
+			"cross-tabulation", "false-discovery-rate", "family-wise-error", "independence", "margin",
+			"multiple-comparisons", "null-hypothesis", "p-value", "sample-size", "standard-error",
+			"two-tailed",
 		},
 	}
 
@@ -325,8 +332,8 @@ var (
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"cross-tabulation", "independence", "margin", "multiple-comparisons",
-			"null-hypothesis", "p-value", "sample-size", "two-tailed",
+			"cross-tabulation", "false-discovery-rate", "family-wise-error", "independence", "margin",
+			"multiple-comparisons", "null-hypothesis", "p-value", "sample-size", "two-tailed",
 		},
 	}
 
@@ -355,8 +362,8 @@ var (
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"cross-tabulation", "independence", "multiple-comparisons", "null-hypothesis",
-			"p-value", "sample-size", "two-tailed",
+			"cross-tabulation", "false-discovery-rate", "family-wise-error", "independence", "multiple-comparisons",
+			"null-hypothesis", "p-value", "sample-size", "two-tailed",
 		},
 	}
 
@@ -383,8 +390,8 @@ var (
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"degrees-of-freedom", "independence", "multiple-comparisons", "null-hypothesis",
-			"p-value", "probit", "t-statistic", "two-tailed",
+			"degrees-of-freedom", "false-discovery-rate", "family-wise-error", "independence", "multiple-comparisons",
+			"null-hypothesis", "p-value", "probit", "t-statistic", "two-tailed",
 		},
 	}
 
@@ -404,7 +411,7 @@ var (
 			{When: "every cell is large and you want the normal-curve version", Use: "OVERLAY_PAIRWISE_TWO_MEANS_Z"},
 			{When: "the cells are weighted averages", Use: "OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z"},
 			{When: "the cells are shares rather than averages", Use: "OVERLAY_PAIRWISE_PROP_Z"},
-			{When: "you compare groups from raw rows and want p-values already adjusted across every pair", Use: "TEST_TUKEY_HSD"},
+			{When: "you compare groups from raw rows and want a post-test whose p-values come already adjusted across every pair, with no multiplicity block", Use: "TEST_TUKEY_HSD"},
 		},
 		Assumptions: []string{
 			"Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n; any other cell aggregator is refused.",
@@ -414,8 +421,8 @@ var (
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"degrees-of-freedom", "homogeneity-of-variance", "independence", "mean",
-			"multiple-comparisons", "normal-distribution", "null-hypothesis", "p-value",
+			"degrees-of-freedom", "false-discovery-rate", "family-wise-error", "homogeneity-of-variance", "independence",
+			"mean", "multiple-comparisons", "normal-distribution", "null-hypothesis", "p-value",
 			"t-statistic", "two-tailed", "variance",
 		},
 	}
@@ -445,8 +452,9 @@ var (
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"independence", "mean", "multiple-comparisons", "normal-distribution",
-			"null-hypothesis", "p-value", "sample-size", "standard-error", "two-tailed",
+			"false-discovery-rate", "family-wise-error", "independence", "mean", "multiple-comparisons",
+			"normal-distribution", "null-hypothesis", "p-value", "sample-size", "standard-error",
+			"two-tailed",
 		},
 	}
 
@@ -474,8 +482,9 @@ var (
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"effective-sample-size", "independence", "mean", "multiple-comparisons",
-			"null-hypothesis", "p-value", "sample-size", "two-tailed", "weighting",
+			"effective-sample-size", "false-discovery-rate", "family-wise-error", "independence", "mean",
+			"multiple-comparisons", "null-hypothesis", "p-value", "sample-size", "two-tailed",
+			"weighting",
 		},
 	}
 
@@ -502,12 +511,12 @@ var (
 			"Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.",
 			"The null hypothesis is equal means in the cell; the p-value is two-sided.",
 			"Every cell is a separate test, so with many cells some small p-values turn up by luck; " +
-				"Pulse does not adjust them, so correct for multiple comparisons yourself.",
+				"to adjust for multiple comparisons, " + overlayCorrectWith,
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"cross-tabulation", "homogeneity-of-variance", "independence", "mean",
-			"multiple-comparisons", "null-hypothesis", "p-value", "t-statistic",
+			"cross-tabulation", "false-discovery-rate", "family-wise-error", "homogeneity-of-variance", "independence",
+			"mean", "multiple-comparisons", "null-hypothesis", "p-value", "t-statistic",
 			"two-tailed", "variance",
 		},
 	}
@@ -534,12 +543,13 @@ var (
 			"Target and reference are separate, independent samples. It reads p from the normal curve, so with small cells the p-values come out too small.",
 			"The null hypothesis is equal means in the cell; the p-value is two-sided.",
 			"Every cell is a separate test, so with many cells some small p-values turn up by luck; " +
-				"Pulse does not adjust them, so correct for multiple comparisons yourself.",
+				"to adjust for multiple comparisons, " + overlayCorrectWith,
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"cross-tabulation", "independence", "mean", "multiple-comparisons",
-			"normal-distribution", "null-hypothesis", "p-value", "standard-error", "two-tailed",
+			"cross-tabulation", "false-discovery-rate", "family-wise-error", "independence", "mean",
+			"multiple-comparisons", "normal-distribution", "null-hypothesis", "p-value", "standard-error",
+			"two-tailed",
 		},
 	}
 
@@ -564,12 +574,13 @@ var (
 			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
 			"Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.",
 			"The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.",
-			"Each group is a separate test, so with many groups some small p-values turn up by luck; adjust for multiple comparisons yourself.",
+			"Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, " + overlayCorrectWith,
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"homogeneity-of-variance", "independence", "mean", "multiple-comparisons",
-			"null-hypothesis", "p-value", "t-statistic", "two-tailed", "variance",
+			"false-discovery-rate", "family-wise-error", "homogeneity-of-variance", "independence", "mean",
+			"multiple-comparisons", "null-hypothesis", "p-value", "t-statistic", "two-tailed",
+			"variance",
 		},
 	}
 
@@ -594,12 +605,12 @@ var (
 			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
 			"Target and reference are separate, independent samples. It reads p from the normal curve, so with small groups the p-values come out too small.",
 			"The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.",
-			"Each group is a separate test, so with many groups some small p-values turn up by luck; adjust for multiple comparisons yourself.",
+			"Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, " + overlayCorrectWith,
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"independence", "mean", "multiple-comparisons", "normal-distribution",
-			"null-hypothesis", "p-value", "standard-error", "two-tailed",
+			"false-discovery-rate", "family-wise-error", "independence", "mean", "multiple-comparisons",
+			"normal-distribution", "null-hypothesis", "p-value", "standard-error", "two-tailed",
 		},
 	}
 

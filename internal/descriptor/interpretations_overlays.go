@@ -55,11 +55,11 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 // way.
 const (
 	overlayCellMultiComp = "Every cell is a separate test and Pulse reports the p-values raw: with many cells some small ones turn up by luck, " +
-		"so correct for multiple comparisons (for example Holm or Bonferroni) before flagging cells."
+		"so before flagging cells adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted."
 	overlayPairMultiComp = "Every cell is one pair at one level of the other axis, and Pulse reports the p-values raw: with many pairs some small ones " +
-		"turn up by luck, so correct for multiple comparisons (for example Holm or Bonferroni) before flagging pairs."
+		"turn up by luck, so before flagging pairs adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted."
 	overlayGroupMultiComp = "Every group is a separate test and Pulse reports the p-values raw: with many groups some small ones turn up by luck, " +
-		"so correct for multiple comparisons yourself."
+		"so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted."
 	overlayPlaceholderP = "Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder " +
 		"inputs (variance 1, n 2), and it then describes those placeholders, not your data."
 	overlayNoEffectSize = "The layer does not report an effect size: read the gap itself (for example OVERLAY_DELTA_VS_REF) for how big a difference is."
@@ -127,7 +127,7 @@ var (
 			Field:  "summary.p_value",
 			Shared: SharedPValue,
 			Caveats: []string{
-				"Every row is a separate test and Pulse reports the p-values raw: with many rows some small ones turn up by luck, so correct for multiple comparisons yourself.",
+				"Every row is a separate test and Pulse reports the p-values raw: with many rows some small ones turn up by luck, so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted.",
 				"It comes from the chi-square approximation; Pulse warns once per row whose expected counts fall below 5. A row with a zero total gets no value (NaN).",
 			},
 		},
@@ -151,7 +151,7 @@ var (
 			Field:  "summary.p_value",
 			Shared: SharedPValue,
 			Caveats: []string{
-				"Every column is a separate test and Pulse reports the p-values raw: with many columns some small ones turn up by luck, so correct for multiple comparisons yourself.",
+				"Every column is a separate test and Pulse reports the p-values raw: with many columns some small ones turn up by luck, so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted.",
 				"It comes from the chi-square approximation; Pulse warns once per column whose expected counts fall below 5. A column with a zero total gets no value (NaN).",
 			},
 		},
@@ -266,7 +266,7 @@ var (
 				"Each cell holds a list of two-sided p-values, one per pair of requests, in upper-triangle order with the reference at index 0: " +
 					"(0,1), (0,2), ..., (1,2), ...; M requests give M(M-1)/2 entries.",
 				"The number of tests is cells times pairs, so it grows fast: with many cells and pairs some small p-values turn up by luck. " +
-					"Pulse reports them raw, so correct for multiple comparisons yourself.",
+					"Pulse reports them raw; to adjust for multiple comparisons set multiplicity on the overlay, which adds payload.p_adjusted (every list entry joins the family).",
 				"The normal approximation needs roughly 10 successes and 10 failures per side.",
 				"A pair involving a slot whose row margin is missing or zero is NaN, with a warning: it gets no test.",
 				"The layer does not report an effect size: compare the slots' cell shares (cell / row total) for how big each gap is.",

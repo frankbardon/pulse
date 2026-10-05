@@ -213,7 +213,7 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "the measure is heavily skewed or only ordered", Use: "TEST_KRUSKAL_WALLIS"},
 			{When: "the same subjects are measured in every group", Use: "TEST_ANOVA_RM"},
-			{When: "there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and adjust the p-values for multiple comparisons yourself (for example Holm)", Use: "TEST_WELCH"},
+			{When: "there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and set multiplicity on the request (for example holm) to adjust their p-values for multiple comparisons", Use: "TEST_WELCH"},
 			{When: "spreads are similar and you want Tukey's pairwise follow-up", Use: "TEST_ANOVA_F"},
 		},
 		Assumptions: []string{
@@ -272,18 +272,18 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you only need to know whether any group differs", Use: "TEST_ANOVA_F"},
-			{When: "groups have clearly unequal spread: run pairwise Welch tests and adjust for multiple comparisons", Use: "TEST_WELCH"},
-			{When: "the measure is heavily skewed or only ordered: run pairwise Mann-Whitney tests and adjust for multiple comparisons", Use: "TEST_MANN_WHITNEY_U"},
+			{When: "groups have clearly unequal spread: run pairwise Welch tests with multiplicity set on the request to adjust for multiple comparisons", Use: "TEST_WELCH"},
+			{When: "the measure is heavily skewed or only ordered: run pairwise Mann-Whitney tests with multiplicity set on the request to adjust for multiple comparisons", Use: "TEST_MANN_WHITNEY_U"},
 		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",
 			"Groups have similar variances, as in the standard ANOVA.",
 			"It reads per-group averages and counts from result rows plus ms_within and df_within from a preceding TEST_ANOVA_F.",
-			"Its p-values are already adjusted for multiple comparisons across every pair (family-wise), using the studentized range (Tukey-Kramer for unequal group sizes).",
+			"Its p-values are already adjusted for multiple comparisons across every pair (they hold the family-wise error), using the studentized range (Tukey-Kramer for unequal group sizes); a request-level or instance multiplicity correction skips it, so they are never adjusted twice.",
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
-			"alpha", "homogeneity-of-variance", "independence", "multiple-comparisons",
+			"alpha", "family-wise-error", "homogeneity-of-variance", "independence", "multiple-comparisons",
 			"p-value", "post-hoc-test", "studentized-range",
 		},
 	}
@@ -400,7 +400,7 @@ var (
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",
 			"It tests whether values tend to be larger in some groups; it reads as a difference in medians only when all groups have the same shape.",
-			"It is an overall test: to find which groups differ, follow up with pairwise Mann-Whitney tests and adjust for multiple comparisons.",
+			"It is an overall test: to find which groups differ, follow up with pairwise Mann-Whitney tests and set multiplicity on the request to adjust them for multiple comparisons.",
 			"The p-value comes from a chi-square approximation that is shaky for very small groups.",
 		},
 		Level: descriptor.LevelIntermediate,

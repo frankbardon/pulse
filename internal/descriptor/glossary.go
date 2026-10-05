@@ -63,8 +63,22 @@ var glossaryRegistry = []descriptor.Term{
 		ID:      "multiple-comparisons",
 		Short:   "Running many tests at once, which raises the chance that at least one comes out significant by luck alone.",
 		WhyCare: "Twenty tests at the usual alpha will on average flag one false positive even when nothing is going on. Adjust for it, or treat a lone hit with suspicion.",
-		SeeAlso: []string{"p-value", "alpha", "post-hoc-test"},
+		SeeAlso: []string{"p-value", "alpha", "post-hoc-test", "family-wise-error", "false-discovery-rate"},
 		Jargon:  true, Forms: []string{"multiple comparisons", "multiple testing"},
+	},
+	{
+		ID:      "family-wise-error",
+		Short:   "The chance that a group of tests produces at least one false positive, counted over the whole group rather than test by test.",
+		WhyCare: "Holding it at alpha (Bonferroni, Holm) makes any single significant hit trustworthy, at the cost of missing real but modest effects when the group is large.",
+		SeeAlso: []string{"multiple-comparisons", "false-discovery-rate", "alpha"},
+		Jargon:  true, Forms: []string{"family-wise error", "family-wise error rate", "familywise error", "fwer"},
+	},
+	{
+		ID:      "false-discovery-rate",
+		Short:   "The expected share of false positives among the results you call significant.",
+		WhyCare: "Holding it at alpha (Benjamini-Hochberg, Benjamini-Yekutieli) keeps more power than family-wise control when many tests run, but accepts that a few of the hits may be false.",
+		SeeAlso: []string{"multiple-comparisons", "family-wise-error", "alpha"},
+		Jargon:  true, Forms: []string{"false discovery rate", "fdr"},
 	},
 	{
 		ID:      "test-statistic",

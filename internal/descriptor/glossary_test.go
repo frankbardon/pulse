@@ -278,3 +278,26 @@ func TestGlossary_Accessors(t *testing.T) {
 		t.Error("mutating JargonForms()'s result changed the registry")
 	}
 }
+
+// TestGlossary_MultiplicityTerms: the two error rates a correction
+// method controls are jargon terms with forms, and multiple-comparisons
+// links both.
+func TestGlossary_MultiplicityTerms(t *testing.T) {
+	terms := map[string]descriptor.Term{}
+	for _, term := range Glossary() {
+		terms[term.ID] = term
+	}
+	for id, form := range map[string]string{"family-wise-error": "family-wise error rate", "false-discovery-rate": "false discovery rate"} {
+		term, ok := terms[id]
+		if !ok {
+			t.Errorf("glossary term %q missing", id)
+			continue
+		}
+		if !term.Jargon || !slices.Contains(term.Forms, form) {
+			t.Errorf("%s: jargon %v, forms %v; want jargon with form %q", id, term.Jargon, term.Forms, form)
+		}
+		if !slices.Contains(terms["multiple-comparisons"].SeeAlso, id) {
+			t.Errorf("multiple-comparisons SeeAlso %v does not link %s", terms["multiple-comparisons"].SeeAlso, id)
+		}
+	}
+}

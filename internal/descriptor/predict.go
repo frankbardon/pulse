@@ -306,7 +306,8 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Multiplicity resolution — the same single pass the runtime runs
 	// right after the join-count rule, before any dispatch
 	// (ResolveMultiplicity). Schema-free.
-	if _, merr := ResolveMultiplicity(req, opts.DefaultMultiplicity, opts.Instance); merr != nil {
+	multPlan, merr := ResolveMultiplicity(req, opts.DefaultMultiplicity, opts.Instance)
+	if merr != nil {
 		addCodedError(env, merr)
 	}
 
@@ -337,6 +338,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// execute. PredictResult.Request remains the raw input (back-compat).
 	if opts.EchoRequest {
 		env.Request = resolved
+	}
+
+	// Multiple-comparison trigger data: the inferential p-values the
+	// request emits and how many no correction reaches. Counted on the
+	// defaults-resolved request (crosstab axes may take a defaulted
+	// grouper) against the schema it executes over; withheld when the
+	// blocks are refused or the instance hides the capability.
+	if merr == nil && opts.instance().Enabled(featMultiplicity) {
+		result.PValues = countPValues(req, schema, multPlan, opts)
 	}
 
 	// Zone resolution — the same single pass the runtime runs before
