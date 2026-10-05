@@ -33,7 +33,13 @@ func applyRegressionLowNEff(resp *types.Response, specs []*types.RegressionSpec,
 			label = fmt.Sprintf("regressions[%d]", i)
 		}
 		details := map[string]any{"regression": label, "type": string(spec.Type), "n_eff": res.NEff, "min_required": min}
-		msg := fmt.Sprintf("%s: effective sample size n_eff = %.4g is below the %d the fit needs (predictors + 1); its residual df N* − p − 1 is negative, so the standard errors and p-values are undefined", label, res.NEff, min)
+		consequence := "its residual df N* − p − 1 is negative, so the standard errors and p-values are undefined"
+		if spec.Type == types.REG_GLM {
+			// The GLM's Wald z has no residual df; its covariance still
+			// rests on fewer effective observations than parameters.
+			consequence = "the Wald standard errors and p-values rest on fewer effective observations than parameters and are unreliable"
+		}
+		msg := fmt.Sprintf("%s: effective sample size n_eff = %.4g is below the %d the fit needs (predictors + 1); %s", label, res.NEff, min, consequence)
 		if strict {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_LOW_NEFF, msg, details)
 		}

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -424,14 +425,16 @@ func TestWeight_RegressionsMatchPredict(t *testing.T) {
 	freq := &types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
 	mk := func(op string, w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
 		var r types.Request
-		if err := json.Unmarshal([]byte(strings.ReplaceAll(acceptanceTemplates[op], "$F", "y")), &r); err != nil {
+		// REG_GLM's template targets y, so its predictor is x.
+		pred := map[bool]string{false: "y", true: "x"}[op == "REG_GLM"]
+		if err := json.Unmarshal([]byte(strings.ReplaceAll(acceptanceTemplates[op], "$F", pred)), &r); err != nil {
 			t.Fatalf("%s template: %v", op, err)
 		}
 		r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
 		r.Regressions[0].Weight = w
 		return &r
 	}
-	for _, op := range []string{"REG_OLS", "REG_BAYES_LINEAR"} {
+	for _, op := range []string{"REG_OLS", "REG_BAYES_LINEAR", "REG_GLM"} {
 		for _, kind := range weighting.KindsOf(op) {
 			spec := freq
 			if kind == types.WeightKindProbability {
@@ -487,6 +490,78 @@ func TestWeight_RegressionsMatchPredict(t *testing.T) {
 	}
 }
 
+// TestWeight_RegressionAttributesMatchPredict: the regression
+// attributes (U12 E4-S2) refit weighted under each kind REG_OLS
+// advertises, from every source: predict reports the slot applied and
+// the runtime's Σ fitted moves off the unweighted Σ fitted (= Σ target,
+// an OLS identity) while `weight: null` restores it.
+func TestWeight_RegressionAttributesMatchPredict(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
+	freq := &types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
+	mk := func(w types.SlotWeight, reqW *types.WeightSpec) *types.Request {
+		var r types.Request
+		if err := json.Unmarshal([]byte(strings.ReplaceAll(acceptanceTemplates["ATTR_REG_FITTED"], "$F", "y")), &r); err != nil {
+			t.Fatal(err)
+		}
+		r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
+		r.Attributes[0].Weight = w
+		r.Aggregations[0].Weight, r.Aggregations[0].Label = types.NullSlotWeight(), "s"
+		return &r
+	}
+	sumOf := func(resp *types.Response) float64 {
+		v, ok := resp.Data[0]["s"].(float64)
+		if !ok {
+			t.Fatalf("no Σ fitted in %v", resp.Data[0])
+		}
+		return v
+	}
+	if kinds := weighting.KindsOf("ATTR_REG_FITTED"); len(kinds) != 2 {
+		t.Fatalf("ATTR_REG_FITTED kinds %v, want REG_OLS's two", kinds)
+	}
+	for _, kind := range weighting.KindsOf("ATTR_REG_FITTED") {
+		spec := freq
+		if kind == types.WeightKindProbability {
+			spec = prob
+		}
+		for name, tc := range map[string]struct {
+			p    *pulse.Pulse
+			w    types.SlotWeight
+			reqW *types.WeightSpec
+		}{
+			"default": {weightPulse(t, fs, spec), types.SlotWeight{}, nil},
+			"request": {weightPulse(t, fs, nil), types.SlotWeight{}, spec},
+			"slot":    {weightPulse(t, fs, nil), types.SlotWeightOf(*spec), nil},
+		} {
+			t.Run(string(kind)+"/"+name, func(t *testing.T) {
+				pr, err := tc.p.Predict(ctx, mk(tc.w, tc.reqW))
+				if err != nil {
+					t.Fatal(err)
+				}
+				status := map[string]string{}
+				for _, w := range pr.Weights {
+					status[w.Slot] = w.Status
+				}
+				if status["attributes[0]"] != descriptor.WeightStatusApplied {
+					t.Fatalf("predict statuses %v, want attributes[0] applied", status)
+				}
+				weighted, err := tc.p.Process(ctx, mk(tc.w, tc.reqW))
+				if err != nil {
+					t.Fatalf("runtime refused: %v", err)
+				}
+				optedOut, err := tc.p.Process(ctx, mk(types.NullSlotWeight(), tc.reqW))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if sumOf(weighted) == sumOf(optedOut) {
+					t.Fatalf("weight did not reach the refit: Σ fitted %v both ways", sumOf(weighted))
+				}
+			})
+		}
+	}
+}
+
 // TestWeight_NormalizedNotWeightableMatchesPredict: ATTR_NORMALIZED (a
 // min-max rescale, no weighted meaning) runs under the instance default
 // and is PROCESSING_CONFIG under an explicit request or slot weight, at
@@ -502,7 +577,7 @@ func TestWeight_NormalizedNotWeightableMatchesPredict(t *testing.T) {
 		}
 		r.Cohort, r.Weight = &types.Cohort{Filename: cohort}, reqW
 		r.Attributes[0].Weight = w
-		r.Aggregations[0].Weight = types.NullSlotWeight()
+		r.Aggregations[0].Weight, r.Aggregations[0].Label = types.NullSlotWeight(), "s"
 		return &r
 	}
 	withDefault := weightPulse(t, fs, def)

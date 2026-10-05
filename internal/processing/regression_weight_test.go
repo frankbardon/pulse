@@ -107,7 +107,7 @@ func TestWeightedRegressions_ProcessorStampsAndTallies(t *testing.T) {
 	for i, r := range stamped.Regressions {
 		got[i] = r.Weight.Spec() != nil
 	}
-	if want := []bool{true, true, false, false, false}; !equalBools(got, want) {
+	if want := []bool{true, true, true, false, false}; !equalBools(got, want) {
 		t.Fatalf("stamped = %v, want %v", got, want)
 	}
 	// A regression slot weight alone names a weight (no request
@@ -178,6 +178,40 @@ func TestWeightedRegressions_LowNEff(t *testing.T) {
 			if w.Code == string(errors.PULSE_WEIGHT_LOW_NEFF) {
 				t.Fatalf("grouped=%v frequency warned: %+v", grouped, w)
 			}
+		}
+	}
+}
+
+// TestWeightedRegressions_GLMLowNEff: a probability-weighted REG_GLM
+// below the p + 1 floor warns with GLM-specific prose (its Wald z has
+// no residual df), on both fit paths.
+func TestWeightedRegressions_GLMLowNEff(t *testing.T) {
+	schema := regWeightSchema()
+	recs := regWeightRecords(schema, []float64{1000, 1, 1, 1, 1, 1, 1})
+	for _, grouped := range []bool{false, true} {
+		req := &types.Request{
+			Weight:       &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability},
+			Regressions:  []*types.RegressionSpec{{Type: types.REG_GLM, Family: "poisson", Name: "glm", Target: "y", Predictors: []string{"x1", "x2"}}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x1", Weight: types.NullSlotWeight()}},
+		}
+		if grouped {
+			req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
+		}
+		resp, err := NewProcessor(schema).Process(context.Background(), req, NewSliceIterator(recs))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := resp.Regressions[0]; r.NObs != len(recs) || r.NEff == 0 || r.NEff >= 3 {
+			t.Fatalf("grouped=%v: n_obs %d n_eff %v", grouped, r.NObs, r.NEff)
+		}
+		var low []*types.ResponseWarning
+		for _, w := range resp.Warnings {
+			if w.Code == string(errors.PULSE_WEIGHT_LOW_NEFF) {
+				low = append(low, w)
+			}
+		}
+		if len(low) != 1 || low[0].Details["type"] != "REG_GLM" || !strings.Contains(low[0].Message, "Wald") {
+			t.Fatalf("grouped=%v: low-n_eff warnings = %+v", grouped, low)
 		}
 	}
 }

@@ -118,9 +118,9 @@ declare it the same way.
 | the rank tests — Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ, Kendall τ-b — plus Fisher's exact test, the two-sample Kolmogorov-Smirnov test and Brown-Forsythe | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | the mean-comparison overlays — cell and reference t and z, pairwise Welch t — and the χ² (row, column, matrix, vs reference) and proportion z (cell, panel, pairwise) overlays | weighted (both kinds) | weighted |
 | the Fisher exact cell overlay | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| ordinary least squares (plain, ridge, lasso, elastic net) | weighted (both kinds) | weighted |
+| ordinary least squares (plain, ridge, lasso, elastic net), the GLM (binomial, poisson, gamma), the regression attributes (fitted value, residual, leverage) | weighted (both kinds) | weighted |
 | Bayesian linear regression | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| other tests, the GLM, any regression with `resample` or `selection`, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
+| other tests, any regression with `resample` or `selection`, reference-distribution attributes (z-score, t-score, percentile rank), the quantile grouper, confidence-interval bounds, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` | `PULSE_WEIGHT_UNSUPPORTED` |
 
 **Weighted tests.** A weighted moment test uses the frequency formula
 with its sample size read as Σw under `kind: frequency` (a weight of 3
@@ -189,6 +189,20 @@ weights, `n_eff`. A probability-weighted fit whose n_eff falls below
 the predictor count plus one warns `PULSE_WEIGHT_LOW_NEFF`. A
 regression with `resample` or `selection` refuses any weight, because
 neither has a standard weighted form.
+
+The GLM runs iteratively reweighted least squares with the row weights
+as prior weights on w* = w·N*/Σw, so its fit is R's
+`glm(weights = w*)`: the coefficients are the same under either kind,
+the standard errors come from (XᵀW*X)⁻¹ and the deviance and null
+deviance sum w*·d. Under frequency weights that is `glm(weights = w)`
+and equals the fit on the expanded rows. The dispersion stays fixed at
+1 for every family, gamma included, so treat gamma standard errors with
+the same caution as unweighted ones. The regression attributes refit
+ordinary least squares with the slot's weight and accept both kinds:
+the fitted value comes from the weighted coefficients, the residual is
+the raw y − ŷ, and the leverage is R's `hatvalues()` on the weighted
+`lm`, the diagonal of W½X(XᵀWX)⁻¹XᵀW½. A row whose weight is zero or
+invalid stays out of the refit and gets leverage 0.
 
 **Other weighted inference is not available yet.** The last row is
 refused rather than silently computed unweighted beside weighted

@@ -199,7 +199,11 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 			if a == nil {
 				continue
 			}
-			if w, ok := stampSlotWeight(a.Weight, exts.IsExtensionWeightAware("attribute", string(a.Type)), req.Weight, def); ok {
+			// A built-in attribute reads the weight when its class has a
+			// kind (the ATTR_REG_* refits); an extension one when it
+			// declared WeightAware.
+			aware := weighting.IsAware(string(a.Type)) || exts.IsExtensionWeightAware("attribute", string(a.Type))
+			if w, ok := stampSlotWeight(a.Weight, aware, req.Weight, def); ok {
 				cp := *a
 				cp.Weight = w
 				c.Attributes[i] = &cp

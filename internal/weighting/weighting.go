@@ -93,12 +93,19 @@ var aggregatorClasses = map[types.AggregationType]Class{
 // reference-distribution attributes place each row's value against a
 // whole-cohort mean / spread / rank (refused until weighted, or
 // permanently — RefusalReason); a min-max rescale has no weighted
-// meaning. Every other attribute is row-local (ClassNone).
+// meaning; the regression attributes refit REG_OLS and share its kinds
+// (a weighted refit: β is WLS, leverage the diagonal of
+// W½X(XᵀWX)⁻¹XᵀW½, residuals raw y − ŷ). Every other attribute is
+// row-local (ClassNone).
 var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_ZSCORE:     ClassRefuse,
 	types.ATTR_TSCORE:     ClassRefuse,
 	types.ATTR_PERCENTILE: ClassRefuse,
 	types.ATTR_NORMALIZED: ClassNotWeightable,
+
+	types.ATTR_REG_FITTED:   ClassAware,
+	types.ATTR_REG_RESIDUAL: ClassAware,
+	types.ATTR_REG_LEVERAGE: ClassAware,
 }
 
 // testClasses are the built-in tests whose weighted computation exists
@@ -142,7 +149,9 @@ var testClasses = map[types.TestType]Class{
 // (ridge / lasso / elastic net) — fits on the Σw-weighted streaming
 // moments: β is WLS (the penalty scaled by Σw, so β is kind-free and
 // invariant to rescaling the weights) and every inferential figure is
-// the frequency formula on w* (df = N* − p − 1). REG_BAYES_LINEAR is
+// the frequency formula on w* (df = N* − p − 1). REG_GLM runs IRLS with
+// prior weights w* (R glm(weights = w*): SEs and deviances on w*, the
+// expansion under frequency). REG_BAYES_LINEAR is
 // frequency-only: the conjugate posterior with X'WX, X'Wy, y'Wy and Σw
 // equals the posterior on the expanded rows, while under probability
 // weights it is a pseudo-posterior with no reference form. A regression
@@ -150,6 +159,7 @@ var testClasses = map[types.TestType]Class{
 // whatever its class (the resolver's weightSlot.reason).
 var regressionClasses = map[types.RegressionType]Class{
 	types.REG_OLS:          ClassAware,
+	types.REG_GLM:          ClassAware,
 	types.REG_BAYES_LINEAR: ClassFrequencyOnly,
 }
 

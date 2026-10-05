@@ -47,6 +47,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	// the conjugate Bayes posterior under frequency only.
 	want[string(types.REG_OLS)] = ClassAware
 	want[string(types.REG_BAYES_LINEAR)] = ClassFrequencyOnly
+	// U12 E4-S2: weighted GLM IRLS under both kinds.
+	want[string(types.REG_GLM)] = ClassAware
 	for _, at := range types.AllAttributeTypes() {
 		want[string(at)] = ClassNone
 	}
@@ -54,6 +56,10 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 		want[string(a)] = ClassRefuse
 	}
 	want[string(types.ATTR_NORMALIZED)] = ClassNotWeightable
+	// U12 E4-S2: the regression attributes refit REG_OLS weighted.
+	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE} {
+		want[string(a)] = ClassAware
+	}
 	for _, gt := range types.AllGroupTypes() {
 		want[string(gt)] = ClassNone
 	}

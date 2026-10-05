@@ -2591,6 +2591,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "relationship"
@@ -2618,6 +2623,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "data_quality"
           ]
@@ -2643,6 +2653,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "data_quality"
@@ -5491,6 +5506,10 @@
         "intents": [
           "drivers",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -11581,4 +11600,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fea57eafd4bd794cba78578c2dc465c93780ff1f3aa5124c5aaf4cd76ecbd5bd
+// golden-hash: 1278173acc8e7015c44b97d54a56b96910eea39d6fbda155eae1645768c0b7f5

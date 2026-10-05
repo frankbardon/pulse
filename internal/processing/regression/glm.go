@@ -41,6 +41,12 @@ import (
 // 1 for binomial / poisson (the family assumption), so the Wald
 // statistic is β/SE compared to a standard normal — not a Student's t.
 // Gamma path is wired but not numerically validated this phase.
+//
+// Weighted (U12 E4-S2, .claude/reference/weighting.md): the slot's row
+// weights enter as R glm prior weights on w* = w·N*/Σw — the working
+// weight is w*·μ'(η)²/V(μ), so Cov(β) = (XᵀW*X)⁻¹ and the deviances are
+// Σw*·d. β is kind-free; under kind frequency the fit is the expanded
+// rows', under kind probability R glm(weights = w*). NObs stays raw.
 type glmEngine struct {
 	spec   *types.RegressionSpec
 	schema *encoding.Schema
@@ -149,8 +155,12 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	e.finalized = true
 
 	p := len(e.spec.Predictors)
-	// Build X (n × (p+1) including intercept column) and y (n).
-	xRows, yVec := buildDesign(records, e.spec.Predictors, e.spec.Target)
+	// Build X (n × (p+1) including intercept column), y (n) and the
+	// prior weights (n): the slot's row weights on w* (all exactly 1
+	// unweighted, so every product below reproduces the unweighted fit
+	// bit for bit). n is the raw count of rows that entered the fit.
+	rw := newRowWeights(e.spec)
+	xRows, yVec, prior, sumW, sumWSq := buildWeightedDesign(records, e.spec.Predictors, e.spec.Target, rw)
 	n := len(yVec)
 	if n < p+1 {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -175,8 +185,9 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	// the only gonum types we touch are the (p+1)×(p+1) Cholesky on
 	// the normal equations.
 
-	// β init: intercept = g(yBarSafe), slopes = 0.
-	yBar := mean(yVec)
+	// β init: intercept = g(yBarSafe), slopes = 0. ȳ is the prior-
+	// weighted mean (the plain mean unweighted).
+	yBar := weightedMean(yVec, prior)
 	mu0 := e.family.SafeMean(yBar)
 	eta0 := e.family.LinkFunc(mu0)
 	beta := make([]float64, p+1)
@@ -208,7 +219,9 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 			if v < 1e-300 {
 				v = 1e-300
 			}
-			w[i] = dmu[i] * dmu[i] / v
+			// Working weight: prior weight × IRLS weight (R glm's
+			// weights · μ'(η)²/V(μ)).
+			w[i] = prior[i] * (dmu[i] * dmu[i] / v)
 			// Working response: z = η + (y − μ)/dμdη. Guard against
 			// dμdη → 0 (saturated rows) by clamping to a small floor
 			// — the corresponding W is also tiny so the row contributes
@@ -300,7 +313,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 				if v < 1e-300 {
 					v = 1e-300
 				}
-				w[i] = dmu[i] * dmu[i] / v
+				w[i] = prior[i] * (dmu[i] * dmu[i] / v)
 			}
 			finalXtWX := make([]float64, (p+1)*(p+1))
 			for i := 0; i < n; i++ {
@@ -371,7 +384,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	}
 	deviance := 0.0
 	for i := 0; i < n; i++ {
-		deviance += e.family.Deviance(yVec[i], mu[i])
+		deviance += prior[i] * e.family.Deviance(yVec[i], mu[i])
 	}
 	deviance *= 2.0
 
@@ -381,7 +394,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	nullMu := e.family.SafeMean(yBar)
 	nullDeviance := 0.0
 	for i := 0; i < n; i++ {
-		nullDeviance += e.family.Deviance(yVec[i], nullMu)
+		nullDeviance += prior[i] * e.family.Deviance(yVec[i], nullMu)
 	}
 	nullDeviance *= 2.0
 
@@ -409,7 +422,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		pMap[name] = waldZTwoSidedP(beta[i+1], stdErrors[i+1])
 	}
 
-	return &types.RegressionResult{
+	res := &types.RegressionResult{
 		Name:           e.spec.Name,
 		Type:           types.REG_GLM,
 		Family:         e.family.Name,
@@ -422,7 +435,72 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		PseudoR2:       pseudoR2,
 		NObs:           n,
 		ConvergedIters: convergedIters,
-	}, nil
+	}
+	rw.note(res, sumW, sumWSq)
+	return res, nil
+}
+
+// buildWeightedDesign is buildDesign plus the per-row prior weights the
+// weighted IRLS reads (.claude/reference/weighting.md, Weighted
+// inference): a listwise-complete row enters with its weight when it is
+// valid and positive and is dropped otherwise (never entering n); the
+// weights are then mapped onto w* = w·N*/Σw (a multiply only under kind
+// probability), so the working weights, the covariance (XᵀW*X)⁻¹ and
+// the deviances are R glm(weights = w*). Unweighted, every prior weight
+// is exactly 1. sumW / sumWSq are Σw and Σw² of the raw weights.
+func buildWeightedDesign(records []Record, predictors []string, target string, rw rowWeights) (xRows, yVec, prior []float64, sumW, sumWSq float64) {
+	p := len(predictors)
+	xRows = make([]float64, 0, len(records)*(p+1))
+	yVec = make([]float64, 0, len(records))
+	prior = make([]float64, 0, len(records))
+	xBuf := make([]float64, p)
+	for _, rec := range records {
+		y, ok := rec.NumericValue(target)
+		if !ok {
+			continue
+		}
+		anyNull := false
+		for j, name := range predictors {
+			v, ok := rec.NumericValue(name)
+			if !ok {
+				anyNull = true
+				break
+			}
+			xBuf[j] = v
+		}
+		if anyNull {
+			continue
+		}
+		w, ok := rw.of(rec)
+		if !ok {
+			continue
+		}
+		xRows = append(xRows, 1)
+		xRows = append(xRows, xBuf...)
+		yVec = append(yVec, y)
+		prior = append(prior, w)
+		sumW += w
+		sumWSq += w * w
+	}
+	if c := rw.basis.Scale(sumW, sumWSq); c != 1 {
+		for i := range prior {
+			prior[i] *= c
+		}
+	}
+	return xRows, yVec, prior, sumW, sumWSq
+}
+
+// weightedMean is Σw·x / Σw — exactly mean(x) when every w is 1.
+func weightedMean(x, w []float64) float64 {
+	if len(x) == 0 {
+		return 0
+	}
+	s, sw := 0.0, 0.0
+	for i, v := range x {
+		s += w[i] * v
+		sw += w[i]
+	}
+	return s / sw
 }
 
 // buildDesign walks the record slice and emits the design matrix in

@@ -43,6 +43,13 @@ type AttributeFit struct {
 	// hat-matrix identity 1/n + …).
 	NObs int
 
+	// SumW is Σw over the rows that entered the fit — the exact float
+	// of NObs unweighted (the hat-matrix identity's n).
+	SumW float64
+
+	// weights is the refit's row weight (zero value: unweighted).
+	weights rowWeights
+
 	// GramInverse is M2_xx⁻¹ — the inverse of the centered predictor
 	// Gram matrix used to compute leverage. Populated only when the
 	// caller requests it (ATTR_REG_LEVERAGE); nil otherwise so the
@@ -108,7 +115,9 @@ func FitForAttribute(
 	}
 
 	p := len(spec.Predictors)
+	rw := newRowWeights(spec)
 	acc := newOLSAccumulator(p)
+	acc.basis = rw.basis
 	xBuf := make([]float64, p)
 	for _, rec := range records {
 		y, ok := rec.NumericValue(spec.Target)
@@ -127,7 +136,13 @@ func FitForAttribute(
 		if skip {
 			continue
 		}
-		acc.UpdateRow(xBuf, y)
+		// A weighted refit (the slot's stamped weight): a row whose
+		// weight is invalid or zero is excluded, as in olsEngine.
+		w, ok := rw.of(rec)
+		if !ok {
+			continue
+		}
+		acc.UpdateRowWeighted(xBuf, y, w)
 	}
 
 	// Dispatch to the same solver the engine uses. The solvers themselves
@@ -181,6 +196,8 @@ func FitForAttribute(
 		PredictorOrder: append([]string(nil), spec.Predictors...),
 		MeanX:          append([]float64(nil), acc.meanX...),
 		NObs:           acc.n,
+		SumW:           acc.sumW,
+		weights:        rw,
 	}
 
 	if needLeverage {
@@ -220,17 +237,28 @@ func FitForAttribute(
 	return fit, nil
 }
 
-// LeverageForRow computes hᵢᵢ for a single row given a centered-Gram
-// inverse and the streaming predictor means. The closed-form identity
-// for OLS with an intercept and centered predictors is
+// RowWeight is the weight rec carried in the refit: exactly 1
+// unweighted; ok=false when its weight is invalid or zero (the row was
+// excluded from the fit).
+func (f *AttributeFit) RowWeight(rec Record) (float64, bool) { return f.weights.of(rec) }
+
+// LeverageForRow computes hᵢᵢ for a single row of weight w given a
+// centered-Gram inverse and the streaming predictor means. The
+// closed-form identity for (weighted) OLS with an intercept and
+// centered predictors is
 //
-//	hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x)
+//	hᵢᵢ = wᵢ · (1/Σw + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x))
+//
+// — the diagonal of W½X(XᵀWX)⁻¹XᵀW½ (R hatvalues on a weighted lm),
+// with μ_x the weighted means and M2_xx the Σw-weighted centered Gram.
+// It is invariant to rescaling the weights, so identical across kinds;
+// w = 1 (unweighted, Σw = n) is the unweighted 1/n + quad bit for bit.
 //
 // Returns 0 when fit is nil or fit.GramInverse is nil — callers should
 // have validated upstream. Rows with any null predictor produce a
 // zero leverage; the attribute layer decides whether to emit zero or
 // flag missingness via the schema.
-func LeverageForRow(fit *AttributeFit, x []float64) float64 {
+func LeverageForRow(fit *AttributeFit, x []float64, w float64) float64 {
 	if fit == nil || fit.GramInverse == nil || fit.NObs == 0 {
 		return 0
 	}
@@ -248,5 +276,5 @@ func LeverageForRow(fit *AttributeFit, x []float64) float64 {
 		}
 		quad += dx[i] * row
 	}
-	return 1.0/float64(fit.NObs) + quad
+	return w * (1.0/fit.SumW + quad)
 }
