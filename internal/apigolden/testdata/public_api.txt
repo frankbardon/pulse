@@ -1998,6 +1998,7 @@ pulse/errors: const PULSE_TEST_VARIANCE_ZERO pulse/errors.Code = "PULSE_TEST_VAR
 pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_UNKNOWN"
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
 pulse/errors: const PULSE_WEIGHT_INVALID_ROWS pulse/errors.Code = "PULSE_WEIGHT_INVALID_ROWS"
+pulse/errors: const PULSE_WEIGHT_LOW_NEFF pulse/errors.Code = "PULSE_WEIGHT_LOW_NEFF"
 pulse/errors: const PULSE_WEIGHT_UNSUPPORTED pulse/errors.Code = "PULSE_WEIGHT_UNSUPPORTED"
 pulse/errors: const PULSE_WINDOW_INVALID pulse/errors.Code = "PULSE_WINDOW_INVALID"
 pulse/errors: func ParseCode(s string) (pulse/errors.Code, bool)
@@ -3846,4 +3847,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c3b4009b8559297f01e543fd64b93bf40e72f09141f02c2c63e07f34941464fc
+// golden-hash: ce795d65126292539122d998aa57c810b425e082d3e84612d35316bfb4ed6cae
