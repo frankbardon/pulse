@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -36,12 +37,39 @@ type pearsonRRow struct {
 	field2 string
 	alpha  float64
 
-	n     int64
-	meanX float64
-	meanY float64
-	m2X   float64
-	m2Y   float64
-	c     float64
+	m pearsonMoments
+
+	// testWeight: weighted, the moments are Σw-weighted (r is
+	// scale-free, identical across the kinds) and t / df / the Fisher
+	// CI read N* (df = N* − 2).
+	testWeight
+}
+
+// pearsonMoments is the bivariate weighted Welford–West state: the raw
+// row count, Σw, Σw², the weighted means, M2_x / M2_y (Σw·(x − x̄)²)
+// and the co-moment C = Σw·(x − x̄)(y − ȳ). Every weight is 1
+// unweighted, which reproduces the unweighted recurrence bit for bit.
+type pearsonMoments struct {
+	n                         int64
+	sumW, sumWSq              float64
+	meanX, meanY, m2X, m2Y, c float64
+}
+
+// add folds one (x, y) pair with weight w in the operation-order
+// exactness form (w·δ)/Σw, (w·δ)·δ'.
+func (m *pearsonMoments) add(x, y, w float64) {
+	m.n++
+	m.sumW += w
+	m.sumWSq += w * w
+	wdx := w * (x - m.meanX)
+	m.meanX += wdx / m.sumW
+	m.m2X += wdx * (x - m.meanX)
+	wdy := w * (y - m.meanY)
+	m.meanY += wdy / m.sumW
+	m.m2Y += wdy * (y - m.meanY)
+	// Cross-product uses the *original* deltaX and the *updated* deltaY
+	// (matches Welford's numerically stable two-pass form for covariance).
+	m.c += wdx * (y - m.meanY)
 }
 
 func newPearsonRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -75,11 +103,12 @@ func newPearsonRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) 
 		}
 	}
 	return &pearsonRRow{
-		spec:   spec,
-		schema: schema,
-		field:  spec.Field,
-		field2: spec.Field2,
-		alpha:  alpha,
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		field2:     spec.Field2,
+		alpha:      alpha,
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -92,29 +121,21 @@ func (p *pearsonRRow) UpdateRow(record *Record) error {
 	if !yOk {
 		return nil
 	}
-	p.n++
-	deltaX := x - p.meanX
-	p.meanX += deltaX / float64(p.n)
-	p.m2X += deltaX * (x - p.meanX)
-	deltaY := y - p.meanY
-	p.meanY += deltaY / float64(p.n)
-	p.m2Y += deltaY * (y - p.meanY)
-	// Cross-product uses the *original* deltaX and the *updated* deltaY
-	// (matches Welford's numerically stable two-pass form for covariance).
-	p.c += deltaX * (y - p.meanY)
+	w, ok := p.rowWeight(record)
+	if !ok {
+		return nil
+	}
+	p.m.add(x, y, w)
 	return nil
 }
 
 func (p *pearsonRRow) Finalize() (*types.TestResult, error) {
 	defer p.reset()
-	return finalizePearsonR(p.spec, "pearson", p.n, p.meanX, p.meanY, p.m2X, p.m2Y, p.c, p.alpha)
+	return finalizePearsonR(p.spec, "pearson", p.m, p.alpha, &p.testWeight)
 }
 
 func (p *pearsonRRow) reset() {
-	p.n = 0
-	p.meanX, p.meanY = 0, 0
-	p.m2X, p.m2Y = 0, 0
-	p.c = 0
+	p.m = pearsonMoments{}
 }
 
 // pearsonRPost implements TEST_PEARSON_R as a tier-2 post-test on the
@@ -164,10 +185,7 @@ func newPearsonRPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 }
 
 func (p *pearsonRPost) Run(rows []map[string]any) (*types.TestResult, error) {
-	var (
-		n                         int64
-		meanX, meanY, m2X, m2Y, c float64
-	)
+	var m pearsonMoments
 	for i, row := range rows {
 		x, err := floatFromRow(row, p.field, i)
 		if err != nil {
@@ -177,25 +195,43 @@ func (p *pearsonRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		n++
-		deltaX := x - meanX
-		meanX += deltaX / float64(n)
-		m2X += deltaX * (x - meanX)
-		deltaY := y - meanY
-		meanY += deltaY / float64(n)
-		m2Y += deltaY * (y - meanY)
-		c += deltaX * (y - meanY)
+		m.add(x, y, 1)
 	}
-	return finalizePearsonR(p.spec, "pearson_post", n, meanX, meanY, m2X, m2Y, c, p.alpha)
+	return finalizePearsonR(p.spec, "pearson_post", m, p.alpha, nil)
 }
 
 // finalizePearsonR reduces Welford moments to a TestResult. Shared
-// between tier-1 (row stream) and tier-2 (post-pipeline rows).
-func finalizePearsonR(spec *types.Test, variant string, n int64, meanX, meanY, m2X, m2Y, c, alpha float64) (*types.TestResult, error) {
+// between tier-1 (row stream) and tier-2 (post-pipeline rows, tw nil:
+// unweighted). Weighted, t, df and the Fisher CI read N* and the
+// variances / covariance are on w*.
+func finalizePearsonR(spec *types.Test, variant string, m pearsonMoments, alpha float64, tw *testWeight) (*types.TestResult, error) {
+	n, meanX, meanY, m2X, m2Y, c := m.n, m.meanX, m.meanY, m.m2X, m.m2Y, m.c
+	basis := weighting.Unweighted
+	if tw != nil {
+		basis = tw.basis
+	}
+	nStar := basis.NStar(m.sumW, m.sumWSq)
+	// scaled maps a Σw-weighted second moment onto w* (c = N*/Σw; no
+	// multiply unless probability).
+	scaled := func(x float64) float64 {
+		if basis != weighting.Probability {
+			return x
+		}
+		return basis.Scale(m.sumW, m.sumWSq) * x
+	}
 	if n < 3 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_PEARSON_R requires n ≥ 3, got %d", n),
 			map[string]any{"n": n, "min_required": 3})
+	}
+	// Probability weights: Kish n_eff can sit in [1, 2] while n ≥ 3,
+	// leaving df = N* − 2 ≤ 0 and an undefined t / p — refused like
+	// TEST_ANOVA_F's N* ≤ k (U12 review WS-12). Never under frequency
+	// or unweighted, where N* ≥ n ≥ 3.
+	if df := nStar - 2; !(df > 0) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
+			fmt.Sprintf("TEST_PEARSON_R: effective sample size n_eff = %.4g leaves df = n_eff − 2 ≤ 0; the test needs n_eff > 2", nStar),
+			map[string]any{"n": n, "n_eff": nStar, "df": df, "min_required": 3})
 	}
 	denom := math.Sqrt(m2X * m2Y)
 	if denom == 0 {
@@ -209,7 +245,7 @@ func finalizePearsonR(spec *types.Test, variant string, n int64, meanX, meanY, m
 	} else if r < -1 {
 		r = -1
 	}
-	df := float64(n - 2)
+	df := nStar - 2
 	var t, pvalue float64
 	switch {
 	case r == 1 || r == -1:
@@ -220,16 +256,16 @@ func finalizePearsonR(spec *types.Test, variant string, n int64, meanX, meanY, m
 		pvalue = statdist.StudentTTwoSidedP(t, df)
 	}
 	var ciLow, ciHigh float64
-	if n >= 4 && math.Abs(r) < 1 {
+	if n >= 4 && nStar > 3 && math.Abs(r) < 1 {
 		zr := math.Atanh(r)
-		seZ := 1.0 / math.Sqrt(float64(n-3))
-		zCrit := math.Sqrt2 * inverseErf(1-alpha)
+		seZ := 1.0 / math.Sqrt(nStar-3)
+		zCrit := normalCriticalTwoSided(alpha)
 		ciLow = math.Tanh(zr - zCrit*seZ)
 		ciHigh = math.Tanh(zr + zCrit*seZ)
 	} else {
 		ciLow, ciHigh = r, r
 	}
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(spec),
 		Type:       types.TEST_PEARSON_R,
 		Variant:    variant,
@@ -245,9 +281,14 @@ func finalizePearsonR(spec *types.Test, variant string, n int64, meanX, meanY, m
 			"ci_high":    ciHigh,
 			"mean_x":     meanX,
 			"mean_y":     meanY,
-			"variance_x": m2X / float64(n-1),
-			"variance_y": m2Y / float64(n-1),
-			"covariance": c / float64(n-1),
+			"variance_x": scaled(m2X) / (nStar - 1),
+			"variance_y": scaled(m2Y) / (nStar - 1),
+			"covariance": scaled(c) / (nStar - 1),
 		},
-	}, nil
+	}
+	if tw != nil {
+		tw.noteScalar(res.Details, m.sumW, m.sumWSq)
+		tw.checkNEff(spec, false, "", weighting.KishNEff(m.sumW, m.sumWSq), 3)
+	}
+	return res, nil
 }

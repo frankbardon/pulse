@@ -1958,6 +1958,12 @@
         "link": {
           "type": "string"
         },
+        "n_eff": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "n_obs": {
           "type": "integer"
         },
@@ -2026,6 +2032,12 @@
             ]
           },
           "type": "object"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
@@ -2804,4 +2816,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7f1ac4c9ae48469629f36a330db4891e5550f7c582c8ce66977f10d6ea8d0e6f
+// golden-hash: 6d10c67a6445f867b82b1f605d545f33ca10d60b90276a755063fb53fc87c03b

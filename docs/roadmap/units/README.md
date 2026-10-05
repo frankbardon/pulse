@@ -49,7 +49,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U09 | [guidance-backfill-descriptive](U09-guidance-backfill-descriptive.md): Every operator carries guidance, and the guidance gates are binding | Guided analysis | L | U08 (U36 soft) | 46, 47, 48, 49 |
 | U10 | [skill-ontology](U10-skill-ontology.md): Agents only ever see skills and examples for features the instance has | Feature profiles | L | U05, U09 | 24, 25, 26, 27, 28 |
 | U11 | [weighting-descriptive](U11-weighting-descriptive.md): Weighted counts, percentages and crosstabs are correct by default when a weight is set | Statistical integrity | L | U04 | 50, 51, 52, 53, 54, 57, 58 |
-| U12 | [weighting-inferential](U12-weighting-inferential.md): Significance tests and models are correct on weighted survey data | Statistical integrity | M | U11 | 55, 56, 59 |
+| U12 | [weighting-inferential](U12-weighting-inferential.md): Significance tests and models are correct on weighted survey data | Statistical integrity | L | U11 | 55, 56, 59 |
 | U13 | [multiplicity](U13-multiplicity.md): Analysts can correct for multiple comparisons in one consistent way | Statistical integrity | M | U04 | 60, 61, 62, 63, 64, 65 |
 | U14 | [zone-aware-operators](U14-zone-aware-operators.md): Days, weeks and date ranges can mean local calendar days, while storage stays UTC | Time zones | M | U03 | 69, 70, 71, 72 |
 | U15 | [linalg-core](U15-linalg-core.md): One trusted linear-algebra core and a mergeable co-moment accumulator, with no user-visible change | Vector & matrix | M | U02, U02b | 73, 74, 75, 76, 77 |
@@ -188,7 +188,7 @@ graph TD
 - **U02 public-surface:** none blocking — the downstream catalog is delivered (#1) and the classification decided (#2); whether U02 or U02b moves `processing` is the implementer's call
 - **U08 guidance-backfill-inferential:** done without a human reviewer — an automated review (deterministic gates + an advisory LLM panel) is recorded in [`reviews/U08-statistics-review.md`](../reviews/U08-statistics-review.md); human sign-off moved to U33
 - **U09 guidance-backfill-descriptive:** done without a human reviewer — an automated review is the U09 section of [`reviews/U08-statistics-review.md`](../reviews/U08-statistics-review.md); human sign-off moved to U33 (#206)
-- **U12 weighting-inferential:** Reviewer glance at the `n_eff` semantics (the U33 statistics reviewer)
+- **U12 weighting-inferential:** done without a human reviewer — an automated review of the `n_eff` semantics and every lifted weighted formula is recorded in [`reviews/U12-weighting-review.md`](../reviews/U12-weighting-review.md); the human glance moved to U33 (#206)
 - **U24 matrix-operators:** Statistics reviewer for Purpose/Interpretation of the new operators
 - **U25 multivariate-tests-segmentation:** Statistics reviewer
 - **U28 matrix-overlays:** Decide the correspondence-analysis payload shape (open question in vm6)

@@ -312,7 +312,7 @@ func (e *modifierEngine) fitOLSInterceptOnly(records []Record) (*types.Regressio
 	seMap := map[string]float64{InterceptKey: se0}
 	pMap := map[string]float64{}
 	if se0 > 0 {
-		pMap[InterceptKey] = pValueForCoefficient(fit.Intercept, se0, n-1)
+		pMap[InterceptKey] = pValueForCoefficient(fit.Intercept, se0, float64(n-1))
 	}
 	residualStdErr := 0.0
 	if sigma2 > 0 {

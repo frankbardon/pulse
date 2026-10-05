@@ -96,9 +96,9 @@ func TestWeight_DefaultWeightsCoreAggregators(t *testing.T) {
 }
 
 // TestWeight_ClassRefusalsMatchPredict: an explicit weight on a
-// not-weightable aggregator is PROCESSING_CONFIG and any weight on
-// AGG_CI_* is PULSE_WEIGHT_UNSUPPORTED — identically at runtime and in
-// predict; `weight: null` opts out.
+// not-weightable aggregator is PROCESSING_CONFIG — identically at
+// runtime and in predict. AGG_CI_* (refused until U12 E5-S1) now
+// applies the instance default and reports the weighted floor.
 func TestWeight_ClassRefusalsMatchPredict(t *testing.T) {
 	fs, cohort := weightedCohort(t)
 	ctx := context.Background()
@@ -115,7 +115,6 @@ func TestWeight_ClassRefusalsMatchPredict(t *testing.T) {
 	}{
 		"explicit on MIN":   {one(&types.Aggregation{Type: types.AGG_MIN, Field: "x", Weight: types.SlotWeightField("w")}, nil), errors.PROCESSING_CONFIG},
 		"request on MIN":    {one(&types.Aggregation{Type: types.AGG_MIN, Field: "x"}, &types.WeightSpec{Field: "w"}), errors.PROCESSING_CONFIG},
-		"default on CI":     {one(&types.Aggregation{Type: types.AGG_CI_LOWER, Field: "x"}, nil), errors.PULSE_WEIGHT_UNSUPPORTED},
 		"weighted mean nil": {one(&types.Aggregation{Type: types.AGG_WEIGHTED_MEAN, Field: "x", Weight: types.NullSlotWeight()}, nil), errors.PROCESSING_CONFIG},
 	}
 	for name, tc := range cases {
@@ -125,7 +124,11 @@ func TestWeight_ClassRefusalsMatchPredict(t *testing.T) {
 			sameEntry(t, predictEnvelope(t, p, fs, cohort, tc.req), rerr)
 		})
 	}
-	if _, err := p.Process(ctx, one(&types.Aggregation{Type: types.AGG_CI_LOWER, Field: "x", Weight: types.NullSlotWeight()}, nil)); err != nil {
-		t.Fatalf("opted-out CI refused: %v", err)
+	resp, err := p.Process(ctx, one(&types.Aggregation{Type: types.AGG_CI_LOWER, Field: "x"}, nil))
+	if err != nil {
+		t.Fatalf("CI under the default weight: %v", err)
+	}
+	if c := resp.Components; c == nil || len(c.Aggregations) != 1 || c.Aggregations[0].SumWeights == nil {
+		t.Fatalf("CI under the default weight: no weighted floor (%+v)", c)
 	}
 }

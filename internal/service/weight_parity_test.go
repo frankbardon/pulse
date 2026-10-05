@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -74,6 +75,13 @@ type parityOp struct {
 	// property for it, and the probability contract is scale invariance
 	// (TestWeightProbabilityQuantileScaleInvariance) instead.
 	scaleNormalized bool
+	// kishScaled marks an inferential figure whose PROBABILITY weights
+	// read Kish n_eff (not Σw) as the sample size (AGG_CI_*): expansion
+	// equivalence is a frequency-weight property for it, and its
+	// probability arm in TestWeightFrequencyExpansionParity is scale
+	// invariance (weights × testScaleC answer the same figure, within
+	// tolerance) instead.
+	kishScaled bool
 }
 
 func (o parityOp) baselineOp() types.AggregationType {
@@ -114,6 +122,10 @@ var parityOps = []parityOp{
 	{op: types.AGG_SET_FREQUENCY, fields: []string{"s"}, expandExact: []string{"s"}},
 	{op: types.AGG_SET_CARDINALITY_SUM, fields: []string{"s"}, expandExact: []string{"s"}},
 	{op: types.AGG_SET_CARDINALITY_AVG, fields: []string{"s"}, expandExact: []string{"s"}},
+	// weighting-inferential E5-S1: the normal-critical CI bounds (stderr
+	// on N*), mergeable — every arm.
+	{op: types.AGG_CI_LOWER, fields: []string{"x", "y"}, params: json.RawMessage(`{"confidence":0.9}`), kishScaled: true},
+	{op: types.AGG_CI_UPPER, fields: []string{"x", "y"}, kishScaled: true},
 }
 
 // --- fixture ------------------------------------------------------------
@@ -126,7 +138,24 @@ func paritySchema() *encoding.Schema {
 		{Name: "g", Type: encoding.FieldTypeU8, ByteOffset: 20, CsvColumnIdx: 3},
 		{Name: "w", Type: encoding.FieldTypeF64, ByteOffset: 21, CsvColumnIdx: 4},
 		{Name: "s", Type: encoding.FieldTypeSetU8, ByteOffset: 29, CsvColumnIdx: 5, Nullable: true, Dictionary: parityDict()},
+		// Categorical axes for the test-slot harness (weight_tests_parity_test.go).
+		{Name: "h", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 30, CsvColumnIdx: 6, Dictionary: parityCatDict("a", "b")},
+		{Name: "k", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 31, CsvColumnIdx: 7, Dictionary: parityCatDict("p", "q", "r")},
+		{Name: "o", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 32, CsvColumnIdx: 8, Dictionary: parityCatDict("maybe", "no", "yes")},
+		// A 0 / 1 target for the binomial GLM rows (weight_regs_parity_test.go).
+		{Name: "b", Type: encoding.FieldTypeU8, ByteOffset: 33, CsvColumnIdx: 9},
 	}}
+}
+
+// parityCatDict is a categorical column's dictionary (entry i = id i).
+func parityCatDict(labels ...string) *encoding.Dictionary {
+	d := encoding.NewDictionary()
+	for _, l := range labels {
+		if _, err := d.Add(l); err != nil {
+			panic(err)
+		}
+	}
+	return d
 }
 
 // parityDict is the set column's five-member dictionary.
@@ -142,7 +171,9 @@ func parityDict() *encoding.Dictionary {
 
 // parityRow is one fixture record. x is integer-valued (exact sums), y
 // fractional (operation-order sensitive); both carry nulls. s is a set
-// mask over five members (empty on some rows, null on others).
+// mask over five members (empty on some rows, null on others). h, k and
+// o are categorical dictionary ids (two-, three- and three-level) the
+// test slots split and tabulate by; b a 0 / 1 GLM target.
 type parityRow struct {
 	id           uint32
 	x, y, w      float64
@@ -150,6 +181,8 @@ type parityRow struct {
 	g            uint8
 	s            uint64
 	sNull        bool
+	h, k, o      uint8
+	b            uint8
 }
 
 func parityRows(n int, weight func(i int) float64) []parityRow {
@@ -165,6 +198,10 @@ func parityRows(n int, weight func(i int) float64) []parityRow {
 			w:     weight(i),
 			s:     uint64((i * 11) % 32),
 			sNull: i%13 == 6,
+			h:     uint8(i % 2),
+			k:     uint8((i / 2) % 3),
+			o:     uint8((i*5 + i/3) % 3),
+			b:     uint8((i*7/3 + i/11) % 2),
 		}
 	}
 	return rows
@@ -193,7 +230,8 @@ func encodeParityRows(t testing.TB, rows []parityRow) []byte {
 	t.Helper()
 	recs := make([][]uint64, len(rows))
 	for i, r := range rows {
-		recs[i] = []uint64{uint64(r.id), math.Float64bits(r.x), math.Float64bits(r.y), uint64(r.g), math.Float64bits(r.w), r.s}
+		recs[i] = []uint64{uint64(r.id), math.Float64bits(r.x), math.Float64bits(r.y), uint64(r.g), math.Float64bits(r.w), r.s,
+			uint64(r.h), uint64(r.k), uint64(r.o), uint64(r.b)}
 	}
 	return writeNullablePulse(t, paritySchema(), recs, func(r, f int) bool {
 		return (f == 1 && rows[r].xNull) || (f == 2 && rows[r].yNull) || (f == 5 && rows[r].sNull)
@@ -302,7 +340,7 @@ func parityModes() []parityMode {
 			cohort: paritySingleFile,
 			// ATTR_ZSCORE is two-pass; opted out of the weight.
 			shape: func(req *types.Request) {
-				req.Attributes = []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "y", Label: paritySteer + "z", Weight: types.NullSlotWeight()}}
+				req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_ZSCORE, Field: "y", Label: paritySteer + "z", Weight: types.NullSlotWeight()})
 			},
 			configure: serial,
 			applies:   func(_ *testing.T, _ *Service, req *types.Request, _ *Cohort) bool { return streams(req) },
@@ -408,9 +446,30 @@ func paritySources() []paritySource {
 		{name: "request_frequency", kind: types.WeightKindFrequency, apply: request},
 		{name: "slot", kind: types.WeightKindProbability, apply: func(req *types.Request, _ *Service, spec types.WeightSpec) *types.WeightSpec {
 			for _, a := range req.Aggregations {
+				// An explicit slot weight (an opted-out read-back) stays.
+				if !strings.HasPrefix(a.Label, paritySteer) && a.Weight.IsZero() {
+					a.Weight = types.SlotWeightOf(spec)
+				}
+			}
+			for _, ts := range req.Tests {
+				ts.Weight = types.SlotWeightOf(spec)
+			}
+			for _, r := range req.Regressions {
+				r.Weight = types.SlotWeightOf(spec)
+			}
+			for _, a := range req.Attributes {
 				if !strings.HasPrefix(a.Label, paritySteer) {
 					a.Weight = types.SlotWeightOf(spec)
 				}
+			}
+			// Groupers (the GROUP_QUANTILE rows); any other grouper skips
+			// its weight.
+			groups := req.Groups
+			if ct := req.Crosstab; ct != nil {
+				groups = append(append(append([]*types.Group(nil), groups...), ct.Rows...), ct.Columns...)
+			}
+			for _, g := range groups {
+				g.Weight = types.SlotWeightOf(spec)
 			}
 			return nil
 		}},
@@ -436,10 +495,20 @@ func parityRequest(path string, row parityOp, op types.AggregationType) *types.R
 // result means the arm does not apply to this operator.
 func runArm(t *testing.T, store *parityStore, mode parityMode, path string, row parityOp, op types.AggregationType, src *paritySource) *types.Response {
 	t.Helper()
+	return runArmRequest(t, store, mode, path, func() *types.Request { return parityRequest(path, row, op) }, src)
+}
+
+// runArmRequest is runArm for any request shape: build returns a fresh
+// request over path (the arm's shape and the weight source are applied
+// on top). The test-slot harness (weight_tests_parity_test.go) and any
+// later regression / attribute / grouper / overlay harness run through
+// it.
+func runArmRequest(t *testing.T, store *parityStore, mode parityMode, path string, build func() *types.Request, src *paritySource) *types.Response {
+	t.Helper()
 	cfg := store.cfg(mode.cohort)
 	svc := New(cfg)
 	mode.configure(svc)
-	req := parityRequest(path, row, op)
+	req := build()
 	mode.shape(req)
 	var def *types.WeightSpec
 	if src != nil {
@@ -480,19 +549,22 @@ func manifestAware() map[string]descriptor.Operator {
 
 func assertParityCoverage(t *testing.T) {
 	t.Helper()
-	aware := manifestAware()
-	rows := map[string]bool{}
+	have := map[string][]types.WeightKind{}
 	for _, r := range parityOps {
-		rows[string(r.op)] = true
-		if _, ok := aware[string(r.op)]; !ok {
-			t.Errorf("parityOps row %s: the manifest does not mark it weight_aware — drop the row or fix the class table", r.op)
+		have[string(r.op)] = paritySourceKinds()
+	}
+	assertWeightKindCoverage(t, weightSurfaceAggregators, have, "parityOps, weight_parity_test.go")
+}
+
+// paritySourceKinds is the set of kinds paritySources exercises.
+func paritySourceKinds() []types.WeightKind {
+	var out []types.WeightKind
+	for _, s := range paritySources() {
+		if !slices.Contains(out, s.kind) {
+			out = append(out, s.kind)
 		}
 	}
-	for name := range aware {
-		if !rows[name] {
-			t.Errorf("%s is weight_aware in the manifest but has no parityOps row — add one (weight_parity_test.go)", name)
-		}
-	}
+	return out
 }
 
 // stripSteer drops the arm-steering slots from a response.
@@ -529,6 +601,9 @@ func TestWeightUnityParity(t *testing.T) {
 	t.Run("coverage", assertParityCoverage)
 	aware := manifestAware()
 	store := newParityStore(t, "unity", func(n int) []parityRow { return parityRows(n, unityWeight) })
+	t.Run("tests", func(t *testing.T) { testUnityParity(t, store) })
+	t.Run("regressions", func(t *testing.T) { regUnityParity(t, store) })
+	t.Run("groupers", func(t *testing.T) { groupUnityParity(t, store) })
 	for _, mode := range parityModes() {
 		for _, row := range parityOps {
 			t.Run(mode.name+"/"+string(row.op), func(t *testing.T) {
@@ -631,6 +706,12 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 	t.Run("coverage", assertParityCoverage)
 	weighted := newParityStore(t, "weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	expanded := newParityStore(t, "expanded", func(n int) []parityRow { return expandRows(parityRows(n, freqWeight)) })
+	scaled := newParityStore(t, "scaled", func(n int) []parityRow {
+		return parityRows(n, func(i int) float64 { return freqWeight(i) * testScaleC })
+	})
+	t.Run("tests", func(t *testing.T) { testExpansionParity(t, weighted, expanded, scaled) })
+	t.Run("regressions", func(t *testing.T) { regExpansionParity(t, weighted, expanded, scaled) })
+	t.Run("groupers", func(t *testing.T) { groupExpansionParity(t, weighted, expanded, scaled) })
 	kinds := []paritySource{paritySources()[0], paritySources()[1]}
 	for _, mode := range parityModes() {
 		for _, row := range parityOps {
@@ -645,6 +726,14 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 					t.Run(src.name, func(t *testing.T) {
 						if row.scaleNormalized && src.kind == types.WeightKindProbability {
 							t.Skip("probability weights are scale-normalized for this operator; see TestWeightProbabilityQuantileScaleInvariance")
+						}
+						if row.kishScaled && src.kind == types.WeightKindProbability {
+							want := runArm(t, weighted, mode, weighted.paths[mode.cohort], row, row.op, &src)
+							stripSteer(want)
+							got := runArm(t, scaled, mode, scaled.paths[mode.cohort], row, row.op, &src)
+							stripSteer(got)
+							assertKishScaled(t, got, want)
+							return
 						}
 						got := runArm(t, weighted, mode, weighted.paths[mode.cohort], row, row.op, &src)
 						stripSteer(got)
@@ -676,6 +765,7 @@ func TestWeightProbabilityQuantileScaleInvariance(t *testing.T) {
 			return parityRows(n, func(i int) float64 { return fracWeight(i) * c })
 		})
 	}
+	t.Run("groupers", func(t *testing.T) { groupScaleInvariance(t, base, stores) })
 	src := paritySources()[0] // request_probability
 	ran := 0
 	for _, mode := range parityModes() {
@@ -708,6 +798,28 @@ func TestWeightProbabilityQuantileScaleInvariance(t *testing.T) {
 	}
 	if ran == 0 {
 		t.Fatal("no arm ran a scale-normalized operator: the gate is vacuous")
+	}
+}
+
+// assertKishScaled: weights × testScaleC under kind probability answer
+// the same Data and operator components (n_eff, hence every Kish-read
+// figure, is scale-free) within testExpandTol; the floor's n_eff is
+// unchanged and its sum_weights × testScaleC.
+func assertKishScaled(t *testing.T, got, want *types.Response) {
+	t.Helper()
+	compareTestWire(t, "data", toJSONValue(t, got.Data), toJSONValue(t, want.Data), 1, testScaleC, nil, nil)
+	ga, wa := got.Components.Aggregations, want.Components.Aggregations
+	if len(ga) != len(wa) {
+		t.Fatalf("%d component slots, unscaled %d", len(ga), len(wa))
+	}
+	for i := range wa {
+		if ga[i].NEff == nil || wa[i].NEff == nil {
+			t.Fatalf("slot %s: no n_eff — the probability weight did not apply", ga[i].Label)
+		}
+		if !relClose(*ga[i].NEff, *wa[i].NEff, testExpandTol) || !relClose(*ga[i].SumWeights, *wa[i].SumWeights*testScaleC, testExpandTol) {
+			t.Errorf("slot %s: floor n_eff %v / sum_weights %v, unscaled %v / %v", ga[i].Label, *ga[i].NEff, *ga[i].SumWeights, *wa[i].NEff, *wa[i].SumWeights)
+		}
+		compareTestWire(t, "components."+ga[i].Label, toJSONValue(t, ga[i].Operator), toJSONValue(t, wa[i].Operator), 1, testScaleC, nil, nil)
 	}
 }
 

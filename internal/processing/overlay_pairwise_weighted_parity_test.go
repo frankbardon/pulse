@@ -21,6 +21,7 @@ import (
 // is a contract break.
 func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
 	wspec := types.WeightSpec{Field: "weight"}
+	freq := types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency}
 	cases := []struct {
 		name   string
 		params string
@@ -30,7 +31,10 @@ func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
 		slot     types.SlotWeight
 		req, def bool
 	}{
-		{name: "weights_ok", params: `{"n_basis":"weights"}`, cell: types.AGG_WEIGHTED_MEAN},
+		// n_basis "weights" on the weight_field sugar's probability host
+		// reads Σw as n: refused by both arms (U12 review WS-06).
+		{name: "weights_probability_refused", params: `{"n_basis":"weights"}`, cell: types.AGG_WEIGHTED_MEAN},
+		{name: "weights_frequency_ok", params: `{"n_basis":"weights"}`, cell: types.AGG_AVERAGE, slot: types.SlotWeightOf(freq)},
 		{name: "kish_ok", params: `{"n_basis":"kish"}`, cell: types.AGG_WEIGHTED_MEAN},
 		{name: "missing_n_basis", params: `{}`, cell: types.AGG_WEIGHTED_MEAN},
 		{name: "empty_n_basis", params: `{"n_basis":""}`, cell: types.AGG_WEIGHTED_MEAN},
@@ -43,7 +47,7 @@ func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
 		// A WEIGHTED AGG_AVERAGE cell emits the weighted moments (FR-18):
 		// accepted whichever source weights it, refused once opted out.
 		{name: "weighted_average_slot", params: `{"n_basis":"kish"}`, cell: types.AGG_AVERAGE, slot: types.SlotWeightOf(wspec)},
-		{name: "weighted_average_request", params: `{"n_basis":"weights"}`, cell: types.AGG_AVERAGE, req: true},
+		{name: "weighted_average_request", params: `{"n_basis":"kish"}`, cell: types.AGG_AVERAGE, req: true},
 		{name: "weighted_average_default", params: `{"n_basis":"kish"}`, cell: types.AGG_AVERAGE, def: true},
 		{name: "average_opted_out", params: `{"n_basis":"kish"}`, cell: types.AGG_AVERAGE, slot: types.NullSlotWeight(), req: true},
 	}
@@ -102,7 +106,10 @@ func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
 	if refusals == 0 {
 		t.Fatal("no case refused: the parity table is vacuous")
 	}
-	for _, name := range []string{"weighted_average_slot", "weighted_average_request", "weighted_average_default"} {
+	if accepted["weights_probability_refused"] {
+		t.Error("n_basis weights on a probability host must be refused by both arms")
+	}
+	for _, name := range []string{"weighted_average_slot", "weighted_average_request", "weighted_average_default", "weights_frequency_ok"} {
 		if !accepted[name] {
 			t.Errorf("%s: a weighted AGG_AVERAGE host must be accepted by both arms", name)
 		}

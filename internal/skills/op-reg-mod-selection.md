@@ -48,6 +48,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 - Worst-case `O(p²)` fits (`stepwise`); on wide tables prefer `forward`.
 - Composes with `resample` — the resample wraps the selected-feature fit.
 - Selection inflates type-I error on retained predictors; treat the model as exploratory.
+- Never weighted: any row weight in force on the regression (slot, request or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; `"weight": null` on the slot runs it unweighted.
 
 ## See
 

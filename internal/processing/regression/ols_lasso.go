@@ -102,7 +102,9 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 		)
 	}
 
-	n := float64(a.n)
+	// Σw in place of n (exactly n unweighted): the objective is
+	// (1/2Σw)·Σw·r² + penalty, scale-free in w.
+	n := a.sumW
 	lambdaL1 := alpha * l1Ratio
 	lambdaL2 := alpha * (1 - l1Ratio)
 
@@ -182,16 +184,15 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 		}
 	}
 
-	df := a.n - p - 1
-	sigma2 := rss / float64(df)
-	if sigma2 < 0 {
-		sigma2 = 0
-	}
+	df := a.residualDF()
+	// NaN when df ≤ 0 (residualVariances): no clamp, so the standard
+	// errors below stay NaN rather than claiming perfect precision.
+	sigma2Gram, sigma2 := a.residualVariances(rss)
 	tss := a.m2YY
 	var r2, adjR2 float64
 	if tss > 0 {
 		r2 = 1 - rss/tss
-		adjR2 = 1 - (1-r2)*float64(a.n-1)/float64(df)
+		adjR2 = a.adjustedR2(r2, df)
 	}
 
 	// Naive plug-in SE for the active set. The SE of a coordinate that
@@ -213,7 +214,7 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 			stdErrors[j+1] = 0
 			continue
 		}
-		stdErrors[j+1] = sqrt(sigma2 / a.m2XX[j*p+j])
+		stdErrors[j+1] = sqrt(sigma2Gram / a.m2XX[j*p+j])
 	}
 	// Intercept SE: σ²/n + plug-in quad term over the active set.
 	quad := 0.0
@@ -221,9 +222,9 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 		if coeffs[j] == 0 || a.m2XX[j*p+j] <= 0 {
 			continue
 		}
-		quad += sigma2 * a.meanX[j] * a.meanX[j] / a.m2XX[j*p+j]
+		quad += sigma2Gram * a.meanX[j] * a.meanX[j] / a.m2XX[j*p+j]
 	}
-	seInt := sigma2/float64(a.n) + quad
+	seInt := sigma2Gram/a.sumW + quad
 	if seInt < 0 {
 		seInt = 0
 	}

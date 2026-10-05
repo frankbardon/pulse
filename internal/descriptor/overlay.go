@@ -2,11 +2,13 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -223,7 +225,18 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	if types.PairwiseKindUsesWelford(spec.Kind) {
 		const welfordReason = "n, mean and variance all come from the AGG_WELFORD triple {mean, variance, n}, so the mode selector is inert on this kind"
 		refused := nBasisRefused
-		if params.NSource != "" {
+		// Weighted-host n_source rule (weighting.NSourceRefusal): on a
+		// weighted cell the legs read N*, so a raw-row-count source (or
+		// the weight sum under kind probability) is PROCESSING_CONFIG —
+		// the runtime's code (processing.runPairwiseOverlay) — in place
+		// of the inertness refusal below.
+		if reason := weighting.NSourceRefusal(params.NSource, crosstabCellWeightBasis(req, opts)); reason != "" {
+			env.AddError(string(errors.PROCESSING_CONFIG),
+				"overlay "+string(spec.Kind)+" n_source "+params.NSource+": "+reason,
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
+					"n_source": params.NSource})
+			refused = true
+		} else if params.NSource != "" {
 			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+welfordReason+
 					". Remove n_source"+pairwiseProportionAdvice(opts, "read a proportion and a separate n leg"),
@@ -305,6 +318,16 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 					"n_basis":   params.NBasis,
 					"supported": []string{types.PairwiseNBasisWeights, types.PairwiseNBasisKish}})
 			refused = true
+		} else if reason := weighting.NBasisRefusal(params.NBasis, crosstabCellWeightBasis(req, opts)); reason != "" {
+			// n_basis "weights" on a probability-weighted cell reads Σw
+			// as n (U12 review WS-06): the runtime twin is
+			// processing.applyPairwiseWeightedTwoMeansZ, same code and
+			// message.
+			env.AddError(string(errors.PROCESSING_CONFIG),
+				"overlay "+string(spec.Kind)+" n_basis "+params.NBasis+": "+reason,
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_basis",
+					"n_basis": params.NBasis})
+			refused = true
 		}
 		if refused {
 			return
@@ -315,6 +338,16 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" has unknown n_source: "+params.NSource,
 			map[string]any{"index": index, "kind": string(spec.Kind), "n_source": params.NSource})
+		return
+	}
+	// Weighted-host n_source rule on the proportion kinds
+	// (weighting-inferential E3-S2): the runtime twin is
+	// processing.runPairwiseOverlay, same code and message.
+	if reason := weighting.NSourceRefusal(params.NSource, crosstabCellWeightBasis(req, opts)); reason != "" {
+		env.AddError(string(errors.PROCESSING_CONFIG),
+			"overlay "+string(spec.Kind)+" n_source "+params.NSource+": "+reason,
+			map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
+				"n_source": params.NSource})
 		return
 	}
 	if !types.ValidPairwisePSource(params.PSource) {
@@ -1247,6 +1280,21 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 // `opts.Extensions` for embedder-side state. Most kinds do not
 // consume opts today; the FORMULA dispatch reads
 // `opts.Extensions.ExprFunctions` to widen the allowed identifier set.
+// validateOverlayHiddenFloor is the predict twin of the runtime's
+// components-disabled refusal (processing.ApplyOverlaysWithExtensions,
+// weighting-inferential E3-S3): a kind that scales the host's Σw by the
+// n_eff on its floor, over a crosstab cell weighted under kind
+// probability whose components are disabled (the request's
+// disable_components, else Options.DisableComponents).
+func validateOverlayHiddenFloor(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
+	if !weighting.ScalesByHostFloor(spec.Kind) || !opts.componentsDisabled(req) ||
+		crosstabCellWeightBasis(req, opts) != weighting.Probability {
+		return
+	}
+	msg, details := weighting.HiddenFloorRefusal("overlays["+strconv.Itoa(index)+"]", spec.Kind, "crosstab.cell")
+	env.AddError(string(errors.PROCESSING_CONFIG), msg, details)
+}
+
 func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if spec == nil {
 		return
@@ -1270,10 +1318,13 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	switch spec.Kind {
 	case types.OverlayKindChiSqCol:
 		validateOverlayChiSqCol(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqMatrix:
 		validateOverlayChiSqMatrix(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqRow:
 		validateOverlayChiSqRow(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqVsPop,
 		types.OverlayKindIndexVsPop,
 		types.OverlayKindKSVsPop,
@@ -1306,6 +1357,14 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayDeltaVsSibling(env, req, spec, index)
 	case types.OverlayKindFisherExactCell:
 		validateOverlayFisherExactCell(env, req, spec, index)
+		// Frequency-only on a host whose crosstab cell resolves a
+		// probability weight the overlay slot itself does not see
+		// (weighting-inferential E3-S2); the runtime twin is
+		// processing.ApplyOverlaysWithExtensions, same code and message.
+		if crosstabCellWeightBasis(req, opts) == weighting.Probability {
+			msg, details := weighting.FrequencyOnlyHostRefusal("overlays["+strconv.Itoa(index)+"]", string(spec.Kind))
+			env.AddError(string(errors.PULSE_WEIGHT_UNSUPPORTED), msg, details)
+		}
 	case types.OverlayKindPairwiseProbitT,
 		types.OverlayKindPairwisePropZ,
 		types.OverlayKindPairwiseTwoMeansZ,

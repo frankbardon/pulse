@@ -112,11 +112,14 @@ func wfzRequest(withMarginAgg bool, overlays []types.OverlaySpec) *types.Request
 				{Type: types.GROUP_CATEGORY, Field: "wave"},
 				{Type: types.GROUP_CATEGORY, Field: "aud"},
 			},
+			// Integer weights as a FREQUENCY cell weight: n_basis
+			// "weights" is refused on a probability host (U12 review
+			// WS-06), and the weight_field sugar is kind probability.
 			Cell: &types.Aggregation{
 				Type:   types.AGG_WEIGHTED_MEAN,
 				Field:  "value",
 				Label:  "wmean_value",
-				Params: json.RawMessage(`{"weight_field":"weight"}`),
+				Weight: types.SlotWeightOf(types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency}),
 			},
 			Shape:   types.CrosstabShapeMatrix,
 			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},

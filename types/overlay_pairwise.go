@@ -47,6 +47,10 @@ type PairwiseOverlayParams struct {
 //
 //	weights: var = m2/(Σw − 1),     n = Σw            (frequency weights)
 //	kish:    var = m2/(Σw − Σw²/Σw), n = (Σw)²/Σw²    (Kish effective base)
+//
+// weights is refused (PROCESSING_CONFIG) on a host whose cell weight is
+// kind probability — the AGG_WEIGHTED_MEAN weight_field sugar included —
+// since Σw is no sample size there (weighting.NBasisRefusal).
 const (
 	PairwiseNBasisWeights = "weights"
 	PairwiseNBasisKish    = "kish"

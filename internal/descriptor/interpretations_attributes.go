@@ -33,6 +33,8 @@ var attributeInterpretations = map[string][]descriptor.Interpretation{
 const (
 	attrGlobalScale = "The scale comes from every row that passed the filters, not from the row's group: " +
 		"averaging it per group shows how each group sits against the whole, and a different filter gives different values."
+	attrZWeighted = "Under a row weight the mean and standard deviation are weighted (dividing by the sum of weights), the same for frequency and probability weights; " +
+		"a row with no usable weight adds nothing to them but is still scored."
 	attrZNoBands = "There are no sourced bands for reading a z-score of this kind: the familiar 1.96 / 2.58 cut-offs are critical values of a test statistic " +
 		"built from a standard error, and this one is built from the spread of the values instead, so it has no p-value behind it."
 	attrZNormalOnly = "Rules such as 'about 95% of rows lie within 2 standard deviations' hold only for a roughly bell-shaped (normal) field; " +
@@ -65,6 +67,7 @@ var (
 				attrZNormalOnly,
 				attrZOutlierPull,
 				attrGlobalScale,
+				attrZWeighted,
 				"A row with a missing value reads 0, the same as an exactly average row, and every row reads 0 when all values are equal (no spread); " +
 					"check the source field before reading a 0 as average.",
 			},
@@ -82,6 +85,7 @@ var (
 				"It is not a percentile: 70 does not mean the 70th percentile. Only on a roughly normal field does 60 sit near the 84th percentile.",
 				attrZOutlierPull,
 				attrGlobalScale,
+				attrZWeighted,
 				"A row with a missing value reads 50, the same as an exactly average row, and every row reads 50 when all values are equal; " +
 					"an extreme row can fall below 0 or above 100.",
 			},

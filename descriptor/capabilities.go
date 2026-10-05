@@ -426,6 +426,13 @@ type OverlayCapability struct {
 	// descriptive kind (shares, indices, deltas, z-scores). Declared per
 	// kind, never inferred from the name.
 	Inferential bool `json:"inferential,omitempty"`
+
+	// WeightKinds lists the weight kinds the overlay kind honours a
+	// weight under (["frequency","probability"] or ["frequency"]);
+	// omitted for a descriptive kind (it reads the already-weighted host
+	// payload), a refused kind, and on an instance that hides
+	// capability:weighting. See Operator.WeightKinds.
+	WeightKinds []types.WeightKind `json:"weight_kinds,omitempty"`
 }
 
 // RegressionMeta describes a registered REG_* operator in the manifest.
@@ -477,6 +484,12 @@ type RegressionMeta struct {
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
 	// regression answers, sorted. Omitted when it declares no purpose.
 	Intents []string `json:"intents,omitempty"`
+
+	// WeightKinds lists the weight kinds the regression computes a
+	// weighted fit under (["frequency","probability"] or ["frequency"]);
+	// omitted when it honours no weight and on an instance that hides
+	// capability:weighting. See Operator.WeightKinds.
+	WeightKinds []types.WeightKind `json:"weight_kinds,omitempty"`
 }
 
 // RegressionModifier describes a spec-level wrapper (Resample,

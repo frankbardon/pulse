@@ -14,6 +14,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
+- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): a row pair counts w_i·w_j times — equals τ-b on the expanded pairs. `Details` add `sum_weights` beside `n` (raw rows); pair counts become Σ w_i·w_j.
 
 Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
@@ -27,7 +28,6 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered O(n²) pair enumeration — expensive on large n; filter or pre-sample first.
 - Suits small samples and heavy ties (tau-b corrects for ties in either column).
 - Distribution-free; no normality assumption.

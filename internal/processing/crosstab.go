@@ -1034,6 +1034,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
+	// One PULSE_WEIGHT_LOW_NEFF warning per weighted row-test group
+	// whose Kish n_eff fell below the test's floor.
+	if err := applyLowNEff(resp, rowTests, p.strictWeights); err != nil {
+		return nil, err
+	}
 
 	return resp, nil
 }
@@ -1090,6 +1095,13 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 		crosstabComps = resp.Components.Crosstab
 	}
 	host := newCrosstabHostViewWithComponents(resp.Crosstab.Matrix, crosstabComps)
+	// Both crosstab arms stamp req before they run (StampWeightsWith),
+	// so the cell's own `weight` IS its resolved weight: the host's
+	// weight basis comes from it, not from floor-key inference (an
+	// AGG_WEIGHTED_MEAN cell emits n_eff under either kind).
+	if req.Crosstab != nil {
+		host.withCellWeight(req.Crosstab.Cell)
+	}
 	// When the Processor carries a live ExtensionRegistry the
 	// FORMULA dispatch arm of ApplyOverlaysWithExtensions threads the
 	// registry's ExprFunctions into the compile-time `[]expr.Option`

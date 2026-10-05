@@ -15,6 +15,8 @@ examples_tags: [distribution-shape, buffered-pipeline]
 |---|---|---|---|
 | `interval` | int | 4 | Number of buckets; set on `Group.Interval`. 4 (quartiles), 10 (deciles), 100 (percentiles). |
 
+Weight (both kinds; `"weight": null` opts out): buckets cut at the weighted order statistics (the weighted-percentile rule; `probability` rescaled to the row count). A heavy row spanning a cut lands whole in the higher bucket; `count` / `total_n` stay raw rows.
+
 ## Inputs
 
 | Param | Accepted field types |
@@ -41,7 +43,6 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- No weighted cutpoints yet: any row weight in force on the grouper (request, `groups[i]` / crosstab-axis slot, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the grouper to cut unweighted.
 - Forces buffered execution — disables fused crosstab.
 - Rejects categorical/decimal128 at construction.
 - `Group.Include` not honoured — buckets are derived ranks.

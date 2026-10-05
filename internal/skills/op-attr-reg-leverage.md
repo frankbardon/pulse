@@ -17,6 +17,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 |---|---|---|---|
 | `Target` | string | (required) | Dependent variable field. |
 | `Predictors` | []string | (required) | Independent variable fields. |
+| `weight` | slot weight | inherited | `null` opts out; REG_OLS kinds. Diag of W½X(XᵀWX)⁻¹XᵀW½ (R `hatvalues`); excluded row: 0. |
 
 ## Inputs
 
@@ -31,8 +32,8 @@ One `float64` per record in `[0, 1]` — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · 
 
 ## Gotchas
 
-- **Unpenalized OLS only** — any non-empty `Penalty` raises `PROCESSING_CONFIG`. Penalized leverage / GLM leverage deferred.
-- High leverage flags outliers in PREDICTOR space (vs residuals, which flag the response). Common rule of thumb: hᵢᵢ > 2(p+1)/n.
+- **Unpenalized OLS only** — any non-empty `Penalty` raises `PROCESSING_CONFIG`.
+- High leverage flags outliers in PREDICTOR space (vs residuals, which flag the response). Rule of thumb: hᵢᵢ > 2(p+1)/n.
 - Two-pass — pre-pass fits OLS, pass 2 emits per row.
 
 ## See

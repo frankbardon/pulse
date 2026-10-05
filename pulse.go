@@ -1105,6 +1105,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		DefaultWeight:         p.svc.DefaultWeight(),
 		ZoneLoader:            p.svc.ZoneLoader(),
 		DisableDefaults:       p.svc.DefaultsDisabled(),
+		DisableComponents:     p.svc.DisableComponents(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 		// Echoed (never applied) when no weight resolves.
@@ -1177,6 +1178,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		DefaultWeight:         p.svc.DefaultWeight(),
 		ZoneLoader:            p.svc.ZoneLoader(),
 		DisableDefaults:       p.svc.DefaultsDisabled(),
+		DisableComponents:     p.svc.DisableComponents(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 	}), nil

@@ -22,6 +22,13 @@ import (
 // driven by statdist.StudentTTwoSidedP. Tie handling is the standard mid-rank
 // correction; degenerate edge cases (zero variance in ranks, |ρ|=1)
 // match the parametric TEST_PEARSON_R behavior.
+//
+// Frequency-weighted (ClassFrequencyOnly), each pair stands for w
+// identical pairs: weighted mid-ranks per column, the Σw-weighted
+// Pearson r on the ranks around the mean rank (N+1)/2 with N = Σw, and
+// df = N − 2 — exactly the unweighted test on the expanded pairs.
+// Details keep the raw `n` and add `sum_weights`; ties_x / ties_y are
+// the expanded tie sizes.
 type spearmanRRow struct {
 	spec   *types.Test
 	schema *encoding.Schema
@@ -30,8 +37,10 @@ type spearmanRRow struct {
 	field2 string
 	alpha  float64
 
-	xs []float64
+	xs rankSample
 	ys []float64
+
+	testWeight
 }
 
 func newSpearmanRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -61,11 +70,12 @@ func newSpearmanRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error)
 		}
 	}
 	return &spearmanRRow{
-		spec:   spec,
-		schema: schema,
-		field:  spec.Field,
-		field2: spec.Field2,
-		alpha:  alpha,
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		field2:     spec.Field2,
+		alpha:      alpha,
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -78,30 +88,38 @@ func (s *spearmanRRow) UpdateRow(record *Record) error {
 	if !yOk {
 		return nil
 	}
-	s.xs = append(s.xs, x)
+	w, ok := s.rowWeight(record)
+	if !ok {
+		return nil
+	}
+	s.xs.add(x, w)
 	s.ys = append(s.ys, y)
 	return nil
 }
 
 func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 	defer s.reset()
-	n := len(s.xs)
+	n := s.xs.n()
 	if n < 3 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_SPEARMAN_R requires n ≥ 3, got %d", n),
 			map[string]any{"n": n, "min_required": 3})
 	}
-	rx, tiesX := midRanks(s.xs)
-	ry, tiesY := midRanks(s.ys)
-	// Mean rank is (n+1)/2 regardless of ties.
-	mean := float64(n+1) / 2
+	ws := s.xs.weights
+	rx, tiesX := weightedMidRanks(s.xs.values, ws)
+	ry, tiesY := weightedMidRanks(s.ys, ws)
+	nW := s.xs.sumW // n unweighted
+	// Mean rank is (N+1)/2 regardless of ties (N = Σw).
+	mean := (nW + 1) / 2
 	var sxx, syy, sxy float64
 	for i := range n {
 		dx := rx[i] - mean
 		dy := ry[i] - mean
-		sxx += dx * dx
-		syy += dy * dy
-		sxy += dx * dy
+		// (w·d)·d': exact at w = 1 (op-order exactness rule).
+		wdx := ws[i] * dx
+		sxx += wdx * dx
+		syy += ws[i] * dy * dy
+		sxy += wdx * dy
 	}
 	denom := math.Sqrt(sxx * syy)
 	if denom == 0 {
@@ -115,7 +133,7 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 	} else if rho < -1 {
 		rho = -1
 	}
-	df := float64(n - 2)
+	df := nW - 2
 	var t, p float64
 	switch {
 	case rho == 1 || rho == -1:
@@ -137,11 +155,12 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 		Details: map[string]any{
 			"n":      n,
 			"t":      t,
-			"ties_x": tiesX,
-			"ties_y": tiesY,
+			"ties_x": tieSizes(tiesX, s.basis.Weighted()),
+			"ties_y": tieSizes(tiesY, s.basis.Weighted()),
 		},
 	}
-	if tiesDominate(tiesX, n) || tiesDominate(tiesY, n) {
+	s.noteScalar(res.Details, s.xs.sumW, s.xs.sumWSq)
+	if tiesDominateW(tiesX, nW) || tiesDominateW(tiesY, nW) {
 		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
 			": ≥ 50% of values are tied in at least one column; asymptotic p-value is unreliable")
 	}
@@ -149,6 +168,6 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 }
 
 func (s *spearmanRRow) reset() {
-	s.xs = nil
+	s.xs = rankSample{}
 	s.ys = nil
 }

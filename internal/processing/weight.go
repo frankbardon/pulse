@@ -92,12 +92,15 @@ func effectiveSlotWeight(own types.SlotWeight, reqW, def *types.WeightSpec) *typ
 }
 
 // stampSlotWeight is the resolved `weight` of a test or attribute
-// slot: the applied weight (kind spelled out) on a WeightAware
-// extension operator, `null` on any other slot that names a weight, and
-// own unchanged otherwise. ok=false means "no change". The resolver
-// already refused a weight in force on a non-aware extension test or
-// attribute and on every built-in test, so a slot that keeps a set
-// weight here is one the weight applies to.
+// slot: the applied weight (kind spelled out) on a weight-aware
+// operator — a built-in row test whose class has a kind
+// (weighting.IsAware) or a WeightAware extension — `null` on any other
+// slot that names a weight, and own unchanged otherwise. ok=false
+// means "no change". The resolver already refused a weight in force on
+// a non-aware extension test or attribute, on every refused built-in
+// test and on every post-test, and a probability weight on a
+// frequency-only one, so a slot that keeps a set weight here is one the
+// weight applies to.
 func stampSlotWeight(own types.SlotWeight, aware bool, reqW, def *types.WeightSpec) (types.SlotWeight, bool) {
 	if aware {
 		if w := effectiveSlotWeight(own, reqW, def); w != nil {
@@ -124,9 +127,13 @@ func StampWeights(req *types.Request, def *types.WeightSpec) *types.Request {
 // carrying its resolved weight, def being pulse.Options.DefaultWeight
 // and exts the instance's extension registry (nil: built-ins only). An
 // extension aggregator is weight-aware iff its registration declared
-// WeightAware; a WeightAware extension test (`tests`, `post_tests`) or
-// attribute slot carries its resolved weight too, so the adapted
-// operator reads it through extend.Record.Weight(). When nothing names
+// WeightAware; a weight-aware row test (`tests`: a built-in whose class
+// has a kind, read by its factory off the slot, or a WeightAware
+// extension, which reads it through extend.Record.Weight()), a
+// WeightAware extension post-test, a weight-aware attribute (built-in
+// or extension), a built-in regression whose class has a kind and a
+// weighted grouper (GROUP_QUANTILE on groups[i] or a crosstab axis)
+// carries its resolved weight too. When nothing names
 // a weight — no request weight, no default, no slot weight, no
 // AGG_WEIGHTED_MEAN weight_field — req itself is returned, so an
 // unweighted request executes the unchanged object. Otherwise the
@@ -136,6 +143,9 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 	if req == nil || !namesWeight(req, def) {
 		return req
 	}
+	// weighting.IsAware covers ClassFrequencyOnly too: the resolver
+	// has already refused a probability weight on such a slot, so a
+	// weight that reaches it here is a frequency weight to apply.
 	aware := func(op string) bool {
 		return weighting.IsAware(op) || exts.IsExtensionWeightAware("aggregator", op)
 	}
@@ -153,8 +163,48 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 		}
 		c.Crosstab = &ct
 	}
-	c.Tests = stampTests(req.Tests, req.Weight, def, exts)
-	c.PostTests = stampTests(req.PostTests, req.Weight, def, exts)
+	// Built-in row tests read the weight; a built-in post-test reads
+	// aggregated rows and never does (the resolver refused it).
+	c.Tests = stampTests(req.Tests, req.Weight, def, func(op string) bool {
+		return weighting.IsAware(op) || exts.IsExtensionWeightAware("test", op)
+	})
+	c.PostTests = stampTests(req.PostTests, req.Weight, def, func(op string) bool {
+		return exts.IsExtensionWeightAware("test", op)
+	})
+	// A built-in regression reads the weight when its class has a kind
+	// (there is no extension REG_* category); the resolver has already
+	// refused a weight in force on a pending regression, on one carrying
+	// a resample or selection modifier, and a probability weight on a
+	// frequency-only one.
+	if len(req.Regressions) > 0 {
+		c.Regressions = make([]*types.RegressionSpec, len(req.Regressions))
+		for i, r := range req.Regressions {
+			c.Regressions[i] = r
+			if r == nil {
+				continue
+			}
+			// A resample / selection modifier refits on row subsets with no
+			// weighted form: such a slot is never stamped (the resolver
+			// refuses any weight in force on it).
+			aware := weighting.IsAware(string(r.Type)) && r.Resample == "" && r.Selection == ""
+			if w, ok := stampSlotWeight(r.Weight, aware, req.Weight, def); ok {
+				cp := *r
+				cp.Weight = w
+				c.Regressions[i] = &cp
+			}
+		}
+	}
+	// A grouper reads the weight when its class has a kind
+	// (GROUP_QUANTILE's weighted cuts) — on groups[i] and on both
+	// crosstab axes; any other grouper that names a weight is stamped
+	// null (skipped). There is no extension grouper weight declaration.
+	c.Groups = stampGroups(req.Groups, req.Weight, def)
+	if c.Crosstab != nil {
+		ct := *c.Crosstab
+		ct.Rows = stampGroups(ct.Rows, req.Weight, def)
+		ct.Columns = stampGroups(ct.Columns, req.Weight, def)
+		c.Crosstab = &ct
+	}
 	if len(req.Attributes) > 0 {
 		c.Attributes = make([]*types.Attribute, len(req.Attributes))
 		for i, a := range req.Attributes {
@@ -162,7 +212,11 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 			if a == nil {
 				continue
 			}
-			if w, ok := stampSlotWeight(a.Weight, exts.IsExtensionWeightAware("attribute", string(a.Type)), req.Weight, def); ok {
+			// A built-in attribute reads the weight when its class has a
+			// kind (the ATTR_REG_* refits); an extension one when it
+			// declared WeightAware.
+			aware := weighting.IsAware(string(a.Type)) || exts.IsExtensionWeightAware("attribute", string(a.Type))
+			if w, ok := stampSlotWeight(a.Weight, aware, req.Weight, def); ok {
 				cp := *a
 				cp.Weight = w
 				c.Attributes[i] = &cp
@@ -172,9 +226,30 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 	return &c
 }
 
-// stampTests stamps a test slice (see stampSlotWeight); a nil or empty
-// slice is returned as-is.
-func stampTests(tests []*types.Test, reqW, def *types.WeightSpec, exts *ExtensionRegistry) []*types.Test {
+// stampGroups stamps a grouper slice (groups or a crosstab axis; see
+// stampSlotWeight); a nil or empty slice is returned as-is.
+func stampGroups(groups []*types.Group, reqW, def *types.WeightSpec) []*types.Group {
+	if len(groups) == 0 {
+		return groups
+	}
+	out := make([]*types.Group, len(groups))
+	for i, g := range groups {
+		out[i] = g
+		if g == nil {
+			continue
+		}
+		if w, ok := stampSlotWeight(g.Weight, weighting.IsAware(string(g.Type)), reqW, def); ok {
+			cp := *g
+			cp.Weight = w
+			out[i] = &cp
+		}
+	}
+	return out
+}
+
+// stampTests stamps a test slice (see stampSlotWeight), aware deciding
+// per operator; a nil or empty slice is returned as-is.
+func stampTests(tests []*types.Test, reqW, def *types.WeightSpec, aware func(string) bool) []*types.Test {
 	if len(tests) == 0 {
 		return tests
 	}
@@ -184,7 +259,7 @@ func stampTests(tests []*types.Test, reqW, def *types.WeightSpec, exts *Extensio
 		if t == nil {
 			continue
 		}
-		if w, ok := stampSlotWeight(t.Weight, exts.IsExtensionWeightAware("test", string(t.Type)), reqW, def); ok {
+		if w, ok := stampSlotWeight(t.Weight, aware(string(t.Type)), reqW, def); ok {
 			cp := *t
 			cp.Weight = w
 			out[i] = &cp
@@ -220,12 +295,32 @@ func namesWeight(req *types.Request, def *types.WeightSpec) bool {
 			return true
 		}
 	}
+	for _, r := range req.Regressions {
+		if r != nil && r.Weight.Spec() != nil {
+			return true
+		}
+	}
 	for _, a := range req.Attributes {
 		if a != nil && a.Weight.Spec() != nil {
 			return true
 		}
 	}
+	for _, g := range requestGroupers(req) {
+		if g != nil && g.Weight.Spec() != nil {
+			return true
+		}
+	}
 	return false
+}
+
+// requestGroupers lists a request's grouper slots: groups, then the
+// crosstab rows and columns.
+func requestGroupers(req *types.Request) []*types.Group {
+	gs := req.Groups
+	if ct := req.Crosstab; ct != nil {
+		gs = append(append(append([]*types.Group(nil), gs...), ct.Rows...), ct.Columns...)
+	}
+	return gs
 }
 
 // Weight satisfies extend.Record: the engine's own row carries no
@@ -339,8 +434,10 @@ type weightTallyEntry struct {
 
 // NewWeightRowTally builds the tally for a stamped request's weighted
 // slots — the top-level aggregations, the crosstab cell, the crosstab
-// margin aggregations and any WeightAware extension row test or
-// attribute; nil when no slot is weighted.
+// margin aggregations, every weight-aware row test (built-in or
+// extension), every weight-aware regression, every weight-aware
+// attribute (built-in or extension) and every weighted grouper slot
+// (groups and both crosstab axes); nil when no slot is weighted.
 func NewWeightRowTally(req *types.Request) *WeightRowTally {
 	if req == nil {
 		return nil
@@ -352,21 +449,33 @@ func NewWeightRowTally(req *types.Request) *WeightRowTally {
 		// The crosstab cell and auxiliary margin slots weight rows too.
 		slots = append(append(append([]*types.Aggregation(nil), slots...), ct.Cell), ct.MarginAggregations...)
 	}
-	weights := make([]*types.WeightSpec, 0, len(slots)+len(req.Tests)+len(req.Attributes))
+	weights := make([]*types.WeightSpec, 0, len(slots)+len(req.Tests)+len(req.Regressions)+len(req.Attributes))
 	for _, a := range slots {
 		weights = append(weights, slotWeight(a))
 	}
-	// A WeightAware extension row test or attribute reads the row
-	// weight too (StampWeightsWith left its weight set); tier-2 post
-	// tests see no rows.
+	// A weight-aware row test (built-in or extension) or attribute
+	// reads the row weight too (StampWeightsWith left its weight set);
+	// tier-2 post tests see no rows.
 	for _, t := range req.Tests {
 		if t != nil {
 			weights = append(weights, t.Weight.Spec())
 		}
 	}
+	for _, r := range req.Regressions {
+		if r != nil {
+			weights = append(weights, r.Weight.Spec())
+		}
+	}
 	for _, a := range req.Attributes {
 		if a != nil {
 			weights = append(weights, a.Weight.Spec())
+		}
+	}
+	// A weighted grouper (GROUP_QUANTILE) reads the row weight to cut
+	// its buckets; every other grouper was stamped null.
+	for _, g := range requestGroupers(req) {
+		if g != nil {
+			weights = append(weights, g.Weight.Spec())
 		}
 	}
 	for _, w := range weights {

@@ -147,7 +147,8 @@ var (
 		},
 		Assumptions: []string{
 			groupAfterFilters,
-			"Groups are cut by rank among the rows with a value, so each holds as close to the same count as possible.",
+			"Groups are cut by rank among the rows with a value, so each holds as close to the same count as possible; " +
+				"under a row weight each holds as close to the same total weight as possible, a heavy row is never split, and counts stay row counts.",
 			"Equal values can fall in two neighbouring groups when a cut lands among them.",
 			"Groups are named Q1 to Q4 for quartiles, D1 to D10 for deciles, P1 to P100 for percentiles and B1, B2 and so on otherwise; Q1 is the lowest.",
 			"Groups come back in text order of their names, so deciles read D1, D10, D2, ... D9; sort them by number before reading a trend.",

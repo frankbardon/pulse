@@ -90,7 +90,10 @@ type regressionAttribute struct {
 type regressionAccumWrap struct {
 	target     string
 	predictors []string
-	rows       []regression.Record
+	// weight is the refit's stamped weight field ("" unweighted); its
+	// value rides each buffered row so the refit judges it.
+	weight string
+	rows   []regression.Record
 }
 
 // PrePassRecord folds one record's (target, predictors) into the
@@ -110,7 +113,21 @@ func (w *regressionAccumWrap) PrePassRecord(rec *Record) {
 		}
 		values[name] = v
 	}
+	if w.weight != "" {
+		// A null weight stays absent: the refit excludes the row.
+		if wv, ok := rec.NumericValue(w.weight); ok {
+			values[w.weight] = wv
+		}
+	}
 	w.rows = append(w.rows, &mapRecord{values: values})
+}
+
+// weightField is spec's field, "" when spec is nil (unweighted).
+func weightField(spec *types.WeightSpec) string {
+	if spec == nil {
+		return ""
+	}
+	return spec.Field
 }
 
 // mapRecord is a regression.Record adapter backed by a small per-row
@@ -136,6 +153,9 @@ func makeRegressionSpec(attr *types.Attribute) *types.RegressionSpec {
 		Penalty:    attr.Penalty,
 		Alpha:      attr.Alpha,
 		L1Ratio:    attr.L1Ratio,
+		// The slot's stamped weight (processing.StampWeightsWith): the
+		// refit is weighted with the regression's own kinds.
+		Weight: attr.Weight,
 	}
 }
 
@@ -209,6 +229,7 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 		acc: &regressionAccumWrap{
 			target:     spec.Target,
 			predictors: append([]string(nil), spec.Predictors...),
+			weight:     weightField(spec.Weight.Spec()),
 		},
 	}, nil
 }
@@ -305,7 +326,13 @@ func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 		}
 		return y - yhat, nil
 	case regAttrLeverage:
-		return regression.LeverageForRow(a.fit, x), nil
+		// A row excluded from the weighted refit (invalid or zero
+		// weight) has leverage 0 — the w = 0 value of the identity.
+		w, ok := a.fit.RowWeight(rec)
+		if !ok {
+			return 0, nil
+		}
+		return regression.LeverageForRow(a.fit, x, w), nil
 	}
 	return 0, errors.NewCodedErrorWithDetails(
 		errors.PROCESSING_INTERNAL,

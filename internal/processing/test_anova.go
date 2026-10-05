@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -32,8 +33,12 @@ type anovaRow struct {
 	splitBy string
 	alpha   float64
 
-	groups map[string]*welfordBucket
+	groups map[string]*weighting.Welford
 	order  []string
+
+	// testWeight: weighted, each group is rescaled to w* by its own
+	// c_g = N*_g/Σw_g, so N* = Σ_g N*_g and df_within = N* − k.
+	testWeight
 }
 
 func newAnovaRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -67,12 +72,13 @@ func newAnovaRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		}
 	}
 	return &anovaRow{
-		spec:    spec,
-		schema:  schema,
-		field:   spec.Field,
-		splitBy: spec.SplitBy,
-		alpha:   alpha,
-		groups:  make(map[string]*welfordBucket),
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		splitBy:    spec.SplitBy,
+		alpha:      alpha,
+		groups:     make(map[string]*weighting.Welford),
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -85,13 +91,17 @@ func (a *anovaRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
+	w, ok := a.rowWeight(record)
+	if !ok {
+		return nil
+	}
 	b, exists := a.groups[key]
 	if !exists {
-		b = &welfordBucket{}
+		b = &weighting.Welford{}
 		a.groups[key] = b
 		a.order = append(a.order, key)
 	}
-	b.add(v)
+	b.Add(v, w)
 	return nil
 }
 
@@ -103,7 +113,7 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 			fmt.Sprintf("TEST_ANOVA_F requires ≥ 2 groups, got %d", k),
 			map[string]any{"groups": a.order, "min_required": 2})
 	}
-	stats := summariseANOVA(a.order, a.groups)
+	stats := summariseWeightedANOVA(a.order, a.groups, a.basis)
 	if stats.N < int64(k+1) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_ANOVA_F requires N ≥ k+1 (k=%d, N=%d)", k, stats.N),
@@ -115,11 +125,13 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"groups": a.order})
 	}
 	dfBetween := float64(k - 1)
-	dfWithin := float64(int64(stats.N) - int64(k))
+	// N* − k: N − k unweighted, Σw − k under frequency, n_eff − k
+	// (fractional) under probability.
+	dfWithin := stats.NStar - float64(k)
 	if dfWithin <= 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			"TEST_ANOVA_F: zero within-group degrees of freedom",
-			map[string]any{"k": k, "n": stats.N})
+			map[string]any{"k": k, "n": stats.N, "n_star": stats.NStar})
 	}
 	msBetween := stats.SSB / dfBetween
 	msWithin := stats.SSW / dfWithin
@@ -159,12 +171,68 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 		},
 	}
 	setEffectSize(res.Details, "omega_squared", omegaSquared(stats.SSB, stats.SSW, dfBetween, msWithin))
+	buckets := make([]*weighting.Welford, k)
+	for i, key := range a.order {
+		buckets[i] = a.groups[key]
+	}
+	a.noteGroups(res.Details, buckets)
+	a.checkNEff(a.spec, false, "", stats.NStar, k+1)
 	return res, nil
 }
 
 func (a *anovaRow) reset() {
-	a.groups = make(map[string]*welfordBucket)
+	a.groups = make(map[string]*weighting.Welford)
 	a.order = nil
+}
+
+// weightedANOVAStats is anovaStats on w* plus N*, the sample size the
+// within-group degrees of freedom read.
+type weightedANOVAStats struct {
+	anovaStats
+	NStar float64
+}
+
+// summariseWeightedANOVA folds k weighted Welford buckets into the
+// one-way decomposition on w* (.claude/reference/weighting.md, Weighted
+// inference): each group scales by its OWN c_g = N*_g/Σw_g, so W_g =
+// N*_g, N* = Σ_g N*_g, grand mean Σ W_g·m_g / N*, SSB = Σ W_g·(m_g −
+// grand)², SSW = Σ c_g·M2_g — the per-group rule every other split test
+// reads (review WS-01: one whole-sample c misallocates effective size
+// when weights vary BETWEEN groups). Under Unweighted and Frequency
+// c_g = 1 and N*_g = Σw_g, so it is summariseANOVA bit for bit at
+// w ≡ 1 and the expansion under integer frequency weights; N stays the
+// raw row count.
+func summariseWeightedANOVA(order []string, groups map[string]*weighting.Welford, basis weighting.Basis) weightedANOVAStats {
+	ns := make([]int64, len(order))
+	means := make([]float64, len(order))
+	var totalN int64
+	var nStar float64
+	for i, key := range order {
+		b := groups[key]
+		ns[i] = b.N
+		means[i] = b.Mean
+		totalN += b.N
+		nStar += b.NStar(basis)
+	}
+	if totalN == 0 {
+		return weightedANOVAStats{anovaStats: anovaStats{Ns: ns, Means: means}}
+	}
+	var grandMean float64
+	for _, key := range order {
+		b := groups[key]
+		grandMean += b.NStar(basis) * b.Mean / nStar
+	}
+	var ssb, ssw float64
+	for _, key := range order {
+		b := groups[key]
+		diff := b.Mean - grandMean
+		ssb += b.NStar(basis) * diff * diff
+		ssw += b.ScaledM2(basis)
+	}
+	return weightedANOVAStats{
+		anovaStats: anovaStats{Ns: ns, Means: means, SSB: ssb, SSW: ssw, N: totalN},
+		NStar:      nStar,
+	}
 }
 
 // anovaStats is the per-group breakdown consumed by ANOVA-style tests

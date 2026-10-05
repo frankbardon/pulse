@@ -20,6 +20,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 | `Penalty` | enum | `""`, `l1`, `l2`, `elasticnet`. |
 | `Alpha` | float | Regularization strength. |
 | `L1Ratio` | float | Elasticnet mix. |
+| `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. |
 
 ## Inputs
 

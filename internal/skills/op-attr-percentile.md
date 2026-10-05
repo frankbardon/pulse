@@ -28,7 +28,7 @@ One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-pa
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
+- Never weighted (a weighted rank cannot reproduce the distinct unweighted ranks): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - **NOT streamable** — pre-pass sorts the full filter-passing field; cohort-sized memory peak. Predict surfaces this under `streamable_reasons`.
 - Ties do NOT share a percentile: each tied row gets its own rank, in arbitrary order.
 - `decimal128` rejected.

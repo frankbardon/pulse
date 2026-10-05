@@ -13,7 +13,7 @@ Weighted pairwise two-means z: pairs rows (`row` scope) or columns (`column`) on
 
 ## Params
 
-`Scope` (required) — `row` or `column`. `Ref` empty. `params.n_basis` (REQUIRED, no default) — `weights` or `kish`. `params.pair_along_dim` (int) — same-bucket pairs. `n_source` / `p_source` / bad `n_basis` → `PULSE_OVERLAY_PARAM_MISSING`.
+`Scope` (required) — `row` or `column`. `Ref` empty. `params.n_basis` (REQUIRED, no default) — `weights` or `kish`. `params.pair_along_dim` (int) — same-bucket pairs. `n_source` / `p_source` / bad `n_basis` → `PULSE_OVERLAY_PARAM_MISSING`; `weights` on a probability-weighted cell (incl. `weight_field`) → `PROCESSING_CONFIG`.
 
 ## Host shape
 
@@ -26,7 +26,7 @@ Pair × opposite-axis two-sided p-values. `weights`: `var = m2/(Σw−1)`, `n = 
 ## Gotchas
 
 - Skips (`PULSE_OVERLAY_REF_ZERO`): `weights` leg `Σw ≤ 1`; `kish` leg with one weighted row; zero SE.
-- Mergeable cell: stays fused. The one inferential overlay weights never refuse.
+- Mergeable cell: stays fused. `n_basis` sets n: `weights` needs frequency weights (Σw is no sample size under probability); probability → `kish`.
 
 ## See
 

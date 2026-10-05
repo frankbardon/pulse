@@ -111,6 +111,12 @@ func wtzRun(t *testing.T, overlays []types.OverlaySpec, disableComponents bool) 
 	t.Helper()
 	schema := wtzSchema(t)
 	req := crosstabWeightedOverlayBaseRequest()
+	// The fixture's weights are integer replication counts: a FREQUENCY
+	// cell weight, so n_basis "weights" stands (on the weight_field
+	// sugar's probability host it is refused — U12 review WS-06). The
+	// kernel reads the moments, so every p-value is kind-free.
+	req.Crosstab.Cell.Params = nil
+	req.Crosstab.Cell.Weight = types.SlotWeightOf(types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency})
 	req.Overlays = overlays
 	return runBufferedCrosstabWithComponents(t, schema, req, wtzRecords(schema), disableComponents)
 }

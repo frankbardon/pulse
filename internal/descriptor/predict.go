@@ -134,6 +134,12 @@ type PredictOptions struct {
 	// resolve through the same loader.
 	ZoneLoader ZoneLoader
 
+	// DisableComponents is pulse.Options.DisableComponents — the engine
+	// default a request's disable_components overrides. Predict reads it
+	// where a components-disabled host changes the answer (an overlay
+	// that needs the host's weighted floor is refused).
+	DisableComponents bool
+
 	// DisableDefaults is pulse.Options.DisableDefaults. When set,
 	// predict validates the request WITHOUT smart defaults — exactly
 	// what the runtime executes — so a slot left with an empty Type is
@@ -175,6 +181,15 @@ const CrosstabFusionDisabledReason = "crosstab fusion disabled on this instance 
 
 // instance returns the options' instance feature set (nil — hide
 // nothing — on a nil receiver). Nil-receiver-safe.
+// componentsDisabled is the runtime's effectiveDisableComponents: the
+// request's disable_components when set, else the engine default.
+func (o *PredictOptions) componentsDisabled(req *types.Request) bool {
+	if req != nil && req.DisableComponents != nil {
+		return *req.DisableComponents
+	}
+	return o != nil && o.DisableComponents
+}
+
 func (o *PredictOptions) instance() *InstanceSnapshot {
 	if o == nil {
 		return nil

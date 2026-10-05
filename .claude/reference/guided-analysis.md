@@ -76,7 +76,7 @@ The `value` paths are `FieldStatic`: the shape is declared per operator in `inte
 
 ## Shared p-value rules
 
-`sharedInterpretations["p-value"]` (`SharedPValue`), cited by `Shared: "p-value"` from whichever field holds the p (`p_value`, `summary.p_value`, `scalar`, `cells.value`). It says: below alpha (0.05 unless the request sets another) is "significant"; significant is not important — read the effect size; not significant is not "no difference"; more than one test means multiple-comparison caution (`TestSharedPValueRules`).
+`sharedInterpretations["p-value"]` (`SharedPValue`), cited by `Shared: "p-value"` from whichever field holds the p (`p_value`, `summary.p_value`, `scalar`, `cells.value`). It says: below alpha (0.05 unless the request sets another) is "significant"; significant is not important — read the effect size; not significant is not "no difference"; more than one test means multiple-comparison caution; under a row weight it rests on the effective sample size (`sum_weights` / Kish `n_eff`) and accounts for unequal weights only, not strata or clusters (U12; `TestSharedPValueRules`; the weighted reading as a whole: `.claude/reference/weighting.md` (Weighted inference)).
 
 ## Effect-size keys
 
@@ -159,7 +159,7 @@ Every p-value, critical value and interval rests on a small set of shared distri
 
 ## Review record
 
-The statistics review of the U08 guidance is committed at `docs/roadmap/reviews/U08-statistics-review.md`: method (the deterministic layers above plus an advisory LLM panel), every finding with its disposition and fixing commit, the engine fixes it triggered, and the open items for the human reviewer. Human sign-off is a release-blocking U33 item; a later guidance backfill appends its own section rather than starting a new file.
+The statistics review of the U08 guidance is committed at `docs/roadmap/reviews/U08-statistics-review.md`: method (the deterministic layers above plus an advisory LLM panel), every finding with its disposition and fixing commit, the engine fixes it triggered, and the open items for the human reviewer. Human sign-off is a release-blocking U33 item; a later guidance backfill appends its own section rather than starting a new file. The weighted-inference review (U12: n_eff semantics and every lifted weighted formula — engine, not guidance, so its own file) is `docs/roadmap/reviews/U12-weighting-review.md`, on the same U33 #206 sign-off list.
 
 ## Extension hook
 

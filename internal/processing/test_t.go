@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -41,10 +42,14 @@ type tTestRow struct {
 	mu      float64
 	one     bool
 
-	// groups holds per-key Welford state in first-seen insertion order
-	// so Finalize can return groups deterministically.
-	groups map[string]*welfordBucket
+	// groups holds per-key weighted Welford state in first-seen
+	// insertion order so Finalize can return groups deterministically.
+	groups map[string]*weighting.Welford
 	order  []string
+
+	// testWeight is the slot's stamped weight: unweighted every row
+	// weighs 1; weighted, each group's moments are read on w* (N*_g).
+	testWeight
 }
 
 // tTestParams is the JSON payload for TEST_T.Params. Mu is honored only
@@ -95,19 +100,21 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		mu = p.Mu
 	}
 	return &tTestRow{
-		spec:    spec,
-		schema:  schema,
-		field:   spec.Field,
-		splitBy: spec.SplitBy,
-		alpha:   alpha,
-		mu:      mu,
-		one:     spec.SplitBy == "",
-		groups:  make(map[string]*welfordBucket),
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		splitBy:    spec.SplitBy,
+		alpha:      alpha,
+		mu:         mu,
+		one:        spec.SplitBy == "",
+		groups:     make(map[string]*weighting.Welford),
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
 // UpdateRow folds one record into the appropriate Welford bucket. Rows
-// with a null Field or (for two-sample) a null SplitBy are skipped.
+// with a null Field or (for two-sample) a null SplitBy are skipped; a
+// weighted test then skips a row whose weight is invalid or zero.
 func (tt *tTestRow) UpdateRow(record *Record) error {
 	v, ok := record.NumericValue(tt.field)
 	if !ok {
@@ -123,13 +130,17 @@ func (tt *tTestRow) UpdateRow(record *Record) error {
 		}
 		key = s
 	}
+	w, ok := tt.rowWeight(record)
+	if !ok {
+		return nil
+	}
 	b, exists := tt.groups[key]
 	if !exists {
-		b = &welfordBucket{}
+		b = &weighting.Welford{}
 		tt.groups[key] = b
 		tt.order = append(tt.order, key)
 	}
-	b.add(v)
+	b.Add(v, w)
 	return nil
 }
 
@@ -146,35 +157,36 @@ func (tt *tTestRow) Finalize() (*types.TestResult, error) {
 }
 
 func (tt *tTestRow) reset() {
-	tt.groups = make(map[string]*welfordBucket)
+	tt.groups = make(map[string]*weighting.Welford)
 	tt.order = nil
 }
 
 func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 	b, ok := tt.groups[""]
-	if !ok || b.n < 2 {
+	if !ok || b.N < 2 {
 		var n int64
 		if ok {
-			n = b.n
+			n = b.N
 		}
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_T one-sample requires n ≥ 2, got %d", n),
 			map[string]any{"n": n, "min_required": 2})
 	}
-	variance := b.sampleVariance()
+	variance := b.Variance(tt.basis)
 	if variance == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_T one-sample: sample variance is zero",
-			map[string]any{"n": b.n, "mean": b.mean})
+			map[string]any{"n": b.N, "mean": b.Mean})
 	}
+	nStar := b.NStar(tt.basis)
 	sd := math.Sqrt(variance)
-	se := sd / math.Sqrt(float64(b.n))
-	tstat := (b.mean - tt.mu) / se
-	df := float64(b.n - 1)
+	se := sd / math.Sqrt(nStar)
+	tstat := (b.Mean - tt.mu) / se
+	df := nStar - 1
 	p := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
-	ciLow := b.mean - tcrit*se
-	ciHigh := b.mean + tcrit*se
+	ciLow := b.Mean - tcrit*se
+	ciHigh := b.Mean + tcrit*se
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       types.TEST_T,
@@ -186,14 +198,16 @@ func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 		RejectNull: p < tt.alpha,
 		Details: map[string]any{
 			"mu":       tt.mu,
-			"n":        b.n,
-			"mean":     b.mean,
+			"n":        b.N,
+			"mean":     b.Mean,
 			"variance": variance,
 			"ci_low":   ciLow,
 			"ci_high":  ciHigh,
 		},
 	}
-	setEffectSize(res.Details, "cohens_d", cohensDOneSample(b.mean, tt.mu, sd))
+	setEffectSize(res.Details, "cohens_d", cohensDOneSample(b.Mean, tt.mu, sd))
+	tt.noteScalar(res.Details, b.SumW, b.SumWSq)
+	tt.checkNEff(tt.spec, false, "", b.NEff(), 2)
 	return res, nil
 }
 
@@ -215,27 +229,28 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
 	a, b := tt.groups[keys[0]], tt.groups[keys[1]]
-	if a.n < 2 || b.n < 2 {
+	if a.N < 2 || b.N < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_T two-sample requires n ≥ 2 per group, got %d / %d", a.n, b.n),
-			map[string]any{"n": []int64{a.n, b.n}, "min_required": 2})
+			fmt.Sprintf("TEST_T two-sample requires n ≥ 2 per group, got %d / %d", a.N, b.N),
+			map[string]any{"n": []int64{a.N, b.N}, "min_required": 2})
 	}
-	va := a.sampleVariance()
-	vb := b.sampleVariance()
+	va := a.Variance(tt.basis)
+	vb := b.Variance(tt.basis)
 	if va == 0 && vb == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_T two-sample: both groups have zero variance",
-			map[string]any{"groups": keys, "means": []float64{a.mean, b.mean}})
+			map[string]any{"groups": keys, "means": []float64{a.Mean, b.Mean}})
 	}
-	na := float64(a.n)
-	nb := float64(b.n)
+	// N*_g per group (n_g unweighted): Welch–Satterthwaite on w*.
+	na := a.NStar(tt.basis)
+	nb := b.NStar(tt.basis)
 	se := math.Sqrt(va/na + vb/nb)
 	if se == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_T two-sample: standard error is zero",
 			map[string]any{"groups": keys})
 	}
-	diff := a.mean - b.mean
+	diff := a.Mean - b.Mean
 	tstat := diff / se
 	// Welch-Satterthwaite degrees of freedom.
 	num := va/na + vb/nb
@@ -256,8 +271,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 		RejectNull: p < tt.alpha,
 		Details: map[string]any{
 			"groups":   keys,
-			"n":        []int64{a.n, b.n},
-			"mean":     []float64{a.mean, b.mean},
+			"n":        []int64{a.N, b.N},
+			"mean":     []float64{a.Mean, b.Mean},
 			"variance": []float64{va, vb},
 			"diff":     diff,
 			"ci_low":   ciLow,
@@ -265,5 +280,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 		},
 	}
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
+	tt.noteGroups(res.Details, []*weighting.Welford{a, b})
+	tt.checkNEff(tt.spec, true, keys[0], a.NEff(), 2)
+	tt.checkNEff(tt.spec, true, keys[1], b.NEff(), 2)
 	return res, nil
 }

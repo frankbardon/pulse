@@ -100,6 +100,7 @@ var (
 			Caveats: []string{
 				"It comes from the chi-square approximation, which is unreliable when expected counts fall below about 5; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when they do.",
 				"It is meaningful only when the cells count independent rows (AGG_COUNT); on sums or averages it is not a valid p-value.",
+				"On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not the Rao-Scott correction survey software applies.",
 			},
 		},
 		{
@@ -331,7 +332,7 @@ var (
 			Shared: SharedPValue,
 			Caveats: []string{
 				"Each cell holds the two-sided z-test p-value for one pair of weighted means; params.n_basis sets the sample size (sum of weights, or Kish's effective sample size).",
-				"It accounts for weighting only, not clustering or other design effects, and n_basis = weights overstates precision when weights are scaled to a population; either way the p-values then come out too small.",
+				"It accounts for weighting only, not clustering or other design effects, so with such designs the p-values come out too small.",
 				overlayPairMultiComp,
 				overlayPairNoEffect,
 			},

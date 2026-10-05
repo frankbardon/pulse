@@ -20,7 +20,7 @@ branch: reference-oracles
 
 ## Summary
 
-U08 built the R oracle (`scripts/reference/gen_reference.R`, `make reference`, goldens under `internal/processing/testdata/reference/`) and used it to pin the shared distribution PRIMITIVES (Student t, chi-square, F, normal, Kolmogorov, studentized range) to a relative `1e-10`. It did not pin each operator's ASSEMBLED output: many `TEST_*`, `REG_*` and overlay values are still checked by hand-pasted literals at `1e-2`..`5e-3`, by values the engine produced itself, or by comparing an overlay to the same helper it calls (circular). This unit extends the oracle to every inferential output, and fixes the four runtime bugs the U08 statistics review found but did not own.
+U08 built the R oracle (`scripts/reference/gen_reference.R`, `make reference`, goldens under `internal/processing/testdata/reference/`) and used it to pin the shared distribution PRIMITIVES (Student t, chi-square, F, normal, Kolmogorov, studentized range) to a relative `1e-10`. It did not pin each operator's ASSEMBLED output: many `TEST_*`, `REG_*` and overlay values are still checked by hand-pasted literals at `1e-2`..`5e-3`, by values the engine produced itself, or by comparing an overlay to the same helper it calls (circular). This unit extends the oracle to every inferential output, and fixes the runtime bugs the U08 statistics review found but did not own (three remain: U12 fixed the CI critical z). It also covers the WEIGHTED variants U12 shipped: the per-output oracles gain weighted rows, at this unit's tolerances.
 
 Numbering note: appended as U36 after U35 rather than renumbered.
 
@@ -37,7 +37,7 @@ Numbering note: appended as U36 after U35 rather than renumbered.
 - [ ] **#202** (4. Statistical integrity › Reference oracles) Per-output R oracle for every `TEST_*` family at tight relative tolerance: Shapiro–Wilk (Shapiro–Francia W′ + p), Brown–Forsythe, Tukey q / `p_adj`, KS p, Kendall τ-b with ties, Mann–Kendall (`TEST_TREND`) p, Pearson CI, and every family's p-value (row and post twins)
 - [ ] **#203** (4. Statistical integrity › Reference oracles) `REG_OLS` (incl. ridge / lasso / elastic net) and `REG_GLM` (binomial, poisson, gamma) coefficients, SEs and p-values, and the `REG_BAYES_LINEAR` posterior, pinned to an external reference (`lm` / `glm` / glmnet / closed-form conjugate posterior)
 - [ ] **#204** (4. Statistical integrity › Reference oracles) De-circularised overlay oracles: `OVERLAY_CHISQ_VS_POP`, `OVERLAY_CHISQ_VS_REF`, `OVERLAY_KS_VS_POP` and `OVERLAY_PAIRWISE_PROBIT_T` checked against an independent R computation, never the helper they call
-- [ ] **#205** (4. Statistical integrity › Reference oracles) Runtime bugs found in U08: infinite `TEST_FISHER_EXACT` OR and Pearson / Spearman `details.t` break `--json`; `TEST_BROWN_FORSYTHE` reports F = 0, p = 0 at zero within-group spread; the Winitzki inverse-erf CI critical z is ~4.7e-4 too small; the Shapiro–Francia p for n < 5 is uncalibrated
+- [ ] **#205** (4. Statistical integrity › Reference oracles) Runtime bugs found in U08: infinite `TEST_FISHER_EXACT` OR and Pearson / Spearman `details.t` break `--json`; `TEST_BROWN_FORSYTHE` reports F = 0, p = 0 at zero within-group spread; the Shapiro–Francia p for n < 5 is uncalibrated. ~~The Winitzki inverse-erf CI critical z is ~4.7e-4 too small~~ — **fixed by [U12](U12-weighting-inferential.md) E5-S1** (`normalCriticalTwoSided` = −`standardNormalPPF`(α/2), R `qnorm` to a few ulp, for the `TEST_Z_TWO_SAMPLE` / `TEST_PROP_Z` Wald and `TEST_PEARSON_R` Fisher-z intervals and `AGG_CI_*`; pinned against R in the weighted reference rows), so it leaves this unit's scope
 
 ## Scope
 
@@ -45,11 +45,15 @@ Numbering note: appended as U36 after U35 rather than renumbered.
 - Extend `gen_reference.R` with per-operator cases (R and package versions recorded; `effectsize`, `glmnet` and any other package pinned in the golden header); CI still never runs R
 - One table-driven `TestReferenceOracle_*` per family, holding each output to a relative tolerance; a non-`1e-10` tolerance needs a written reason (e.g. a documented approximation such as Royston / Shapiro–Francia)
 - Fix every output that fails its oracle, with a before → after row in the PR body
-- The four #205 runtime bugs, each with a test
+- The three remaining #205 runtime bugs, each with a test (the CI critical z is done — U12)
+- **Weighted rows (from U12).** Every per-output oracle this unit adds for a family U12 made weight-aware also carries its weighted rows — `frequency` on the `rep()` expansion, `probability` on the w* closed form — reusing U12's fixtures and generator (`internal/service/testdata/weight_reference/`, `TestWeightReferenceValues`) rather than a second fixture set
+- **Tighten the weighted fixtures.** U12 pinned weighted p-values and interval bounds at 1e-10, IRLS at 1e-9 and coordinate descent at 1e-8 relative; bring each to this unit's tolerance policy (1e-10 or a written reason), and give `REG_BAYES_LINEAR` an independent reference if one can be found (its weighted row is a closed-form conjugate posterior today)
+- **Weighted gamma GLM.** The gamma dispersion fixed at 1 applies to the weighted fit too (R `glm(weights = w*)`, `summary(dispersion = 1)`); resolve it for both arms together
+- **`OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF` over an engine `AGG_WELFORD` series emit an EMPTY layer** (found in U12 E3-S3; pre-existing, weighted or not): the series arm reads a row's triple only from a map, and an engine series carries `processing.WelfordTriple` structs. Fix the reader (and pin it to an R oracle); the fix must carry `sum_weights`, `n_eff` and `m2` through so a weighted series reads N* (`.claude/reference/weighting.md`, Overlays)
 - Correct the manifest / doc-comment prose that still names the pre-U08 `studentTTwoSidedP` helper or the `2·(1 − Φ(|z|))` form (`internal/descriptor/capabilities_overlay.go` ~1064 / 1093 / 1282 / 1314 / 1553 / 1586, `internal/descriptor/overlay.go` ~3261 / 3279, `types/overlay.go` ~2190–2304, `types/overlay_streamability.go` ~340 / 347); regenerate the manifest golden
 
 **Out of scope**
-- Weighted variants (U12 adds its own reference fixtures, #59)
+- New weighted forms: U12 owns which operators are weighted and how (`.claude/reference/weighting.md`); this unit only pins them
 - Multiplicity-adjusted p-values (U13)
 - New statistical features
 
@@ -59,11 +63,11 @@ Each epic is a vertical slice. Commit with `feat|fix|test(reference-oracles/E<n>
 
 ### E1 — Tests match R
 - S1: oracle cases for every `TEST_*` row + post twin (#202); fix each failure
-- S2: the four runtime bugs (#205) — finite-or-omitted infinities (or a coded refusal) so `--json` always encodes, a Brown–Forsythe refusal or undefined F, `math.Erfinv` / `-standardNormalPPF(α/2)` for the CI critical z, and a decision on Shapiro–Francia at n < 5 (refuse, or an exact method)
+- S2: the three remaining runtime bugs (#205) — finite-or-omitted infinities (or a coded refusal) so `--json` always encodes, a Brown–Forsythe refusal or undefined F, and a decision on Shapiro–Francia at n < 5 (refuse, or an exact method); the CI critical z shipped in U12
 
 ### E2 — Models and overlays match R
-- S1: `REG_*` oracles (#203), incl. the GLM gamma path (dispersion currently fixed at 1) and penalised-OLS plug-in p-values (documented as approximate, with a stated reference)
-- S2: de-circularised overlay oracles (#204) and the stale helper-name prose
+- S1: `REG_*` oracles (#203), incl. the GLM gamma path (dispersion currently fixed at 1, weighted and unweighted) and penalised-OLS plug-in p-values (documented as approximate, with a stated reference)
+- S2: de-circularised overlay oracles (#204), the `T_VS_REF` / `Z_VS_REF` engine-series empty layer, and the stale helper-name prose
 
 ## Acceptance criteria
 

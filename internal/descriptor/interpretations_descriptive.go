@@ -43,9 +43,10 @@ const (
 	descCINormal = "Pulse uses the normal critical value (1.96 at 95%), not Student's t, so on small groups (under about 30 rows) the interval is too narrow; " +
 		"on a strongly skewed or heavy-tailed field it can stay too narrow, and lopsided, on much larger groups, so check AGG_SKEWNESS first. " +
 		"The components key t_critical holds that normal value."
-	descCIIndependent = "It assumes rows are independent, unweighted draws; with weighted, clustered or repeated rows it understates the uncertainty."
-	descCIOverlap     = "Overlapping intervals do not show two means are equal: means can differ even when their intervals overlap, so compare groups with TEST_WELCH, not by eye."
-	descCINaN         = "Empty (NaN) when fewer than two rows have a value."
+	descCIIndependent = "It assumes rows are independent draws. A row weight is honoured, its sample size read as the sum of weights (frequency) or Kish's effective sample size (probability, components n_eff); " +
+		"clustered or repeated rows, or design-based (strata / cluster) variance, are not modelled, so the interval understates the uncertainty there."
+	descCIOverlap = "Overlapping intervals do not show two means are equal: means can differ even when their intervals overlap, so compare groups with TEST_WELCH, not by eye."
+	descCINaN     = "Empty (NaN) when fewer than two rows have a value (weighted: when the sample size is 1 or less)."
 )
 
 // --- Spread ------------------------------------------------------------
@@ -219,7 +220,7 @@ var (
 					"the estimate is roughly worth, never more than the rows that count. It does not apply to frequency weights (a weight counting repeated units, " +
 					"such as a quantity, where the base is sum_weights) or to inverse-variance weights.",
 				"It reads 0 when no row has a usable weight; check components sum_weights before trusting a 0.",
-				"Negative weights are not refused and can push the result outside the range of the values.",
+				"Negative, NaN and infinite weights are excluded and counted in components n_weight_invalid, with a warning, so the result stays within the range of the values.",
 			},
 		},
 	}

@@ -56,6 +56,8 @@ var sharedInterpretations = map[string]descriptor.Interpretation{
 			"Significant is not the same as important: with enough rows a trivial difference is significant, so read the effect size for how big it is.",
 			"Not significant does not mean there is no difference: the data may simply be too few or too noisy to detect one.",
 			"When more than one test runs, some will be significant by chance alone; adjust for multiple comparisons or treat isolated hits with caution.",
+			"Under a row weight it rests on the effective sample size reported beside n (sum_weights for frequency weights, Kish's n_eff for probability weights), " +
+				"not on the row count; it accounts for unequal weights only, not strata or clusters, so a design-based p-value from survey software can be larger.",
 		},
 	},
 }

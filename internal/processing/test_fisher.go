@@ -25,6 +25,15 @@ import (
 // Use case: chi-square small-sample backstop. When any expected count
 // is below 5 the chi-square approximation is unreliable;
 // TEST_FISHER_EXACT is the canonical replacement.
+//
+// Frequency-weighted (ClassFrequencyOnly), each row stands for w
+// identical rows: the cells are the Σw table (integers — a non-integer
+// frequency weight is invalid and excluded), so the exact test runs on
+// the expanded table and equals the unweighted test on the expanded
+// rows. The p-value loop is O(min margin) lgamma evaluations, so a
+// large Σw table needs no size guard. Details keep the raw `n` and add
+// `sum_weights`; `contingency` reports the Σw table (floats, weighted
+// only).
 type fisherExactRow struct {
 	spec   *types.Test
 	schema *encoding.Schema
@@ -39,6 +48,12 @@ type fisherExactRow struct {
 	colOrd []string
 	rowSet map[string]struct{}
 	colSet map[string]struct{}
+
+	// cellW[rowKey][colKey] = Σw (equal to counts unweighted).
+	cellW        map[string]map[string]float64
+	sumW, sumWSq float64
+
+	testWeight
 }
 
 func newFisherExactRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -73,6 +88,9 @@ func newFisherExactRow(spec *types.Test, schema *encoding.Schema) (RowTest, erro
 		counts:    make(map[string]map[string]int),
 		rowSet:    make(map[string]struct{}),
 		colSet:    make(map[string]struct{}),
+		cellW:     make(map[string]map[string]float64),
+
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -82,6 +100,10 @@ func (f *fisherExactRow) UpdateRow(record *Record) error {
 		return nil
 	}
 	ck, ok := record.StringValue(f.colsField)
+	if !ok {
+		return nil
+	}
+	w, ok := f.rowWeight(record)
 	if !ok {
 		return nil
 	}
@@ -99,6 +121,14 @@ func (f *fisherExactRow) UpdateRow(record *Record) error {
 		f.counts[rk] = row
 	}
 	row[ck]++
+	rowW, exists := f.cellW[rk]
+	if !exists {
+		rowW = make(map[string]float64)
+		f.cellW[rk] = rowW
+	}
+	rowW[ck] += w
+	f.sumW += w
+	f.sumWSq += w * w
 	return nil
 }
 
@@ -109,12 +139,15 @@ func (f *fisherExactRow) Finalize() (*types.TestResult, error) {
 			fmt.Sprintf("TEST_FISHER_EXACT supports 2×2 tables only; got %d×%d", len(f.rowOrd), len(f.colOrd)),
 			map[string]any{"rows": len(f.rowOrd), "cols": len(f.colOrd)})
 	}
-	// Build the 2×2 table with deterministic ordering.
-	a := f.counts[f.rowOrd[0]][f.colOrd[0]]
-	b := f.counts[f.rowOrd[0]][f.colOrd[1]]
-	c := f.counts[f.rowOrd[1]][f.colOrd[0]]
-	d := f.counts[f.rowOrd[1]][f.colOrd[1]]
+	// Build the 2×2 table with deterministic ordering: the Σw cells
+	// (the raw counts unweighted, where every w is 1). Frequency weights
+	// are integers, so each Σw is an exact integer (the round is a
+	// no-op kept for safety).
+	cell := func(i, j int) int { return int(math.Round(f.cellW[f.rowOrd[i]][f.colOrd[j]])) }
+	a, b, c, d := cell(0, 0), cell(0, 1), cell(1, 0), cell(1, 1)
 	n := a + b + c + d
+	rawN := f.counts[f.rowOrd[0]][f.colOrd[0]] + f.counts[f.rowOrd[0]][f.colOrd[1]] +
+		f.counts[f.rowOrd[1]][f.colOrd[0]] + f.counts[f.rowOrd[1]][f.colOrd[1]]
 	if n == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_CONTINGENCY_DEGENERATE,
 			"TEST_FISHER_EXACT: contingency table is empty", nil)
@@ -156,6 +189,17 @@ func (f *fisherExactRow) Finalize() (*types.TestResult, error) {
 	default:
 		oddsRatio = float64(a*d) / float64(b*c)
 	}
+	details := map[string]any{
+		"row_labels":  f.rowOrd,
+		"col_labels":  f.colOrd,
+		"contingency": [][]int{{a, b}, {c, d}},
+		"odds_ratio":  oddsRatio,
+		"n":           rawN,
+	}
+	if f.basis.Weighted() {
+		details["contingency"] = [][]float64{{float64(a), float64(b)}, {float64(c), float64(d)}}
+	}
+	f.noteScalar(details, f.sumW, f.sumWSq)
 	return &types.TestResult{
 		Label:      testLabel(f.spec),
 		Type:       types.TEST_FISHER_EXACT,
@@ -164,13 +208,7 @@ func (f *fisherExactRow) Finalize() (*types.TestResult, error) {
 		PValue:     sum,
 		Alpha:      f.alpha,
 		RejectNull: sum < f.alpha,
-		Details: map[string]any{
-			"row_labels":  f.rowOrd,
-			"col_labels":  f.colOrd,
-			"contingency": [][]int{{a, b}, {c, d}},
-			"odds_ratio":  oddsRatio,
-			"n":           n,
-		},
+		Details:    details,
 	}, nil
 }
 
@@ -180,6 +218,8 @@ func (f *fisherExactRow) reset() {
 	f.colOrd = nil
 	f.rowSet = make(map[string]struct{})
 	f.colSet = make(map[string]struct{})
+	f.cellW = make(map[string]map[string]float64)
+	f.sumW, f.sumWSq = 0, 0
 }
 
 // logHypergeometric returns log P(X = x) for X ~ Hypergeometric(N, K, n)

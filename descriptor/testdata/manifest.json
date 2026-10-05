@@ -414,6 +414,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -465,6 +469,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "mean",
                 "type": "float64",
                 "description": "Welford-running mean of the field."
@@ -492,6 +514,11 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "compare_groups",
             "describe"
@@ -544,6 +571,24 @@
                 "description": "Number of null inputs encountered."
               },
               {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
                 "name": "mean",
                 "type": "float64",
                 "description": "Welford-running mean of the field."
@@ -571,6 +616,11 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "compare_groups",
             "describe"
@@ -639,6 +689,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -819,6 +873,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -902,6 +960,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "distribution_shape"
           ]
@@ -1020,6 +1082,10 @@
             "mergeability": "none"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe",
             "distribution_shape"
@@ -1147,6 +1213,10 @@
             "mergeability": "partial"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -1223,6 +1293,10 @@
             "mergeability": "partial"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -1367,6 +1441,10 @@
             "mergeability": "none"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe",
             "distribution_shape"
@@ -1515,6 +1593,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -1579,6 +1661,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -1637,6 +1723,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -1754,6 +1844,10 @@
             "mergeability": "partial"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -1930,6 +2024,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "distribution_shape"
           ]
@@ -2008,6 +2106,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe",
             "distribution_shape"
@@ -2072,6 +2174,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "composition",
             "describe"
@@ -2146,6 +2252,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe",
             "distribution_shape"
@@ -2234,6 +2344,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "describe"
           ]
@@ -2307,6 +2421,10 @@
             "mergeability": "mergeable"
           },
           "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "compare_groups",
             "describe"
@@ -2519,6 +2637,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "relationship"
@@ -2546,6 +2669,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "data_quality"
           ]
@@ -2571,6 +2699,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "data_quality"
@@ -2651,6 +2784,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "prepare"
@@ -2677,6 +2815,11 @@
           "component_schema": {
             "mergeability": ""
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "prepare"
@@ -3486,6 +3629,11 @@
             ],
             "mergeability": "none"
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "distribution_shape",
             "segment"
@@ -4396,6 +4544,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4444,6 +4596,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4468,6 +4624,9 @@
         "intents": [
           "compare_groups",
           "distribution_shape"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4492,6 +4651,10 @@
         "intents": [
           "compare_groups",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4516,6 +4679,9 @@
         "intents": [
           "compare_groups",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4539,6 +4705,9 @@
         ],
         "intents": [
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4562,6 +4731,9 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4586,6 +4758,9 @@
         "intents": [
           "compare_groups",
           "distribution_shape"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4609,6 +4784,9 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4633,6 +4811,10 @@
         "intents": [
           "change_over_time",
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4656,6 +4838,10 @@
         ],
         "intents": [
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4685,6 +4871,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4730,6 +4920,9 @@
         ],
         "intents": [
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4760,6 +4953,10 @@
         "intents": [
           "benchmark",
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4783,6 +4980,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -4807,6 +5008,9 @@
         "intents": [
           "change_over_time",
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -4830,6 +5034,10 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       }
     ],
@@ -5216,6 +5424,9 @@
         "intents": [
           "drivers",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency"
         ]
       },
       {
@@ -5356,6 +5567,10 @@
         "intents": [
           "drivers",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -5495,6 +5710,10 @@
         "intents": [
           "drivers",
           "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       }
     ],
@@ -5870,7 +6089,7 @@
         ]
       }
     ],
-    "error_codes_count": 257,
+    "error_codes_count": 258,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6131,6 +6350,7 @@
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
       "PULSE_WEIGHT_INVALID_ROWS",
+      "PULSE_WEIGHT_LOW_NEFF",
       "PULSE_WEIGHT_UNSUPPORTED",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
@@ -8453,7 +8673,7 @@
       },
       {
         "name": "weighting",
-        "description": "Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, the unweighted-base recipe and the weighted floor keys."
+        "description": "Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, weighted inference on the effective sample size, the unweighted-base recipe and the weighted floor keys."
       },
       {
         "name": "window-design",
@@ -8875,7 +9095,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_CHISQ_MATRIX",
@@ -8891,7 +9115,11 @@
         "intents": [
           "relationship"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_CHISQ_ROW",
@@ -8907,7 +9135,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_CHISQ_VS_POP",
@@ -8942,7 +9174,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_DELTA_VS_BASELINE",
@@ -9066,7 +9302,10 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency"
+        ]
       },
       {
         "kind": "OVERLAY_FORMULA",
@@ -9295,7 +9534,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_PAIRWISE_TWO_MEANS_Z",
@@ -9325,11 +9568,15 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. Any other host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator or an AGG_AVERAGE no weight resolves on, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw; frequency weights only — on a probability-weighted cell, the weight_field sugar included, it is PROCESSING_CONFIG at predict and runtime) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. Any other host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator or an AGG_AVERAGE no weight resolves on, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_PAIRWISE_WELCH_T",
@@ -9346,7 +9593,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_PANEL_INDEX_VS_REF",
@@ -9379,7 +9630,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_PROP_Z_PANEL",
@@ -9395,7 +9650,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_RANK",
@@ -9491,7 +9750,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_T_VS_REF",
@@ -9507,7 +9770,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_YOY",
@@ -9611,7 +9878,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       },
       {
         "kind": "OVERLAY_Z_VS_REF",
@@ -9627,7 +9898,11 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       }
     ],
     "components_schemas": {
@@ -9713,6 +9988,24 @@
               "description": "Number of null inputs encountered."
             },
             {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
               "name": "mean",
               "type": "float64",
               "description": "Welford-running mean of the field."
@@ -9751,6 +10044,24 @@
               "name": "n_null",
               "type": "int",
               "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
             },
             {
               "name": "mean",
@@ -11386,4 +11697,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f717ba998e0c1d974da7bb7515ed657dcc57cbdcd97a2e59c6a4921e11f2f2e6
+// golden-hash: 5db25053ab8ada6806e6bf2199ac594dc7d42c84918eafacd78aafd2ccd98e3e

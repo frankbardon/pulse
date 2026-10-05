@@ -19,6 +19,12 @@ import (
 //  4. H = (12/(N(N+1))) · Σ (R_i² / n_i) − 3(N+1).
 //  5. Tie-correct: H_c = H / (1 − Σ(t³−t) / (N³−N)).
 //  6. p = chiSquareSurvival(H_c, k−1).
+//
+// Frequency-weighted (ClassFrequencyOnly), each row stands for w
+// identical rows: weighted mid-ranks, R_i = Σ w·rank, n_i and N read
+// Σw and the tie correction the expanded tie sizes — exactly the
+// unweighted test on the expanded rows. Details keep the raw `n` /
+// `n_total` and add `sum_weights` shaped like `n`.
 type kruskalWallisRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema
@@ -26,8 +32,10 @@ type kruskalWallisRow struct {
 	splitBy string
 	alpha   float64
 
-	values map[string][]float64
+	values map[string]*rankSample
 	order  []string
+
+	testWeight
 }
 
 func newKruskalWallisRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -61,12 +69,13 @@ func newKruskalWallisRow(spec *types.Test, schema *encoding.Schema) (RowTest, er
 		}
 	}
 	return &kruskalWallisRow{
-		spec:    spec,
-		schema:  schema,
-		field:   spec.Field,
-		splitBy: spec.SplitBy,
-		alpha:   alpha,
-		values:  make(map[string][]float64),
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		splitBy:    spec.SplitBy,
+		alpha:      alpha,
+		values:     make(map[string]*rankSample),
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -79,10 +88,17 @@ func (k *kruskalWallisRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	if _, exists := k.values[key]; !exists {
+	w, ok := k.rowWeight(record)
+	if !ok {
+		return nil
+	}
+	s, exists := k.values[key]
+	if !exists {
+		s = &rankSample{}
+		k.values[key] = s
 		k.order = append(k.order, key)
 	}
-	k.values[key] = append(k.values[key], v)
+	s.add(v, w)
 	return nil
 }
 
@@ -97,39 +113,38 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 	}
 	// Concatenate and assign mid-ranks across the full set, then sum per
 	// group by walking the originating bucket offsets.
-	type bucket struct {
-		start, end int
-	}
-	buckets := make([]bucket, len(keys))
-	var combined []float64
+	samples := make([]*rankSample, len(keys))
 	for i, key := range keys {
-		buckets[i].start = len(combined)
-		combined = append(combined, k.values[key]...)
-		buckets[i].end = len(combined)
+		samples[i] = k.values[key]
 	}
-	N := len(combined)
+	combined, spans := concatRankSamples(samples)
+	N := combined.n()
 	if N < len(keys)*2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_KRUSKAL_WALLIS requires ≥ 2 observations per group, got total %d across %d groups", N, len(keys)),
 			map[string]any{"n_total": N, "groups": len(keys), "min_per_group": 2})
 	}
-	ranks, ties := midRanks(combined)
+	ranks, ties := weightedMidRanks(combined.values, combined.weights)
 	rankSums := make([]float64, len(keys))
 	ns := make([]int, len(keys))
+	sumWs := make([]float64, len(keys))
+	sumWSqs := make([]float64, len(keys))
 	var h float64
-	for i, b := range buckets {
-		ns[i] = b.end - b.start
+	for i, span := range spans {
+		ns[i] = span[1] - span[0]
+		sumWs[i], sumWSqs[i] = samples[i].sumW, samples[i].sumWSq
 		var sum float64
-		for j := b.start; j < b.end; j++ {
-			sum += ranks[j]
+		for j := span[0]; j < span[1]; j++ {
+			sum += combined.weights[j] * ranks[j]
 		}
 		rankSums[i] = sum
-		h += sum * sum / float64(ns[i])
+		// n_i is Σw_i (the group's row count unweighted).
+		h += sum * sum / sumWs[i]
 	}
-	Nf := float64(N)
+	Nf := combined.sumW
 	h = 12/(Nf*(Nf+1))*h - 3*(Nf+1)
 	// Tie correction.
-	denom := 1 - tieCorrection(ties)/(Nf*Nf*Nf-Nf)
+	denom := 1 - tieCorrectionW(ties)/(Nf*Nf*Nf-Nf)
 	if denom > 0 {
 		h /= denom
 	}
@@ -157,7 +172,8 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 	if denom > 0 {
 		setEffectSize(res.Details, "epsilon_squared", epsilonSquared(h, Nf))
 	}
-	if tiesDominate(ties, N) {
+	k.noteGroupSums(res.Details, sumWs, sumWSqs)
+	if tiesDominateW(ties, Nf) {
 		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
 			": ≥ 50% of values are tied; asymptotic p-value is unreliable")
 	}
@@ -165,6 +181,6 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 }
 
 func (k *kruskalWallisRow) reset() {
-	k.values = make(map[string][]float64)
+	k.values = make(map[string]*rankSample)
 	k.order = nil
 }

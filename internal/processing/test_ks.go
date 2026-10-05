@@ -18,6 +18,12 @@ import (
 // when this test is present (TestType.Streamable() returns false), so
 // `processStreamingPath = false` is enforced upstream and the test
 // simply collects values per group during UpdateRow.
+//
+// Frequency-weighted (ClassFrequencyOnly), each row stands for w
+// identical rows: the ECDFs step by Σw (ksTwoSampleDW) and the
+// asymptotic p reads the expanded sizes n₁ = Σw₁, n₂ = Σw₂ — exactly
+// the unweighted test on the expanded rows. Details keep the raw `n`
+// and add `sum_weights` shaped like it.
 type ksRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema
@@ -25,8 +31,10 @@ type ksRow struct {
 	splitBy string
 	alpha   float64
 
-	values map[string][]float64
+	values map[string]*rankSample
 	order  []string
+
+	testWeight
 }
 
 func newKSRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -65,7 +73,9 @@ func newKSRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		field:   spec.Field,
 		splitBy: spec.SplitBy,
 		alpha:   alpha,
-		values:  make(map[string][]float64),
+		values:  make(map[string]*rankSample),
+
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -78,10 +88,17 @@ func (k *ksRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	if _, exists := k.values[key]; !exists {
+	w, ok := k.rowWeight(record)
+	if !ok {
+		return nil
+	}
+	s, exists := k.values[key]
+	if !exists {
+		s = &rankSample{}
+		k.values[key] = s
 		k.order = append(k.order, key)
 	}
-	k.values[key] = append(k.values[key], v)
+	s.add(v, w)
 	return nil
 }
 
@@ -99,21 +116,21 @@ func (k *ksRow) Finalize() (*types.TestResult, error) {
 			fmt.Sprintf("TEST_KS sees %d groups", len(keys))+remedyTwoGroupsFilterUpstream(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
-	a := append([]float64(nil), k.values[keys[0]]...)
-	b := append([]float64(nil), k.values[keys[1]]...)
-	if len(a) < 2 || len(b) < 2 {
+	sa, sb := k.values[keys[0]], k.values[keys[1]]
+	if sa.n() < 2 || sb.n() < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_KS requires n ≥ 2 per group, got %d / %d", len(a), len(b)),
-			map[string]any{"n": []int{len(a), len(b)}, "min_required": 2})
+			fmt.Sprintf("TEST_KS requires n ≥ 2 per group, got %d / %d", sa.n(), sb.n()),
+			map[string]any{"n": []int{sa.n(), sb.n()}, "min_required": 2})
 	}
-	sort.Float64s(a)
-	sort.Float64s(b)
-	D := ksTwoSampleD(a, b)
-	n1 := float64(len(a))
-	n2 := float64(len(b))
+	a, wa := sortedWeighted(sa)
+	b, wb := sortedWeighted(sb)
+	D := ksTwoSampleDW(a, wa, b, wb)
+	// Σw per group (the row counts unweighted).
+	n1 := sa.sumW
+	n2 := sb.sumW
 	en := math.Sqrt(n1 * n2 / (n1 + n2))
 	p := kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(k.spec),
 		Type:       types.TEST_KS,
 		Variant:    "two_sample",
@@ -123,36 +140,88 @@ func (k *ksRow) Finalize() (*types.TestResult, error) {
 		RejectNull: p < k.alpha,
 		Details: map[string]any{
 			"groups": keys,
-			"n":      []int{len(a), len(b)},
+			"n":      []int{sa.n(), sb.n()},
 		},
-	}, nil
+	}
+	k.noteGroupSums(res.Details, []float64{sa.sumW, sb.sumW}, []float64{sa.sumWSq, sb.sumWSq})
+	return res, nil
 }
 
 func (k *ksRow) reset() {
-	k.values = make(map[string][]float64)
+	k.values = make(map[string]*rankSample)
 	k.order = nil
 }
 
+// sortedWeighted returns a sample's values in ascending order
+// (sort.Float64s order: NaN first) with their weights alongside.
+func sortedWeighted(s *rankSample) ([]float64, []float64) {
+	idx := make([]int, len(s.values))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(i, j int) bool {
+		x, y := s.values[idx[i]], s.values[idx[j]]
+		return x < y || (math.IsNaN(x) && !math.IsNaN(y))
+	})
+	vs := make([]float64, len(idx))
+	ws := make([]float64, len(idx))
+	for i, j := range idx {
+		vs[i], ws[i] = s.values[j], s.weights[j]
+	}
+	return vs, ws
+}
+
 // ksTwoSampleD computes the maximum absolute difference between two
-// empirical CDFs for sorted samples a and b. Mirrors scipy's
-// ks_2samp routine.
+// empirical CDFs for sorted samples a and b (every row weighing 1).
 func ksTwoSampleD(a, b []float64) float64 {
+	return ksTwoSampleDW(a, nil, b, nil)
+}
+
+// ksTwoSampleDW is the two-sample D for sorted samples a and b with
+// row weights wa / wb (nil: every row weighs 1): sup |F_a(x) − F_b(x)|
+// over the weighted ECDFs, F(x) = Σ_{v ≤ x} w / Σw. The ECDFs are
+// compared only once every row tied at a value has been consumed on
+// both sides — the supremum is attained at a data value, and a
+// comparison inside a tie run would read a step the ECDF never takes
+// (with unit weights this is scipy ks_2samp / R ks.test's D, ties
+// included). A frequency weight w steps the ECDF by w, exactly as w
+// identical rows would. A NaN run (sorted first) is consumed as one
+// step on both sides.
+func ksTwoSampleDW(a, wa, b, wb []float64) float64 {
+	weight := func(ws []float64, i int) float64 {
+		if ws == nil {
+			return 1
+		}
+		return ws[i]
+	}
+	total := func(xs, ws []float64) float64 {
+		var t float64
+		for i := range xs {
+			t += weight(ws, i)
+		}
+		return t
+	}
+	same := func(x, y float64) bool { return x == y || (x != x && y != y) }
+	n1, n2 := total(a, wa), total(b, wb)
 	i, j := 0, 0
-	n1 := float64(len(a))
-	n2 := float64(len(b))
-	var fa, fb, D float64
+	var ca, cb, D float64
 	for i < len(a) && j < len(b) {
-		va := a[i]
-		vb := b[j]
-		if va <= vb {
-			i++
-			fa = float64(i) / n1
+		va, vb := a[i], b[j]
+		// !(x > y) is x ≤ y, and true when either is NaN, so a NaN
+		// run always advances and the loop terminates.
+		if !(va > vb) {
+			for i < len(a) && same(a[i], va) {
+				ca += weight(wa, i)
+				i++
+			}
 		}
-		if va >= vb {
-			j++
-			fb = float64(j) / n2
+		if !(vb > va) {
+			for j < len(b) && same(b[j], vb) {
+				cb += weight(wb, j)
+				j++
+			}
 		}
-		if diff := math.Abs(fa - fb); diff > D {
+		if diff := math.Abs(ca/n1 - cb/n2); diff > D {
 			D = diff
 		}
 	}

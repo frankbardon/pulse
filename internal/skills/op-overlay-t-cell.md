@@ -25,7 +25,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target; `Basel
 
 ## Gotchas
 
-- No weighted form yet: a request or `Options.DefaultWeight` weight applied to a read slot's aggregation is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on those aggregations.
+- Weighted (both kinds, any weight source): a cell carrying `sum_weights` reads N* = `sum_weights` (frequency) or `n_eff` (probability) — never the raw `n` — and its variance from `m2` on w*. `Summary.Parameters` adds `sum_weights` (+ `n_eff`) over the legs read.
 - **Byte-equal** to Welch's t-test on the same inputs — both read `{n, mean, variance}` via Welford and share `studentTTwoSidedP` and the df recurrence.
 - Legacy `processing.WelfordTriple` smuggle REMOVED v0.20.0 — `MatrixCell.Value` carries the scalar mean.
 - Canonical pairing: `AGG_WELFORD` + `OVERLAY_T_CELL`. Buffered (inferential).

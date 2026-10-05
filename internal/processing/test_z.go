@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -30,8 +31,11 @@ type zTestRow struct {
 	splitBy string
 	alpha   float64
 
-	groups map[string]*welfordBucket
+	groups map[string]*weighting.Welford
 	order  []string
+
+	// testWeight: weighted, each group's moments are read on w* (N*_g).
+	testWeight
 }
 
 func newZTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -65,12 +69,13 @@ func newZTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		}
 	}
 	return &zTestRow{
-		spec:    spec,
-		schema:  schema,
-		field:   spec.Field,
-		splitBy: spec.SplitBy,
-		alpha:   alpha,
-		groups:  make(map[string]*welfordBucket),
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		splitBy:    spec.SplitBy,
+		alpha:      alpha,
+		groups:     make(map[string]*weighting.Welford),
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -83,13 +88,17 @@ func (zt *zTestRow) UpdateRow(record *Record) error {
 	if !kOk {
 		return nil
 	}
+	w, ok := zt.rowWeight(record)
+	if !ok {
+		return nil
+	}
 	b, exists := zt.groups[key]
 	if !exists {
-		b = &welfordBucket{}
+		b = &weighting.Welford{}
 		zt.groups[key] = b
 		zt.order = append(zt.order, key)
 	}
-	b.add(v)
+	b.Add(v, w)
 	return nil
 }
 
@@ -108,30 +117,30 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
 	a, b := zt.groups[keys[0]], zt.groups[keys[1]]
-	if a.n < 2 || b.n < 2 {
+	if a.N < 2 || b.N < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_Z_TWO_SAMPLE requires n ≥ 2 per group, got %d / %d", a.n, b.n),
-			map[string]any{"n": []int64{a.n, b.n}, "min_required": 2})
+			fmt.Sprintf("TEST_Z_TWO_SAMPLE requires n ≥ 2 per group, got %d / %d", a.N, b.N),
+			map[string]any{"n": []int64{a.N, b.N}, "min_required": 2})
 	}
-	va := a.sampleVariance()
-	vb := b.sampleVariance()
+	va := a.Variance(zt.basis)
+	vb := b.Variance(zt.basis)
 	if va == 0 && vb == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_Z_TWO_SAMPLE: both groups have zero variance",
-			map[string]any{"groups": keys, "means": []float64{a.mean, b.mean}})
+			map[string]any{"groups": keys, "means": []float64{a.Mean, b.Mean}})
 	}
-	na := float64(a.n)
-	nb := float64(b.n)
+	na := a.NStar(zt.basis)
+	nb := b.NStar(zt.basis)
 	se := math.Sqrt(va/na + vb/nb)
 	if se == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_Z_TWO_SAMPLE: standard error is zero",
 			map[string]any{"groups": keys})
 	}
-	diff := a.mean - b.mean
+	diff := a.Mean - b.Mean
 	zstat := diff / se
 	p := normalTwoSidedP(zstat)
-	zcrit := math.Sqrt2 * inverseErf(1-zt.alpha)
+	zcrit := normalCriticalTwoSided(zt.alpha)
 	ciLow := diff - zcrit*se
 	ciHigh := diff + zcrit*se
 	res := &types.TestResult{
@@ -144,8 +153,8 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 		RejectNull: p < zt.alpha,
 		Details: map[string]any{
 			"groups":   keys,
-			"n":        []int64{a.n, b.n},
-			"mean":     []float64{a.mean, b.mean},
+			"n":        []int64{a.N, b.N},
+			"mean":     []float64{a.Mean, b.Mean},
 			"variance": []float64{va, vb},
 			"diff":     diff,
 			"ci_low":   ciLow,
@@ -153,10 +162,13 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 		},
 	}
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
+	zt.noteGroups(res.Details, []*weighting.Welford{a, b})
+	zt.checkNEff(zt.spec, true, keys[0], a.NEff(), 2)
+	zt.checkNEff(zt.spec, true, keys[1], b.NEff(), 2)
 	return res, nil
 }
 
 func (zt *zTestRow) reset() {
-	zt.groups = make(map[string]*welfordBucket)
+	zt.groups = make(map[string]*weighting.Welford)
 	zt.order = nil
 }

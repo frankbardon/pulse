@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -74,6 +75,13 @@ type CrosstabHostView struct {
 	// through the CrosstabComponents accessors; payload-only overlays
 	// (share, index, χ², Fisher) ignore this field. Read-only.
 	components *types.CrosstabComponents
+
+	// basis / basisKnown carry the weight basis of the host's crosstab
+	// cell when the caller knows it from the STAMPED request
+	// (applyOverlaysToResponse): the cell's resolved weight. Unset, the
+	// basis is inferred from the cells' floor keys (WeightBasis).
+	basis      weighting.Basis
+	basisKnown bool
 }
 
 // NewCrosstabHostView wraps a MatrixPayload as a host view. payload
@@ -380,6 +388,23 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 			}
 			continue
 		}
+		// A frequency-only kind on a host whose crosstab cell is
+		// weighted under kind probability (weighting-inferential E3-S2)
+		// — the slot-only host the resolver's slot-level class check
+		// cannot see. Predict raises the same refusal
+		// (descriptor.validateOverlayFisherExactCell).
+		if route == types.OverlayKindFisherExactCell && host.WeightBasis() == weighting.Probability {
+			msg, details := weighting.FrequencyOnlyHostRefusal("overlays["+intToString(int64(i))+"]", string(spec.Kind))
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED, msg, details)
+		}
+		// A χ² kind on a probability-weighted host built with components
+		// disabled: no floor, so no n_eff to scale the Σw table by
+		// (weighting-inferential E3-S3). Predict raises the same refusal
+		// (descriptor.validateOverlaySpec).
+		if weighting.ScalesByHostFloor(route) && host.WeightBasis() == weighting.Probability && !host.HasComponents() {
+			msg, details := weighting.HiddenFloorRefusal("overlays["+intToString(int64(i))+"]", spec.Kind, "crosstab.cell")
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, msg, details)
+		}
 		handler, ok := overlayHandlers[route]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
@@ -623,6 +648,10 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 	var grand float64
 	var observedCount int
 	var observedMin, observedMax float64
+	// Weighted host (weighting-inferential E3-S2): the cells are Σw;
+	// the table's floor tally gives its N* and the Kish scale.
+	basis := host.WeightBasis()
+	var table weightedLegTally
 	for i := 0; i < rowCount; i++ {
 		row := make([]float64, colCount)
 		for j := 0; j < colCount; j++ {
@@ -632,6 +661,9 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 				// not contribute to row / col / grand totals (correct
 				// for absent-as-zero — a zero observation has count 0).
 				continue
+			}
+			if l, ok := host.CellFloor(i, j, basis); ok {
+				table.add(l)
 			}
 			row[j] = v
 			rowTotals[i] += v
@@ -660,6 +692,18 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 			map[string]any{
 				"kind": string(spec.Kind),
 			})
+	}
+
+	// Under kind probability the Σw table is scaled to the table's Kish
+	// n_eff — T* = c·Σw_ij, c = n_eff/Σw over the cells read — before
+	// the ordinary Pearson recurrence, as TEST_CHISQ does: a first-order
+	// Kish approximation, NOT the Rao-Scott design-effect correction.
+	// The expected counts (and the low-expected warning) read the scaled
+	// table. Frequency and unweighted hosts read the table as is (no
+	// multiply), so their statistic is byte-identical to the unweighted
+	// recurrence on the same numbers.
+	if basis == weighting.Probability {
+		scaleContingency(table.scale(), observed, rowTotals, colTotals, &grand)
 	}
 
 	// χ² recurrence. Mirrors internal/processing/test_chisq.go Finalize() so the
@@ -722,6 +766,7 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 			"df": df64,
 		},
 	}
+	table.stamp(summary)
 	if observedCount > 0 {
 		mn, mx, count := observedMin, observedMax, observedCount
 		summary.Min = &mn
@@ -745,6 +790,24 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 	}
 
 	return layer, warnings, nil
+}
+
+// scaleContingency multiplies a contingency table, its margins and its
+// grand total by c in place — the χ² overlays' Kish scaling of a Σw
+// table onto w* under kind probability (weightedLegTally.scale).
+func scaleContingency(c float64, observed [][]float64, rowTotals, colTotals []float64, grand *float64) {
+	for i := range observed {
+		for j := range observed[i] {
+			observed[i][j] *= c
+		}
+	}
+	for i := range rowTotals {
+		rowTotals[i] *= c
+	}
+	for j := range colTotals {
+		colTotals[j] *= c
+	}
+	*grand *= c
 }
 
 // applyChiSqRow is the OVERLAY_CHISQ_ROW handler. It computes a per-row
@@ -830,12 +893,19 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 	rowTotals := make([]float64, rowCount)
 	colTotals := make([]float64, colCount)
 	var grand float64
+	// Weighted host (weighting-inferential E3-S2): each row's floor
+	// tally gives the row margin's N* and its Kish scale.
+	basis := host.WeightBasis()
+	rowTally := make([]weightedLegTally, rowCount)
 	for i := 0; i < rowCount; i++ {
 		row := make([]float64, colCount)
 		for j := 0; j < colCount; j++ {
 			v, present := host.CellAt(i, j)
 			if !present {
 				continue
+			}
+			if l, ok := host.CellFloor(i, j, basis); ok {
+				rowTally[i].add(l)
 			}
 			row[j] = v
 			rowTotals[i] += v
@@ -866,8 +936,19 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 			degenerate = true
 		}
 		if !degenerate {
+			// Under kind probability the row's Σw cells are scaled to
+			// the row margin's Kish n_eff (c_r = n_eff_r/Σw_r); the
+			// column distribution colTotals/grand is a proportion, so
+			// it needs no scaling. Not Rao-Scott. Frequency and
+			// unweighted rows read the cells as is (no multiply).
+			rowTotal := rowTotals[i]
+			cr := 1.0
+			if basis == weighting.Probability {
+				cr = rowTally[i].scale()
+				rowTotal *= cr
+			}
 			for c := 0; c < colCount; c++ {
-				expected := rowTotals[i] * colTotals[c] / grand
+				expected := rowTotal * colTotals[c] / grand
 				if expected < rowExpectedMin {
 					rowExpectedMin = expected
 				}
@@ -875,7 +956,11 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 					rowLowExpected++
 				}
 				if expected > 0 {
-					diff := observed[i][c] - expected
+					obs := observed[i][c]
+					if basis == weighting.Probability {
+						obs *= cr
+					}
+					diff := obs - expected
 					stat += diff * diff / expected
 				}
 			}
@@ -890,6 +975,7 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 				"df": df,
 			},
 		}
+		rowTally[i].stamp(&entrySummary)
 		if degenerate {
 			nan := math.NaN()
 			entrySummary.Statistic = &nan
@@ -1040,12 +1126,19 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 	rowTotals := make([]float64, rowCount)
 	colTotals := make([]float64, colCount)
 	var grand float64
+	// Weighted host (weighting-inferential E3-S2): each column's floor
+	// tally gives the column margin's N* and its Kish scale.
+	basis := host.WeightBasis()
+	colTally := make([]weightedLegTally, colCount)
 	for i := 0; i < rowCount; i++ {
 		row := make([]float64, colCount)
 		for j := 0; j < colCount; j++ {
 			v, present := host.CellAt(i, j)
 			if !present {
 				continue
+			}
+			if l, ok := host.CellFloor(i, j, basis); ok {
+				colTally[j].add(l)
 			}
 			row[j] = v
 			rowTotals[i] += v
@@ -1076,8 +1169,19 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 			degenerate = true
 		}
 		if !degenerate {
+			// Under kind probability the column's Σw cells are scaled
+			// to the column margin's Kish n_eff (c_c = n_eff_c/Σw_c);
+			// the row distribution rowTotals/grand is a proportion.
+			// Not Rao-Scott. Frequency and unweighted columns read the
+			// cells as is (no multiply).
+			colTotal := colTotals[c]
+			cc := 1.0
+			if basis == weighting.Probability {
+				cc = colTally[c].scale()
+				colTotal *= cc
+			}
 			for r := 0; r < rowCount; r++ {
-				expected := rowTotals[r] * colTotals[c] / grand
+				expected := rowTotals[r] * colTotal / grand
 				if expected < colExpectedMin {
 					colExpectedMin = expected
 				}
@@ -1085,7 +1189,11 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 					colLowExpected++
 				}
 				if expected > 0 {
-					diff := observed[r][c] - expected
+					obs := observed[r][c]
+					if basis == weighting.Probability {
+						obs *= cc
+					}
+					diff := obs - expected
 					stat += diff * diff / expected
 				}
 			}
@@ -1100,6 +1208,7 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 				"df": df,
 			},
 		}
+		colTally[c].stamp(&entrySummary)
 		if degenerate {
 			nan := math.NaN()
 			entrySummary.Statistic = &nan
@@ -1436,12 +1545,22 @@ func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (type
 		maxV     float64
 		seen     int
 	)
+	// Frequency-weighted host (weighting-inferential E3-S2): the cells
+	// and margins are Σw, the expanded rows' integer counts, so the
+	// exact test runs on them unchanged (the rounding below is exact);
+	// the table's Σw rides the summary. A probability-weighted host
+	// never reaches here (refused at dispatch, and by the resolver).
+	basis := host.WeightBasis()
+	var table weightedLegTally
 	for i := 0; i < rowCount; i++ {
 		row := make([]types.MatrixCell, colCount)
 		for j := 0; j < colCount; j++ {
 			cellVal, cellPresent := host.CellAt(i, j)
 			if !cellPresent {
 				continue
+			}
+			if l, ok := host.CellFloor(i, j, basis); ok {
+				table.add(l)
 			}
 			rowMarginVal, rowMarginPresent := host.MarginFor(types.MarginAxisRow, i, j)
 			if !rowMarginPresent {
@@ -1590,6 +1709,7 @@ func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (type
 
 	baseline := 0.0
 	summary := &types.OverlaySummary{Baseline: &baseline}
+	table.stamp(summary)
 	if seen > 0 {
 		mn, mx, count := minV, maxV, seen
 		summary.Min = &mn

@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"math"
 	"strings"
 	"testing"
@@ -552,6 +553,12 @@ func TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered(t *testing.T
 		// identically (zero present cells, a non-empty promoted warning
 		// set). Degradation parity is as load-bearing as value parity.
 		expectSkips bool
+		// frequency puts a kind-frequency slot weight on the cell (the
+		// weight_field sugar alone is kind probability).
+		frequency bool
+		// wantErr: both arms refuse with this code and one message
+		// (the weighted-host n_source rule, weighting.NSourceRefusal).
+		wantErr errors.Code
 	}{
 		{
 			// Default n leg: the universal-floor per-cell record count.
@@ -562,24 +569,40 @@ func TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered(t *testing.T
 		},
 		{
 			// The weighted n leg — reads sum_weights straight off the
-			// AGG_WEIGHTED_MEAN component map. This is the mode the
-			// weighted cell aggregator exists to serve.
-			name: "row_scope_cell_weight_sum",
+			// AGG_WEIGHTED_MEAN component map, a valid n under kind
+			// frequency only (weighting-inferential E3-S2). The cell's
+			// own n_eff key is emitted under either kind, so this row
+			// also pins that the host's basis comes from the stamped
+			// cell weight, not the floor keys.
+			name: "row_scope_cell_weight_sum_frequency",
 			overlays: []types.OverlaySpec{
 				propZ(types.OverlayScopeRow, types.PairwiseOverlayParams{
 					NSource: types.PairwiseNSourceCellWeightSum,
 				}),
 			},
+			frequency: true,
 		},
 		{
-			// Margin-count n leg exercises the fused margin-components
-			// arithmetic, which is derived rather than accumulated.
-			name: "row_scope_row_margin_n",
+			// Under the sugar's kind probability the weight sum
+			// overstates n: both arms refuse identically.
+			name: "row_scope_cell_weight_sum_probability_refused",
+			overlays: []types.OverlaySpec{
+				propZ(types.OverlayScopeRow, types.PairwiseOverlayParams{
+					NSource: types.PairwiseNSourceCellWeightSum,
+				}),
+			},
+			wantErr: errors.PROCESSING_CONFIG,
+		},
+		{
+			// A raw margin count is not a sample size on a weighted
+			// host: both arms refuse identically.
+			name: "row_scope_row_margin_n_refused",
 			overlays: []types.OverlaySpec{
 				propZ(types.OverlayScopeRow, types.PairwiseOverlayParams{
 					NSource: types.PairwiseNSourceRowMarginN,
 				}),
 			},
+			wantErr: errors.PROCESSING_CONFIG,
 		},
 		{
 			// Column scope transposes the pair axis; the fused axis
@@ -621,8 +644,15 @@ func TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered(t *testing.T
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gateReq := crosstabWeightedOverlayBaseRequest()
-			gateReq.Overlays = tc.overlays
+			mkReq := func() *types.Request {
+				r := crosstabWeightedOverlayBaseRequest()
+				r.Overlays = tc.overlays
+				if tc.frequency {
+					r.Crosstab.Cell.Weight = types.SlotWeightOf(types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency})
+				}
+				return r
+			}
+			gateReq := mkReq()
 			ok, reason := CanFuseCrosstab(gateReq, schema, nil)
 			if !ok {
 				t.Fatalf("CanFuseCrosstab rejected AGG_WEIGHTED_MEAN + PAIRWISE_PROP_Z: %s", reason)
@@ -631,18 +661,21 @@ func TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered(t *testing.T
 				t.Fatalf("expected empty reason on success, got %q", reason)
 			}
 
-			bufReq := crosstabWeightedOverlayBaseRequest()
-			bufReq.Overlays = tc.overlays
-			bufResp, err := runBufferedCrosstabWithComponents(t, schema, bufReq, recs, false)
-			if err != nil {
-				t.Fatalf("buffered RunCrosstab: %v", err)
+			bufResp, bufErr := runBufferedCrosstabWithComponents(t, schema, mkReq(), recs, false)
+			fusedResp, fusedErr := runFusedCrosstabViaRunner(t, schema, mkReq(), recs, false)
+			if tc.wantErr != "" {
+				var bce, fce *errors.CodedError
+				if !stderrors.As(bufErr, &bce) || !stderrors.As(fusedErr, &fce) ||
+					bce.Code != tc.wantErr || fce.Code != tc.wantErr || bce.Message != fce.Message {
+					t.Fatalf("want %s on both arms: buffered %v, fused %v", tc.wantErr, bufErr, fusedErr)
+				}
+				return
 			}
-
-			fusedReq := crosstabWeightedOverlayBaseRequest()
-			fusedReq.Overlays = tc.overlays
-			fusedResp, err := runFusedCrosstabViaRunner(t, schema, fusedReq, recs, false)
-			if err != nil {
-				t.Fatalf("RunCrosstabFused: %v", err)
+			if bufErr != nil {
+				t.Fatalf("buffered RunCrosstab: %v", bufErr)
+			}
+			if fusedErr != nil {
+				t.Fatalf("RunCrosstabFused: %v", fusedErr)
 			}
 
 			// Non-vacuity: either the prop-Z layer produced real

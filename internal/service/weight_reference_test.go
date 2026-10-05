@@ -152,6 +152,9 @@ func weightRefName(c weightRefCase) string {
 // TestWeightReferenceValues — see the file comment.
 func TestWeightReferenceValues(t *testing.T) {
 	t.Run("coverage", assertWeightRefCoverage)
+	t.Run("tests", testWeightRefTests)
+	t.Run("overlays", testWeightRefOverlays)
+	t.Run("regressions", testWeightRefRegs)
 	if !strings.Contains(weightRefProvenance, "statsmodels") || !strings.Contains(weightRefProvenance, "numpy") || !strings.Contains(weightRefProvenance, "Hmisc") {
 		t.Fatalf("weightRefProvenance %q does not record the generating tool versions", weightRefProvenance)
 	}
@@ -309,6 +312,10 @@ var weightRefScale = map[types.AggregationType]string{
 	types.AGG_SET_FREQUENCY:       "total",
 	types.AGG_SET_CARDINALITY_SUM: "total",
 	types.AGG_SET_CARDINALITY_AVG: "free",
+	// The CI bounds read N* — Σw under frequency, n_eff under
+	// probability — so the f / p twins differ by design.
+	types.AGG_CI_LOWER: "none",
+	types.AGG_CI_UPPER: "none",
 }
 
 // TestWeightReferenceKindsAgree: the same replication pattern given as
@@ -319,6 +326,8 @@ var weightRefScale = map[types.AggregationType]string{
 // numbers. The table is held total over the manifest's weight_aware
 // set.
 func TestWeightReferenceKindsAgree(t *testing.T) {
+	t.Run("tests", testWeightRefTestsKindsAgree)
+	t.Run("regressions", testWeightRefRegsKindsAgree)
 	for name := range manifestAware() {
 		if _, ok := weightRefScale[types.AggregationType(name)]; !ok {
 			t.Errorf("%s is weight_aware but has no weightRefScale entry", name)

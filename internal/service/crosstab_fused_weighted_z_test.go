@@ -150,9 +150,12 @@ func wzsCrosstabRequest(path string) *types.Request {
 				{Type: types.GROUP_CATEGORY, Field: "wave"},
 				{Type: types.GROUP_CATEGORY, Field: "aud"},
 			},
+			// Integer weights as a FREQUENCY cell weight, so n_basis
+			// "weights" stands; on the weight_field sugar's probability
+			// host it is refused (U12 review WS-06).
 			Cell: &types.Aggregation{
 				Type: types.AGG_WEIGHTED_MEAN, Field: "value", Label: "wmean",
-				Params: json.RawMessage(`{"weight_field":"weight"}`),
+				Weight: types.SlotWeightOf(types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency}),
 			},
 			Shape:   types.CrosstabShapeMatrix,
 			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
@@ -375,7 +378,7 @@ func wzsAssertMomentKeys(t *testing.T, entries []types.AggregationComponents) {
 		case map[string]any:
 			if _, ok := x["sum_weights_sq"]; ok {
 				found++
-				for _, k := range []string{"m2_weighted", "sum_weights_sq", "weighted_variance", "n_eff"} {
+				for _, k := range []string{"m2_weighted", "sum_weights", "sum_weights_sq", "weighted_variance"} {
 					f, ok := x[k].(float64)
 					if !ok || !(f > 0) {
 						t.Fatalf("weighted-moment key %q = %v, want > 0 in %v", k, x[k], x)
@@ -427,7 +430,7 @@ func wzsAssertNonVacuous(t *testing.T, resp *types.Response, wantLayers int) {
 			if cell == nil {
 				t.Fatalf("CellComponents[%d][%d] is nil; every cell has rows", r, c)
 			}
-			for _, k := range []string{"m2_weighted", "sum_weights_sq", "weighted_variance", "n_eff"} {
+			for _, k := range []string{"m2_weighted", "sum_weights", "sum_weights_sq", "weighted_variance"} {
 				if f, ok := cell[k].(float64); !ok || !(f > 0) {
 					t.Fatalf("CellComponents[%d][%d][%q] = %v, want > 0", r, c, k, cell[k])
 				}
@@ -506,7 +509,8 @@ func wzsNearDiff(path string, want, got any) string {
 // AGG_AVERAGE cell weighted by the REQUEST weight is a valid host on
 // both crosstab arms — the overlay kind is exempt from the
 // weighted-inference refusal — and its layers equal the AGG_WEIGHTED_MEAN
-// (weight_field) host's: the same weighted moments, read the same way.
+// (frequency slot weight) host's: the same weighted moments, read the
+// same way.
 func TestCrosstab_WeightedTwoMeansZ_WeightedAverageHost(t *testing.T) {
 	cfg := fs.NewMemMap()
 	wzsArchive(t, cfg, "wz.pulse", []int{37, 29, 41})
@@ -519,7 +523,7 @@ func TestCrosstab_WeightedTwoMeansZ_WeightedAverageHost(t *testing.T) {
 		svc.SetDisableCrosstabFusion(!fused)
 		req := wzsCrosstabRequest("wz.pulse.concat")
 		if average {
-			req.Weight = &types.WeightSpec{Field: "weight"}
+			req.Weight = &types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency}
 			req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_AVERAGE, Field: "value", Label: "wmean"}
 		}
 		if ok, reason := processing.CanFuseCrosstab(processing.StampWeights(req, nil), wzsSchema(), svc.Extensions()); fused && !ok {

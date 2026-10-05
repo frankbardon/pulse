@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,6 +26,12 @@ import (
 // record contributes ±1 to either successes (when field == success
 // value) or just to n. Finalize emits the pooled z-statistic, the
 // per-group rates, and a Wald confidence interval on the rate diff.
+//
+// Weighted (.claude/reference/weighting.md, Weighted inference): each
+// group's rate is p̂_g = Σw_success/Σw_g and its sample size N*_g (Σw_g
+// under frequency, Kish n_eff_g under probability); the pooled rate is
+// Σ(p̂_g·N*_g)/ΣN*_g. Cohen's h is scale-free. `n` stays the raw row
+// count; `successes` becomes Σw_success.
 type propZRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema
@@ -35,11 +42,18 @@ type propZRow struct {
 
 	groups map[string]*propGroup
 	order  []string
+
+	// testWeight is the slot's stamped weight (nil: unweighted).
+	testWeight
 }
 
+// propGroup is one split group: its weight moments (raw row count N,
+// Σw, Σw²; the value folded is irrelevant) plus the raw success count
+// and the success weight Σw_success.
 type propGroup struct {
-	n         int64
+	w         weighting.Welford
 	successes int64
+	succW     float64
 }
 
 type propZParams struct {
@@ -86,13 +100,14 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		}
 	}
 	return &propZRow{
-		spec:    spec,
-		schema:  schema,
-		field:   spec.Field,
-		splitBy: spec.SplitBy,
-		success: params.Success,
-		alpha:   alpha,
-		groups:  make(map[string]*propGroup),
+		spec:       spec,
+		schema:     schema,
+		field:      spec.Field,
+		splitBy:    spec.SplitBy,
+		success:    params.Success,
+		alpha:      alpha,
+		groups:     make(map[string]*propGroup),
+		testWeight: newTestWeight(spec),
 	}, nil
 }
 
@@ -105,15 +120,20 @@ func (p *propZRow) UpdateRow(record *Record) error {
 	if !kOk {
 		return nil
 	}
+	w, ok := p.rowWeight(record)
+	if !ok {
+		return nil
+	}
 	g, exists := p.groups[key]
 	if !exists {
 		g = &propGroup{}
 		p.groups[key] = g
 		p.order = append(p.order, key)
 	}
-	g.n++
+	g.w.Add(0, w)
 	if outcome == p.success {
 		g.successes++
+		g.succW += w
 	}
 	return nil
 }
@@ -133,15 +153,22 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
 	a, b := p.groups[keys[0]], p.groups[keys[1]]
-	if a.n < 1 || b.n < 1 {
+	if a.w.N < 1 || b.w.N < 1 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_PROP_Z requires n ≥ 1 per group, got %d / %d", a.n, b.n),
-			map[string]any{"n": []int64{a.n, b.n}})
+			fmt.Sprintf("TEST_PROP_Z requires n ≥ 1 per group, got %d / %d", a.w.N, b.w.N),
+			map[string]any{"n": []int64{a.w.N, b.w.N}})
 	}
-	na, nb := float64(a.n), float64(b.n)
-	pa := float64(a.successes) / na
-	pb := float64(b.successes) / nb
-	pooled := float64(a.successes+b.successes) / (na + nb)
+	// Unweighted, Σw is the exact integer n and Σw_success the exact
+	// success count, so every expression below reduces to the
+	// unweighted arithmetic bit for bit.
+	na, nb := a.w.NStar(p.basis), b.w.NStar(p.basis)
+	pa := a.succW / a.w.SumW
+	pb := b.succW / b.w.SumW
+	// Σ(p̂_g·N*_g) is the success mass on w*: Σw_success itself under
+	// frequency, c_g·Σw_success under probability.
+	sa := a.succW * p.basis.Scale(a.w.SumW, a.w.SumWSq)
+	sb := b.succW * p.basis.Scale(b.w.SumW, b.w.SumWSq)
+	pooled := (sa + sb) / (na + nb)
 	if pooled == 0 || pooled == 1 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_PROP_Z: pooled proportion is 0 or 1; z-statistic undefined",
@@ -152,14 +179,14 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	pvalue := normalTwoSidedP(z)
 	// Wald (unpooled) standard error for the CI on the rate diff.
 	seUnpool := math.Sqrt(pa*(1-pa)/na + pb*(1-pb)/nb)
-	// Two-sided normal critical value at alpha/2 via the inverse erf.
-	zcrit := math.Sqrt2 * inverseErf(1-p.alpha)
+	// Two-sided normal critical value at alpha/2.
+	zcrit := normalCriticalTwoSided(p.alpha)
 	ciLow := (pa - pb) - zcrit*seUnpool
 	ciHigh := (pa - pb) + zcrit*seUnpool
 	details := map[string]any{
 		"success":    p.success,
 		"groups":     keys,
-		"n":          []int64{a.n, b.n},
+		"n":          []int64{a.w.N, b.w.N},
 		"successes":  []int64{a.successes, b.successes},
 		"proportion": []float64{pa, pb},
 		"diff":       pa - pb,
@@ -167,6 +194,10 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 		"ci_low":     ciLow,
 		"ci_high":    ciHigh,
 	}
+	if p.basis.Weighted() {
+		details["successes"] = []float64{a.succW, b.succW}
+	}
+	p.noteGroups(details, []*weighting.Welford{&a.w, &b.w})
 	setEffectSize(details, "cohens_h", cohensH(pa, pb))
 	return &types.TestResult{
 		Label:      testLabel(p.spec),
@@ -185,24 +216,15 @@ func (p *propZRow) reset() {
 	p.order = nil
 }
 
-// inverseErf approximates erf⁻¹(x) via the Winitzki rational
-// approximation. Used to derive the two-sided normal critical value
-// for the CI bounds: z_{α/2} = √2 · erf⁻¹(1 − α). Accurate to ~1.5e-3
-// over the alpha range used by this test (α ∈ (0, 1)).
-func inverseErf(x float64) float64 {
-	if x <= -1 {
-		return math.Inf(-1)
-	}
-	if x >= 1 {
-		return math.Inf(1)
-	}
-	const a = 0.147
-	lnTerm := math.Log(1 - x*x)
-	first := 2/(math.Pi*a) + lnTerm/2
-	inner := first*first - lnTerm/a
-	root := math.Sqrt(math.Sqrt(inner) - first)
-	if x < 0 {
-		return -root
-	}
-	return root
+// normalCriticalTwoSided is the two-sided standard-normal critical
+// value z_{α/2} = Φ⁻¹(1 − α/2), taken as −Φ⁻¹(α/2) so the tail
+// probability is never formed as one minus a small number. It is
+// R's qnorm(1 − α/2) to a few ulp (standardNormalPPF is checked against
+// qnorm by TestReferenceOracle_StandardNormalPPF) and backs every
+// normal-critical confidence bound: AGG_CI_LOWER / AGG_CI_UPPER, the
+// TEST_Z_TWO_SAMPLE and TEST_PROP_Z Wald intervals and the
+// TEST_PEARSON_R Fisher-z interval. (It replaced a Winitzki inverse-erf
+// approximation whose z was ~4.7e-4 relative too small at α = 0.05.)
+func normalCriticalTwoSided(alpha float64) float64 {
+	return -standardNormalPPF(alpha / 2)
 }

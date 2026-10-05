@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -329,6 +330,13 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	if werr := composeOverlayWeightRefusal(specIdx, spec, req.Requests, labels, defaultWeight, opts.instance()); werr != nil {
 		addCodedError(env, werr)
 	}
+	// Gate 2c: a kind that scales a probability-weighted slot's Σw by
+	// the n_eff on its floor, over a slot built with components
+	// disabled (PROCESSING_CONFIG) — the runtime's check in
+	// Service.applyComposeOverlays.
+	if ferr := composeOverlayHiddenFloorRefusal(specIdx, spec, req.Requests, labels, defaultWeight, opts.instance(), opts.componentsDisabled); ferr != nil {
+		addCodedError(env, ferr)
+	}
 
 	// Gate 3: multi-reference panel target cap. Fires before the
 	// per-target shape walk so a wildly over-cap spec does not also
@@ -405,6 +413,24 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		}
 		validateOverlayPanel(env, spec.Kind, params, err, specIdx, slots,
 			snapshotGroupFanOut(extensionsFromOpts(opts)))
+		// Weighted-slot n_source rule (weighting-inferential E3-S2):
+		// an unweighted-count mode on a panel with a weighted slot (its
+		// crosstab cell resolves an applied weight) is PROCESSING_CONFIG
+		// with the runtime's message (processing.applyPropZPanel).
+		if err == nil && types.PanelNSourceReadsComponents(params.NSource) {
+			basis := crosstabCellWeightBasis(refReq, opts)
+			for _, label := range spec.Targets {
+				if tReq, ok := byLabel[label]; ok && !basis.Weighted() {
+					basis = crosstabCellWeightBasis(tReq, opts)
+				}
+			}
+			if reason := weighting.NSourceRefusal(params.NSource, basis); reason != "" {
+				env.AddError(string(errors.PROCESSING_CONFIG),
+					"overlay "+string(spec.Kind)+" n_source "+params.NSource+": "+reason,
+					map[string]any{"index": specIdx, "kind": string(spec.Kind), "param": "n_source",
+						"n_source": params.NSource})
+			}
+		}
 	}
 
 	// Gate 4: per-target shape + schema match. The reference shape

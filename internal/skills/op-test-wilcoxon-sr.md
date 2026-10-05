@@ -14,6 +14,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
+- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): a pair of weight w ranks as w identical pairs — equals the test on the expanded pairs. `Details` add `sum_weights` beside `n`; `n` and `zero_diffs` stay raw row counts.
 
 Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pre value).
 
@@ -27,7 +28,6 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 ## Gotchas
 
-- No weighted form yet: any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — |d| ranked across the whole set.
 - Zero-diff pairs are dropped (Wilcoxon convention); reported in `Details.zero_diffs`.
 - Nonparametric alternative to a paired t-test when d is non-normal.
