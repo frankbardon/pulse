@@ -203,6 +203,28 @@ or a method resolving to `none`, emits none of them — the response is
 byte-identical. On an instance that hides `capability:multiplicity` the
 three keys and `AppliedMultiplicity` are absent from the schema too.
 
+An inferential overlay layer is corrected the same way, its adjusted
+figures riding the layer's own additive slots — the base payload (the
+`matrix` cells, `scalar`, each summary's `p_value` / `statistic`) never
+changes. Where they land follows where the kind carries its p-values:
+an `OverlaySummary` (the layer's, for the χ² / KS kinds whose p is
+`summary.p_value`; each SERIES entry's, for `OVERLAY_CHISQ_ROW` /
+`_COL`, and for `OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF` whose p is the
+entry's `statistic`) gains `p_adjusted` and `significant_adjusted`; a
+MATRIX payload whose cells are p-values (the pairwise, Fisher and
+`*_CELL` kinds) gains two parallel `MatrixPayload`s, `payload.p_adjusted`
+and `payload.significant_adjusted`, on identical headers, keys and
+`[row][column]` coordinates (a panel kind's cell vector maps element for
+element: `[]number|null` and `[]boolean|null`); a base cell that is
+absent stays absent, an undefined adjusted p is `null` and its
+significance cell absent. The layer gains a `multiplicity` echo
+(`AppliedMultiplicity`), present only when a correction ran.
+`significant_adjusted` compares against the resolved
+`multiplicity.alpha` (default `0.05`). A `layer` family never mixes
+layers; a `request`-family layer pools with the request's tests and
+post-tests, so its echo's `m` is the pooled count. These keys ride
+`capability:multiplicity` like the test outputs.
+
 ## Weight slots
 
 Row weighting adds two additive slot shapes (`format_version` stays

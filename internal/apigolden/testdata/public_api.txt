@@ -3530,6 +3530,7 @@ pulse/types: const OverlayKindZScoreVsTotal pulse/types.OverlayKind = "OVERLAY_Z
 pulse/types: const OverlayKindZVsRef pulse/types.OverlayKind = "OVERLAY_Z_VS_REF"
 pulse/types: type OverlayLayer struct
 pulse/types: type OverlayLayer field Kind pulse/types.OverlayKind "json:\"kind\""
+pulse/types: type OverlayLayer field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type OverlayLayer field Name string "json:\"name\""
 pulse/types: type OverlayLayer field Payload pulse/types.OverlayPayload "json:\"payload\""
 pulse/types: type OverlayLayer field Ref pulse/types.OverlayRef "json:\"ref\""
@@ -3544,9 +3545,11 @@ pulse/types: type OverlayOptions field DictPrefixFast bool "json:\"dict_prefix_f
 pulse/types: type OverlayOptions field MaxPanelTargets int "json:\"max_panel_targets,omitempty\""
 pulse/types: type OverlayPayload struct
 pulse/types: type OverlayPayload field Matrix *pulse/types.MatrixPayload "json:\"matrix,omitempty\""
+pulse/types: type OverlayPayload field PAdjusted *pulse/types.MatrixPayload "json:\"p_adjusted,omitempty\""
 pulse/types: type OverlayPayload field Scalar *float64 "json:\"scalar,omitempty\""
 pulse/types: type OverlayPayload field Series *pulse/types.SeriesPayload "json:\"series,omitempty\""
 pulse/types: type OverlayPayload field Shape pulse/types.OverlayShape "json:\"shape\""
+pulse/types: type OverlayPayload field SignificantAdjusted *pulse/types.MatrixPayload "json:\"significant_adjusted,omitempty\""
 pulse/types: type OverlayPayload method (OverlayPayload) MarshalJSON() ([]byte, error)
 pulse/types: type OverlayPopulationRef struct
 pulse/types: type OverlayPopulationRef field Cohort string "json:\"cohort,omitempty\""
@@ -3596,8 +3599,10 @@ pulse/types: type OverlaySummary field Baseline *float64 "json:\"baseline,omitem
 pulse/types: type OverlaySummary field Count *int "json:\"count,omitempty\""
 pulse/types: type OverlaySummary field Max *float64 "json:\"max,omitempty\""
 pulse/types: type OverlaySummary field Min *float64 "json:\"min,omitempty\""
+pulse/types: type OverlaySummary field PAdjusted *float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type OverlaySummary field PValue *float64 "json:\"p_value,omitempty\""
 pulse/types: type OverlaySummary field Parameters map[string]float64 "json:\"parameters,omitempty\""
+pulse/types: type OverlaySummary field SignificantAdjusted *bool "json:\"significant_adjusted,omitempty\""
 pulse/types: type OverlaySummary field Statistic *float64 "json:\"statistic,omitempty\""
 pulse/types: type OverlaySummary method (OverlaySummary) MarshalJSON() ([]byte, error)
 pulse/types: type OverlayWarning struct
@@ -3886,4 +3891,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d5bf963a291d48275a1c10c586babc6ecc1b5382ac4bea8132793d518bc35c19
+// golden-hash: e3bbac1d304595fed8d64d1b111f8bd1573a59d945a435ff5fad5b3fc1820492

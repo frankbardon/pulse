@@ -474,13 +474,16 @@ func (b *schemaBuilder) overlayPayloadDef(t reflect.Type) any {
 	defer func() { b.floatNull = prevFloatNull }()
 	props := map[string]any{}
 	armForShape := map[string]string{}
+	// The adjusted twins (p_adjusted / significant_adjusted) ride a
+	// capability; an instance hiding it drops them like any gated slot.
+	hidden := HiddenSlotKeys(reflect.New(t).Interface(), b.inst)
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		if f.PkgPath != "" {
 			continue
 		}
 		name, _, skip := jsonFieldName(f)
-		if skip {
+		if skip || slices.Contains(hidden, name) {
 			continue
 		}
 		props[name] = b.schemaFor(f.Type, false)

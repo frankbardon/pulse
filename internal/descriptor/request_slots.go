@@ -114,6 +114,17 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},
+	// The overlay twins: the per-summary adjusted figures, the
+	// parallel adjusted MATRIX payloads and the per-layer echo.
+	reflect.TypeOf(types.OverlaySummary{}): {
+		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
+		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
+	},
+	reflect.TypeOf(types.OverlayPayload{}): {
+		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
+		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
+	},
+	reflect.TypeOf(types.OverlayLayer{}): {multiplicitySlotGate},
 	reflect.TypeOf(types.ComposedRequest{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		multiplicitySlotGate,

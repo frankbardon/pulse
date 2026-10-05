@@ -81,22 +81,41 @@ func TestMultiplicity_ExtensionTestJoinsFamily(t *testing.T) {
 }
 
 // TestMultiplicityNoneIsIdentity: no block, and every way of naming
-// `none` (request, test, instance default), answer byte-identically on
-// the wire — no adjusted figure, no echo — and leave the request's
-// canonical hash where it was.
+// `none` (request, test, overlay, instance default), answer
+// byte-identically on the wire — no adjusted figure, no echo, no
+// parallel adjusted matrix — and leave the request's canonical hash
+// where it was. It runs over a tests request and over a crosstab
+// carrying inferential overlays.
 func TestMultiplicityNoneIsIdentity(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
 	none := &types.Multiplicity{Method: types.MultiplicityMethodNone}
-	mk := func() *types.Request {
-		return &types.Request{
-			Cohort:       &types.Cohort{Filename: cohort},
-			Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "x", Label: "m"}},
-			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
-			Tests: []*types.Test{
-				{Type: types.TEST_T, Field: "x", SplitBy: "g", Label: "t"},
-				{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y", Label: "r"},
-			},
-		}
+	shapes := map[string]func() *types.Request{
+		"tests": func() *types.Request {
+			return &types.Request{
+				Cohort:       &types.Cohort{Filename: cohort},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "x", Label: "m"}},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				Tests: []*types.Test{
+					{Type: types.TEST_T, Field: "x", SplitBy: "g", Label: "t"},
+					{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y", Label: "r"},
+				},
+			}
+		},
+		"overlays": func() *types.Request {
+			return &types.Request{
+				Cohort: &types.Cohort{Filename: cohort},
+				Crosstab: &types.CrosstabSpec{
+					Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+					Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "subj"}},
+					Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Label: "n"},
+					Shape:   types.CrosstabShapeMatrix,
+				},
+				Overlays: []types.OverlaySpec{
+					{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
+					{Name: "f", Kind: types.OverlayKindFisherExactCell, Scope: types.OverlayScopeCell},
+				},
+			}
+		},
 	}
 	plain := multPulse(t, fs, nil)
 	run := func(p *pulse.Pulse, req *types.Request) []byte {
@@ -115,36 +134,47 @@ func TestMultiplicityNoneIsIdentity(t *testing.T) {
 		}
 		return b
 	}
-	baseline := run(plain, mk())
-	if strings.Contains(string(baseline), "p_adjusted") || strings.Contains(string(baseline), "multiplicity") {
-		t.Fatalf("baseline carries multiplicity output: %s", baseline)
-	}
-	variants := map[string]func() ([]byte, string){
-		"request none": func() ([]byte, string) {
-			r := mk()
-			r.Multiplicity = none
-			return run(plain, r), r.Hash()
-		},
-		"test none": func() ([]byte, string) {
-			r := mk()
-			r.Tests[0].Multiplicity = none
-			r.Tests[1].Multiplicity = none
-			return run(plain, r), r.Hash()
-		},
-		"instance default none": func() ([]byte, string) {
-			r := mk()
-			return run(multPulse(t, fs, none), r), r.Hash()
-		},
-	}
-	absentHash := mk().Hash()
-	for name, v := range variants {
-		t.Run(name, func(t *testing.T) {
-			got, hash := v()
-			if !bytes.Equal(got, baseline) {
-				t.Errorf("response differs from the no-block baseline:\n got %s\nwant %s", got, baseline)
+	for shape, mk := range shapes {
+		t.Run(shape, func(t *testing.T) {
+			baseline := run(plain, mk())
+			if strings.Contains(string(baseline), "p_adjusted") || strings.Contains(string(baseline), "multiplicity") {
+				t.Fatalf("baseline carries multiplicity output: %s", baseline)
 			}
-			if name == "instance default none" && hash != absentHash {
-				t.Errorf("an instance default moved the request hash: %s vs %s", hash, absentHash)
+			if shape == "overlays" && !strings.Contains(string(baseline), `"p_value"`) {
+				t.Fatalf("overlay baseline carries no inferential layer: %s", baseline)
+			}
+			variants := map[string]func() ([]byte, string){
+				"request none": func() ([]byte, string) {
+					r := mk()
+					r.Multiplicity = none
+					return run(plain, r), r.Hash()
+				},
+				"slot none": func() ([]byte, string) {
+					r := mk()
+					for _, tt := range r.Tests {
+						tt.Multiplicity = none
+					}
+					for i := range r.Overlays {
+						r.Overlays[i].Multiplicity = none
+					}
+					return run(plain, r), r.Hash()
+				},
+				"instance default none": func() ([]byte, string) {
+					r := mk()
+					return run(multPulse(t, fs, none), r), r.Hash()
+				},
+			}
+			absentHash := mk().Hash()
+			for name, v := range variants {
+				t.Run(name, func(t *testing.T) {
+					got, hash := v()
+					if !bytes.Equal(got, baseline) {
+						t.Errorf("response differs from the no-block baseline:\n got %s\nwant %s", got, baseline)
+					}
+					if name == "instance default none" && hash != absentHash {
+						t.Errorf("an instance default moved the request hash: %s vs %s", hash, absentHash)
+					}
+				})
 			}
 		})
 	}

@@ -3046,6 +3046,23 @@ type OverlayPayload struct {
 	// handle the overlay grid with the same header machinery as the
 	// base layer.
 	Matrix *MatrixPayload `json:"matrix,omitempty"`
+
+	// PAdjusted is the multiple-comparison-corrected twin of a MATRIX
+	// payload whose cells are p-values: identical headers, keys and
+	// coordinates, each cell carrying the adjusted p of the base cell
+	// at the same [row][column] (a []float64 for a panel kind whose
+	// base cell is a vector of p-values, element for element). An
+	// undefined adjusted p is NaN (null on the wire); a base cell that
+	// is absent stays absent. The base Matrix is never modified. Nil
+	// when no correction ran.
+	PAdjusted *MatrixPayload `json:"p_adjusted,omitempty"`
+
+	// SignificantAdjusted is PAdjusted's significance twin on the same
+	// coordinates: each cell a bool, PAdjusted < the resolved
+	// multiplicity alpha (a []*bool for a panel kind, nil where the
+	// adjusted p is undefined). A cell whose adjusted p is undefined is
+	// absent. Nil when no correction ran.
+	SignificantAdjusted *MatrixPayload `json:"significant_adjusted,omitempty"`
 }
 
 // OverlaySummary carries optional renderer-friendly metadata for one
@@ -3102,6 +3119,21 @@ type OverlaySummary struct {
 	// surface. The map shape is forward-compatible — new keys land
 	// additively without breaking existing renderer code.
 	Parameters map[string]float64 `json:"parameters,omitempty"`
+
+	// PAdjusted is this summary's p-value corrected for multiple
+	// comparisons (a `multiplicity` block resolved to a method other
+	// than none). It rides BESIDE the raw figure, which is never
+	// modified: PValue for the χ² / KS kinds, Statistic for the VS_REF
+	// kinds (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF carry their p there).
+	// Nil when no correction ran; a NaN (null on the wire) when the raw
+	// p-value is undefined — such a p-value is left out of the family
+	// size.
+	PAdjusted *float64 `json:"p_adjusted,omitempty"`
+
+	// SignificantAdjusted reports PAdjusted < the resolved
+	// multiplicity alpha (OverlayLayer.Multiplicity.Alpha, default
+	// 0.05). Nil when no correction ran or PAdjusted is undefined.
+	SignificantAdjusted *bool `json:"significant_adjusted,omitempty"`
 }
 
 // OverlayLayer is the response-side wrapper for one executed overlay
@@ -3136,6 +3168,16 @@ type OverlayLayer struct {
 	// slices get wired through. `omitempty` keeps overlay-free
 	// marshals byte-identical to the legacy overlay-free shape.
 	Warnings []OverlayWarning `json:"warnings,omitempty"`
+
+	// Multiplicity echoes the multiple-comparison correction that ran
+	// over this layer's p-values: the resolved method and family, the
+	// alpha its `significant_adjusted` figures compared against, and m,
+	// the number of defined p-values corrected together (the whole
+	// family's — for the `request` family that pools tests and
+	// overlays, the pooled count). Nil when no correction ran: no block
+	// resolved, the method resolved to none, the kind emits no
+	// p-value, or the layer produced none.
+	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
 }
 
 // OverlayWarning is the in-process diagnostic emitted by an overlay

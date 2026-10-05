@@ -1643,6 +1643,9 @@
         "kind": {
           "$ref": "#/$defs/OverlayKind"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
         "name": {
           "type": "string"
         },
@@ -1752,6 +1755,9 @@
         "matrix": {
           "$ref": "#/$defs/MatrixPayload"
         },
+        "p_adjusted": {
+          "$ref": "#/$defs/MatrixPayload"
+        },
         "scalar": {
           "type": [
             "number",
@@ -1768,6 +1774,9 @@
             "series"
           ],
           "type": "string"
+        },
+        "significant_adjusted": {
+          "$ref": "#/$defs/MatrixPayload"
         }
       },
       "required": [
@@ -1916,6 +1925,12 @@
             "null"
           ]
         },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "p_value": {
           "type": [
             "number",
@@ -1930,6 +1945,9 @@
             ]
           },
           "type": "object"
+        },
+        "significant_adjusted": {
+          "type": "boolean"
         },
         "statistic": {
           "type": [
@@ -2905,4 +2923,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 58e2a4982197abdcda3a3e18cfc3a4e1a66df864cd995b3319994a6807d82e07
+// golden-hash: 7ac3f3d26156fc6d2231fb211fd56c94a453454563c92646a6f5a9b0c66c1553

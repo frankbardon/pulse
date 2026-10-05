@@ -104,8 +104,11 @@ func (f *multFamilies) fold() error {
 // collectRequestSites adds every member p-site of resp under plan to
 // fams, family keys prefixed with scope (empty for a standalone
 // Request). Tests and post-tests contribute one headline p each
-// (TestResult.PValue); a non-member slot (method none, the skipped
-// Tukey HSD post-test) contributes nothing. Nil plan or resp is a
+// (TestResult.PValue); each inferential overlay layer contributes its
+// p-values per the p-site table (collectOverlaySites) — a `layer`
+// family local to the layer, a `request` family pooled with the tests.
+// A non-member slot (method none, the skipped Tukey HSD post-test, a
+// descriptive overlay kind) contributes nothing. Nil plan or resp is a
 // no-op.
 func collectRequestSites(fams *multFamilies, scope string, plan *descx.MultiplicityPlan, resp *types.Response) {
 	if plan == nil || resp == nil {
@@ -113,6 +116,7 @@ func collectRequestSites(fams *multFamilies, scope string, plan *descx.Multiplic
 	}
 	collectTestSites(fams, scope, plan.Tests, resp.Tests)
 	collectTestSites(fams, scope, plan.PostTests, resp.PostTests)
+	collectOverlaySites(fams, scope, plan.Overlays, resp.Overlays)
 }
 
 // collectTestSites files each member test result (index-aligned with
