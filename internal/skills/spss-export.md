@@ -26,7 +26,7 @@ Part of the SPSS surface; entry skill `spss-cohorts`. Names, nulls and value rul
 
 **The writer is a `pio.CohortWriter`, not a row writer.** A `.sav` value derives from a categorical's dictionary **ID**, a `set_*`'s mask **bits** and the **null bitmap** — all three gone once `ExportJob` rendered a row (a categorical resolves to label text and two codes may share one label; a null renders `""`, which a string categorical can legitimately hold). So `ExportJob.Run` hands over the cohort path and **skips its row loop**; `WriteRow` is never called. Hence:
 
-- `--include` / `--labels` **refused** with `PULSE_SPSS_EXPORT_UNSUPPORTED`, not silently ignored — project or relabel into a narrowed cohort, then export that.
+- `--include` / `--labels` / non-UTC `--tz` **refused** with `PULSE_SPSS_EXPORT_UNSUPPORTED`, not silently ignored — project or relabel into a narrowed cohort, then export that; a `.sav` DATETIME has no offset slot, so it stays UTC.
 - Overlays **warn-and-skip**, like CSV.
 - A `convert` has no cohort: the writer buffers rows, builds an intermediate in-memory cohort through the ordinary import path, exports that. From a TEXT source that cohort is inferred and sidecar-less, and it says so (`PULSE_SPSS_SIDECAR_ABSENT`, naming `converted-rows.pulse`).
 

@@ -417,6 +417,26 @@ type ExportJob struct {
 	// resolve through the SAME cache key because the cache identity is
 	// the export REQUEST, not the response.
 	Overlays []*types.OverlayLayer
+	// TimeZone renders every `datetime` cell on this IANA zone's wall
+	// clock with its numeric offset — 2026-03-29T08:00:00+05:30 under
+	// "Asia/Kolkata" — instead of the canonical UTC `…Z` literal. The
+	// literal names the same instant, so re-importing the export (the
+	// importer honours an explicit offset) round-trips every value
+	// exactly. `date` cells are calendar days and never move.
+	//
+	// Validated by temporal.LoadZone at Run / Predict time: IANA
+	// Area/Location names or "UTC" only, anything else is
+	// PULSE_TIMEZONE_UNKNOWN. Empty (the default), "UTC" and every
+	// UTC-equivalent zone ("Etc/UTC") leave the output byte-identical
+	// to a zone-free export.
+	//
+	// Every row-stream target (csv, tsv, ndjson, jsonarray, excel, and
+	// the UTF8 datetime columns of arrow / parquet) carries the local
+	// literal. The `.sav` writer encodes from raw storage, where a
+	// DATETIME is a naive wall-clock count with no offset slot, so it
+	// refuses a non-UTC zone with PULSE_SPSS_EXPORT_UNSUPPORTED rather
+	// than silently ignore or lossily apply it.
+	TimeZone string
 }
 
 // NewExportJob creates an ExportJob.

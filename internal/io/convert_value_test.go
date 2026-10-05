@@ -172,7 +172,7 @@ func TestFormatFieldValue_AllTypes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := formatFieldValue(tc.ft, tc.raw, nil)
+			got := formatFieldValue(tc.ft, tc.raw, nil, nil)
 			if got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
@@ -186,21 +186,21 @@ func TestFormatFieldValue_Categorical(t *testing.T) {
 	dict.Add("green")
 	dict.Add("blue")
 
-	got := formatFieldValue(encoding.FieldTypeCategoricalU8, 0, dict)
+	got := formatFieldValue(encoding.FieldTypeCategoricalU8, 0, dict, nil)
 	if got != "red" {
 		t.Errorf("got %q, want red", got)
 	}
-	got = formatFieldValue(encoding.FieldTypeCategoricalU16, 1, dict)
+	got = formatFieldValue(encoding.FieldTypeCategoricalU16, 1, dict, nil)
 	if got != "green" {
 		t.Errorf("got %q, want green", got)
 	}
-	got = formatFieldValue(encoding.FieldTypeCategoricalU32, 2, dict)
+	got = formatFieldValue(encoding.FieldTypeCategoricalU32, 2, dict, nil)
 	if got != "blue" {
 		t.Errorf("got %q, want blue", got)
 	}
 
 	// Without dictionary, falls back to numeric.
-	got = formatFieldValue(encoding.FieldTypeCategoricalU8, 0, nil)
+	got = formatFieldValue(encoding.FieldTypeCategoricalU8, 0, nil, nil)
 	if got != "0" {
 		t.Errorf("got %q, want 0", got)
 	}
@@ -212,7 +212,7 @@ func TestFormatFieldValue_Date(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convertValue: %v", err)
 	}
-	got := formatFieldValue(encoding.FieldTypeDate, raw, nil)
+	got := formatFieldValue(encoding.FieldTypeDate, raw, nil, nil)
 	if got != "2024-01-15" {
 		t.Errorf("got %q, want 2024-01-15", got)
 	}

@@ -3,6 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
+    "tzdata_version": "2026c",
     "feature_set_digest": "fs1:9222a2849c290c3984869787d7e9013c6d7af966f5f10b7f77615f9567f93c12",
     "commands": [
       {
@@ -8397,7 +8398,7 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
@@ -9007,35 +9008,43 @@
       "formats": [
         {
           "name": "arrow",
-          "overlay_support": "sidecar"
+          "overlay_support": "sidecar",
+          "time_zone": "local_offset"
         },
         {
           "name": "csv",
-          "overlay_support": "warn_and_skip"
+          "overlay_support": "warn_and_skip",
+          "time_zone": "local_offset"
         },
         {
           "name": "excel",
-          "overlay_support": "sheets"
+          "overlay_support": "sheets",
+          "time_zone": "local_offset"
         },
         {
           "name": "jsonarray",
-          "overlay_support": "warn_and_skip"
+          "overlay_support": "warn_and_skip",
+          "time_zone": "local_offset"
         },
         {
           "name": "ndjson",
-          "overlay_support": "trailing_block"
+          "overlay_support": "trailing_block",
+          "time_zone": "local_offset"
         },
         {
           "name": "parquet",
-          "overlay_support": "sidecar"
+          "overlay_support": "sidecar",
+          "time_zone": "local_offset"
         },
         {
           "name": "spss",
-          "overlay_support": "warn_and_skip"
+          "overlay_support": "warn_and_skip",
+          "time_zone": "refused"
         },
         {
           "name": "tsv",
-          "overlay_support": "warn_and_skip"
+          "overlay_support": "warn_and_skip",
+          "time_zone": "local_offset"
         }
       ]
     },
@@ -11729,4 +11738,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a5eb671adc9d0898e6b0a1c60fc1ca8146463adf376d04ca4569f2e719bed056
+// golden-hash: 07107cade8a91c372c1c6a49cbb378893d92aa2f33f658dc36157e2f2ec51b4d

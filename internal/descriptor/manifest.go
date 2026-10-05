@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/buildinfo"
 	"github.com/frankbardon/pulse/internal/skills"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // operations returns the library-only entry points that do not back a
@@ -306,6 +307,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	m := &descriptor.Manifest{
 		FormatVersion:    "1.0",
 		PulseVersion:     buildinfo.Version(),
+		TZDataVersion:    temporal.TZDataVersion,
 		FeatureSetDigest: manifestDigest(inst),
 		Commands:         filterCommands(commands(), on),
 		Operations:       filterCommands(operations(), on),

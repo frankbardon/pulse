@@ -564,6 +564,7 @@ type CohortSource struct {
     Path     string   // the `.pulse` cohort path; also where a format sidecar rides
     Includes []string // ExportJob.Includes verbatim
     Labelled bool     // a label resolver is rewriting or augmenting cells
+    TimeZone string   // ExportJob.TimeZone when NOT UTC-equivalent, else ""
 }
 
 type CohortWriter interface {
@@ -580,12 +581,16 @@ double-decoded: the row loop does not run, and `WriteRow` is never
 called on that path. Writers that do not implement it take the unchanged
 row path, byte for byte.
 
-**`Includes` and `Labelled` are carried so you can REFUSE them,** not
+**`Includes`, `Labelled` and `TimeZone` are carried so you can REFUSE them,** not
 because a cohort writer is expected to implement them. A writer that
 silently ignored `Includes` would answer `pulse export spss --include age`
 with a file carrying every column, which is the quiet wrong answer this
 whole surface exists to avoid. Return a coded error naming the option
 instead. The returned count becomes `ExportReport.RowsExported`.
+`TimeZone` is set only when the row stream would have rendered
+`datetime` cells off UTC (`--tz`); a writer whose format cannot carry an
+offset-bearing instant refuses it — `internal/io/spss` does, because a
+`.sav` DATETIME is a naive wall-clock count.
 
 **A writer can implement both paths.** `internal/io/spss` does: `WriteCohort` for
 an export whose source is a cohort, and a buffering `WriteRow` for
@@ -752,7 +757,7 @@ Unlike `CohortWriter`, a validator is reached **without** `SetPulseSchema`
 and **without** `WriteHeader` — predict starts no write lifecycle on a
 writer it will never `Close`. Everything a validator needs rides
 `CohortSource`: `FS` + `Path` locate the cohort and any format sidecar
-beside it, and `Includes` / `Labelled` carry the row-stream
+beside it, and `Includes` / `Labelled` / `TimeZone` carry the row-stream
 transformations so they can be refused here on the same terms
 `WriteCohort` refuses them.
 

@@ -200,6 +200,21 @@ type ExportFormatCapability struct {
 	// resolves to true. See ExportFormatCapability godoc for the
 	// canonical label vocabulary.
 	OverlaySupport string `json:"overlay_support"`
+
+	// TimeZone is what the format does with ExportJob.TimeZone (CLI
+	// --tz) naming a non-UTC zone:
+	//
+	//   - "local_offset" — datetime cells render as RFC 3339 literals on
+	//     the zone's wall clock with its numeric offset
+	//     (2026-03-29T08:00:00+05:30), which re-import to the same
+	//     instants. Arrow and Parquet carry datetimes as UTF8 strings,
+	//     so they follow the text formats.
+	//   - "refused" — the export stops with a coded error (spss: a .sav
+	//     DATETIME is a naive wall-clock count with no offset slot).
+	//
+	// An absent or UTC-equivalent zone is byte-identical UTC output on
+	// every format.
+	TimeZone string `json:"time_zone"`
 }
 
 // ExportCapability is the cross-format export envelope. Carries the

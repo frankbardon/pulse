@@ -157,3 +157,20 @@ func TestExportJob_Hash_LabelsParticipate(t *testing.T) {
 		t.Fatalf("Labels must participate in ExportJob.Hash — no-labels vs with-labels collided")
 	}
 }
+
+// TestExportJob_Hash_TimeZone: the render zone is part of the export's
+// identity (different literals), and an empty one leaves the hash of
+// every zone-free job exactly as it was.
+func TestExportJob_Hash_TimeZone(t *testing.T) {
+	plain := &ExportJob{Source: "a.pulse"}
+	legacy := types.CanonicalHash("export_job", &struct {
+		Source string `json:"source,omitempty"`
+	}{Source: "a.pulse"})
+	if plain.Hash() != legacy {
+		t.Fatalf("zone-free hash moved: %s, want %s", plain.Hash(), legacy)
+	}
+	zoned := &ExportJob{Source: "a.pulse", TimeZone: "Asia/Kolkata"}
+	if zoned.Hash() == plain.Hash() {
+		t.Fatal("TimeZone does not participate in ExportJob.Hash")
+	}
+}

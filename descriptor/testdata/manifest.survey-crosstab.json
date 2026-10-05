@@ -3,6 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
+    "tzdata_version": "2026c",
     "feature_set_digest": "fs1:1e8df9efcf57420cfe4b49f4d9014ff1cdeb1b5e97048892d11d91f8ae9bcdee",
     "commands": [
       {
@@ -1387,7 +1388,7 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
@@ -2022,4 +2023,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: afd77956fad7bbe152ab3fa17223b758668e607920bd1855925ea6949441992a
+// golden-hash: 84fc591d227c8e848514726125b749f87c1b5f632c0d20fc1ece290ab0f13432

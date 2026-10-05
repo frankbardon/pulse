@@ -1,10 +1,10 @@
 ---
 name: session-format-flags
-description: Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, and the four .sav write knobs with their refusal defaults.
+description: Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults.
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
-covers: [CLI flags, --sheet, --spss-missing, --charset, --group, --source-tz, --dst-policy, --ignore-sidecar, --uncompressed, --sanitize-names]
+covers: [CLI flags, --sheet, --spss-missing, --charset, --group, --source-tz, --dst-policy, --tz, --ignore-sidecar, --uncompressed, --sanitize-names]
 ---
 
 # Format CLI flags
@@ -27,6 +27,8 @@ Per-format READ knobs the file cannot always answer itself; all ride `io.ReaderO
 
 **Source zone (`import <fmt>`, `import auto`, `import predict`, `convert`, `convert predict`; MCP `source_tz`).** Naive datetimes import as UTC unless `--source-tz Zone` (IANA, `UTC` or `±HH:MM`; repeatable `col=Zone` wins per column; `date` columns skipped, `col=` on one is `CLI_INPUT`) says where they were recorded. Offset/`Z` literals keep their instant. DST gap/overlap is FATAL (`PULSE_IMPORT_DST_AMBIGUOUS` / `_NONEXISTENT`, naming the row) unless `--dst-policy earlier|later`, which warns `PULSE_IMPORT_DST_RESOLVED` with counts. `import auto` persists the zone on the managed sidecar; `convert` writes zoned naive values as UTC `…Z` literals.
 
+**Export zone (`export <fmt>`, `export predict`; `io.ExportJob.TimeZone`).** `--tz Zone` (IANA or `UTC` only, else `PULSE_TIMEZONE_UNKNOWN`) renders `datetime` cells as local literals with offset — `2026-03-29T08:00:00+05:30` — that re-import to the same instant; `date` never moves. Absent / UTC-equivalent is byte-identical `…Z`. Arrow/Parquet carry it as UTF8 strings.
+
 <!-- feature: io_format:spss -->
 ## Target-format CLI flags
 
@@ -39,5 +41,5 @@ Four `.sav` WRITE knobs, one per `io.SPSSWriterOptions` field (`io.WriterOptions
 | `--charset` (export leaf only) | charset written AND declared. Default: the source's own declared spelling; UTF-8 with no SPSS provenance. Set it when the cohort holds text that codepage cannot express (else `PULSE_SPSS_CHARSET_UNENCODABLE`) |
 | `--sanitize-names` | rewrite names a `.sav` cannot carry (space, bracket, hyphen, leading digit) instead of refusing. **Refusal is the default on purpose**; this is the opt-in for the synthesised path. Deterministic, collision-safe, every rename reported as `PULSE_SPSS_NAME_SANITIZED` (full `field → name` list). Inert on the sidecar path |
 
-`pulse export spss` **refuses** `--include` and `--labels` rather than ignoring them (`PULSE_SPSS_EXPORT_UNSUPPORTED`): the writer encodes from raw cohort storage, not the rendered row stream those transform. Narrow or relabel into a cohort first.
+`pulse export spss` **refuses** `--include`, `--labels` and a non-UTC `--tz` rather than ignoring them (`PULSE_SPSS_EXPORT_UNSUPPORTED`): the writer encodes from raw cohort storage, not the rendered row stream those transform (a `.sav` DATETIME has no offset slot). Narrow or relabel into a cohort first.
 <!-- /feature -->

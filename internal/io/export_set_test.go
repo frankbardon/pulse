@@ -219,13 +219,13 @@ func TestFormatFieldValue_NarrowSetUsesLabels(t *testing.T) {
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU16,
 		encoding.FieldTypeSetU32, encoding.FieldTypeSetU64,
 	} {
-		if got := formatFieldValue(ft, 0b101, dict); got != "VISA|AMEX" {
+		if got := formatFieldValue(ft, 0b101, dict, nil); got != "VISA|AMEX" {
 			t.Errorf("%s: formatFieldValue(0b101) = %q, want %q", ft, got, "VISA|AMEX")
 		}
 		// Also corrected by the three-state convention: an all-zero
 		// narrow mask is an empty SELECTION, and must not leave the
 		// exporter wearing the null cell's spelling.
-		if got := formatFieldValue(ft, 0, dict); got != EmptySetCell {
+		if got := formatFieldValue(ft, 0, dict, nil); got != EmptySetCell {
 			t.Errorf("%s: empty mask = %q, want %q", ft, got, EmptySetCell)
 		}
 	}

@@ -510,6 +510,12 @@ type CohortSource struct {
 	// Labelled reports that a label resolver is rewriting or augmenting
 	// cells in the row stream (ExportJob.Labels / LabelResolver).
 	Labelled bool
+
+	// TimeZone is ExportJob.TimeZone when it names a zone that is NOT
+	// UTC-equivalent, and empty otherwise — so a cohort writer sees it
+	// only when the row stream would have rendered datetimes off UTC.
+	// A writer that cannot honour it must refuse rather than ignore it.
+	TimeZone string
 }
 
 // CohortWriter is an optional extension of Writer for targets whose

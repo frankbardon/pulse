@@ -17,9 +17,9 @@ source dictionary rather than inventing one.
 > emitted. Asking for ZSAV output is
 > `PULSE_SPSS_COMPRESSION_UNSUPPORTED`, not a silent downgrade.
 
-> **`--include` and `--labels` are refused, not ignored.** The `.sav`
-> writer encodes from the cohort's raw storage, not from the rendered row
-> stream those two transform. See [What this leaf
+> **`--include`, `--labels` and a non-UTC `--tz` are refused, not
+> ignored.** The `.sav` writer encodes from the cohort's raw storage, not
+> from the rendered row stream those transform. See [What this leaf
 > refuses](#what-this-leaf-refuses).
 
 > **Illegal variable names stop the export by default.** `--sanitize-names`
@@ -292,8 +292,14 @@ records `3` / `4`.
 
 ## What this leaf refuses
 
-`--include` and `--labels` are **refused with
-`PULSE_SPSS_EXPORT_UNSUPPORTED`**, not silently dropped:
+`--include`, `--labels` and a non-UTC `--tz` are **refused with
+`PULSE_SPSS_EXPORT_UNSUPPORTED`**, not silently dropped (`details.option`
+names the flag). `--tz` is refused because a `.sav` DATETIME is a naive
+wall-clock second count with no offset slot: the local reading would lose
+the offset that tells a fall-back hour's two instants apart. The `.sav`
+always carries UTC wall-clock values; `--tz UTC` / `Etc/UTC` is accepted
+and byte-identical. For offset-bearing local literals export a text
+format (`pulse export csv --tz ...`).
 
 ```bash
 pulse export spss -i d.pulse -o out.sav --include age
@@ -389,7 +395,7 @@ and every string lives in the schema block's dictionaries.
 | `PULSE_SPSS_SIDECAR_ABSENT` / `_STALE` / `_INVALID` / `_IGNORED` | `PULSE_SPSS_CHARSET_UNENCODABLE` in cell text |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` / `_UNENCODABLE` in dictionary text | `PULSE_SPSS_EXPORT_UNSUPPORTED` for a dictionary ID with no source code |
 | `PULSE_SPSS_COLUMN_UNMAPPED`, `PULSE_SPSS_DERIVED_UNFOLDABLE` | |
-| `PULSE_SPSS_EXPORT_UNSUPPORTED` for `--include` / `--labels` | |
+| `PULSE_SPSS_EXPORT_UNSUPPORTED` for `--include` / `--labels` / non-UTC `--tz` | |
 | `PULSE_SPSS_COMPRESSION_UNSUPPORTED` / `_INVALID` | |
 
 **So predict is a sound but incomplete filter.** A refusal is real; a pass
@@ -519,7 +525,7 @@ row path does — has raised none of them when the job builds its report.
 | `PULSE_SPSS_NAME_SANITIZED` | warning | `--sanitize-names` rewrote names; details carry the full `field → name` list |
 | `PULSE_SPSS_COLUMN_UNMAPPED` | error | A cohort column would leave the export silently, and the registry does not account for it |
 | `PULSE_SPSS_DERIVED_UNFOLDABLE` | error | A registry entry this binary cannot fold back |
-| `PULSE_SPSS_EXPORT_UNSUPPORTED` | error | `--include` / `--labels` on a `.sav` export, or a value with no honest `.sav` form |
+| `PULSE_SPSS_EXPORT_UNSUPPORTED` | error | `--include` / `--labels` / non-UTC `--tz` on a `.sav` export, or a value with no honest `.sav` form |
 | `PULSE_SPSS_COMPRESSION_UNSUPPORTED` | error | ZSAV emission — read-only, not implemented |
 | `PULSE_SPSS_CHARSET_UNENCODABLE` | error | A character the target charset cannot represent |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | error | A `--charset` name Pulse cannot write |

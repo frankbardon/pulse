@@ -2740,6 +2740,11 @@ var codeMetadata = map[Code]Metadata{
 				Hint:   "If the details name a column, that column is the problem. An empty set_* dictionary has no members to emit — drop the column from the export or populate it. A value with no recorded SPSS code comes from a cohort whose categorical dictionary moved since import; re-import from the source .sav, or export with --ignore-sidecar to synthesise a fresh dictionary from the cohort's own text.",
 			},
 			{
+				Action: FixupRemoveParam,
+				Path:   []string{"TimeZone"},
+				Hint:   "If details.option is --tz: a .sav DATETIME is a naive wall-clock count with no offset slot, so a non-UTC render zone cannot be honoured. Drop --tz (the .sav carries UTC wall-clock values), or export a text format with --tz for offset-bearing local literals.",
+			},
+			{
 				Action: FixupReplaceField,
 				Path:   []string{"Target"},
 				Hint:   "Any other output format sidesteps the question entirely: csv, tsv, ndjson, jsonarray, parquet, arrow and excel all take a rendered row stream. `pulse export parquet -i cohort.pulse -o out.parquet`.",

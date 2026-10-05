@@ -436,6 +436,37 @@ pulse import csv -i orders.csv -o orders.pulse \
   --dst-policy later
 ```
 
+### `--tz` (export)
+
+Available on: every `export <format>` leaf and `export predict`.
+
+`--tz Zone` renders every `datetime` cell on `Zone`'s wall clock with
+its numeric offset — an RFC 3339 literal such as
+`2026-03-29T08:00:00+05:30` under `Asia/Kolkata`, `+01:00` / `+02:00`
+either side of a Europe/Berlin transition (a fall-back hour's two
+readings differ only by offset) — instead of the canonical UTC
+`2026-03-29T02:30:00Z`. The literal names the same instant, so
+re-importing the export (offset literals keep their instant) round-trips
+every value exactly. `date` columns are calendar days and never move.
+`Zone` is an IANA name or `UTC` — no fixed offsets, abbreviations or
+`Local` (`PULSE_TIMEZONE_UNKNOWN`, from `export predict` too). Absent,
+`UTC` or a UTC-equivalent zone (`Etc/UTC`) is byte-identical to today's
+output. An instant whose historical offset is not a whole minute (a
+pre-1900 local mean time) keeps the `…Z` form: RFC 3339 cannot spell it.
+
+Text formats carry the literal as text, and so do `arrow` / `parquet`,
+whose `datetime` columns are UTF8 strings. `export spss` refuses a
+non-UTC zone (`PULSE_SPSS_EXPORT_UNSUPPORTED`, `details.option` =
+`--tz`), and `export predict --format spss --tz ...` predicts that: a
+`.sav` DATETIME is a naive wall-clock count with no offset slot. The
+library knob is `io.ExportJob.TimeZone`; the manifest's
+`export.formats[].time_zone` says per format (`local_offset` /
+`refused`).
+
+```bash
+pulse export csv -i orders.pulse -o orders.csv --tz Asia/Kolkata
+```
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it

@@ -1,6 +1,7 @@
 package pulse_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/temporal"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -307,6 +309,74 @@ func TestUTCZoneIsIdentity(t *testing.T) {
 					}
 				})
 			}
+		}
+	}
+}
+
+// utcIdentityExports: the export row of the identity gate — every
+// format through the pulse.Export facade, ExportJob.TimeZone standing in
+// for the slot / request / options zone. Excel stamps a creation time,
+// so its bytes are not comparable run to run; its cells are covered by
+// io's TestExport_UTCTimeZoneIsByteIdentical.
+var utcIdentityExports = []pio.Format{pio.FormatCSV, pio.FormatTSV, pio.FormatNDJSON, pio.FormatJSONArray, pio.FormatArrow, pio.FormatParquet, pio.FormatSPSS}
+
+// TestUTCZoneIsIdentity_Export: naming "UTC" or "Etc/UTC" on an export
+// writes bytes identical to naming no zone; the Europe/Berlin control
+// proves the fixture notices an applied zone on every row-stream format
+// (spss refuses a non-UTC zone instead).
+func TestUTCZoneIsIdentity_Export(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	cohort := identityCohort(t, fs)
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	export := func(t *testing.T, f pio.Format, tz string) ([]byte, error) {
+		t.Helper()
+		w, err := pio.NewWriterToBuffer(f, pio.WriterOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		job := pio.NewExportJob(cohort, w)
+		job.TimeZone = tz
+		if _, err := p.Export(context.Background(), job); err != nil {
+			return nil, err
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return w.Bytes(), nil
+	}
+	for _, f := range utcIdentityExports {
+		want, err := export(t, f, "")
+		if err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		t.Run(f.String()+"/control-Europe/Berlin", func(t *testing.T) {
+			got, err := export(t, f, berlinZone)
+			if f == pio.FormatSPSS {
+				if err == nil {
+					t.Fatal("spss exported under a non-UTC zone")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Equal(got, want) {
+				t.Fatal("fixture proves nothing: a Berlin export equals the UTC one")
+			}
+		})
+		for _, tz := range []string{"UTC", "Etc/UTC"} {
+			t.Run(f.String()+"/"+tz, func(t *testing.T) {
+				got, err := export(t, f, tz)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(got, want) {
+					t.Fatalf("export differs from the zone-free baseline (%d vs %d bytes)", len(got), len(want))
+				}
+			})
 		}
 	}
 }

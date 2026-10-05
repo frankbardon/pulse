@@ -27,7 +27,7 @@ func TestFormatFieldValue_PreEpochRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("convertValue(%s, %q): %v", c.ft, c.lit, err)
 		}
-		if got := formatFieldValue(c.ft, raw, nil); got != c.lit {
+		if got := formatFieldValue(c.ft, raw, nil, nil); got != c.lit {
 			t.Errorf("%s %q formatted back as %q", c.ft, c.lit, got)
 		}
 	}

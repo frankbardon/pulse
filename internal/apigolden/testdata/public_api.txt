@@ -1092,6 +1092,7 @@ pulse/descriptor: type ExportCapability field Formats []pulse/descriptor.ExportF
 pulse/descriptor: type ExportFormatCapability struct
 pulse/descriptor: type ExportFormatCapability field Name string "json:\"name\""
 pulse/descriptor: type ExportFormatCapability field OverlaySupport string "json:\"overlay_support\""
+pulse/descriptor: type ExportFormatCapability field TimeZone string "json:\"time_zone\""
 pulse/descriptor: type ExprFunctionMeta struct
 pulse/descriptor: type ExprFunctionMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type ExprFunctionMeta field Name string "json:\"name\""
@@ -1258,6 +1259,7 @@ pulse/descriptor: type Manifest field PulseVersion string "json:\"pulse_version\
 pulse/descriptor: type Manifest field Regressions []pulse/descriptor.RegressionMeta "json:\"regressions\""
 pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:\"skills\""
 pulse/descriptor: type Manifest field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
+pulse/descriptor: type Manifest field TZDataVersion string "json:\"tzdata_version\""
 pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"tests\""
 pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeable"
 pulse/descriptor: const MultiplicityTriggerThreshold untyped int = 10
@@ -2116,6 +2118,7 @@ pulse/io: type CohortSource field FS github.com/spf13/afero.Fs
 pulse/io: type CohortSource field Includes []string
 pulse/io: type CohortSource field Labelled bool
 pulse/io: type CohortSource field Path string
+pulse/io: type CohortSource field TimeZone string
 pulse/io: type CohortValidator = pulse/internal/iocore.CohortValidator
 pulse/io: type CohortValidator underlying interface
 pulse/io: type CohortValidator imethod Close() error
@@ -2213,6 +2216,7 @@ pulse/io: type ExportJob field Labels []*pulse/types.LabelBinding
 pulse/io: type ExportJob field Overlays []*pulse/types.OverlayLayer
 pulse/io: type ExportJob field Source string
 pulse/io: type ExportJob field Target pulse/internal/io.Writer
+pulse/io: type ExportJob field TimeZone string
 pulse/io: type ExportJob method (*ExportJob) Hash() string
 pulse/io: type ExportJob method (*ExportJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
 pulse/io: type ExportJob method (*ExportJob) Run(ctx context.Context) (*pulse/internal/io.ExportReport, error)
@@ -3927,4 +3931,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 046c951283a5ee78d76be9efdb1ab1f34eff4f7c867f0810e6f7ad3820f29174
+// golden-hash: 745d4ccceb2c2a649b8e22c3724e13be753897116bbd1fc06fd1175cdb6cef23
