@@ -2490,6 +2490,25 @@ const (
 	// carry "family", "methods" (the distinct methods, sorted) and
 	// "slots" (the first member slot per method, in method order).
 	PULSE_MULTIPLICITY_CONFLICT Code = "PULSE_MULTIPLICITY_CONFLICT"
+
+	// PULSE_MATRIX_SINGULAR indicates a matrix the linear-algebra core
+	// (package linalg) cannot factor, solve against, invert or decompose:
+	// a non-positive Cholesky pivot, a condition number past the solver's
+	// ceiling, or — from a gonum-backed decomposition — a NaN / infinite
+	// element or an iteration that did not converge. Details carry
+	// "reason" where the routine classifies the failure
+	// (not_positive_definite, ill_conditioned, backend_error, non_finite,
+	// no_convergence), "pivot" for a reference Cholesky failure,
+	// "attempts" / "ridge" when a ridge schedule was exhausted, and
+	// "condition_number" from the SPD solve / inverse.
+	PULSE_MATRIX_SINGULAR Code = "PULSE_MATRIX_SINGULAR"
+
+	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
+	// dimensions disagree (a non-square or ragged matrix, a vector whose
+	// length is not the matrix order, data whose length is not
+	// rows*cols), a nil operand, or two accumulators of different shape
+	// or mode being merged. Details name the offending dimensions.
+	PULSE_MATRIX_SHAPE_MISMATCH Code = "PULSE_MATRIX_SHAPE_MISMATCH"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -2977,6 +2996,8 @@ var allCodes = []Code{
 	PULSE_EXTENSION_NOT_WEIGHT_AWARE,
 	PULSE_MULTIPLICITY_INVALID,
 	PULSE_MULTIPLICITY_CONFLICT,
+	PULSE_MATRIX_SINGULAR,
+	PULSE_MATRIX_SHAPE_MISMATCH,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

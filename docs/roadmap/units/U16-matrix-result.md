@@ -98,3 +98,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-result/E<n
 ## Human inputs & decisions
 
 - None.
+
+## Handed on from U15
+
+U15 (linalg-core) left these to this unit. Contract: `.claude/reference/matrix-and-vectors.md`; engine wiring: `.claude/reference/execution-modes.md` (Blocked merge).
+
+- **Build on `linalg.CoMoment`.** `MAT_COVARIANCE` / `MAT_CORRELATION` should implement the internal `processing.BlockMerger` opt-in (`internal/processing/block_merge.go`). Their state is per-block `CoMoment`s keyed by absolute record index. A two-level `linalg.MergeTree` runs at `Finalize`.
+- **Inherited gate.** `TestCoMomentMergeTree_WorkerInvariant` (`internal/service/comoment_merge_tree_test.go`) proves serial == any `DecodeWorkers` == any `ShardWorkers` bitwise for a `_test.go`-only reducer. The real `MAT_*` registrations must pass the same invariance. This acceptance criterion ("streaming, sharded and parallel runs give identical matrices") rides on it. Caveat: a multi-shard archive vs its single-file twin may differ in the last bits; only a one-shard archive is bit-equal.
+- **Join and chain paths.** Records built by a join (`copyStateInto`) and by ProcessChain intermediate stages carry no merge position. A `BlockMerger` refuses them `PROCESSING_INTERNAL`. Decide: stamp positions on those paths, or refuse `MAT_*` with joins / on chain stages ≥ 1 at predict with a user-facing code.
+- **Remaining `PULSE_MATRIX_*` codes.** U15 shipped `PULSE_MATRIX_SINGULAR` and `PULSE_MATRIX_SHAPE_MISMATCH` only. `PULSE_MATRIX_NOT_PSD` (pairwise non-PSD warning) and any others are this unit's to add. Also decide whether `PULSE_MATRIX_SINGULAR` gains `details.rank` / `details.condition_number` on the reference Cholesky and `FactorSPD` paths; today they carry `pivot` and `reason` / `n` only.
+- **Weight semantics.** `CoMoment` counts a `w = 0` row toward `N`, while the existing weighted aggregators skip it. `MAT_*` parity gates against `TEST_PEARSON_R` / weighted aggregators must account for that.

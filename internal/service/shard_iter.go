@@ -43,6 +43,10 @@ type shardIter struct {
 	// per-shard reader state.
 	shardIdx int
 	reader   *encx.RecordReader
+	// shardRec is the in-shard record index of the next row Next hands
+	// out; with shardIdx it is the row's merge-block position (the key
+	// a processing.BlockMerger folds the row under). openShard zeroes it.
+	shardRec int
 
 	current *processing.Record
 	done    bool
@@ -142,13 +146,25 @@ func (it *shardIter) openShard(idx int) error {
 	// Schema cohesion is validated at insert time; on the read
 	// path the canonical schema is authoritative.
 	it.reader = encx.NewRecordReader(r, it.schema)
+	it.shardRec = 0
 	return nil
 }
 
 // Next advances to the next record. When a shard is exhausted it
 // transparently rolls to the next shard. Returns false on global
-// exhaustion or on the first error encountered.
+// exhaustion or on the first error encountered. Every record carries
+// its merge-block position: the shard's archive index and its in-shard
+// record index — the same keys the per-shard parallel reducer stamps.
 func (it *shardIter) Next() bool {
+	if !it.next() {
+		return false
+	}
+	it.current.SetMergePosition(it.shardIdx, it.shardRec)
+	it.shardRec++
+	return true
+}
+
+func (it *shardIter) next() bool {
 	if it.done {
 		return false
 	}

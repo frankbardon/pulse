@@ -2,7 +2,7 @@ package regression
 
 import (
 	"github.com/frankbardon/pulse/errors"
-	"gonum.org/v1/gonum/mat"
+	"github.com/frankbardon/pulse/linalg"
 )
 
 // solveRidge fits the ridge-penalized OLS coefficients in closed form
@@ -60,9 +60,8 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 		augmented[i*p+i] += scaled
 	}
 
-	sym := mat.NewSymDense(p, augmented)
-	var chol mat.Cholesky
-	if ok := chol.Factorize(sym); !ok {
+	chol, ok := factorSPD(p, augmented)
+	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"augmented Gram (M2_xx + n·λ·I) is not positive-definite; raise Alpha or drop a predictor",
@@ -70,18 +69,13 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 		)
 	}
 
-	rhs := mat.NewVecDense(p, append([]float64(nil), a.m2XY...))
-	var beta mat.VecDense
-	if err := chol.SolveVecTo(&beta, rhs); err != nil {
+	coeffs, err := solveSPD(chol, a.m2XY)
+	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"Cholesky solve failed for the augmented ridge system",
-			map[string]any{"n": a.n, "p": p, "alpha": alpha, "gonum_error": err.Error()},
+			map[string]any{"n": a.n, "p": p, "alpha": alpha, "gonum_error": backendErrorText(err)},
 		)
-	}
-	coeffs := make([]float64, p)
-	for i := 0; i < p; i++ {
-		coeffs[i] = beta.AtVec(i)
 	}
 
 	// Intercept and RSS. RSS is computed from the centered identity:
@@ -131,21 +125,20 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 
 	// Standard errors: Var(β) = σ² · (M2_xx + n·λ·I)⁻¹ · M2_xx · (M2_xx + n·λ·I)⁻¹.
 	// Invert the augmented matrix once, then sandwich with M2_xx.
-	var invAug mat.SymDense
-	if err := chol.InverseTo(&invAug); err != nil {
+	invAug, err := chol.Inverse()
+	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"Cholesky inverse failed for the augmented ridge system",
-			map[string]any{"gonum_error": err.Error()},
+			map[string]any{"gonum_error": backendErrorText(err)},
 		)
 	}
-	mxx := mat.NewDense(p, p, append([]float64(nil), a.m2XX...))
-	invAugDense := mat.DenseCopyOf(&invAug)
-	// sandwich = invAug · M2_xx · invAug.
-	var tmp mat.Dense
-	tmp.Mul(invAugDense, mxx)
-	var sandwich mat.Dense
-	sandwich.Mul(&tmp, invAugDense)
+	// sandwich = invAug · M2_xx · invAug, both products gonum-backed on
+	// the full (both-triangle) dense copy of the inverse.
+	sandwich, err := ridgeSandwich(invAug, p, a.m2XX)
+	if err != nil {
+		return nil, err
+	}
 
 	stdErrors := make([]float64, p+1)
 	for j := 0; j < p; j++ {
@@ -190,4 +183,22 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 		ResidualStdErr: sqrt(sigma2),
 		DF:             df,
 	}, nil
+}
+
+// ridgeSandwich returns inv · M · inv for the symmetric inv and the p×p
+// row-major M, through linalg's gonum-backed Mul.
+func ridgeSandwich(inv *linalg.Sym, p int, m []float64) (*linalg.Matrix, error) {
+	invDense, err := linalg.NewMatrixFromRows(inv.ToRows())
+	if err != nil {
+		return nil, err
+	}
+	mDense, err := linalg.NewMatrix(p, p, m)
+	if err != nil {
+		return nil, err
+	}
+	tmp, err := linalg.Mul(invDense, mDense)
+	if err != nil {
+		return nil, err
+	}
+	return linalg.Mul(tmp, invDense)
 }

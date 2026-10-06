@@ -18,6 +18,7 @@ synth/              alias facade: Spec/Profile/Options/Result + Synth, SynthByte
 mcp/gosdk/          the ONLY go-sdk importer: Register, Config, URI/prompt constants
 mcpserve/           Serve, ServeStdio, Options, NewPulse (feature-profile flag/env read), Describe
 extend/             extension-authoring contract: Record, Rows, operator factories + instance interfaces (leaf; TestExtendImportBoundary)
+linalg/             linear-algebra core: Pulse-owned Matrix/Sym/Vec + FMA-free reference kernels (Cholesky, CholeskyRidge, SolveSPD, InverseSPD, CoMoment Add/Merge, MergeTree, MergeBlockSize), RankTolerance; gonum backs the no-bit-contract SymEigen / SVD / QR / Rank / ConditionNumber (fixed order + sign policy) and the FactorSPD / SPDFactor / Mul path regression uses, but never appears on the surface (leaf: stdlib + gonum + errors; TestLinalgImportBoundary, TestLinalgSurfaceNamesNoGonum). Contract: `.claude/reference/matrix-and-vectors.md`
 
 INTERNAL
 cmd/pulse/                 the only binary; buildApp() defines the CLI leaf tree
@@ -76,6 +77,12 @@ Three techniques, chosen per package:
 **The `io` import boundary.** Nothing under `internal/io/**` or `internal/iocore` may import the public `io` — its factory (`io.NewReader`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, typed `io.Format` constants, `FormatFromPath`) imports every adapter, so the reverse edge is a cycle. Adapters import `internal/iocore` for contracts and `internal/io` for jobs. Gated by `TestIOImportBoundary*` (`internal/iocore/boundary_test.go`); when an adapter moves, move its path in `belowFacade` with it.
 
 **Surface guards.** `TestPublicAPIGolden` (blocking) freezes every public package's exported shape, aliases expanded; regenerate with `go test ./internal/apigolden/ -run TestPublicAPIGolden -update` only for an intentional surface change and review the diff. The `apidiff` job in `.github/workflows/api-compat.yml` is advisory against the latest tag (label `api-break-ok` marks an intentional break) and flips to blocking once a stable `v1.0.0` tag exists. `make smoke` builds `internal/embeddersmoke`, an external module that only uses public spellings. Contributor prose: `docs/src/contributing/pr-process.md`.
+
+**The `linalg` guards.** `TestLinalgImportBoundary` (`linalg/boundary_test.go`, an AST import walk over the non-test files) keeps `linalg` a leaf over the standard library, `gonum.org/v1/gonum/...` and Pulse's `errors` — never `internal/processing`, `internal/service` or `descriptor`. `TestLinalgSurfaceNamesNoGonum` (`internal/apigolden`) fails if the golden's `linalg` section names a `gonum` token: gonum is pre-1.0, so no gonum type may freeze into Pulse's v1 surface. `internal/embeddersmoke` pins the `linalg` spellings through the public import path.
+
+## `linalg` two-backend split
+
+`linalg` deliberately carries two backends behind one surface. **Reference kernels** (`Cholesky`, `CholeskyRidge`, `SolveSPD`, `InverseSPD`, `CoMoment` `Add` / `Merge`, `MergeTree`) are pure Go and FMA-free — every product feeding an add or subtract is an explicit `float64(a*b)` — so they produce identical bits on arm64 and amd64; synth's correlator (seed reproducibility) and the blocked merge tree (worker invariance) depend on that. **gonum-backed routines** (`SymEigen`, `SVD`, `QR`, `Rank`, `ConditionNumber`, and the `FactorSPD` / `SPDFactor` / `Mul` path the regression engine routes through) carry no cross-architecture bit contract: the decompositions are canonicalised (order, sign, one rank tolerance) so every decision is portable, and the SPD path equals raw gonum bit for bit on one machine, which kept regression output byte-identical when it moved onto `linalg`. Never swap a reference kernel onto gonum or reorder its arithmetic. The why, the evidence and the tolerances: `.claude/reference/matrix-and-vectors.md`.
 
 ## CLI
 

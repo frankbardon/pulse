@@ -2,8 +2,8 @@ package regression
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
-	"gonum.org/v1/gonum/mat"
 )
 
 // AttributeFit is the minimal package of post-fit quantities the
@@ -54,8 +54,8 @@ type AttributeFit struct {
 	// Gram matrix used to compute leverage. Populated only when the
 	// caller requests it (ATTR_REG_LEVERAGE); nil otherwise so the
 	// regularized solvers can keep their post-fit cost free of an
-	// additional inverse. Stored as a p×p gonum SymDense.
-	GramInverse *mat.SymDense
+	// additional inverse. Stored as a p×p linalg.Sym.
+	GramInverse *linalg.Sym
 }
 
 // FitForAttribute runs the OLS streaming accumulator over the supplied
@@ -205,33 +205,24 @@ func FitForAttribute(
 		// solver uses for standard errors gives us M2_xx⁻¹ for the
 		// hat-matrix identity. Recompute here rather than threading
 		// invXX out of solveOLS to keep the solver API stable.
-		sym := mat.NewSymDense(p, append([]float64(nil), acc.m2XX...))
-		var chol mat.Cholesky
-		if ok := chol.Factorize(sym); !ok {
+		chol, ok := factorSPD(p, acc.m2XX)
+		if !ok {
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 				"leverage requires invertible centered Gram matrix (linearly dependent or constant predictors)",
 				map[string]any{"n": acc.n, "p": p},
 			)
 		}
-		var invXX mat.SymDense
-		if err := chol.InverseTo(&invXX); err != nil {
+		invXX, err := chol.Inverse()
+		if err != nil {
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 				"leverage: Cholesky inverse failed for the centered Gram matrix",
-				map[string]any{"gonum_error": err.Error()},
+				map[string]any{"gonum_error": backendErrorText(err)},
 			)
 		}
-		// solveOLS already mirrors the upper triangle into the lower via
-		// acc.finalize(); the inverse is already symmetric. Copy the
-		// matrix so the per-row computation can be index-driven.
-		out := mat.NewSymDense(p, nil)
-		for i := 0; i < p; i++ {
-			for j := i; j < p; j++ {
-				out.SetSym(i, j, invXX.At(i, j))
-			}
-		}
-		fit.GramInverse = out
+		// The inverse is a fresh symmetric matrix the fit owns outright.
+		fit.GramInverse = invXX
 	}
 
 	return fit, nil

@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
-	"gonum.org/v1/gonum/mat"
 )
 
 // olsSolveResult bundles the post-solve quantities the OLS engine needs
@@ -66,11 +65,10 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 
 	a.finalize()
 
-	// Wrap m2XX as a symmetric matrix. gonum copies on Factorize so the
+	// Factor m2XX (upper triangle). The factor owns a copy, so the
 	// accumulator's backing slice stays untouched.
-	sym := mat.NewSymDense(p, append([]float64(nil), a.m2XX...))
-	var chol mat.Cholesky
-	if ok := chol.Factorize(sym); !ok {
+	chol, ok := factorSPD(p, a.m2XX)
+	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"centered Gram matrix is not positive-definite (linearly dependent or constant predictors)",
@@ -79,18 +77,13 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	}
 
 	// Solve M2_xx · β = M2_xy.
-	rhs := mat.NewVecDense(p, append([]float64(nil), a.m2XY...))
-	var beta mat.VecDense
-	if err := chol.SolveVecTo(&beta, rhs); err != nil {
+	coeffs, err := solveSPD(chol, a.m2XY)
+	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"Cholesky solve failed for the centered Gram matrix",
-			map[string]any{"n": a.n, "p": p, "gonum_error": err.Error()},
+			map[string]any{"n": a.n, "p": p, "gonum_error": backendErrorText(err)},
 		)
-	}
-	coeffs := make([]float64, p)
-	for i := 0; i < p; i++ {
-		coeffs[i] = beta.AtVec(i)
 	}
 
 	// Intercept and residual sum of squares.
@@ -134,13 +127,13 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 
 	// Standard errors: Var(β) = σ² · M2_xx⁻¹ (on w*: σ̂*²·(c·M2_xx)⁻¹ =
 	// sigma2Gram · M2_xx⁻¹, the c cancelling).
-	// Invert M2_xx via Cholesky.InverseTo, then read diagonal entries.
-	var invXX mat.SymDense
-	if err := chol.InverseTo(&invXX); err != nil {
+	// Invert M2_xx via the Cholesky factor, then read diagonal entries.
+	invXX, err := chol.Inverse()
+	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"Cholesky inverse failed for the centered Gram matrix",
-			map[string]any{"gonum_error": err.Error()},
+			map[string]any{"gonum_error": backendErrorText(err)},
 		)
 	}
 	stdErrors := make([]float64, p+1)

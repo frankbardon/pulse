@@ -48,6 +48,7 @@
 - [Time Zones](library/time-zones.md)
 - [Feature Profiles](library/feature-profiles.md)
 - [Guided-Analysis Vocabulary](library/guided-analysis.md)
+- [Linear Algebra (linalg)](library/linalg.md)
 
 # .pulse File Format
 

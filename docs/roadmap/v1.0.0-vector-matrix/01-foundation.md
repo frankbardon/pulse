@@ -6,11 +6,13 @@ Everything in documents 03 and 04 sits on five foundation pieces. They are liste
 
 ## F1. `linalg/` — one linear-algebra package (Committed)
 
+> **Shipped in U15.** `linalg/` is a PUBLIC package (frozen-additive, leaf over stdlib + gonum + `errors`; no gonum type exported). It ships with two backends: pure-Go FMA-free reference kernels (`Cholesky`, `CholeskyRidge`, `SolveSPD`, `InverseSPD`, plus the F2 co-moments) for anything with a bit contract, and gonum for `SymEigen`, `SVD`, `QR`, `Rank`, `ConditionNumber` and the regression SPD path (`FactorSPD` / `SPDFactor` / `Mul`). The proposal below assumed one gonum backend; measurement showed that would move synth's factor bits, so it was not done. `NearestCorrelation`, the rotations, `PowerIterate` / `StationaryDistribution` and `IPF` are not built yet; they land with their consumers. Contract: `.claude/reference/matrix-and-vectors.md`.
+
 ### Problem
 Pulse has two Cholesky implementations: gonum in `processing/regression/ols_solver.go` and a hand-written one in `synth/copula.go` (`cholesky` / `tryCholesky`, around line 901). It has no eigen, SVD or QR anywhere. Every new feature would otherwise reach into gonum ad hoc, and nothing would enforce consistent numerical policy (tolerances, PSD repair, sign conventions).
 
 ### Proposal
-A new leaf package `linalg/` (stdlib + gonum only, importing nothing else from Pulse) that owns:
+A new public leaf package `linalg/` (stdlib + gonum + Pulse's `errors` only) that owns:
 
 | Function family | Used by |
 |---|---|
@@ -30,21 +32,23 @@ Policies live here, once:
 - **Ordering.** Eigenvalues descending; ties broken by original variable order.
 
 ### Boundary rule
-`descriptor/` may import `linalg/` (it is pure maths and executes no request), which lets predict check things like "is p ≤ the configured cap". A new import-boundary gate in the style of `TestTemplatePackage_ImportBoundary` would stop `linalg/` from importing `processing/`, `service/` or `descriptor/`.
+`descriptor/` may import `linalg/` (it is pure maths and executes no request), which lets predict check things like "is p ≤ the configured cap". `TestLinalgImportBoundary` (shipped) admits only the standard library, gonum and Pulse's `errors`, so `linalg/` can never import `internal/processing`, `internal/service` or `descriptor`.
 
 ### Migration
-- `synth/copula.go` and `synth/residual_draw.go` move onto `linalg.Cholesky`. The synth fidelity goldens must stay byte-identical. That is the acceptance test: if they move, the hand-rolled version had different rounding and the change needs a documented reason.
+- `internal/synth/copula.go` (and the residual correlator, which reuses it) moves onto `linalg.CholeskyRidge`, the FMA-free reference kernel. The synth fidelity goldens must stay byte-identical. That is the acceptance test: if they move, the hand-rolled version had different rounding and the change needs a documented reason.
 - `processing/regression` moves onto `linalg` for its solve and inverse. gonum stays the backend.
 
 ---
 
 ## F2. Mergeable weighted co-moment accumulator (Committed)
 
+> **Shipped in U15** as `linalg.CoMoment` — inside `linalg`, not a separate `processing/comoment` package. Its `Add` / `Merge` are FMA-free reference kernels. `MergeBlockSize` (4096) and `MergeTree` give bit-identical results across `ShardWorkers` / `DecodeWorkers` through the engine's internal blocked-merge opt-in. A NaN in `x` is missing; a NaN, ±Inf or negative weight is skipped and counted; `w = 0` counts toward `N`. ProcessChain stages and join outputs carry no merge position yet (U16 decides).
+
 ### Problem
 `TEST_PEARSON_R` already keeps a streaming two-variable cross-product. Generalizing it to `p` variables gives the sufficient statistic for most of document 03.
 
 ### Proposal
-`processing/comoment` would provide an accumulator holding `{W, mean[p], M2[p×p] (upper triangle)}`, with optional per-pair counts for pairwise deletion.
+`linalg.CoMoment` provides an accumulator holding `{W, mean[p], M2[p×p] (upper triangle)}`, with optional per-pair counts for pairwise deletion.
 
 - **Update.** A weighted Welford / West update per row, costing O(p²).
 - **Merge.** The Chan–Golub–LeVeque pairwise combine: `M2 = M2a + M2b + δδᵀ · Wa·Wb/W`. It is exact, so this accumulator is **mergeable**, and every consumer inherits streaming, `ShardWorkers`, `DecodeWorkers` and ProcessChain eligibility.

@@ -95,6 +95,14 @@ type Record struct {
 	// record whose member values were changed after decode — a feature or
 	// attribute writing a member's name — never reports a stale entry.
 	groupIdxOK bool
+
+	// posSet / posShard / posBlock carry the row's merge-block position
+	// (SetMergePosition, block_merge.go): the shard's archive index and
+	// the block its ABSOLUTE in-shard record index falls in. They pack
+	// into the padding after groupIdxOK, so the Record stays 96 bytes.
+	posSet   bool
+	posShard uint16
+	posBlock uint32
 }
 
 // recordAux is the sparse side of a Record.

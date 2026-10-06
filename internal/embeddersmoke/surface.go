@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/mcp/gosdk"
 	"github.com/frankbardon/pulse/mcpserve"
 	"github.com/frankbardon/pulse/synth"
@@ -244,4 +245,59 @@ var (
 	_                                           = pulse.SkillMetadata{Name: "op-agg-count", Requires: []string{}}
 	_                                           = descriptor.OntologyEdge{Kind: descriptor.OntologyEdgeServesIntent}
 	_                                           = descriptor.OntologyNode{Kind: descriptor.OntologyNodeSkill}
+)
+
+// Linear-algebra core: Pulse-owned matrix types, the FMA-free
+// reference kernels and the gonum-backed routines. No gonum type may appear in any of these spellings.
+var (
+	_ func(int, int, []float64) (*linalg.Matrix, error)                        = linalg.NewMatrix
+	_ func([][]float64) (*linalg.Matrix, error)                                = linalg.NewMatrixFromRows
+	_ func(int, []float64) (*linalg.Sym, error)                                = linalg.NewSym
+	_ func([][]float64) (*linalg.Sym, error)                                   = linalg.NewSymFromRows
+	_ func([]float64) *linalg.Vec                                              = linalg.NewVec
+	_ func(*linalg.Sym) (*linalg.Matrix, error)                                = linalg.Cholesky
+	_ func(*linalg.Sym, linalg.RidgeSchedule) (*linalg.Matrix, float64, error) = linalg.CholeskyRidge
+	_ func() linalg.RidgeSchedule                                              = linalg.DefaultRidgeSchedule
+	_ func(*linalg.Sym, *linalg.Vec) (*linalg.Vec, error)                      = linalg.SolveSPD
+	_ func(*linalg.Sym) (*linalg.Sym, error)                                   = linalg.InverseSPD
+	_ func(int, int, float64) float64                                          = linalg.RankTolerance
+	_ float64                                                                  = linalg.Epsilon
+	_ float64                                                                  = linalg.DominanceTolerance
+	_ func(*linalg.Sym) (*linalg.SymEigenResult, error)                        = linalg.SymEigen
+	_ func(*linalg.Matrix) (*linalg.SVDResult, error)                          = linalg.SVD
+	_ func(*linalg.Matrix) (*linalg.QRResult, error)                           = linalg.QR
+	_ func(*linalg.Matrix, float64) (int, error)                               = linalg.Rank
+	_ func(*linalg.Matrix) (float64, error)                                    = linalg.ConditionNumber
+	_                                                                          = linalg.SymEigenResult{Values: (*linalg.Vec)(nil), Vectors: (*linalg.Matrix)(nil)}
+	_                                                                          = linalg.SVDResult{U: (*linalg.Matrix)(nil), Values: (*linalg.Vec)(nil), V: (*linalg.Matrix)(nil)}
+	_                                                                          = linalg.QRResult{Q: (*linalg.Matrix)(nil), R: (*linalg.Matrix)(nil)}
+	_ func(*linalg.Sym) (*linalg.SPDFactor, error)                             = linalg.FactorSPD
+	_ func(*linalg.SPDFactor) int                                              = (*linalg.SPDFactor).N
+	_ func(*linalg.SPDFactor) float64                                          = (*linalg.SPDFactor).ConditionNumber
+	_ func(*linalg.SPDFactor, *linalg.Vec) (*linalg.Vec, error)                = (*linalg.SPDFactor).Solve
+	_ func(*linalg.SPDFactor) (*linalg.Sym, error)                             = (*linalg.SPDFactor).Inverse
+	_ func(*linalg.Matrix, *linalg.Matrix) (*linalg.Matrix, error)             = linalg.Mul
+	_ float64                                                                  = linalg.ConditionTolerance
+	_ func(int, linalg.CoMomentMode) (*linalg.CoMoment, error)                 = linalg.NewCoMoment
+	_ linalg.CoMomentMode                                                      = linalg.Listwise
+	_ linalg.CoMomentMode                                                      = linalg.Pairwise
+	_ func(linalg.CoMomentMode) string                                         = linalg.CoMomentMode.String
+	_ func(*linalg.CoMoment, []float64, float64)                               = (*linalg.CoMoment).Add
+	_ func(*linalg.CoMoment, *linalg.CoMoment) error                           = (*linalg.CoMoment).Merge
+	_ func(*linalg.CoMoment) *linalg.CoMoment                                  = (*linalg.CoMoment).Clone
+	_ func(*linalg.CoMoment) int                                               = (*linalg.CoMoment).P
+	_ func(*linalg.CoMoment) linalg.CoMomentMode                               = (*linalg.CoMoment).Mode
+	_ func(*linalg.CoMoment) int64                                             = (*linalg.CoMoment).N
+	_ func(*linalg.CoMoment) int64                                             = (*linalg.CoMoment).NWeightInvalid
+	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).W
+	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).NEff
+	_ func(*linalg.CoMoment, int, int) int64                                   = (*linalg.CoMoment).PairN
+	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairW
+	_ func(*linalg.CoMoment) *linalg.Vec                                       = (*linalg.CoMoment).Mean
+	_ func(*linalg.CoMoment, int) *linalg.Sym                                  = (*linalg.CoMoment).Cov
+	_ func(*linalg.CoMoment) *linalg.Sym                                       = (*linalg.CoMoment).Corr
+	_ func([]*linalg.CoMoment) (*linalg.CoMoment, error)                       = linalg.MergeTree
+	_ int                                                                      = linalg.MergeBlockSize
+	_                                                                          = perrors.PULSE_MATRIX_SINGULAR
+	_                                                                          = perrors.PULSE_MATRIX_SHAPE_MISMATCH
 )

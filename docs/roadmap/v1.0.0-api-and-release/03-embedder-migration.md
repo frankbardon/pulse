@@ -1,6 +1,6 @@
 # 03 — Embedder migration guide
 
-**Status:** decided · U01, U02, U02b, U02c, U04, U05, U06, U09, U10, U11, U12, U13 and U14 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
+**Status:** decided · U01, U02, U02b, U02c, U04, U05, U06, U09, U10, U11, U12, U13, U14 and U15 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
 
 ## Purpose
 
@@ -302,6 +302,19 @@ Complete for U14 (no release tag cut by the unit). Contract: `.claude/reference/
 | `descriptor.Manifest` / `descriptor.ExportFormatCapability` carried no zone data | `Manifest.TZDataVersion` (`tzdata_version`, the embedded IANA release); `ExportFormatCapability.TimeZone` (`export.formats[].time_zone`: `local_offset` or `refused`) | added | none; the manifest golden changed | U14 |
 
 Not shipped, by decision: no `PULSE_*` env var or CLI flag for a default zone (`Options.DefaultTimeZone` only); extension operators stay non-zone-capable (U34); `convert --tz`.
+
+## Changes from U15 (linear-algebra core)
+
+Complete for U15 (no release tag cut by the unit). Contract: `.claude/reference/matrix-and-vectors.md`; guide `docs/src/library/linalg.md`. Purely additive: no existing spelling, payload, manifest block or output byte changed. Synthetic data and regression results are byte-identical (synth on every architecture, because its Cholesky stayed a pure-Go FMA-free kernel; regression on the same machine, because it still runs on gonum underneath).
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| no public linear algebra; synth and regression each carried their own factorisation | new public package `linalg`: `Matrix` / `Sym` / `Vec`; FMA-free reference `Cholesky`, `CholeskyRidge` (`RidgeSchedule`, `DefaultRidgeSchedule`), `SolveSPD`, `InverseSPD`; gonum-backed `SymEigen`, `SVD`, `QR`, `Rank`, `ConditionNumber`, `FactorSPD` / `SPDFactor`, `Mul`; constants `Epsilon`, `DominanceTolerance`, `ConditionTolerance`, `RankTolerance(rows, cols, sigmaMax)` | added | none; adopt when you need the routines. No gonum type is exported, so a gonum bump cannot break you | U15 |
+| no mergeable co-moment primitive | `linalg.CoMoment` (`NewCoMoment(p, mode)` with `Listwise` / `Pairwise`, `Add`, `Merge`, `Clone`, `N`, `W`, `NEff`, `NWeightInvalid`, `PairN`, `PairW`, `Mean`, `Cov(ddof)`, `Corr`) plus `MergeBlockSize` (4096) and `MergeTree` for worker-count-invariant bits | added | none. Note `w = 0` counts toward `N` (Pulse's weighted aggregators skip zero-weight rows) | U15 |
+| error codes: none for linear algebra | `PULSE_MATRIX_SINGULAR` (`details.reason` / `pivot` / `attempts` / `ridge` / `condition_number`), `PULSE_MATRIX_SHAPE_MISMATCH`; both in the manifest error list | added | resolve with `pulse errors lookup CODE`; the manifest golden changed (error list only) | U15 |
+| parallel buffered decode split a cohort into `floor(N/W)`-record segments | segments start at multiples of 4096 records; every result is unchanged | internal | none: segmentation is not observable in output | U15 |
+
+Not shipped, by decision: no operator, request slot or response slot consumes `linalg` yet (U16 adds the first, `MAT_COVARIANCE` / `MAT_CORRELATION`); the engine's bit-exact blocked-merge opt-in is internal and not reachable through `extend`.
 
 ## Third-party dependency
 

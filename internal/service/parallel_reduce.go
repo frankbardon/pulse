@@ -131,7 +131,7 @@ func (s *Service) reduceParallelBuffered(
 		publishMu.Unlock()
 	}
 
-	factory := func(workerIdx, recordCount int) DecodeCallback {
+	factory := func(workerIdx, _, recordCount int) DecodeCallback {
 		// Build a fresh, per-worker operator set. Returning an error
 		// from the callback aborts the worker via the errgroup, but
 		// factory itself runs inside the worker goroutine — so a

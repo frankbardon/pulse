@@ -2960,4 +2960,30 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_SINGULAR: {
+		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`, `backend_error`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Hint:   "Drop the redundant variable: a column that is constant, duplicated, or a linear combination of the other inputs.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Supply more rows than variables, or filter out the rows that make the inputs collinear.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For details.reason non_finite or no_convergence: remove (or impute) the NaN / infinite values before the matrix is built, and rescale variables whose magnitudes differ by many orders so the decomposition can converge.",
+			},
+		},
+	},
+	PULSE_MATRIX_SHAPE_MISMATCH: {
+		Message: "Linear-algebra operands have dimensions that do not fit together: a matrix that must be square is not, rows have different lengths, a vector's length differs from the matrix order, the data length is not rows times columns, an operand is missing, or two accumulators of different shape or missing-value mode were merged. Details name the offending dimensions.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Pass operands whose dimensions agree: the same variable list, in the same order, on both sides.",
+			},
+		},
+	},
 }

@@ -3,8 +3,8 @@ package regression
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
-	"gonum.org/v1/gonum/mat"
 )
 
 // bayesLinearEngine fits a Bayesian linear regression under a conjugate
@@ -258,20 +258,23 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 
 	// Prior precision matrix Λ₀ = priorPrecision · I (scalar prior).
 	// Plus Λ_n = Λ₀ + XᵀX written into a fresh symmetric dense.
-	lambdaN := mat.NewSymDense(q, nil)
+	lambdaN, err := linalg.NewSym(q, nil)
+	if err != nil {
+		return nil, err
+	}
 	for i := 0; i < q; i++ {
 		for j := i; j < q; j++ {
 			val := gram[i*q+j]
 			if i == j {
 				val += e.priorPrecision
 			}
-			lambdaN.SetSym(i, j, val)
+			lambdaN.Set(i, j, val)
 		}
 	}
 
 	// Posterior precision Cholesky factor.
-	var chol mat.Cholesky
-	if ok := chol.Factorize(lambdaN); !ok {
+	chol, err := linalg.FactorSPD(lambdaN)
+	if err != nil {
 		// With a positive prior precision this should never trip; if it
 		// does, the augmented system is too ill-conditioned for the
 		// numerical Cholesky and we surface RANK_DEFICIENT (consumers
@@ -288,18 +291,13 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 	for i := 0; i < q; i++ {
 		rhs[i] = e.priorPrecision*e.priorMu[i] + xtY[i]
 	}
-	rhsVec := mat.NewVecDense(q, rhs)
-	var muN mat.VecDense
-	if err := chol.SolveVecTo(&muN, rhsVec); err != nil {
+	muNSlice, err := solveSPD(chol, rhs)
+	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"Cholesky solve failed for the posterior precision matrix",
-			map[string]any{"n": n, "p": p, "gonum_error": err.Error()},
+			map[string]any{"n": n, "p": p, "gonum_error": backendErrorText(err)},
 		)
-	}
-	muNSlice := make([]float64, q)
-	for i := 0; i < q; i++ {
-		muNSlice[i] = muN.AtVec(i)
 	}
 
 	// Posterior shape and rate.
@@ -337,13 +335,13 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 	}
 
 	// Posterior marginal: β_j ~ t_{2·a_n} ( μ_n[j], (b_n/a_n)·(Λ_n⁻¹)[j,j] ).
-	// Get the diagonal of Λ_n⁻¹ via Cholesky.InverseTo.
-	var invLambda mat.SymDense
-	if err := chol.InverseTo(&invLambda); err != nil {
+	// Get the diagonal of Λ_n⁻¹ via the Cholesky factor's inverse.
+	invLambda, err := chol.Inverse()
+	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"Cholesky inverse failed for the posterior precision matrix",
-			map[string]any{"gonum_error": err.Error()},
+			map[string]any{"gonum_error": backendErrorText(err)},
 		)
 	}
 

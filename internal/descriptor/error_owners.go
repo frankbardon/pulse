@@ -410,6 +410,12 @@ var errorOwners = map[errors.Code][]string{
 	// fire.
 	errors.PULSE_MULTIPLICITY_INVALID:  own(featMultiplicity),
 	errors.PULSE_MULTIPLICITY_CONFLICT: own(featMultiplicity),
+
+	// The linear-algebra core is reachable from more than one feature
+	// (regression, synthetic data, later matrix operators) and from no
+	// single request slot, so its codes are always listed.
+	errors.PULSE_MATRIX_SINGULAR:       shared,
+	errors.PULSE_MATRIX_SHAPE_MISMATCH: shared,
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is
