@@ -71,6 +71,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-extensions
 
 - `docs/src/internals/extension-points.md`; CLAUDE.md naming-policy regex
 
+## Handed on from U16
+
+- **`BlockMerger` through `extend`.** The blocked merge opt-in (`internal/processing/block_merge.go`) is internal; `MatrixOpRegistration` (#156) must expose it, or an embedder `MAT_*`-style operator is bit-unstable across worker counts. Today `MAT_` is NOT in the extension naming regex and `matrixFinalizers` has no extension registry (`.claude/reference/matrix-and-vectors.md`, Engine).
+- **Benchmarks** (#157) start from the grouped cost figures predict reports (`estimated_bytes` per bucket count) and `TestMatrixGrouped_WorkerInvariant`.
+
+
 ## Human inputs & decisions
 
 - None.

@@ -88,6 +88,7 @@ type ComponentsSchemasBlock struct {
 	Aggregators map[string]ComponentSchema `json:"aggregators,omitempty"`
 	Groupers    map[string]ComponentSchema `json:"groupers,omitempty"`
 	Filterers   map[string]ComponentSchema `json:"filterers,omitempty"`
+	Matrices    map[string]ComponentSchema `json:"matrices,omitempty"`
 }
 
 // Manifest is the root self-description of the Pulse system. One bootstrap
@@ -130,11 +131,14 @@ type Manifest struct {
 	// carries the same CommandAnnotations as a CLI leaf so consumers can
 	// reason uniformly about caching / streaming. The slice is sorted by
 	// Name for determinism.
-	Operations         []Command          `json:"operations"`
-	Components         Components         `json:"components"`
-	Tests              []TestMeta         `json:"tests"`
-	PostTests          []TestMeta         `json:"post_tests"`
-	Regressions        []RegressionMeta   `json:"regressions"`
+	Operations  []Command        `json:"operations"`
+	Components  Components       `json:"components"`
+	Tests       []TestMeta       `json:"tests"`
+	PostTests   []TestMeta       `json:"post_tests"`
+	Regressions []RegressionMeta `json:"regressions"`
+	// Matrices lists the registered MAT_* matrix operators (empty when
+	// the instance hides capability:matrices).
+	Matrices           []MatrixMeta       `json:"matrices"`
 	SynthDistributions []DistributionMeta `json:"synth_distributions"`
 	// ErrorCodesCount is the total number of registered error codes.
 	ErrorCodesCount int `json:"error_codes_count"`
@@ -207,6 +211,13 @@ type Manifest struct {
 	// assuming one implies the other.
 	// Omitted (nil) when the instance does not offer capability:import. Formats lists only the I/O formats the instance offers.
 	Import *ImportCapability `json:"import,omitempty"`
+
+	// Matrix is the matrix-slot capability descriptor
+	// (Request.Vectors + Request.Matrices): encodings, matrix kinds,
+	// missing modes, the merge block size and the v1 limitations.
+	// Omitted (nil) when the instance does not offer
+	// capability:matrices.
+	Matrix *MatrixCapability `json:"matrix,omitempty"`
 
 	// Overlays enumerates the registered overlay catalog — one
 	// OverlayCapability per types.AllOverlayKinds() entry. Each entry

@@ -45,6 +45,9 @@ var (
 	ownAllOverlays = opsWithPrefix("OVERLAY_")
 	ownAllWindows  = opsWithPrefix("WIN_")
 	ownAllRegs     = opsWithPrefix("REG_")
+	// ownAllMats: every matrix operator (and capability:matrices, which
+	// each depends on) — a code only a `matrices` slot can raise.
+	ownAllMats = plus(own(featMatrices), opsWithPrefix("MAT_"))
 	// ownImportExport: the tabular import core (inference, row decode,
 	// width promotion, overrides) runs under the managed import pool
 	// AND under Convert / ImportTransfer, which capability:export gates.
@@ -416,6 +419,29 @@ var errorOwners = map[errors.Code][]string{
 	// single request slot, so its codes are always listed.
 	errors.PULSE_MATRIX_SINGULAR:       shared,
 	errors.PULSE_MATRIX_SHAPE_MISMATCH: shared,
+
+	// Virtual vectors are capability:matrices: with it hidden the
+	// `vectors` slot is refused as an unknown field before any vector is
+	// resolved, so no PULSE_VECTOR_* code can fire.
+	errors.PULSE_VECTOR_INVALID:         own(featMatrices),
+	errors.PULSE_VECTOR_EMPTY:           own(featMatrices),
+	errors.PULSE_VECTOR_MEMBER_TYPE:     own(featMatrices),
+	errors.PULSE_VECTOR_DUPLICATE:       own(featMatrices),
+	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
+	errors.PULSE_VECTOR_UNKNOWN:         own(featMatrices),
+	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
+
+	// The matrix-source refusals fire only on a request carrying the
+	// `matrices` slot, which capability:matrices gates; the MAT_ family
+	// raises them alike.
+	errors.PULSE_MATRIX_UNSUPPORTED_SOURCE: ownAllMats,
+	errors.PULSE_MATRIX_HOST_CONFLICT:      ownAllMats,
+	// The per-matrix data-quality warnings ride MatrixResult.Warnings,
+	// which only a MAT_ operator emits.
+	errors.PULSE_MATRIX_NOT_PSD:             ownAllMats,
+	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
+	errors.PULSE_MATRIX_INSUFFICIENT_N:      ownAllMats,
+	errors.PULSE_MATRIX_ZERO_VARIANCE:       ownAllMats,
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

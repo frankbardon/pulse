@@ -194,6 +194,17 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 			}
 		}
 	}
+	// A built-in matrix operator reads the weight when its class has a
+	// kind (there is no extension MAT_* category).
+	if len(req.Matrices) > 0 {
+		c.Matrices = make([]types.MatrixSpec, len(req.Matrices))
+		for i, m := range req.Matrices {
+			c.Matrices[i] = m
+			if w, ok := stampSlotWeight(m.Weight, weighting.IsAware(string(m.Type)), req.Weight, def); ok {
+				c.Matrices[i].Weight = w
+			}
+		}
+	}
 	// A grouper reads the weight when its class has a kind
 	// (GROUP_QUANTILE's weighted cuts) — on groups[i] and on both
 	// crosstab axes; any other grouper that names a weight is stamped
@@ -297,6 +308,11 @@ func namesWeight(req *types.Request, def *types.WeightSpec) bool {
 	}
 	for _, r := range req.Regressions {
 		if r != nil && r.Weight.Spec() != nil {
+			return true
+		}
+	}
+	for _, m := range req.Matrices {
+		if m.Weight.Spec() != nil {
 			return true
 		}
 	}
@@ -465,6 +481,9 @@ func NewWeightRowTally(req *types.Request) *WeightRowTally {
 		if r != nil {
 			weights = append(weights, r.Weight.Spec())
 		}
+	}
+	for _, m := range req.Matrices {
+		weights = append(weights, m.Weight.Spec())
 	}
 	for _, a := range req.Attributes {
 		if a != nil {

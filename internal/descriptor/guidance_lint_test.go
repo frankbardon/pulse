@@ -267,6 +267,10 @@ var noBandsRationale = regexp.MustCompile(`(?i)\bno\s+(?:sourced|published|agree
 // (CORR-CAUSAL).
 var correlationScope = lintScope{names: []string{"TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU"}}
 
+// correlationMatrixScope: matrix operators whose primary.values cells
+// are correlations (CORR-CAUSAL).
+var correlationMatrixScope = lintScope{names: []string{"MAT_CORRELATION"}}
+
 // regressionScope: the REG_* types, whose coefficients.* reading must
 // carry the causation caveat (CORR-CAUSAL) and whose Purpose must name
 // independence (ASSUME-INDEP): a coefficient is an association holding
@@ -385,6 +389,7 @@ func lintGuidance(reg lintRegistry) []lintViolation {
 				}
 			}
 			if (in.Field == "statistic" && correlationScope.covers(op)) ||
+				(in.Field == "primary.values" && correlationMatrixScope.covers(op)) ||
 				(in.Field == "coefficients.*" && regressionScope.covers(op)) {
 				ok := false
 				for _, c := range in.Caveats {

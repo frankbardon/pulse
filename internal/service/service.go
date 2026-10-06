@@ -11,6 +11,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
@@ -588,6 +589,13 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := descx.JoinCountRefusal(req); err != nil {
 		return nil, markLocated(err)
 	}
+	// The matrix-host rule (joins / crosstab), shared with predict and
+	// the validators: matrix operators have neither a join nor a
+	// crosstab arm, so a request carrying both is refused, never
+	// silently dropped.
+	if err := mergegate.MatrixRefusal(req); err != nil {
+		return nil, markLocated(err)
+	}
 
 	// The multiplicity blocks resolve before any dispatch (every arm —
 	// crosstab, join, shard, parallel decode, serial — shares it); a
@@ -608,6 +616,7 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := foldRequestMultiplicity(plan, resp); err != nil {
 		return nil, err
 	}
+	appendVectorWarnings(req, resp)
 	return resp, nil
 }
 

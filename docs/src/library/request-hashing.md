@@ -35,6 +35,13 @@ JSON-serializable value with a caller-chosen namespace tag.
 - **Type-namespaced.** A `Request` and a `ComposedRequest` with
   identical wire bytes never collide — the hash function prefixes a
   namespace tag per request shape.
+- **Schema-free.** `Hash()` never reads a cohort, so a `vectors` entry
+  hashes AS WRITTEN: a `pattern` and the explicit `fields` list it
+  resolves to hash differently. Resolved-member identity needs the
+  schema; inside the module `internal/vectors.Normalize(req, schema)`
+  rewrites every vector to its resolved `fields` (order = axis order,
+  `pattern` cleared), after which equivalent requests hash alike. A
+  request with no vectors hashes exactly as before the slot existed.
 
 ## Use cases
 

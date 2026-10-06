@@ -206,6 +206,82 @@ type PredictResult struct {
 	// multiplicity blocks are refused, or when the instance hides the
 	// multiple-comparison capability.
 	PValues *PValueCount `json:"p_values,omitempty"`
+
+	// ResolvedVectors maps each Request.Vectors name to its resolved
+	// member list in axis order — literal `fields` entries in the
+	// caller's order, glob and `pattern` expansions in schema order —
+	// computed by the same resolver the runtime refuses with, against
+	// the schema the request executes over. Omitted when the request
+	// defines no vector or a vector is refused (the refusal is the
+	// predict error).
+	ResolvedVectors map[string][]string `json:"resolved_vectors,omitempty"`
+
+	// Matrices mirrors req.Matrices in order once every spec resolves:
+	// each matrix's shape, axis, missing mode, estimated accumulator
+	// size, streamability and pairwise PSD risk, computed by the same
+	// resolver and rules the runtime runs. Omitted when the request
+	// carries no matrix or a spec is refused (the refusal is the
+	// predict error).
+	Matrices []MatrixPredict `json:"matrices,omitempty"`
+}
+
+// MatrixPredict is the per-spec predict surface for one entry of
+// req.Matrices.
+type MatrixPredict struct {
+	// Name is the result name (MatrixSpec.EffectiveName).
+	Name string `json:"name"`
+	// Type is the matrix operator.
+	Type types.MatrixType `json:"type"`
+	// Shape is [p, p]: rows × columns of every matrix in the result.
+	Shape [2]int `json:"shape"`
+	// AxisKeys are the member field names in axis order — the result's
+	// row_keys and column_keys.
+	AxisKeys []string `json:"axis_keys"`
+	// Labels are the members' display labels in axis order when the
+	// vector supplies them (the result's labels); omitted otherwise.
+	Labels []string `json:"labels,omitempty"`
+	// Missing is the missing-data mode, "listwise" or "pairwise".
+	Missing string `json:"missing"`
+	// Encoding is the effective Values layout.
+	Encoding types.MatrixEncoding `json:"encoding"`
+	// AccumulatorBytes estimates the payload bytes of one co-moment
+	// state over the members (32 + 8·(p + p(p+1)/2) listwise,
+	// 32 + 56·p(p+1)/2 pairwise). The run holds one per populated merge
+	// block (Manifest.Matrix.merge_block_size rows) until finalize, so
+	// its matrix state is this times its block count (grouped: times
+	// its buckets too — EstimatedBytes).
+	AccumulatorBytes int64 `json:"accumulator_bytes"`
+	// BucketBasis says how EstimatedBuckets was derived from the
+	// request and the schema: "ungrouped" (1), "dictionary" (the
+	// Groups[0] field's dictionary size), "boolean" (2), "include"
+	// (Group.Include's distinct reachable keys), "quantile_bins"
+	// (GROUP_QUANTILE's bin count) or "unknown" (the keys depend on the
+	// data — ranges, dates, numeric categories — and the three estimate
+	// fields are omitted).
+	BucketBasis string `json:"bucket_basis"`
+	// EstimatedBuckets is the upper bound on the results this spec
+	// emits — one per non-empty bucket of Groups[0]; a bucket no row
+	// reaches is not emitted, so a run returns at most this many.
+	EstimatedBuckets *int64 `json:"estimated_buckets,omitempty"`
+	// EstimatedCells is EstimatedBuckets × p² — the primary cells the
+	// spec's results carry in full encoding.
+	EstimatedCells *int64 `json:"estimated_cells,omitempty"`
+	// EstimatedBytes is EstimatedBuckets × AccumulatorBytes — the
+	// co-moment state per populated merge block across every bucket
+	// (each bucket holds one state per block its rows touch). No guard
+	// acts on it.
+	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
+	// Streamable reports whether the operator folds row by row (its
+	// result is emitted at finalize — terminal flush when streamed).
+	// Request-level routing (groupers, two-pass attributes) is
+	// PredictResult.Streamable.
+	Streamable bool `json:"streamable"`
+	// PairwisePSDRisk reports whether the result can come back not
+	// positive semidefinite — pairwise MAT_COVARIANCE at p ≥ 2,
+	// pairwise MAT_CORRELATION at p ≥ 3 — the only shapes the runtime
+	// checks for PULSE_MATRIX_NOT_PSD. False guarantees the warning
+	// never fires; true says it can, depending on the data.
+	PairwisePSDRisk bool `json:"pairwise_psd_risk"`
 }
 
 // MultiplicityTriggerThreshold is the uncorrected p-value count at or

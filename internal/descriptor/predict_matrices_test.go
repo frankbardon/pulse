@@ -1,0 +1,141 @@
+package descriptor
+
+import (
+	"encoding/json"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/types"
+)
+
+// TestPredict_Matrices: predict reports each matrix's shape, axis,
+// labels, missing mode, encoding, accumulator estimate, streamability
+// and pairwise PSD risk, in request order, off the runtime's own
+// resolver.
+func TestPredict_Matrices(t *testing.T) {
+	pairwise := json.RawMessage(`{"missing": "pairwise"}`)
+	req := &types.Request{
+		Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"q_2", "q_1", "q_3"}, Labels: []string{"Two", "One", "Three"}}},
+		Matrices: []types.MatrixSpec{
+			{Type: types.MAT_COVARIANCE, Vector: "v"},
+			{Name: "rp", Type: types.MAT_CORRELATION, Vector: "v", Params: pairwise, Encoding: types.MatrixEncodingUpper},
+			{Name: "r2", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+			{Name: "c2", Type: types.MAT_COVARIANCE, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+		},
+	}
+	env := predictFromBytes(vectorPredictSchema(t), req, nil)
+	if len(env.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", env.Errors)
+	}
+	got := env.Data.(*descriptor.PredictResult).Matrices
+	want := []descriptor.MatrixPredict{
+		{Name: "MAT_COVARIANCE_v", Type: types.MAT_COVARIANCE, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "listwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 8*(3+6), Streamable: true},
+		{Name: "rp", Type: types.MAT_CORRELATION, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingUpper,
+			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		// A 2 × 2 pairwise correlation is always PSD; a 2 × 2 pairwise
+		// covariance need not be.
+		{Name: "r2", Type: types.MAT_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+		{Name: "c2", Type: types.MAT_COVARIANCE, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
+	}
+	// Ungrouped: one bucket, p² cells, one accumulator per block.
+	for i := range want {
+		p := int64(want[i].Shape[0])
+		want[i].BucketBasis = "ungrouped"
+		want[i].EstimatedBuckets, want[i].EstimatedCells, want[i].EstimatedBytes = i64(1), i64(p*p), i64(want[i].AccumulatorBytes)
+	}
+	if !reflect.DeepEqual(got, want) {
+		g, _ := json.Marshal(got)
+		w, _ := json.Marshal(want)
+		t.Errorf("matrices\n got %s\nwant %s", g, w)
+	}
+}
+
+func i64(v int64) *int64 { return &v }
+
+// TestPredict_MatrixBucketEstimate: a grouped request reports each
+// spec's estimated buckets (from Groups[0] and the schema), cells
+// (buckets × p²) and bytes (buckets × accumulator_bytes); a grouper
+// whose keys depend on the data reports basis "unknown" and omits the
+// three figures — never a guess, never a refusal (no guard: U19).
+func TestPredict_MatrixBucketEstimate(t *testing.T) {
+	pairwise := json.RawMessage(`{"missing": "pairwise"}`)
+	specs := []types.MatrixSpec{
+		{Name: "c", Type: types.MAT_COVARIANCE, Fields: []string{"q_1", "q_2", "q_3"}},
+		{Name: "r", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+	}
+	cases := []struct {
+		name   string
+		groups []*types.Group
+		basis  string
+		want   int64 // buckets; 0 = omitted
+	}{
+		{"dictionary", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}, "dictionary", 2},
+		{"include", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"S", "X", "S"}}}, "include", 1},
+		{"quantile", []*types.Group{{Type: types.GROUP_QUANTILE, Field: "q_1", Interval: 5}}, "quantile_bins", 5},
+		{"range", []*types.Group{{Type: types.GROUP_RANGE, Field: "q_1", Interval: 10}}, "unknown", 0},
+		{"multi-entry keys off Groups[0]", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_RANGE, Field: "q_1", Interval: 10}}, "dictionary", 2},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{Groups: c.groups, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}, Matrices: specs}
+			env := predictFromBytes(vectorPredictSchema(t), req, nil)
+			if len(env.Errors) != 0 {
+				t.Fatalf("unexpected errors: %v", env.Errors)
+			}
+			got := env.Data.(*descriptor.PredictResult).Matrices
+			if len(got) != len(specs) {
+				t.Fatalf("%d matrices, want %d", len(got), len(specs))
+			}
+			for _, mp := range got {
+				if mp.BucketBasis != c.basis {
+					t.Errorf("%s: bucket_basis %q, want %q", mp.Name, mp.BucketBasis, c.basis)
+				}
+				if c.want == 0 {
+					if mp.EstimatedBuckets != nil || mp.EstimatedCells != nil || mp.EstimatedBytes != nil {
+						t.Errorf("%s: unknown basis carries estimates %v %v %v", mp.Name, mp.EstimatedBuckets, mp.EstimatedCells, mp.EstimatedBytes)
+					}
+					b, _ := json.Marshal(mp)
+					if strings.Contains(string(b), "estimated_") {
+						t.Errorf("%s: unknown basis renders estimates: %s", mp.Name, b)
+					}
+					continue
+				}
+				p := int64(mp.Shape[0])
+				if mp.EstimatedBuckets == nil || *mp.EstimatedBuckets != c.want {
+					t.Fatalf("%s: estimated_buckets %v, want %d", mp.Name, mp.EstimatedBuckets, c.want)
+				}
+				if mp.EstimatedCells == nil || *mp.EstimatedCells != c.want*p*p {
+					t.Errorf("%s: estimated_cells %v, want %d", mp.Name, mp.EstimatedCells, c.want*p*p)
+				}
+				if mp.EstimatedBytes == nil || *mp.EstimatedBytes != c.want*mp.AccumulatorBytes {
+					t.Errorf("%s: estimated_bytes %v, want %d", mp.Name, mp.EstimatedBytes, c.want*mp.AccumulatorBytes)
+				}
+			}
+		})
+	}
+}
+
+// TestPredict_MatricesOmitted: a matrix-free request and a refused spec
+// carry no matrices key.
+func TestPredict_MatricesOmitted(t *testing.T) {
+	for name, req := range map[string]*types.Request{
+		"none":    {Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}},
+		"refused": {Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Vector: "missing"}}},
+	} {
+		env := predictFromBytes(vectorPredictSchema(t), req, nil)
+		res := env.Data.(*descriptor.PredictResult)
+		if res.Matrices != nil {
+			t.Errorf("%s: matrices = %v, want omitted", name, res.Matrices)
+		}
+		if name == "refused" && len(env.Errors) == 0 {
+			t.Error("refused: no predict error")
+		}
+	}
+}

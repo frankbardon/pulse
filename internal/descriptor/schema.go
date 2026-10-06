@@ -194,6 +194,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 		reflect.TypeFor[types.TestType]():        stringify(types.AllTestTypes()),
 		reflect.TypeFor[types.OverlayKind]():     stringify(types.AllOverlayKinds()),
 		reflect.TypeFor[types.RegressionType]():  stringify(types.AllRegressionTypes()),
+		reflect.TypeFor[types.MatrixType]():      stringify(types.AllMatrixTypes()),
 	}
 	for t, vals := range m {
 		m[t] = filterNames(vals, inst.Enabled)
@@ -204,6 +205,12 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// defs with them).
 	m[reflect.TypeFor[types.MultiplicityMethod]()] = stringify(types.AllMultiplicityMethods())
 	m[reflect.TypeFor[types.MultiplicityFamily]()] = stringify(types.AllMultiplicityFamilies())
+	// Likewise the vector coercions and the matrix encodings / kinds (a
+	// hidden capability:matrices drops the `vectors` and `matrices`
+	// slots, and VectorSpec / MatrixSpec with them).
+	m[reflect.TypeFor[types.VectorCoerce]()] = stringify(types.AllVectorCoerces())
+	m[reflect.TypeFor[types.MatrixEncoding]()] = stringify(types.AllMatrixEncodings())
+	m[reflect.TypeFor[types.MatrixKind]()] = stringify(types.AllMatrixKinds())
 	return m
 }
 

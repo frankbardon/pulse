@@ -2986,4 +2986,161 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_VECTOR_INVALID: {
+		Message: "A `vectors` entry is malformed, so the request is refused before any record is read — predict refuses it identically. Each entry needs a non-empty `name` and exactly one of `fields` (literal member names, or glob entries using `*`, `?` or `[...]`) and `pattern` (a regular expression over field names); every `fields` entry must be non-empty, every glob and regular expression must compile, and `coerce`, when set, must be a known value. The entry's path is under `vector`, its name under `name`, the rule under `reason` and, where one applies, the offending value under `value` and the accepted values under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "pattern"},
+				Hint:   "Keep exactly one of `fields` and `pattern` on the vector: list the members, or match them with one regular expression.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"vectors", "*", "coerce"},
+				Hint:     "Set `coerce` to one of the values under `valid`, or drop it.",
+				Examples: []any{"binary"},
+			},
+		},
+	},
+	PULSE_VECTOR_EMPTY: {
+		Message: "A vector resolved to no field: none of its `fields` entries or its `pattern` matched a schema field, so it has no members. A `pattern` is a Go regular expression matched against every field name (unanchored); a glob entry in `fields` matches whole names. The entry's path is under `vector`, its name under `name` and the expression that matched nothing under `fields` or `pattern`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "pattern"},
+				Hint:   "Inspect the cohort's field names and correct the pattern or glob so it matches the intended columns.",
+			},
+		},
+	},
+	PULSE_VECTOR_MEMBER_TYPE: {
+		Message: "A vector member has a field type a vector cannot carry. Members must be integer (u4, u8, u16, u32, u64) or float (f32, f64) fields. A packed_bool member is admitted only with `coerce: \"binary\"` (read as 0 / 1). Categorical, set, date, datetime and decimal128 members are always refused: a category code or a date is not a measurement, and decimal128 would lose precision in the floating-point accumulators. The vector is under `vector` / `name`, the member under `field` and its type under `field_type`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"vectors", "*", "coerce"},
+				Hint:     "For a packed_bool member, set `coerce` to binary to read it as 0 / 1.",
+				Examples: []any{"binary"},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Remove the member named under `field`, or narrow the pattern so it matches only numeric fields.",
+			},
+		},
+	},
+	PULSE_VECTOR_DUPLICATE: {
+		Message: "A vector name or member is repeated. Vector names are unique per request (the clashing entries are under `indices`), and one vector lists each member once after its glob or pattern entries expand (the vector is under `vector` / `name`, the repeated member under `field`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "name"},
+				Hint:   "Rename one of the clashing vectors, or merge them into one.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Drop the literal entry a glob already covers, or narrow the glob so the member appears once.",
+			},
+		},
+	},
+	PULSE_VECTOR_LABELS_MISMATCH: {
+		Message: "A vector's `labels` count differs from its resolved member count: labels are matched to members by position, one each. The vector is under `vector` / `name`, the two counts under `labels` and `members`, and the resolved member list under `resolved` — run predict to see `resolved_vectors` before writing labels for a glob or pattern.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "labels"},
+				Hint:   "Supply exactly one label per member listed under `resolved`, in that order.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "labels"},
+				Hint:   "Drop `labels` to use the member field names as labels.",
+			},
+		},
+	},
+	PULSE_VECTOR_UNKNOWN: {
+		Message: "An operator slot names a vector the request's `vectors` does not define. The unknown name is under `vector`, the slot under `slot` and the names the request does define under `defined`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors"},
+				Hint:   "Define the vector under `vectors`, or reference one of the names listed under `defined`.",
+			},
+		},
+	},
+	PULSE_VECTOR_UNREFERENCED: {
+		Message: "Warning: a vector is defined but no operator slot references it, so it is resolved and validated but computes nothing. Its name is under `name`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors"},
+				Hint:   "Reference the vector from an operator slot, or remove it from `vectors`.",
+			},
+		},
+	},
+	PULSE_MATRIX_UNSUPPORTED_SOURCE: {
+		Message: "A `matrices` slot sits on a request whose rows the matrix operators cannot fold, so the request is refused before any record is read — predict refuses it identically. Matrices read cohort rows directly: a Request that also carries `joins` (details `source` = `join`) and a ProcessChain stage after stage 0 (details `source` = `chain_stage`, which reads the previous stage's output rows; the stage is under `stage` / `stage_name`) are not supported. The number of matrix slots is under `matrices`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices"},
+				Hint:   "Move the `matrices` slot into its own Request over the cohort, without `joins`; Compose can run it beside the joined request.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"stages", "*", "request", "matrices"},
+				Hint:   "Put the matrices on chain stage 0, which reads the cohort, or run them as a separate Process request.",
+			},
+		},
+	},
+	PULSE_MATRIX_HOST_CONFLICT: {
+		Message: "A `matrices` slot sits on a Request whose host cannot carry it: a Request with a `crosstab` (details `host` = `crosstab`) does not compute matrices. The request is refused before the crosstab dispatch — predict refuses it identically. The number of matrix slots is under `matrices`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices"},
+				Hint:   "Run the matrices as a separate Request without `crosstab`; Compose can carry both requests in one call.",
+			},
+		},
+	},
+	PULSE_MATRIX_NOT_PSD: {
+		Message: "A pairwise matrix (`params.missing` = `pairwise`) is not positive semidefinite: each pair was computed over its own rows, and together the figures are inconsistent — no single data set produces them. Detected with the reference Cholesky on the matrix scaled by its diagonal, with a 1e-10 tolerance; details name the failing pivot (`pivot` axis index, `member`). The matrix is returned unchanged; downstream methods that need a valid covariance or correlation matrix will fail or mislead on it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"matrices", "*", "params", "missing"},
+				Hint:   "Use `missing: \"listwise\"` so every pair shares the same complete rows (a listwise matrix is always positive semidefinite).",
+			},
+		},
+	},
+	PULSE_MATRIX_LISTWISE_HEAVY_DROP: {
+		Message: "Listwise deletion dropped more of the filter-passing rows than `params.max_drop_share` allows: every row with any member null is dropped, so the matrix describes a smaller, possibly unrepresentative subset. Details carry `dropped`, `rows`, `share` and `max_drop_share`. Emitted only when `max_drop_share` is set.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices", "*", "params", "max_drop_share"},
+				Hint:   "Switch to `missing: \"pairwise\"` (and drop `max_drop_share`) to keep every row a pair can use, or remove the member with the most nulls from the vector.",
+			},
+		},
+	},
+	PULSE_MATRIX_INSUFFICIENT_N: {
+		Message: "A matrix or, under pairwise deletion, one or more pairs rest on fewer than 2 rows or on no weight mass, so their cells are undefined (null) or degenerate. Details: `scope` `matrix` with `n` and `sum_weights`, or `scope` `pairs` with `pairs` [{row, col, n}].",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"filters"},
+				Hint:   "Widen the filters (or the group bucket) so more rows reach the matrix, or drop the sparse member from the vector.",
+			},
+		},
+	},
+	PULSE_MATRIX_ZERO_VARIANCE: {
+		Message: "One or more members have zero spread over the rows that reach them (details `members`): every correlation touching such a member is null, its covariance row and column are 0, and the determinant is null.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Drop the constant member from the vector or the inline `fields`.",
+			},
+		},
+	},
 }

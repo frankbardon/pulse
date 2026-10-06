@@ -67,6 +67,18 @@ func TestSkillsCoverAllOperatorComponents(t *testing.T) {
 			})
 		}
 	})
+
+	// Matrices: the manifest's declaration (weighted keys spliced in),
+	// so the skill names the weighted floor keys too.
+	t.Run("matrices", func(t *testing.T) {
+		for _, op := range BuildManifest().Matrices {
+			op := op
+			t.Run(op.Name, func(t *testing.T) {
+				stem := "op-mat-" + atomicKebab(strings.TrimPrefix(op.Name, "MAT_"))
+				check(t, op.Name, stem, componentKeyNames(op.ComponentSchema))
+			})
+		}
+	})
 }
 
 // atomicKebab is the descriptor-side mirror of skills.kebab — used to

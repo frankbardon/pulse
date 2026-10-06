@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -87,6 +88,17 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     field or to an earlier aggregation's label is refused, since the
 //     row holds one value per name and the other figure was silently
 //     lost (not on a crosstab, whose output is its cell grid).
+//  6. vectors — Request.Vectors resolved against the schema alone
+//     (internal/vectors.Resolve): the first PULSE_VECTOR_* refusal, or
+//     the SERVICE_VALIDATION unknown-field refusal for a literal member
+//     the schema lacks.
+//  7. matrices — Request.Matrices resolved by the same leaf
+//     (internal/vectors.ResolveMatrices): an unknown / hidden type, a
+//     spec setting both or neither of vector and fields, an unknown
+//     encoding, a duplicate result name or bad params
+//     (SERVICE_VALIDATION, details.reason), an undefined vector
+//     (PULSE_VECTOR_UNKNOWN), or an inline-fields vector refusal.
+//     Steps 6 and 7 contribute one refusal at most between them.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -429,6 +441,23 @@ func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 			}
 		}
 	}
+
+	// 6. Vectors — resolved against the SCHEMA the request executes
+	// over (members are source columns, never derived ones) by the one
+	// resolver internal/vectors, which projection and predict's
+	// resolved_vectors echo also call. Resolution stops at its first
+	// failure, so it contributes one refusal at most.
+	//
+	// 7. Matrices — each Request.Matrices spec resolved by the same
+	// leaf (vectors.ResolveMatrices, which runs step 6 first): type,
+	// vector-XOR-fields shape, encoding, result-name uniqueness, params,
+	// the named vector (PULSE_VECTOR_UNKNOWN) or the inline fields (the
+	// vector rules). A type the instance hides is an unknown type.
+	if _, verr := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
+		return isBuiltinMatrixType(opRoute(inst, t))
+	}); verr != nil {
+		w.out = append(w.out, verr)
+	}
 	return w.out
 }
 
@@ -638,6 +667,17 @@ func filterFieldRequired(t types.FiltererType) bool {
 	}
 	for _, b := range types.AllFiltererTypes() {
 		if b == t {
+			return true
+		}
+	}
+	return false
+}
+
+// isBuiltinMatrixType reports whether t is a built-in matrix operator
+// ("" — a hidden type's route — is not).
+func isBuiltinMatrixType(t types.MatrixType) bool {
+	for _, k := range types.AllMatrixTypes() {
+		if k == t {
 			return true
 		}
 	}

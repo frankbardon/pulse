@@ -68,7 +68,8 @@ func withWeightKinds(ops []descriptor.Operator) []descriptor.Operator {
 }
 
 // stampWeightKinds sets weight_kinds on the manifest's tests (tier 1
-// only — a post-test reads aggregated rows), regressions and overlays.
+// only — a post-test reads aggregated rows), regressions, matrices and
+// overlays.
 // Called only when capability:weighting is offered.
 func stampWeightKinds(m *descriptor.Manifest) {
 	for i := range m.Tests {
@@ -76,6 +77,9 @@ func stampWeightKinds(m *descriptor.Manifest) {
 	}
 	for i := range m.Regressions {
 		m.Regressions[i].WeightKinds = weighting.KindsOf(m.Regressions[i].Name)
+	}
+	for i := range m.Matrices {
+		m.Matrices[i].WeightKinds = weighting.KindsOf(m.Matrices[i].Name)
 	}
 	for i := range m.Overlays {
 		m.Overlays[i].WeightKinds = OverlayWeightKinds(m.Overlays[i].Kind)

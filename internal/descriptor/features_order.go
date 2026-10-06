@@ -8,7 +8,7 @@ import (
 // operatorCategoryOrder is the category order operator features are
 // listed in: the order the feature table groups them in.
 var operatorCategoryOrder = []string{
-	"AGG", "ATTR", "FILTER", "GROUP", "WIN", "FEAT", "TEST", "REG", "OVERLAY",
+	"AGG", "ATTR", "FILTER", "GROUP", "WIN", "FEAT", "TEST", "REG", "MAT", "OVERLAY",
 }
 
 // FeatureKindOfName classifies any feature spelling, built-in or not:

@@ -1,13 +1,13 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **38 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **39 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
 - links to the theme sections to read first;
 - epics and stories, acceptance criteria, gates, Update Demand companions, and the human inputs needed.
 
-Every one of the 207 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
+Every one of the 212 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
 
 These files were generated once from the theme documents and `TODO.md`, and are now maintained by hand. Edit them directly, and keep a unit's `todo_items` in step with the `· [Uxx]` links in `TODO.md`.
 
@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -54,14 +54,14 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U14 | [zone-aware-operators](U14-zone-aware-operators.md): Days, weeks and date ranges can mean local calendar days, while storage stays UTC | Time zones | M | U03 | 69, 70, 71, 72 |
 | U15 | [linalg-core](U15-linalg-core.md): One trusted linear-algebra core and a mergeable co-moment accumulator, with no user-visible change | Vector & matrix | M | U02, U02b | 73, 74, 75, 76, 77 |
 | U16 | [matrix-result](U16-matrix-result.md): A first correlation matrix, end to end, through the library, CLI and MCP | Vector & matrix | L | U15, U11 | 78, 79, 80, 81, 82, 83, 84, 172 |
-| U17 | [response-shaping-core](U17-response-shaping-core.md): Callers can say which parts of a response they want | Response shaping | M | U05 | 104, 106, 107, 109, 193 |
+| U17 | [response-shaping-core](U17-response-shaping-core.md): Callers can say which parts of a response they want | Response shaping | M | U05 | 82, 104, 106, 107, 109, 193 |
 | U18 | [response-shaping-execution](U18-response-shaping-execution.md): Unrequested work is never computed, and MCP returns lean responses by default | Response shaping | M | U17 | 105, 108, 110, 111 |
-| U19 | [resource-limits](U19-resource-limits.md): Embedders can bound runaway requests, with defaults that never get in the way | Embedder operations | M | U05 | 112, 113, 114, 115, 116, 117 |
+| U19 | [resource-limits](U19-resource-limits.md): Embedders can bound runaway requests, with defaults that never get in the way | Embedder operations | M | U05 | 82, 112, 113, 114, 115, 116, 117 |
 | U20 | [observability](U20-observability.md): Hosts can see what Pulse is doing, whether or not they are a server | Embedder operations | M | U02, U02b | 118, 119, 120, 121, 122, 123 |
 | U21 | [guidance-generated-docs](U21-guidance-generated-docs.md): Plain-language reference docs and skill sections generate themselves from metadata | Guided analysis | M | U09, U10 | 85, 86, 87, 88, 89, 34 |
 | U22 | [recommend-explain](U22-recommend-explain.md): Developers and agents can go from a question to a valid request, and from a result to plain language | Guided analysis | L | U09, U11, U13 | 90, 91, 92, 93, 94 |
 | U23 | [guidance-mcp](U23-guidance-mcp.md): MCP agents are guided from intent to result in few round-trips | Guided analysis | S | U22 | 95, 96, 97, 98, 99 |
-| U24 | [matrix-operators](U24-matrix-operators.md): Analysts get the core multivariate toolkit: rank correlations, partial correlations, reliability, PCA, collinearity | Vector & matrix | L | U16 | 124, 125, 126, 127, 128, 129, 130 |
+| U24 | [matrix-operators](U24-matrix-operators.md): Analysts get the core multivariate toolkit: rank correlations, partial correlations, reliability, PCA, collinearity | Vector & matrix | L | U16 | 124, 125, 126, 127, 128, 129, 130, 172 |
 | U25 | [multivariate-tests-segmentation](U25-multivariate-tests-segmentation.md): Analysts can test whole profiles, flag unusual rows, score components and segment records | Vector & matrix | L | U24 | 131, 132, 133, 134, 135, 136 |
 | U26 | [vector-expr-functions](U26-vector-expr-functions.md): Formulas and filters can work with whole vectors and sets | Vector & matrix | M | U16 | 137, 138, 139, 140 |
 | U27 | [vector-metrics-aggregates](U27-vector-metrics-aggregates.md): Similarity is safe by default, and groups can be summarized as profiles | Vector & matrix | M | U26 | 141, 142, 143, 144 |
@@ -69,11 +69,12 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U29 | [vector-field-types](U29-vector-field-types.md): Cohorts can store fixed-length numeric vectors natively | Vector & matrix | L | U16, U27 | 151, 152, 153, 154, 155 |
 | U30 | [matrix-extensions-hardening](U30-matrix-extensions-hardening.md): Embedders can add their own matrix operators, and the matrix stack is proven at scale | Vector & matrix | M | U25, U28, U29 | 156, 157, 158 |
 | U31 | [guidance-guides](U31-guidance-guides.md): A developer can start from a question and find the right analysis without knowing statistics | Guided analysis | M | U21, U24, U28 | 100, 101, 102, 103 |
-| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31 | 159, 160, 161, 162, 163, 164, 165, 166, 167 |
+| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37 | 159, 160, 161, 162, 163, 164, 165, 166, 167 |
 | U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206 |
 | U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | S | U02b | 194, 195, 196, 197 |
 | U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | M | U02c (soft) | 198, 199, 200, 201, 207 |
 | U36 | [reference-oracles](U36-reference-oracles.md): Every inferential output is pinned to an external reference, and none answers with a wrong or unencodable number | Statistical integrity | M | U08 | 202, 203, 204, 205 |
+| U37 | [shell-completion](U37-shell-completion.md): The pulse CLI completes commands, flags and values natively in the terminal | API & release | M | — (U06 soft) | 208, 209, 210, 211, 212 |
 
 ## Dependency graph
 
@@ -117,6 +118,7 @@ graph TD
   U34["U34 extension-validation"]
   U35["U35 predict-runtime-parity"]
   U36["U36 reference-oracles"]
+  U37["U37 shell-completion"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -181,6 +183,8 @@ graph TD
   U35 --> U32
   U08 --> U36
   U36 -.-> U09
+  U37 --> U32
+  U06 -.-> U37
 ```
 
 ## Human inputs that gate units
@@ -196,6 +200,7 @@ graph TD
 - **U34 extension-validation:** the synth-distribution decision (#197): extension category or retire the slot; whether a feature profile can hide `LookupTables`
 - **U35 predict-runtime-parity:** multi-entry `Groups` — execute every group or refuse (#200)
 - **U36 reference-oracles:** Shapiro–Francia at n < 5 (refuse or exact method); how an infinite statistic is encoded
+- **U37 shell-completion:** whether completion respects a feature profile; library helper vs internal CLI glue; where field-taking flags find their cohort
 - **U33 v1-release:** Maintainer runs the downstream validation and tags the release; **a named statistics reviewer signs off the U08 review record (#206, release-blocking)** and lands the statistical-review CODEOWNERS entries
 
 Sizes: **S** ≈ one focused session; **M** ≈ 2–3 sessions; **L** ≈ 3–5 sessions. These are relative and meant for Flow's planning, not commitments.

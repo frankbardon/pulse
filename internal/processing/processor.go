@@ -331,6 +331,21 @@ func (p *Processor) canStream(req *types.Request) bool {
 			return false
 		}
 	}
+	// Matrix slots fold row by row on the streaming paths and emit at
+	// finalize — one set per spec ungrouped, one per spec per bucket on
+	// the grouped path. The two-pass attribute drive is not wired: that
+	// combination runs buffered. An unknown or hidden type routes
+	// buffered too, where the field-reference pass has refused it.
+	if len(req.Matrices) > 0 {
+		for _, m := range req.Matrices {
+			if !m.Streamable() || p.exts.isHidden(string(m.Type)) {
+				return false
+			}
+		}
+		if hasTwoPassAttribute(req, p.exts) {
+			return false
+		}
+	}
 	if len(req.Tests) > 0 {
 		if !canRunRowTests(req.Tests, p.exts) {
 			return false
@@ -372,10 +387,11 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.LookupFeature) {
 		return false
 	}
-	if len(req.Aggregations) == 0 {
+	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
 		// No aggregations: buffered path produces the same empty data
 		// payload and exposes the same error surface (e.g., when a
 		// downstream component validates against the materialized set).
+		// A matrix-only request streams: both paths emit no data row.
 		return false
 	}
 	for _, agg := range req.Aggregations {
@@ -522,6 +538,13 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		return nil, err
 	}
 
+	// Matrix slots fold the same filter-passing record; results are
+	// emitted at finalize (terminal flush).
+	matrixSlots, err := p.buildMatrixSlots(req)
+	if err != nil {
+		return nil, err
+	}
+
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		totalRows++
@@ -590,6 +613,11 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 				return nil, err
 			}
 		}
+		for _, ms := range matrixSlots {
+			if err := ms.UpdateRow(r, ""); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	row := make(map[string]any, len(entries))
@@ -653,6 +681,11 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		}
 	}
 
+	matrixResults, matrixComps, err := finalizeMatrixSlots(matrixSlots, !p.disableComponents)
+	if err != nil {
+		return nil, err
+	}
+
 	_ = ctx
 	resp := &types.Response{
 		Data: data,
@@ -663,6 +696,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		Tests:       testResults,
 		PostTests:   postResults,
 		Regressions: regressionResults,
+		Matrices:    matrixResults,
 	}
 
 	// Components emission block — opt-out via
@@ -705,6 +739,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			FilteredRecords: filteredRows,
 			NullRecords:     nullRecords,
 		})
+
+		// One MatrixComponents entry per Response.Matrices result.
+		attachMatrixComponents(resp, matrixComps)
 	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
@@ -806,6 +843,12 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 
 	// Per-group aggregator buckets; FinalizeGroupedStream orders them.
 	buckets := make(map[string][]OnlineAggregator)
+	// Per-bucket matrix slots, minted with the bucket (nil without
+	// matrices).
+	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts)
+	if err != nil {
+		return nil, err
+	}
 
 	// Track null count on the primary aggregation field for
 	// RunComponents.NullRecords. Resolution mirrors the package-level
@@ -903,6 +946,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 					return nil, err
 				}
 			}
+			if err := matrices.UpdateRow(key, r); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -922,6 +968,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		NullRecords:       primaryNullRecords,
 		Assignments:       assignments,
 		FilterCounters:    filterCounters,
+		Matrices:          matrices,
 		DisableComponents: p.disableComponents,
 		PostTests: func(rows []map[string]any) ([]*types.TestResult, error) {
 			return p.runPostTests(req.PostTests, rows)
@@ -1358,9 +1405,17 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var aggComponents []types.AggregationComponents
 	var grpComponents []types.GrouperComponents
 
+	// A grouped run's matrices are per bucket: processGrouped folds each
+	// bucket's records and hands back the ordered keys they emit over.
+	var groupedMatrices *GroupedMatrices
+	var groupKeys []string
+
 	recordRows := false
 	if len(req.Groups) > 0 {
-		data, grpComponents, err = p.processGrouped(req, filtered)
+		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts); err != nil {
+			return nil, err
+		}
+		data, grpComponents, groupKeys, err = p.processGrouped(req, filtered, groupedMatrices)
 		if err != nil {
 			return nil, err
 		}
@@ -1386,7 +1441,13 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		}
 	}
 
-	if len(req.Sort) > 0 {
+	// Grouped, the bucket keys follow the rows through the sort so the
+	// per-bucket matrices render in the final Data order.
+	if len(req.Groups) > 0 {
+		if groupKeys, err = sortGroupedRows(data, req.Sort, groupKeys); err != nil {
+			return nil, err
+		}
+	} else if len(req.Sort) > 0 {
 		window.Sort(data, req.Sort)
 	}
 
@@ -1427,6 +1488,32 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
+	// Matrix slots fold the filtered record set in record order — the
+	// rows and order the streaming path folds, so the per-block state
+	// (and the result's bits) match it. Grouped, processGrouped already
+	// folded each bucket's records; the results render over its keys in
+	// the final (sorted) Data order.
+	var matrixResults []types.MatrixResult
+	var matrixComps []types.MatrixComponents
+	if len(req.Groups) > 0 {
+		matrixResults, matrixComps, err = groupedMatrices.finalize(groupKeys, !p.disableComponents)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		matrixSlots, err := p.buildMatrixSlots(req)
+		if err != nil {
+			return nil, err
+		}
+		if err := foldMatrixRecords(matrixSlots, filtered); err != nil {
+			return nil, err
+		}
+		matrixResults, matrixComps, err = finalizeMatrixSlots(matrixSlots, !p.disableComponents)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	resp := &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
@@ -1436,6 +1523,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		Tests:       testResults,
 		PostTests:   postResults,
 		Regressions: regressionResults,
+		Matrices:    matrixResults,
 	}
 
 	// Components emission block — gated by the processor's
@@ -1496,6 +1584,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			FilteredRecords: int64(len(filtered)),
 			NullRecords:     nullRecords,
 		})
+
+		// One MatrixComponents entry per Response.Matrices result.
+		attachMatrixComponents(resp, matrixComps)
 	}
 
 	// SERIES-host overlay hook. Wraps the finalized per-group
@@ -1663,23 +1754,29 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 	return nil
 }
 
-func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map[string]any, []types.GrouperComponents, error) {
+// processGrouped is the buffered grouped exit: one Data row per bucket
+// of Request.Groups[0] in emission order, plus the grouper's Components.
+// matrices (nil without Request.Matrices) receives each bucket's
+// records, in record order, so the per-bucket matrices fold exactly the
+// rows (and blocks) the streaming-grouped path folds; the ordered bucket
+// keys are returned for their emission.
+func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, []string, error) {
 	// Use the first group for now (single-level grouping)
 	grp := req.Groups[0]
 	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
-		return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
 	grouper, err := factory(grp, p.schema)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	ApplyGrouperExtensions(grouper, p.exts)
 
 	groups, err := grouper.Group(records, grp.Field)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Stable-emit by group key so row order is deterministic across runs
@@ -1687,7 +1784,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 	// an active Group.Include list, keys emit in include order; otherwise
 	// orderKeysByInclude funnels through sort.Strings (byte-identical to the
 	// pre-Include alphabetical default). An explicit req.Sort below still
-	// overrides this default ordering.
+	// overrides this default ordering — rows and matrix keys together.
 	keys := make([]string, 0, len(groups))
 	for k := range groups {
 		keys = append(keys, k)
@@ -1699,7 +1796,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		groupRecords := groups[key]
 		row, err := p.aggregate(req.Aggregations, groupRecords)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if row == nil {
 			// +1 reserved for the group key written below.
@@ -1707,6 +1804,9 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 		}
 		row[grp.Field] = key
 		data = append(data, row)
+		if err := matrices.foldRecords(key, groupRecords); err != nil {
+			return nil, nil, nil, err
+		}
 	}
 
 	// Emit GrouperComponents for the single grouper slot.
@@ -1722,13 +1822,13 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record) ([]map
 	// drops the slice on the floor anyway. processRecords passes the
 	// returned slice through its own disableComponents gate.
 	if p.disableComponents {
-		return data, nil, nil
+		return data, nil, keys, nil
 	}
 	entry, gerr := buildGrouperComponents(grouper, grp, groups, len(records))
 	if gerr != nil {
-		return nil, nil, gerr
+		return nil, nil, nil, gerr
 	}
-	return data, []types.GrouperComponents{entry}, nil
+	return data, []types.GrouperComponents{entry}, keys, nil
 }
 
 func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map[string]any, error) {

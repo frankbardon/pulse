@@ -25,9 +25,9 @@ Filled by the ENGINE, not the operator — every slot carries it, even a floor-o
 
 Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n_weight_invalid`. An aggregator's `n` counts NON-NULL inputs; a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
 
-## Five sub-blocks
+## Sub-blocks
 
-`ResponseComponents` = `aggregations` · `groupers` · `crosstab` · `filterers` · `run` — every slot `omitempty`.
+`ResponseComponents` = `aggregations` · `groupers` · `crosstab` · `filterers` · `run` · `matrices` — every slot `omitempty`.
 
 | Block | Cardinality · identity | Carries |
 |---|---|---|
@@ -36,6 +36,7 @@ Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n
 | `crosstab` | only when the Request carried `crosstab` | cell / margin / axis-key components (below) |
 | `filterers` | one per `Request.Filterers`, declared order · `label` | floor only |
 | `run` | always on a successful run | `total_records` (pre-filter), `filtered_records`, `null_records`, `shard_count` (0 = single file), `partial_cohort_reason` (a shard failed to open) |
+| `matrices` | one per `Response.Matrices` result, same order · `name` | `n` (weight-0 rows count), `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted floor; `operator` |
 
 - A fan-out grouper (one record → several buckets, e.g. each option of a multi-select) has a bucket sum EXCEEDING `total_n` — correct.
 - `run` coexists with `Response.Metadata`: `Metadata.TotalRows == Run.TotalRecords`; `Metadata` keeps non-numerical run facts (cohort filename), `run` the typed counters.
@@ -62,7 +63,7 @@ Disabled ⇒ `Response.Components` stays `nil` (wire form byte-identical to the 
 
 ## Manifest declaration
 
-`manifest.components_schemas` holds three operator-name-keyed maps — `aggregators`, `groupers`, `filterers`. Each value is a `ComponentSchema`: `keys` (each `{name, type, description}`; `type` ∈ `"int"`, `"float64"`, `"WelfordTriple"`, `"map[string]int"`, …) in emission order, plus `mergeability`. The floor is unconditional and NOT listed; empty `keys` is a valid floor-only operator. Fetch once per session via `pulse_manifest`.
+`manifest.components_schemas` holds operator-name-keyed maps — `aggregators`, `groupers`, `filterers`, `matrices`. Each value is a `ComponentSchema`: `keys` (each `{name, type, description}`; `type` ∈ `"int"`, `"float64"`, `"WelfordTriple"`, `"map[string]int"`, …) in emission order, plus `mergeability`. Aggregators and matrices list their floor; empty `keys` is a valid floor-only operator.
 
 ## Mergeability
 
@@ -85,12 +86,9 @@ for _, a := range resp.Components.Aggregations {   // floor + operator keys
     mean, _ := a.Operator["mean"].(float64)
     fmt.Println(a.Label, a.N, a.NNull, mean)
 }
-for _, f := range resp.Components.Filterers {      // attrition
-    fmt.Println(f.Label, f.NIn, f.NOut)
-}
 ```
 
-Runnable examples (aggregation + fully populated crosstab block): `pulse_examples_search tags=["welford-triple"]`.
+Examples: `pulse_examples_search tags=["welford-triple"]`.
 
 ## Extensions
 

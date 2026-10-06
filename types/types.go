@@ -1068,6 +1068,23 @@ type Request struct {
 	// Resample, and Selection variants force the buffered path.
 	Regressions []*RegressionSpec `json:"regressions,omitempty"`
 
+	// Vectors names batteries of numeric columns once per request
+	// (virtual vectors) for the matrix operators to reference by name.
+	// Resolved against the schema before any record is read; predict
+	// echoes the resolved member lists. A vector no operator references
+	// is reported with a PULSE_VECTOR_UNREFERENCED warning. Gated by
+	// capability:matrices. See VectorSpec.
+	Vectors []VectorSpec `json:"vectors,omitempty"`
+
+	// Matrices is the list of matrix operators (MAT_COVARIANCE,
+	// MAT_CORRELATION)
+	// evaluated against the filtered record set over a virtual vector
+	// or an inline member list. Each spec produces one MatrixResult in
+	// Response.Matrices, in matching order. Every built-in matrix
+	// operator streams; its result is emitted at finalize. Gated by
+	// capability:matrices. See MatrixSpec.
+	Matrices []MatrixSpec `json:"matrices,omitempty"`
+
 	// Joins describes pushdown hash-join legs attached to the primary
 	// cohort. v1 supports exactly one inner join per Request; multi-
 	// join chains and the left/outer/anti kinds land in a follow-up.
@@ -1184,6 +1201,11 @@ type Response struct {
 	// PROCESSING_REGRESSION_* error on the envelope instead.
 	Regressions []*RegressionResult `json:"regressions,omitempty"`
 
+	// Matrices holds the matrix operator results, one entry per
+	// Request.Matrices spec in the same order (ungrouped). Undefined
+	// cells and scalars are null on the wire. See MatrixResult.
+	Matrices []MatrixResult `json:"matrices,omitempty"`
+
 	// Warnings carries cross-cutting diagnostics surfaced after the
 	// processor finishes. Today this slot is populated by the label-
 	// display resolver (PULSE_LABEL_COLLISION, PULSE_LABEL_LOOKUP_MISS);
@@ -1253,6 +1275,10 @@ type Response struct {
 //   - Run: optional run-wide totals (cohort record count, filtered
 //     count, null count, shard count, partial-cohort reason). Distinct
 //     from Response.Metadata which holds orchestrator-pass facts.
+//   - Matrices: one entry per Response.Matrices result, in its order —
+//     the floor {n, n_null, n_listwise_dropped}, pairwise
+//     {min_pair_n, max_pair_n}, the weighted floor keys and the
+//     operator's own keys (MatrixComponents).
 type ResponseComponents struct {
 	// Aggregations carries one AggregationComponents entry per
 	// Request.Aggregations slot in matching declared order.
@@ -1276,6 +1302,11 @@ type ResponseComponents struct {
 	// from Response.Metadata which holds orchestrator-pass facts about
 	// the request execution (file name, etc.).
 	Run *RunComponents `json:"run,omitempty"`
+
+	// Matrices carries one MatrixComponents entry per Response.Matrices
+	// result, in the same order (keyed back by Name, and GroupKey on a
+	// grouped result).
+	Matrices []MatrixComponents `json:"matrices,omitempty"`
 }
 
 // AggregationComponents carries per-aggregator constituent-parts

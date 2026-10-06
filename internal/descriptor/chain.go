@@ -186,6 +186,12 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		if jerr := mergegate.StageJoinRefusal(stage.Request, i, stage.Name); jerr != nil {
 			addCodedError(env, jerr)
 		}
+		// Only stage 0 may carry matrices (the runtime refuses right
+		// after the join rule); a refused stage is not judged further.
+		stageMatErr := mergegate.StageMatrixRefusal(stage.Request, i, stage.Name)
+		if stageMatErr != nil {
+			addCodedError(env, stageMatErr)
+		}
 		staged := chainStageDefaulted(stage.Request, current, opts)
 		// A joined stage 0 resolves zones inside Process — after the
 		// gate and the join-count rule; every other stage resolves
@@ -204,7 +210,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		if gerr != nil {
 			addCodedError(env, gerr)
 		}
-		gateOK := gerr == nil
+		gateOK := gerr == nil && stageMatErr == nil
 		// The schema the stage's field references are judged against:
 		// its input schema, or for a joined stage 0 the joined schema
 		// (nil — no judgement — when the right side is unreadable).
@@ -213,6 +219,9 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			fieldSchema = nil
 			if jerr := JoinCountRefusal(stage.Request); jerr != nil {
 				addCodedError(env, RefusalAt(jerr, "stage", i))
+				fieldsReached = false
+			} else if merr := mergegate.MatrixRefusal(stage.Request); merr != nil {
+				addCodedError(env, RefusalAt(merr, "stage", i))
 				fieldsReached = false
 			} else if js, keyRefusals := validatorRequestSchema(stage.Request, current, opts); len(keyRefusals) > 0 {
 				for _, ce := range keyRefusals {
@@ -229,6 +238,15 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		}
 		if !gateOK {
 			continue
+		}
+		// A stage 0 that does not join runs Process, which applies the
+		// matrix-host rule (a crosstab carrying matrices) before its
+		// field references.
+		if i == 0 && !joined && fieldsReached {
+			if merr := mergegate.MatrixRefusal(stage.Request); merr != nil {
+				addCodedError(env, RefusalAt(merr, "stage", i))
+				fieldsReached = false
+			}
 		}
 		if fieldsReached {
 			refs := fieldRefRefusals(fieldReq, fieldSchema, extensionsFromOpts(opts), opts.instance())

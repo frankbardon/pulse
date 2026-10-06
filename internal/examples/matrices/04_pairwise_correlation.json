@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "name": "pairwise_correlation_matrix",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis"
+    ],
+    "operators": [
+      "MAT_CORRELATION"
+    ],
+    "description": "Pairwise-deletion Pearson correlation matrix of price, income and label on training_data.pulse: params.missing pairwise computes each cell over the rows where both members are present instead of dropping every row with any null member, and adds auxiliary.n (the per-pair row count). A pairwise matrix need not be positive semidefinite, so predict reports pairwise_psd_risk and the run warns PULSE_MATRIX_NOT_PSD when it is not.",
+    "intents": [
+      "relationship"
+    ]
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_CORRELATION",
+      "name": "pairwise_corr",
+      "fields": ["price", "income", "label"],
+      "params": {"missing": "pairwise"}
+    }
+  ]
+}

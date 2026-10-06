@@ -21,6 +21,7 @@ internal/examples/
 ├── windows/                   # WIN_* per-row analytics (10)
 ├── aggregations/              # AGG_* requests over the all_types cohort (5)
 ├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (10)
+├── matrices/                  # MAT_* matrix operators over virtual vectors (1)
 └── <new-category>/            # each: README.md + run-all.sh + *.json
 ```
 

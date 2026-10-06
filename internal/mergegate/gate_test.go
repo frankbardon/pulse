@@ -1,6 +1,7 @@
 package mergegate
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -42,6 +43,9 @@ func TestMergeRefusal(t *testing.T) {
 	sum := func(f string) []*types.Aggregation {
 		return []*types.Aggregation{{Type: types.AGG_SUM, Field: f}}
 	}
+	cov := func() []types.MatrixSpec {
+		return []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"n"}}}
+	}
 	cases := []struct {
 		name   string
 		req    *types.Request
@@ -69,6 +73,19 @@ func TestMergeRefusal(t *testing.T) {
 		{"extension decimal", &types.Request{Aggregations: []*types.Aggregation{{Type: "AGG_X_MERGE", Field: "amt"}}}, fakeExt{}, ""},
 		{"non-mergeable extension aggregator", &types.Request{Aggregations: []*types.Aggregation{{Type: "AGG_X_SOLO", Field: "n"}}}, fakeExt{}, "aggregator AGG_X_SOLO is not mergeable"},
 		{"unknown aggregator", &types.Request{Aggregations: []*types.Aggregation{{Type: "AGG_X_MERGE", Field: "n"}}}, None{}, "aggregator AGG_X_MERGE is not mergeable"},
+		{"matrices beside aggregations", &types.Request{Aggregations: sum("n"), Matrices: cov()}, nil, ""},
+		{"matrices only", &types.Request{Matrices: cov()}, nil, ""},
+		{"matrices with vectors", &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Vector: "v"}}, Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"n"}}}}, nil, ""},
+		{"matrices with filterer and row-local attribute", &types.Request{Matrices: cov(), Filterers: []*types.Filterer{{Type: types.FILTER_INCLUDE}}, Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA}}}, nil, ""},
+		{"unknown matrix type", &types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_NOPE", Fields: []string{"n"}}}}, nil, "matrix operator MAT_NOPE is not mergeable"},
+		{"grouped matrices", &types.Request{Aggregations: sum("n"), Matrices: cov(), Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}}}, nil, ""},
+		{"grouped matrices only", &types.Request{Matrices: cov(), Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}}}, nil, ""},
+		{"grouped matrices still refuse a non-mergeable grouper", &types.Request{Matrices: cov(), Groups: []*types.Group{{Type: types.GROUP_QUANTILE, Field: "n"}}}, nil, "grouper GROUP_QUANTILE is not mergeable"},
+		{"matrices still refuse tests", &types.Request{Matrices: cov(), Tests: []*types.Test{{}}}, nil, "windows, features"},
+		{"matrices still refuse regressions", &types.Request{Matrices: cov(), Regressions: []*types.RegressionSpec{{}}}, nil, "windows, features"},
+		{"matrices still refuse windows", &types.Request{Matrices: cov(), Windows: []*types.Window{{}}}, nil, "windows, features"},
+		{"matrices still refuse features", &types.Request{Matrices: cov(), Features: []*types.Feature{{}}}, nil, "windows, features"},
+		{"matrices still refuse a non-mergeable aggregator", &types.Request{Matrices: cov(), Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "n"}}}, nil, "aggregator AGG_MEDIAN is not mergeable"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -182,5 +199,85 @@ func TestMergeRefusal_ExtensionAnswerPrecedesBuiltinAttributeList(t *testing.T) 
 	want := strings.ReplaceAll(MergeRefusal(req("ATTR_NEVER_REGISTERED"), nil, hidesFormula{}), "ATTR_NEVER_REGISTERED", string(types.ATTR_FORMULA))
 	if got == "" || got != want {
 		t.Errorf("hidden ATTR_FORMULA refusal %q, want %q", got, want)
+	}
+}
+
+func TestMatrixRefusal(t *testing.T) {
+	mats := []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"n"}}}
+	xtab := &types.CrosstabSpec{}
+	joins := []*types.JoinSpec{{}}
+	for _, tc := range []struct {
+		name    string
+		req     *types.Request
+		code    errors.Code
+		details map[string]any
+	}{
+		{"nil", nil, "", nil},
+		{"no matrices", &types.Request{Joins: joins, Crosstab: xtab}, "", nil},
+		{"empty matrices", &types.Request{Joins: joins, Crosstab: xtab, Matrices: []types.MatrixSpec{}}, "", nil},
+		{"plain matrices", &types.Request{Matrices: mats}, "", nil},
+		{"joins", &types.Request{Matrices: mats, Joins: joins},
+			errors.PULSE_MATRIX_UNSUPPORTED_SOURCE, map[string]any{"source": "join", "matrices": 1, "joins": 1}},
+		{"crosstab", &types.Request{Matrices: mats, Crosstab: xtab},
+			errors.PULSE_MATRIX_HOST_CONFLICT, map[string]any{"host": "crosstab", "matrices": 1}},
+		{"joins win over crosstab", &types.Request{Matrices: mats, Crosstab: xtab, Joins: joins},
+			errors.PULSE_MATRIX_UNSUPPORTED_SOURCE, map[string]any{"source": "join", "matrices": 1, "joins": 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := MatrixRefusal(tc.req)
+			if tc.code == "" {
+				if err != nil {
+					t.Fatalf("refused: %v", err)
+				}
+				return
+			}
+			ce, ok := err.(*errors.CodedError)
+			if !ok || ce.Code != tc.code || !reflect.DeepEqual(ce.Details, tc.details) {
+				t.Fatalf("err = %#v, want %s %v", err, tc.code, tc.details)
+			}
+		})
+	}
+}
+
+func TestStageMatrixRefusal(t *testing.T) {
+	req := &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"n"}}}}
+	if StageMatrixRefusal(req, 0, "s0") != nil {
+		t.Fatal("stage 0 may carry matrices")
+	}
+	if StageMatrixRefusal(&types.Request{}, 2, "s2") != nil || StageMatrixRefusal(nil, 2, "s2") != nil {
+		t.Fatal("a matrix-free later stage was refused")
+	}
+	ce, ok := StageMatrixRefusal(req, 2, "s2").(*errors.CodedError)
+	if !ok || ce.Code != errors.PULSE_MATRIX_UNSUPPORTED_SOURCE {
+		t.Fatalf("err = %v", ce)
+	}
+	want := map[string]any{"source": "chain_stage", "matrices": 1, "stage": 2, "stage_name": "s2"}
+	if !reflect.DeepEqual(ce.Details, want) {
+		t.Fatalf("details = %v, want %v", ce.Details, want)
+	}
+}
+
+// TestChainRefusal_IgnoresMatrices: a stage's matrices never reach the
+// next stage's rows, so the chain gate judges the stage without them —
+// a matrix-only stage still fails the no-aggregator rule even though
+// the parallel merge gate admits it.
+func TestChainRefusal_IgnoresMatrices(t *testing.T) {
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}},
+		Matrices:     []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"n"}}},
+	}
+	if err := ChainRefusal(req, nil, nil, 0, "s0"); err != nil {
+		t.Fatalf("chain gate refused a stage-0 matrix: %v", err)
+	}
+	if len(req.Matrices) != 1 {
+		t.Fatal("ChainRefusal mutated the caller's request")
+	}
+	// The rest of the rule still bites with matrices present.
+	req.Aggregations = nil
+	if MergeRefusal(req, nil, nil) != "" {
+		t.Fatal("the merge gate refused a matrix-only request")
+	}
+	if ChainRefusal(req, nil, nil, 0, "s0") == nil {
+		t.Fatal("a matrix-only stage passed the no-aggregator rule")
 	}
 }

@@ -326,8 +326,9 @@ func weightFieldTypeRefusal(schema *encoding.Schema, where, field string) error 
 // weightSlots flattens req's weight-bearing slots in reporting order:
 // aggregations, crosstab cell, crosstab margin aggregations, tests,
 // post-tests, regressions, attributes, overlays, groups, crosstab rows,
-// crosstab columns, windows (the last four were added after the first
-// eight, so they trail rather than reorder an existing report).
+// crosstab columns, windows, matrices (everything after the first eight
+// was added later, so it trails rather than reorders an existing
+// report).
 func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	var slots []weightSlot
 	add := func(slot, op string, w types.SlotWeight) {
@@ -415,6 +416,9 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 			add(fmt.Sprintf("windows[%d]", i), string(w.Type), types.SlotWeight{})
 			slots[len(slots)-1].noSlotWeight = true
 		}
+	}
+	for i, m := range req.Matrices {
+		add(fmt.Sprintf("matrices[%d]", i), string(m.Type), m.Weight)
 	}
 	return slots
 }

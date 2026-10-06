@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "name": "weighted_covariance_matrix",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "covariance"
+    ],
+    "operators": [
+      "MAT_COVARIANCE"
+    ],
+    "description": "Weighted covariance matrix of revenue_before and revenue on experiment.pulse: a per-slot probability weight on session_minutes gives longer sessions more weight; the denominator is W minus ddof and Components.Matrices carries the weighted floor (sum_weights, n_eff).",
+    "intents": [
+      "relationship"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_COVARIANCE",
+      "name": "weighted_cov",
+      "fields": ["revenue_before", "revenue"],
+      "weight": {"field": "session_minutes", "kind": "probability"}
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import (
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -264,6 +265,24 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 		addAllKnown(r.Predictors)
 	}
 
+	// Virtual vectors decode every member (internal/vectors, the one
+	// resolver predict and the runtime refuse with). A vector that does
+	// not resolve is refused before any record is read; decode wide
+	// rather than guess.
+	members, ok := vectors.Members(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(members)
+	// A matrix spec's inline fields resolve by the same rules.
+	matMembers, ok := vectors.MatrixMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(matMembers)
+
 	for _, k := range req.Sort {
 		// Sort keys may name output labels rather than schema fields;
 		// addKnown ignores non-schema names.
@@ -414,6 +433,9 @@ func requestWeightFields(req *types.Request) []string {
 		if r != nil {
 			add(r.Weight)
 		}
+	}
+	for _, m := range req.Matrices {
+		add(m.Weight)
 	}
 	for _, a := range req.Attributes {
 		if a != nil {

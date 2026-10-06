@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "name": "grouped_correlation_matrix",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis",
+      "experiment-analysis"
+    ],
+    "operators": [
+      "MAT_CORRELATION",
+      "GROUP_CATEGORY",
+      "AGG_COUNT"
+    ],
+    "description": "Per-arm Pearson correlation matrices on experiment.pulse: matrices follow Request.Groups, so GROUP_CATEGORY on treatment returns one MAT_CORRELATION result per non-empty arm, in the grouped data-row order, each carrying group_key and group_header. Predict reports bucket_basis dictionary with estimated_buckets 2 and the estimated cells and bytes before the run.",
+    "intents": [
+      "relationship",
+      "compare_groups"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    }
+  ],
+  "vectors": [
+    {
+      "name": "spend",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ],
+  "matrices": [
+    {
+      "type": "MAT_CORRELATION",
+      "name": "spend_corr",
+      "vector": "spend",
+      "params": {"summary": {"top_pairs": 1}}
+    }
+  ]
+}

@@ -25,6 +25,7 @@ func TestEveryOperatorHasAnExampleTag(t *testing.T) {
 		stringify(types.AllFeatureTypes()),
 		stringify(types.AllTestTypes()),
 		stringify(types.AllRegressionTypes()),
+		stringify(types.AllMatrixTypes()),
 	}
 	var tagged []string
 	for _, cat := range taggedCategories {

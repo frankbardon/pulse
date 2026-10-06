@@ -161,6 +161,9 @@ func (s *Service) reduceParallelBuffered(
 		}
 
 		out := newShardPartial(req, specs)
+		if buildErr == nil {
+			buildErr = out.buildMatrices(req, schema, s.extensions, grouperInst != nil)
+		}
 		if buildErr == nil && grouperInst == nil {
 			ungroupedAggs = make([]processing.OnlineAggregator, len(specs))
 			for i, sp := range specs {
@@ -234,6 +237,9 @@ func (s *Service) reduceParallelBuffered(
 				// attribute label sees the same presence the serial
 				// orchestrator sees.
 				out.observeFloor(rec, specs)
+				if err := out.mats.UpdateRow(rec); err != nil {
+					return err
+				}
 
 				if grouperInst == nil {
 					for i, oa := range ungroupedAggs {

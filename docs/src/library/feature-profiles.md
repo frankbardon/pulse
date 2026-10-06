@@ -79,7 +79,7 @@ refused too.
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request` |
 
@@ -111,7 +111,7 @@ Some features need others. A dependency is a list of groups, and at least
 one name in every group must be enabled:
 
 - Every operator, and `capability:crosstab` / `capability:joins` /
-  `capability:weighting`, needs a host that runs requests: `capability:process`, `capability:compose` or
+  `capability:weighting` / `capability:matrices`, needs a host that runs requests: `capability:process`, `capability:compose` or
   `capability:process_chain`.
 - `capability:multiplicity` needs nothing: its blocks ride every request
   host and facet overlays alike.
@@ -268,6 +268,13 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   golden apart from the digest comment. `pulse schema` serves the
   default instance; the MCP `pulse://schema` resource serves the
   mounted instance's `p.PayloadSchema()`.
+- **Virtual vectors and matrices.** Without `capability:matrices` the
+  request `vectors` and `matrices` slots fail
+  `PULSE_REQUEST_UNKNOWN_FIELD` on every entry point, the payload schema
+  drops them with the `VectorSpec` / `VectorCoerce` / `MatrixSpec`
+  definitions and the `Response.matrices` result slot, and the manifest
+  drops the `matrix` block. Every `MAT_*` operator depends on
+  `capability:matrices`.
 - **Row weighting.** Without `capability:weighting` the instance has no
   weight surface. The request `weight` and every per-slot `weight`
   (aggregations, the crosstab cell, margin aggregations and axes,

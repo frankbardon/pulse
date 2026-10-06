@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:9222a2849c290c3984869787d7e9013c6d7af966f5f10b7f77615f9567f93c12",
+    "feature_set_digest": "fs1:21e79fbd70c85f9aef52604656cd6b2ba31b4e5a589bc79d5bcebfbb540f7704",
     "commands": [
       {
         "name": "process",
@@ -5738,6 +5738,237 @@
         ]
       }
     ],
+    "matrices": [
+      {
+        "name": "MAT_CORRELATION",
+        "description": "Pearson correlation matrix of a vector's members (listwise or pairwise), r clamped to [-1, 1]; a zero-spread member's row and column are null. Weighted under frequency and probability weights. No p-values.",
+        "accepts_types": [
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "params": [
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N).",
+            "enum_values": [
+              "listwise",
+              "pairwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "summary",
+            "type": "object",
+            "required": false,
+            "description": "{\"top_pairs\": k}, k a positive integer: list the k off-diagonal pairs with the largest |r| as vectors.top_pairs [{row, col, r, n}], ties in axis order; undefined pairs are skipped and k past the pair count lists every pair."
+          }
+        ],
+        "output_keys": {
+          "primary": "correlation",
+          "auxiliary": [
+            "n"
+          ],
+          "vectors": [
+            "top_pairs"
+          ],
+          "scalars": [
+            "determinant"
+          ]
+        },
+        "streamable": true,
+        "mergeable": true,
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "intents": [
+          "describe",
+          "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
+        "name": "MAT_COVARIANCE",
+        "description": "Covariance matrix of a vector's members (listwise or pairwise): sample covariance by default, weighted under frequency and probability weights.",
+        "accepts_types": [
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "params": [
+          {
+            "name": "ddof",
+            "type": "enum",
+            "required": false,
+            "default": "1",
+            "description": "Delta degrees of freedom: the denominator is Σw − ddof (n − ddof unweighted).",
+            "enum_values": [
+              "0",
+              "1"
+            ]
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N).",
+            "enum_values": [
+              "listwise",
+              "pairwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          }
+        ],
+        "output_keys": {
+          "primary": "covariance",
+          "auxiliary": [
+            "n"
+          ],
+          "scalars": [
+            "determinant"
+          ]
+        },
+        "streamable": true,
+        "mergeable": true,
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "ddof",
+              "type": "int",
+              "description": "The delta degrees of freedom the covariance used (params.ddof, default 1)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "intents": [
+          "describe",
+          "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      }
+    ],
     "synth_distributions": [
       {
         "name": "bernoulli",
@@ -6110,7 +6341,7 @@
         ]
       }
     ],
-    "error_codes_count": 266,
+    "error_codes_count": 279,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6246,8 +6477,14 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MATRIX_HOST_CONFLICT",
+      "PULSE_MATRIX_INSUFFICIENT_N",
+      "PULSE_MATRIX_LISTWISE_HEAVY_DROP",
+      "PULSE_MATRIX_NOT_PSD",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
+      "PULSE_MATRIX_UNSUPPORTED_SOURCE",
+      "PULSE_MATRIX_ZERO_VARIANCE",
       "PULSE_MULTIPLICITY_CONFLICT",
       "PULSE_MULTIPLICITY_INVALID",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
@@ -6378,6 +6615,13 @@
       "PULSE_TEST_VARIANCE_ZERO",
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
+      "PULSE_VECTOR_DUPLICATE",
+      "PULSE_VECTOR_EMPTY",
+      "PULSE_VECTOR_INVALID",
+      "PULSE_VECTOR_LABELS_MISMATCH",
+      "PULSE_VECTOR_MEMBER_TYPE",
+      "PULSE_VECTOR_UNKNOWN",
+      "PULSE_VECTOR_UNREFERENCED",
       "PULSE_WEIGHT_INVALID_ROWS",
       "PULSE_WEIGHT_LOW_NEFF",
       "PULSE_WEIGHT_UNSUPPORTED",
@@ -6390,7 +6634,7 @@
     "mcp_tools": [
       {
         "name": "pulse_compose",
-        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes."
+        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes. Each slot's `matrices` (MAT_COVARIANCE / MAT_CORRELATION, with its `vectors`) runs per slot and lands on that slot's response; a slot combining `matrices` with `joins` or `crosstab` is refused (PULSE_MATRIX_UNSUPPORTED_SOURCE / PULSE_MATRIX_HOST_CONFLICT) like a standalone request."
       },
       {
         "name": "pulse_dedup",
@@ -6410,7 +6654,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `regression`, `tests`, `windows`).\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `matrices`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_facet",
@@ -6446,7 +6690,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, matrix operators (`matrices`, used through the request's `vectors` / `matrices` slots, plus the `matrix` capability block), synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -6454,11 +6698,11 @@
       },
       {
         "name": "pulse_process",
-        "description": "Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
+        "description": "Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), tier-1 / tier-2 statistical tests, and matrices (`vectors` names a reusable list of numeric fields; `matrices` runs MAT_COVARIANCE or MAT_CORRELATION (Pearson) over a vector or inline `fields`, results under `matrices` in the response). A `matrices` slot (MAT_COVARIANCE / MAT_CORRELATION) is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE on a request that also carries `joins`, and with PULSE_MATRIX_HOST_CONFLICT on a `crosstab` request — run the matrices as their own request.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
       },
       {
         "name": "pulse_process_chain",
-        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
+        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE / MAT_CORRELATION, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
       },
       {
         "name": "pulse_range_tables",
@@ -7699,6 +7943,10 @@
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
+        "name": "matrix-results",
+        "description": "Vectors and matrices on a Request — naming a battery of numeric fields once, getting a covariance or correlation matrix back, the encodings, missing-data modes, warnings, per-group matrices, predict's cost estimate and what is refused."
+      },
+      {
         "name": "multiplicity-correction",
         "description": "Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected."
       },
@@ -7981,6 +8229,14 @@
       {
         "name": "op-group-set-value",
         "description": "Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with \"|\"."
+      },
+      {
+        "name": "op-mat-correlation",
+        "description": "Pearson correlation matrix of a vector's numeric members (listwise or pairwise), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped), no p-values."
+      },
+      {
+        "name": "op-mat-covariance",
+        "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped)."
       },
       {
         "name": "op-overlay-chisq-col",
@@ -8719,7 +8975,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 174,
+    "examples_count": 179,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -8728,6 +8984,7 @@
       "features",
       "filterers",
       "groupers",
+      "matrices",
       "overlays",
       "regression",
       "tests",
@@ -8745,6 +9002,7 @@
       "compose",
       "composed",
       "correlation-analysis",
+      "covariance",
       "cross-tabulation",
       "crosstab",
       "data-quality",
@@ -8765,6 +9023,7 @@
       "lasso",
       "leakage-risk",
       "logistic",
+      "matrix",
       "nonparametric",
       "normality-test",
       "ols",
@@ -9125,6 +9384,28 @@
           "schema_source": "inferred",
           "export": true
         }
+      ]
+    },
+    "matrix": {
+      "name": "matrices",
+      "encodings": [
+        "full",
+        "upper"
+      ],
+      "default_encoding": "full",
+      "kinds": [
+        "square_symmetric"
+      ],
+      "missing_modes": [
+        "listwise",
+        "pairwise"
+      ],
+      "merge_block_size": 4096,
+      "limitations": [
+        "Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
+        "A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
+        "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
+        "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT."
       ]
     },
     "overlays": [
@@ -11721,6 +12002,113 @@
           ],
           "mergeability": "mergeable"
         }
+      },
+      "matrices": {
+        "MAT_CORRELATION": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "MAT_COVARIANCE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "ddof",
+              "type": "int",
+              "description": "The delta degrees of freedom the covariance used (params.ddof, default 1)."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
       }
     },
     "intents": [
@@ -11744,4 +12132,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3db04551b7e1b2aff4622cf198c402ffc1cd6b1e256a9217623cbd129110d3b6
+// golden-hash: 12d5a5f5bf65882c220de5560c2af382d8b1fbe8f7d2609380d9caa94e0fe82a

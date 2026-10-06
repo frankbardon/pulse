@@ -124,6 +124,11 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		if err := mergegate.StageJoinRefusal(stage, i, req.Stages[i].Name); err != nil {
 			return nil, err
 		}
+		// Likewise only stage 0 may carry matrices: a later stage's rows
+		// are the previous stage's output, not the cohort.
+		if err := mergegate.StageMatrixRefusal(stage, i, req.Stages[i].Name); err != nil {
+			return nil, err
+		}
 
 		synthSchema, err := processing.ChainOutputSchema(priorReq)
 		if err != nil {

@@ -33,7 +33,11 @@ with a feature profile gets a narrower document:
 - the operator, overlay-kind and regression enums list only the enabled
   names;
 - a request slot the instance does not offer (`crosstab`, `joins`,
-  `overlays`, `weight`) is not a property of its request root; without
+  `overlays`, `vectors`, `matrices`, `weight`) is not a property of its
+  request root (a hidden `vectors` takes `VectorSpec` and `VectorCoerce`
+  with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
+  and `ResponseComponents.matrices` slots and `MatrixResult` /
+  `MatrixValues` / `MatrixComponents` with it); without
   `capability:weighting` no per-slot `weight` is a property either (so
   `SlotWeight` and `WeightSpec` are absent), and without
   `capability:multiplicity` no `multiplicity` block is a property of any
@@ -278,6 +282,61 @@ value-presence meaning.
 
 Which operators honour, skip or refuse a weight, the invalid-weight
 rules and the unweighted-base recipe: [Row Weighting](../library/weighting.md).
+
+## Vector slot
+
+`vectors` on `Request` is an additive array of `VectorSpec`
+`{name, fields | pattern, labels?, coerce?}` (`format_version` stays
+`"1.1"`; a request with no vectors is byte-identical and hashes
+identically). `coerce` is the closed `VectorCoerce` enum (`binary`).
+What the schema cannot say, predict and the runtime enforce
+identically before any record is read: exactly one of `fields` /
+`pattern`; literal `fields` entries keep the caller's order while glob
+entries and `pattern` (a Go regular expression) expand in schema order;
+members must be integer or float columns (`packed_bool` only with
+`coerce: "binary"`); `labels` count equals the member count; names and
+members are unique — refusals carry the `PULSE_VECTOR_*` codes.
+Predict echoes the resolved members as `data.resolved_vectors`
+(`{name: [members]}`, a predict result field, not part of this schema).
+`Request.Hash()` hashes a vector as written (see
+[Request hashing](../library/request-hashing.md)).
+
+## Matrix slots
+
+`matrices` on `Request` is an additive array of `MatrixSpec`
+`{name, type, vector | fields, params, weight, encoding}` and
+`matrices` on `Response` the matching array of `MatrixResult`
+`{name, type, group_key?, group_header?, primary, auxiliary, vectors,
+scalars, warnings}`, one per spec in request order (`format_version`
+stays `"1.1"`; a matrix-free request and response are byte-identical).
+`type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
+`MAT_CORRELATION`);
+`encoding` is `full` (default) or `upper`. Every matrix is a dedicated
+`MatrixValues` `{kind, encoding, row_keys, column_keys, labels?,
+values}` — not the crosstab `MatrixPayload` — whose `values` rows hold
+`p` cells (`full`) or `p − r` cells from the diagonal (`upper`).
+Undefined cells and scalars (no mass, too few rows, a determinant of a
+matrix that is not positive definite) are `null`, keys kept. What the
+schema cannot say, predict and the runtime enforce identically before
+any record is read: exactly one of `vector` / `fields`; a `vector` a
+`vectors` entry defines (else `PULSE_VECTOR_UNKNOWN`); inline `fields`
+follow the vector rules; result names are unique; `params` are the
+operator's own (`MAT_COVARIANCE`: `ddof` 0 or 1; both: `missing`
+`listwise` (default) or `pairwise`, `max_drop_share` in [0, 1],
+listwise only; `MAT_CORRELATION` only: `summary` `{top_pairs: k}`, k
+a positive integer). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+the same shape and encoding holding each pair's row count. `vectors` is an
+open object: with `summary.top_pairs`, `vectors.top_pairs` is
+`[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
+ties in axis order, undefined pairs skipped, `n` the pair's row count.
+`warnings` are `{code, message, details}` entries
+(`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
+`_LISTWISE_HEAVY_DROP`, `_NOT_PSD`). `components.matrices` carries one
+`MatrixComponents` per result, in the same order: `{name, type,
+group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
+sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and
+weighted keys only when they apply). Contract:
+`.claude/reference/matrix-and-vectors.md`.
 
 ## Undefined figures
 

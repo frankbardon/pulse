@@ -516,3 +516,86 @@ type RegressionModifier struct {
 	Description string   `json:"description"`
 	EnumValues  []string `json:"enum_values"`
 }
+
+// MatrixMeta describes a registered MAT_* matrix operator in the
+// manifest (Manifest.Matrices). A matrix operator reads a virtual
+// vector (Request.Vectors) or an inline member list and emits a
+// MatrixResult; OutputKeys names what that result carries.
+type MatrixMeta struct {
+	// Name is the operator identifier (MAT_COVARIANCE).
+	Name string `json:"name"`
+
+	// Description is a one-sentence prose summary for LLM-side
+	// operator selection.
+	Description string `json:"description"`
+
+	// AcceptsTypes lists the schema field types valid as members
+	// (packed_bool only under the vector's coerce "binary").
+	AcceptsTypes []string `json:"accepts_types"`
+
+	// Params lists the operator's params object keys.
+	Params []Param `json:"params"`
+
+	// OutputKeys names the MatrixResult parts the operator fills.
+	OutputKeys MatrixOutputKeys `json:"output_keys"`
+
+	// Streamable mirrors types.MatrixType.Streamable(): the result is
+	// emitted at finalize (terminal flush on the streaming path).
+	Streamable bool `json:"streamable"`
+
+	// Mergeable mirrors types.MatrixType.Mergeable(): the operator's
+	// state merges across DecodeWorkers / ShardWorkers partitions
+	// through the blocked merge tree, bit-identical to serial.
+	Mergeable bool `json:"mergeable"`
+
+	// ComponentSchema declares the operator's
+	// Response.Components.Matrices entry: the matrix floor
+	// {n, n_null, n_listwise_dropped}, the optional pairwise and
+	// weighted floor keys, then the operator's own keys. Mirrored under
+	// Manifest.ComponentsSchemas.Matrices.
+	ComponentSchema ComponentSchema `json:"component_schema"`
+
+	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
+	// operator answers, sorted. Omitted when it declares no purpose.
+	Intents []string `json:"intents,omitempty"`
+
+	// WeightKinds lists the weight kinds the operator computes a
+	// weighted matrix under; omitted when it honours no weight and on an
+	// instance that hides capability:weighting. See
+	// Operator.WeightKinds.
+	WeightKinds []types.WeightKind `json:"weight_kinds,omitempty"`
+}
+
+// MatrixOutputKeys names the parts of a MatrixResult a matrix operator
+// fills: the meaning of Primary, the Auxiliary matrix names, the
+// Vectors summary keys and the Scalars keys.
+type MatrixOutputKeys struct {
+	Primary   string   `json:"primary"`
+	Auxiliary []string `json:"auxiliary,omitempty"`
+	Vectors   []string `json:"vectors,omitempty"`
+	Scalars   []string `json:"scalars,omitempty"`
+}
+
+// MatrixCapability is the matrix-slot capability descriptor
+// (Manifest.Matrix): the Values encodings and matrix kinds a
+// MatrixResult can carry, the missing-data modes, the blocked-merge
+// block size and the v1 limitations. Omitted when the instance hides
+// capability:matrices.
+type MatrixCapability struct {
+	// Name is the canonical identifier ("matrices").
+	Name string `json:"name"`
+	// Encodings lists the MatrixSpec.Encoding values.
+	Encodings []string `json:"encodings"`
+	// DefaultEncoding is the encoding an empty MatrixSpec.Encoding
+	// takes.
+	DefaultEncoding string `json:"default_encoding"`
+	// Kinds lists the MatrixValues.Kind values.
+	Kinds []string `json:"kinds"`
+	// MissingModes lists the missing-data modes.
+	MissingModes []string `json:"missing_modes"`
+	// MergeBlockSize is the record count of one merge block: rows fold
+	// into per-block partials combined by one fixed tree.
+	MergeBlockSize int `json:"merge_block_size"`
+	// Limitations lists the v1 envelope notes for LLM clients.
+	Limitations []string `json:"limitations"`
+}

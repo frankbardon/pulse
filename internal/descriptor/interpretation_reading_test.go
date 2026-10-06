@@ -109,7 +109,9 @@ func readingListProblems(surfaces []PurposeSurface, needs, self []string) []stri
 	descriptive := map[string]string{}
 	for _, s := range surfaces {
 		switch s.Category {
-		case "test", "regression", "overlay":
+		case "test", "regression", "matrix", "overlay":
+			// Structured results: an Interpretation reads them through
+			// their own resolver, never a `value` path.
 			continue
 		}
 		for _, n := range s.Names {

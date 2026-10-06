@@ -21,6 +21,7 @@ One row per category: trigger → companions → gates. **The exhaustive per-slo
 | If you change... (category) | You MUST also update... | Enforced by |
 |---|---|---|
 | A registered aggregator, attribute, filterer, grouper, feature operator, window operator, statistical test (`TEST_*`), regression (`REG_*`), synth distribution or overlay kind (`OVERLAY_*`) | `skills/op-<category>-<kebab>.md` + the matching `internal/descriptor/capabilities_*.go` + an `internal/examples/` `_meta.operators` tag | ATOMIC, the category's `TestSkillsCoverAll*` + `TestManifest*Complete`, `TestEveryOperatorHasAnExampleTag` |
+| A registered matrix operator (`MAT_*`), the `Request.Vectors` / `Request.Matrices` / `Response.Matrices` slots or `MatrixValues` | **`matrix-and-vectors.md`** + `skills/op-mat-<kebab>.md` + `internal/descriptor/capabilities_matrix.go` + a `features.go` row on `capability:matrices` + an example tag + the payload-schema golden | ATOMIC, `TestSkillsCoverAllMatrixOps`, `TestManifestMatrixOpsComplete`, `TestEveryOperatorHasAnExampleTag` |
 | A registered MCP tool (add/remove) | `skills/tool-<kebab>.md` (strip `pulse_`) + `internal/mcp/toolmeta/meta.go` | ATOMIC, `TestSkillsCoverAllMCPTools` |
 | A registered field type, a `.pulse` format or shard-archive change, a sidecar file, an SPSS surface, or projected decode | **`byte-layout.md`** + `skills/type-<kebab>.md` + `skills/cohort-schema-design.md` + CLAUDE.md "Byte-layout invariants" | ATOMIC, `TestSkillsCoverAllFieldTypes`, `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
 | An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + ≥1 Fixup — and an `internal/descriptor/error_owners.go` owner entry | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete`, `TestErrorOwners_Complete` |
@@ -117,6 +118,8 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 
 **Multiplicity outputs.** Opt-in `multiplicity {method, family, alpha}` (absent ⇒ byte-identical; `format_version` stays `"1.1"`) adds BESIDE the raw p, which never moves: `TestResult` / `OverlaySummary` `p_adjusted` + `significant_adjusted`, matching `OverlayPayload` matrices, `multiplicity {…, m}` echoes. NaN p ⇒ null. Contract: `execution-modes.md` (Multiplicity).
 
+**Matrices.** `Request.Vectors` names numeric column batteries once; `Request.Matrices` (`MatrixSpec {name, type, vector | fields, params, weight, encoding}`) yields one `Response.Matrices[i]` `MatrixResult {name, type, group_key?, group_header?, primary, auxiliary, vectors, scalars, warnings}` per spec, each matrix a dedicated `MatrixValues {kind, encoding, row_keys, column_keys, labels?, values}` (never the crosstab `MatrixPayload`). Additive `omitempty`, `format_version` stays `"1.1"`, undefined cells `null`. Contract: `.claude/reference/matrix-and-vectors.md`.
+
 ### Response.Components
 
 Every `Response` carries an optional `Components *ResponseComponents` (additive `omitempty`; `format_version` stays `"1.1"`). Mirrors the request shape:
@@ -126,8 +129,9 @@ Every `Response` carries an optional `Components *ResponseComponents` (additive 
 - `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate. Auxiliary `crosstab.margin_aggregations` margin figures extend this bullet — reference below.
 - `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` across all 11 filterers.
 - `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. Coexists with `Response.Metadata`: `Metadata` keeps non-numerical run facts (cohort filename); `Run` carries the typed counters.
+- `Matrices []MatrixComponents` — one per `Response.Matrices` result: floor `{n, n_null, n_listwise_dropped}` (weight-0 rows count in `n`), pairwise `{min_pair_n, max_pair_n}`, the weighted floor keys, operator map (`ddof`). Rides `capability:matrices`.
 
-Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers}`, each carrying a mergeability class — `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable operators; non-mergeable ones surface only at terminal flush.
+Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers,Matrices}`, each carrying a mergeability class — `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable operators; non-mergeable ones surface only at terminal flush.
 
 **Opt-out.** `Options.DisableComponents bool` (engine default) + `types.Request.DisableComponents *bool` (per-request, `nil` inherits engine); CLI `--no-components` on `pulse api process` / `process-chain` / `compose`. Disabled leaves `Components` `nil` and the wire form byte-identical to the pre-Components baseline — `format_version` is NOT bumped.
 
@@ -160,19 +164,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 ### Execution modes (pointers)
 
-**Contract: `.claude/reference/execution-modes.md` — load it before engine work.** CLAUDE.md keeps identity + the named skill only.
-
-- **Streaming Process** (`pulse.ProcessStream`, `--stream`) — four orchestrator modes; the forced-buffered list is `skills/streaming-and-watching.md`.
-- **Projected buffered decode** — default-on, output-transparent; `Options{DisableProjection}` / `--no-project`.
-- **Parallel Compose** (`pulse.ComposeParallel`, `--parallel N`) — `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}`; post-slot overlay fold at `internal/service/compose_overlay.go`. `skills/compose-requests.md`.
-- **Parallel shards** (`Options.ShardWorkers`) / **parallel buffered Process** (`Options.DecodeWorkers`) — mergeable-only via the engine's internal `CanMergeRequest`, orthogonal to each other. `skills/cohort-schema-design.md`.
-- **ProcessChain** (`pulse.ProcessChain`) — source-rooted linear chain, mergeable-only at v1, dual-slot overlays. `skills/process-chain.md`.
-- **Pushdown hash join** (`Request.Joins`) — v1 is exactly one inner join per Request. `skills/join-design.md`.
-- **Crosstab / fused crosstab** (`Request.Crosstab`; fusion rule `crosstabfuse.Decide` in `internal/crosstabfuse`, shared by `CanFuseCrosstab` and predict) — composed row×column grid whose margins recompute from raw rows, plus an in-decode streaming arm. `skills/crosstab-guide.md`.
-- **Facet endpoints** — simple (`pulse.Facet`) + rich (`pulse.FacetSchema`); four FACET-host overlay kinds ride `FacetRequest.Overlays`. `skills/facet-design.md`.
-- **Filter precompute** (grouped cohorts) — a filter over ONE group's members is evaluated once per dictionary entry, per-row otherwise. `execution-modes.md`.
-- **Point lookup** (`pulse.Lookup`) — O(1) key-exact rows via a prebuilt sidecar index; single-file cohorts, equality-only, full-key. `skills/tool-lookup.md`.
-- **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates that **never mutate the base payload**. `skills/overlay-system.md`.
+**Contract: `.claude/reference/execution-modes.md` — load it before engine work.** Its "Mode index" section lists every mode with its knob and named skill (streaming, projection, parallel Compose / shards / decode, ProcessChain, join, crosstab, facet, filter precompute, point lookup, overlays, matrices).
 
 ## Non-Skippable CI Gates
 
@@ -184,7 +176,7 @@ Predecessor-reference hygiene — `TestNoOrbitPrefix` (no type constant), `TestN
 
 Descriptor contracts — `TestPredictNoExecutionImports` (the Predict structural ban), `TestDescriptorNoFmtSprintf` (no `fmt.Sprintf` in `envelope.go`/`manifest.go`/`predict.go`/`inspect.go`), `TestGoldensNotHandEdited` (every golden ends with a valid `// golden-hash:` line), `TestPerPackageCoverageFloors` (package dirs exist; documents the coverage floors).
 
-Skill coverage — each asserts an atomic skill file exists at the conventional stem: `TestSkillsCoverAllComponents` (aggregators / attributes / filterers / groupers / features → `op-<category>-<kebab>.md`), `TestSkillsCoverAllFieldTypes` (`type-*`), `TestSkillsCoverAllWindowTypes` (`op-win-*`), `TestSkillsCoverAllMCPTools` (`tool-*`, strip `pulse_`), `TestSkillsCoverAllSynthDistributions` (`op-synth-*`), `TestSkillsCoverAllRegressions` (`op-reg-*`), `TestSkillsCoverAllOverlayKinds` (`op-overlay-*`). Plus seven that check content rather than existence:
+Skill coverage — each asserts an atomic skill file exists at the conventional stem: `TestSkillsCoverAllComponents` (aggregators / attributes / filterers / groupers / features → `op-<category>-<kebab>.md`), `TestSkillsCoverAllFieldTypes` (`type-*`), `TestSkillsCoverAllWindowTypes` (`op-win-*`), `TestSkillsCoverAllMCPTools` (`tool-*`, strip `pulse_`), `TestSkillsCoverAllSynthDistributions` (`op-synth-*`), `TestSkillsCoverAllRegressions` (`op-reg-*`), `TestSkillsCoverAllMatrixOps` (`op-mat-*`), `TestSkillsCoverAllOverlayKinds` (`op-overlay-*`). Plus seven that check content rather than existence:
 - `TestSkillsCoverAllPurposes` — built-in Purposes valid; a missing one fails unless exempted (`guided-analysis.md`).
 - `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section.
 - `TestSkillsCoverAllCliLeaves` — two-way: every runnable `buildApp()` leaf is named under `skills/` or `docs/src/` with a `docs/src/cli/flags.md` row, and every row is a mounted leaf (detail: `update-demand.md`).

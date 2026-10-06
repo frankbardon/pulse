@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -302,6 +303,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if jerr := JoinCountRefusal(req); jerr != nil {
 		addCodedError(env, jerr)
 	}
+	// The matrix-host rule (matrices with joins or a crosstab), which the
+	// runtime applies right after the join-count rule.
+	if merr := mergegate.MatrixRefusal(req); merr != nil {
+		addCodedError(env, merr)
+	}
 
 	// Multiplicity resolution — the same single pass the runtime runs
 	// right after the join-count rule, before any dispatch
@@ -364,6 +370,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	for _, ce := range fieldRefRefusals(req, schema, extensionsFromOpts(opts), opts.Instance) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
+
+	// Virtual vectors — the field-reference pass above refuses a bad
+	// one; a clean resolution is echoed (resolved_vectors) together with
+	// one PULSE_VECTOR_UNREFERENCED warning per vector no operator slot
+	// references, as the runtime warns.
+	predictVectors(env, result, req, schema)
+	predictMatrices(result, req, schema, opts.Instance)
 
 	// Weight resolution — the same single pass the runtime runs right
 	// after the field-reference rule (ResolveWeights). A refusal is a
@@ -571,7 +584,21 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		return len(reasons) == 0, reasons
 	}
 
-	if len(req.Aggregations) == 0 {
+	// Matrix slots stream on the ungrouped and grouped paths (mirrors
+	// processing.canStream): an unknown or hidden type or a two-pass
+	// attribute route the request buffered.
+	if len(req.Matrices) > 0 {
+		for _, m := range req.Matrices {
+			if !opRoute(opts.instance(), m.Type).Streamable() {
+				reasons = append(reasons, "matrix "+string(m.Type)+" requires the buffered path")
+			}
+		}
+		if tp := firstTwoPassAttribute(req, opts); tp != "" {
+			reasons = append(reasons, "matrices with two-pass attribute "+string(tp)+" run via the buffered path")
+		}
+	}
+
+	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
 		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
 	}
 	for _, grp := range req.Groups {

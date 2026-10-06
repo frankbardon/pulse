@@ -68,7 +68,7 @@ for _, row := range rows {
 	acc.Add(row.x, row.w) // len(row.x) == 3
 }
 cov := acc.Cov(1)  // sample covariance (frequency weights)
-corr := acc.Corr()
+corr := acc.Corr() // C/√(M2_x·M2_y), TEST_PEARSON_R's arithmetic
 mean := acc.Mean()
 ```
 

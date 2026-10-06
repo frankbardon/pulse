@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U05]
 soft_depends_on: []
 blocks: [U18]
-todo_items: [104, 106, 107, 109, 193]
+todo_items: [82, 104, 106, 107, 109, 193]
 branch: response-shaping-core
 ---
 
@@ -78,6 +78,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(response-shaping-
 - `Response.Components` per-group aggregator rows: `.claude/reference/response-components.md`, `skills/response-components.md`, each aggregator's atomic skill `## Components`, `docs/src/contract/payload-schema.md`
 - `skills/response-shaping.md`; `request-envelope.md`
 - `update-demand.md` row for `Request.Return`
+
+## Handed on from U16
+
+- **Matrix cells under `Return.precision`** (the `precision` half of TODO #82). `MatrixResult.primary.values` and `auxiliary.n` are `[][]float64 | null` inside a `types.MatrixValues`; the rounding applies to `primary` and the `top_pairs` `r` figures, never to `auxiliary.n` (integer counts) or to `scalars.determinant` unless the preset says so. Decide how the path grammar addresses `matrices[].primary.values`, and that `upper` encoding is unaffected. Contract: `.claude/reference/matrix-and-vectors.md` (Matrix slot).
+
 
 ## Human inputs & decisions
 

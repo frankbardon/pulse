@@ -63,6 +63,8 @@ Every operator **declares its own `primary` / `auxiliary` / `vectors` / `scalars
 
 ## R2. Generalized `MatrixPayload`
 
+> **Superseded by U16.** The matrix result is a dedicated `types.MatrixValues` `{kind, encoding, row_keys, column_keys, labels?, values}`, not a widened crosstab `MatrixPayload` (whose non-`omitempty` crosstab keys would ride every matrix). `encoding` is `full` / `upper` as designed; `kind` is `square_symmetric` today; the request-side `matrix_encoding` became `MatrixSpec.encoding`. Margins do not exist on it. Contract: `.claude/reference/matrix-and-vectors.md` (Matrix slot).
+
 The crosstab already has `MatrixPayload {RowHeader, ColumnHeader, RowKeys, ColumnKeys, Cells[][]MatrixCell, RowMargins, ColumnMargins, GrandTotal, CellLabel}`. Reuse it rather than invent a parallel type, with these additive changes:
 
 - `Symmetric bool`. When true, the matrix may be emitted **upper-triangle only** (`encoding: "upper"`) and `Cells[r]` has `p − r` entries. This halves the payload for correlation and covariance, which matters for MCP token budgets at p = 50 (1,275 cells instead of 2,500). The default is full, to keep consumers simple. `Request` / CLI / MCP opt-in: `"matrix_encoding": "upper"`.
@@ -99,7 +101,7 @@ This triggers the `Response.Components` Update Demand row: `response-components.
 
 Matrices are the first Pulse output whose size grows quadratically with the request. Rules for a harness-friendly shape:
 
-1. **Prefer `upper` encoding and rounding.** Add `params.precision` (significant digits, default unlimited). For an LLM, three digits on a correlation is plenty, and cutting digits significantly reduces payload size.
-2. **Top-k summaries.** Add an optional `summary: {top_pairs: 10}` on correlation-family matrices. It emits the strongest `|r|` pairs as a short ranked list in `vectors.top_pairs`, which is often all an agent needs.
-3. **Dimension caps.** `Options.Limits.MaxMatrixDim`, default **2,048** under the "high defaults" decision (see [embedder operations 01](../v1.0.0-embedder-operations/01-resource-limits.md)). Beyond the cap the request fails at predict with `PULSE_LIMIT_EXCEEDED` instead of returning a quadratic payload. Output volume below the cap is managed by the developer through [response shaping](../v1.0.0-response-shaping/00-design.md).
-4. **CLI.** `pulse api process --json` emits the typed envelope. Human output renders a labeled grid, abbreviated for large p, plus the scalar block.
+1. **Prefer `upper` encoding and rounding.** *(`upper` shipped in U16; `precision` moved to U17 under `Request.Return.precision`.)* Add `params.precision` (significant digits, default unlimited). For an LLM, three digits on a correlation is plenty, and cutting digits significantly reduces payload size.
+2. **Top-k summaries.** *(Shipped in U16 as `params.summary.top_pairs` on `MAT_CORRELATION`.)* Add an optional `summary: {top_pairs: 10}` on correlation-family matrices. It emits the strongest `|r|` pairs as a short ranked list in `vectors.top_pairs`, which is often all an agent needs.
+3. **Dimension caps.** *(Owned by U19, with a buckets x p^2 guard; U16 only reports `estimated_*` at predict.)* `Options.Limits.MaxMatrixDim`, default **2,048** under the "high defaults" decision (see [embedder operations 01](../v1.0.0-embedder-operations/01-resource-limits.md)). Beyond the cap the request fails at predict with `PULSE_LIMIT_EXCEEDED` instead of returning a quadratic payload. Output volume below the cap is managed by the developer through [response shaping](../v1.0.0-response-shaping/00-design.md).
+4. **CLI.** *(Grid rendering dropped: `pulse api process --json` emits the typed envelope; no human grid ships.)* `pulse api process --json` emits the typed envelope. Human output renders a labeled grid, abbreviated for large p, plus the scalar block.

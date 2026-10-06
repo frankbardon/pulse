@@ -445,6 +445,57 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			numericSchema,
 		},
 		{
+			"matrix-only MAT_COVARIANCE streams",
+			&types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}}},
+			numericSchema,
+		},
+		{
+			"MAT_COVARIANCE beside an online aggregation streams",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Matrices:     []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"MAT_COVARIANCE with a grouper streams",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Groups:       []*types.Group{{Type: types.GROUP_RANGE, Field: "score"}},
+				Matrices:     []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"grouped matrix-only MAT_CORRELATION streams",
+			&types.Request{
+				Groups:   []*types.Group{{Type: types.GROUP_RANGE, Field: "score", Interval: 10}},
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"MAT_COVARIANCE with a non-streamable grouper buffers",
+			&types.Request{
+				Groups:   []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score"}},
+				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"MAT_COVARIANCE with a two-pass attribute buffers",
+			&types.Request{
+				Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "score", Label: "z"}},
+				Matrices:   []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"unknown matrix type buffers",
+			&types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_NOPE", Fields: []string{"score"}}}},
+			numericSchema,
+		},
+		{
 			"REG_BAYES_LINEAR with bootstrap modifier buffers",
 			&types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},

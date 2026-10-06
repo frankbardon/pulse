@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -86,6 +85,11 @@ type GroupedTail struct {
 	// means none (the parallel reducers' merge gate refuses post-tests).
 	PostTests func(rows []map[string]any) ([]*types.TestResult, error)
 
+	// Matrices is the run's per-bucket Request.Matrices state (nil
+	// without matrices). Its results are rendered in the FINAL Data row
+	// order — an explicit Request.Sort included — spec-major then bucket.
+	Matrices *GroupedMatrices
+
 	// Extensions is the instance registry the SERIES overlay fold
 	// routes kinds through, so a kind the feature set hides misses
 	// like a never-registered one. Nil is the built-in catalog.
@@ -137,8 +141,13 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		data = append(data, row)
 	}
 
-	if len(req.Sort) > 0 {
-		window.Sort(data, req.Sort)
+	keys, err := sortGroupedRows(data, req.Sort, keys)
+	if err != nil {
+		return nil, err
+	}
+	matrices, matrixComps, err := t.Matrices.finalize(keys, !t.DisableComponents)
+	if err != nil {
+		return nil, err
 	}
 
 	var postResults []*types.TestResult
@@ -156,6 +165,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 			FilteredRows: t.FilteredRows,
 		},
 		PostTests: postResults,
+		Matrices:  matrices,
 	}
 
 	if !t.DisableComponents {
@@ -176,6 +186,8 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 			NullRecords:     t.NullRecords,
 			ShardCount:      t.ShardCount,
 		})
+		// One MatrixComponents entry per Response.Matrices result.
+		attachMatrixComponents(resp, matrixComps)
 	}
 
 	// SERIES-host overlay hook — the same post-finalize wiring as the

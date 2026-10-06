@@ -683,3 +683,31 @@ func TestPredict_QuantileGroupBufferedComponents(t *testing.T) {
 			pr.Groups[1].ComponentSchema.Mergeability, descriptor.None)
 	}
 }
+
+// TestChunkComponents_CarriesEveryBlock: the non-terminal clone keeps
+// every ResponseComponents block of the buffered shell — checked by
+// reflection, so a block added later (Matrices, U16) cannot be dropped
+// from a mid-stream chunk silently.
+func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
+	buffered := &types.ResponseComponents{
+		Aggregations: []types.AggregationComponents{{N: 1}},
+		Groupers:     []types.GrouperComponents{{TotalN: 1}},
+		Crosstab:     &types.CrosstabComponents{},
+		Filterers:    []types.FiltererComponents{{NIn: 1}},
+		Run:          &types.RunComponents{TotalRecords: 1},
+		Matrices:     []types.MatrixComponents{{Name: "m", N: 1}},
+	}
+	bv := reflect.ValueOf(buffered).Elem()
+	for i := 0; i < bv.NumField(); i++ {
+		if bv.Field(i).IsZero() {
+			t.Fatalf("fixture leaves ResponseComponents.%s empty; set it", bv.Type().Field(i).Name)
+		}
+	}
+	mid := chunkComponents(buffered, []descriptor.ComponentsMergeability{descriptor.Mergeable}, nil, false)
+	mv := reflect.ValueOf(mid).Elem()
+	for i := 0; i < mv.NumField(); i++ {
+		if !reflect.DeepEqual(mv.Field(i).Interface(), bv.Field(i).Interface()) {
+			t.Errorf("mid-stream chunk drops or alters ResponseComponents.%s", mv.Type().Field(i).Name)
+		}
+	}
+}

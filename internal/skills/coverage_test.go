@@ -112,6 +112,19 @@ func TestSkillsCoverAllRegressions(t *testing.T) {
 	}
 }
 
+// TestSkillsCoverAllMatrixOps verifies every constant in
+// types.AllMatrixTypes() has a matching op-mat-<kebab>.md atomic skill
+// file.
+func TestSkillsCoverAllMatrixOps(t *testing.T) {
+	embedded := embeddedSkillSet(t)
+	for _, m := range types.AllMatrixTypes() {
+		stem := "op-mat-" + kebabName(strings.TrimPrefix(string(m), "MAT_"))
+		if !embedded[stem] {
+			t.Errorf("matrix operator %s: missing atomic skill skills/%s.md", m, stem)
+		}
+	}
+}
+
 // TestSkillsCoverAllWindowTypes verifies every constant in
 // types.AllWindowTypes() has a matching op-win-<kebab>.md atomic skill
 // file.

@@ -20,7 +20,9 @@ import (
 //
 // Both are FieldStatic: the shape is decided here from each operator's
 // real output, never probed at run time. Filterers, groupers, tests,
-// regressions and overlays have no `value` path.
+// regressions, matrices and overlays have no `value` path; tests,
+// regressions, matrices and overlays are structured results outside the
+// two lists below.
 //
 // Every descriptive built-in (aggregator, attribute, filterer, grouper,
 // window, feature, synth distribution) sits in EXACTLY ONE of two lists,

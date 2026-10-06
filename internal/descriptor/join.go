@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -60,6 +61,9 @@ func ValidateJoin(leftData, rightData io.ReadSeeker, req *types.Request) *descri
 	}
 	if jerr := JoinCountRefusal(req); jerr != nil {
 		addCodedError(env, jerr)
+	}
+	if merr := mergegate.MatrixRefusal(req); merr != nil {
+		addCodedError(env, merr)
 	}
 	spec := req.Joins[0]
 	if spec == nil {

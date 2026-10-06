@@ -20,13 +20,13 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 - `format_version` — `"1.1"`; additive `data` fields never bump it.
 - `data` — the operation's payload.
 - `request` — opt-in echo of the *normalized* request (`--echo-request`); streaming skips it.
-- `errors` / `warnings` — always arrays. Each `{code, message, details}`; resolve via `pulse_errors_lookup`.
+- `errors` / `warnings` — always arrays of `{code, message, details}`; resolve via `pulse_errors_lookup`.
 
 ## Request shapes (per command)
 
 | Operation (CLI) | Wire type | Top-level keys |
 |---|---|---|
-| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature --> |
+| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature --><!-- feature: capability:matrices -->, `vectors`, `matrices`<!-- /feature --> |
 <!-- feature: capability:compose -->
 | compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`) |
 <!-- /feature -->
@@ -118,7 +118,7 @@ On a `datetime` field the zone applies: instants read on their local day (DST-co
 
 ## Predict-specific data fields
 
-`streamable`, `streamable_reasons`, `defaults_applied`, <!-- feature: capability:weighting -->`weights` / `suggested_weight` (`weighting`), <!-- /feature -->`time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
+`streamable`, `streamable_reasons`, `defaults_applied`, <!-- feature: capability:weighting -->`weights` / `suggested_weight` (`weighting`), <!-- /feature --><!-- feature: capability:matrices -->`resolved_vectors`, <!-- /feature -->`time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
 
 ## Cross-links
 

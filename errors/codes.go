@@ -2509,6 +2509,92 @@ const (
 	// rows*cols), a nil operand, or two accumulators of different shape
 	// or mode being merged. Details name the offending dimensions.
 	PULSE_MATRIX_SHAPE_MISMATCH Code = "PULSE_MATRIX_SHAPE_MISMATCH"
+
+	// PULSE_VECTOR_INVALID indicates a malformed `vectors` entry: an
+	// empty name, both or neither of `fields` / `pattern`, an empty
+	// `fields` entry, a glob or regular expression that does not
+	// compile, or an unknown `coerce` value. Refused identically by
+	// predict and the runtime before any record is read. Details carry
+	// "vector" (its index-qualified path), "name", "reason" and, where
+	// it applies, "value" / "valid".
+	PULSE_VECTOR_INVALID Code = "PULSE_VECTOR_INVALID"
+
+	// PULSE_VECTOR_EMPTY indicates a vector whose `fields` / `pattern`
+	// resolves to no schema field. Details carry "vector", "name" and
+	// the "fields" or "pattern" that matched nothing.
+	PULSE_VECTOR_EMPTY Code = "PULSE_VECTOR_EMPTY"
+
+	// PULSE_VECTOR_MEMBER_TYPE indicates a vector member whose field
+	// type a vector cannot carry: categorical, set, date, datetime or
+	// decimal128 (always refused), or packed_bool without
+	// `coerce: "binary"`. Details carry "vector", "name", "field" and
+	// "field_type".
+	PULSE_VECTOR_MEMBER_TYPE Code = "PULSE_VECTOR_MEMBER_TYPE"
+
+	// PULSE_VECTOR_DUPLICATE indicates two vectors sharing a name, or a
+	// member listed twice in one vector after glob / pattern expansion.
+	// Details carry "name" and either "indices" (the clashing vectors)
+	// or "vector" and "field" (the repeated member).
+	PULSE_VECTOR_DUPLICATE Code = "PULSE_VECTOR_DUPLICATE"
+
+	// PULSE_VECTOR_LABELS_MISMATCH indicates a vector whose `labels`
+	// count differs from its resolved member count. Details carry
+	// "vector", "name", "labels" and "members" (both counts) and
+	// "resolved" (the member list).
+	PULSE_VECTOR_LABELS_MISMATCH Code = "PULSE_VECTOR_LABELS_MISMATCH"
+
+	// PULSE_VECTOR_UNKNOWN indicates an operator slot naming a vector
+	// the request's `vectors` does not define. Details carry "vector"
+	// (the unknown name), "slot" and "defined" (the defined names).
+	PULSE_VECTOR_UNKNOWN Code = "PULSE_VECTOR_UNKNOWN"
+
+	// PULSE_VECTOR_UNREFERENCED is a WARNING: a defined vector no
+	// operator slot references, so it is resolved and validated but
+	// computes nothing. Details carry "name".
+	PULSE_VECTOR_UNREFERENCED Code = "PULSE_VECTOR_UNREFERENCED"
+
+	// PULSE_MATRIX_UNSUPPORTED_SOURCE indicates a `matrices` slot on a
+	// request whose rows are not cohort rows the matrix operators can
+	// fold: a Request carrying Joins (details "source" = "join",
+	// "matrices", "joins") or a ProcessChain stage after stage 0
+	// (details "source" = "chain_stage", "matrices", "stage",
+	// "stage_name"). Refused identically by predict, the validators and
+	// the runtime before any record is read.
+	PULSE_MATRIX_UNSUPPORTED_SOURCE Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
+
+	// PULSE_MATRIX_HOST_CONFLICT indicates a `matrices` slot on a
+	// request whose host cannot carry one: a Request with a Crosstab
+	// (details "host" = "crosstab", "matrices"). Refused identically by
+	// predict and the runtime before the crosstab dispatch.
+	PULSE_MATRIX_HOST_CONFLICT Code = "PULSE_MATRIX_HOST_CONFLICT"
+
+	// PULSE_MATRIX_NOT_PSD is a per-matrix WARNING (MatrixResult.Warnings,
+	// params.missing "pairwise" only): the pairwise matrix, scaled by its
+	// diagonal, is not positive semidefinite — the reference Cholesky
+	// fails even with a 1e-10 diagonal tolerance, so no data set has
+	// these pairwise figures. Detection only; nothing is repaired.
+	// Details carry "pivot" (axis index), "member", "checked" (members
+	// judged) and "tolerance".
+	PULSE_MATRIX_NOT_PSD Code = "PULSE_MATRIX_NOT_PSD"
+
+	// PULSE_MATRIX_LISTWISE_HEAVY_DROP is a per-matrix WARNING: listwise
+	// deletion dropped a larger share of the filter-passing rows than
+	// params.max_drop_share allows (no default; never emitted without
+	// it). Details carry "dropped", "rows", "share", "max_drop_share".
+	PULSE_MATRIX_LISTWISE_HEAVY_DROP Code = "PULSE_MATRIX_LISTWISE_HEAVY_DROP"
+
+	// PULSE_MATRIX_INSUFFICIENT_N is a per-matrix WARNING: the matrix
+	// (scope "matrix": details "n", "sum_weights") or, under pairwise,
+	// one or more pairs (scope "pairs": details "pairs" [{row, col, n}])
+	// have fewer than 2 rows or no weight mass, so their cells are
+	// undefined (null) or degenerate.
+	PULSE_MATRIX_INSUFFICIENT_N Code = "PULSE_MATRIX_INSUFFICIENT_N"
+
+	// PULSE_MATRIX_ZERO_VARIANCE is a per-matrix WARNING: one or more
+	// members have zero spread over the rows that reach them (details
+	// "members"), so every correlation touching them is null and their
+	// covariance row and column are 0.
+	PULSE_MATRIX_ZERO_VARIANCE Code = "PULSE_MATRIX_ZERO_VARIANCE"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -2998,6 +3084,19 @@ var allCodes = []Code{
 	PULSE_MULTIPLICITY_CONFLICT,
 	PULSE_MATRIX_SINGULAR,
 	PULSE_MATRIX_SHAPE_MISMATCH,
+	PULSE_VECTOR_INVALID,
+	PULSE_VECTOR_EMPTY,
+	PULSE_VECTOR_MEMBER_TYPE,
+	PULSE_VECTOR_DUPLICATE,
+	PULSE_VECTOR_LABELS_MISMATCH,
+	PULSE_VECTOR_UNKNOWN,
+	PULSE_VECTOR_UNREFERENCED,
+	PULSE_MATRIX_UNSUPPORTED_SOURCE,
+	PULSE_MATRIX_HOST_CONFLICT,
+	PULSE_MATRIX_NOT_PSD,
+	PULSE_MATRIX_LISTWISE_HEAVY_DROP,
+	PULSE_MATRIX_INSUFFICIENT_N,
+	PULSE_MATRIX_ZERO_VARIANCE,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

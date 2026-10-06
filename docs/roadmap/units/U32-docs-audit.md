@@ -5,7 +5,7 @@ title: "Pulse goes live with the most helpful, current and comprehensive documen
 track: API & release
 size: L
 status: not-started
-depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31]
+depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37]
 soft_depends_on: [all feature units]
 blocks: [U33]
 todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167]
@@ -16,7 +16,7 @@ branch: docs-audit
 
 **Outcome:** Pulse goes live with the most helpful, current and comprehensive documentation we can produce.
 
-**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
+**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
 
 ## Summary
 
@@ -106,6 +106,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 - **`skills/tool-import.md` is ~6.6K body chars against the 2,000-char `tool-*` budget** (over before U14; U14's source-zone rows grew it ~400). Bring it within budget before #161 flips `TestSkillTokenBudget` to hard-failing — candidates: move the per-format flag rows to `docs/src/cli/flags.md` and the zone/DST detail to `skills/time-zones.md`, leaving pointers.
 - **`op-overlay-yoy.md` sits at its 1,200-char budget** and does not say `GROUP_DATE` `hour` feeds the hourly arm (covered in `skills/time-zones.md`). Re-check after any trim.
 - **CLAUDE.md headroom is 65 bytes** (49,935 / 50,000 after U14). Displace long form before the next contract lands.
+
+## Inherited from U16
+
+- **Buffered crosstab panics on a nil axis grouper** (`processing.PartitionByAxis`, `internal/processing/crosstab.go:62`; fusion parity corpus case `nil_grouper`, which `TestCrosstab_MatricesDoNotPerturb` skips). Pre-existing, found while landing the matrix host refusal. Needs a fix plus a coded refusal (never a nil dereference), and the corpus skip removed.
+- **`op-mat-*` skills are over the 1,200-char `op-*` soft budget** (`op-mat-correlation` ~1,530, `op-mat-covariance` ~1,400 body chars after U16 moved prose to `skills/matrix-results.md`). Bring them within budget before #161 flips `TestSkillTokenBudget` to hard-failing.
+- **`skills/response-components.md` is at 5,991 / 6,000** (`kind: design` hard budget) after U16 added `Components.Matrices`. Any further Components block must displace prose first.
+- **CLAUDE.md headroom is 516 bytes** (49,484 / 50,000 after U16, which displaced the execution-modes pointer list into `.claude/reference/execution-modes.md` "Mode index").
 
 ## Human inputs & decisions
 

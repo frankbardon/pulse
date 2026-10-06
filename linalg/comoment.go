@@ -440,9 +440,26 @@ func (c *CoMoment) Cov(ddof int) *Sym {
 	return out
 }
 
-// Corr returns the correlation matrix C_ij/(√M2_ii·√M2_jj) (two roots,
-// so a large spread cannot overflow the product), each pair's
-// own co-moments in Pairwise mode, clamped to [−1, 1] against rounding.
+// corrDenominator is √(mii·mjj), or √mii·√mjj when the product is not a
+// normal float64 (overflow to +Inf, underflow toward 0). mii, mjj > 0.
+func corrDenominator(mii, mjj float64) float64 {
+	if prod := mii * mjj; prod >= minNormal && !math.IsInf(prod, 1) {
+		return math.Sqrt(prod)
+	}
+	return float64(math.Sqrt(mii) * math.Sqrt(mjj))
+}
+
+// minNormal is the smallest positive normal float64 (2⁻¹⁰²²).
+const minNormal = 0x1p-1022
+
+// Corr returns the correlation matrix C_ij/√(M2_ii·M2_jj) — each pair's
+// own co-moments in Pairwise mode — clamped to [−1, 1] against rounding.
+// The one-root form is TEST_PEARSON_R's arithmetic, so a single block of
+// unit-weight rows correlates to the same bits as that test; when the
+// product M2_ii·M2_jj leaves the normal range (overflows to +Inf or
+// falls below the smallest normal float64) the entry takes the two-root
+// form C_ij/(√M2_ii·√M2_jj) instead, so no spread overflows or
+// underflows.
 // The diagonal is exactly 1 for a variable with spread. A variable with
 // zero spread (a constant column, a single massed row, no rows) has NO
 // defined correlation: every entry touching it, its own diagonal
@@ -458,7 +475,7 @@ func (c *CoMoment) Corr() *Sym {
 			case i == j:
 				v = 1
 			default:
-				v = cij / float64(math.Sqrt(mii)*math.Sqrt(mjj))
+				v = cij / corrDenominator(mii, mjj)
 				v = math.Max(-1, math.Min(1, v))
 			}
 			out.data[out.index(i, j)] = v
