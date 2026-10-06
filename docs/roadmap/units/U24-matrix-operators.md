@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U16]
 soft_depends_on: [U13]
 blocks: [U25, U28, U31]
-todo_items: [124, 125, 126, 127, 128, 129, 130]
+todo_items: [124, 125, 126, 127, 128, 129, 130, 172]
 branch: matrix-operators
 ---
 

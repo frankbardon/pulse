@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U05]
 soft_depends_on: []
 blocks: [U18]
-todo_items: [104, 106, 107, 109, 193]
+todo_items: [82, 104, 106, 107, 109, 193]
 branch: response-shaping-core
 ---
 

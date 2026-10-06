@@ -107,6 +107,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 - **`op-overlay-yoy.md` sits at its 1,200-char budget** and does not say `GROUP_DATE` `hour` feeds the hourly arm (covered in `skills/time-zones.md`). Re-check after any trim.
 - **CLAUDE.md headroom is 65 bytes** (49,935 / 50,000 after U14). Displace long form before the next contract lands.
 
+## Inherited from U16
+
+- **Buffered crosstab panics on a nil axis grouper** (`processing.PartitionByAxis`, `internal/processing/crosstab.go:62`; fusion parity corpus case `nil_grouper`, which `TestCrosstab_MatricesDoNotPerturb` skips). Pre-existing, found while landing the matrix host refusal. Needs a fix plus a coded refusal (never a nil dereference), and the corpus skip removed.
+- **`op-mat-*` skills are over the 1,200-char `op-*` soft budget** (`op-mat-correlation` ~1,530, `op-mat-covariance` ~1,400 body chars after U16 moved prose to `skills/matrix-results.md`). Bring them within budget before #161 flips `TestSkillTokenBudget` to hard-failing.
+- **`skills/response-components.md` is at 5,991 / 6,000** (`kind: design` hard budget) after U16 added `Components.Matrices`. Any further Components block must displace prose first.
+- **CLAUDE.md headroom is 516 bytes** (49,484 / 50,000 after U16, which displaced the execution-modes pointer list into `.claude/reference/execution-modes.md` "Mode index").
+
 ## Human inputs & decisions
 
 - Maintainer sign-off; a fresh reader (developer without a statistics background) for the review
