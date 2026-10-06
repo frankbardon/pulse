@@ -1018,11 +1018,26 @@ func (s *Service) installProjection(iter scanIterator, req *types.Request, schem
 // Compose-only overlay kinds resolve sibling references by final Label
 // so the names must be unique across the batch.
 func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
-	resp, err := s.compose(ctx, composed)
-	return resp, s.scopeRefusal(err)
+	resp, _, err := s.ComposeResolved(ctx, composed)
+	return resp, err
 }
 
-func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
+// ComposeResolved is Compose that also returns the slot requests the
+// responses ran — the label- and defaults-resolved clones, index-aligned
+// with ComposedResponse.Responses (nil on error). The facade resolves
+// each slot's `return` plan from them (descx.ResolveReturn reads the
+// defaults-resolved request for its precision exemptions) and shapes
+// the finished, overlay-folded response; the service never shapes.
+func (s *Service) ComposeResolved(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, []*types.Request, error) {
+	var slots []*types.Request
+	resp, err := s.compose(ctx, composed, &slots)
+	if err != nil {
+		return nil, nil, s.scopeRefusal(err)
+	}
+	return resp, slots, nil
+}
+
+func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, slots *[]*types.Request) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
 	}
@@ -1035,12 +1050,18 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) 
 	if err != nil {
 		return nil, err
 	}
+	// The Compose-level `return` (top-level overlays) resolves before
+	// any slot runs; each slot's own block resolves inside its Process.
+	if _, err := descx.ResolveComposeReturn(composed, s.instance); err != nil {
+		return nil, err
+	}
 	ctx = withinCompose(ctx)
 
 	requests, err := applyComposeLabelDefaults(composed)
 	if err != nil {
 		return nil, err
 	}
+	*slots = requests
 
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {

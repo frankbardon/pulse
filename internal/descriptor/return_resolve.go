@@ -132,6 +132,64 @@ func ResolveReturn(req *types.Request, inst *InstanceSnapshot) (*returnplan.Plan
 	return plan, nil
 }
 
+// composeReturnRoot is the Go type a ComposedRequest's `return` paths
+// root at.
+var composeReturnRoot = reflect.TypeFor[types.ComposedResponse]()
+
+// composeOverlaysKey is the one ComposedResponse key a Compose-level
+// `return` may name; composeResponsesKey is always kept whole.
+const (
+	composeOverlaysKey  = "overlays"
+	composeResponsesKey = "responses"
+)
+
+// ResolveComposeReturn resolves ComposedRequest.Return — the block that
+// shapes the TOP-LEVEL Compose overlays — into its plan. Paths root at
+// ComposedResponse and every include / exclude must start at
+// `overlays` (PULSE_RETURN_INVALID otherwise: a slot is shaped by its
+// own Requests[i].Return). `responses` is always kept whole, whatever
+// the preset or allowlist, so a slot's own plan alone shapes it. A
+// preset expands against the ComposedResponse root (its overlay paths
+// survive; its Response-only paths drop). No instance default applies
+// at this level: nil (and no error) when the block is absent. Pure;
+// predict (ValidateComposeWithOptions) and Service.Compose /
+// ComposeParallel call it before any slot runs.
+func ResolveComposeReturn(composed *types.ComposedRequest, inst *InstanceSnapshot) (*returnplan.Plan, error) {
+	if composed == nil || composed.Return == nil {
+		return nil, nil
+	}
+	ret := cloneReturn(composed.Return)
+	for _, list := range []struct {
+		key string
+		raw []string
+	}{{"include", ret.Include}, {"exclude", ret.Exclude}} {
+		for i, raw := range list.raw {
+			p, err := returnplan.Parse(raw)
+			if err != nil || len(p.Segments) == 0 {
+				continue // resolveReturnBlock reports the syntax error
+			}
+			s0 := p.Segments[0]
+			if s0.Name == returnMarkerKey && !s0.Glob && !s0.Index {
+				continue // refuseReturnedMarker reports it
+			}
+			if s0.Name == composeOverlaysKey && !s0.Glob && !s0.Index {
+				continue
+			}
+			reason := "a Compose-level return shapes only the top-level overlays; shape a slot with requests[i].return"
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_RETURN_INVALID,
+				"compose return "+list.key+"["+strconv.Itoa(i)+"] "+strconv.Quote(raw)+": "+reason,
+				map[string]any{"key": list.key, "index": i, "value": raw, "root": "compose", "reason": reason})
+		}
+	}
+	// An allowlist (a preset or an include) would otherwise drop the
+	// slots: `responses` always joins the selection.
+	plan, err := resolveReturnBlock(ret, composeReturnRoot, inst, composeResponsesKey)
+	if err != nil {
+		return nil, err
+	}
+	return plan, nil
+}
+
 // returnComponentsKey is Response.Components — the slot the
 // DisableComponents shorthand excludes.
 const returnComponentsKey = "components"
@@ -207,7 +265,9 @@ func ValidateDefaultReturn(r *types.Return, inst *InstanceSnapshot) error {
 	return err
 }
 
-func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnapshot) (*returnplan.Plan, error) {
+// always lists root keys every selection keeps whole, whatever the
+// preset or allowlist (the Compose root's `responses`).
+func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnapshot, always ...string) (*returnplan.Plan, error) {
 	if ret.Precision < 0 || ret.Precision > 17 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_RETURN_INVALID,
 			"return precision "+strconv.Itoa(ret.Precision)+" is outside 1–17 significant digits",
@@ -265,6 +325,8 @@ func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnap
 			preset = returnplan.PresetCustom
 		}
 	}
+
+	base = append(base, rootKeyPaths(always)...)
 
 	// Warnings are retained unless explicitly excluded: the top-level
 	// slot joins the selection, every nested one is kept wherever its
@@ -344,7 +406,7 @@ func returnStructFields(t reflect.Type, inst *InstanceSnapshot) []returnField {
 			continue
 		}
 		name, _, skip := jsonFieldName(f)
-		if skip || slices.Contains(hidden, name) || (t == returnRoot && name == returnMarkerKey) {
+		if skip || slices.Contains(hidden, name) || ((t == returnRoot || t == composeReturnRoot) && name == returnMarkerKey) {
 			continue
 		}
 		if f.Anonymous && f.Type.Kind() == reflect.Struct && name == f.Name {
@@ -498,7 +560,9 @@ func returnWarningPaths(root reflect.Type, inst *InstanceSnapshot) []returnplan.
 			prefix = append(prefix, returnplan.Elem())
 			t = t.Elem()
 		}
-		if t.Kind() != reflect.Struct || onStack[t] {
+		// A Response below the root (a Compose slot) is shaped by its
+		// own plan; the outer plan keeps it whole.
+		if t.Kind() != reflect.Struct || onStack[t] || (len(prefix) > 0 && t == returnRoot) {
 			return
 		}
 		onStack[t] = true

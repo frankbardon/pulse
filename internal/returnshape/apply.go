@@ -4,7 +4,8 @@
 // predict runs) and calls Apply on the response it is about to hand
 // back. Apply works on ONE Response, so every surface that returns
 // responses (Process today; Compose slots, chain stages and streamed
-// rows next) shapes through it.
+// rows next) shapes through it. ApplyComposed and ApplyChain are the
+// multi-response roots built on it.
 //
 // Shaping runs at the OUTERMOST facade only, never inside
 // Service.Process: Compose overlays and chain stages re-enter the
@@ -47,5 +48,49 @@ func Apply(resp *types.Response, plan *returnplan.Plan) {
 		Preset:    plan.Preset,
 		Digest:    plan.Digest,
 		Precision: plan.Precision,
+	}
+}
+
+// ApplyComposed shapes a finished Compose result in place: slot i under
+// slotPlans[i] (Apply; a missing or nil plan leaves the slot whole) and
+// the top-level overlays under top, the Compose-level plan rooted at
+// ComposedResponse. Call it only after the overlay and multiplicity
+// folds, so every layer was computed from the unshaped slots. A
+// non-identity top plan stamps ComposedResponse.Returned; the top
+// level has no warnings slot, so an unmatched Open include there is
+// not reported.
+func ApplyComposed(out *types.ComposedResponse, slotPlans []*returnplan.Plan, top *returnplan.Plan) {
+	if out == nil {
+		return
+	}
+	for i, resp := range out.Responses {
+		if i < len(slotPlans) {
+			Apply(resp, slotPlans[i])
+		}
+	}
+	if top.Identity() {
+		return
+	}
+	_, _ = returnplan.Apply(out, top)
+	out.Returned = &types.ReturnedMarker{
+		Preset:    top.Preset,
+		Digest:    top.Digest,
+		Precision: top.Precision,
+	}
+}
+
+// ApplyChain shapes a finished chain in place: stage i under
+// stagePlans[i]. Call it only after the WHOLE chain (and its overlay
+// barrier) completed, so no later stage reads pruned rows. Final
+// aliases the last stage, so it follows the last stage's plan; it is
+// never shaped twice.
+func ApplyChain(out *types.ChainResponse, stagePlans []*returnplan.Plan) {
+	if out == nil {
+		return
+	}
+	for i, resp := range out.Stages {
+		if i < len(stagePlans) {
+			Apply(resp, stagePlans[i])
+		}
 	}
 }

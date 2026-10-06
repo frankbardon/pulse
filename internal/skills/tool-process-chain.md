@@ -12,7 +12,7 @@ Source-rooted linear chain — collapses N round-trips into one open + N stage v
 
 ## Input
 
-`request` (string): JSON-encoded `pulse.ChainRequest`. Fields: `cohort.filename` (source for stage 0), `stages` ([]ChainStage with `name` + `request`). Stage 0 supplies the source cohort; later stages ignore their inner cohort field.
+`request` (string): JSON-encoded `pulse.ChainRequest`. Fields: `cohort.filename` (source for stage 0), `stages` ([]ChainStage with `name` + `request`). Stage 0 supplies the source cohort; later stages ignore their inner cohort field. A stage's `request.return` shapes that stage only after the whole chain ran (the next stage still reads full rows); `final` follows the last stage's.
 
 ## Output
 

@@ -38,7 +38,7 @@ Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a
 
 ## Order-preserving slot dispatch
 
-The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in. Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. Filter state in slot `i` never affects slot `j`.
+The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in. Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. Filter state in slot `i` never affects slot `j`. A slot's `return` shapes `responses[i]`; a top-level `return` takes `overlays…` paths only.
 
 ```jsonc
 {

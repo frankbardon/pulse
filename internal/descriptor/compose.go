@@ -136,6 +136,12 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		addCodedError(env, merr)
 		result.Valid = false
 	}
+	// The Compose-level `return` (top-level overlays) — the pass
+	// Compose runs right after the batch multiplicity.
+	if _, rerr := ResolveComposeReturn(req, opts.instance()); rerr != nil {
+		addCodedError(env, rerr)
+		result.Valid = false
+	}
 	// Zone resolution per slot — the pass Compose runs inside each
 	// slot's Process — against the slot's cohort (or joined) schema
 	// read through opts.SchemaLoader. A refusal carries the slot index
@@ -829,6 +835,12 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 			addCodedError(env, RefusalAt(merr, "request", i))
 			continue
 		}
+		// Then the slot's `return` block (ResolveReturn — the pass its
+		// Process runs before dispatch).
+		if _, rerr := ResolveReturn(slot, opts.instance()); rerr != nil {
+			addCodedError(env, RefusalAt(rerr, "request", i))
+			continue
+		}
 		schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
 		if len(keyRefusals) > 0 {
 			for _, ce := range keyRefusals {
@@ -840,9 +852,18 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 			addCodedError(env, RefusalAt(err, "request", i))
 			continue
 		}
-		refs := fieldRefRefusals(defaultedForValidation(slot, schema, opts), schema, extensionsFromOpts(opts), opts.instance())
+		defaulted := defaultedForValidation(slot, schema, opts)
+		refs := fieldRefRefusals(defaulted, schema, extensionsFromOpts(opts), opts.instance())
 		for _, ce := range refs {
 			addCodedError(env, RefusalAt(ce, "request", i))
+		}
+		// `return` data columns, right after the field references
+		// (the runtime's checkFieldRefs order).
+		if len(refs) == 0 {
+			if cerr := ReturnColumnRefusal(defaulted, schema, opts.instance()); cerr != nil {
+				addCodedError(env, RefusalAt(cerr, "request", i))
+				continue
+			}
 		}
 		// The slot's Process resolves its weights right after its field
 		// references pass (ResolveWeights).

@@ -128,11 +128,13 @@ pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
+pulse: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
+pulse: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse: type CreateShardArchiveResult = pulse/internal/service.CreateShardArchiveResult
 pulse: type CreateShardArchiveResult underlying struct
@@ -3388,10 +3390,12 @@ pulse/types: type ComposedRequest struct
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
+pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
+pulse/types: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse/types: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse/types: type CrosstabComponents struct
 pulse/types: type CrosstabComponents field CellComponents [][]map[string]any "json:\"cell_components,omitempty\""
@@ -4191,4 +4195,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0120e635a3de5f21f709c8ddb97b3477718c148aaa036468e4baeea87deccdf5
+// golden-hash: 4c39cdb8f1fbf39a05a5c7d0004f8a51fd7f1f6f450052235ee181393f314621

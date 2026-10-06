@@ -1582,6 +1582,14 @@ type ComposedRequest struct {
 	// the members across slots. Nil inherits
 	// pulse.Options.DefaultMultiplicity. See Multiplicity.
 	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
+
+	// Return shapes the TOP-LEVEL Compose overlays: paths root at
+	// ComposedResponse and only `overlays…` paths are valid (a slot is
+	// shaped by its own Requests[i].Return). Applied after the overlay
+	// fold, so the layers are computed from the unshaped slot
+	// responses. Nil leaves the overlays whole; no instance default
+	// applies at this level. See Return.
+	Return *Return `json:"return,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -1614,6 +1622,15 @@ type ComposedResponse struct {
 	// per-Request layers with the same machinery. Omitted entirely when
 	// the originating ComposedRequest had no Overlays.
 	Overlays []OverlayLayer `json:"overlays,omitempty"`
+
+	// Returned marks a ComposedResponse whose top-level overlays were
+	// shaped by a non-identity ComposedRequest.Return. Nil (absent) for
+	// an unshaped one; each slot carries its own Response.Returned.
+	Returned *ReturnedMarker `json:"returned,omitempty"`
+
+	// plan is the resolved Compose-level selection; MarshalJSON honours
+	// it. Set only by the facade.
+	plan *returnplan.Plan
 }
 
 // VersionResponse provides build and version information.

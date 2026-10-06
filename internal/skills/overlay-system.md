@@ -57,7 +57,7 @@ Which request carries the spec decides the host, and the host decides which kind
 - **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
 - **FORMULA** — an expression over earlier layers, referenced by `name`.
-- **COMPOSE** — the Compose post-slot fold compares slots (`reference` vs `targets`) after every slot ran; slots must align on keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]`, buffered only<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
+- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]` (top-level `return` prunes post-fold), buffered only<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 

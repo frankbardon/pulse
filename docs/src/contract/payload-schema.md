@@ -435,6 +435,23 @@ emitted. Every listed path must resolve against this schema
 a request without `return`. `standard` and `minimal` stamp `returned`
 with their preset name.
 
+### Compose and chain
+
+Every Compose slot and every chain stage is a `Request`, so its own
+`return` (else the instance default) shapes `responses[i]` /
+`stages[i]` exactly as a single Process would; a refusal carries
+`details.request` / `details.stage`. `ComposedRequest` adds its own
+`return` (same `Return` def) whose paths root at `ComposedResponse`:
+only `overlays…` paths are valid (any other is `PULSE_RETURN_INVALID`,
+details `root: "compose"`), `responses` is always kept whole, presets
+expand to their overlay paths, and no instance default applies at that
+level. A non-identity Compose-level plan stamps
+`ComposedResponse.returned`. Shaping runs after the Compose overlay and
+multiplicity folds — layers are computed from unshaped slots — and after
+the whole chain, so a stage that excludes `data` still feeds the next
+stage its rows. `final` is the last stage, shaped by its `return`;
+there is no chain-level block.
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a

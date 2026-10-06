@@ -417,6 +417,9 @@ func (r Response) MarshalJSON() ([]byte, error) {
 // as null; see MarshalFinite.
 func (r ComposedResponse) MarshalJSON() ([]byte, error) {
 	type alias ComposedResponse
+	if r.plan != nil && !r.plan.Identity() {
+		return marshalPlanned(reflect.ValueOf((*alias)(&r)), r.plan)
+	}
 	return MarshalFinite((*alias)(&r))
 }
 

@@ -81,6 +81,16 @@ func opaqueType(t reflect.Type) bool {
 	return implementsMarshaler(t) || implementsMarshaler(reflect.PointerTo(t))
 }
 
+// responseType is the per-slot / per-stage result type.
+var responseType = reflect.TypeFor[Response]()
+
+// nestedResponse reports whether a node of type t at path is a Response
+// below the root (a Compose slot): it owns its wire form through its
+// own plan, so an outer plan never prunes, rounds or re-walks it.
+func nestedResponse(t reflect.Type, path []returnplan.Segment) bool {
+	return len(path) > 0 && t == responseType
+}
+
 func appendSeg(path []returnplan.Segment, s returnplan.Segment) []returnplan.Segment {
 	out := make([]returnplan.Segment, len(path), len(path)+1)
 	copy(out, path)
@@ -136,16 +146,28 @@ func jsonFields(rv reflect.Value) []jsonField {
 // applyReturnPlan is the returnplan applier: prune r under p, attach p,
 // report the Open includes nothing matched.
 func applyReturnPlan(target any, p *returnplan.Plan) ([]returnplan.Path, bool) {
-	r, ok := target.(*Response)
-	if !ok {
+	var root reflect.Value
+	switch r := target.(type) {
+	case *Response:
+		if r == nil || p.Identity() {
+			return nil, true
+		}
+		root = reflect.ValueOf(r).Elem()
+		r.plan = p
+	case *ComposedResponse:
+		// The Compose-level plan: rooted at ComposedResponse, it keeps
+		// `responses` whole (each slot carries its own plan) and shapes
+		// the top-level overlays.
+		if r == nil || p.Identity() {
+			return nil, true
+		}
+		root = reflect.ValueOf(r).Elem()
+		r.plan = p
+	default:
 		return nil, false
 	}
-	if r == nil || p.Identity() {
-		return nil, true
-	}
 	pr := &returnPruner{plan: p, matched: make([]bool, len(p.Include))}
-	pr.pruneFields(reflect.ValueOf(r).Elem(), nil)
-	r.plan = p
+	pr.pruneFields(root, nil)
 	var unmatched []returnplan.Path
 	for i, in := range p.Include {
 		if in.Open && !pr.matched[i] {
@@ -204,7 +226,7 @@ func (s *returnPruner) pruneFields(rv reflect.Value, path []returnplan.Segment) 
 func (s *returnPruner) prune(v reflect.Value, path []returnplan.Segment) (reflect.Value, bool) {
 	switch v.Kind() {
 	case reflect.Pointer:
-		if v.IsNil() || opaqueType(v.Type().Elem()) {
+		if v.IsNil() || opaqueType(v.Type().Elem()) || nestedResponse(v.Type().Elem(), path) {
 			return v, true
 		}
 		e := v.Elem()
@@ -403,7 +425,7 @@ func (e *planEncoder) encode(v reflect.Value, path []returnplan.Segment, whole b
 		if v.IsNil() {
 			return []byte("null"), true, nil
 		}
-		if opaqueType(v.Type().Elem()) {
+		if opaqueType(v.Type().Elem()) || nestedResponse(v.Type().Elem(), path) {
 			b, err := encodeFinite(v)
 			return b, true, err
 		}

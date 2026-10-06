@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -57,14 +58,30 @@ func (s *Service) ComposeParallel(
 	composed *types.ComposedRequest,
 	opts ComposeOptions,
 ) (*types.ComposedResponse, error) {
-	resp, err := s.composeParallel(ctx, composed, opts)
-	return resp, s.scopeRefusal(err)
+	resp, _, err := s.ComposeParallelResolved(ctx, composed, opts)
+	return resp, err
+}
+
+// ComposeParallelResolved is ComposeParallel that also returns the slot
+// requests the responses ran (see ComposeResolved).
+func (s *Service) ComposeParallelResolved(
+	ctx context.Context,
+	composed *types.ComposedRequest,
+	opts ComposeOptions,
+) (*types.ComposedResponse, []*types.Request, error) {
+	var slots []*types.Request
+	resp, err := s.composeParallel(ctx, composed, opts, &slots)
+	if err != nil {
+		return nil, nil, s.scopeRefusal(err)
+	}
+	return resp, slots, nil
 }
 
 func (s *Service) composeParallel(
 	ctx context.Context,
 	composed *types.ComposedRequest,
 	opts ComposeOptions,
+	slots *[]*types.Request,
 ) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
@@ -79,6 +96,10 @@ func (s *Service) composeParallel(
 	if err != nil {
 		return nil, err
 	}
+	// The Compose-level `return`, exactly as on the serial path.
+	if _, err := descx.ResolveComposeReturn(composed, s.instance); err != nil {
+		return nil, err
+	}
 	ctx = withinCompose(ctx)
 
 	// Synthesize Label auto-defaults + collision-check on a clone of the
@@ -88,6 +109,7 @@ func (s *Service) composeParallel(
 	if err != nil {
 		return nil, err
 	}
+	*slots = requests
 
 	o := opts.resolved()
 	n := len(requests)

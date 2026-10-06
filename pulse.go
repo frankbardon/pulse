@@ -22,6 +22,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/internal/returnshape"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/internal/skills"
@@ -833,8 +834,45 @@ func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error
 //     emitted by the handler (cohesion failures, missing host
 //     coordinates, threshold breaches). Empty when the layer produced
 //     no diagnostics.
+//
+// Shaping: each Requests[i].Return (else the instance default) shapes
+// Responses[i] exactly as Process would; req.Return shapes the
+// top-level Overlays (paths rooted at ComposedResponse, `overlays…`
+// only) and stamps ComposedResponse.Returned. Both apply after the
+// overlay fold, so every layer is computed from the unshaped slots.
 func (p *Pulse) Compose(ctx context.Context, req *ComposedRequest) (*ComposedResponse, error) {
-	return p.svc.Compose(ctx, req)
+	out, slots, err := p.svc.ComposeResolved(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.shapeComposed(req, slots, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// shapeComposed resolves every slot's `return` plan from the
+// defaults-resolved slot requests the service ran, plus the
+// Compose-level plan, and applies them to the finished response.
+func (p *Pulse) shapeComposed(req *ComposedRequest, slots []*Request, out *ComposedResponse) error {
+	inst := p.svc.InstanceSnapshot()
+	top, err := descx.ResolveComposeReturn(req, inst)
+	if err != nil {
+		return err
+	}
+	plans := make([]*returnplan.Plan, len(slots))
+	for i, slot := range slots {
+		if slot == nil {
+			continue
+		}
+		plan, err := descx.ResolveReturn(slot, inst)
+		if err != nil {
+			return descx.RefusalAt(err, "request", i)
+		}
+		plans[i] = plan
+	}
+	returnshape.ApplyComposed(out, plans, top)
+	return nil
 }
 
 // CountRecords returns the number of records in the cohort at path
@@ -880,12 +918,32 @@ type ChainResponse = types.ChainResponse
 // ProcessChain collapses those into one open + one synth-schema
 // per intermediate stage, keeping the streaming iterator stack alive
 // across stages.
+//
+// Shaping: each Stages[i].Request.Return (else the instance default)
+// shapes Stages[i], applied only after the WHOLE chain completed — a
+// stage that excludes `data` still feeds the next stage its rows.
+// Final follows the last stage's return; there is no chain-level knob.
 func (p *Pulse) ProcessChain(ctx context.Context, req *ChainRequest) (*ChainResponse, error) {
 	resp, err := p.svc.ProcessChain(ctx, req)
-	if err == nil && req != nil && req.Cohort != nil {
+	if err != nil {
+		return resp, err
+	}
+	if req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
 	}
-	return resp, err
+	// The service ran every stage request in place, defaults resolved,
+	// which is what the plan's precision exemptions read.
+	inst := p.svc.InstanceSnapshot()
+	plans := make([]*returnplan.Plan, len(req.Stages))
+	for i, st := range req.Stages {
+		plan, rerr := descx.ResolveReturn(st.Request, inst)
+		if rerr != nil {
+			return nil, descx.RefusalAt(rerr, "stage", i)
+		}
+		plans[i] = plan
+	}
+	returnshape.ApplyChain(resp, plans)
+	return resp, nil
 }
 
 // ComposeOptions controls parallel execution. See internal/service.ComposeOptions.
@@ -914,8 +972,18 @@ type ComposeOptions = service.ComposeOptions
 //     surfaced by distributeComposeWarnings (cohesion failures,
 //     missing host coordinates, panel-target overflow). Empty when
 //     the layer produced no diagnostics.
+//
+// Shaping is Compose's, applied after every slot settled and the
+// overlay fold ran.
 func (p *Pulse) ComposeParallel(ctx context.Context, req *ComposedRequest, opts ComposeOptions) (*ComposedResponse, error) {
-	return p.svc.ComposeParallel(ctx, req, opts)
+	out, slots, err := p.svc.ComposeParallelResolved(ctx, req, opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.shapeComposed(req, slots, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // Import converts tabular source data into a .pulse file.
