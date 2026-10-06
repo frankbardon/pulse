@@ -147,13 +147,13 @@ func (s *Service) DisableComponents() bool {
 }
 
 // effectiveDisableComponents resolves the per-request override against
-// the engine default. Request.DisableComponents nil ⇒ inherit; explicit
-// pointer ⇒ override (true forces off, false forces on).
+// the engine default through the rule predict shares
+// (descx.EffectiveDisableComponents): Request.DisableComponents set ⇒
+// it wins (true forces off, false forces on); else a request `return`
+// block replaces the instance-default layer the engine switch folds
+// into ⇒ components computed; else inherit the engine default.
 func (s *Service) effectiveDisableComponents(req *types.Request) bool {
-	if req != nil && req.DisableComponents != nil {
-		return *req.DisableComponents
-	}
-	return s.disableComponents
+	return descx.EffectiveDisableComponents(req, s.disableComponents)
 }
 
 // SetProjectBufferedFields enables buffered-decode field projection.

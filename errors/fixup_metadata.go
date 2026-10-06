@@ -2785,7 +2785,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEATURE_PROFILE_INVALID: {
-		Message: "The feature profile is structurally unusable, so pulse.New refused it before checking any feature name. The `reason` detail names the fault: the profile file is missing or unreadable, its body is not well-formed JSON, it carries a key the profile model does not declare (only `profile`, `written_with`, `features` and `behaviour` exist; `limits` and `return` are reserved and refused), `features` is absent, a feature is listed more than once, both Options.FeatureProfile and Options.FeatureProfileFile were set, or pulse.ExampleFeatureProfile was given a name that is not a published example (`unknown_example`; the published names are under `examples`).",
+		Message: "The feature profile is structurally unusable, so pulse.New refused it before checking any feature name. The `reason` detail names the fault: the profile file is missing or unreadable, its body is not well-formed JSON, it carries a key the profile model does not declare (only `profile`, `written_with`, `features`, `behaviour` and `return` exist; `limits` is reserved and refused), `features` is absent, a feature is listed more than once, its `return` section does not resolve against the profile's own feature set (`invalid_return`, checked after names and dependencies: the resolver's code is under `return_code`, its details under `return` — a path only a feature the profile omits has is refused like a nonexistent one), both Options.FeatureProfile and Options.FeatureProfileFile were set, or pulse.ExampleFeatureProfile was given a name that is not a published example (`unknown_example`; the published names are under `examples`).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupRemoveParam,
@@ -2796,7 +2796,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"features"},
-				Hint:     "Give the profile a `features` array — it is required, may be empty, and must not repeat a name (every repeated name is listed under `duplicates`). Remove any key other than `profile`, `written_with`, `features` and `behaviour`.",
+				Hint:     "Give the profile a `features` array — it is required, may be empty, and must not repeat a name (every repeated name is listed under `duplicates`). Remove any key other than `profile`, `written_with`, `features`, `behaviour` and `return`; for `invalid_return`, fix the `return` path, preset or precision named under `return`, or enable the feature that owns the path.",
 				Examples: []any{`{"profile": "self-serve", "features": []}`},
 			},
 			{

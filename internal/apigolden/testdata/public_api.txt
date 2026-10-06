@@ -300,6 +300,7 @@ pulse: type FeatureProfile struct
 pulse: type FeatureProfile field Behaviour *pulse.FeatureProfileBehaviour "json:\"behaviour,omitempty\""
 pulse: type FeatureProfile field Features []string "json:\"features\""
 pulse: type FeatureProfile field Profile string "json:\"profile,omitempty\""
+pulse: type FeatureProfile field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type FeatureProfile field WrittenWith string "json:\"written_with,omitempty\""
 pulse: type FeatureProfileBehaviour struct
 pulse: type FeatureProfileBehaviour field DisableCohortScan bool "json:\"disable_cohort_scan,omitempty\""
@@ -541,6 +542,7 @@ pulse: type Options field AutoLabels []pulse.LabelBinding
 pulse: type Options field DataDir string
 pulse: type Options field DecodeWorkers int
 pulse: type Options field DefaultMultiplicity *pulse/types.Multiplicity
+pulse: type Options field DefaultReturn *pulse/types.Return
 pulse: type Options field DefaultTimeZone string
 pulse: type Options field DefaultWeight *pulse/types.WeightSpec
 pulse: type Options field DisableComponents bool
@@ -4189,4 +4191,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3dfb7c8df234500de6ee16063b814851b09d309f8fd6ca4c4270ff31e0e611d7
+// golden-hash: 0120e635a3de5f21f709c8ddb97b3477718c148aaa036468e4baeea87deccdf5

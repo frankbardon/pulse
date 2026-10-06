@@ -346,6 +346,27 @@ type Options struct {
 	// falls back to that surface's default there.
 	DefaultMultiplicity *types.Multiplicity
 
+	// DefaultReturn is the instance `return` default: the response
+	// selection a request WITHOUT its own `return` block is shaped by.
+	// A request block replaces it entirely (it never merges). Nil
+	// defers to the feature profile's `return` section, else the
+	// library default `full` (identity). Precedence: Request.Return >
+	// DefaultReturn > FeatureProfile.Return > full.
+	//
+	// DisableComponents folds into this layer: when the components
+	// compute gate is off for a request (the engine switch with no
+	// request override, or a request disable_components: true), the
+	// effective selection also excludes `components`. With no `return`
+	// on any layer DisableComponents stays the compute gate alone.
+	//
+	// New() refuses a bad preset, precision or path syntax
+	// (PULSE_RETURN_INVALID) and a path the instance does not have —
+	// including one a hidden feature owns (PULSE_RETURN_PATH_UNKNOWN).
+	// A `data[*].<column>` path is accepted (no schema to judge it
+	// against); the runtime warns PULSE_RETURN_PATH_UNMATCHED when it
+	// matches nothing. Applies at Process today.
+	DefaultReturn *types.Return
+
 	// Strict promotes request-validation warnings into hard errors at
 	// runtime. Today this covers the numeric-aggregation-on-categorical
 	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
@@ -620,7 +641,21 @@ func New(opts Options) (*Pulse, error) {
 		extSnap.Skills = universe.skills
 		extSnap.Examples = universe.examples
 	}
-	svc.SetInstanceSnapshot(descx.NewInstanceSnapshot(extSnap, featureSet))
+	snap := descx.NewInstanceSnapshot(extSnap, featureSet)
+	// The instance `return` default: Options.DefaultReturn, else the
+	// (already validated) feature profile's section. Validated against
+	// the scoped snapshot so a hidden feature's path is refused.
+	defaultReturn := opts.DefaultReturn
+	if err := descx.ValidateDefaultReturn(defaultReturn, snap); err != nil {
+		return nil, err
+	}
+	if defaultReturn == nil && featureProfile != nil {
+		defaultReturn = featureProfile.Return
+	}
+	if defaultReturn != nil {
+		snap = snap.WithDefaultReturn(defaultReturn)
+	}
+	svc.SetInstanceSnapshot(snap)
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)
@@ -732,22 +767,28 @@ func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
 
 // Process executes a single processing request against a cohort.
 //
-// A `return` block on req shapes the response here, at the outermost
-// facade, after the engine finished: excluded slots are pruned from the
-// Go value and absent from its JSON, and Response.Returned stamps the
-// selection. No block (or one resolving to the full response) returns
-// the response untouched.
+// A `return` block on req — else the instance default
+// (Options.DefaultReturn, then the feature profile's `return`) — shapes
+// the response here, at the outermost facade, after the engine
+// finished: excluded slots are pruned from the Go value and absent from
+// its JSON, and Response.Returned stamps the selection. No block on any
+// layer (or one resolving to the full response) returns the response
+// untouched.
 func (p *Pulse) Process(ctx context.Context, req *Request) (*Response, error) {
 	resp, err := p.svc.Process(ctx, req)
 	if err == nil && req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
 	}
-	if err == nil && req != nil && req.Return != nil {
+	if err == nil && req != nil {
+		// The effective block: the request's own, else the instance
+		// default (descx.EffectiveReturn); nil leaves resp untouched.
 		plan, rerr := descx.ResolveReturn(req, p.svc.InstanceSnapshot())
 		if rerr != nil {
 			return nil, rerr
 		}
-		returnshape.Apply(resp, plan)
+		if plan != nil {
+			returnshape.Apply(resp, plan)
+		}
 	}
 	return resp, err
 }

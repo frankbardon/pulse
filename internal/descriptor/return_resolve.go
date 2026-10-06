@@ -112,15 +112,17 @@ const returnWarningsKey = "warnings"
 // returnRoot is the Go type a Request's `return` paths root at.
 var returnRoot = reflect.TypeFor[types.Response]()
 
-// ResolveReturn resolves req.Return into the canonical selection plan.
-// Nil (and no error) when the request carries no block. inst hides the
-// paths its hidden features own; nil hides nothing. It never mutates
-// req.
+// ResolveReturn resolves the request's EFFECTIVE `return` block
+// (EffectiveReturn) into the canonical selection plan. Nil (and no
+// error) when no layer supplies a block. inst hides the paths its
+// hidden features own and carries the instance default; nil hides
+// nothing and has no default. It never mutates req.
 func ResolveReturn(req *types.Request, inst *InstanceSnapshot) (*returnplan.Plan, error) {
-	if req == nil || req.Return == nil {
+	ret := EffectiveReturn(req, inst)
+	if ret == nil {
 		return nil, nil
 	}
-	plan, err := resolveReturnBlock(req.Return, returnRoot, inst)
+	plan, err := resolveReturnBlock(ret, returnRoot, inst)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +130,81 @@ func ResolveReturn(req *types.Request, inst *InstanceSnapshot) (*returnplan.Plan
 		plan.Exact = returnExactPaths(req)
 	}
 	return plan, nil
+}
+
+// returnComponentsKey is Response.Components — the slot the
+// DisableComponents shorthand excludes.
+const returnComponentsKey = "components"
+
+// EffectiveReturn is the `return` block a request resolves through —
+// the precedence both predict and the runtime apply:
+//
+//  1. the request's own block, when set, REPLACES every instance layer;
+//  2. else the instance default (inst.DefaultReturn: Options.DefaultReturn,
+//     else the feature profile's `return`);
+//  3. else none (nil) — the library default `full`, identity.
+//
+// The DisableComponents shorthands then merge as `exclude: ["components"]`
+// (exclude wins over any include) exactly when the components compute
+// gate is off for this request (EffectiveDisableComponents): a request
+// `disable_components: true` always; the engine Options.DisableComponents
+// only through the instance-default layer (a request block replaces it,
+// and the gate then reopens); an explicit `false` adds nothing and never
+// re-includes what a block excludes or a preset omits. With no block on
+// any layer the shorthands add nothing either — DisableComponents stays
+// the compute gate alone, so its wire form is byte-identical to the
+// pre-`return` baseline (no `returned` marker). The result is a fresh
+// copy; req and inst are never mutated.
+func EffectiveReturn(req *types.Request, inst *InstanceSnapshot) *types.Return {
+	var ret *types.Return
+	switch {
+	case req != nil && req.Return != nil:
+		ret = cloneReturn(req.Return)
+	default:
+		ret = inst.DefaultReturn()
+	}
+	if ret == nil {
+		return nil
+	}
+	if EffectiveDisableComponents(req, inst.Behaviour().DisableComponents) &&
+		slices.Contains(returnVisibleKeys(returnRoot, inst), returnComponentsKey) &&
+		!slices.Contains(ret.Exclude, returnComponentsKey) {
+		ret.Exclude = append(ret.Exclude, returnComponentsKey)
+	}
+	return ret
+}
+
+// EffectiveDisableComponents is the Response.Components COMPUTE gate for
+// req on an engine whose Options.DisableComponents is engine — the one
+// rule the runtime (Service.effectiveDisableComponents) and predict
+// (PredictOptions.componentsDisabled) share. A request's explicit
+// disable_components wins; else a request `return` block replaces the
+// instance-default layer the engine switch folds into, so the gate is
+// open; else the engine switch. Without a request block this is the
+// pre-`return` rule unchanged.
+func EffectiveDisableComponents(req *types.Request, engine bool) bool {
+	if req != nil && req.DisableComponents != nil {
+		return *req.DisableComponents
+	}
+	if req != nil && req.Return != nil {
+		return false
+	}
+	return engine
+}
+
+// ValidateDefaultReturn checks an instance `return` default (from
+// Options.DefaultReturn or a feature profile) against inst: the same
+// preset / precision / path-syntax / path-existence rules a request
+// block meets, returning the resolver's own coded error. Nil r is
+// valid. A `data[*].<column>` path is not judged here (no request, no
+// schema): an instance default names columns openly and the runtime
+// warns PULSE_RETURN_PATH_UNMATCHED when one matches nothing.
+func ValidateDefaultReturn(r *types.Return, inst *InstanceSnapshot) error {
+	if r == nil {
+		return nil
+	}
+	_, err := resolveReturnBlock(r, returnRoot, inst)
+	return err
 }
 
 func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnapshot) (*returnplan.Plan, error) {
@@ -201,7 +278,10 @@ func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnap
 			nested = append(nested, k)
 		}
 	}
-	all := append(base, include...)
+	// The caller's includes first: canonicalization keeps the first of
+	// two equal spellings, so a caller's Open include survives a
+	// preset's identical (never-warning) path.
+	all := append(include, base...)
 	return returnplan.New(preset, all, exclude, nested, ret.Precision, rootKeys), nil
 }
 
@@ -311,6 +391,10 @@ func expandReturnPreset(preset types.ReturnPreset, root reflect.Type, inst *Inst
 		if resolveReturnPath(root, &p, inst, "preset", 0, s) != nil {
 			continue
 		}
+		// A preset path through an open map (tests[*].details.effect_size)
+		// is the preset's own, not the caller's: it never raises
+		// PULSE_RETURN_PATH_UNMATCHED when the response has no such key.
+		p.Open = false
 		out = append(out, p)
 	}
 	return out

@@ -191,10 +191,7 @@ const CrosstabFusionDisabledReason = "crosstab fusion disabled on this instance 
 // componentsDisabled is the runtime's effectiveDisableComponents: the
 // request's disable_components when set, else the engine default.
 func (o *PredictOptions) componentsDisabled(req *types.Request) bool {
-	if req != nil && req.DisableComponents != nil {
-		return *req.DisableComponents
-	}
-	return o != nil && o.DisableComponents
+	return EffectiveDisableComponents(req, o != nil && o.DisableComponents)
 }
 
 func (o *PredictOptions) instance() *InstanceSnapshot {
