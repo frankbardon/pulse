@@ -1155,6 +1155,11 @@ type Request struct {
 	// pulse.Options.DefaultMultiplicity; with neither, nothing is
 	// corrected. See Multiplicity.
 	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
+
+	// Return shapes the Response: a preset, include / exclude paths and
+	// a wire float precision. Nil returns the whole Response. See
+	// Return.
+	Return *Return `json:"return,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.

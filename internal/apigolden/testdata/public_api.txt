@@ -713,6 +713,7 @@ pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempt
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
 pulse: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
+pulse: type Request field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse: type Request field TimeZone string "json:\"time_zone,omitempty\""
@@ -1427,6 +1428,7 @@ pulse/descriptor: type PredictResult field PValues *pulse/descriptor.PValueCount
 pulse/descriptor: type PredictResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type PredictResult field Request *pulse/types.Request "json:\"request\""
 pulse/descriptor: type PredictResult field ResolvedVectors map[string][]string "json:\"resolved_vectors,omitempty\""
+pulse/descriptor: type PredictResult field Return *pulse/descriptor.ReturnPlan "json:\"return,omitempty\""
 pulse/descriptor: type PredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
 pulse/descriptor: type PredictResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
 pulse/descriptor: type PredictResult field Streamable bool "json:\"streamable\""
@@ -1489,6 +1491,14 @@ pulse/descriptor: type ResolvedZone field Operator string "json:\"operator\""
 pulse/descriptor: type ResolvedZone field Slot string "json:\"slot\""
 pulse/descriptor: type ResolvedZone field Source string "json:\"source\""
 pulse/descriptor: type ResolvedZone field TZ *string "json:\"tz\""
+pulse/descriptor: type ReturnPlan struct
+pulse/descriptor: type ReturnPlan field Digest string "json:\"digest\""
+pulse/descriptor: type ReturnPlan field Exclude []string "json:\"exclude\""
+pulse/descriptor: type ReturnPlan field Identity bool "json:\"identity\""
+pulse/descriptor: type ReturnPlan field Include []string "json:\"include\""
+pulse/descriptor: type ReturnPlan field Keep []string "json:\"keep\""
+pulse/descriptor: type ReturnPlan field Precision int "json:\"precision,omitempty\""
+pulse/descriptor: type ReturnPlan field Preset string "json:\"preset\""
 pulse/descriptor: type Role struct
 pulse/descriptor: type Role field Kinds []pulse/descriptor.FieldKind "json:\"kinds\""
 pulse/descriptor: type Role field Max int "json:\"max\""
@@ -1985,6 +1995,9 @@ pulse/errors: const PULSE_RANGE_OVERLAP pulse/errors.Code = "PULSE_RANGE_OVERLAP
 pulse/errors: const PULSE_RANGE_SOURCE_AMBIGUOUS pulse/errors.Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
 pulse/errors: const PULSE_RANGE_TABLE_UNKNOWN pulse/errors.Code = "PULSE_RANGE_TABLE_UNKNOWN"
 pulse/errors: const PULSE_REQUEST_UNKNOWN_FIELD pulse/errors.Code = "PULSE_REQUEST_UNKNOWN_FIELD"
+pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVALID"
+pulse/errors: const PULSE_RETURN_PATH_UNKNOWN pulse/errors.Code = "PULSE_RETURN_PATH_UNKNOWN"
+pulse/errors: const PULSE_RETURN_PATH_UNMATCHED pulse/errors.Code = "PULSE_RETURN_PATH_UNMATCHED"
 pulse/errors: const PULSE_SHARD_DESCRIPTION_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DICT_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SHARD_DICT_WIDTH_OVERFLOW"
@@ -3289,6 +3302,7 @@ pulse/types: func AllMultiplicityFamilies() []pulse/types.MultiplicityFamily
 pulse/types: func AllMultiplicityMethods() []pulse/types.MultiplicityMethod
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
+pulse/types: func AllReturnPresets() []pulse/types.ReturnPreset
 pulse/types: func AllTestTypes() []pulse/types.TestType
 pulse/types: func AllVectorCoerces() []pulse/types.VectorCoerce
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
@@ -3996,6 +4010,7 @@ pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,om
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
 pulse/types: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
+pulse/types: type Request field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse/types: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse/types: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse/types: type Request field TimeZone string "json:\"time_zone,omitempty\""
@@ -4032,6 +4047,15 @@ pulse/types: type ResponseWarning struct
 pulse/types: type ResponseWarning field Code string "json:\"code\""
 pulse/types: type ResponseWarning field Details map[string]any "json:\"details,omitempty\""
 pulse/types: type ResponseWarning field Message string "json:\"message\""
+pulse/types: type Return struct
+pulse/types: type Return field Exclude []string "json:\"exclude,omitempty\""
+pulse/types: type Return field Include []string "json:\"include,omitempty\""
+pulse/types: type Return field Precision int "json:\"precision,omitempty\""
+pulse/types: type Return field Preset pulse/types.ReturnPreset "json:\"preset,omitempty\""
+pulse/types: type ReturnPreset string
+pulse/types: const ReturnPresetFull pulse/types.ReturnPreset = "full"
+pulse/types: const ReturnPresetMinimal pulse/types.ReturnPreset = "minimal"
+pulse/types: const ReturnPresetStandard pulse/types.ReturnPreset = "standard"
 pulse/types: type RunComponents struct
 pulse/types: type RunComponents field FilteredRecords int64 "json:\"filtered_records\""
 pulse/types: type RunComponents field NullRecords int64 "json:\"null_records\""
@@ -4155,4 +4179,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 37f3fc9aed35ab97a71858bbbf27a81edc3387e02797f77fe49806eb4fcd857a
+// golden-hash: 4665320bddbb01088ece06081ce4f0d0379e34fbd73fbb314d1bf01e922bb157

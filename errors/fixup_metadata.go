@@ -3143,4 +3143,52 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_RETURN_INVALID: {
+		Message: "The `return` block cannot be read, so the request is refused before any record is read — predict refuses it identically. `preset` must be full, standard or minimal; `precision` is significant digits from 1 to 17 (0 or absent means unlimited); every include / exclude path is JSON keys joined by `.`, with `[*]` stepping into every array element and a trailing `*` on a map-key segment as a prefix glob (`tests[*].details.effect_*`). The offending key is under `key`, its value under `value`, a path's position under `index`, the rule under `reason` and, for a preset, the accepted names under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"return", "preset"},
+				Hint:     "Use one of the presets listed under `valid`, or drop `preset` and list paths under `include`.",
+				Examples: []any{"standard", "minimal"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"return", "precision"},
+				Hint:     "Use 1–17 significant digits, or drop `precision` for unlimited.",
+				Examples: []any{4, 6},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"return", "include"},
+				Hint:     "Spell the path as keys joined by `.`, `[*]` for array elements and `*` only at the end of a map key.",
+				Examples: []any{"data[*].region", "tests[*].p_value"},
+			},
+		},
+	},
+	PULSE_RETURN_PATH_UNKNOWN: {
+		Message: "A `return` include / exclude path names nothing in this instance's Response, so the request is refused before any record is read — predict refuses it identically. Paths use the payload schema's JSON names (`pulse schema`); an object takes a key, an array takes `[*]`, a `*` glob applies only to map keys, and `data[*].<column>` must be a column the request produces (a group field, an aggregation, attribute, window or feature label, a schema field on an ungrouped run, or a `<field>_label` sibling). The path is under `path`, its position under `key` / `index`, the failing segment under `at`, the rule under `reason`, the keys available there under `valid` and the nearest one, when close, under `suggestion`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"return", "include"},
+				Hint:   "Replace the failing segment with the key under `suggestion`, or one listed under `valid`.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"return", "exclude"},
+				Hint:   "Drop the path if the part it names is not produced by this request.",
+			},
+		},
+	},
+	PULSE_RETURN_PATH_UNMATCHED: {
+		Message: "Warning-class — a `return` include path reaching into an open map (an operator component map, test details, data rows under a join or crosstab) matched nothing in the executed Response. The response was shaped; the path simply selected nothing. The path is under `path`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"return", "include"},
+				Hint:   "Check the key against the full response (`return` absent) or the operator's component schema in the manifest, then correct or drop the path.",
+			},
+		},
+	},
 }

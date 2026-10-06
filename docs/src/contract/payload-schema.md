@@ -354,6 +354,31 @@ a stream carries them on its terminal chunk only. Contract:
 `.claude/reference/response-components.md` (Per-group aggregation
 components).
 
+## Return slot
+
+`return` on `Request` is an additive `Return` object
+`{preset?, include?, exclude?, precision?}` (`format_version` stays
+`"1.1"`; a request without one is byte-identical and hashes
+identically). `preset` is the closed `ReturnPreset` enum (`full`,
+`standard`, `minimal`); `precision` is significant digits, 1–17 (0 or
+absent: unlimited). `include` / `exclude` are paths over this schema's
+`Response` JSON names at any depth — `.` between keys, `[*]` into every
+array element, a trailing `*` on a map-key segment as a prefix glob
+(`tests[*].details.effect_*`). What the schema cannot say, predict and
+the runtime enforce identically before any record is read: resolution
+runs preset, then include adds, then exclude removes (exclude wins);
+include without a preset starts from an empty base; top-level
+`warnings`, and every nested `warnings` whose parent is emitted, stay
+unless excluded. A path this instance's `Response` does not carry — a
+hidden feature's included — is `PULSE_RETURN_PATH_UNKNOWN`, as is a
+`data[*].<column>` the request cannot produce (data under a join or a
+crosstab, test `details` and operator component maps accept any key); an
+unknown preset, a precision out of range or a malformed path is
+`PULSE_RETURN_INVALID`. Predict echoes the resolved plan as
+`data.return` (`{preset, include, exclude, keep, precision?, identity,
+digest}`, a predict result field, not part of this schema); equivalent
+spellings share a `digest`.
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a

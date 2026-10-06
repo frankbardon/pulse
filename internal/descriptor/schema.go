@@ -211,6 +211,9 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	m[reflect.TypeFor[types.VectorCoerce]()] = stringify(types.AllVectorCoerces())
 	m[reflect.TypeFor[types.MatrixEncoding]()] = stringify(types.AllMatrixEncodings())
 	m[reflect.TypeFor[types.MatrixKind]()] = stringify(types.AllMatrixKinds())
+	// The response-shaping presets: a closed vocabulary on an ungated
+	// slot.
+	m[reflect.TypeFor[types.ReturnPreset]()] = stringify(types.AllReturnPresets())
 	return m
 }
 

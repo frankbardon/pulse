@@ -2595,6 +2595,33 @@ const (
 	// "members"), so every correlation touching them is null and their
 	// covariance row and column are 0.
 	PULSE_MATRIX_ZERO_VARIANCE Code = "PULSE_MATRIX_ZERO_VARIANCE"
+
+	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
+	// read: an unknown preset, a precision outside 1–17, or a malformed
+	// include / exclude path (an empty segment, `*` anywhere but the end
+	// of a name, an index other than `[*]`). Refused identically by
+	// predict and the runtime. Details carry "key" (preset / precision /
+	// include / exclude), "value", "reason" and, for a path, "index";
+	// for a preset, "valid".
+	PULSE_RETURN_INVALID Code = "PULSE_RETURN_INVALID"
+
+	// PULSE_RETURN_PATH_UNKNOWN indicates a well-formed `return` include
+	// / exclude path that names nothing in this instance's Response: a
+	// key the payload schema does not carry (or a feature the instance
+	// hides — indistinguishable on purpose), `[*]` on an object, a key
+	// step on an array, a step past a leaf, a `*` glob on a fixed object
+	// key, or a `data[*].<column>` the request cannot produce. Details
+	// carry "key", "index", "path", "at" (the segment that failed),
+	// "reason" and, when one is close, "suggestion"; "valid" lists the
+	// keys available where the walk stopped.
+	PULSE_RETURN_PATH_UNKNOWN Code = "PULSE_RETURN_PATH_UNKNOWN"
+
+	// PULSE_RETURN_PATH_UNMATCHED is a WARNING: a `return` include path
+	// that reaches into an open map (operator component maps, test
+	// details, data under a join or crosstab) matched nothing in the
+	// executed Response. Predict accepts any key there because the keys
+	// are knowable only at runtime. Details carry "path".
+	PULSE_RETURN_PATH_UNMATCHED Code = "PULSE_RETURN_PATH_UNMATCHED"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -3097,6 +3124,9 @@ var allCodes = []Code{
 	PULSE_MATRIX_LISTWISE_HEAVY_DROP,
 	PULSE_MATRIX_INSUFFICIENT_N,
 	PULSE_MATRIX_ZERO_VARIANCE,
+	PULSE_RETURN_INVALID,
+	PULSE_RETURN_PATH_UNKNOWN,
+	PULSE_RETURN_PATH_UNMATCHED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

@@ -223,6 +223,38 @@ type PredictResult struct {
 	// carries no matrix or a spec is refused (the refusal is the
 	// predict error).
 	Matrices []MatrixPredict `json:"matrices,omitempty"`
+
+	// Return is the resolved `return` plan — the expanded selection the
+	// runtime will apply, computed by the same resolver it calls.
+	// Omitted when the request carries no `return` block or the block is
+	// refused (the refusal is the predict error).
+	Return *ReturnPlan `json:"return,omitempty"`
+}
+
+// ReturnPlan is a resolved `return` block: the canonical path sets the
+// selection reduces to and a digest identifying it. Include, Exclude and
+// Keep are deduplicated, sorted, and free of paths another one already
+// covers, so equivalent spellings resolve to the same plan and digest.
+type ReturnPlan struct {
+	// Preset is the preset the block resolved from: full, standard,
+	// minimal, or custom for explicit include / exclude without one.
+	Preset string `json:"preset"`
+	// Include is the selected paths (each with its whole subtree).
+	Include []string `json:"include"`
+	// Exclude is the removed paths; exclusion wins over inclusion.
+	Exclude []string `json:"exclude"`
+	// Keep is the nested `warnings` slots retained wherever their parent
+	// object is emitted (unless excluded).
+	Keep []string `json:"keep"`
+	// Precision is the wire float significant-digit count; omitted when
+	// unlimited.
+	Precision int `json:"precision,omitempty"`
+	// Identity reports that the plan changes nothing (the whole
+	// response, unrounded).
+	Identity bool `json:"identity"`
+	// Digest identifies the resolved selection ("rp1:" + sha256 hex);
+	// the preset name does not enter it.
+	Digest string `json:"digest"`
 }
 
 // MatrixPredict is the per-spec predict surface for one entry of

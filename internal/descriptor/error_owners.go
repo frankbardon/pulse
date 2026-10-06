@@ -442,6 +442,11 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
 	errors.PULSE_MATRIX_INSUFFICIENT_N:      ownAllMats,
 	errors.PULSE_MATRIX_ZERO_VARIANCE:       ownAllMats,
+
+	// Response shaping: `return` is a plain request slot, not a feature.
+	errors.PULSE_RETURN_INVALID:        shared,
+	errors.PULSE_RETURN_PATH_UNKNOWN:   shared,
+	errors.PULSE_RETURN_PATH_UNMATCHED: shared,
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

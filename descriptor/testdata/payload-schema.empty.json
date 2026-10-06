@@ -1410,6 +1410,9 @@
             "null"
           ]
         },
+        "return": {
+          "$ref": "#/$defs/Return"
+        },
         "sort": {
           "items": {
             "$ref": "#/$defs/OrderKey"
@@ -1590,6 +1593,44 @@
         "message"
       ],
       "type": "object"
+    },
+    "Return": {
+      "additionalProperties": false,
+      "properties": {
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "precision": {
+          "type": "integer"
+        },
+        "preset": {
+          "$ref": "#/$defs/ReturnPreset"
+        }
+      },
+      "type": "object"
+    },
+    "ReturnPreset": {
+      "enum": [
+        "full",
+        "minimal",
+        "standard"
+      ],
+      "type": "string"
     },
     "RunComponents": {
       "additionalProperties": false,
@@ -1845,4 +1886,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 9d4783bdf07aad8a6f5f7bca0c23c78bd608e6c720f16b51ba7393ffacfcdfbb
+// golden-hash: 5c4558f5cafcfaf1fbbd3143f56f39bd3d85b33115b8f37a78d1b2e46b0c0f24

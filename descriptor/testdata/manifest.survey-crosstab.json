@@ -729,7 +729,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 151,
+    "error_codes_count": 154,
     "error_domains": [
       "CLI",
       "DATA",
@@ -831,6 +831,9 @@
       "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
       "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT",
       "PULSE_REQUEST_UNKNOWN_FIELD",
+      "PULSE_RETURN_INVALID",
+      "PULSE_RETURN_PATH_UNKNOWN",
+      "PULSE_RETURN_PATH_UNMATCHED",
       "PULSE_SHARD_HEADER_INVALID",
       "PULSE_SHARD_MISSING",
       "PULSE_SHARD_RESERVED_NAME",
@@ -2030,4 +2033,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e9766c7f0a3a3bf2274f3b3da2638e89368088d686cb6d017833fc07fdc992e6
+// golden-hash: 8ddb27d95e7e48622bc539fb3808ae2849638e7dccfae3cf684768a06f81c0c2
