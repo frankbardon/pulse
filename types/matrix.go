@@ -17,15 +17,16 @@ type MatrixType string
 
 const (
 	// MAT_COVARIANCE is the covariance matrix of the members:
-	// M2 / (W − ddof), params.ddof ∈ {0, 1} (default 1). Listwise:
-	// a row with any member null is skipped. Weighted under frequency
-	// and probability weights (denominator Σw − ddof).
+	// M2 / (W − ddof), params.ddof ∈ {0, 1} (default 1).
+	// params.missing "listwise" (default: a row with any member null is
+	// skipped) or "pairwise" (each pair over its own rows). Weighted
+	// under frequency and probability weights (denominator Σw − ddof).
 	MAT_COVARIANCE MatrixType = "MAT_COVARIANCE"
 	// MAT_CORRELATION is the Pearson correlation matrix of the members:
 	// C_ij / √(M2_ii·M2_jj), clamped to [−1, 1], the TEST_PEARSON_R
-	// arithmetic. Listwise. A member with zero spread has no defined
-	// correlation: its row and column (diagonal included) are NaN (null
-	// on the wire). Weighted under frequency and probability weights
+	// arithmetic. Listwise or pairwise (params.missing). A member with
+	// zero spread has no defined correlation: its row and column
+	// (diagonal included) are NaN (null on the wire). Weighted under frequency and probability weights
 	// (r is scale-free, so the two kinds agree). No p-values.
 	MAT_CORRELATION MatrixType = "MAT_CORRELATION"
 )
@@ -119,7 +120,8 @@ type MatrixSpec struct {
 	// entries), the VectorSpec.Fields rules.
 	Fields []string `json:"fields,omitempty"`
 	// Params carries the operator's parameters (MAT_COVARIANCE:
-	// {"ddof": 0 | 1}; MAT_CORRELATION: none).
+	// "ddof": 0 | 1; both: "missing": "listwise" | "pairwise",
+	// "max_drop_share": a share in [0, 1], listwise only, no default).
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot
@@ -171,10 +173,13 @@ type MatrixValues struct {
 // MatrixResult is the result of one MatrixSpec. Primary is the
 // operator's matrix (MAT_COVARIANCE: the covariance; MAT_CORRELATION:
 // Pearson r); Auxiliary holds
-// same-shape companion matrices keyed by name; Vectors per-member or
+// same-shape companion matrices keyed by name ("n": the pairwise N,
+// under params.missing "pairwise" only); Vectors per-member or
 // per-pair summaries; Scalars whole-matrix figures (determinant: the
 // determinant of Primary by the reference Cholesky, null when Primary
-// is not positive definite). Warnings are this matrix's diagnostics.
+// is not positive definite). Warnings are this matrix's data-quality
+// diagnostics (PULSE_MATRIX_INSUFFICIENT_N, _ZERO_VARIANCE,
+// _LISTWISE_HEAVY_DROP, _NOT_PSD).
 // GroupKey / GroupHeader identify the group bucket when the request is
 // grouped and are omitted otherwise.
 type MatrixResult struct {

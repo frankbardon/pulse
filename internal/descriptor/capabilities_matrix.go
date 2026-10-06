@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
@@ -13,28 +14,37 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 	// Vector members: integer and float fields, plus packed_bool under
 	// the vector's coerce "binary" (internal/vectors.MemberTypeAllowed).
 	memberTypes := []string{"f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
+	// missing: the missing-data knobs both operators take
+	// (internal/vectors.decodeMissing).
+	missing := []descriptor.Param{
+		{Name: "missing", Type: "enum", Required: false, Default: vectors.MissingListwise, EnumValues: vectors.MissingModes(), Description: "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N)."},
+		{Name: "max_drop_share", Type: "float", Required: false, Description: "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."},
+	}
 	return []descriptor.MatrixMeta{
 		{
 			Name:         string(types.MAT_CORRELATION),
-			Description:  "Pearson correlation matrix of a vector's members (listwise), r clamped to [-1, 1]; a zero-spread member's row and column are null. Weighted under frequency and probability weights. No p-values.",
+			Description:  "Pearson correlation matrix of a vector's members (listwise or pairwise), r clamped to [-1, 1]; a zero-spread member's row and column are null. Weighted under frequency and probability weights. No p-values.",
 			AcceptsTypes: memberTypes,
+			Params:       missing,
 			OutputKeys: descriptor.MatrixOutputKeys{
-				Primary: "correlation",
-				Scalars: []string{"determinant"},
+				Primary:   "correlation",
+				Auxiliary: []string{"n"},
+				Scalars:   []string{"determinant"},
 			},
 			Streamable: types.MAT_CORRELATION.Streamable(),
 			Mergeable:  types.MAT_CORRELATION.Mergeable(),
 		},
 		{
 			Name:         string(types.MAT_COVARIANCE),
-			Description:  "Covariance matrix of a vector's members (listwise): sample covariance by default, weighted under frequency and probability weights.",
+			Description:  "Covariance matrix of a vector's members (listwise or pairwise): sample covariance by default, weighted under frequency and probability weights.",
 			AcceptsTypes: memberTypes,
-			Params: []descriptor.Param{
+			Params: append([]descriptor.Param{
 				{Name: "ddof", Type: "enum", Required: false, Default: "1", EnumValues: []string{"0", "1"}, Description: "Delta degrees of freedom: the denominator is Σw − ddof (n − ddof unweighted)."},
-			},
+			}, missing...),
 			OutputKeys: descriptor.MatrixOutputKeys{
-				Primary: "covariance",
-				Scalars: []string{"determinant"},
+				Primary:   "covariance",
+				Auxiliary: []string{"n"},
+				Scalars:   []string{"determinant"},
 			},
 			Streamable: types.MAT_COVARIANCE.Streamable(),
 			Mergeable:  types.MAT_COVARIANCE.Mergeable(),
@@ -68,7 +78,7 @@ func matrixCapability() descriptor.MatrixCapability {
 		Encodings:       encs,
 		DefaultEncoding: string(types.MatrixEncodingFull),
 		Kinds:           kinds,
-		MissingModes:    []string{"listwise"},
+		MissingModes:    vectors.MissingModes(),
 		MergeBlockSize:  linalg.MergeBlockSize,
 		Limitations: []string{
 			"Matrices are computed over the whole filtered row set; a grouped request still returns one ungrouped matrix per spec.",

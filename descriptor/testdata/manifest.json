@@ -5741,7 +5741,7 @@
     "matrices": [
       {
         "name": "MAT_CORRELATION",
-        "description": "Pearson correlation matrix of a vector's members (listwise), r clamped to [-1, 1]; a zero-spread member's row and column are null. Weighted under frequency and probability weights. No p-values.",
+        "description": "Pearson correlation matrix of a vector's members (listwise or pairwise), r clamped to [-1, 1]; a zero-spread member's row and column are null. Weighted under frequency and probability weights. No p-values.",
         "accepts_types": [
           "f32",
           "f64",
@@ -5752,9 +5752,30 @@
           "u64",
           "u8"
         ],
-        "params": null,
+        "params": [
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N).",
+            "enum_values": [
+              "listwise",
+              "pairwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          }
+        ],
         "output_keys": {
           "primary": "correlation",
+          "auxiliary": [
+            "n"
+          ],
           "scalars": [
             "determinant"
           ]
@@ -5772,7 +5793,7 @@
       },
       {
         "name": "MAT_COVARIANCE",
-        "description": "Covariance matrix of a vector's members (listwise): sample covariance by default, weighted under frequency and probability weights.",
+        "description": "Covariance matrix of a vector's members (listwise or pairwise): sample covariance by default, weighted under frequency and probability weights.",
         "accepts_types": [
           "f32",
           "f64",
@@ -5794,10 +5815,30 @@
               "0",
               "1"
             ]
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N).",
+            "enum_values": [
+              "listwise",
+              "pairwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
           }
         ],
         "output_keys": {
           "primary": "covariance",
+          "auxiliary": [
+            "n"
+          ],
           "scalars": [
             "determinant"
           ]
@@ -6186,7 +6227,7 @@
         ]
       }
     ],
-    "error_codes_count": 275,
+    "error_codes_count": 279,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6323,9 +6364,13 @@
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_MATRIX_HOST_CONFLICT",
+      "PULSE_MATRIX_INSUFFICIENT_N",
+      "PULSE_MATRIX_LISTWISE_HEAVY_DROP",
+      "PULSE_MATRIX_NOT_PSD",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
       "PULSE_MATRIX_UNSUPPORTED_SOURCE",
+      "PULSE_MATRIX_ZERO_VARIANCE",
       "PULSE_MULTIPLICITY_CONFLICT",
       "PULSE_MULTIPLICITY_INVALID",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
@@ -8069,11 +8114,11 @@
       },
       {
         "name": "op-mat-correlation",
-        "description": "Pearson correlation matrix of a vector's numeric members (listwise), weighted under frequency and probability weights; one MatrixResult per spec, no p-values."
+        "description": "Pearson correlation matrix of a vector's numeric members (listwise or pairwise), weighted under frequency and probability weights; one MatrixResult per spec, no p-values."
       },
       {
         "name": "op-mat-covariance",
-        "description": "Covariance matrix of a vector's numeric members (listwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec."
+        "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec."
       },
       {
         "name": "op-overlay-chisq-col",
@@ -9234,7 +9279,8 @@
         "square_symmetric"
       ],
       "missing_modes": [
-        "listwise"
+        "listwise",
+        "pairwise"
       ],
       "merge_block_size": 4096,
       "limitations": [
@@ -11861,4 +11907,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5609307f0c0dcb3787fc1d7129ed1e0948f1d67e3b62a38d645b44b476b31bf6
+// golden-hash: 8f05a357d38337c38d0ec4da430032e9746a7c6ba9bb70d9e9465e142c9830d7

@@ -320,8 +320,13 @@ schema cannot say, predict and the runtime enforce identically before
 any record is read: exactly one of `vector` / `fields`; a `vector` a
 `vectors` entry defines (else `PULSE_VECTOR_UNKNOWN`); inline `fields`
 follow the vector rules; result names are unique; `params` are the
-operator's own (`MAT_COVARIANCE`: `ddof` 0 or 1; `MAT_CORRELATION`:
-none). Contract:
+operator's own (`MAT_COVARIANCE`: `ddof` 0 or 1; both: `missing`
+`listwise` (default) or `pairwise`, `max_drop_share` in [0, 1],
+listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+the same shape and encoding holding each pair's row count.
+`warnings` are `{code, message, details}` entries
+(`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
+`_LISTWISE_HEAVY_DROP`, `_NOT_PSD`). Contract:
 `.claude/reference/matrix-and-vectors.md`.
 
 ## Undefined figures

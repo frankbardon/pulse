@@ -3103,4 +3103,44 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_NOT_PSD: {
+		Message: "A pairwise matrix (`params.missing` = `pairwise`) is not positive semidefinite: each pair was computed over its own rows, and together the figures are inconsistent — no single data set produces them. Detected with the reference Cholesky on the matrix scaled by its diagonal, with a 1e-10 tolerance; details name the failing pivot (`pivot` axis index, `member`). The matrix is returned unchanged; downstream methods that need a valid covariance or correlation matrix will fail or mislead on it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"matrices", "*", "params", "missing"},
+				Hint:   "Use `missing: \"listwise\"` so every pair shares the same complete rows (a listwise matrix is always positive semidefinite).",
+			},
+		},
+	},
+	PULSE_MATRIX_LISTWISE_HEAVY_DROP: {
+		Message: "Listwise deletion dropped more of the filter-passing rows than `params.max_drop_share` allows: every row with any member null is dropped, so the matrix describes a smaller, possibly unrepresentative subset. Details carry `dropped`, `rows`, `share` and `max_drop_share`. Emitted only when `max_drop_share` is set.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices", "*", "params", "max_drop_share"},
+				Hint:   "Switch to `missing: \"pairwise\"` (and drop `max_drop_share`) to keep every row a pair can use, or remove the member with the most nulls from the vector.",
+			},
+		},
+	},
+	PULSE_MATRIX_INSUFFICIENT_N: {
+		Message: "A matrix or, under pairwise deletion, one or more pairs rest on fewer than 2 rows or on no weight mass, so their cells are undefined (null) or degenerate. Details: `scope` `matrix` with `n` and `sum_weights`, or `scope` `pairs` with `pairs` [{row, col, n}].",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"filters"},
+				Hint:   "Widen the filters (or the group bucket) so more rows reach the matrix, or drop the sparse member from the vector.",
+			},
+		},
+	},
+	PULSE_MATRIX_ZERO_VARIANCE: {
+		Message: "One or more members have zero spread over the rows that reach them (details `members`): every correlation touching such a member is null, its covariance row and column are 0, and the determinant is null.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Drop the constant member from the vector or the inline `fields`.",
+			},
+		},
+	},
 }

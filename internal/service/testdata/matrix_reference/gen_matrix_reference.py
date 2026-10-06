@@ -5,8 +5,8 @@
 #   "statsmodels==0.14.5",
 # ]
 # ///
-"""Reference generator for MAT_COVARIANCE (U16 E1-S2) and
-MAT_CORRELATION (U16 E3-S1).
+"""Reference generator for MAT_COVARIANCE (U16 E1-S2),
+MAT_CORRELATION (U16 E3-S1) and their pairwise mode (U16 E3-S2).
 
 Writes ../../matrix_reference_values_test.go (package service): the
 fixture rows; per (weight column, ddof), the covariance matrix and its
@@ -34,6 +34,15 @@ with any member null is dropped; Cov = M2_w / (Σw − ddof)):
     DescrStatsW(rows, weights=w).corrcoef weighted (r is scale-free, so
     ddof and the weight kind cancel), cross-checked against the
     covariance normalised by its diagonal. Determinant: numpy.linalg.det.
+
+Pairwise (params.missing "pairwise"): every cell (i, j) applies the
+same reference to the rows where BOTH x_i and x_j are present (the
+diagonal: the rows where x_i is present) — numpy.cov / DescrStatsW.cov
+on that two-column subset for the covariance, numpy.corrcoef /
+DescrStatsW.corrcoef on it for r (each pair's own variances, as
+pandas.DataFrame.corr does). The pairwise N is that row count. The
+determinant is numpy.linalg.det when numpy.linalg.cholesky succeeds,
+NaN (null) otherwise.
 
 A row of weight 0 is kept (it counts toward n and adds no mass, which
 neither reference distinguishes from dropping it).
@@ -91,6 +100,58 @@ def corr(weight):
     return c
 
 
+def pair_rows(i, j):
+    keep = [r for r in ROWS if r[i] is not None and r[j] is not None]
+    x = np.array([[r[i], r[j]] for r in keep], dtype=float)
+    f = np.array([r[3] for r in keep], dtype=float)
+    p = np.array([r[4] for r in keep], dtype=float)
+    return x, f, p
+
+
+def pair_weights(weight, f, p):
+    return None if weight is None else (f if weight == "f" else p)
+
+
+def pairwise_cov(weight, ddof):
+    c = np.zeros((3, 3))
+    for i in range(3):
+        for j in range(3):
+            x, f, p = pair_rows(i, j)
+            w = pair_weights(weight, f, p)
+            if w is None:
+                c[i, j] = np.cov(x, rowvar=False, ddof=ddof)[0, 1]
+            else:
+                c[i, j] = DescrStatsW(x, weights=w, ddof=ddof).cov[0, 1]
+    return c
+
+
+def pairwise_corr(weight):
+    c = np.eye(3)
+    for i in range(3):
+        for j in range(3):
+            if i == j:
+                continue
+            x, f, p = pair_rows(i, j)
+            w = pair_weights(weight, f, p)
+            if w is None:
+                c[i, j] = np.corrcoef(x, rowvar=False)[0, 1]
+            else:
+                c[i, j] = DescrStatsW(x, weights=w).corrcoef[0, 1]
+    return c
+
+
+def pairwise_n():
+    return [[len(pair_rows(i, j)[0]) for j in range(3)] for i in range(3)]
+
+
+def det_or_nan(c):
+    try:
+        np.linalg.cholesky(c)
+    except np.linalg.LinAlgError:
+        return None
+    return np.linalg.det(c)
+
+
 def lit(v):
     if v is None:
         return "math.NaN()"
@@ -122,6 +183,21 @@ for weight in (None, "f", "p"):
     det = np.linalg.det(c)
     rows = ", ".join("{" + ", ".join(repr(float(v)) for v in row) + "}" for row in c)
     out.append("\t{%s, [3][3]float64{%s}, %r},\n" % ('"' + (weight or "") + '"', rows, float(det)))
+out.append("}\n")
+
+out.append("\n// matrixRefPairwiseN: the pairwise N (rows where both members are present).\n")
+out.append("var matrixRefPairwiseN = [3][3]int64{" + ", ".join("{" + ", ".join(str(v) for v in row) + "}" for row in pairwise_n()) + "}\n\n")
+out.append("// matrixRefPairwiseCases: operator, weight column (\"\" = unweighted), ddof\n// (covariance only), pairwise matrix, determinant (NaN = not positive definite).\n")
+out.append("var matrixRefPairwiseCases = []struct {\n\ttyp    string\n\tweight string\n\tddof   int\n\tm      [3][3]float64\n\tdet    float64\n}{\n")
+for weight in (None, "f", "p"):
+    for ddof in (0, 1):
+        c = pairwise_cov(weight, ddof)
+        rows = ", ".join("{" + ", ".join(repr(float(v)) for v in row) + "}" for row in c)
+        out.append("\t{%s, %s, %d, [3][3]float64{%s}, %s},\n" % ('"MAT_COVARIANCE"', '"' + (weight or "") + '"', ddof, rows, lit(det_or_nan(c))))
+for weight in (None, "f", "p"):
+    c = pairwise_corr(weight)
+    rows = ", ".join("{" + ", ".join(repr(float(v)) for v in row) + "}" for row in c)
+    out.append("\t{%s, %s, 0, [3][3]float64{%s}, %s},\n" % ('"MAT_CORRELATION"', '"' + (weight or "") + '"', rows, lit(det_or_nan(c))))
 out.append("}\n")
 
 dest = pathlib.Path(__file__).resolve().parent.parent.parent / "matrix_reference_values_test.go"

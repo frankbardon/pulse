@@ -436,6 +436,12 @@ var errorOwners = map[errors.Code][]string{
 	// raises them alike.
 	errors.PULSE_MATRIX_UNSUPPORTED_SOURCE: ownAllMats,
 	errors.PULSE_MATRIX_HOST_CONFLICT:      ownAllMats,
+	// The per-matrix data-quality warnings ride MatrixResult.Warnings,
+	// which only a MAT_ operator emits.
+	errors.PULSE_MATRIX_NOT_PSD:             ownAllMats,
+	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
+	errors.PULSE_MATRIX_INSUFFICIENT_N:      ownAllMats,
+	errors.PULSE_MATRIX_ZERO_VARIANCE:       ownAllMats,
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

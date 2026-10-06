@@ -1925,9 +1925,13 @@ pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
 pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX_HOST_CONFLICT"
+pulse/errors: const PULSE_MATRIX_INSUFFICIENT_N pulse/errors.Code = "PULSE_MATRIX_INSUFFICIENT_N"
+pulse/errors: const PULSE_MATRIX_LISTWISE_HEAVY_DROP pulse/errors.Code = "PULSE_MATRIX_LISTWISE_HEAVY_DROP"
+pulse/errors: const PULSE_MATRIX_NOT_PSD pulse/errors.Code = "PULSE_MATRIX_NOT_PSD"
 pulse/errors: const PULSE_MATRIX_SHAPE_MISMATCH pulse/errors.Code = "PULSE_MATRIX_SHAPE_MISMATCH"
 pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SINGULAR"
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
+pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
 pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
 pulse/errors: const PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
@@ -4103,4 +4107,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 03921795fd06f493f919a11c9b47dda6ea55d01c1c033f135fa4350636bf672e
+// golden-hash: 8d940b159eb57df7f15c6e74387ce4861e394a0ddad80e6d57db9631eb1d69c5

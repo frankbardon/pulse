@@ -32,6 +32,11 @@ type matrixSlot struct {
 	weight *types.WeightSpec
 	state  *BlockCoMoments
 	x      []float64
+	// dropped counts the filter-passing rows listwise deletion dropped
+	// (a null member). An integer, summed across partitions at Merge,
+	// so it is worker-invariant like the blocks. Always 0 under
+	// pairwise.
+	dropped int64
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
@@ -59,7 +64,11 @@ func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *Exte
 	}
 	slots := make([]*matrixSlot, len(plans))
 	for i, plan := range plans {
-		st, err := NewBlockCoMoments(len(plan.Members.Members), linalg.Listwise)
+		mode := linalg.Listwise
+		if plan.Pairwise {
+			mode = linalg.Pairwise
+		}
+		st, err := NewBlockCoMoments(len(plan.Members.Members), mode)
 		if err != nil {
 			return nil, err
 		}
@@ -74,18 +83,24 @@ func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *Exte
 }
 
 // UpdateRow folds one filter-passing record. A null member is NaN
-// (missing: listwise skips the row); on a weighted slot an invalid row
+// (missing: listwise skips the row and counts it dropped, pairwise
+// skips it per pair); on a weighted slot an invalid row
 // weight (null, NaN / ±Inf, negative, fractional under frequency) is
 // handed to the co-moment as NaN, which counts it in n_weight_invalid
 // and skips the row. A weight of 0 is valid: the row counts toward n
 // and adds no mass. The field argument is ignored (BlockMerger shape).
 func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
+	null := false
 	for i, f := range m.plan.Members.Members {
 		v, ok := r.NumericValue(f)
 		if !ok {
 			v = math.NaN()
 		}
+		null = null || math.IsNaN(v)
 		m.x[i] = v
+	}
+	if null && !m.plan.Pairwise {
+		m.dropped++
 	}
 	w := 1.0
 	if m.weight != nil {
@@ -118,12 +133,19 @@ func (m *matrixSlot) result() (types.MatrixResult, error) {
 			"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
 	}
 	primary := fin(cm, m.plan)
-	return types.MatrixResult{
-		Name:    m.plan.Name,
-		Type:    m.plan.Type,
-		Primary: m.values(primary),
-		Scalars: map[string]float64{"determinant": determinantSPD(primary)},
-	}, nil
+	res := types.MatrixResult{
+		Name:     m.plan.Name,
+		Type:     m.plan.Type,
+		Primary:  m.values(primary.At),
+		Scalars:  map[string]float64{"determinant": determinantSPD(primary)},
+		Warnings: m.warnings(cm, primary),
+	}
+	if m.plan.Pairwise {
+		res.Auxiliary = map[string]*types.MatrixValues{
+			"n": m.values(func(i, j int) float64 { return float64(cm.PairN(i, j)) }),
+		}
+	}
+	return res, nil
 }
 
 // matrixFinalizer turns a slot's merged co-moment state into the
@@ -154,7 +176,8 @@ func finalizeCorrelation(cm *linalg.CoMoment, _ vectors.Matrix) *linalg.Sym {
 
 // values renders a square symmetric matrix over the slot's members in
 // its encoding: full rows, or the upper triangle (row r from column r).
-func (m *matrixSlot) values(s *linalg.Sym) *types.MatrixValues {
+// at reads cell (r, c).
+func (m *matrixSlot) values(at func(r, c int) float64) *types.MatrixValues {
 	members := m.plan.Members.Members
 	p := len(members)
 	out := &types.MatrixValues{
@@ -174,7 +197,7 @@ func (m *matrixSlot) values(s *linalg.Sym) *types.MatrixValues {
 		}
 		row := make([]float64, 0, p-start)
 		for c := start; c < p; c++ {
-			row = append(row, s.At(r, c))
+			row = append(row, at(r, c))
 		}
 		out.Values[r] = row
 	}
@@ -285,6 +308,7 @@ func (m *MatrixSlots) Merge(o *MatrixSlots) error {
 		if err := MergeBlockMerger(s, o.slots[i]); err != nil {
 			return err
 		}
+		s.dropped += o.slots[i].dropped
 	}
 	return nil
 }

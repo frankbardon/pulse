@@ -1,6 +1,6 @@
 ---
 name: op-mat-covariance
-description: Covariance matrix of a vector's numeric members (listwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec.
+description: Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec.
 kind: operator
 category: MAT
 operator: MAT_COVARIANCE
@@ -9,23 +9,25 @@ applies_to: process, compose, predict
 examples_tags: [matrix, covariance]
 ---
 
-Slot: `matrices[i]` `{type, vector | fields, params, weight, encoding}`; members come from `vectors[]` (by name) or inline `fields`.
+Slot: `matrices[i]` `{type, vector | fields, params, weight, encoding}`; members: `vectors[]` or inline `fields`.
 
 ## Params
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `ddof` | 0 \| 1 | `1` | Denominator Σw − ddof. |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise: per-pair rows. |
+| `max_drop_share` | 0–1 | none | Listwise drop-share warning. |
 | `weight` | slot weight | inherited | Both kinds; `null` opts out. |
 | `encoding` | `full` \| `upper` | `full` | `upper`: row r holds p − r cells. |
 
 ## Inputs
 
-Integer / float members; `packed_bool` under the vector's `coerce: "binary"`.
+Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`Response.Matrices[i]`: `primary` `square_symmetric` covariance (`row_keys` = members in axis order), `scalars.determinant` (null unless positive definite). Undefined cells are null.
+`primary` covariance (`row_keys` = members), `scalars.determinant` (null unless PD), pairwise `auxiliary.n`, `warnings`. Undefined cells null.
 
 ## Components
 
@@ -33,10 +35,9 @@ No `Response.Components` entry; every figure rides `Response.Matrices[i]`.
 
 ## Gotchas
 
-- Listwise: any null member drops the row.
-- A row of weight 0 counts but adds no mass; an invalid weight skips the row.
-- Unknown `vector` → `PULSE_VECTOR_UNKNOWN`; `vector` and `fields` together → `SERVICE_VALIDATION`.
-- Ungrouped; bitwise worker-count invariant; streamed: at terminal flush.
+- Warnings: `PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE` (row stays 0), `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` (pairwise).
+- Weight 0 counts, adds no mass; invalid weight skips the row.
+- Bitwise worker-count invariant; streamed: at terminal flush.
 - `joins` / chain stage ≥ 1 → `PULSE_MATRIX_UNSUPPORTED_SOURCE`; `crosstab` → `PULSE_MATRIX_HOST_CONFLICT`.
 
 ## See

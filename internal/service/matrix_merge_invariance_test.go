@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/linalg"
@@ -28,21 +31,26 @@ import (
 // asserted admitted by the merge gate and bit-equal to it.
 
 // matrixInvarianceVariant is one request shape of the gate.
-// typ is the operator (MAT_COVARIANCE when empty).
+// typ is the operator (MAT_COVARIANCE when empty); pairwise selects
+// params.missing "pairwise".
 type matrixInvarianceVariant struct {
 	weighted    bool
 	withVehicle bool
 	typ         types.MatrixType
+	pairwise    bool
 }
 
 // matrixInvarianceVariants: every request shape for every built-in
-// matrix operator.
+// matrix operator, listwise and pairwise.
 var matrixInvarianceVariants = func() []matrixInvarianceVariant {
 	var out []matrixInvarianceVariant
 	for _, typ := range types.AllMatrixTypes() {
-		for _, v := range []matrixInvarianceVariant{{false, false, ""}, {true, false, ""}, {false, true, ""}, {true, true, ""}} {
-			v.typ = typ
-			out = append(out, v)
+		for _, pairwise := range []bool{false, true} {
+			for _, v := range []matrixInvarianceVariant{{false, false, "", false}, {true, false, "", false}, {false, true, "", false}, {true, true, "", false}} {
+				v.typ = typ
+				v.pairwise = pairwise
+				out = append(out, v)
+			}
 		}
 	}
 	return out
@@ -56,11 +64,24 @@ func (v matrixInvarianceVariant) matrixType() types.MatrixType {
 }
 
 func (v matrixInvarianceVariant) String() string {
-	return fmt.Sprintf("%s_weighted_%v_vehicle_%v", v.matrixType(), v.weighted, v.withVehicle)
+	return fmt.Sprintf("%s_%s_weighted_%v_vehicle_%v", v.matrixType(), v.mode(), v.weighted, v.withVehicle)
+}
+
+func (v matrixInvarianceVariant) mode() string {
+	if v.pairwise {
+		return "pairwise"
+	}
+	return "listwise"
 }
 
 func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Request {
 	spec := types.MatrixSpec{Name: "mat", Type: v.matrixType(), Fields: []string{"x1", "x2", "x3"}}
+	// Listwise carries max_drop_share 0, so its integer drop count —
+	// summed across partitions — rides the compared warnings.
+	spec.Params = json.RawMessage(`{"max_drop_share": 0}`)
+	if v.pairwise {
+		spec.Params = json.RawMessage(`{"missing": "pairwise"}`)
+	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
 	}
@@ -75,11 +96,13 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 }
 
 // matrixRun is everything a parallel arm could get wrong: the matrix
-// bits (every cell and the determinant), the warnings, and the run
-// counters.
+// bits (every cell and the determinant), the pairwise N (auxiliary.n),
+// the response and matrix warnings, and the run counters.
 type matrixRun struct {
 	words     []uint64
+	auxN      []uint64
 	warnings  []*types.ResponseWarning
+	matWarns  []*types.ResponseWarning
 	run       types.RunComponents
 	instances int64
 }
@@ -106,7 +129,22 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 		}
 	}
 	words = append(words, math.Float64bits(m.Scalars["determinant"]))
-	out := matrixRun{words: words, warnings: resp.Warnings, instances: stats.instancesWithRows.Load()}
+	var auxN []uint64
+	if n := m.Auxiliary["n"]; n != nil {
+		for _, row := range n.Values {
+			for _, v := range row {
+				auxN = append(auxN, math.Float64bits(v))
+			}
+		}
+	}
+	pairwise := strings.Contains(string(req.Matrices[0].Params), "pairwise")
+	if (len(auxN) > 0) != pairwise {
+		t.Fatalf("auxiliary.n present = %v, pairwise = %v", len(auxN) > 0, pairwise)
+	}
+	if !pairwise && findWarning(m, errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP) == nil {
+		t.Fatalf("listwise variant carries no PULSE_MATRIX_LISTWISE_HEAVY_DROP (warnings %v)", matWarningCodes(m))
+	}
+	out := matrixRun{words: words, auxN: auxN, warnings: resp.Warnings, matWarns: m.Warnings, instances: stats.instancesWithRows.Load()}
 	if resp.Components == nil || resp.Components.Run == nil {
 		t.Fatalf("Process(decode=%d, shard=%d): no Components.Run", decodeWorkers, shardWorkers)
 	}
@@ -124,8 +162,14 @@ func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
 	if i := firstWordDiff(got.words, want.words); i != -1 {
 		t.Errorf("%s: matrix differs from serial at word %d", label, i)
 	}
+	if i := firstWordDiff(got.auxN, want.auxN); i != -1 || len(got.auxN) != len(want.auxN) {
+		t.Errorf("%s: auxiliary.n differs from serial at word %d", label, i)
+	}
 	if !reflect.DeepEqual(got.warnings, want.warnings) {
 		t.Errorf("%s: warnings %v, serial %v", label, got.warnings, want.warnings)
+	}
+	if !reflect.DeepEqual(got.matWarns, want.matWarns) {
+		t.Errorf("%s: matrix warnings %v, serial %v", label, got.matWarns, want.matWarns)
 	}
 	if got.run != want.run {
 		t.Errorf("%s: Components.Run %+v, serial %+v", label, got.run, want.run)
@@ -140,7 +184,11 @@ func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
 func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint64 {
 	weighted := v.weighted
 	t.Helper()
-	c, err := linalg.NewCoMoment(3, linalg.Listwise)
+	mode := linalg.Listwise
+	if v.pairwise {
+		mode = linalg.Pairwise
+	}
+	c, err := linalg.NewCoMoment(3, mode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,8 +241,8 @@ func assertMatrixCloseToReference(t *testing.T, got matrixRun, ref []uint64) {
 // archive equals its single-file twin bitwise; a multi-shard archive
 // equals its single-file twin to tolerance only (block numbering
 // restarts per shard — .claude/reference/matrix-and-vectors.md,
-// Blocked merge-tree contract). Listwise only: pairwise lands with
-// E3-S2 and extends this gate.
+// Blocked merge-tree contract). Listwise and pairwise (params.missing),
+// the pairwise N (auxiliary.n) and the matrix warnings included.
 func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping the 100K-record matrix worker-invariance gate in -short mode")
@@ -309,8 +357,8 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 		}
 		for _, typ := range types.AllMatrixTypes() {
 			for _, weighted := range []bool{false, true} {
-				alone := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, false, typ}), 0, 0)
-				beside := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, true, typ}), 0, 0)
+				alone := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, false, typ, false}), 0, 0)
+				beside := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, true, typ, false}), 0, 0)
 				if i := firstWordDiff(alone.words, beside.words); i != -1 {
 					t.Errorf("%s weighted=%v: matrix-only differs from matrix-beside-aggregation at word %d", typ, weighted, i)
 				}

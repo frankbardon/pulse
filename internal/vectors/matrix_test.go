@@ -63,6 +63,10 @@ func TestResolveMatrices_Refusals(t *testing.T) {
 		{"ddof out of range", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"ddof": 2}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"unknown param", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"dof": 1}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"correlation takes no ddof", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"ddof": 1}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"unknown missing mode", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"missing": "casewise"}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"max_drop_share above 1", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"max_drop_share": 1.5}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"max_drop_share negative", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"max_drop_share": -0.1}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"max_drop_share under pairwise", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"missing": "pairwise", "max_drop_share": 0.2}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"undefined vector", []types.MatrixSpec{{Type: cov, Vector: "w"}}, vec, nil, errors.PULSE_VECTOR_UNKNOWN, ""},
 		{"inline categorical member", []types.MatrixSpec{{Type: cov, Fields: []string{"region"}}}, nil, nil, errors.PULSE_VECTOR_MEMBER_TYPE, ""},
 		{"vector refusal wins first", []types.MatrixSpec{{Type: "MAT_NOPE", Vector: "v"}}, []types.VectorSpec{{Name: "v", Pattern: "^nothing$"}}, nil, errors.PULSE_VECTOR_EMPTY, ""},
@@ -80,6 +84,45 @@ func TestResolveMatrices_Refusals(t *testing.T) {
 				if err.Details["vector"] != "w" || err.Details["slot"] != "matrices[0].vector" || !slices.Equal(err.Details["defined"].([]string), []string{"v"}) {
 					t.Errorf("details = %v", err.Details)
 				}
+			}
+		})
+	}
+}
+
+// TestResolveMatrices_MissingParams: params.missing and
+// params.max_drop_share decode on both operators; listwise is the
+// default and max_drop_share has none.
+func TestResolveMatrices_MissingParams(t *testing.T) {
+	cases := []struct {
+		typ      types.MatrixType
+		params   string
+		pairwise bool
+		share    float64 // -1 = unset
+		ddof     int
+	}{
+		{types.MAT_COVARIANCE, ``, false, -1, 1},
+		{types.MAT_CORRELATION, ``, false, -1, 0},
+		{types.MAT_COVARIANCE, `{"missing": "pairwise"}`, true, -1, 1},
+		{types.MAT_CORRELATION, `{"missing": "pairwise"}`, true, -1, 0},
+		{types.MAT_COVARIANCE, `{"missing": "listwise", "max_drop_share": 0.25, "ddof": 0}`, false, 0.25, 0},
+		{types.MAT_CORRELATION, `{"max_drop_share": 0}`, false, 0, 0},
+	}
+	for _, c := range cases {
+		t.Run(string(c.typ)+c.params, func(t *testing.T) {
+			req := &types.Request{Matrices: []types.MatrixSpec{{Type: c.typ, Fields: []string{"q_1", "q_2"}, Params: json.RawMessage(c.params)}}}
+			got, err := ResolveMatrices(req, testSchema(), nil)
+			if err != nil {
+				t.Fatalf("unexpected refusal: %v", err)
+			}
+			m := got[0]
+			if m.Pairwise != c.pairwise || m.DDOF != c.ddof {
+				t.Errorf("pairwise=%v ddof=%d, want %v %d", m.Pairwise, m.DDOF, c.pairwise, c.ddof)
+			}
+			switch {
+			case c.share < 0 && m.MaxDropShare != nil:
+				t.Errorf("max_drop_share = %v, want unset", *m.MaxDropShare)
+			case c.share >= 0 && (m.MaxDropShare == nil || *m.MaxDropShare != c.share):
+				t.Errorf("max_drop_share = %v, want %v", m.MaxDropShare, c.share)
 			}
 		})
 	}

@@ -2567,6 +2567,34 @@ const (
 	// (details "host" = "crosstab", "matrices"). Refused identically by
 	// predict and the runtime before the crosstab dispatch.
 	PULSE_MATRIX_HOST_CONFLICT Code = "PULSE_MATRIX_HOST_CONFLICT"
+
+	// PULSE_MATRIX_NOT_PSD is a per-matrix WARNING (MatrixResult.Warnings,
+	// params.missing "pairwise" only): the pairwise matrix, scaled by its
+	// diagonal, is not positive semidefinite — the reference Cholesky
+	// fails even with a 1e-10 diagonal tolerance, so no data set has
+	// these pairwise figures. Detection only; nothing is repaired.
+	// Details carry "pivot" (axis index), "member", "checked" (members
+	// judged) and "tolerance".
+	PULSE_MATRIX_NOT_PSD Code = "PULSE_MATRIX_NOT_PSD"
+
+	// PULSE_MATRIX_LISTWISE_HEAVY_DROP is a per-matrix WARNING: listwise
+	// deletion dropped a larger share of the filter-passing rows than
+	// params.max_drop_share allows (no default; never emitted without
+	// it). Details carry "dropped", "rows", "share", "max_drop_share".
+	PULSE_MATRIX_LISTWISE_HEAVY_DROP Code = "PULSE_MATRIX_LISTWISE_HEAVY_DROP"
+
+	// PULSE_MATRIX_INSUFFICIENT_N is a per-matrix WARNING: the matrix
+	// (scope "matrix": details "n", "sum_weights") or, under pairwise,
+	// one or more pairs (scope "pairs": details "pairs" [{row, col, n}])
+	// have fewer than 2 rows or no weight mass, so their cells are
+	// undefined (null) or degenerate.
+	PULSE_MATRIX_INSUFFICIENT_N Code = "PULSE_MATRIX_INSUFFICIENT_N"
+
+	// PULSE_MATRIX_ZERO_VARIANCE is a per-matrix WARNING: one or more
+	// members have zero spread over the rows that reach them (details
+	// "members"), so every correlation touching them is null and their
+	// covariance row and column are 0.
+	PULSE_MATRIX_ZERO_VARIANCE Code = "PULSE_MATRIX_ZERO_VARIANCE"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -3065,6 +3093,10 @@ var allCodes = []Code{
 	PULSE_VECTOR_UNREFERENCED,
 	PULSE_MATRIX_UNSUPPORTED_SOURCE,
 	PULSE_MATRIX_HOST_CONFLICT,
+	PULSE_MATRIX_NOT_PSD,
+	PULSE_MATRIX_LISTWISE_HEAVY_DROP,
+	PULSE_MATRIX_INSUFFICIENT_N,
+	PULSE_MATRIX_ZERO_VARIANCE,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

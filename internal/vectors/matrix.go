@@ -30,16 +30,43 @@ type Matrix struct {
 	Encoding types.MatrixEncoding
 	// DDOF is MAT_COVARIANCE's delta degrees of freedom (default 1).
 	DDOF int
+	// Pairwise reports params.missing "pairwise": each pair is computed
+	// over the rows where both members are present. False is the
+	// default "listwise": a row with any member null is dropped.
+	Pairwise bool
+	// MaxDropShare is params.max_drop_share (listwise only; no
+	// default): when the share of filter-passing rows listwise drops
+	// exceeds it, the result carries PULSE_MATRIX_LISTWISE_HEAVY_DROP.
+	// Nil when unset.
+	MaxDropShare *float64
+}
+
+// Missing-data modes (params.missing).
+const (
+	MissingListwise = "listwise"
+	MissingPairwise = "pairwise"
+)
+
+// MissingModes returns the params.missing values, default first.
+func MissingModes() []string { return []string{MissingListwise, MissingPairwise} }
+
+// missingParams are the missing-data knobs every matrix operator takes.
+type missingParams struct {
+	Missing      *string  `json:"missing"`
+	MaxDropShare *float64 `json:"max_drop_share"`
 }
 
 // covarianceParams is MAT_COVARIANCE's params object.
 type covarianceParams struct {
 	DDOF *int `json:"ddof"`
+	missingParams
 }
 
-// correlationParams is MAT_CORRELATION's params object: it takes none
-// yet, so any key is refused (strict decode).
-type correlationParams struct{}
+// correlationParams is MAT_CORRELATION's params object: the
+// missing-data knobs only, so any other key is refused (strict decode).
+type correlationParams struct {
+	missingParams
+}
 
 // ResolveMatrices resolves req.Matrices against schema: first
 // req.Vectors (Resolve — its refusal wins), then every matrix spec in
@@ -139,16 +166,17 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.CodedError {
 	raw := bytes.TrimSpace(spec.Params)
 	empty := len(raw) == 0 || bytes.Equal(raw, []byte("null"))
+	if spec.Type == types.MAT_COVARIANCE {
+		m.DDOF = 1
+	}
+	if empty {
+		return nil
+	}
+	var miss missingParams
 	switch spec.Type {
 	case types.MAT_COVARIANCE:
-		m.DDOF = 1
-		if empty {
-			return nil
-		}
 		var p covarianceParams
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&p); err != nil {
+		if err := decodeStrict(raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if p.DDOF != nil {
@@ -158,18 +186,52 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			}
 			m.DDOF = *p.DDOF
 		}
+		miss = p.missingParams
 	case types.MAT_CORRELATION:
-		if empty {
-			return nil
-		}
 		var p correlationParams
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&p); err != nil {
+		if err := decodeStrict(raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
+		miss = p.missingParams
+	}
+	return decodeMissing(at, miss, m)
+}
+
+// decodeMissing applies params.missing / params.max_drop_share: missing
+// is "listwise" (default) or "pairwise"; max_drop_share is a share in
+// [0, 1] and applies to listwise only (pairwise drops no whole row).
+func decodeMissing(at string, p missingParams, m *Matrix) *errors.CodedError {
+	if p.Missing != nil {
+		switch *p.Missing {
+		case MissingListwise:
+		case MissingPairwise:
+			m.Pairwise = true
+		default:
+			return matrixInvalid(at, "bad_params", at+" params.missing must be \"listwise\" or \"pairwise\"",
+				map[string]any{"param": "missing", "value": *p.Missing, "valid": MissingModes()})
+		}
+	}
+	if p.MaxDropShare != nil {
+		s := *p.MaxDropShare
+		if !(s >= 0 && s <= 1) {
+			return matrixInvalid(at, "bad_params", at+" params.max_drop_share must be a share in [0, 1]",
+				map[string]any{"param": "max_drop_share", "value": s})
+		}
+		if m.Pairwise {
+			return matrixInvalid(at, "bad_params", at+" params.max_drop_share applies to missing \"listwise\" only; pairwise drops no whole row",
+				map[string]any{"param": "max_drop_share", "missing": MissingPairwise})
+		}
+		v := s
+		m.MaxDropShare = &v
 	}
 	return nil
+}
+
+// decodeStrict decodes raw into v, refusing unknown keys.
+func decodeStrict(raw []byte, v any) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
 }
 
 // MatrixMembers returns the union of every member req's matrix specs
