@@ -4,13 +4,14 @@
 //
 // # Two backends
 //
-// The REFERENCE kernels — Cholesky, CholeskyRidge, SolveSPD and
-// InverseSPD — are pure Go and FMA-free: every product that feeds an
-// addition or subtraction is written as an explicit float64(a*b)
-// conversion, which the Go specification forbids the compiler from
-// fusing into a fused multiply-add. Their output is therefore
-// bit-identical on every architecture, and a caller with a bit-level
-// contract (same seed, same bytes) can rely on it.
+// The REFERENCE kernels — Cholesky, CholeskyRidge, SolveSPD,
+// InverseSPD and the CoMoment accumulator's Add and Merge — are pure Go
+// and FMA-free: every product that feeds an addition or subtraction is
+// written as an explicit float64(a*b) conversion, which the Go
+// specification forbids the compiler from fusing into a fused
+// multiply-add. Their output is therefore bit-identical on every
+// architecture, and a caller with a bit-level contract (same seed, same
+// bytes) can rely on it.
 //
 // Routines with no bit contract — SymEigen, SVD, QR, Rank and
 // ConditionNumber, plus the gonum-backed SPD path FactorSPD (an
@@ -52,9 +53,19 @@
 // That operation order is a contract: changing it changes bits.
 //
 // CholeskyRidge retries a failed factorisation with a growing diagonal
-// ridge (DefaultRidgeSchedule: eight tries, increments 1e-6 … 1e-1) and
+// ridge (DefaultRidgeSchedule: eight tries, increments 1e-6 … 1e1) and
 // returns the ACCUMULATED ridge, so the figure reads as "how far from
 // positive definite was this", not as an iteration count.
+//
+// # Co-moments
+//
+// CoMoment accumulates weighted means and covariances of p variables,
+// Listwise (complete rows) or Pairwise (per-pair complete rows), and
+// merges exactly (Chan–Golub–LeVeque), so partial accumulators built by
+// workers combine to the serial figures. Weights follow Pulse's
+// weighting contract: NaN, ±Inf and negative weights are skipped and
+// counted (NWeightInvalid); a zero weight counts toward N but carries
+// no mass.
 //
 // # Errors
 //

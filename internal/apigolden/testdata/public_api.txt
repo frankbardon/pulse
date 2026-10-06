@@ -2496,6 +2496,23 @@ pulse/io: type WriterOptions field SPSS pulse/io.SPSSWriterOptions
 pulse/linalg: package linalg
 pulse/linalg: func Cholesky(s *pulse/linalg.Sym) (*pulse/linalg.Matrix, error)
 pulse/linalg: func CholeskyRidge(s *pulse/linalg.Sym, schedule pulse/linalg.RidgeSchedule) (*pulse/linalg.Matrix, float64, error)
+pulse/linalg: type CoMoment struct
+pulse/linalg: type CoMoment method (*CoMoment) Add(x []float64, w float64)
+pulse/linalg: type CoMoment method (*CoMoment) Clone() *pulse/linalg.CoMoment
+pulse/linalg: type CoMoment method (*CoMoment) Corr() *pulse/linalg.Sym
+pulse/linalg: type CoMoment method (*CoMoment) Cov(ddof int) *pulse/linalg.Sym
+pulse/linalg: type CoMoment method (*CoMoment) Mean() *pulse/linalg.Vec
+pulse/linalg: type CoMoment method (*CoMoment) Merge(other *pulse/linalg.CoMoment) error
+pulse/linalg: type CoMoment method (*CoMoment) Mode() pulse/linalg.CoMomentMode
+pulse/linalg: type CoMoment method (*CoMoment) N() int64
+pulse/linalg: type CoMoment method (*CoMoment) NEff() float64
+pulse/linalg: type CoMoment method (*CoMoment) NWeightInvalid() int64
+pulse/linalg: type CoMoment method (*CoMoment) P() int
+pulse/linalg: type CoMoment method (*CoMoment) PairN(i int, j int) int64
+pulse/linalg: type CoMoment method (*CoMoment) PairW(i int, j int) float64
+pulse/linalg: type CoMoment method (*CoMoment) W() float64
+pulse/linalg: type CoMomentMode int
+pulse/linalg: type CoMomentMode method (CoMomentMode) String() string
 pulse/linalg: func ConditionNumber(m *pulse/linalg.Matrix) (float64, error)
 pulse/linalg: const ConditionTolerance untyped float = 10000000000000000
 pulse/linalg: func DefaultRidgeSchedule() pulse/linalg.RidgeSchedule
@@ -2503,6 +2520,7 @@ pulse/linalg: const DominanceTolerance untyped float = 1/67108864
 pulse/linalg: const Epsilon untyped float = 1/4503599627370496
 pulse/linalg: func FactorSPD(s *pulse/linalg.Sym) (*pulse/linalg.SPDFactor, error)
 pulse/linalg: func InverseSPD(s *pulse/linalg.Sym) (*pulse/linalg.Sym, error)
+pulse/linalg: const Listwise pulse/linalg.CoMomentMode = 0
 pulse/linalg: type Matrix struct
 pulse/linalg: type Matrix method (*Matrix) At(i int, j int) float64
 pulse/linalg: type Matrix method (*Matrix) Cols() int
@@ -2511,11 +2529,13 @@ pulse/linalg: type Matrix method (*Matrix) Rows() int
 pulse/linalg: type Matrix method (*Matrix) Set(i int, j int, v float64)
 pulse/linalg: type Matrix method (*Matrix) ToRows() [][]float64
 pulse/linalg: func Mul(a *pulse/linalg.Matrix, b *pulse/linalg.Matrix) (*pulse/linalg.Matrix, error)
+pulse/linalg: func NewCoMoment(p int, mode pulse/linalg.CoMomentMode) (*pulse/linalg.CoMoment, error)
 pulse/linalg: func NewMatrix(rows int, cols int, data []float64) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewMatrixFromRows(rows [][]float64) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewSym(n int, packed []float64) (*pulse/linalg.Sym, error)
 pulse/linalg: func NewSymFromRows(rows [][]float64) (*pulse/linalg.Sym, error)
 pulse/linalg: func NewVec(data []float64) *pulse/linalg.Vec
+pulse/linalg: const Pairwise pulse/linalg.CoMomentMode = 1
 pulse/linalg: func QR(m *pulse/linalg.Matrix) (*pulse/linalg.QRResult, error)
 pulse/linalg: type QRResult struct
 pulse/linalg: type QRResult field Q *pulse/linalg.Matrix
@@ -3988,4 +4008,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b3c373544c06c8bdb52c49a69981ea1520bd8f1e50c9fec6636a2568ea42d0d2
+// golden-hash: a794fd2401f47716be9b5697c3608499cdcb3b592a455c9b97a90b183ecb3d56

@@ -65,3 +65,35 @@ func TestLinalgDecompositionFlow(t *testing.T) {
 		t.Fatalf("ConditionNumber of a rank-deficient matrix: %v %v", k, err)
 	}
 }
+
+// TestLinalgCoMomentFlow accumulates two partial CoMoments the way a
+// worker pool would, merges them, and reads the weighted figures back
+// through the public spellings; a mode mismatch is the coded shape error.
+func TestLinalgCoMomentFlow(t *testing.T) {
+	a, err := linalg.NewCoMoment(2, linalg.Listwise)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := linalg.NewCoMoment(2, linalg.Listwise)
+	a.Add([]float64{1, 2}, 1)
+	a.Add([]float64{2, 4}, 1)
+	b.Add([]float64{3, 6}, 2)
+	b.Add([]float64{9, 9}, -1) // invalid weight: skipped and counted
+	if err := a.Merge(b); err != nil {
+		t.Fatal(err)
+	}
+	if a.N() != 3 || a.W() != 4 || a.NWeightInvalid() != 1 || a.Mean().At(0) != 2.25 {
+		t.Fatalf("merged: N=%d W=%v invalid=%d mean=%v", a.N(), a.W(), a.NWeightInvalid(), a.Mean().At(0))
+	}
+	if r := a.Corr().At(0, 1); r < 0.999999 {
+		t.Fatalf("corr %v", r)
+	}
+	if a.Cov(1).N() != 2 || a.NEff() <= 0 || a.PairN(0, 1) != 3 {
+		t.Fatal("cov / neff / pair reads")
+	}
+	p, _ := linalg.NewCoMoment(2, linalg.Pairwise)
+	var ce *perrors.CodedError
+	if err := a.Merge(p); !stderrors.As(err, &ce) || ce.Code != perrors.PULSE_MATRIX_SHAPE_MISMATCH {
+		t.Fatalf("want PULSE_MATRIX_SHAPE_MISMATCH, got %v", err)
+	}
+}

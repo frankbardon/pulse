@@ -278,6 +278,24 @@ var (
 	_ func(*linalg.SPDFactor) (*linalg.Sym, error)                             = (*linalg.SPDFactor).Inverse
 	_ func(*linalg.Matrix, *linalg.Matrix) (*linalg.Matrix, error)             = linalg.Mul
 	_ float64                                                                  = linalg.ConditionTolerance
+	_ func(int, linalg.CoMomentMode) (*linalg.CoMoment, error)                 = linalg.NewCoMoment
+	_ linalg.CoMomentMode                                                      = linalg.Listwise
+	_ linalg.CoMomentMode                                                      = linalg.Pairwise
+	_ func(linalg.CoMomentMode) string                                         = linalg.CoMomentMode.String
+	_ func(*linalg.CoMoment, []float64, float64)                               = (*linalg.CoMoment).Add
+	_ func(*linalg.CoMoment, *linalg.CoMoment) error                           = (*linalg.CoMoment).Merge
+	_ func(*linalg.CoMoment) *linalg.CoMoment                                  = (*linalg.CoMoment).Clone
+	_ func(*linalg.CoMoment) int                                               = (*linalg.CoMoment).P
+	_ func(*linalg.CoMoment) linalg.CoMomentMode                               = (*linalg.CoMoment).Mode
+	_ func(*linalg.CoMoment) int64                                             = (*linalg.CoMoment).N
+	_ func(*linalg.CoMoment) int64                                             = (*linalg.CoMoment).NWeightInvalid
+	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).W
+	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).NEff
+	_ func(*linalg.CoMoment, int, int) int64                                   = (*linalg.CoMoment).PairN
+	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairW
+	_ func(*linalg.CoMoment) *linalg.Vec                                       = (*linalg.CoMoment).Mean
+	_ func(*linalg.CoMoment, int) *linalg.Sym                                  = (*linalg.CoMoment).Cov
+	_ func(*linalg.CoMoment) *linalg.Sym                                       = (*linalg.CoMoment).Corr
 	_                                                                          = perrors.PULSE_MATRIX_SINGULAR
 	_                                                                          = perrors.PULSE_MATRIX_SHAPE_MISMATCH
 )
