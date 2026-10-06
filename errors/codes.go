@@ -2490,6 +2490,21 @@ const (
 	// carry "family", "methods" (the distinct methods, sorted) and
 	// "slots" (the first member slot per method, in method order).
 	PULSE_MULTIPLICITY_CONFLICT Code = "PULSE_MULTIPLICITY_CONFLICT"
+
+	// PULSE_MATRIX_SINGULAR indicates a matrix the linear-algebra core
+	// (package linalg) cannot factor, solve against or invert: a
+	// non-positive Cholesky pivot, or a rank below the order where full
+	// rank is required. Details carry "rank" and "condition_number" where
+	// the failing routine knows them, "pivot" for a Cholesky failure and
+	// "attempts" / "ridge" when a ridge schedule was exhausted.
+	PULSE_MATRIX_SINGULAR Code = "PULSE_MATRIX_SINGULAR"
+
+	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
+	// dimensions disagree (a non-square or ragged matrix, a vector whose
+	// length is not the matrix order, data whose length is not
+	// rows*cols), a nil operand, or two accumulators of different shape
+	// or mode being merged. Details name the offending dimensions.
+	PULSE_MATRIX_SHAPE_MISMATCH Code = "PULSE_MATRIX_SHAPE_MISMATCH"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -2977,6 +2992,8 @@ var allCodes = []Code{
 	PULSE_EXTENSION_NOT_WEIGHT_AWARE,
 	PULSE_MULTIPLICITY_INVALID,
 	PULSE_MULTIPLICITY_CONFLICT,
+	PULSE_MATRIX_SINGULAR,
+	PULSE_MATRIX_SHAPE_MISMATCH,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

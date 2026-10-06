@@ -15,7 +15,7 @@ import (
 // module. Every entry is a surface the smoke flows exist to prove is
 // reachable from outside: the extension-author core (pulse, extend,
 // types, encoding, errors) plus the public packages the migration
-// guide names (descriptor, io, synth, mcp/gosdk, mcpserve) and the two
+// guide names (descriptor, io, synth, mcp/gosdk, mcpserve, linalg) and the two
 // third-party types their signatures expose (afero.Fs on
 // pulse.Options.FS, *mcp.Server on gosdk.Register). Adding an import
 // outside this set fails the test: either it is a new public surface
@@ -28,6 +28,7 @@ var moduleImports = map[string]bool{
 	"github.com/frankbardon/pulse/errors":        true,
 	"github.com/frankbardon/pulse/descriptor":    true,
 	"github.com/frankbardon/pulse/io":            true,
+	"github.com/frankbardon/pulse/linalg":        true,
 	"github.com/frankbardon/pulse/synth":         true,
 	"github.com/frankbardon/pulse/mcp/gosdk":     true,
 	"github.com/frankbardon/pulse/mcpserve":      true,

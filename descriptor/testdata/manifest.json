@@ -6110,7 +6110,7 @@
         ]
       }
     ],
-    "error_codes_count": 264,
+    "error_codes_count": 266,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6246,6 +6246,8 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MATRIX_SHAPE_MISMATCH",
+      "PULSE_MATRIX_SINGULAR",
       "PULSE_MULTIPLICITY_CONFLICT",
       "PULSE_MULTIPLICITY_INVALID",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
@@ -11742,4 +11744,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b93f7dae8067c708a953d561643b75d8dbb7d274b1fdf340848f767189fc155d
+// golden-hash: 3db04551b7e1b2aff4622cf198c402ffc1cd6b1e256a9217623cbd129110d3b6

@@ -110,7 +110,7 @@
     "post_tests": [],
     "regressions": [],
     "synth_distributions": [],
-    "error_codes_count": 73,
+    "error_codes_count": 75,
     "error_domains": [
       "CLI",
       "DATA",
@@ -182,6 +182,8 @@
       "PULSE_LABEL_FIELD_UNKNOWN",
       "PULSE_LABEL_LOOKUP_MISS",
       "PULSE_LABEL_TABLE_UNKNOWN",
+      "PULSE_MATRIX_SHAPE_MISMATCH",
+      "PULSE_MATRIX_SINGULAR",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_SHARD_HEADER_INVALID",
@@ -572,4 +574,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b1d543f5dfc17e7eb3e27286bda2400ab8768d0dbacb1a46e969807f876eaa94
+// golden-hash: da68b370805fecd37c73441672a2862bd5d3c04ebf5866d167178fd00ca07156

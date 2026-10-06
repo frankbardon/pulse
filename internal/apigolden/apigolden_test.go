@@ -335,3 +335,28 @@ func TestRootSurfaceNamesNoProcessing(t *testing.T) {
 		t.Fatal("no root-package lines rendered")
 	}
 }
+
+// TestLinalgSurfaceNamesNoGonum fails if any line of the linalg section
+// of the public API golden mentions gonum. gonum is pre-1.0 and may back
+// linalg routines, but a gonum type on the frozen public surface would
+// tie Pulse's v1 contract to a dependency that can still break it.
+func TestLinalgSurfaceNamesNoGonum(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join("testdata", goldenName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const prefix = "pulse/linalg: "
+	lines := 0
+	for _, line := range strings.Split(string(content), "\n") {
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		lines++
+		if strings.Contains(strings.ToLower(line), "gonum") {
+			t.Errorf("linalg public surface names gonum: %q", line)
+		}
+	}
+	if lines == 0 {
+		t.Fatal("no linalg section in the public API golden; the check would be vacuous")
+	}
+}

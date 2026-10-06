@@ -1895,6 +1895,8 @@ pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMB
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
+pulse/errors: const PULSE_MATRIX_SHAPE_MISMATCH pulse/errors.Code = "PULSE_MATRIX_SHAPE_MISMATCH"
+pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SINGULAR"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
 pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
 pulse/errors: const PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
@@ -2491,6 +2493,37 @@ pulse/io: type Writer imethod WriteHeader(columns []string) error
 pulse/io: type Writer imethod WriteRow(values []any) error
 pulse/io: type WriterOptions struct
 pulse/io: type WriterOptions field SPSS pulse/io.SPSSWriterOptions
+pulse/linalg: package linalg
+pulse/linalg: func Cholesky(s *pulse/linalg.Sym) (*pulse/linalg.Matrix, error)
+pulse/linalg: func CholeskyRidge(s *pulse/linalg.Sym, schedule pulse/linalg.RidgeSchedule) (*pulse/linalg.Matrix, float64, error)
+pulse/linalg: func DefaultRidgeSchedule() pulse/linalg.RidgeSchedule
+pulse/linalg: const Epsilon untyped float = 1/4503599627370496
+pulse/linalg: func InverseSPD(s *pulse/linalg.Sym) (*pulse/linalg.Sym, error)
+pulse/linalg: type Matrix struct
+pulse/linalg: type Matrix method (*Matrix) At(i int, j int) float64
+pulse/linalg: type Matrix method (*Matrix) Cols() int
+pulse/linalg: type Matrix method (*Matrix) RowMajor() []float64
+pulse/linalg: type Matrix method (*Matrix) Rows() int
+pulse/linalg: type Matrix method (*Matrix) Set(i int, j int, v float64)
+pulse/linalg: type Matrix method (*Matrix) ToRows() [][]float64
+pulse/linalg: func NewMatrix(rows int, cols int, data []float64) (*pulse/linalg.Matrix, error)
+pulse/linalg: func NewMatrixFromRows(rows [][]float64) (*pulse/linalg.Matrix, error)
+pulse/linalg: func NewSym(n int, packed []float64) (*pulse/linalg.Sym, error)
+pulse/linalg: func NewSymFromRows(rows [][]float64) (*pulse/linalg.Sym, error)
+pulse/linalg: func NewVec(data []float64) *pulse/linalg.Vec
+pulse/linalg: func RankTolerance(rows int, cols int, sigmaMax float64) float64
+pulse/linalg: type RidgeSchedule []float64
+pulse/linalg: func SolveSPD(s *pulse/linalg.Sym, b *pulse/linalg.Vec) (*pulse/linalg.Vec, error)
+pulse/linalg: type Sym struct
+pulse/linalg: type Sym method (*Sym) At(i int, j int) float64
+pulse/linalg: type Sym method (*Sym) N() int
+pulse/linalg: type Sym method (*Sym) Set(i int, j int, v float64)
+pulse/linalg: type Sym method (*Sym) ToRows() [][]float64
+pulse/linalg: type Vec struct
+pulse/linalg: type Vec method (*Vec) At(i int) float64
+pulse/linalg: type Vec method (*Vec) Len() int
+pulse/linalg: type Vec method (*Vec) Set(i int, x float64)
+pulse/linalg: type Vec method (*Vec) Slice() []float64
 pulse/mcp/gosdk: package gosdk
 pulse/mcp/gosdk: const CohortURIScheme untyped string = "pulse://"
 pulse/mcp/gosdk: const CohortURITemplate untyped string = "pulse://{+path}"
@@ -3931,4 +3964,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 745d4ccceb2c2a649b8e22c3724e13be753897116bbd1fc06fd1175cdb6cef23
+// golden-hash: 645cc6c99b4f0e9ceee2e8e7f063c9bd0ecfca5c4ead2b5f4699205b65c25011

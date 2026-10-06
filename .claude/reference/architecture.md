@@ -18,6 +18,7 @@ synth/              alias facade: Spec/Profile/Options/Result + Synth, SynthByte
 mcp/gosdk/          the ONLY go-sdk importer: Register, Config, URI/prompt constants
 mcpserve/           Serve, ServeStdio, Options, NewPulse (feature-profile flag/env read), Describe
 extend/             extension-authoring contract: Record, Rows, operator factories + instance interfaces (leaf; TestExtendImportBoundary)
+linalg/             linear-algebra core: Pulse-owned Matrix/Sym/Vec + FMA-free reference kernels (Cholesky, CholeskyRidge, SolveSPD, InverseSPD), RankTolerance; gonum may back no-bit-contract routines but never appears on the surface (leaf: stdlib + gonum + errors; TestLinalgImportBoundary, TestLinalgSurfaceNamesNoGonum)
 
 INTERNAL
 cmd/pulse/                 the only binary; buildApp() defines the CLI leaf tree

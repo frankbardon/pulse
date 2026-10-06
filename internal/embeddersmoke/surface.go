@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/mcp/gosdk"
 	"github.com/frankbardon/pulse/mcpserve"
 	"github.com/frankbardon/pulse/synth"
@@ -244,4 +245,23 @@ var (
 	_                                           = pulse.SkillMetadata{Name: "op-agg-count", Requires: []string{}}
 	_                                           = descriptor.OntologyEdge{Kind: descriptor.OntologyEdgeServesIntent}
 	_                                           = descriptor.OntologyNode{Kind: descriptor.OntologyNodeSkill}
+)
+
+// Linear-algebra core: Pulse-owned matrix types and the FMA-free
+// reference kernels. No gonum type may appear in any of these spellings.
+var (
+	_ func(int, int, []float64) (*linalg.Matrix, error)                        = linalg.NewMatrix
+	_ func([][]float64) (*linalg.Matrix, error)                                = linalg.NewMatrixFromRows
+	_ func(int, []float64) (*linalg.Sym, error)                                = linalg.NewSym
+	_ func([][]float64) (*linalg.Sym, error)                                   = linalg.NewSymFromRows
+	_ func([]float64) *linalg.Vec                                              = linalg.NewVec
+	_ func(*linalg.Sym) (*linalg.Matrix, error)                                = linalg.Cholesky
+	_ func(*linalg.Sym, linalg.RidgeSchedule) (*linalg.Matrix, float64, error) = linalg.CholeskyRidge
+	_ func() linalg.RidgeSchedule                                              = linalg.DefaultRidgeSchedule
+	_ func(*linalg.Sym, *linalg.Vec) (*linalg.Vec, error)                      = linalg.SolveSPD
+	_ func(*linalg.Sym) (*linalg.Sym, error)                                   = linalg.InverseSPD
+	_ func(int, int, float64) float64                                          = linalg.RankTolerance
+	_ float64                                                                  = linalg.Epsilon
+	_                                                                          = perrors.PULSE_MATRIX_SINGULAR
+	_                                                                          = perrors.PULSE_MATRIX_SHAPE_MISMATCH
 )
