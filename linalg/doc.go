@@ -67,6 +67,12 @@
 // counted (NWeightInvalid); a zero weight counts toward N but carries
 // no mass.
 //
+// For a result that is bit-identical however many workers produced it,
+// fold rows into one CoMoment per MergeBlockSize-record block keyed by
+// ABSOLUTE record index and combine the block sequence with MergeTree,
+// a fixed binary tree by block index: the result is a pure function of
+// the block sequence, not of the segmentation.
+//
 // # Errors
 //
 // Every failure is a *errors.CodedError: PULSE_MATRIX_SHAPE_MISMATCH for

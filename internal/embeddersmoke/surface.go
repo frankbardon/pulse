@@ -296,6 +296,8 @@ var (
 	_ func(*linalg.CoMoment) *linalg.Vec                                       = (*linalg.CoMoment).Mean
 	_ func(*linalg.CoMoment, int) *linalg.Sym                                  = (*linalg.CoMoment).Cov
 	_ func(*linalg.CoMoment) *linalg.Sym                                       = (*linalg.CoMoment).Corr
+	_ func([]*linalg.CoMoment) (*linalg.CoMoment, error)                       = linalg.MergeTree
+	_ int                                                                      = linalg.MergeBlockSize
 	_                                                                          = perrors.PULSE_MATRIX_SINGULAR
 	_                                                                          = perrors.PULSE_MATRIX_SHAPE_MISMATCH
 )

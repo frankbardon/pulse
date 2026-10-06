@@ -2528,6 +2528,8 @@ pulse/linalg: type Matrix method (*Matrix) RowMajor() []float64
 pulse/linalg: type Matrix method (*Matrix) Rows() int
 pulse/linalg: type Matrix method (*Matrix) Set(i int, j int, v float64)
 pulse/linalg: type Matrix method (*Matrix) ToRows() [][]float64
+pulse/linalg: const MergeBlockSize untyped int = 4096
+pulse/linalg: func MergeTree(blocks []*pulse/linalg.CoMoment) (*pulse/linalg.CoMoment, error)
 pulse/linalg: func Mul(a *pulse/linalg.Matrix, b *pulse/linalg.Matrix) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewCoMoment(p int, mode pulse/linalg.CoMomentMode) (*pulse/linalg.CoMoment, error)
 pulse/linalg: func NewMatrix(rows int, cols int, data []float64) (*pulse/linalg.Matrix, error)
@@ -4008,4 +4010,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a794fd2401f47716be9b5697c3608499cdcb3b592a455c9b97a90b183ecb3d56
+// golden-hash: fbd9a53e1e8a786a5c71aad899636498b921b146f1e8e6b7c65fd4e69d5d989c

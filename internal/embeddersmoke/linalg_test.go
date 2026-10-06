@@ -97,3 +97,35 @@ func TestLinalgCoMomentFlow(t *testing.T) {
 		t.Fatalf("want PULSE_MATRIX_SHAPE_MISMATCH, got %v", err)
 	}
 }
+
+// TestLinalgMergeTreeFlow folds rows into MergeBlockSize blocks keyed by
+// absolute record index from two "worker segments" cut at different
+// block boundaries, and checks MergeTree gives the same bits either way.
+func TestLinalgMergeTreeFlow(t *testing.T) {
+	const n = 3*linalg.MergeBlockSize + 17
+	fold := func(cut int) *linalg.CoMoment {
+		blocks := make([]*linalg.CoMoment, (n+linalg.MergeBlockSize-1)/linalg.MergeBlockSize)
+		for i := range blocks {
+			blocks[i], _ = linalg.NewCoMoment(2, linalg.Listwise)
+		}
+		for _, seg := range [][2]int{{0, cut}, {cut, n}} {
+			for r := seg[0]; r < seg[1]; r++ {
+				x := float64(r%97) / 7
+				blocks[r/linalg.MergeBlockSize].Add([]float64{x, x*x - 3}, 1)
+			}
+		}
+		out, err := linalg.MergeTree(blocks)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	a, b := fold(linalg.MergeBlockSize), fold(2*linalg.MergeBlockSize)
+	if a.N() != n || a.Mean().At(1) != b.Mean().At(1) || a.Cov(1).At(0, 1) != b.Cov(1).At(0, 1) {
+		t.Fatalf("MergeTree depends on segmentation: N=%d %v vs %v", a.N(), a.Cov(1).At(0, 1), b.Cov(1).At(0, 1))
+	}
+	var ce *perrors.CodedError
+	if _, err := linalg.MergeTree(nil); !stderrors.As(err, &ce) || ce.Code != perrors.PULSE_MATRIX_SHAPE_MISMATCH {
+		t.Fatalf("want PULSE_MATRIX_SHAPE_MISMATCH, got %v", err)
+	}
+}
