@@ -3,6 +3,7 @@ package processing
 import (
 	"math"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -16,8 +17,9 @@ import (
 // partials (BlockCoMoments) keyed by the row's ABSOLUTE record position,
 // and finalizes through the one fixed merge tree — so the matrix is a
 // function of the filtered rows alone, whatever path (streaming or
-// buffered) or worker count delivered them. The slot is a BlockMerger,
-// which is how the parallel reducers will fold it (U16 E2).
+// buffered) or worker count delivered them. The slot is a BlockMerger;
+// the parallel reducers hold a partition's slots as MatrixSlots and
+// merge them by absorbing blocks.
 //
 // The members, their order and the decoded params come from
 // internal/vectors.ResolveMatrices — the resolver the field-reference
@@ -39,11 +41,18 @@ var _ BlockMerger = (*matrixSlot)(nil)
 // req is the STAMPED request: each spec's `weight` is its resolved
 // weight. A type the instance hides is an unknown type.
 func (p *Processor) buildMatrixSlots(req *types.Request) ([]*matrixSlot, error) {
-	if len(req.Matrices) == 0 {
+	return buildMatrixSlotsFor(req, p.schema, p.exts)
+}
+
+// buildMatrixSlotsFor is buildMatrixSlots over an explicit schema and
+// registry — shared by the Processor and the parallel reducers
+// (BuildMatrixSlots).
+func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) ([]*matrixSlot, error) {
+	if req == nil || len(req.Matrices) == 0 {
 		return nil, nil
 	}
-	plans, verr := vectors.ResolveMatrices(req, p.schema, func(t types.MatrixType) bool {
-		return t.Streamable() && !p.exts.isHidden(string(t))
+	plans, verr := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
+		return t.Streamable() && !exts.isHidden(string(t))
 	})
 	if verr != nil {
 		return nil, verr
@@ -206,4 +215,75 @@ func foldMatrixRecords(slots []*matrixSlot, records []*Record) error {
 		}
 	}
 	return nil
+}
+
+// MatrixSlots is the parallel reducers' handle on a request's
+// Request.Matrices state: one partition's slots (a decode segment's or
+// a shard's). Each partition folds its own rows; partitions combine by
+// Merge, which moves the other partition's per-block co-moments in
+// (BlockCoMoments.Absorb) — never a partial-against-partial combine —
+// so the finalized matrices are the one fixed merge tree over the same
+// blocks the serial path builds, bit for bit, whatever the worker
+// count or the order partitions merge in. A nil *MatrixSlots is a
+// request without matrices: every method is a no-op.
+type MatrixSlots struct {
+	slots []*matrixSlot
+}
+
+// BuildMatrixSlots returns fresh slot state for req.Matrices (nil when
+// there is none). req must be the STAMPED request
+// (StampWeightsWith), so each spec's weight is resolved, exactly as
+// the Processor builds its slots.
+func BuildMatrixSlots(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) (*MatrixSlots, error) {
+	slots, err := buildMatrixSlotsFor(req, schema, exts)
+	if err != nil || len(slots) == 0 {
+		return nil, err
+	}
+	return &MatrixSlots{slots: slots}, nil
+}
+
+// UpdateRow folds one filter-passing, merge-position-stamped record
+// into every slot.
+func (m *MatrixSlots) UpdateRow(r *Record) error {
+	if m == nil {
+		return nil
+	}
+	for _, s := range m.slots {
+		if err := s.UpdateRow(r, ""); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Merge absorbs o's per-block state slot by slot; o must not be used
+// afterwards. A slot-count mismatch is PROCESSING_INTERNAL.
+func (m *MatrixSlots) Merge(o *MatrixSlots) error {
+	if m == nil || o == nil {
+		if (m == nil) != (o == nil) {
+			return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				"matrix merge: one partition carries matrix state and the other none")
+		}
+		return nil
+	}
+	if len(m.slots) != len(o.slots) {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"matrix merge: partitions differ in slot count",
+			map[string]any{"slots": len(m.slots), "other_slots": len(o.slots)})
+	}
+	for i, s := range m.slots {
+		if err := MergeBlockMerger(s, o.slots[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Finalize renders every slot's result in spec order (nil when there
+// is none).
+func (m *MatrixSlots) Finalize() ([]types.MatrixResult, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return finalizeMatrixSlots(m.slots)
 }

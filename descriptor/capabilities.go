@@ -543,6 +543,11 @@ type MatrixMeta struct {
 	// emitted at finalize (terminal flush on the streaming path).
 	Streamable bool `json:"streamable"`
 
+	// Mergeable mirrors types.MatrixType.Mergeable(): the operator's
+	// state merges across DecodeWorkers / ShardWorkers partitions
+	// through the blocked merge tree, bit-identical to serial.
+	Mergeable bool `json:"mergeable"`
+
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
 	// operator answers, sorted. Omitted when it declares no purpose.
 	Intents []string `json:"intents,omitempty"`

@@ -423,6 +423,11 @@ func TestManifestMatrixOpsComplete(t *testing.T) {
 		if meta.Streamable != mt.Streamable() {
 			t.Errorf("matrix operator %q Streamable=%v, want %v", name, meta.Streamable, mt.Streamable())
 		}
+		// Mergeable is the same fact the parallel merge gate
+		// (internal/mergegate.MergeRefusal) reads.
+		if meta.Mergeable != mt.Mergeable() {
+			t.Errorf("matrix operator %q Mergeable=%v, want %v", name, meta.Mergeable, mt.Mergeable())
+		}
 		if len(meta.Intents) == 0 {
 			t.Errorf("matrix operator %q carries no intents (no Purpose?)", name)
 		}

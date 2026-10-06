@@ -43,6 +43,20 @@ func (t MatrixType) Streamable() bool {
 	return false
 }
 
+// Mergeable reports whether the operator's running state combines
+// across input partitions, so a request carrying it may fan out over
+// DecodeWorkers / ShardWorkers. Every built-in matrix operator merges
+// through the blocked merge tree (per-block co-moments keyed by
+// absolute record position), so serial and every worker count return
+// the same bits. An unknown type is not mergeable.
+func (t MatrixType) Mergeable() bool {
+	switch t {
+	case MAT_COVARIANCE:
+		return true
+	}
+	return false
+}
+
 // MatrixEncoding selects how MatrixValues.Values lays out a square
 // symmetric matrix.
 type MatrixEncoding string

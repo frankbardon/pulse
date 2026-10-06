@@ -1278,6 +1278,7 @@ pulse/descriptor: type MatrixMeta struct
 pulse/descriptor: type MatrixMeta field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type MatrixMeta field Description string "json:\"description\""
 pulse/descriptor: type MatrixMeta field Intents []string "json:\"intents,omitempty\""
+pulse/descriptor: type MatrixMeta field Mergeable bool "json:\"mergeable\""
 pulse/descriptor: type MatrixMeta field Name string "json:\"name\""
 pulse/descriptor: type MatrixMeta field OutputKeys pulse/descriptor.MatrixOutputKeys "json:\"output_keys\""
 pulse/descriptor: type MatrixMeta field Params []pulse/descriptor.Param "json:\"params\""
@@ -3639,6 +3640,7 @@ pulse/types: type MatrixSpec method (MatrixSpec) EffectiveEncoding() pulse/types
 pulse/types: type MatrixSpec method (MatrixSpec) EffectiveName() string
 pulse/types: type MatrixSpec method (MatrixSpec) Streamable() bool
 pulse/types: type MatrixType string
+pulse/types: type MatrixType method (MatrixType) Mergeable() bool
 pulse/types: type MatrixType method (MatrixType) Streamable() bool
 pulse/types: type MatrixValues struct
 pulse/types: type MatrixValues field ColumnKeys []string "json:\"column_keys\""
@@ -4100,4 +4102,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: f9e56752909b745948c0695a7b830dcaa9288e2450207d61a1caffbcb0fcc1b6
+// golden-hash: d7f7e724de0658e12b9793bb7f246704be0894a0889e07cc4040b887c76a8a5b

@@ -33,10 +33,10 @@ No `Response.Components` entry; every figure rides `Response.Matrices[i]`.
 
 ## Gotchas
 
-- Listwise: a row with any member null is dropped.
+- Listwise: any null member drops the row.
 - A row of weight 0 counts but adds no mass; an invalid weight skips the row.
 - Unknown `vector` → `PULSE_VECTOR_UNKNOWN`; `vector` and `fields` together → `SERVICE_VALIDATION`.
-- Ungrouped and serial only; streamed runs emit it at terminal flush.
+- Ungrouped; bitwise worker-count invariant; streamed: at terminal flush.
 - `joins` / chain stage ≥ 1 → `PULSE_MATRIX_UNSUPPORTED_SOURCE`; `crosstab` → `PULSE_MATRIX_HOST_CONFLICT`.
 
 ## See

@@ -51,8 +51,12 @@ func (None) Attribute(string) (bool, bool)  { return false, false }
 
 // MergeRefusal returns "" when req's online state is mergeable across
 // input partitions, else the reason it is not. A request merges iff it
-// has at least one aggregator; no windows, features, regressions,
-// tests, post-tests or matrices; only row-local attributes (ATTR_FORMULA,
+// has at least one aggregator or matrix; no windows, features,
+// regressions, tests or post-tests; matrices only of a mergeable type
+// (types.MatrixType.Mergeable — they merge through the blocked merge
+// tree, bit-identical to serial) and only on an ungrouped request
+// (per-bucket matrix state is not wired into the grouped reducers);
+// only row-local attributes (ATTR_FORMULA,
 // ATTR_DATE_PART, row_local extensions); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
@@ -67,7 +71,7 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 	if req == nil {
 		return "the request is nil"
 	}
-	if len(req.Aggregations) == 0 {
+	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
 		return "it has no aggregator"
 	}
 	if len(req.Windows) > 0 || len(req.Features) > 0 ||
@@ -76,7 +80,14 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 		return "windows, features, tests, post-tests and regressions are excluded"
 	}
 	if len(req.Matrices) > 0 {
-		return "matrices are excluded"
+		for _, m := range req.Matrices {
+			if !m.Type.Mergeable() {
+				return fmt.Sprintf("matrix operator %s is not mergeable", m.Type)
+			}
+		}
+		if len(req.Groups) > 0 {
+			return "grouped matrices are excluded"
+		}
 	}
 	for _, attr := range req.Attributes {
 		if attr == nil {
@@ -155,7 +166,9 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 //
 // A stage's `matrices` slot is not part of the rule: a matrix result
 // lands in Response.Matrices, never in the rows the next stage reads,
-// so it is judged on the stage with the slot stripped. Stage 0 runs as
+// so it is judged on the stage with the slot stripped — a matrix-only
+// stage (which MergeRefusal admits) still has no aggregator, and so no
+// rows to hand on, and is refused. Stage 0 runs as
 // a plain Process over the cohort and computes it; a later stage's is
 // refused first by StageMatrixRefusal.
 func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, stageIndex int, stageName string) error {
