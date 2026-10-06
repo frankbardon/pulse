@@ -717,7 +717,7 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // pre-Components baseline.
 func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, disableComponents bool, exts *processing.ExtensionRegistry) (*types.Response, error) {
 	_ = schema
-	matrices, err := merged.mats.Finalize()
+	matrices, matrixComps, err := merged.mats.Finalize(!disableComponents)
 	if err != nil {
 		return nil, err
 	}
@@ -761,6 +761,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		}
 		attachMergedFiltererComponents(resp, req, merged, disableComponents)
 		attachMergedRunComponents(resp, merged, shardCount, disableComponents)
+		processing.AttachMatrixComponents(resp, matrixComps)
 		return resp, nil
 	}
 
@@ -797,11 +798,13 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		}
 		if gresp != nil && len(matrices) > 0 {
 			gresp.Matrices = matrices
+			processing.AttachMatrixComponents(gresp, matrixComps)
 		}
 		return gresp, nil
 	}
 	attachMergedFiltererComponents(resp, req, merged, disableComponents)
 	attachMergedRunComponents(resp, merged, shardCount, disableComponents)
+	processing.AttachMatrixComponents(resp, matrixComps)
 	return resp, nil
 }
 

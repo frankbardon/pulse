@@ -31,12 +31,12 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Components
 
-No `Response.Components` entry; every figure rides `Response.Matrices[i]`.
+`components.matrices[i]`: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`; `operator.ddof`.
 
 ## Gotchas
 
 - Warnings: `PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE` (row stays 0), `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` (pairwise).
-- Weight 0 counts, adds no mass; invalid weight skips the row.
+- Weight 0 counts in `n`, adds no mass. Predict: `pairwise_psd_risk` (pairwise, p ≥ 2).
 - Bitwise worker-count invariant; streamed: at terminal flush.
 - `joins` / chain stage ≥ 1 → `PULSE_MATRIX_UNSUPPORTED_SOURCE`; `crosstab` → `PULSE_MATRIX_HOST_CONFLICT`.
 

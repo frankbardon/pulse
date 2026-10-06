@@ -207,3 +207,64 @@ func (v MatrixResult) MarshalJSON() ([]byte, error) {
 	type alias MatrixResult
 	return MarshalFinite((*alias)(&v))
 }
+
+// MatrixComponents is one Response.Components.Matrices entry: the
+// constituent counts behind one MatrixResult, keyed back to it by Name
+// (and, on a grouped result, GroupKey). The floor — N, NNull,
+// NListwiseDropped — is on every entry; MinPairN / MaxPairN only under
+// params.missing "pairwise"; the weighted floor (SumWeights, NEff,
+// NWeightInvalid) only when a row weight is APPLIED to the slot, NEff
+// only under kind probability. Operator carries the operator's own
+// declared keys (MAT_COVARIANCE: ddof).
+type MatrixComponents struct {
+	// Name mirrors MatrixResult.Name.
+	Name string `json:"name"`
+	// Type mirrors MatrixResult.Type.
+	Type MatrixType `json:"type"`
+	// GroupKey mirrors MatrixResult.GroupKey on a grouped result;
+	// omitted on an ungrouped one.
+	GroupKey AxisKey `json:"group_key,omitempty"`
+
+	// N is the rows the matrix's co-moment counted: listwise, the
+	// complete rows; pairwise, the rows with at least one member
+	// present. A row of weight 0 counts (it adds no mass); a row with
+	// an invalid weight does not (NWeightInvalid).
+	N int `json:"n"`
+	// NNull is the filter-passing rows skipped for missing members:
+	// listwise, the rows with any member null (== NListwiseDropped);
+	// pairwise, the rows with every member null.
+	NNull int `json:"n_null"`
+	// NListwiseDropped is the rows listwise deletion dropped; 0 under
+	// pairwise.
+	NListwiseDropped int `json:"n_listwise_dropped"`
+
+	// MinPairN / MaxPairN are the smallest and largest pair N over the
+	// upper triangle, diagonal included (the extremes of
+	// auxiliary.n) — set under params.missing "pairwise" only.
+	MinPairN *int `json:"min_pair_n,omitempty"`
+	MaxPairN *int `json:"max_pair_n,omitempty"`
+
+	// SumWeights is Σw over the rows N counts — set only when a row
+	// weight is applied to the slot.
+	SumWeights *float64 `json:"sum_weights,omitempty"`
+	// NEff is Kish's effective sample size (Σw)² / Σw² over the same
+	// rows — set only on a slot weighted with kind probability.
+	NEff *float64 `json:"n_eff,omitempty"`
+	// NWeightInvalid counts the rows the mode admitted whose weight was
+	// invalid (null, negative, NaN / ±Inf, non-integer under kind
+	// frequency) and was therefore excluded — set only on a weighted
+	// slot.
+	NWeightInvalid *int `json:"n_weight_invalid,omitempty"`
+
+	// Operator carries the operator's schema-declared keys
+	// (internal/descriptor/capabilities_matrix.go): MAT_COVARIANCE
+	// {ddof}; MAT_CORRELATION none (omitted).
+	Operator map[string]any `json:"operator,omitempty"`
+}
+
+// MarshalJSON writes the matrix components with every non-finite float
+// as null; see MarshalFinite.
+func (v MatrixComponents) MarshalJSON() ([]byte, error) {
+	type alias MatrixComponents
+	return MarshalFinite((*alias)(&v))
+}

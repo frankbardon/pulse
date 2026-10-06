@@ -104,6 +104,7 @@ type matrixRun struct {
 	warnings  []*types.ResponseWarning
 	matWarns  []*types.ResponseWarning
 	run       types.RunComponents
+	comps     []types.MatrixComponents
 	instances int64
 }
 
@@ -149,6 +150,10 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 		t.Fatalf("Process(decode=%d, shard=%d): no Components.Run", decodeWorkers, shardWorkers)
 	}
 	out.run = *resp.Components.Run
+	out.comps = resp.Components.Matrices
+	if len(out.comps) != 1 {
+		t.Fatalf("Process(decode=%d, shard=%d): %d Components.Matrices entries, want 1", decodeWorkers, shardWorkers, len(out.comps))
+	}
 	if len(req.Aggregations) == 0 && len(resp.Data) != 0 {
 		t.Fatalf("matrix-only request emitted %d data rows, want 0", len(resp.Data))
 	}
@@ -173,6 +178,9 @@ func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
 	}
 	if got.run != want.run {
 		t.Errorf("%s: Components.Run %+v, serial %+v", label, got.run, want.run)
+	}
+	if !reflect.DeepEqual(got.comps, want.comps) {
+		t.Errorf("%s: Components.Matrices %s, serial %s", label, mustJSON(t, got.comps), mustJSON(t, want.comps))
 	}
 }
 

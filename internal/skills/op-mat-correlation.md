@@ -30,13 +30,13 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Components
 
-No `Response.Components` entry; figures ride `Response.Matrices[i]`.
+`components.matrices[i]`: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 
 - Same arithmetic as the Pearson test; no p-values.
-- Weight-0 rows count, add no mass.
-- Pairwise r can be non-PSD → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
+- Weight-0 rows count in `n`, add no mass.
+- Pairwise r at p ≥ 3 can be non-PSD (predict `pairwise_psd_risk`) → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
 - `joins` / chain stage ≥ 1 / `crosstab` refused as for covariance.
 
 ## See

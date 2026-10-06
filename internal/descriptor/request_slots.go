@@ -133,6 +133,9 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.Response{}): {
 		{key: "matrices", visible: capabilityGate(featMatrices)},
 	},
+	reflect.TypeOf(types.ResponseComponents{}): {
+		{key: "matrices", visible: capabilityGate(featMatrices)},
+	},
 	reflect.TypeOf(types.ComposedRequest{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		multiplicitySlotGate,

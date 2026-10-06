@@ -72,7 +72,7 @@ func TestMatrixCorrelation_ZeroWeightRowsCountTowardN(t *testing.T) {
 			if got, want := cm.N(), pn+int64(zero); got != want {
 				t.Errorf("mat.n = %d, want pearson.n %d + zero-weight rows %d = %d", got, pn, zero, want)
 			}
-			mres, err := slots[0].result()
+			mres, _, err := slots[0].result(false)
 			if err != nil {
 				t.Fatalf("result: %v", err)
 			}

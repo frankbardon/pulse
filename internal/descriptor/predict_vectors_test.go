@@ -150,7 +150,7 @@ func TestPayloadSchema_MatricesHidden(t *testing.T) {
 			}
 			s := string(b)
 			for _, tok := range []string{`"vectors"`, `"VectorSpec"`, `"VectorCoerce"`,
-				`"matrices"`, `"MatrixSpec"`, `"MatrixResult"`, `"MatrixValues"`, `"MatrixType"`, `"MAT_COVARIANCE"`} {
+				`"matrices"`, `"MatrixSpec"`, `"MatrixResult"`, `"MatrixValues"`, `"MatrixComponents"`, `"MatrixType"`, `"MAT_COVARIANCE"`} {
 				if got := strings.Contains(s, tok); got != c.want {
 					t.Errorf("%s present = %v, want %v", tok, got, c.want)
 				}

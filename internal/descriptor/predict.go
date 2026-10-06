@@ -376,6 +376,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// one PULSE_VECTOR_UNREFERENCED warning per vector no operator slot
 	// references, as the runtime warns.
 	predictVectors(env, result, req, schema)
+	predictMatrices(result, req, schema, opts.Instance)
 
 	// Weight resolution — the same single pass the runtime runs right
 	// after the field-reference rule (ResolveWeights). A refusal is a

@@ -1275,6 +1275,10 @@ type Response struct {
 //   - Run: optional run-wide totals (cohort record count, filtered
 //     count, null count, shard count, partial-cohort reason). Distinct
 //     from Response.Metadata which holds orchestrator-pass facts.
+//   - Matrices: one entry per Response.Matrices result, in its order —
+//     the floor {n, n_null, n_listwise_dropped}, pairwise
+//     {min_pair_n, max_pair_n}, the weighted floor keys and the
+//     operator's own keys (MatrixComponents).
 type ResponseComponents struct {
 	// Aggregations carries one AggregationComponents entry per
 	// Request.Aggregations slot in matching declared order.
@@ -1298,6 +1302,11 @@ type ResponseComponents struct {
 	// from Response.Metadata which holds orchestrator-pass facts about
 	// the request execution (file name, etc.).
 	Run *RunComponents `json:"run,omitempty"`
+
+	// Matrices carries one MatrixComponents entry per Response.Matrices
+	// result, in the same order (keyed back by Name, and GroupKey on a
+	// grouped result).
+	Matrices []MatrixComponents `json:"matrices,omitempty"`
 }
 
 // AggregationComponents carries per-aggregator constituent-parts

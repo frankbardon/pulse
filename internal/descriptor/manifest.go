@@ -192,8 +192,8 @@ func sortRegressions(rs []descriptor.RegressionMeta) []descriptor.RegressionMeta
 // matching any snapshot category are dropped (defensive — the
 // registration surface only populates ComponentSchemas alongside one
 // of the three category slices).
-func componentsSchemasBlock(aggs, grps, filts []descriptor.Operator, snap *ExtensionsSnapshot) descriptor.ComponentsSchemasBlock {
-	out := descriptor.ComponentsSchemasBlock{}
+func componentsSchemasBlock(aggs, grps, filts []descriptor.Operator, snap *ExtensionsSnapshot, mats []descriptor.MatrixMeta) descriptor.ComponentsSchemasBlock {
+	out := descriptor.ComponentsSchemasBlock{Matrices: matrixComponentSchemas(mats)}
 	if len(aggs) > 0 {
 		m := make(map[string]descriptor.ComponentSchema, len(aggs))
 		for _, op := range aggs {
@@ -298,6 +298,10 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	if on(featWeighting) {
 		attrs, grps = withWeightKinds(attrs), withWeightKinds(grps)
 	}
+	mats := withMatrixIntents(sortMatrices(filterMatrices(matrixCapabilities(), on)))
+	if on(featWeighting) {
+		mats = withMatrixWeightKeys(mats)
+	}
 	wins := filterOps(windowCapabilities(), on)
 	feats := filterOps(featureCapabilities(), on)
 	errCodes := errorCodeNamesFor(on)
@@ -322,7 +326,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		Tests:              withTestIntents(tier1),
 		PostTests:          withTestIntents(tier2),
 		Regressions:        withRegressionIntents(sortRegressions(filterRegressions(regressionCapabilities(), on))),
-		Matrices:           withMatrixIntents(sortMatrices(filterMatrices(matrixCapabilities(), on))),
+		Matrices:           mats,
 		SynthDistributions: withDistributionIntents(sortDistributions(distributionCapabilities())),
 		ErrorCodesCount:    len(errCodes),
 		ErrorDomains:       errorDomainsFor(errCodes),
@@ -335,7 +339,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		ExampleTags:        exTags,
 		Extensions:         extensionsManifestFromSnapshot(snap),
 		Overlays:           withOverlayIntents(filterOverlays(OverlayCapabilities(), on)),
-		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap),
+		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap, mats),
 		Intents:            instanceIntentIDs(inst),
 	}
 	if on(featWeighting) {

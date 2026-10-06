@@ -1393,6 +1393,66 @@
       ],
       "type": "object"
     },
+    "MatrixComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "group_key": {
+          "items": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "max_pair_n": {
+          "type": "integer"
+        },
+        "min_pair_n": {
+          "type": "integer"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_eff": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n_listwise_dropped": {
+          "type": "integer"
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "n_weight_invalid": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/MatrixType"
+        }
+      },
+      "required": [
+        "n",
+        "n_listwise_dropped",
+        "n_null",
+        "name",
+        "type"
+      ],
+      "type": "object"
+    },
     "MatrixEncoding": {
       "enum": [
         "full",
@@ -2706,6 +2766,15 @@
             "null"
           ]
         },
+        "matrices": {
+          "items": {
+            "$ref": "#/$defs/MatrixComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "run": {
           "$ref": "#/$defs/RunComponents"
         }
@@ -3179,4 +3248,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 8aefab97c61a5d4ee80d50e2eeca5346f1ef2a705291ba4a70d6d26b5c75210f
+// golden-hash: 5d6e64690cd41c07a967ed2a739d5cb50e8d2a52dfda39462bf30f61a7f24963

@@ -681,7 +681,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		}
 	}
 
-	matrixResults, err := finalizeMatrixSlots(matrixSlots)
+	matrixResults, matrixComps, err := finalizeMatrixSlots(matrixSlots, !p.disableComponents)
 	if err != nil {
 		return nil, err
 	}
@@ -739,6 +739,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			FilteredRecords: filteredRows,
 			NullRecords:     nullRecords,
 		})
+
+		// One MatrixComponents entry per Response.Matrices result.
+		attachMatrixComponents(resp, matrixComps)
 	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
@@ -1471,7 +1474,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	if err := foldMatrixRecords(matrixSlots, filtered); err != nil {
 		return nil, err
 	}
-	matrixResults, err := finalizeMatrixSlots(matrixSlots)
+	matrixResults, matrixComps, err := finalizeMatrixSlots(matrixSlots, !p.disableComponents)
 	if err != nil {
 		return nil, err
 	}
@@ -1546,6 +1549,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			FilteredRecords: int64(len(filtered)),
 			NullRecords:     nullRecords,
 		})
+
+		// One MatrixComponents entry per Response.Matrices result.
+		attachMatrixComponents(resp, matrixComps)
 	}
 
 	// SERIES-host overlay hook. Wraps the finalized per-group

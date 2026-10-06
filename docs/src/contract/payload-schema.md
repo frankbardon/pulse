@@ -36,7 +36,8 @@ with a feature profile gets a narrower document:
   `overlays`, `vectors`, `matrices`, `weight`) is not a property of its
   request root (a hidden `vectors` takes `VectorSpec` and `VectorCoerce`
   with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
-  slot and `MatrixResult` / `MatrixValues` with it); without
+  and `ResponseComponents.matrices` slots and `MatrixResult` /
+  `MatrixValues` / `MatrixComponents` with it); without
   `capability:weighting` no per-slot `weight` is a property either (so
   `SlotWeight` and `WeightSpec` are absent), and without
   `capability:multiplicity` no `multiplicity` block is a property of any
@@ -326,7 +327,11 @@ listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count.
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
-`_LISTWISE_HEAVY_DROP`, `_NOT_PSD`). Contract:
+`_LISTWISE_HEAVY_DROP`, `_NOT_PSD`). `components.matrices` carries one
+`MatrixComponents` per result, in the same order: `{name, type,
+group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
+sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and
+weighted keys only when they apply). Contract:
 `.claude/reference/matrix-and-vectors.md`.
 
 ## Undefined figures

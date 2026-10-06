@@ -31,8 +31,9 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 				Auxiliary: []string{"n"},
 				Scalars:   []string{"determinant"},
 			},
-			Streamable: types.MAT_CORRELATION.Streamable(),
-			Mergeable:  types.MAT_CORRELATION.Mergeable(),
+			Streamable:      types.MAT_CORRELATION.Streamable(),
+			Mergeable:       types.MAT_CORRELATION.Mergeable(),
+			ComponentSchema: matrixSchema(),
 		},
 		{
 			Name:         string(types.MAT_COVARIANCE),
@@ -48,8 +49,67 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			},
 			Streamable: types.MAT_COVARIANCE.Streamable(),
 			Mergeable:  types.MAT_COVARIANCE.Mergeable(),
+			ComponentSchema: matrixSchema(
+				descriptor.ComponentKey{Name: "ddof", Type: "int", Description: "The delta degrees of freedom the covariance used (params.ddof, default 1)."},
+			),
 		},
 	}
+}
+
+// matrixFloorKeys are the Response.Components.Matrices floor every
+// matrix entry carries, then the pairwise-only keys
+// (types.MatrixComponents).
+func matrixFloorKeys() []descriptor.ComponentKey {
+	return []descriptor.ComponentKey{
+		{Name: "n", Type: "int", Description: "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."},
+		{Name: "n_null", Type: "int", Description: "Rows skipped for missing members: listwise any member null, pairwise every member null."},
+		{Name: "n_listwise_dropped", Type: "int", Description: "Rows listwise deletion dropped; 0 under pairwise."},
+		{Name: "min_pair_n", Type: "int", Optional: true, Description: "Pairwise only: the smallest pair N (the minimum of auxiliary.n)."},
+		{Name: "max_pair_n", Type: "int", Optional: true, Description: "Pairwise only: the largest pair N (the maximum of auxiliary.n)."},
+	}
+}
+
+// matrixSchema composes a matrix operator's ComponentSchema: the floor
+// keys, then the operator's own keys. Every matrix operator is
+// Mergeable (its counts and co-moments fold through the blocked merge).
+// The optional weighted floor keys are spliced in after the floor and
+// pairwise keys (the types.MatrixComponents wire order) by
+// withMatrixWeightKeys on an instance that offers capability:weighting.
+func matrixSchema(extra ...descriptor.ComponentKey) descriptor.ComponentSchema {
+	return descriptor.ComponentSchema{
+		Keys:         append(matrixFloorKeys(), extra...),
+		Mergeability: descriptor.Mergeable,
+	}
+}
+
+// withMatrixWeightKeys splices the optional weighted floor keys
+// (sum_weights, n_eff, n_weight_invalid) in after each matrix
+// operator's floor and pairwise keys — every built-in matrix operator
+// honours a row weight.
+func withMatrixWeightKeys(ms []descriptor.MatrixMeta) []descriptor.MatrixMeta {
+	floor := len(matrixFloorKeys())
+	for i := range ms {
+		keys := ms[i].ComponentSchema.Keys
+		out := make([]descriptor.ComponentKey, 0, len(keys)+3)
+		out = append(out, keys[:floor]...)
+		out = append(out, weightFloorKeys()...)
+		out = append(out, keys[floor:]...)
+		ms[i].ComponentSchema.Keys = out
+	}
+	return ms
+}
+
+// matrixComponentSchemas is the Manifest.ComponentsSchemas.Matrices
+// projection of the (instance-filtered) matrix metas; nil when empty.
+func matrixComponentSchemas(ms []descriptor.MatrixMeta) map[string]descriptor.ComponentSchema {
+	if len(ms) == 0 {
+		return nil
+	}
+	out := make(map[string]descriptor.ComponentSchema, len(ms))
+	for _, m := range ms {
+		out[m.Name] = m.ComponentSchema
+	}
+	return out
 }
 
 // sortMatrices returns ms sorted by Name.

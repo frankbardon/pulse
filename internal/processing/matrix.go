@@ -37,6 +37,10 @@ type matrixSlot struct {
 	// so it is worker-invariant like the blocks. Always 0 under
 	// pairwise.
 	dropped int64
+	// allNull counts the filter-passing rows whose every member is
+	// null — the rows pairwise admits nowhere (its n_null). Summed at
+	// Merge like dropped.
+	allNull int64
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
@@ -90,17 +94,22 @@ func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *Exte
 // and skips the row. A weight of 0 is valid: the row counts toward n
 // and adds no mass. The field argument is ignored (BlockMerger shape).
 func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
-	null := false
+	null, all := false, true
 	for i, f := range m.plan.Members.Members {
 		v, ok := r.NumericValue(f)
 		if !ok {
 			v = math.NaN()
 		}
-		null = null || math.IsNaN(v)
+		isNaN := math.IsNaN(v)
+		null = null || isNaN
+		all = all && isNaN
 		m.x[i] = v
 	}
 	if null && !m.plan.Pairwise {
 		m.dropped++
+	}
+	if all && len(m.x) > 0 {
+		m.allNull++
 	}
 	w := 1.0
 	if m.weight != nil {
@@ -121,15 +130,17 @@ func (m *matrixSlot) Finalize() (float64, error) { return math.NaN(), nil }
 func (m *matrixSlot) BlockMoments() *BlockCoMoments { return m.state }
 
 // result combines the blocks through the fixed tree and renders the
-// operator's MatrixResult.
-func (m *matrixSlot) result() (types.MatrixResult, error) {
+// operator's MatrixResult and, when withComponents, its
+// Response.Components.Matrices entry (nil otherwise, so an opted-out
+// run skips the build).
+func (m *matrixSlot) result(withComponents bool) (types.MatrixResult, *types.MatrixComponents, error) {
 	cm, err := m.state.Tree()
 	if err != nil {
-		return types.MatrixResult{}, err
+		return types.MatrixResult{}, nil, err
 	}
 	fin, ok := matrixFinalizers[m.plan.Type]
 	if !ok {
-		return types.MatrixResult{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return types.MatrixResult{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
 	}
 	primary := fin(cm, m.plan)
@@ -145,7 +156,51 @@ func (m *matrixSlot) result() (types.MatrixResult, error) {
 			"n": m.values(func(i, j int) float64 { return float64(cm.PairN(i, j)) }),
 		}
 	}
-	return res, nil
+	if !withComponents {
+		return res, nil, nil
+	}
+	return res, m.components(cm), nil
+}
+
+// components renders the slot's Response.Components.Matrices entry off
+// the merged state cm and the integer row tallies — every input is
+// worker-invariant, so the entry is too.
+func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
+	c := &types.MatrixComponents{
+		Name:             m.plan.Name,
+		Type:             m.plan.Type,
+		N:                int(cm.N()),
+		NListwiseDropped: int(m.dropped),
+	}
+	if m.plan.Pairwise {
+		c.NNull = int(m.allNull)
+		p := len(m.plan.Members.Members)
+		if p > 0 {
+			lo, hi := cm.PairN(0, 0), cm.PairN(0, 0)
+			for i := 0; i < p; i++ {
+				for j := i; j < p; j++ {
+					n := cm.PairN(i, j)
+					lo, hi = min(lo, n), max(hi, n)
+				}
+			}
+			minN, maxN := int(lo), int(hi)
+			c.MinPairN, c.MaxPairN = &minN, &maxN
+		}
+	} else {
+		c.NNull = int(m.dropped)
+	}
+	if m.weight != nil {
+		sw, inv := cm.W(), int(cm.NWeightInvalid())
+		c.SumWeights, c.NWeightInvalid = &sw, &inv
+		if m.weight.EffectiveKind() == types.WeightKindProbability {
+			neff := cm.NEff()
+			c.NEff = &neff
+		}
+	}
+	if m.plan.Type == types.MAT_COVARIANCE {
+		c.Operator = map[string]any{"ddof": m.plan.DDOF}
+	}
+	return c
 }
 
 // matrixFinalizer turns a slot's merged co-moment state into the
@@ -220,21 +275,46 @@ func determinantSPD(s *linalg.Sym) float64 {
 	return det
 }
 
-// finalizeMatrixSlots renders every slot's result in spec order; nil
-// when there is none.
-func finalizeMatrixSlots(slots []*matrixSlot) ([]types.MatrixResult, error) {
+// finalizeMatrixSlots renders every slot's result in spec order, and
+// when withComponents each one's Response.Components.Matrices entry in
+// the same order; nil when there is no slot.
+func finalizeMatrixSlots(slots []*matrixSlot, withComponents bool) ([]types.MatrixResult, []types.MatrixComponents, error) {
 	if len(slots) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	out := make([]types.MatrixResult, 0, len(slots))
+	var comps []types.MatrixComponents
 	for _, s := range slots {
-		res, err := s.result()
+		res, c, err := s.result(withComponents)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		out = append(out, res)
+		if c != nil {
+			comps = append(comps, *c)
+		}
 	}
-	return out, nil
+	return out, comps, nil
+}
+
+// attachMatrixComponents appends the matrix entries onto
+// resp.Components.Matrices, allocating the shell only when there is
+// one — the attachAggregationComponents pattern. Callers gate it on the
+// components opt-out.
+func attachMatrixComponents(resp *types.Response, comps []types.MatrixComponents) {
+	if len(comps) == 0 {
+		return
+	}
+	if resp.Components == nil {
+		resp.Components = &types.ResponseComponents{}
+	}
+	resp.Components.Matrices = append(resp.Components.Matrices, comps...)
+}
+
+// AttachMatrixComponents is attachMatrixComponents for the parallel
+// reducers.
+func AttachMatrixComponents(resp *types.Response, comps []types.MatrixComponents) {
+	attachMatrixComponents(resp, comps)
 }
 
 // foldMatrixRecords folds a buffered record set into every slot in
@@ -309,15 +389,17 @@ func (m *MatrixSlots) Merge(o *MatrixSlots) error {
 			return err
 		}
 		s.dropped += o.slots[i].dropped
+		s.allNull += o.slots[i].allNull
 	}
 	return nil
 }
 
-// Finalize renders every slot's result in spec order (nil when there
-// is none).
-func (m *MatrixSlots) Finalize() ([]types.MatrixResult, error) {
+// Finalize renders every slot's result in spec order, and when
+// withComponents its Response.Components.Matrices entry in the same
+// order (nil when there is none).
+func (m *MatrixSlots) Finalize(withComponents bool) ([]types.MatrixResult, []types.MatrixComponents, error) {
 	if m == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return finalizeMatrixSlots(m.slots)
+	return finalizeMatrixSlots(m.slots, withComponents)
 }

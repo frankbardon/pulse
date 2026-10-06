@@ -1038,6 +1038,7 @@ pulse/descriptor: type ComponentsSchemasBlock struct
 pulse/descriptor: type ComponentsSchemasBlock field Aggregators map[string]pulse/descriptor.ComponentSchema "json:\"aggregators,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Filterers map[string]pulse/descriptor.ComponentSchema "json:\"filterers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Groupers map[string]pulse/descriptor.ComponentSchema "json:\"groupers,omitempty\""
+pulse/descriptor: type ComponentsSchemasBlock field Matrices map[string]pulse/descriptor.ComponentSchema "json:\"matrices,omitempty\""
 pulse/descriptor: type CrosstabCapability struct
 pulse/descriptor: type CrosstabCapability field IndependentAggregators []string "json:\"independent_aggregators\""
 pulse/descriptor: type CrosstabCapability field MapValuedCellAggregators []string "json:\"map_valued_cell_aggregators\""
@@ -1276,6 +1277,7 @@ pulse/descriptor: type MatrixCapability field MissingModes []string "json:\"miss
 pulse/descriptor: type MatrixCapability field Name string "json:\"name\""
 pulse/descriptor: type MatrixMeta struct
 pulse/descriptor: type MatrixMeta field AcceptsTypes []string "json:\"accepts_types\""
+pulse/descriptor: type MatrixMeta field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type MatrixMeta field Description string "json:\"description\""
 pulse/descriptor: type MatrixMeta field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type MatrixMeta field Mergeable bool "json:\"mergeable\""
@@ -1289,6 +1291,17 @@ pulse/descriptor: type MatrixOutputKeys field Auxiliary []string "json:\"auxilia
 pulse/descriptor: type MatrixOutputKeys field Primary string "json:\"primary\""
 pulse/descriptor: type MatrixOutputKeys field Scalars []string "json:\"scalars,omitempty\""
 pulse/descriptor: type MatrixOutputKeys field Vectors []string "json:\"vectors,omitempty\""
+pulse/descriptor: type MatrixPredict struct
+pulse/descriptor: type MatrixPredict field AccumulatorBytes int64 "json:\"accumulator_bytes\""
+pulse/descriptor: type MatrixPredict field AxisKeys []string "json:\"axis_keys\""
+pulse/descriptor: type MatrixPredict field Encoding pulse/types.MatrixEncoding "json:\"encoding\""
+pulse/descriptor: type MatrixPredict field Labels []string "json:\"labels,omitempty\""
+pulse/descriptor: type MatrixPredict field Missing string "json:\"missing\""
+pulse/descriptor: type MatrixPredict field Name string "json:\"name\""
+pulse/descriptor: type MatrixPredict field PairwisePSDRisk bool "json:\"pairwise_psd_risk\""
+pulse/descriptor: type MatrixPredict field Shape [2]int "json:\"shape\""
+pulse/descriptor: type MatrixPredict field Streamable bool "json:\"streamable\""
+pulse/descriptor: type MatrixPredict field Type pulse/types.MatrixType "json:\"type\""
 pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeable"
 pulse/descriptor: const MultiplicityTriggerThreshold untyped int = 10
 pulse/descriptor: func NewEnvelope(data any) *pulse/descriptor.Envelope
@@ -1402,6 +1415,7 @@ pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:
 pulse/descriptor: type PredictResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
 pulse/descriptor: type PredictResult field Filterers []pulse/descriptor.FiltererPredict "json:\"filterers\""
 pulse/descriptor: type PredictResult field Groups []pulse/descriptor.GroupPredict "json:\"groups\""
+pulse/descriptor: type PredictResult field Matrices []pulse/descriptor.MatrixPredict "json:\"matrices,omitempty\""
 pulse/descriptor: type PredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse/descriptor: type PredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
 pulse/descriptor: type PredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
@@ -3605,6 +3619,20 @@ pulse/types: type MatrixCell struct
 pulse/types: type MatrixCell field Present bool "json:\"present\""
 pulse/types: type MatrixCell field Value any "json:\"value,omitempty\""
 pulse/types: type MatrixCell method (MatrixCell) Scalar() float64
+pulse/types: type MatrixComponents struct
+pulse/types: type MatrixComponents field GroupKey pulse/types.AxisKey "json:\"group_key,omitempty\""
+pulse/types: type MatrixComponents field MaxPairN *int "json:\"max_pair_n,omitempty\""
+pulse/types: type MatrixComponents field MinPairN *int "json:\"min_pair_n,omitempty\""
+pulse/types: type MatrixComponents field N int "json:\"n\""
+pulse/types: type MatrixComponents field NEff *float64 "json:\"n_eff,omitempty\""
+pulse/types: type MatrixComponents field NListwiseDropped int "json:\"n_listwise_dropped\""
+pulse/types: type MatrixComponents field NNull int "json:\"n_null\""
+pulse/types: type MatrixComponents field NWeightInvalid *int "json:\"n_weight_invalid,omitempty\""
+pulse/types: type MatrixComponents field Name string "json:\"name\""
+pulse/types: type MatrixComponents field Operator map[string]any "json:\"operator,omitempty\""
+pulse/types: type MatrixComponents field SumWeights *float64 "json:\"sum_weights,omitempty\""
+pulse/types: type MatrixComponents field Type pulse/types.MatrixType "json:\"type\""
+pulse/types: type MatrixComponents method (MatrixComponents) MarshalJSON() ([]byte, error)
 pulse/types: type MatrixEncoding string
 pulse/types: const MatrixEncodingFull pulse/types.MatrixEncoding = "full"
 pulse/types: const MatrixEncodingUpper pulse/types.MatrixEncoding = "upper"
@@ -3974,6 +4002,7 @@ pulse/types: type ResponseComponents field Aggregations []pulse/types.Aggregatio
 pulse/types: type ResponseComponents field Crosstab *pulse/types.CrosstabComponents "json:\"crosstab,omitempty\""
 pulse/types: type ResponseComponents field Filterers []pulse/types.FiltererComponents "json:\"filterers,omitempty\""
 pulse/types: type ResponseComponents field Groupers []pulse/types.GrouperComponents "json:\"groupers,omitempty\""
+pulse/types: type ResponseComponents field Matrices []pulse/types.MatrixComponents "json:\"matrices,omitempty\""
 pulse/types: type ResponseComponents field Run *pulse/types.RunComponents "json:\"run,omitempty\""
 pulse/types: type ResponseComponents method (ResponseComponents) MarshalJSON() ([]byte, error)
 pulse/types: type ResponseMetadata struct
@@ -4107,4 +4136,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8d940b159eb57df7f15c6e74387ce4861e394a0ddad80e6d57db9631eb1d69c5
+// golden-hash: 18dc6ed4f433d2d9158cf0964d89c8f58dced0ccc1a695cea5852163b6ab4119

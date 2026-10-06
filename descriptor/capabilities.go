@@ -548,6 +548,13 @@ type MatrixMeta struct {
 	// through the blocked merge tree, bit-identical to serial.
 	Mergeable bool `json:"mergeable"`
 
+	// ComponentSchema declares the operator's
+	// Response.Components.Matrices entry: the matrix floor
+	// {n, n_null, n_listwise_dropped}, the optional pairwise and
+	// weighted floor keys, then the operator's own keys. Mirrored under
+	// Manifest.ComponentsSchemas.Matrices.
+	ComponentSchema ComponentSchema `json:"component_schema"`
+
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
 	// operator answers, sorted. Omitted when it declares no purpose.
 	Intents []string `json:"intents,omitempty"`

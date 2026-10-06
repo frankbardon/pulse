@@ -88,6 +88,7 @@ type ComponentsSchemasBlock struct {
 	Aggregators map[string]ComponentSchema `json:"aggregators,omitempty"`
 	Groupers    map[string]ComponentSchema `json:"groupers,omitempty"`
 	Filterers   map[string]ComponentSchema `json:"filterers,omitempty"`
+	Matrices    map[string]ComponentSchema `json:"matrices,omitempty"`
 }
 
 // Manifest is the root self-description of the Pulse system. One bootstrap

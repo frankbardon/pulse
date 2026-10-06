@@ -81,7 +81,9 @@ func (m *matrixSlot) warnings(cm *linalg.CoMoment, primary *linalg.Sym) []*types
 		}
 	}
 
-	if m.plan.Pairwise {
+	// Only the shapes predict reports pairwise_psd_risk for are judged
+	// (vectors.Matrix.PSDRisk — the one shared rule).
+	if m.plan.PSDRisk() {
 		if pivot, checked, bad := notPSD(primary); bad {
 			out = append(out, matrixWarning(errors.PULSE_MATRIX_NOT_PSD,
 				"pairwise matrix "+m.plan.Name+" is not positive semidefinite (reference Cholesky fails at member "+members[pivot]+")",

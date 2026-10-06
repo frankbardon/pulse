@@ -28,3 +28,43 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 		env.AddWarning(string(w.Code), w.Message, w.Details)
 	}
 }
+
+// predictMatrices fills PredictResult.Matrices from the one resolver
+// (internal/vectors.ResolveMatrices, the field-reference pass's own
+// call) and the shared per-matrix rules (vectors.Matrix.PSDRisk /
+// AccumulatorBytes) the engine honours. A refused spec is reported by
+// the field-reference pass, so nothing is echoed then.
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) {
+	if req == nil || len(req.Matrices) == 0 {
+		return
+	}
+	plans, err := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
+		return isBuiltinMatrixType(opRoute(inst, t))
+	})
+	if err != nil {
+		return
+	}
+	out := make([]descriptor.MatrixPredict, 0, len(plans))
+	for _, m := range plans {
+		p := len(m.Members.Members)
+		mp := descriptor.MatrixPredict{
+			Name:             m.Name,
+			Type:             m.Type,
+			Shape:            [2]int{p, p},
+			AxisKeys:         append([]string{}, m.Members.Members...),
+			Missing:          vectors.MissingListwise,
+			Encoding:         m.Encoding,
+			AccumulatorBytes: m.AccumulatorBytes(),
+			Streamable:       m.Type.Streamable(),
+			PairwisePSDRisk:  m.PSDRisk(),
+		}
+		if m.Pairwise {
+			mp.Missing = vectors.MissingPairwise
+		}
+		if m.ExplicitLabels {
+			mp.Labels = append([]string(nil), m.Members.Labels...)
+		}
+		out = append(out, mp)
+	}
+	result.Matrices = out
+}

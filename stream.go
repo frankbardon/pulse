@@ -456,6 +456,7 @@ func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []de
 		Crosstab:  buffered.Crosstab,
 		Filterers: buffered.Filterers,
 		Run:       buffered.Run,
+		Matrices:  buffered.Matrices,
 	}
 	if len(buffered.Aggregations) > 0 {
 		clone := make([]types.AggregationComponents, len(buffered.Aggregations))
