@@ -27,7 +27,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary`: r clamped to [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs. Grouped: one result per bucket, as for covariance.
+`primary`: r clamped to [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
 
 ## Components
 
@@ -37,9 +37,9 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 - Same arithmetic as the Pearson test; no p-values. Weight-0 rows count in `n`, add no mass.
 - Pairwise r at p ≥ 3 can be non-PSD (predict `pairwise_psd_risk`) → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
-- `joins` / chain stage ≥ 1 / `crosstab` refused as for covariance.
+- Refusals and grouping: `matrix-results`.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, correlation-analysis]`
-- Skills: `op-mat-covariance`, `weighting`
+- Skills: `matrix-results`, `op-mat-covariance`, `weighting`

@@ -7943,6 +7943,10 @@
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
+        "name": "matrix-results",
+        "description": "Vectors and matrices on a Request — naming a battery of numeric fields once, getting a covariance or correlation matrix back, the encodings, missing-data modes, warnings, per-group matrices, predict's cost estimate and what is refused."
+      },
+      {
         "name": "multiplicity-correction",
         "description": "Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected."
       },
@@ -12128,4 +12132,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 57190d4247ddacc9689dc2aaaed0750c0145a98303203f8efa3605e69c39a745
+// golden-hash: 12d5a5f5bf65882c220de5560c2af382d8b1fbe8f7d2609380d9caa94e0fe82a

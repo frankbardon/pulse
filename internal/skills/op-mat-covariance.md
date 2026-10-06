@@ -27,7 +27,7 @@ Integer/float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary` covariance (`row_keys` = members), `scalars.determinant` (null unless PD), pairwise `auxiliary.n`, `warnings`. Undefined cells null. Grouped: per non-empty bucket (`group_key`, `group_header`), spec-major in final Data order (after `sort`); thin buckets warn.
+`primary` covariance, `scalars.determinant` (null unless PD), pairwise `auxiliary.n`, `warnings`; undefined cells null. Grouped: one per bucket (`matrix-results`).
 
 ## Components
 
@@ -37,10 +37,9 @@ Integer/float members; `packed_bool` under `coerce: "binary"`.
 
 - Warnings: `PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE` (row stays 0), `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` (pairwise).
 - Weight 0 counts in `n`, adds no mass. Predict: `pairwise_psd_risk` (pairwise, p ≥ 2).
-- Bitwise worker-count invariant; streamed: at terminal flush. `summary` is refused (`top_pairs`: `op-mat-correlation`).
-- `joins` / chain stage ≥ 1 → `PULSE_MATRIX_UNSUPPORTED_SOURCE`; `crosstab` → `PULSE_MATRIX_HOST_CONFLICT`.
+- `summary` is refused (`top_pairs`: `op-mat-correlation`). Refusals and worker invariance: `matrix-results`.
 
 ## See
 
 - `pulse_examples_search tags=[covariance]`
-- Skills: `request-envelope`, `weighting`
+- Skills: `matrix-results`, `weighting`

@@ -1,6 +1,6 @@
 # 03 — Embedder migration guide
 
-**Status:** decided · U01, U02, U02b, U02c, U04, U05, U06, U09, U10, U11, U12, U13, U14 and U15 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
+**Status:** decided · U01, U02, U02b, U02c, U04, U05, U06, U09, U10, U11, U12, U13, U14, U15 and U16 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
 
 ## Purpose
 
@@ -315,6 +315,20 @@ Complete for U15 (no release tag cut by the unit). Contract: `.claude/reference/
 | parallel buffered decode split a cohort into `floor(N/W)`-record segments | segments start at multiples of 4096 records; every result is unchanged | internal | none: segmentation is not observable in output | U15 |
 
 Not shipped, by decision: no operator, request slot or response slot consumes `linalg` yet (U16 adds the first, `MAT_COVARIANCE` / `MAT_CORRELATION`); the engine's bit-exact blocked-merge opt-in is internal and not reachable through `extend`.
+
+## Changes from U16 (matrix result)
+
+Complete for U16 (no release tag cut by the unit). Contract: `.claude/reference/matrix-and-vectors.md`; guide `docs/src/library/matrices.md`. Additive: a request without `vectors` / `matrices` is byte-identical in request hash, response and components, and `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| no vector or matrix slot | `types.Request.Vectors` (`VectorSpec`, `VectorCoerce`), `Request.Matrices` (`MatrixSpec`), `Response.Matrices` (`MatrixResult`, `MatrixValues`, `MatrixPair`, `MatrixEncoding`, `MatrixKind`), `Components.Matrices` (`MatrixComponents`), `types.MatrixType` / `AllMatrixTypes()` with `MAT_COVARIANCE`, `MAT_CORRELATION` | added | none; opt in per request. `capability:matrices` gates the slots in a feature profile | U16 |
+| no matrix error codes beyond `PULSE_MATRIX_SINGULAR` / `_SHAPE_MISMATCH` | `PULSE_VECTOR_*` (`EMPTY`, `MEMBER_TYPE`, `DUPLICATE`, `LABELS_MISMATCH`, `UNKNOWN`, `INVALID`, `UNREFERENCED`), `PULSE_MATRIX_*` (`NOT_PSD`, `LISTWISE_HEAVY_DROP`, `INSUFFICIENT_N`, `ZERO_VARIANCE`, `UNSUPPORTED_SOURCE`, `HOST_CONFLICT`) | added | `pulse errors lookup CODE`; the manifest error list and golden changed | U16 |
+| `PredictResult` had no vector or matrix keys | `resolved_vectors`, `matrices[]` (`descriptor.MatrixPredict`: `shape`, `accumulator_bytes`, `pairwise_psd_risk`, `bucket_basis`, `estimated_*`) | added | none | U16 |
+| `linalg.CoMoment.Corr` divided by `sqrt(M2ii) * sqrt(M2jj)` | `Corr` divides by `sqrt(M2ii * M2jj)` (the `TEST_PEARSON_R` arithmetic), falling back to the two-root form when the product overflows or underflows, so a matrix cell can equal `TEST_PEARSON_R` bit for bit on amd64 | behaviour (last ulps) | a caller comparing `Corr` bits against stored values regenerates them; no Pulse code outside the matrix slot called it | U16 |
+| `mergegate.MergeRefusal` refused any request without an aggregator | a request carrying only mergeable matrices is admitted (parallel decode, shards) | internal | none; results are bit-identical to serial | U16 |
+
+Not shipped, by decision: `precision` on matrix cells (U17), `MaxMatrixDim` and a buckets x p^2 guard (U19), `repair: "nearest"` and non-PSD refusal by decompositions (U24), raw p-values and intervals on correlation and a matrix overlay host (U28), matrices in crosstab arms (U28), `BlockMerger` through `extend` (U30).
 
 ## Third-party dependency
 
