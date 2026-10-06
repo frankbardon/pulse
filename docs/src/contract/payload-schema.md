@@ -308,7 +308,8 @@ Predict echoes the resolved members as `data.resolved_vectors`
 `{name, type, group_key?, group_header?, primary, auxiliary, vectors,
 scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
-`type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`);
+`type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
+`MAT_CORRELATION`);
 `encoding` is `full` (default) or `upper`. Every matrix is a dedicated
 `MatrixValues` `{kind, encoding, row_keys, column_keys, labels?,
 values}` — not the crosstab `MatrixPayload` — whose `values` rows hold
@@ -319,7 +320,8 @@ schema cannot say, predict and the runtime enforce identically before
 any record is read: exactly one of `vector` / `fields`; a `vector` a
 `vectors` entry defines (else `PULSE_VECTOR_UNKNOWN`); inline `fields`
 follow the vector rules; result names are unique; `params` are the
-operator's own (`MAT_COVARIANCE`: `ddof` 0 or 1). Contract:
+operator's own (`MAT_COVARIANCE`: `ddof` 0 or 1; `MAT_CORRELATION`:
+none). Contract:
 `.claude/reference/matrix-and-vectors.md`.
 
 ## Undefined figures

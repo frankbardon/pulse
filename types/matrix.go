@@ -21,12 +21,20 @@ const (
 	// a row with any member null is skipped. Weighted under frequency
 	// and probability weights (denominator Σw − ddof).
 	MAT_COVARIANCE MatrixType = "MAT_COVARIANCE"
+	// MAT_CORRELATION is the Pearson correlation matrix of the members:
+	// C_ij / √(M2_ii·M2_jj), clamped to [−1, 1], the TEST_PEARSON_R
+	// arithmetic. Listwise. A member with zero spread has no defined
+	// correlation: its row and column (diagonal included) are NaN (null
+	// on the wire). Weighted under frequency and probability weights
+	// (r is scale-free, so the two kinds agree). No p-values.
+	MAT_CORRELATION MatrixType = "MAT_CORRELATION"
 )
 
 // AllMatrixTypes returns every built-in matrix operator in alphabetical
 // order.
 func AllMatrixTypes() []MatrixType {
 	return []MatrixType{
+		MAT_CORRELATION,
 		MAT_COVARIANCE,
 	}
 }
@@ -37,7 +45,7 @@ func AllMatrixTypes() []MatrixType {
 // at terminal flush. An unknown type is not streamable.
 func (t MatrixType) Streamable() bool {
 	switch t {
-	case MAT_COVARIANCE:
+	case MAT_CORRELATION, MAT_COVARIANCE:
 		return true
 	}
 	return false
@@ -51,7 +59,7 @@ func (t MatrixType) Streamable() bool {
 // the same bits. An unknown type is not mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
-	case MAT_COVARIANCE:
+	case MAT_CORRELATION, MAT_COVARIANCE:
 		return true
 	}
 	return false
@@ -102,7 +110,7 @@ type MatrixSpec struct {
 	// "<TYPE>_<vector>" for a vector spec and to "<TYPE>" for an inline
 	// one. Names are unique per request.
 	Name string `json:"name,omitempty"`
-	// Type names the matrix operator (MAT_COVARIANCE).
+	// Type names the matrix operator (MAT_COVARIANCE, MAT_CORRELATION).
 	Type MatrixType `json:"type"`
 	// Vector names the Request.Vectors entry whose members are the
 	// matrix's axes.
@@ -111,7 +119,7 @@ type MatrixSpec struct {
 	// entries), the VectorSpec.Fields rules.
 	Fields []string `json:"fields,omitempty"`
 	// Params carries the operator's parameters (MAT_COVARIANCE:
-	// {"ddof": 0 | 1}).
+	// {"ddof": 0 | 1}; MAT_CORRELATION: none).
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot
@@ -161,7 +169,8 @@ type MatrixValues struct {
 }
 
 // MatrixResult is the result of one MatrixSpec. Primary is the
-// operator's matrix (MAT_COVARIANCE: the covariance); Auxiliary holds
+// operator's matrix (MAT_COVARIANCE: the covariance; MAT_CORRELATION:
+// Pearson r); Auxiliary holds
 // same-shape companion matrices keyed by name; Vectors per-member or
 // per-pair summaries; Scalars whole-matrix figures (determinant: the
 // determinant of Primary by the reference Cholesky, null when Primary

@@ -1076,7 +1076,8 @@ type Request struct {
 	// capability:matrices. See VectorSpec.
 	Vectors []VectorSpec `json:"vectors,omitempty"`
 
-	// Matrices is the list of matrix operators (MAT_COVARIANCE)
+	// Matrices is the list of matrix operators (MAT_COVARIANCE,
+	// MAT_CORRELATION)
 	// evaluated against the filtered record set over a virtual vector
 	// or an inline member list. Each spec produces one MatrixResult in
 	// Response.Matrices, in matching order. Every built-in matrix

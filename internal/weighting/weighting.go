@@ -175,7 +175,8 @@ var regressionClasses = map[types.RegressionType]Class{
 }
 
 // matrixClasses are the built-in matrix operators' weight classes.
-// MAT_COVARIANCE folds rows into a weighted linalg.CoMoment (weighted
+// MAT_CORRELATION folds the same weighted co-moments and reads r off
+// them (scale-free, so the two kinds agree). MAT_COVARIANCE folds rows into a weighted linalg.CoMoment (weighted
 // Welford–West): its matrix is M2_w / (Σw − ddof) under both kinds —
 // statsmodels DescrStatsW(weights, ddof).cov — the frequency formula on
 // the expansion and, under a probability weight, the same descriptive
@@ -183,7 +184,8 @@ var regressionClasses = map[types.RegressionType]Class{
 // the matrix's n but adds no mass (CoMoment semantics, unlike the
 // weighted aggregators, which skip it).
 var matrixClasses = map[types.MatrixType]Class{
-	types.MAT_COVARIANCE: ClassAware,
+	types.MAT_CORRELATION: ClassAware,
+	types.MAT_COVARIANCE:  ClassAware,
 }
 
 // refusalReasons are the PERMANENT refusals: operators with no standard

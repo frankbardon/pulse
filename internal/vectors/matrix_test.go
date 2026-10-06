@@ -15,14 +15,18 @@ func TestResolveMatrices_Resolves(t *testing.T) {
 		Matrices: []types.MatrixSpec{
 			{Type: types.MAT_COVARIANCE, Vector: "qs"},
 			{Type: types.MAT_COVARIANCE, Name: "inline", Fields: []string{"score", "mid"}, Params: json.RawMessage(`{"ddof": 0}`), Encoding: types.MatrixEncodingUpper},
+			{Type: types.MAT_CORRELATION, Vector: "qs", Params: json.RawMessage(`{}`)},
 		},
 	}
 	got, err := ResolveMatrices(req, testSchema(), nil)
 	if err != nil {
 		t.Fatalf("unexpected refusal: %v", err)
 	}
-	if len(got) != 2 {
+	if len(got) != 3 {
 		t.Fatalf("got %d matrices", len(got))
+	}
+	if c := got[2]; c.Name != "MAT_CORRELATION_qs" || c.Type != types.MAT_CORRELATION || c.Index != 2 {
+		t.Errorf("correlation spec = %+v", c)
 	}
 	a, b := got[0], got[1]
 	if a.Name != "MAT_COVARIANCE_qs" || a.DDOF != 1 || a.Encoding != types.MatrixEncodingFull || !a.ExplicitLabels {
@@ -58,6 +62,7 @@ func TestResolveMatrices_Refusals(t *testing.T) {
 		{"duplicate name", []types.MatrixSpec{{Type: cov, Vector: "v"}, {Type: cov, Vector: "v"}}, vec, nil, errors.SERVICE_VALIDATION, "duplicate_name"},
 		{"ddof out of range", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"ddof": 2}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"unknown param", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"dof": 1}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"correlation takes no ddof", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"ddof": 1}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"undefined vector", []types.MatrixSpec{{Type: cov, Vector: "w"}}, vec, nil, errors.PULSE_VECTOR_UNKNOWN, ""},
 		{"inline categorical member", []types.MatrixSpec{{Type: cov, Fields: []string{"region"}}}, nil, nil, errors.PULSE_VECTOR_MEMBER_TYPE, ""},
 		{"vector refusal wins first", []types.MatrixSpec{{Type: "MAT_NOPE", Vector: "v"}}, []types.VectorSpec{{Name: "v", Pattern: "^nothing$"}}, nil, errors.PULSE_VECTOR_EMPTY, ""},

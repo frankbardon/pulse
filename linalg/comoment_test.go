@@ -670,3 +670,50 @@ func TestCoMomentDefaultsAndAccessors(t *testing.T) {
 		t.Fatalf("p=0: N=%d", empty.N())
 	}
 }
+
+// TestCoMomentCorrOneRootForm: Corr's off-diagonal is C/√(M2_x·M2_y)
+// — TEST_PEARSON_R's one-root arithmetic — bit for bit, so a matrix
+// built on Corr agrees with that test exactly on one unit-weight block;
+// and a spread too small to square (the product underflows) still
+// correlates through the two-root fallback.
+func TestCoMomentCorrOneRootForm(t *testing.T) {
+	r := rand.New(rand.NewPCG(5, 77))
+	for trial := 0; trial < 200; trial++ {
+		c := mustCoMoment(t, 2, linalg.Listwise)
+		var n, mx, my, m2x, m2y, cxy float64
+		for i := 0; i < 5+r.IntN(60); i++ {
+			x := r.NormFloat64()*3 + 10
+			y := 0.4*x + r.NormFloat64()
+			c.Add([]float64{x, y}, 1)
+			// The bivariate Welford step in CoMoment's (FMA-free) order.
+			n++
+			if n == 1 {
+				mx, my = x, y
+				continue
+			}
+			dx, dy := x-mx, y-my
+			mx += dx / n
+			my += dy / n
+			m2x += float64(dx * (x - mx))
+			m2y += float64(dy * (y - my))
+			cxy += float64(dx * (y - my))
+		}
+		want := math.Max(-1, math.Min(1, cxy/math.Sqrt(m2x*m2y)))
+		if got := c.Corr().At(0, 1); math.Float64bits(got) != math.Float64bits(want) {
+			t.Fatalf("trial %d: corr %v (%#x), one-root form %v (%#x)", trial, got, math.Float64bits(got), want, math.Float64bits(want))
+		}
+	}
+	for _, mode := range bothModes {
+		tiny, unit := mustCoMoment(t, 2, mode), mustCoMoment(t, 2, mode)
+		for i := 0; i < 20; i++ {
+			x := r.NormFloat64()
+			y := x + 0.3*r.NormFloat64()
+			unit.Add([]float64{x, y}, 1)
+			tiny.Add([]float64{x * 1e-120, y * 1e-120}, 1)
+		}
+		got, want := tiny.Corr().At(0, 1), unit.Corr().At(0, 1)
+		if !(math.Abs(got-want) <= 1e-12) {
+			t.Fatalf("%s: tiny-scale corr %v, unit-scale %v", mode, got, want)
+		}
+	}
+}

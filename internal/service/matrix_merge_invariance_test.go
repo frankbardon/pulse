@@ -15,7 +15,8 @@ import (
 )
 
 // matrix_merge_invariance_test.go is the U16 E2 gate: the REAL
-// MAT_COVARIANCE registration (no test vehicle) returns the same bits
+// MAT_COVARIANCE and MAT_CORRELATION registrations (no test vehicle)
+// return the same bits
 // serially and under every DecodeWorkers / ShardWorkers count — the
 // TestCoMomentMergeTree_WorkerInvariant contract carried through the
 // production matrix slot. It reuses that test's cohort fixtures
@@ -27,21 +28,39 @@ import (
 // asserted admitted by the merge gate and bit-equal to it.
 
 // matrixInvarianceVariant is one request shape of the gate.
+// typ is the operator (MAT_COVARIANCE when empty).
 type matrixInvarianceVariant struct {
 	weighted    bool
 	withVehicle bool
+	typ         types.MatrixType
 }
 
-var matrixInvarianceVariants = []matrixInvarianceVariant{
-	{false, false}, {true, false}, {false, true}, {true, true},
+// matrixInvarianceVariants: every request shape for every built-in
+// matrix operator.
+var matrixInvarianceVariants = func() []matrixInvarianceVariant {
+	var out []matrixInvarianceVariant
+	for _, typ := range types.AllMatrixTypes() {
+		for _, v := range []matrixInvarianceVariant{{false, false, ""}, {true, false, ""}, {false, true, ""}, {true, true, ""}} {
+			v.typ = typ
+			out = append(out, v)
+		}
+	}
+	return out
+}()
+
+func (v matrixInvarianceVariant) matrixType() types.MatrixType {
+	if v.typ == "" {
+		return types.MAT_COVARIANCE
+	}
+	return v.typ
 }
 
 func (v matrixInvarianceVariant) String() string {
-	return fmt.Sprintf("weighted_%v_vehicle_%v", v.weighted, v.withVehicle)
+	return fmt.Sprintf("%s_weighted_%v_vehicle_%v", v.matrixType(), v.weighted, v.withVehicle)
 }
 
 func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Request {
-	spec := types.MatrixSpec{Name: "cov", Type: types.MAT_COVARIANCE, Fields: []string{"x1", "x2", "x3"}}
+	spec := types.MatrixSpec{Name: "mat", Type: v.matrixType(), Fields: []string{"x1", "x2", "x3"}}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
 	}
@@ -113,11 +132,13 @@ func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
 	}
 }
 
-// referenceCovarianceWords folds rows 0..n-1 straight into one listwise
-// CoMoment and renders Cov(1) as the gate renders the matrix — the
-// correctness anchor (wrong member, wrong weight) the engine's blocked
-// result must agree with to rounding.
-func referenceCovarianceWords(t *testing.T, n int, weighted bool) []uint64 {
+// referenceMatrixWords folds rows 0..n-1 straight into one listwise
+// CoMoment and renders the variant's operator (Cov(1) or Corr) as the
+// gate renders the matrix — the correctness anchor (wrong member, wrong
+// weight, wrong operator) the engine's blocked result must agree with
+// to rounding.
+func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint64 {
+	weighted := v.weighted
 	t.Helper()
 	c, err := linalg.NewCoMoment(3, linalg.Listwise)
 	if err != nil {
@@ -138,6 +159,9 @@ func referenceCovarianceWords(t *testing.T, n int, weighted bool) []uint64 {
 		c.Add([]float64{read(r, 0), read(r, 1), read(r, 2)}, w)
 	}
 	cov := c.Cov(1)
+	if v.matrixType() == types.MAT_CORRELATION {
+		cov = c.Corr()
+	}
 	var words []uint64
 	for i := 0; i < 3; i++ {
 		for j := 0; j < 3; j++ {
@@ -161,8 +185,8 @@ func assertMatrixCloseToReference(t *testing.T, got matrixRun, ref []uint64) {
 	}
 }
 
-// TestMatrixCovariance_WorkerInvariant is the MAT_COVARIANCE
-// worker-invariance gate: serial == DecodeWorkers 2/3/7/8 ==
+// TestMatrixCovariance_WorkerInvariant is the matrix worker-invariance
+// gate, for every built-in operator (MAT_COVARIANCE, MAT_CORRELATION): serial == DecodeWorkers 2/3/7/8 ==
 // ShardWorkers 2/3/8 bitwise (every cell and the determinant), on
 // cohorts ending mid-block and on a block boundary, weighted and
 // unweighted, matrix-only and beside an aggregation; a one-shard
@@ -204,7 +228,7 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 				t.Run(fmt.Sprintf("n%d_%s", n, v), func(t *testing.T) {
 					req := matrixInvarianceRequest(path, v)
 					serial := runMatrixInvariance(t, cfg, req, 1, 0)
-					assertMatrixCloseToReference(t, serial, referenceCovarianceWords(t, n, v.weighted))
+					assertMatrixCloseToReference(t, serial, referenceMatrixWords(t, n, v))
 					for _, workers := range []int{2, 3, 7, 8} {
 						got := runMatrixInvariance(t, cfg, req, workers, 0)
 						if v.withVehicle && got.instances != int64(workers) {
@@ -235,7 +259,7 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 			t.Run(v.String(), func(t *testing.T) {
 				req := matrixInvarianceRequest("archive.pulse", v)
 				serial := runMatrixInvariance(t, cfg, req, 0, 1)
-				assertMatrixCloseToReference(t, serial, referenceCovarianceWords(t, total, v.weighted))
+				assertMatrixCloseToReference(t, serial, referenceMatrixWords(t, total, v))
 				for _, workers := range []int{2, 3, 8} {
 					got := runMatrixInvariance(t, cfg, req, 0, workers)
 					if v.withVehicle && got.instances != int64(len(shardRows)) {
@@ -248,7 +272,7 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 				// (blocks are cut at different places); the bit
 				// difference, if any, is logged.
 				single := runMatrixInvariance(t, cfg, matrixInvarianceRequest("single.pulse", v), 0, 0)
-				assertMatrixCloseToReference(t, single, referenceCovarianceWords(t, total, v.weighted))
+				assertMatrixCloseToReference(t, single, referenceMatrixWords(t, total, v))
 				if i := firstWordDiff(single.words, serial.words); i != -1 {
 					t.Logf("caveat observed: archive vs single file differ from word %d", i)
 				}
@@ -283,11 +307,13 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 		if err := afero.WriteFile(cfg.Fs(), "m.pulse", writeNullablePulse(t, schema, recs, nullAt), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
-		for _, weighted := range []bool{false, true} {
-			alone := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, false}), 0, 0)
-			beside := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, true}), 0, 0)
-			if i := firstWordDiff(alone.words, beside.words); i != -1 {
-				t.Errorf("weighted=%v: matrix-only differs from matrix-beside-aggregation at word %d", weighted, i)
+		for _, typ := range types.AllMatrixTypes() {
+			for _, weighted := range []bool{false, true} {
+				alone := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, false, typ}), 0, 0)
+				beside := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, true, typ}), 0, 0)
+				if i := firstWordDiff(alone.words, beside.words); i != -1 {
+					t.Errorf("%s weighted=%v: matrix-only differs from matrix-beside-aggregation at word %d", typ, weighted, i)
+				}
 			}
 		}
 	})

@@ -133,13 +133,23 @@ type matrixFinalizer func(cm *linalg.CoMoment, plan vectors.Matrix) *linalg.Sym
 // matrixFinalizers is the built-in MAT_* registry: one finalizer per
 // types.AllMatrixTypes() entry (there is no extension MAT_* category).
 var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
-	types.MAT_COVARIANCE: finalizeCovariance,
+	types.MAT_COVARIANCE:  finalizeCovariance,
+	types.MAT_CORRELATION: finalizeCorrelation,
 }
 
 // finalizeCovariance is MAT_COVARIANCE: M2 / (W − ddof), NaN where
 // W − ddof ≤ 0 or a member has no mass.
 func finalizeCovariance(cm *linalg.CoMoment, plan vectors.Matrix) *linalg.Sym {
 	return cm.Cov(plan.DDOF)
+}
+
+// finalizeCorrelation is MAT_CORRELATION (Pearson): C_ij / √(M2_ii·M2_jj)
+// clamped to [−1, 1] — CoMoment.Corr, whose one-root form is
+// TEST_PEARSON_R's arithmetic. A member with zero spread (constant, a
+// single massed row, no rows) has no defined correlation: its whole
+// row and column, diagonal included, are NaN.
+func finalizeCorrelation(cm *linalg.CoMoment, _ vectors.Matrix) *linalg.Sym {
+	return cm.Corr()
 }
 
 // values renders a square symmetric matrix over the slot's members in

@@ -79,7 +79,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"aggregations", "aggregations", 4, ""},
 		{"tests", "tests", 27, ""},
 		{"regression", "regression", 16, ""},
-		{"matrices", "matrices", 1, ""},
+		{"matrices", "matrices", 2, ""},
 		{"crosstab", "crosstab", 13, ""},
 		// The overlays directory mixes Request-, Compose- and Facet-host
 		// examples, and only Request-host ones run through pulse.Process,

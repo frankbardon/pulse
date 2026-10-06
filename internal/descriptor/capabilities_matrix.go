@@ -15,6 +15,17 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 	memberTypes := []string{"f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
 	return []descriptor.MatrixMeta{
 		{
+			Name:         string(types.MAT_CORRELATION),
+			Description:  "Pearson correlation matrix of a vector's members (listwise), r clamped to [-1, 1]; a zero-spread member's row and column are null. Weighted under frequency and probability weights. No p-values.",
+			AcceptsTypes: memberTypes,
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary: "correlation",
+				Scalars: []string{"determinant"},
+			},
+			Streamable: types.MAT_CORRELATION.Streamable(),
+			Mergeable:  types.MAT_CORRELATION.Mergeable(),
+		},
+		{
 			Name:         string(types.MAT_COVARIANCE),
 			Description:  "Covariance matrix of a vector's members (listwise): sample covariance by default, weighted under frequency and probability weights.",
 			AcceptsTypes: memberTypes,

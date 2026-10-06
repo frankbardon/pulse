@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "name": "correlation_matrix",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis"
+    ],
+    "operators": [
+      "MAT_CORRELATION"
+    ],
+    "description": "Pearson correlation matrix of price, income and label in upper-triangle encoding: a virtual vector names the three numeric columns once and MAT_CORRELATION returns every pairwise r (the same arithmetic as TEST_PEARSON_R, without p-values) plus the matrix determinant.",
+    "intents": [
+      "relationship"
+    ]
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "money",
+      "fields": ["price", "income", "label"]
+    }
+  ],
+  "matrices": [
+    {
+      "type": "MAT_CORRELATION",
+      "name": "money_corr",
+      "vector": "money",
+      "encoding": "upper"
+    }
+  ]
+}

@@ -287,8 +287,10 @@ func surfaceCategory(name string) (string, bool) {
 // filterers against components.<key> from their ComponentSchema plus
 // the universal floor; aggregators, attributes, windows and features
 // also against their primary result as `value` / `value.*`
-// (interpretation_reading.go). Every other category (and an unknown
-// name) emits nothing an Interpretation can read.
+// (interpretation_reading.go); matrices against their MatrixResult as
+// primary.values and scalars.<key> from the manifest output_keys. Every
+// other category (and an unknown name) emits nothing an Interpretation
+// can read.
 func BuiltinOutputResolver(name string) OutputResolver {
 	cat, ok := surfaceCategory(name)
 	if !ok {
@@ -307,9 +309,34 @@ func BuiltinOutputResolver(name string) OutputResolver {
 		return componentOutputResolver(name, cat)
 	case "attribute", "window", "feature":
 		return valueOutputResolver(name, cat)
+	case "matrix":
+		return matrixOutputResolver(name)
 	}
 	return func(string) (FieldCheck, string) {
 		return FieldUnknown, fmt.Sprintf("%s operators emit no output an Interpretation can read", cat)
+	}
+}
+
+// matrixOutputResolver reads a MAT_* operator's MatrixResult: every
+// cell of the primary matrix as primary.values, and each declared
+// whole-matrix figure as scalars.<key> (MatrixOutputKeys.Scalars).
+func matrixOutputResolver(name string) OutputResolver {
+	scalars := map[string]bool{}
+	for _, m := range matrixCapabilities() {
+		if m.Name == name {
+			for _, k := range m.OutputKeys.Scalars {
+				scalars[k] = true
+			}
+		}
+	}
+	return func(field string) (FieldCheck, string) {
+		if field == "primary.values" {
+			return FieldStatic, ""
+		}
+		if k, ok := strings.CutPrefix(field, "scalars."); ok && scalars[k] {
+			return FieldStatic, ""
+		}
+		return FieldUnknown, fmt.Sprintf("%s does not emit %q (want primary.values or a declared scalars.<key>)", name, field)
 	}
 }
 

@@ -5,10 +5,12 @@
 #   "statsmodels==0.14.5",
 # ]
 # ///
-"""Reference generator for MAT_COVARIANCE (U16 E1-S2).
+"""Reference generator for MAT_COVARIANCE (U16 E1-S2) and
+MAT_CORRELATION (U16 E3-S1).
 
 Writes ../../matrix_reference_values_test.go (package service): the
-fixture rows and, per (weight column, ddof), the covariance matrix and
+fixture rows; per (weight column, ddof), the covariance matrix and its
+determinant; and per weight column, the Pearson correlation matrix and
 its determinant the external references compute. CI never runs Python;
 the Go literals ARE the pinned oracle. Never hand-edit the output.
 
@@ -28,6 +30,10 @@ with any member null is dropped; Cov = M2_w / (Σw − ddof)):
   * probability weights p — DescrStatsW(rows, weights=p, ddof=ddof).cov
     (statsmodels divides by sum_weights − ddof, Pulse's denominator).
   * determinant — numpy.linalg.det of the reference covariance.
+  * correlation — numpy.corrcoef(rows, rowvar=False) unweighted;
+    DescrStatsW(rows, weights=w).corrcoef weighted (r is scale-free, so
+    ddof and the weight kind cancel), cross-checked against the
+    covariance normalised by its diagonal. Determinant: numpy.linalg.det.
 
 A row of weight 0 is kept (it counts toward n and adds no mass, which
 neither reference distinguishes from dropping it).
@@ -72,6 +78,19 @@ def cov(weight, ddof):
     return c
 
 
+def corr(weight):
+    if weight is None:
+        c = np.corrcoef(X, rowvar=False)
+    else:
+        w = F if weight == "f" else P
+        c = DescrStatsW(X, weights=w).corrcoef
+    cv = cov(weight, 0)
+    sd = np.sqrt(np.diag(cv))
+    ref = cv / np.outer(sd, sd)
+    assert np.allclose(c, ref, rtol=1e-13, atol=0), (c, ref)
+    return c
+
+
 def lit(v):
     if v is None:
         return "math.NaN()"
@@ -95,6 +114,14 @@ for weight in (None, "f", "p"):
         det = np.linalg.det(c)
         rows = ", ".join("{" + ", ".join(repr(float(v)) for v in row) + "}" for row in c)
         out.append("\t{%s, %d, [3][3]float64{%s}, %r},\n" % ('"' + (weight or "") + '"', ddof, rows, float(det)))
+out.append("}\n\n")
+out.append("// matrixRefCorrCases: weight column (\"\" = unweighted), Pearson correlation, determinant.\n")
+out.append("var matrixRefCorrCases = []struct {\n\tweight string\n\tcorr   [3][3]float64\n\tdet    float64\n}{\n")
+for weight in (None, "f", "p"):
+    c = corr(weight)
+    det = np.linalg.det(c)
+    rows = ", ".join("{" + ", ".join(repr(float(v)) for v in row) + "}" for row in c)
+    out.append("\t{%s, [3][3]float64{%s}, %r},\n" % ('"' + (weight or "") + '"', rows, float(det)))
 out.append("}\n")
 
 dest = pathlib.Path(__file__).resolve().parent.parent.parent / "matrix_reference_values_test.go"

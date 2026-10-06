@@ -37,6 +37,10 @@ type covarianceParams struct {
 	DDOF *int `json:"ddof"`
 }
 
+// correlationParams is MAT_CORRELATION's params object: it takes none
+// yet, so any key is refused (strict decode).
+type correlationParams struct{}
+
 // ResolveMatrices resolves req.Matrices against schema: first
 // req.Vectors (Resolve — its refusal wins), then every matrix spec in
 // request order. known reports whether a matrix type is offered (an
@@ -153,6 +157,16 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 					map[string]any{"param": "ddof", "value": *p.DDOF})
 			}
 			m.DDOF = *p.DDOF
+		}
+	case types.MAT_CORRELATION:
+		if empty {
+			return nil
+		}
+		var p correlationParams
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 	}
 	return nil
