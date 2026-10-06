@@ -52,7 +52,7 @@ func (None) Attribute(string) (bool, bool)  { return false, false }
 // MergeRefusal returns "" when req's online state is mergeable across
 // input partitions, else the reason it is not. A request merges iff it
 // has at least one aggregator; no windows, features, regressions,
-// tests or post-tests; only row-local attributes (ATTR_FORMULA,
+// tests, post-tests or matrices; only row-local attributes (ATTR_FORMULA,
 // ATTR_DATE_PART, row_local extensions); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
@@ -74,6 +74,9 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 		len(req.Regressions) > 0 || len(req.Tests) > 0 ||
 		len(req.PostTests) > 0 {
 		return "windows, features, tests, post-tests and regressions are excluded"
+	}
+	if len(req.Matrices) > 0 {
+		return "matrices are excluded"
 	}
 	for _, attr := range req.Attributes {
 		if attr == nil {

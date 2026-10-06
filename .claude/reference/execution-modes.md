@@ -2,6 +2,23 @@
 
 CLAUDE.md keeps one-line pointers; this file is the in-depth wiring detail per mode. Skill docs are the canonical longform — this file is the "everything tightly cross-referenced in one place" view for engine work.
 
+## Mode index
+
+Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md keeps only the pointer). One line per mode: identity, knob, named skill; the sections below carry the wiring.
+
+- **Streaming Process** (`pulse.ProcessStream`, `--stream`) — four orchestrator modes; the forced-buffered list is `skills/streaming-and-watching.md`.
+- **Projected buffered decode** — default-on, output-transparent; `Options{DisableProjection}` / `--no-project`.
+- **Parallel Compose** (`pulse.ComposeParallel`, `--parallel N`) — `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}`; post-slot overlay fold at `internal/service/compose_overlay.go`. `skills/compose-requests.md`.
+- **Parallel shards** (`Options.ShardWorkers`) / **parallel buffered Process** (`Options.DecodeWorkers`) — mergeable-only via the engine's internal `CanMergeRequest`, orthogonal to each other. `skills/cohort-schema-design.md`.
+- **ProcessChain** (`pulse.ProcessChain`) — source-rooted linear chain, mergeable-only at v1, dual-slot overlays. `skills/process-chain.md`.
+- **Pushdown hash join** (`Request.Joins`) — v1 is exactly one inner join per Request. `skills/join-design.md`.
+- **Crosstab / fused crosstab** (`Request.Crosstab`; fusion rule `crosstabfuse.Decide` in `internal/crosstabfuse`, shared by `CanFuseCrosstab` and predict) — composed row×column grid whose margins recompute from raw rows, plus an in-decode streaming arm. `skills/crosstab-guide.md`.
+- **Facet endpoints** — simple (`pulse.Facet`) + rich (`pulse.FacetSchema`); four FACET-host overlay kinds ride `FacetRequest.Overlays`. `skills/facet-design.md`.
+- **Filter precompute** (grouped cohorts) — a filter over ONE group's members is evaluated once per dictionary entry, per-row otherwise. `execution-modes.md`.
+- **Point lookup** (`pulse.Lookup`) — O(1) key-exact rows via a prebuilt sidecar index; single-file cohorts, equality-only, full-key. `skills/tool-lookup.md`.
+- **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates that **never mutate the base payload**. `skills/overlay-system.md`.
+- **Matrices** (`Request.Vectors` + `Request.Matrices`, `Response.Matrices`) — whole-set matrix operators (`MAT_*`) over virtual vectors, folded into per-block `linalg.CoMoment`s through the `BlockMerger` opt-in and emitted at finalize (streaming: terminal flush). `skills/op-mat-covariance.md`; contract `.claude/reference/matrix-and-vectors.md`.
+
 ## Streaming Process
 
 `pulse.ProcessStream`, `pulse api process --stream`. Four orchestrator modes — single-pass, grouped, two-pass attributes (Welford-Pébaÿ), streaming features. Forced-buffered: median/percentile/zscore aggregators, `ATTR_PERCENTILE`, `GROUP_QUANTILE`/`GROUP_DATE`, window operators, built-in decimal paths (a `Streamable` extension aggregator streams a `decimal128` target — `UpdateRow` reads `DecimalValue`), tier-1 tests with groupers/features/two-pass, all tier-2 tests. NDJSON one row per line. See `skills/streaming-and-watching.md`.
@@ -40,7 +57,7 @@ Slot label resolution: `applyComposeLabelDefaults` synthesises `request_<index+1
 
 Crosstab is intentionally NOT exercised today — `validateCrosstabSpec` requires `req.Aggregations` empty so crosstab requests always fail `CanMergeRequest`. This infrastructure benefits future non-crosstab buffered Process calls.
 
-Segments stride-aligned at record boundaries over the mmap'd record region AND block-aligned: every boundary is a multiple of `linalg.MergeBlockSize` (4096 records; `blockAlignedSegments` spreads the ceil(N/4096) blocks evenly, the ragged tail lands in the last segment, and workers beyond the block count get an empty segment that never reaches its factory), and `DecodeCallbackFactory(workerIdx, startRecord, recordCount)` hands each worker its segment's ABSOLUTE start record so a block-keyed reducer can key row `startRecord+i` to block `(startRecord+i)/4096` and fold blocks through `linalg.MergeTree`; same `DecodeFields`/`SkipBytes` plan shared read-only across workers; each worker owns a `shardPartial`; partials fold in worker-index order via `mergeShardPartials` + `finalizeMergedPartial`. Byte-equal vs serial; Welford within ULP via Chan-Welford. Surface: `internal/service/parallel_decode.go`, `internal/service/parallel_reduce.go`. See CLAUDE.md "Execution modes (pointers)" (Parallel buffered Process) for the knob and the threshold; the mechanics above are the detail home.
+Segments stride-aligned at record boundaries over the mmap'd record region AND block-aligned: every boundary is a multiple of `linalg.MergeBlockSize` (4096 records; `blockAlignedSegments` spreads the ceil(N/4096) blocks evenly, the ragged tail lands in the last segment, and workers beyond the block count get an empty segment that never reaches its factory), and `DecodeCallbackFactory(workerIdx, startRecord, recordCount)` hands each worker its segment's ABSOLUTE start record so a block-keyed reducer can key row `startRecord+i` to block `(startRecord+i)/4096` and fold blocks through `linalg.MergeTree`; same `DecodeFields`/`SkipBytes` plan shared read-only across workers; each worker owns a `shardPartial`; partials fold in worker-index order via `mergeShardPartials` + `finalizeMergedPartial`. Byte-equal vs serial; Welford within ULP via Chan-Welford. Surface: `internal/service/parallel_decode.go`, `internal/service/parallel_reduce.go`. See "Mode index" (Parallel shards / parallel buffered Process) below for the knob, and CLAUDE.md "Build / Env" (Knobs) for the threshold; the mechanics above are the detail home.
 
 ## Blocked merge (`processing.BlockMerger`)
 

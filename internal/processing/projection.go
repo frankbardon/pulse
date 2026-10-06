@@ -275,6 +275,13 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 		return out
 	}
 	addAllKnown(members)
+	// A matrix spec's inline fields resolve by the same rules.
+	matMembers, ok := vectors.MatrixMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(matMembers)
 
 	for _, k := range req.Sort {
 		// Sort keys may name output labels rather than schema fields;
@@ -426,6 +433,9 @@ func requestWeightFields(req *types.Request) []string {
 		if r != nil {
 			add(r.Weight)
 		}
+	}
+	for _, m := range req.Matrices {
+		add(m.Weight)
 	}
 	for _, a := range req.Attributes {
 		if a != nil {

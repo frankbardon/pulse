@@ -96,12 +96,14 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "joins", visible: capabilityGate(featJoins)},
 		{key: "overlays", visible: overlayGate(featCrosstab, featCompose)},
 		{key: "vectors", visible: capabilityGate(featMatrices)},
+		{key: "matrices", visible: capabilityGate(featMatrices)},
 		weightSlotGate,
 		multiplicitySlotGate,
 	},
 	reflect.TypeOf(types.Aggregation{}):        {weightSlotGate},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate},
+	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate},
 	reflect.TypeOf(types.OverlaySpec{}):        {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Group{}):              {weightSlotGate},
@@ -126,6 +128,11 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},
 	reflect.TypeOf(types.OverlayLayer{}): {multiplicitySlotGate},
+	// The matrix results ride capability:matrices with the request
+	// slots that produce them.
+	reflect.TypeOf(types.Response{}): {
+		{key: "matrices", visible: capabilityGate(featMatrices)},
+	},
 	reflect.TypeOf(types.ComposedRequest{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		multiplicitySlotGate,
@@ -306,6 +313,9 @@ func setSlots(v any) []string {
 		if len(r.Vectors) > 0 {
 			out = append(out, "vectors")
 		}
+		if len(r.Matrices) > 0 {
+			out = append(out, "matrices")
+		}
 		if r.Weight != nil {
 			out = append(out, weightKey)
 		}
@@ -395,6 +405,11 @@ func nestedWeightRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Cod
 	for i, r := range req.Regressions {
 		if r != nil && !r.Weight.IsZero() {
 			return at(fmt.Sprintf("regressions[%d]", i), r)
+		}
+	}
+	for i := range req.Matrices {
+		if !req.Matrices[i].Weight.IsZero() {
+			return at(fmt.Sprintf("matrices[%d]", i), &req.Matrices[i])
 		}
 	}
 	for i, a := range req.Attributes {

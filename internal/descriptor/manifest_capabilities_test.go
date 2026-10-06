@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -391,4 +392,63 @@ func typesToStrings[T ~string](in []T) []string {
 		out[i] = string(v)
 	}
 	return out
+}
+
+// TestManifestMatrixOpsComplete asserts the manifest's Matrices section
+// enumerates every type returned by types.AllMatrixTypes() with the
+// required metadata populated, alphabetized, and that the Matrix
+// capability block names every encoding and kind the types declare.
+func TestManifestMatrixOpsComplete(t *testing.T) {
+	m := BuildManifest()
+	set := make(map[string]descriptor.MatrixMeta, len(m.Matrices))
+	for _, mm := range m.Matrices {
+		set[mm.Name] = mm
+	}
+	for _, mt := range types.AllMatrixTypes() {
+		name := string(mt)
+		meta, ok := set[name]
+		if !ok {
+			t.Errorf("matrix operator %q missing from manifest", name)
+			continue
+		}
+		if strings.TrimSpace(meta.Description) == "" {
+			t.Errorf("matrix operator %q has empty Description", name)
+		}
+		if len(meta.AcceptsTypes) == 0 {
+			t.Errorf("matrix operator %q has empty AcceptsTypes", name)
+		}
+		if strings.TrimSpace(meta.OutputKeys.Primary) == "" {
+			t.Errorf("matrix operator %q has empty OutputKeys.Primary", name)
+		}
+		if meta.Streamable != mt.Streamable() {
+			t.Errorf("matrix operator %q Streamable=%v, want %v", name, meta.Streamable, mt.Streamable())
+		}
+		if len(meta.Intents) == 0 {
+			t.Errorf("matrix operator %q carries no intents (no Purpose?)", name)
+		}
+	}
+	if len(set) != len(types.AllMatrixTypes()) {
+		t.Errorf("manifest matrix operator count = %d, want %d", len(set), len(types.AllMatrixTypes()))
+	}
+	for i := 1; i < len(m.Matrices); i++ {
+		if m.Matrices[i].Name < m.Matrices[i-1].Name {
+			t.Errorf("Matrices not alphabetized: %q before %q", m.Matrices[i-1].Name, m.Matrices[i].Name)
+		}
+	}
+	if m.Matrix == nil {
+		t.Fatal("manifest Matrix capability block is nil on the full registry")
+	}
+	for _, e := range types.AllMatrixEncodings() {
+		if !slices.Contains(m.Matrix.Encodings, string(e)) {
+			t.Errorf("Matrix.Encodings lacks %q", e)
+		}
+	}
+	for _, k := range types.AllMatrixKinds() {
+		if !slices.Contains(m.Matrix.Kinds, string(k)) {
+			t.Errorf("Matrix.Kinds lacks %q", k)
+		}
+	}
+	if m.Matrix.DefaultEncoding != string(types.MatrixEncodingFull) {
+		t.Errorf("Matrix.DefaultEncoding = %q, want full", m.Matrix.DefaultEncoding)
+	}
 }

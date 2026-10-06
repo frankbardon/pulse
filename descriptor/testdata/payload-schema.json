@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:c7c9d3db782507a32e584f3c0fc802c72c382cc1009d501d78a6d136d8bbb2a6",
+  "$comment": "feature_set_digest: fs1:6b69ae01e7d137fca7b9a3fa967ff894974e01d338d0b1548846bd8133917d53",
   "$defs": {
     "Aggregation": {
       "additionalProperties": false,
@@ -1393,6 +1393,19 @@
       ],
       "type": "object"
     },
+    "MatrixEncoding": {
+      "enum": [
+        "full",
+        "upper"
+      ],
+      "type": "string"
+    },
+    "MatrixKind": {
+      "enum": [
+        "square_symmetric"
+      ],
+      "type": "string"
+    },
     "MatrixPayload": {
       "additionalProperties": false,
       "properties": {
@@ -1480,6 +1493,170 @@
         "normalize_applied",
         "row_header",
         "row_keys"
+      ],
+      "type": "object"
+    },
+    "MatrixResult": {
+      "additionalProperties": false,
+      "properties": {
+        "auxiliary": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MatrixValues"
+          },
+          "type": "object"
+        },
+        "group_header": {
+          "$ref": "#/$defs/AxisHeader"
+        },
+        "group_key": {
+          "items": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "primary": {
+          "$ref": "#/$defs/MatrixValues"
+        },
+        "scalars": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "type": {
+          "$ref": "#/$defs/MatrixType"
+        },
+        "vectors": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ResponseWarning"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "primary",
+        "type"
+      ],
+      "type": "object"
+    },
+    "MatrixSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "encoding": {
+          "$ref": "#/$defs/MatrixEncoding"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "type": {
+          "$ref": "#/$defs/MatrixType"
+        },
+        "vector": {
+          "type": "string"
+        },
+        "weight": {
+          "$ref": "#/$defs/SlotWeight"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "MatrixType": {
+      "enum": [
+        "MAT_COVARIANCE"
+      ],
+      "type": "string"
+    },
+    "MatrixValues": {
+      "additionalProperties": false,
+      "properties": {
+        "column_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "encoding": {
+          "$ref": "#/$defs/MatrixEncoding"
+        },
+        "kind": {
+          "$ref": "#/$defs/MatrixKind"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "row_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "values": {
+          "items": {
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "column_keys",
+        "encoding",
+        "kind",
+        "row_keys",
+        "values"
       ],
       "type": "object"
     },
@@ -2323,6 +2500,15 @@
             "null"
           ]
         },
+        "matrices": {
+          "items": {
+            "$ref": "#/$defs/MatrixSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
         },
@@ -2420,6 +2606,15 @@
           "items": {
             "additionalProperties": true,
             "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "matrices": {
+          "items": {
+            "$ref": "#/$defs/MatrixResult"
           },
           "type": [
             "array",
@@ -2983,4 +3178,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: cefc12be70dfbdbdb2240c7d6c2de08df3af7cb82af03818c6a615f4db3a21e5
+// golden-hash: 937a663d0a7b983af81cb1ee60b5bb202f87c11a7434120f2d45c11d16bd8c5c

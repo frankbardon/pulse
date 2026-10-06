@@ -109,6 +109,7 @@
     "tests": [],
     "post_tests": [],
     "regressions": [],
+    "matrices": null,
     "synth_distributions": [],
     "error_codes_count": 75,
     "error_domains": [
@@ -574,4 +575,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: da68b370805fecd37c73441672a2862bd5d3c04ebf5866d167178fd00ca07156
+// golden-hash: 2fc2cf2b689aa782d58f52764a6e920d586aa4b73e1d24b37af91970618f310d

@@ -21,7 +21,7 @@ type Metadata struct {
 	// Kind classifies the skill: "operator" | "tool" | "type" | "design",
 	// or "reference" for a registry-rendered virtual skill (KindReference).
 	Kind string `json:"kind,omitempty"`
-	// Category is the operator family: AGG | ATTR | FILTER | GROUP | WIN | FEAT | TEST | REG | OVERLAY | SYNTH; empty when not operator-scoped.
+	// Category is the operator family: AGG | ATTR | FILTER | GROUP | WIN | FEAT | TEST | REG | MAT | OVERLAY | SYNTH; empty when not operator-scoped.
 	Category string `json:"category,omitempty"`
 	// Operator is the full operator constant (e.g. TEST_WELCH); empty when not operator-scoped.
 	Operator string `json:"operator,omitempty"`

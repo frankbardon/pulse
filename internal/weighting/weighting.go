@@ -174,6 +174,18 @@ var regressionClasses = map[types.RegressionType]Class{
 	types.REG_BAYES_LINEAR: ClassFrequencyOnly,
 }
 
+// matrixClasses are the built-in matrix operators' weight classes.
+// MAT_COVARIANCE folds rows into a weighted linalg.CoMoment (weighted
+// Welford–West): its matrix is M2_w / (Σw − ddof) under both kinds —
+// statsmodels DescrStatsW(weights, ddof).cov — the frequency formula on
+// the expansion and, under a probability weight, the same descriptive
+// figure with no design-based variance. A row of weight 0 counts toward
+// the matrix's n but adds no mass (CoMoment semantics, unlike the
+// weighted aggregators, which skip it).
+var matrixClasses = map[types.MatrixType]Class{
+	types.MAT_COVARIANCE: ClassAware,
+}
+
 // refusalReasons are the PERMANENT refusals: operators with no standard
 // weighted form any reference software reproduces. The reason rides
 // the PULSE_WEIGHT_UNSUPPORTED refusal (message and details.reason).
@@ -212,6 +224,12 @@ var operatorClasses = func() map[string]Class {
 	}
 	for a, c := range attributeClasses {
 		m[string(a)] = c
+	}
+	for _, t := range types.AllMatrixTypes() {
+		m[string(t)] = ClassRefuse
+	}
+	for t, c := range matrixClasses {
+		m[string(t)] = c
 	}
 	// GROUP_QUANTILE cuts its buckets at the weighted order statistics
 	// (Hmisc wtd.quantile; probability weights rescaled to the row

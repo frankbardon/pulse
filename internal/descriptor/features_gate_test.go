@@ -55,6 +55,9 @@ func wantOperators() []string {
 	for _, v := range types.AllRegressionTypes() {
 		out = append(out, string(v))
 	}
+	for _, v := range types.AllMatrixTypes() {
+		out = append(out, string(v))
+	}
 	for _, v := range types.AllOverlayKinds() {
 		out = append(out, string(v))
 	}

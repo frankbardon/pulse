@@ -140,7 +140,7 @@ func TestPayloadSchema_MatricesHidden(t *testing.T) {
 		want bool
 	}{
 		{"full registry", nil, true},
-		{"enabled", scopedOnly(append(base, featMatrices)...), true},
+		{"enabled", scopedOnly(append(base, featMatrices, "MAT_COVARIANCE")...), true},
 		{"hidden", scopedOnly(base...), false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -149,7 +149,8 @@ func TestPayloadSchema_MatricesHidden(t *testing.T) {
 				t.Fatal(err)
 			}
 			s := string(b)
-			for _, tok := range []string{`"vectors"`, `"VectorSpec"`, `"VectorCoerce"`} {
+			for _, tok := range []string{`"vectors"`, `"VectorSpec"`, `"VectorCoerce"`,
+				`"matrices"`, `"MatrixSpec"`, `"MatrixResult"`, `"MatrixValues"`, `"MatrixType"`, `"MAT_COVARIANCE"`} {
 				if got := strings.Contains(s, tok); got != c.want {
 					t.Errorf("%s present = %v, want %v", tok, got, c.want)
 				}

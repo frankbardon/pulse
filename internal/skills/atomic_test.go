@@ -76,7 +76,8 @@ func TestSkillTokenBudget(t *testing.T) {
 // skills/. The naming convention is `<prefix>-<kebab-name>.md` where:
 //
 //   - prefix is op-agg- / op-attr- / op-filter- / op-group- / op-win- /
-//     op-feat- / op-test- / op-reg- / op-synth- / op-overlay- / type- /
+//     op-feat- / op-test- / op-reg- / op-mat- / op-synth- / op-overlay- /
+//     type- /
 //     tool-
 //   - kebab-name is lowercase(name).replace("_", "-"); for OVERLAY_* and
 //     pulse_* names the leading domain prefix is stripped first
@@ -86,7 +87,7 @@ func TestSkillTokenBudget(t *testing.T) {
 //
 //   - types.AllAggregationTypes / AllAttributeTypes / AllFiltererTypes /
 //     AllGroupTypes / AllWindowTypes / AllFeatureTypes / AllTestTypes /
-//     AllRegressionTypes / AllOverlayKinds
+//     AllRegressionTypes / AllMatrixTypes / AllOverlayKinds
 //   - synth.AllDistributions
 //   - toolmeta.Names
 //   - encoding field-type constants (the canonical 17)
@@ -156,6 +157,9 @@ func TestOperatorHasAtomicSkill(t *testing.T) {
 	// Enumerate the two modifier kinds the skill pack carries.
 	for _, m := range []string{"resample", "selection"} {
 		add("regression-modifier", "REG_MOD_"+strings.ToUpper(m), "op-reg-mod-", m)
+	}
+	for _, v := range types.AllMatrixTypes() {
+		add("matrix", string(v), "op-mat-", strings.TrimPrefix(string(v), "MAT_"))
 	}
 	for _, v := range synth.AllDistributions() {
 		add("synth-distribution", v, "op-synth-", v)

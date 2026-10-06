@@ -100,6 +100,10 @@ func filterTests(in []descriptor.TestMeta, on func(string) bool) []descriptor.Te
 	})
 }
 
+func filterMatrices(in []descriptor.MatrixMeta, on func(string) bool) []descriptor.MatrixMeta {
+	return filterSlice(in, func(m descriptor.MatrixMeta) bool { return on(m.Name) })
+}
+
 func filterRegressions(in []descriptor.RegressionMeta, on func(string) bool) []descriptor.RegressionMeta {
 	return filterSlice(in, func(r descriptor.RegressionMeta) bool { return on(r.Name) })
 }

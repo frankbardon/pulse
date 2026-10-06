@@ -1076,6 +1076,14 @@ type Request struct {
 	// capability:matrices. See VectorSpec.
 	Vectors []VectorSpec `json:"vectors,omitempty"`
 
+	// Matrices is the list of matrix operators (MAT_COVARIANCE)
+	// evaluated against the filtered record set over a virtual vector
+	// or an inline member list. Each spec produces one MatrixResult in
+	// Response.Matrices, in matching order. Every built-in matrix
+	// operator streams; its result is emitted at finalize. Gated by
+	// capability:matrices. See MatrixSpec.
+	Matrices []MatrixSpec `json:"matrices,omitempty"`
+
 	// Joins describes pushdown hash-join legs attached to the primary
 	// cohort. v1 supports exactly one inner join per Request; multi-
 	// join chains and the left/outer/anti kinds land in a follow-up.
@@ -1191,6 +1199,11 @@ type Response struct {
 	// populate a result on failure; a failed fit surfaces as a
 	// PROCESSING_REGRESSION_* error on the envelope instead.
 	Regressions []*RegressionResult `json:"regressions,omitempty"`
+
+	// Matrices holds the matrix operator results, one entry per
+	// Request.Matrices spec in the same order (ungrouped). Undefined
+	// cells and scalars are null on the wire. See MatrixResult.
+	Matrices []MatrixResult `json:"matrices,omitempty"`
 
 	// Warnings carries cross-cutting diagnostics surfaced after the
 	// processor finishes. Today this slot is populated by the label-

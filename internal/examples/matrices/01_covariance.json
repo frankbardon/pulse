@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "name": "covariance_matrix",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "covariance"
+    ],
+    "operators": [
+      "MAT_COVARIANCE"
+    ],
+    "description": "Covariance matrix of price, income and label: a virtual vector names the three numeric columns once and MAT_COVARIANCE returns their sample covariance (ddof 1) plus its determinant.",
+    "intents": [
+      "relationship"
+    ]
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "money",
+      "fields": ["price", "income", "label"]
+    }
+  ],
+  "matrices": [
+    {
+      "type": "MAT_COVARIANCE",
+      "name": "money_cov",
+      "vector": "money",
+      "params": {"ddof": 1}
+    }
+  ]
+}

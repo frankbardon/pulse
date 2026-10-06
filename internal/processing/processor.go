@@ -331,6 +331,21 @@ func (p *Processor) canStream(req *types.Request) bool {
 			return false
 		}
 	}
+	// Matrix slots fold row by row on the ungrouped streaming path and
+	// emit at finalize. Grouped matrices (one per bucket) and the
+	// two-pass attribute drive are not wired through streaming: those
+	// combinations run buffered. An unknown or hidden type routes
+	// buffered too, where the field-reference pass has refused it.
+	if len(req.Matrices) > 0 {
+		for _, m := range req.Matrices {
+			if !m.Streamable() || p.exts.isHidden(string(m.Type)) {
+				return false
+			}
+		}
+		if len(req.Groups) > 0 || hasTwoPassAttribute(req, p.exts) {
+			return false
+		}
+	}
 	if len(req.Tests) > 0 {
 		if !canRunRowTests(req.Tests, p.exts) {
 			return false
@@ -372,10 +387,11 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.LookupFeature) {
 		return false
 	}
-	if len(req.Aggregations) == 0 {
+	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
 		// No aggregations: buffered path produces the same empty data
 		// payload and exposes the same error surface (e.g., when a
 		// downstream component validates against the materialized set).
+		// A matrix-only request streams: both paths emit no data row.
 		return false
 	}
 	for _, agg := range req.Aggregations {
@@ -522,6 +538,13 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		return nil, err
 	}
 
+	// Matrix slots fold the same filter-passing record; results are
+	// emitted at finalize (terminal flush).
+	matrixSlots, err := p.buildMatrixSlots(req)
+	if err != nil {
+		return nil, err
+	}
+
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		totalRows++
@@ -590,6 +613,11 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 				return nil, err
 			}
 		}
+		for _, ms := range matrixSlots {
+			if err := ms.UpdateRow(r, ""); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	row := make(map[string]any, len(entries))
@@ -653,6 +681,11 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		}
 	}
 
+	matrixResults, err := finalizeMatrixSlots(matrixSlots)
+	if err != nil {
+		return nil, err
+	}
+
 	_ = ctx
 	resp := &types.Response{
 		Data: data,
@@ -663,6 +696,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		Tests:       testResults,
 		PostTests:   postResults,
 		Regressions: regressionResults,
+		Matrices:    matrixResults,
 	}
 
 	// Components emission block — opt-out via
@@ -1427,6 +1461,21 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
+	// Matrix slots fold the filtered record set in record order — the
+	// rows and order the streaming path folds, so the per-block state
+	// (and the result's bits) match it.
+	matrixSlots, err := p.buildMatrixSlots(req)
+	if err != nil {
+		return nil, err
+	}
+	if err := foldMatrixRecords(matrixSlots, filtered); err != nil {
+		return nil, err
+	}
+	matrixResults, err := finalizeMatrixSlots(matrixSlots)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
@@ -1436,6 +1485,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		Tests:       testResults,
 		PostTests:   postResults,
 		Regressions: regressionResults,
+		Matrices:    matrixResults,
 	}
 
 	// Components emission block — gated by the processor's

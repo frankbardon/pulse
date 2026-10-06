@@ -301,7 +301,7 @@ type PurposeSurface struct {
 }
 
 // PurposeSurfaces returns every built-in name a Purpose may be keyed by,
-// grouped into the ten categories in a stable order. Tests are keyed by
+// grouped into the eleven categories in a stable order. Tests are keyed by
 // family (one Purpose covers both tiers), so post-test variants
 // contribute their family.
 func PurposeSurfaces() []PurposeSurface {
@@ -324,9 +324,12 @@ func PurposeSurfaces() []PurposeSurface {
 	for f := range families {
 		tests = append(tests, f)
 	}
-	var regs, overlays, dists []string
+	var regs, mats, overlays, dists []string
 	for _, r := range regressionCapabilities() {
 		regs = append(regs, r.Name)
+	}
+	for _, m := range matrixCapabilities() {
+		mats = append(mats, m.Name)
 	}
 	for _, o := range OverlayCapabilities() {
 		overlays = append(overlays, string(o.Kind))
@@ -343,6 +346,7 @@ func PurposeSurfaces() []PurposeSurface {
 		{"feature", opNames(featureCapabilities())},
 		{"test", tests},
 		{"regression", regs},
+		{"matrix", mats},
 		{"overlay", overlays},
 		{"synth_distribution", dists},
 	}

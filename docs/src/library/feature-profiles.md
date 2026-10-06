@@ -268,10 +268,13 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   golden apart from the digest comment. `pulse schema` serves the
   default instance; the MCP `pulse://schema` resource serves the
   mounted instance's `p.PayloadSchema()`.
-- **Virtual vectors.** Without `capability:matrices` the request
-  `vectors` slot fails `PULSE_REQUEST_UNKNOWN_FIELD` on every entry
-  point, and the payload schema drops it with the `VectorSpec` /
-  `VectorCoerce` definitions.
+- **Virtual vectors and matrices.** Without `capability:matrices` the
+  request `vectors` and `matrices` slots fail
+  `PULSE_REQUEST_UNKNOWN_FIELD` on every entry point, the payload schema
+  drops them with the `VectorSpec` / `VectorCoerce` / `MatrixSpec`
+  definitions and the `Response.matrices` result slot, and the manifest
+  drops the `matrix` block. Every `MAT_*` operator depends on
+  `capability:matrices`.
 - **Row weighting.** Without `capability:weighting` the instance has no
   weight surface. The request `weight` and every per-slot `weight`
   (aggregations, the crosstab cell, margin aggregations and axes,

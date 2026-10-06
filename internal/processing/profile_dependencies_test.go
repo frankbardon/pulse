@@ -215,7 +215,7 @@ func typesOperatorConstants(t *testing.T) map[string]string {
 	opTypes := map[string]bool{
 		"AggregationType": true, "AttributeType": true, "FiltererType": true,
 		"GroupType": true, "WindowType": true, "FeatureType": true,
-		"TestType": true, "RegressionType": true, "OverlayKind": true,
+		"TestType": true, "RegressionType": true, "MatrixType": true, "OverlayKind": true,
 	}
 	fset := token.NewFileSet()
 	out := map[string]string{}

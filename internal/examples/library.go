@@ -25,7 +25,7 @@ import (
 	"sync"
 )
 
-//go:embed aggregations/*.json attributes/*.json crosstab/*.json facet/*.json features/*.json filterers/*.json groupers/*.json overlays/*.json regression/*.json tests/*.json windows/*.json
+//go:embed aggregations/*.json attributes/*.json crosstab/*.json facet/*.json features/*.json filterers/*.json groupers/*.json matrices/*.json overlays/*.json regression/*.json tests/*.json windows/*.json
 var content embed.FS
 
 // AllCategories returns every directory the library indexes, sorted
@@ -252,7 +252,7 @@ func Parse(data []byte, strict bool) (*Example, Meta, error) {
 
 // operatorRe captures `"type": "PREFIX_..."` in a JSON request body.
 // Kept in sync with the regex used by cmd/annotate-examples.
-var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|REG)_[A-Z0-9_]+)"`)
+var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|REG|MAT)_[A-Z0-9_]+)"`)
 
 // DeriveOperators returns the sorted, distinct operator names a body
 // carries as a `"type"` value — what `_meta.operators` must equal
@@ -437,6 +437,9 @@ var CanonicalTags = []string{
 	// Pipeline machinery (8)
 	"tier-1-test", "tier-2-test", "composed", "pre-filter", "feature-pipeline",
 	"window-operator", "streaming-friendly", "buffered-pipeline",
+
+	// Matrices (2)
+	"matrix", "covariance",
 
 	// Risk / edge (2)
 	"leakage-risk", "small-sample",

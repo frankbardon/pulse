@@ -322,6 +322,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		Tests:              withTestIntents(tier1),
 		PostTests:          withTestIntents(tier2),
 		Regressions:        withRegressionIntents(sortRegressions(filterRegressions(regressionCapabilities(), on))),
+		Matrices:           withMatrixIntents(sortMatrices(filterMatrices(matrixCapabilities(), on))),
 		SynthDistributions: withDistributionIntents(sortDistributions(distributionCapabilities())),
 		ErrorCodesCount:    len(errCodes),
 		ErrorDomains:       errorDomainsFor(errCodes),
@@ -361,6 +362,10 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	}
 	if !on(featRangeTables) {
 		m.Extensions.RangeTables = []descriptor.RangeTableMeta{}
+	}
+	if on(featMatrices) {
+		c := matrixCapability()
+		m.Matrix = &c
 	}
 	if on(featFacet) {
 		c := facetCapability()

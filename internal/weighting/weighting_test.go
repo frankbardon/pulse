@@ -49,6 +49,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	want[string(types.REG_BAYES_LINEAR)] = ClassFrequencyOnly
 	// U12 E4-S2: weighted GLM IRLS under both kinds.
 	want[string(types.REG_GLM)] = ClassAware
+	// U16 E1-S2: the weighted co-moment covariance under both kinds.
+	want[string(types.MAT_COVARIANCE)] = ClassAware
 	for _, at := range types.AllAttributeTypes() {
 		want[string(at)] = ClassNone
 	}

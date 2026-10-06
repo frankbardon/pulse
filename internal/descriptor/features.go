@@ -165,7 +165,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("range_tables"),   // range tables
 	capability("weighting"),      // Request.Weight + every per-slot weight + Options.DefaultWeight
 	capability("multiplicity"),   // every `multiplicity` slot + Options.DefaultMultiplicity
-	capability("matrices"),       // Request.Vectors (+ the matrix operators' slot)
+	capability("matrices"),       // Request.Vectors + Request.Matrices
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -296,6 +296,8 @@ var builtinFeatures = withDependencies([]Feature{
 	op("REG_BAYES_LINEAR"),
 	op("REG_GLM"),
 	op("REG_OLS"),
+	// Matrix operators — types.AllMatrixTypes().
+	op("MAT_COVARIANCE"),
 	// Overlay kinds — types.AllOverlayKinds().
 	op("OVERLAY_CHISQ_COL"),
 	op("OVERLAY_CHISQ_MATRIX"),
@@ -455,6 +457,8 @@ var overlayHostKinds = map[string][]string{
 //   - capability:filter_to_file compiles every filterer of the request
 //     into one engine-internal FILTER_EXPRESSION, so hiding
 //     FILTER_EXPRESSION would break FilterToFile for any request.
+//   - every MAT_* operator rides the Request.Matrices slot, which
+//     capability:matrices gates.
 //
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
@@ -471,6 +475,7 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_RESIDUAL":                     {"REG_OLS"},
 	"OVERLAY_YOY":                           {"GROUP_DATE"},
 	featFilterToFile:                        {"FILTER_EXPRESSION"},
+	"MAT_COVARIANCE":                        {featMatrices},
 }
 
 // RequestHostCapabilities returns the request-executing host

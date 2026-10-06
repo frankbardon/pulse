@@ -79,6 +79,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"aggregations", "aggregations", 4, ""},
 		{"tests", "tests", 27, ""},
 		{"regression", "regression", 16, ""},
+		{"matrices", "matrices", 1, ""},
 		{"crosstab", "crosstab", 13, ""},
 		// The overlays directory mixes Request-, Compose- and Facet-host
 		// examples, and only Request-host ones run through pulse.Process,
@@ -149,7 +150,7 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 	// Crosstab is populated. Regression-only requests (e.g., simple
 	// OLS) emit no rows; matrix-shape crosstabs populate Crosstab
 	// instead of Data.
-	if resp.Data == nil && len(resp.Tests) == 0 && len(resp.PostTests) == 0 && len(resp.Regressions) == 0 && resp.Crosstab == nil {
+	if resp.Data == nil && len(resp.Tests) == 0 && len(resp.PostTests) == 0 && len(resp.Regressions) == 0 && len(resp.Matrices) == 0 && resp.Crosstab == nil {
 		t.Fatalf("%s: nil data and no test/regression/crosstab results", examplePath)
 	}
 	// Every requested overlay must come back as a layer — a dropped

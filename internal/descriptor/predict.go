@@ -577,7 +577,24 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		return len(reasons) == 0, reasons
 	}
 
-	if len(req.Aggregations) == 0 {
+	// Matrix slots stream on the ungrouped path (mirrors
+	// processing.canStream): an unknown or hidden type, groupers, or a
+	// two-pass attribute route the request buffered.
+	if len(req.Matrices) > 0 {
+		for _, m := range req.Matrices {
+			if !opRoute(opts.instance(), m.Type).Streamable() {
+				reasons = append(reasons, "matrix "+string(m.Type)+" requires the buffered path")
+			}
+		}
+		if len(req.Groups) > 0 {
+			reasons = append(reasons, "matrices with groupers run via the buffered path")
+		}
+		if tp := firstTwoPassAttribute(req, opts); tp != "" {
+			reasons = append(reasons, "matrices with two-pass attribute "+string(tp)+" run via the buffered path")
+		}
+	}
+
+	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
 		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
 	}
 	for _, grp := range req.Groups {

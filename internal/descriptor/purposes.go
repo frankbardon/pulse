@@ -13,13 +13,14 @@ import (
 // kind. It is assembled from one map per category, each in its own file
 // (aggregatorPurposes in purposes_aggregators.go, attributePurposes in purposes_attributes.go, filtererPurposes in purposes_filterers.go, grouperPurposes in purposes_groupers.go, windowPurposes in purposes_window.go, featurePurposes in purposes_features.go, statTestPurposes in purposes_stattests.go,
 // overlayPurposes in purposes_overlays.go, regressionPurposes in
-// purposes_regressions.go, synthPurposes in purposes_synth.go);
+// purposes_regressions.go, matrixPurposes in purposes_matrices.go,
+// synthPurposes in purposes_synth.go);
 // an undeclared name simply carries no intents.
 //
 // purposeLookup is the seam the manifest builder reads through, so a
 // test can inject purposes without touching the registry.
 var (
-	builtinPurposes = mergePurposes(aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, synthPurposes)
+	builtinPurposes = mergePurposes(aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, matrixPurposes, synthPurposes)
 	purposeLookup   = func(name string) (descriptor.Purpose, bool) {
 		p, ok := builtinPurposes[name]
 		return p, ok
@@ -69,6 +70,13 @@ func withRegressionIntents(rs []descriptor.RegressionMeta) []descriptor.Regressi
 		rs[i].Intents = intentsOf(rs[i].Name)
 	}
 	return rs
+}
+
+func withMatrixIntents(ms []descriptor.MatrixMeta) []descriptor.MatrixMeta {
+	for i := range ms {
+		ms[i].Intents = intentsOf(ms[i].Name)
+	}
+	return ms
 }
 
 func withDistributionIntents(ds []descriptor.DistributionMeta) []descriptor.DistributionMeta {

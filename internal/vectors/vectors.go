@@ -187,12 +187,21 @@ func Find(resolved []Resolved, name string) (Resolved, bool) {
 	return Resolved{}, false
 }
 
-// Referenced returns the vector names req's operator slots reference.
-// No slot references a vector yet; the matrix slot (Request.Matrices)
-// adds its references here, so the unreferenced-vector warning and
-// every consumer read one answer.
+// Referenced returns the vector names req's operator slots reference:
+// every Request.Matrices spec's `vector`. It is the one reference set,
+// so the unreferenced-vector warning and every consumer read one
+// answer.
 func Referenced(req *types.Request) map[string]bool {
-	return map[string]bool{}
+	refs := map[string]bool{}
+	if req == nil {
+		return refs
+	}
+	for _, m := range req.Matrices {
+		if m.Vector != "" {
+			refs[m.Vector] = true
+		}
+	}
+	return refs
 }
 
 // Unreferenced returns, in request order, the names of req's vectors no

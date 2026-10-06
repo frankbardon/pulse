@@ -335,10 +335,10 @@ func TestPurposeExemplars(t *testing.T) {
 	}
 }
 
-// TestPurposeSurfaces_CoverEveryCategory: the ten categories are
+// TestPurposeSurfaces_CoverEveryCategory: the eleven categories are
 // present, non-empty and sorted; tests are keyed by family.
 func TestPurposeSurfaces_CoverEveryCategory(t *testing.T) {
-	want := []string{"aggregator", "attribute", "filterer", "grouper", "window", "feature", "test", "regression", "overlay", "synth_distribution"}
+	want := []string{"aggregator", "attribute", "filterer", "grouper", "window", "feature", "test", "regression", "matrix", "overlay", "synth_distribution"}
 	var got []string
 	for _, s := range PurposeSurfaces() {
 		got = append(got, s.Category)
@@ -502,7 +502,7 @@ func exampleIntentProblems(byExample map[string][]string) []string {
 // keyed by a TEST_* family, and a name declared by two category maps
 // panics instead of silently shadowing one declaration.
 func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
-	cats := []map[string]descriptor.Purpose{aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, synthPurposes}
+	cats := []map[string]descriptor.Purpose{aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, matrixPurposes, synthPurposes}
 	total := 0
 	for _, m := range cats {
 		total += len(m)

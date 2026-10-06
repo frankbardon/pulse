@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:c7c9d3db782507a32e584f3c0fc802c72c382cc1009d501d78a6d136d8bbb2a6",
+    "feature_set_digest": "fs1:6b69ae01e7d137fca7b9a3fa967ff894974e01d338d0b1548846bd8133917d53",
     "commands": [
       {
         "name": "process",
@@ -5738,6 +5738,50 @@
         ]
       }
     ],
+    "matrices": [
+      {
+        "name": "MAT_COVARIANCE",
+        "description": "Covariance matrix of a vector's members (listwise): sample covariance by default, weighted under frequency and probability weights.",
+        "accepts_types": [
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "params": [
+          {
+            "name": "ddof",
+            "type": "enum",
+            "required": false,
+            "default": "1",
+            "description": "Delta degrees of freedom: the denominator is Σw − ddof (n − ddof unweighted).",
+            "enum_values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "output_keys": {
+          "primary": "covariance",
+          "scalars": [
+            "determinant"
+          ]
+        },
+        "streamable": true,
+        "intents": [
+          "describe",
+          "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      }
+    ],
     "synth_distributions": [
       {
         "name": "bernoulli",
@@ -7990,6 +8034,10 @@
         "description": "Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with \"|\"."
       },
       {
+        "name": "op-mat-covariance",
+        "description": "Covariance matrix of a vector's numeric members (listwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec."
+      },
+      {
         "name": "op-overlay-chisq-col",
         "description": "Per-column χ² goodness-of-fit test across the host crosstab's contingency table."
       },
@@ -8726,7 +8774,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 174,
+    "examples_count": 175,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -8735,6 +8783,7 @@
       "features",
       "filterers",
       "groupers",
+      "matrices",
       "overlays",
       "regression",
       "tests",
@@ -8752,6 +8801,7 @@
       "compose",
       "composed",
       "correlation-analysis",
+      "covariance",
       "cross-tabulation",
       "crosstab",
       "data-quality",
@@ -8772,6 +8822,7 @@
       "lasso",
       "leakage-risk",
       "logistic",
+      "matrix",
       "nonparametric",
       "normality-test",
       "ols",
@@ -9132,6 +9183,26 @@
           "schema_source": "inferred",
           "export": true
         }
+      ]
+    },
+    "matrix": {
+      "name": "matrices",
+      "encodings": [
+        "full",
+        "upper"
+      ],
+      "default_encoding": "full",
+      "kinds": [
+        "square_symmetric"
+      ],
+      "missing_modes": [
+        "listwise"
+      ],
+      "merge_block_size": 4096,
+      "limitations": [
+        "Matrices are computed over the whole filtered row set; a grouped request still returns one ungrouped matrix per spec.",
+        "Matrices run on the serial streaming and buffered paths; a request carrying matrices does not fan out over DecodeWorkers or ShardWorkers.",
+        "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only."
       ]
     },
     "overlays": [
@@ -11751,4 +11822,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f7597e4af6aec0259207a9ff462562effb7883d46937ead8227e4e4659ef85a1
+// golden-hash: 3b10b2537ebc77b2c462f40cb69a5b8e7295e107f00d2e10a166235578944764
