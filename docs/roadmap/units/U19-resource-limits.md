@@ -57,7 +57,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(resource-limits/E
 - S2: predict `LimitFindings`; process refuses before scanning
 
 ### E2 — Runtime enforcement that teaches tuning
-- S1: runtime checks in grouper, crosstab, join build, compose/chain, matrix (if U16 landed)
+- S1: runtime checks in grouper, crosstab, join build, compose/chain, matrix (U16 landed: enforce `MaxMatrixDim` and the buckets x p^2 guard)
 - S2: `PULSE_LIMIT_EXCEEDED` + fixups; memory released on trip
 - S3: feature-profile `limits` (U04's strict decode refuses the key as unknown until this story adds it to `pulse.FeatureProfile` and `.claude/reference/feature-profiles.md`), manifest `limits`, `pulse mcp --limit`; docs page
 
@@ -88,4 +88,4 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(resource-limits/E
 
 ## Notes
 
-- If U16 hasn't landed, `MaxMatrixDim` is enforced when it does (add the check in U16 or U24, whichever comes later).
+- U16 landed first and enforces nothing: `MaxMatrixDim` (TODO #82's limit half) and a buckets x p^2 guard are this unit's. Predict already reports per matrix `shape`, `accumulator_bytes` and, for grouped requests, `bucket_basis` / `estimated_buckets` / `estimated_cells` / `estimated_bytes` (`PredictResult.matrices`, `internal/vectors/matrix_rules.go`) as an upper bound with no guard: wire the limit findings to those figures, and refuse a matrix over the cap at predict with `PULSE_LIMIT_EXCEEDED`. `accumulator_bytes` is the state of ONE merge block; a run holds one per populated block per bucket, so count the real bytes (blocks x buckets) when sizing the memory estimate. Contract: `.claude/reference/matrix-and-vectors.md` (Predict).

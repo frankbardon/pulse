@@ -79,6 +79,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(response-shaping-
 - `skills/response-shaping.md`; `request-envelope.md`
 - `update-demand.md` row for `Request.Return`
 
+## Handed on from U16
+
+- **Matrix cells under `Return.precision`** (the `precision` half of TODO #82). `MatrixResult.primary.values` and `auxiliary.n` are `[][]float64 | null` inside a `types.MatrixValues`; the rounding applies to `primary` and the `top_pairs` `r` figures, never to `auxiliary.n` (integer counts) or to `scalars.determinant` unless the preset says so. Decide how the path grammar addresses `matrices[].primary.values`, and that `upper` encoding is unaffected. Contract: `.claude/reference/matrix-and-vectors.md` (Matrix slot).
+
+
 ## Human inputs & decisions
 
 - None.

@@ -13,6 +13,8 @@ Policies that apply to every feature in documents 01–04. Most bugs in multivar
 
 ## X2. Missing data
 
+> **U16 status.** Listwise / pairwise modes and `PULSE_MATRIX_NOT_PSD` (detection, warning) shipped. The downstream refusal and `params.repair: "nearest"` (Higham) move to U24, where the first decomposition operators land.
+
 | Mode | Behaviour | Guarantees |
 |---|---|---|
 | `listwise` (default) | row contributes only if all p members are non-null and non-NaN | result is PSD; one N |

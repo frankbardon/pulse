@@ -83,6 +83,14 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-operators/
 - `skills/op-mat-*.md`; `descriptor/capabilities_matrix.go`; examples
 - `regression-modeling.md` (vcov)
 
+## Handed on from U16
+
+- **Higham `repair: "nearest"`** (the repair half of TODO #172; theme 05 X2). U16 only DETECTS: pairwise matrices warn `PULSE_MATRIX_NOT_PSD` (`vectors.Matrix.PSDRisk()`, diagonal-scaled reference Cholesky, tolerance 1e-10). Decompositions (PCA, partial correlation, collinearity) refuse a non-PSD input unless `params.repair: "nearest"`, reported as a warning with the Frobenius adjustment.
+- **`PULSE_MATRIX_SINGULAR` details.** Add `rank` / `condition_number` on the reference Cholesky and `FactorSPD` paths (today `pivot`, `reason`, `n`); no routine populates `rank`.
+- **Jacobi vs gonum portability.** The matrix slot is FMA-free end to end; gonum eigen / SVD results differ in the last ulps between amd64 and arm64. Decide the PCA sign convention and the determinism gate with that in mind.
+- **Reuse.** Matrices are `types.MatrixValues`; operators register in `matrixFinalizers` and must join `MatrixType.Mergeable()` when co-moment based (rank-based ones are not). Contract: `.claude/reference/matrix-and-vectors.md`.
+
+
 ## Human inputs & decisions
 
 - Statistics reviewer for Purpose/Interpretation of the new operators

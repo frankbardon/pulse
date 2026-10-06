@@ -85,6 +85,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-overlays/E
 
 - **Reuse the shipped core and fold.** Correction core: `internal/processing/multiplicity` (`Adjust`, `FamilySize`; R `p.adjust` fixtures). Config: `types.Multiplicity{method,family,alpha}`; families `layer|row|column|request|compose` — add `matrix` to `types.AllMultiplicityFamilies()` and the validity matrix in `internal/descriptor/multiplicity_resolve.go` (one resolver for predict and runtime). Fold: `internal/service/multiplicity_fold.go` (`multFamilies`, `multFamilyKey`) and the overlay p-site table `overlayPSites` in `multiplicity_overlay.go` — every new inferential kind needs a row (`TestOverlayPSites_CoverEveryInferentialKind` enforces it) and outputs `p_adjusted` / `significant_adjusted` beside the raw p, never in place. Contract: `.claude/reference/execution-modes.md` (Multiplicity); skill `skills/multiplicity-correction.md`.
 
+## Handed on from U16
+
+- **Raw p and intervals on `MAT_CORRELATION`.** U16 ships r only (`auxiliary` holds `n` under pairwise). `MatrixSpec.multiplicity` (#150) needs a raw `auxiliary.p` matrix, plus CI bounds, derived from the pair's `PairN` (`CoMoment.PairN`) with the same Fisher-z arithmetic as `TEST_PEARSON_R` (weighted: n_eff rules in `.claude/reference/weighting.md`).
+- **MATRIX_RESULT host.** Overlays read `types.MatrixValues` (kind, encoding `full` / `upper`, `row_keys`, `column_keys`, `values`), NOT the crosstab `MatrixPayload`; handle `upper` and `null` cells, and per-bucket results (`group_key`).
+- **Matrices inside crosstab arms.** Today `Crosstab + Matrices` is refused `PULSE_MATRIX_HOST_CONFLICT` by one shared rule (`mergegate.MatrixRefusal`); lifting it means the fused arm (`crosstabfuse.Decide`) learns the slot. A crosstab-free request with only matrices on a chain stage is still refused (`ChainRefusal` needs an aggregator): decide with this unit.
+
+
 ## Human inputs & decisions
 
 - Decide the correspondence-analysis payload shape (open question in vm6)
