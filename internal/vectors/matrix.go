@@ -39,6 +39,10 @@ type Matrix struct {
 	// exceeds it, the result carries PULSE_MATRIX_LISTWISE_HEAVY_DROP.
 	// Nil when unset.
 	MaxDropShare *float64
+	// TopPairs is MAT_CORRELATION's params.summary.top_pairs: the
+	// number of strongest off-diagonal pairs the result lists under
+	// vectors.top_pairs. 0 (the default) emits no summary.
+	TopPairs int
 }
 
 // Missing-data modes (params.missing).
@@ -56,16 +60,27 @@ type missingParams struct {
 	MaxDropShare *float64 `json:"max_drop_share"`
 }
 
-// covarianceParams is MAT_COVARIANCE's params object.
+// covarianceParams is MAT_COVARIANCE's params object. Summary is
+// decoded only to refuse it with a pointed message: top_pairs ranks
+// correlations, which a covariance (in the members' own units) is not.
 type covarianceParams struct {
-	DDOF *int `json:"ddof"`
+	DDOF    *int            `json:"ddof"`
+	Summary json.RawMessage `json:"summary"`
 	missingParams
 }
 
 // correlationParams is MAT_CORRELATION's params object: the
-// missing-data knobs only, so any other key is refused (strict decode).
+// missing-data knobs and the summary block, so any other key is
+// refused (strict decode).
 type correlationParams struct {
+	Summary *summaryParams `json:"summary"`
 	missingParams
+}
+
+// summaryParams is MAT_CORRELATION's params.summary block.
+type summaryParams struct {
+	// TopPairs is k: list the k strongest off-diagonal pairs by |r|.
+	TopPairs *int `json:"top_pairs"`
 }
 
 // ResolveMatrices resolves req.Matrices against schema: first
@@ -186,11 +201,27 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			}
 			m.DDOF = *p.DDOF
 		}
+		if s := bytes.TrimSpace(p.Summary); len(s) > 0 && !bytes.Equal(s, []byte("null")) {
+			return matrixInvalid(at, "bad_params", at+" params.summary (top_pairs) applies to MAT_CORRELATION only; a covariance is in its members' own units, so pairs do not rank",
+				map[string]any{"param": "summary", "type": string(types.MAT_COVARIANCE), "valid_types": []string{string(types.MAT_CORRELATION)}})
+		}
 		miss = p.missingParams
 	case types.MAT_CORRELATION:
 		var p correlationParams
 		if err := decodeStrict(raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if p.Summary != nil {
+			k := p.Summary.TopPairs
+			if k == nil {
+				return matrixInvalid(at, "bad_params", at+" params.summary must set top_pairs (a positive integer)",
+					map[string]any{"param": "summary.top_pairs"})
+			}
+			if *k < 1 {
+				return matrixInvalid(at, "bad_params", at+" params.summary.top_pairs must be a positive integer",
+					map[string]any{"param": "summary.top_pairs", "value": *k})
+			}
+			m.TopPairs = *k
 		}
 		miss = p.missingParams
 	}

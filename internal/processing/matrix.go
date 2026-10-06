@@ -1,7 +1,9 @@
 package processing
 
 import (
+	"cmp"
 	"math"
+	"slices"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -156,6 +158,9 @@ func (m *matrixSlot) result(withComponents bool) (types.MatrixResult, *types.Mat
 			"n": m.values(func(i, j int) float64 { return float64(cm.PairN(i, j)) }),
 		}
 	}
+	if m.plan.TopPairs > 0 {
+		res.Vectors = map[string]any{"top_pairs": topPairs(primary, cm.PairN, m.plan.Members.Members, m.plan.TopPairs)}
+	}
 	if !withComponents {
 		return res, nil, nil
 	}
@@ -255,6 +260,35 @@ func (m *matrixSlot) values(at func(r, c int) float64) *types.MatrixValues {
 			row = append(row, at(r, c))
 		}
 		out.Values[r] = row
+	}
+	return out
+}
+
+// topPairs is MAT_CORRELATION's params.summary.top_pairs: the k
+// off-diagonal pairs of r with the largest |r|. Candidates are taken in
+// (row, col) axis order over the strict upper triangle and stably
+// sorted by |r| descending, so equal |r| keep axis order — the ranking
+// is a function of the (worker-invariant) matrix bits alone. A pair
+// whose r is undefined (NaN) is not a candidate; k past the candidate
+// count lists them all. pairN gives each pair's n (CoMoment.PairN: its
+// own N under pairwise, the listwise N otherwise).
+func topPairs(r *linalg.Sym, pairN func(i, j int) int64, members []string, k int) []types.MatrixPair {
+	p := len(members)
+	out := make([]types.MatrixPair, 0, p*(p-1)/2)
+	for i := 0; i < p; i++ {
+		for j := i + 1; j < p; j++ {
+			v := r.At(i, j)
+			if math.IsNaN(v) {
+				continue
+			}
+			out = append(out, types.MatrixPair{Row: members[i], Col: members[j], R: v, N: int(pairN(i, j))})
+		}
+	}
+	slices.SortStableFunc(out, func(a, b types.MatrixPair) int {
+		return cmp.Compare(math.Abs(b.R), math.Abs(a.R))
+	})
+	if k < len(out) {
+		out = out[:k:k]
 	}
 	return out
 }

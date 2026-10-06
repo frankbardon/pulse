@@ -3638,6 +3638,11 @@ pulse/types: const MatrixEncodingFull pulse/types.MatrixEncoding = "full"
 pulse/types: const MatrixEncodingUpper pulse/types.MatrixEncoding = "upper"
 pulse/types: type MatrixKind string
 pulse/types: const MatrixKindSquareSymmetric pulse/types.MatrixKind = "square_symmetric"
+pulse/types: type MatrixPair struct
+pulse/types: type MatrixPair field Col string "json:\"col\""
+pulse/types: type MatrixPair field N int "json:\"n\""
+pulse/types: type MatrixPair field R float64 "json:\"r\""
+pulse/types: type MatrixPair field Row string "json:\"row\""
 pulse/types: type MatrixPayload struct
 pulse/types: type MatrixPayload field CellLabel string "json:\"cell_label\""
 pulse/types: type MatrixPayload field Cells [][]pulse/types.MatrixCell "json:\"cells\""
@@ -4136,4 +4141,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 18dc6ed4f433d2d9158cf0964d89c8f58dced0ccc1a695cea5852163b6ab4119
+// golden-hash: 74aaa2bb73a327cea5220b26da86d38ae973b5f0943cf2d552b2391a63b7662b

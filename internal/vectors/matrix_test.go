@@ -67,6 +67,12 @@ func TestResolveMatrices_Refusals(t *testing.T) {
 		{"max_drop_share above 1", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"max_drop_share": 1.5}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"max_drop_share negative", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"max_drop_share": -0.1}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"max_drop_share under pairwise", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"missing": "pairwise", "max_drop_share": 0.2}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"top_pairs on covariance", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": 3}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"top_pairs zero", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": 0}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"top_pairs negative", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": -2}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"top_pairs fractional", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": 2.5}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"summary without top_pairs", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"summary": {}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"unknown summary key", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": 1, "bottom_pairs": 1}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"undefined vector", []types.MatrixSpec{{Type: cov, Vector: "w"}}, vec, nil, errors.PULSE_VECTOR_UNKNOWN, ""},
 		{"inline categorical member", []types.MatrixSpec{{Type: cov, Fields: []string{"region"}}}, nil, nil, errors.PULSE_VECTOR_MEMBER_TYPE, ""},
 		{"vector refusal wins first", []types.MatrixSpec{{Type: "MAT_NOPE", Vector: "v"}}, []types.VectorSpec{{Name: "v", Pattern: "^nothing$"}}, nil, errors.PULSE_VECTOR_EMPTY, ""},
@@ -79,6 +85,9 @@ func TestResolveMatrices_Refusals(t *testing.T) {
 			}
 			if c.reason != "" && err.Details["reason"] != c.reason {
 				t.Errorf("reason = %v, want %s", err.Details["reason"], c.reason)
+			}
+			if c.name == "top_pairs on covariance" && err.Details["param"] != "summary" {
+				t.Errorf("details = %v, want param summary", err.Details)
 			}
 			if c.code == errors.PULSE_VECTOR_UNKNOWN {
 				if err.Details["vector"] != "w" || err.Details["slot"] != "matrices[0].vector" || !slices.Equal(err.Details["defined"].([]string), []string{"v"}) {
@@ -157,5 +166,34 @@ func TestMatrixMembers_InlineFields(t *testing.T) {
 	req.Matrices[0].Fields = []string{"nope"}
 	if _, ok := MatrixMembers(req, testSchema()); ok {
 		t.Error("an unresolvable inline spec reports ok")
+	}
+}
+
+// TestResolveMatrices_TopPairs: params.summary.top_pairs decodes onto
+// MAT_CORRELATION's plan; absent (or a null summary on either operator)
+// leaves it 0.
+func TestResolveMatrices_TopPairs(t *testing.T) {
+	cases := []struct {
+		typ    types.MatrixType
+		params string
+		want   int
+	}{
+		{types.MAT_CORRELATION, ``, 0},
+		{types.MAT_CORRELATION, `{"summary": {"top_pairs": 1}}`, 1},
+		{types.MAT_CORRELATION, `{"missing": "pairwise", "summary": {"top_pairs": 50}}`, 50},
+		{types.MAT_CORRELATION, `{"summary": null}`, 0},
+		{types.MAT_COVARIANCE, `{"summary": null}`, 0},
+	}
+	for _, c := range cases {
+		t.Run(string(c.typ)+c.params, func(t *testing.T) {
+			req := &types.Request{Matrices: []types.MatrixSpec{{Type: c.typ, Fields: []string{"q_1", "q_2"}, Params: json.RawMessage(c.params)}}}
+			got, err := ResolveMatrices(req, testSchema(), nil)
+			if err != nil {
+				t.Fatalf("unexpected refusal: %v", err)
+			}
+			if got[0].TopPairs != c.want {
+				t.Errorf("TopPairs = %d, want %d", got[0].TopPairs, c.want)
+			}
+		})
 	}
 }

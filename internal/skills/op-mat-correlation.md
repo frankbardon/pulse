@@ -17,6 +17,7 @@ Slot: `matrices[i]` `{type, vector | fields, params, weight, encoding}`; members
 |---|---|---|---|
 | `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise: per-pair rows. |
 | `max_drop_share` | 0–1 | none | Listwise drop-share warning. |
+| `summary.top_pairs` | int ≥ 1 | none | k strongest pairs. |
 | `weight` | slot weight | inherited | Both kinds; `null` opts out. |
 | `encoding` | `full` \| `upper` | `full` | `upper`: row r holds p − r cells. |
 
@@ -26,7 +27,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary`: r clamped to [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`.
+`primary`: r clamped to [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
 
 ## Components
 
@@ -34,8 +35,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Gotchas
 
-- Same arithmetic as the Pearson test; no p-values.
-- Weight-0 rows count in `n`, add no mass.
+- Same arithmetic as the Pearson test; no p-values. Weight-0 rows count in `n`, add no mass.
 - Pairwise r at p ≥ 3 can be non-PSD (predict `pairwise_psd_risk`) → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
 - `joins` / chain stage ≥ 1 / `crosstab` refused as for covariance.
 

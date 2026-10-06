@@ -9,7 +9,7 @@
     "operators": [
       "MAT_CORRELATION"
     ],
-    "description": "Pearson correlation matrix of price, income and label in upper-triangle encoding: a virtual vector names the three numeric columns once and MAT_CORRELATION returns every pairwise r (the same arithmetic as TEST_PEARSON_R, without p-values) plus the matrix determinant.",
+    "description": "Pearson correlation matrix of price, income and label in upper-triangle encoding: a virtual vector names the three numeric columns once and MAT_CORRELATION returns every pairwise r (the same arithmetic as TEST_PEARSON_R, without p-values) plus the matrix determinant; params.summary.top_pairs lists the two strongest pairs by |r| under vectors.top_pairs.",
     "intents": [
       "relationship"
     ]
@@ -29,7 +29,8 @@
       "type": "MAT_CORRELATION",
       "name": "money_corr",
       "vector": "money",
-      "encoding": "upper"
+      "encoding": "upper",
+      "params": {"summary": {"top_pairs": 2}}
     }
   ]
 }

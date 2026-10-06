@@ -121,7 +121,9 @@ type MatrixSpec struct {
 	Fields []string `json:"fields,omitempty"`
 	// Params carries the operator's parameters (MAT_COVARIANCE:
 	// "ddof": 0 | 1; both: "missing": "listwise" | "pairwise",
-	// "max_drop_share": a share in [0, 1], listwise only, no default).
+	// "max_drop_share": a share in [0, 1], listwise only, no default;
+	// MAT_CORRELATION only: "summary": {"top_pairs": k}, k a positive
+	// integer).
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot
@@ -175,7 +177,8 @@ type MatrixValues struct {
 // Pearson r); Auxiliary holds
 // same-shape companion matrices keyed by name ("n": the pairwise N,
 // under params.missing "pairwise" only); Vectors per-member or
-// per-pair summaries; Scalars whole-matrix figures (determinant: the
+// per-pair summaries ("top_pairs": a []MatrixPair, MAT_CORRELATION
+// under params.summary.top_pairs only); Scalars whole-matrix figures (determinant: the
 // determinant of Primary by the reference Cholesky, null when Primary
 // is not positive definite). Warnings are this matrix's data-quality
 // diagnostics (PULSE_MATRIX_INSUFFICIENT_N, _ZERO_VARIANCE,
@@ -192,6 +195,20 @@ type MatrixResult struct {
 	Vectors     map[string]any           `json:"vectors,omitempty"`
 	Scalars     map[string]float64       `json:"scalars,omitempty"`
 	Warnings    []*ResponseWarning       `json:"warnings,omitempty"`
+}
+
+// MatrixPair is one entry of a MAT_CORRELATION result's
+// vectors.top_pairs: an off-diagonal pair of members (Row before Col in
+// axis order), its Pearson r and the rows it was computed over (the
+// pair's own N under params.missing "pairwise", the listwise N
+// otherwise). top_pairs lists the k pairs with the largest |r|, ties
+// broken by (row, col) axis order; the diagonal and pairs with an
+// undefined r are never listed.
+type MatrixPair struct {
+	Row string  `json:"row"`
+	Col string  `json:"col"`
+	R   float64 `json:"r"`
+	N   int     `json:"n"`
 }
 
 // MarshalJSON writes the matrix values with every non-finite float as

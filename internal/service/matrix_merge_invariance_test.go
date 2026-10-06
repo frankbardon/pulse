@@ -82,6 +82,14 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 	if v.pairwise {
 		spec.Params = json.RawMessage(`{"missing": "pairwise"}`)
 	}
+	// MAT_CORRELATION also lists every pair under top_pairs, so the
+	// ranking (and its tie-break) rides the compared run.
+	if v.matrixType() == types.MAT_CORRELATION {
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "summary": {"top_pairs": 3}}`)
+		if v.pairwise {
+			spec.Params = json.RawMessage(`{"missing": "pairwise", "summary": {"top_pairs": 3}}`)
+		}
+	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
 	}
@@ -101,6 +109,8 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 type matrixRun struct {
 	words     []uint64
 	auxN      []uint64
+	pairs     []types.MatrixPair
+	pairBits  []uint64
 	warnings  []*types.ResponseWarning
 	matWarns  []*types.ResponseWarning
 	run       types.RunComponents
@@ -146,6 +156,18 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 		t.Fatalf("listwise variant carries no PULSE_MATRIX_LISTWISE_HEAVY_DROP (warnings %v)", matWarningCodes(m))
 	}
 	out := matrixRun{words: words, auxN: auxN, warnings: resp.Warnings, matWarns: m.Warnings, instances: stats.instancesWithRows.Load()}
+	if req.Matrices[0].Type == types.MAT_CORRELATION {
+		pairs, ok := m.Vectors["top_pairs"].([]types.MatrixPair)
+		if !ok || len(pairs) != 3 {
+			t.Fatalf("Process(decode=%d, shard=%d): top_pairs = %#v, want 3 pairs", decodeWorkers, shardWorkers, m.Vectors["top_pairs"])
+		}
+		out.pairs = pairs
+		for _, pr := range pairs {
+			out.pairBits = append(out.pairBits, math.Float64bits(pr.R))
+		}
+	} else if m.Vectors != nil {
+		t.Fatalf("MAT_COVARIANCE emitted vectors %v", m.Vectors)
+	}
 	if resp.Components == nil || resp.Components.Run == nil {
 		t.Fatalf("Process(decode=%d, shard=%d): no Components.Run", decodeWorkers, shardWorkers)
 	}
@@ -169,6 +191,9 @@ func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
 	}
 	if i := firstWordDiff(got.auxN, want.auxN); i != -1 || len(got.auxN) != len(want.auxN) {
 		t.Errorf("%s: auxiliary.n differs from serial at word %d", label, i)
+	}
+	if i := firstWordDiff(got.pairBits, want.pairBits); i != -1 || len(got.pairBits) != len(want.pairBits) || !reflect.DeepEqual(got.pairs, want.pairs) {
+		t.Errorf("%s: top_pairs %+v, serial %+v", label, got.pairs, want.pairs)
 	}
 	if !reflect.DeepEqual(got.warnings, want.warnings) {
 		t.Errorf("%s: warnings %v, serial %v", label, got.warnings, want.warnings)

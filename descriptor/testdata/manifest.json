@@ -5769,12 +5769,21 @@
             "type": "float",
             "required": false,
             "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "summary",
+            "type": "object",
+            "required": false,
+            "description": "{\"top_pairs\": k}, k a positive integer: list the k off-diagonal pairs with the largest |r| as vectors.top_pairs [{row, col, r, n}], ties in axis order; undefined pairs are skipped and k past the pair count lists every pair."
           }
         ],
         "output_keys": {
           "primary": "correlation",
           "auxiliary": [
             "n"
+          ],
+          "vectors": [
+            "top_pairs"
           ],
           "scalars": [
             "determinant"
@@ -12119,4 +12128,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c934be9050e075dfaa18029f692b312f41a4fe6bfa272ae6e34cb7f03d97c2c2
+// golden-hash: ce8153b546e9df59496ee6973118d16f2a1a71dd98c3ea02eb90992237a38e05
