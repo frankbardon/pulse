@@ -26,9 +26,9 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 
 | Operation (CLI) | Wire type | Top-level keys |
 |---|---|---|
-| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature --><!-- feature: capability:matrices -->, `vectors`, `matrices`<!-- /feature --> |
+| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs, return`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature --><!-- feature: capability:matrices -->, `vectors`, `matrices`<!-- /feature --> |
 <!-- feature: capability:compose -->
-| compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`) |
+| compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`), `return` (overlays only) |
 <!-- /feature -->
 <!-- feature: capability:process_chain -->
 | process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
@@ -40,7 +40,7 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 | sample (`pulse api sample`) | `SampleRequest` | `cohort, count, offset` |
 <!-- /feature -->
 
-Each operation's MCP tool is listed in `pulse_manifest` `mcp_tools`; one the instance does not offer is absent.
+Each operation's MCP tool is listed in manifest `mcp_tools`.
 
 <!-- feature: capability:weighting -->
 Row weight: `Request.weight` `{field, kind}`; per-slot `weight` — a field, `{field, kind}` or `null` (`null` opts out, absent inherits); `pulse.Options.DefaultWeight`. See `weighting`.
@@ -68,7 +68,7 @@ Every `type` is an operator constant from `pulse_manifest` `components.<category
 
 ## Slot-key gotchas
 
-Unknown keys are silently dropped on decode.
+Unknown keys drop silently on decode.
 
 | Wrong | Right |
 |---|---|
@@ -97,7 +97,7 @@ When a slot names `field` but omits `type`, the engine infers from schema type. 
 | `date`, `datetime` (truncated) | (explicit only) | `GROUP_DATE` (`"day"`) |
 <!-- /feature -->
 
-Rules: never override explicit `type`; never cross categories; `Nullable` irrelevant; tests / filterers / attrs / features / windows never defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
+Never override explicit `type` or cross categories; tests / filterers / attrs / features / windows never defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
 
 ## Streamability
 
@@ -110,11 +110,11 @@ Rules: never override explicit `type`; never cross categories; `Nullable` irrele
 
 ## Time zones
 
-`time_zone` sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request; `SampleRequest`: none). Slot `tz` sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — a slot key, never inside `params`. Names are `UTC` or IANA `Area/Location` (`Europe/Berlin`, `Etc/GMT-5`); `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
+`time_zone` sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request; `SampleRequest`: none). Slot `tz` sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — a slot key, never inside `params`. Names are `UTC` or IANA (`Europe/Berlin`); `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
 Precedence per slot: `tz` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator (the year-over-year overlay) inherits its host grouper's zone; extension operators are never capable.
 
-On a `datetime` field the zone applies: instants read on their local day (DST-correct). Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; explicit `tz` on a `date` field (even `"UTC"`); a non-UTC zone on a derived field. An inherited zone on a `date` field is not applied. UTC (and aliases like `Etc/UTC`) is byte-identical to no zone.
+On a `datetime` field instants read on their local day (DST-correct). Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; explicit `tz` on a `date` field (even `"UTC"`); a non-UTC zone on a derived field. An inherited zone on a `date` field is not applied. UTC (and aliases like `Etc/UTC`) is byte-identical to no zone.
 
 ## Predict-specific data fields
 
@@ -122,4 +122,4 @@ On a `datetime` field the zone applies: instants read on their local day (DST-co
 
 ## Cross-links
 
-`response-components` (the `Response.Components` block) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes)<!-- feature: capability:compose --> · `compose-requests`<!-- /feature --><!-- feature: capability:facet --> · `facet-design`<!-- /feature --> · `streaming-and-watching` (stream chunks, request hashing)<!-- feature: capability:multiplicity --> · `multiplicity-correction`<!-- /feature -->.
+`response-components` (the `Response.Components` block) · `response-shaping` (`return`: trim the response, wire precision) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes)<!-- feature: capability:compose --> · `compose-requests`<!-- /feature --><!-- feature: capability:facet --> · `facet-design`<!-- /feature --> · `streaming-and-watching` (stream chunks, request hashing)<!-- feature: capability:multiplicity --> · `multiplicity-correction`<!-- /feature -->.

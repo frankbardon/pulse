@@ -43,17 +43,15 @@ One row per category: trigger → companions → gates. **The exhaustive per-slo
 
 Between them the rows carry every word `TestUpdateDemandTableCovers` checks; keep it that way when editing one.
 
-Never defer the doc/skill update to a follow-up PR; it will not happen.
-
 ## Architecture
 
 **Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free reference kernels + gonum-backed decompositions). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` — the full tree, the split-in-place vs alias-facade technique, root aliases, the `io` import boundary, the `linalg` two-backend split, and the MCP layer split; load it before moving a package or adding a public symbol.**
 
+Docs: <https://frankbardon.github.io/pulse/>.
+
 CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `schema`, `mcp`, `widen`, `dedup`, `version`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `index {build,list,verify,drop}`, `features {init,check,diff,show}`, `api {process,compose,facet,process-chain,lookup}`. `pulse schema` prints the payload JSON Schema RAW — not envelope-wrapped.
 
-**MCP:** `internal/mcp/` is the SDK-free core (`TestMCPCore_NoSDKImport`); `mcp/gosdk/` is the ONLY go-sdk importer (`Register(server, p, cfg)`). **The manifest is the source-of-truth tool count, never hardcode it**; `pulse://schema` is a RESOURCE, not a tool. **Tools, prompts and resources are registered per instance** — a profiled instance mounts only what it enables, so `gosdk.RegisteredTools()` / `RegisteredPrompts()` stay the GLOBAL lists. Detail: the MCP layer split section of `.claude/reference/architecture.md`.
-
-Docs at <https://frankbardon.github.io/pulse/>. Skills under `skills/` are the LLM surface.
+**MCP:** `internal/mcp/` is the SDK-free core (`TestMCPCore_NoSDKImport`); `mcp/gosdk/` is the ONLY go-sdk importer (`Register(server, p, cfg)`). **The manifest is the source-of-truth tool count, never hardcode it**; `pulse://schema` is a RESOURCE, not a tool. **Tools, prompts and resources are registered per instance** — a profiled instance mounts only what it enables, so `gosdk.RegisteredTools()` / `RegisteredPrompts()` stay the GLOBAL lists. Detail: `.claude/reference/architecture.md` (MCP layer split).
 
 ## Code Conventions
 
@@ -111,12 +109,14 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 
 - `format_version` is always `"1.1"`, bumped from `"1.0"` for the Compose facade lift. **Additive-only: bump only on a backward-incompatible shape change** — new `data` fields do not bump, renames and removals do. Any bump MUST update this section.
 - `errors` / `warnings` are `{"code", "message", "details"}` entries, an empty array (never null) when absent. **A FATAL `*errors.CodedError` carries its own code** — every CLI leaf (`pulse api *` included) routes through `writeCodedErrorEnvelope`, which unwraps with `errors.As` and falls back to the placeholder (`PROCESS_ERROR`, …) only for an UNCODED error. Stringifying a coded error into the placeholder makes `errors[0].code` unusable with `pulse errors lookup`. **The overlay family follows the same rule**: every `PULSE_OVERLAY_*` fault is raised with that code as its own `Code`, never `PROCESSING_INTERNAL` with a `details["code"]` echo; `PROCESSING_INTERNAL` is reserved for a caller-side invariant violation with no user-facing code.
-- **Undefined figures are `null`.** A non-finite float (NaN / ±Inf — a 0/0 `AGG_RATIO`, an unfilled rolling window) is JSON `null` in place, key kept (`types.MarshalFinite`; result types marshal through it); Go results keep NaN. Not a shape change: such output never serialised before. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
+- **Undefined figures are `null`.** A non-finite float (NaN / ±Inf — a 0/0 `AGG_RATIO`, an unfilled rolling window) is JSON `null` in place, key kept (`types.MarshalFinite`); Go results keep NaN. Not a shape change. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
 - `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; its shape follows the operation (one of the five request roots). Streaming skips the echo. Additive `omitempty`; no `format_version` bump.
 
 **Compose envelope (`pulse api compose --json`).** Since the v1.1 lift, `data` is a `ComposedResponse` OBJECT — not the legacy `[]*Response` array — carrying `responses` (one `Response` per `ComposedRequest.Requests` slot, in input order) and `overlays` (one `OverlayLayer` per `ComposedRequest.Overlays` spec, omitted when there are none). Each slot's `return` shapes `responses[i]`; `ComposedRequest.Return` (`overlays…` paths only) shapes the layers AFTER the fold and stamps `returned`. Streaming (`--stream`) bypasses the envelope entirely and emits per-row `{"index", "row"}` NDJSON; Compose overlays surface only at terminal flush in non-streaming mode (`skills/streaming-and-watching.md`).
 
 **Multiplicity outputs.** Opt-in `multiplicity {method, family, alpha}` (absent ⇒ byte-identical; `format_version` stays `"1.1"`) adds BESIDE the raw p, which never moves: `TestResult` / `OverlaySummary` `p_adjusted` + `significant_adjusted`, matching `OverlayPayload` matrices, `multiplicity {…, m}` echoes. NaN p ⇒ null. Contract: `execution-modes.md` (Multiplicity).
+
+**Response shaping.** Opt-in `Request.Return {preset, include, exclude, precision}`; absent ⇒ byte-identical, `format_version` stays `"1.1"`. Preset → include → exclude, exclude wins; an excluded part is ABSENT on the wire (never `null`) and zero in Go; the shaped output is a PROJECTION, not schema-valid against the full payload schema, stamped `returned {preset, digest, precision?}`. `precision` is wire-only; counts stay exact. Contract: `update-demand.md` (`Request.Return` row), `skills/response-shaping.md`.
 
 **Matrices.** `Request.Vectors` names numeric column batteries once; `Request.Matrices` (`MatrixSpec {name, type, vector | fields, params, weight, encoding}`) yields one `Response.Matrices[i]` `MatrixResult {name, type, group_key?, group_header?, primary, auxiliary, vectors, scalars, warnings}` per spec, each matrix a dedicated `MatrixValues {kind, encoding, row_keys, column_keys, labels?, values}` (never the crosstab `MatrixPayload`). Additive `omitempty`, `format_version` stays `"1.1"`, undefined cells `null`. Contract: `.claude/reference/matrix-and-vectors.md`.
 
@@ -202,13 +202,13 @@ Other load-bearing contract gates are **not** prefix-matched (they are enforced 
 - `PULSE_RANGE_TABLES_DIR` — same shape for `RangeTables` (bare `{label,start,end}` array or a `{"description","ranges"}` wrapper; filename minus `.json` is the table name), validated through the shared range-compilation pass. A name declared both programmatically and on disk is a hard error.
 - `PULSE_MCP_NO_COHORT_SCAN` — `pulse mcp` only (flag `--no-cohort-scan`): skip enumerating `.pulse` files as `pulse://` resources; the template stays, so cohorts stay readable. Library: `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan`.
 - `PULSE_FEATURE_PROFILE` — `pulse mcp` / `mcpserve.NewPulse` only (flag `--feature-profile` wins): OS path to a feature profile.
-- `PULSE_TEMPLATES_DIR` — request-template roots, `os.PathListSeparator`-separated in PATH-style precedence (first root wins; a same-named template under a later root is shadowed, not rejected). Unset with no `TemplateDirs` builds no store and lookups return `PULSE_TEMPLATE_NOT_FOUND`. **The hot-reload phase table — which malformed-file state hard-fails startup, which serves its last-good parse, which lists as broken — is the contract and lives in `.claude/reference/request-templating.md` (Hot-reload lifecycle).**
+- `PULSE_TEMPLATES_DIR` — request-template roots, `os.PathListSeparator`-separated in PATH-style precedence (first root wins; a same-named template under a later root is shadowed, not rejected). Unset with no `TemplateDirs` builds no store (`PULSE_TEMPLATE_NOT_FOUND`). **The hot-reload phase table is the contract: `.claude/reference/request-templating.md` (Hot-reload lifecycle).**
 
 Both table directories skip Pulse's own sidecars by suffix yet hard-fail any OTHER unparseable `*.json`; `PULSE_TEMPLATES_DIR` does not skip: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
 **Knobs.** Concurrency (`pulse.Options`, both default `0` ⇒ `NumCPU`, negatives rejected at `pulse.New()`, orthogonal to each other): `ShardWorkers` — per-shard pool for archives, explicit `1` forces serial; `DecodeWorkers` — per-segment pool for single-file cohorts above `parallelDecodeRecordThreshold` (100K records). Overlay knobs `DictPrefixFast` / `MaxPanelTargets`: `.claude/reference/execution-modes.md` (Overlays).
 
-Hermetic testing: `internal/fs` `fs.NewMemMap()` returns a `Config` backed by `afero.NewMemMapFs()`. No disk I/O.
+Hermetic testing: `fs.NewMemMap()` (`internal/fs`) returns an `afero.NewMemMapFs()`-backed `Config`; no disk I/O.
 
 ## Extension Points
 
@@ -229,7 +229,7 @@ Declared, never executed: a closed intent taxonomy (manifest `intents[]` = IDs o
 
 ## Request templating
 
-Stored parameterised JSON that renders into a **validated typed request**. `internal/template/` is the whole implementation (import ceiling: stdlib + `types` + `errors` only — never `descriptor/`, `internal/processing/`, `internal/service/`; gated by `TestTemplatePackage_ImportBoundary`). Facade: `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`. **No CLI leaf, no MCP tool** — library/embedding surface only. **It is NOT expr-lang:** `$var` / `{{}}` / `$when` are request-authoring parameters substituted BEFORE decode, while `ATTR_FORMULA` / `FILTER_EXPRESSION` are expr-lang over row fields at execution time, and there is no interop by design.
+Stored parameterised JSON that renders into a **validated typed request**. `internal/template/` is the whole implementation (import ceiling: stdlib + `types` + `errors` only, plus stdlib-only `internal/returnplan` via `types` — never `descriptor/`, `internal/processing/`, `internal/service/`; gated by `TestTemplatePackage_ImportBoundary`). Facade: `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`. **No CLI leaf, no MCP tool** — library/embedding surface only. **It is NOT expr-lang:** `$var` / `{{}}` / `$when` are request-authoring parameters substituted BEFORE decode, while `ATTR_FORMULA` / `FILTER_EXPRESSION` are expr-lang over row fields at execution time, and there is no interop by design.
 
 **Contract: `.claude/reference/request-templating.md` — load it before changing the document model, the variable or target sets, or the substitution syntax.** It carries the file wrapper, the substitution forms, the variable types, directory precedence, the hot-reload phase table, the `PULSE_TEMPLATE_*` codes and why render never opens a cohort. Env var `PULSE_TEMPLATES_DIR`; skill `skills/request-templating.md`; docs `docs/src/library/request-templating.md`.
 
@@ -255,9 +255,9 @@ The pack under `internal/skills/` (addressed pack-relative as `skills/<stem>.md`
 
 - **Do not import `internal/service/` or `internal/processing/` from `internal/descriptor/`.** Predict/inspect/manifest are no-execute; `TestPredictNoExecutionImports` fails.
 - **Do not hand-edit golden files.** Regenerate: `go test ./descriptor/ -run 'Test.*Golden' -update`.
+- **Do not defer a skill or CLAUDE.md update** to a follow-up PR; it will not happen.
 - **Do not add implementation without tests in the same PR.** TDD is a hard rule here.
 - **Do not use `fmt.Sprintf` for JSON/XML.** Use `encoding/json` + `descriptor.NewEnvelope(data)`.
-- **Do not defer a skill or CLAUDE.md update.** The follow-up PR will not happen and the next session reads stale guidance.
 - **Do not raise `claudeMdSizeCeiling` to make CLAUDE.md fit.** Move the long form into `.claude/reference/` and leave the always-load half plus a pointer — that is the whole point of the gate.
 - **Do not add a component without updating the registry** (`internal/processing/registry.go`) + `types.All*Types()`.
 - **Do not bypass `afero.Fs`** — it defeats `fs.NewMemMap()` and the custom-storage extension hook.

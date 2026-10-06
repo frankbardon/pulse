@@ -1,0 +1,86 @@
+# Response Shaping
+
+A `return` block on a request chooses which parts of the response come
+back and how many significant digits floats carry on the wire. It exists
+to keep responses small for callers (agents especially) that read a
+fraction of them. A request with no `return` is byte-identical to before,
+hashes identically, and `format_version` stays `"1.1"`.
+
+```go
+resp, err := p.Process(ctx, &types.Request{
+    // Cohort, Aggregations, ... as for any request.
+    Return: &types.Return{
+        Preset:    types.ReturnPresetMinimal,
+        Include:   []string{"metadata.total_rows"},
+        Precision: 4,
+    },
+})
+```
+
+## Resolution
+
+Preset, then `include` adds, then `exclude` removes; exclude wins. An
+`include` with no preset starts from an empty base. `exclude` or
+`precision` alone shape the full response. Top-level `warnings` and every
+nested `warnings` whose parent is emitted stay unless excluded.
+
+Presets are `full` (identity), `standard` (data, warnings, metadata,
+trimmed tests and regressions, no components) and `minimal` (the primary
+result only). The manifest `return_presets` block lists each preset's
+paths expanded against the instance.
+
+Paths use the Response JSON names at any depth: `.` between keys, `[*]`
+into array elements, a trailing `*` on a map-key segment as a prefix
+glob. `data[*].<column>` selects output columns. The full grammar and
+the preset table are in [Payload JSON Schema](../contract/payload-schema.md)
+(Return slot).
+
+## What the caller sees
+
+- An excluded part is **absent** on the wire, never `null`, and zero or
+  nil on the Go value.
+- The shaped response is a **projection**: it is not schema-valid
+  against the full payload schema. Do not validate it against
+  `pulse://schema`.
+- A response whose plan changes something carries
+  `returned {preset, digest, precision?}`. It cannot be excluded and its
+  `digest` equals the one predict returns.
+- `precision` (1 to 17 significant digits) is wire-only. Integers,
+  `decimal128` strings and NaN (`null`) are untouched, and counts stay
+  exact: count-aggregation columns, count crosstab cells, and
+  `matrices[*].auxiliary.n`. Extension aggregators are never exempt.
+
+## Errors
+
+| Code | When |
+|---|---|
+| `PULSE_RETURN_INVALID` | unknown preset, precision outside 1 to 17, malformed path, naming `returned`, a non-overlay path in a Compose-level block |
+| `PULSE_RETURN_PATH_UNKNOWN` | a path this instance's Response does not carry, including a hidden feature's path |
+| `PULSE_RETURN_PATH_UNMATCHED` | warning, buffered runs only: an include through an open map matched nothing |
+
+`PredictResult.Return` resolves and validates the block before any
+record is read.
+
+## Defaults and precedence
+
+`Options.DefaultReturn`, else the feature profile's `return`, else
+`full`, applies to every request that has no block. A request block
+replaces the default entirely. See [`pulse.New` & Options](options.md)
+and [Feature Profiles](feature-profiles.md).
+
+`disable_components` is shorthand: alone it only skips computing
+components (byte-identical, no marker); with a `return` layer it adds
+`exclude: ["components"]`. A request `return` without
+`disable_components` computes components even on an instance that
+disabled them.
+
+## Surfaces
+
+- `Process`: shapes the one response.
+- `Compose`: each slot's `return` shapes `responses[i]`;
+  `ComposedRequest.Return` shapes top-level overlays only.
+- `ProcessChain`: each stage's `return` is applied after the whole
+  chain, so a stage that excludes `data` still feeds the next stage.
+- Streaming: rows carry only the selected columns; `returned` rides the
+  terminal chunk only; excluding `data` yields no rows. See
+  [Streaming & ProcessStream](streaming.md).

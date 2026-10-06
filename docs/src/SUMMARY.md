@@ -43,6 +43,7 @@
 - [Reading & Building Cohorts](library/cohort-reader.md)
 - [Point Lookup & Index Management](library/point-lookup.md)
 - [Request Templating](library/request-templating.md)
+- [Response Shaping](library/response-shaping.md)
 - [Row Weighting](library/weighting.md)
 - [Multiple-Comparison Correction](library/multiplicity.md)
 - [Time Zones](library/time-zones.md)

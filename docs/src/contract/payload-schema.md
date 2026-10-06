@@ -406,6 +406,12 @@ none (cells, margins, grand total, long-form column) and a count
 auxiliary margin aggregation's figures — plus `decimal128` values, which
 are decimal strings. The `upper` matrix encoding keeps its shape.
 
+A shaped response is a **projection**: it is not schema-valid against
+the full payload schema (required keys may be absent), so validate the
+request and the plan, not the shaped output. A request without `return`
+stays byte-identical. Agent-facing summary: `skills/response-shaping.md`;
+library walkthrough: `library/response-shaping.md`.
+
 ### Presets
 
 The presets are defined once (`internal/descriptor/return_resolve.go`,

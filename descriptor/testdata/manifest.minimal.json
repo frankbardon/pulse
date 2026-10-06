@@ -792,6 +792,10 @@
         "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
       },
       {
+        "name": "response-shaping",
+        "description": "The request `return` block — choose which parts of a response come back (presets, include / exclude paths) and how many significant digits floats carry on the wire; what is projected, what stays exact, and how it composes with streaming and instance defaults."
+      },
+      {
         "name": "session-bootstrap",
         "description": "Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session."
       },
@@ -1190,4 +1194,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 29e58c0c4f3610e24d36c1a8abd24a5d4a9a603cf2d076fc02861bd4cc0c5b79
+// golden-hash: c9ee3b7a5d4d9bd103e6311a639f7d789cc8d076d1ea64dec80db71a548e2989
