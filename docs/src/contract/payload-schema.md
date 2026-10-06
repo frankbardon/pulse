@@ -391,6 +391,21 @@ include through a map key or an open value that matched nothing in the
 executed response adds a `PULSE_RETURN_PATH_UNMATCHED` entry to
 `warnings` (details `path`) unless `warnings` is excluded.
 
+`precision` is **wire-only**: the Go response keeps full float64, and on
+the wire every float (data cells, tests, regressions, overlays, matrices
+incl. `top_pairs[*].r` and `scalars.determinant`, component maps) is
+`strconv.FormatFloat(v, 'g', precision, 64)` — so `3e-9` at 4 digits is
+`3e-09` and `123456.789` is `1.235e+05`. NaN / ±Inf stay `null`; ints
+are never touched. Exempt (written exact): integer-semantics floats —
+`matrices[*].auxiliary.n` on every request, and, derived from the
+request, the `data` column of a count aggregation (`AGG_COUNT`,
+`AGG_DISTINCT_COUNT`, `AGG_NULL_COUNT`, `AGG_MODE_COUNT`,
+`AGG_FREQUENCY`, `AGG_SET_FREQUENCY`, `AGG_SET_CARDINALITY_SUM`,
+`AGG_SET_DISTINCT_VALUES`), a count crosstab cell under `normalize`
+none (cells, margins, grand total, long-form column) and a count
+auxiliary margin aggregation's figures — plus `decimal128` values, which
+are decimal strings. The `upper` matrix encoding keeps its shape.
+
 ### Presets
 
 The presets are defined once (`internal/descriptor/return_resolve.go`,

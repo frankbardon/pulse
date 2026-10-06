@@ -304,3 +304,46 @@ func TestReturn_MarkerIffNonIdentity(t *testing.T) {
 		}
 	}
 }
+
+// TestPrecision_WalkMirrorsEncodeFinite: with Return.precision set the
+// planned encoder walks wholly selected subtrees itself instead of
+// handing them to encodeFinite. Over a response with every reachable
+// slot populated (every float 1.5, which 'g' at 17 digits writes as
+// "1.5"), precision 17 must reproduce the precision-free bytes exactly
+// — field order, omitempty, maps, nested marshallers — under the full
+// selection, an exclude and a preset.
+func TestPrecision_WalkMirrorsEncodeFinite(t *testing.T) {
+	for name, ret := range map[string]types.Return{
+		"full":     {},
+		"exclude":  {Exclude: []string{"metadata", "tests[*].p_value"}},
+		"standard": {Preset: types.ReturnPresetStandard},
+	} {
+		t.Run(name, func(t *testing.T) {
+			base := filledResponse()
+			returnshape.Apply(base, planFor(t, &ret))
+			withP := ret
+			withP.Precision = 17
+			r := filledResponse()
+			returnshape.Apply(r, planFor(t, &withP))
+			if r.Returned == nil || r.Returned.Precision != 17 {
+				t.Fatalf("marker = %+v, want precision 17", r.Returned)
+			}
+			// The markers differ by precision only; compare the rest.
+			base.Returned, r.Returned = nil, nil
+			want, err := json.Marshal(base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := json.Marshal(r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(got), "1.5") {
+				t.Fatalf("no float reached the wire: %s", got)
+			}
+			if string(got) != string(want) {
+				t.Errorf("precision 17 differs from the precision-free walk:\n got %s\nwant %s", got, want)
+			}
+		})
+	}
+}

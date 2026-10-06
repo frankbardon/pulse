@@ -39,6 +39,15 @@ type Plan struct {
 	Keep    []Path
 	// Precision is the wire float significant-digit count, 0 unlimited.
 	Precision int
+	// Exact lists the REQUEST-DERIVED precision exemptions: nodes (and
+	// their subtrees) whose floats carry integer semantics for this
+	// request — a count aggregation's data column, a count crosstab
+	// cell — written at full precision even when Precision is set. The
+	// resolver fills it (internal/descriptor/return_resolve.go); the
+	// response-type exemptions that hold for every request live beside
+	// the encoder (types/return_shape.go, precisionExempt). Derived from
+	// the request, never part of the selection, so outside the digest.
+	Exact []Path
 	// SelectsAll reports that Include covers every top-level key of the
 	// root, so the root itself is selected whole.
 	SelectsAll bool

@@ -226,3 +226,9 @@ func isAncestor(c []Segment, pattern Path) bool {
 func (p Path) Matches(c []Segment) bool {
 	return len(p.Segments) == len(c) && matchPrefix(p, c)
 }
+
+// Selects reports whether the pattern matches the concrete node at c or
+// one of its ancestors: c lies in a subtree the pattern names.
+func (p Path) Selects(c []Segment) bool {
+	return matchPrefix(p, c)
+}

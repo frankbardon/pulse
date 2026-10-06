@@ -3,8 +3,10 @@ package types
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/internal/returnplan"
@@ -316,8 +318,31 @@ func (s *returnPruner) prune(v reflect.Value, path []returnplan.Segment) (reflec
 }
 
 // planEncoder is layer 2: MarshalFinite under a plan.
+//
+// With Precision set the encoder also owns the float leaves: a wholly
+// selected subtree is still walked node by node (no Visit calls — the
+// plan already answered "everything") so every float64 / float32 can be
+// written as strconv.FormatFloat(v, 'g', Precision, bits), NaN / ±Inf
+// staying null. Only the Go float kinds are rounded, so an int — and a
+// decimal128 value, which reaches a row as a string or as an opaque
+// marshaller — is never touched. A node under a precisionExempt or
+// Plan.Exact path is written exact. Opaque marshallers stay leaves. With
+// Precision 0 a wholly selected subtree goes through encodeFinite
+// untouched, so its bytes cannot drift from the unshaped form.
 type planEncoder struct {
 	plan *returnplan.Plan
+}
+
+// precisionExempt is the DECLARED list of response nodes whose floats
+// carry integer semantics on every request — a count held as a float64
+// — so Return.precision never rounds them (the subtree under each path
+// is written exact). Request-derived exemptions (a count aggregation's
+// data column, …) ride Plan.Exact instead. A new count-carried-as-float
+// slot goes HERE: TestPrecision_FloatLeavesClassified enumerates every
+// float leaf of the Response type and fails on one it cannot classify.
+var precisionExempt = []returnplan.Path{
+	// The pairwise N beside a matrix: integer counts in a MatrixValues.
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("auxiliary"), returnplan.Key("n")}},
 }
 
 // marshalPlanned encodes v (the response root) under p.
@@ -328,17 +353,52 @@ func marshalPlanned(v reflect.Value, p *returnplan.Plan) ([]byte, error) {
 	return b, err
 }
 
+// exact reports whether the node at path keeps full float precision.
+func (e *planEncoder) exact(path []returnplan.Segment) bool {
+	for _, x := range precisionExempt {
+		if x.Selects(path) {
+			return true
+		}
+	}
+	for _, x := range e.plan.Exact {
+		if x.Selects(path) {
+			return true
+		}
+	}
+	return false
+}
+
+// encodeFloat writes one float leaf at the plan's precision.
+func (e *planEncoder) encodeFloat(v reflect.Value) []byte {
+	f := v.Float()
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return []byte("null")
+	}
+	bits := 64
+	if v.Kind() == reflect.Float32 {
+		bits = 32
+	}
+	return strconv.AppendFloat(nil, f, 'g', e.plan.Precision, bits)
+}
+
 // encode writes v at path. whole means the plan selects the subtree
 // untouched; present false means the node is absent.
 func (e *planEncoder) encode(v reflect.Value, path []returnplan.Segment, whole bool) ([]byte, bool, error) {
-	if whole {
+	if whole && (e.plan.Precision == 0 || e.exact(path)) {
 		b, err := encodeFinite(v)
 		return b, true, err
 	}
 	if !v.IsValid() {
+		if whole {
+			return []byte("null"), true, nil
+		}
 		return nil, false, nil
 	}
 	switch v.Kind() {
+	case reflect.Float32, reflect.Float64:
+		if whole {
+			return e.encodeFloat(v), true, nil
+		}
 	case reflect.Pointer:
 		if v.IsNil() {
 			return []byte("null"), true, nil
@@ -347,18 +407,21 @@ func (e *planEncoder) encode(v reflect.Value, path []returnplan.Segment, whole b
 			b, err := encodeFinite(v)
 			return b, true, err
 		}
-		return e.encode(v.Elem(), path, false)
+		return e.encode(v.Elem(), path, whole)
 	case reflect.Interface:
 		if v.IsNil() {
+			if whole {
+				return []byte("null"), true, nil
+			}
 			return nil, false, nil
 		}
-		return e.encode(v.Elem(), path, false)
+		return e.encode(v.Elem(), path, whole)
 	case reflect.Struct:
 		if opaqueType(v.Type()) {
 			b, err := encodeFinite(v)
 			return b, true, err
 		}
-		b, err := e.encodeStruct(v, path)
+		b, err := e.encodeStruct(v, path, whole)
 		return b, true, err
 	case reflect.Map:
 		if v.IsNil() {
@@ -368,9 +431,13 @@ func (e *planEncoder) encode(v reflect.Value, path []returnplan.Segment, whole b
 			b, err := encodeFinite(v)
 			return b, true, err
 		}
-		return e.encodeMap(v, path)
+		return e.encodeMap(v, path, whole)
 	case reflect.Slice, reflect.Array:
 		if v.Type().Elem().Kind() == reflect.Uint8 && v.Kind() == reflect.Slice {
+			if whole {
+				b, err := encodeFinite(v)
+				return b, true, err
+			}
 			return nil, false, nil
 		}
 		if v.Kind() == reflect.Slice && v.IsNil() {
@@ -381,7 +448,10 @@ func (e *planEncoder) encode(v reflect.Value, path []returnplan.Segment, whole b
 			return b, true, err
 		}
 		child := appendSeg(path, returnplan.Elem())
-		vd := e.plan.Visit(child)
+		vd := returnplan.Verdict{Keep: true, Whole: true}
+		if !whole {
+			vd = e.plan.Visit(child)
+		}
 		if !vd.Keep {
 			return []byte("[]"), true, nil
 		}
@@ -405,16 +475,23 @@ func (e *planEncoder) encode(v reflect.Value, path []returnplan.Segment, whole b
 		buf.WriteByte(']')
 		return buf.Bytes(), true, nil
 	}
+	if whole {
+		// Any other scalar of a wholly selected subtree.
+		b, err := encodeFinite(v)
+		return b, true, err
+	}
+	// A scalar reached only as the ancestor of a deeper path selected
+	// nothing.
 	return nil, false, nil
 }
 
-func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment) ([]byte, error) {
+func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment, whole bool) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte('{')
 	first := true
 	for _, f := range jsonFields(v) {
 		var vd returnplan.Verdict
-		if len(path) == 0 && f.name == returnedKey {
+		if whole || (len(path) == 0 && f.name == returnedKey) {
 			vd = returnplan.Verdict{Keep: true, Whole: true}
 		} else {
 			vd = e.plan.Visit(appendSeg(path, returnplan.Key(f.name)))
@@ -452,8 +529,8 @@ func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment) (
 }
 
 // encodeMap writes a string-keyed map in encoding/json's key order,
-// asking the plan per key.
-func (e *planEncoder) encodeMap(v reflect.Value, path []returnplan.Segment) ([]byte, bool, error) {
+// asking the plan per key unless the whole map is selected.
+func (e *planEncoder) encodeMap(v reflect.Value, path []returnplan.Segment, whole bool) ([]byte, bool, error) {
 	type kv struct {
 		key string
 		val reflect.Value
@@ -469,7 +546,10 @@ func (e *planEncoder) encodeMap(v reflect.Value, path []returnplan.Segment) ([]b
 	n := 0
 	for _, en := range entries {
 		child := appendSeg(path, returnplan.Key(en.key))
-		vd := e.plan.Visit(child)
+		vd := returnplan.Verdict{Keep: true, Whole: true}
+		if !whole {
+			vd = e.plan.Visit(child)
+		}
 		if !vd.Keep {
 			continue
 		}

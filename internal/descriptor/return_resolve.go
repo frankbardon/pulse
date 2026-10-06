@@ -120,7 +120,14 @@ func ResolveReturn(req *types.Request, inst *InstanceSnapshot) (*returnplan.Plan
 	if req == nil || req.Return == nil {
 		return nil, nil
 	}
-	return resolveReturnBlock(req.Return, returnRoot, inst)
+	plan, err := resolveReturnBlock(req.Return, returnRoot, inst)
+	if err != nil {
+		return nil, err
+	}
+	if plan.Precision > 0 {
+		plan.Exact = returnExactPaths(req)
+	}
+	return plan, nil
 }
 
 func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnapshot) (*returnplan.Plan, error) {
