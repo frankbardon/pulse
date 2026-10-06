@@ -220,3 +220,9 @@ func isAncestor(c []Segment, pattern Path) bool {
 	}
 	return true
 }
+
+// Matches reports whether the pattern selects exactly the concrete node
+// at c: same depth, every segment covering c's.
+func (p Path) Matches(c []Segment) bool {
+	return len(p.Segments) == len(c) && matchPrefix(p, c)
+}

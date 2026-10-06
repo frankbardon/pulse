@@ -51,3 +51,18 @@ const (
 func AllReturnPresets() []ReturnPreset {
 	return []ReturnPreset{ReturnPresetFull, ReturnPresetStandard, ReturnPresetMinimal}
 }
+
+// ReturnedMarker is Response.Returned: the stamp a response shaped by a
+// non-identity `return` block carries, so a reader of the wire form
+// knows it is looking at a selection, not the whole response.
+type ReturnedMarker struct {
+	// Preset is the preset the block resolved from (a ReturnPreset), or
+	// "custom" for an explicit include / exclude without one.
+	Preset string `json:"preset"`
+	// Digest identifies the resolved selection ("rp1:" + sha256 hex);
+	// equivalent spellings share it, and predict reports the same one.
+	Digest string `json:"digest"`
+	// Precision is the wire float significant-digit count; omitted
+	// when unlimited.
+	Precision int `json:"precision,omitempty"`
+}

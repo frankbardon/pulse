@@ -1,6 +1,10 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/frankbardon/pulse/internal/returnplan"
+)
 
 // This file defines the request/response types for Pulse as plain Go structs
 // with JSON tags. These types are the JSON-serializable shapes used by the
@@ -1257,6 +1261,20 @@ type Response struct {
 	// omits `filterers`, etc. format_version stays at "1.0" because
 	// the slot is additive.
 	Components *ResponseComponents `json:"components,omitempty"`
+
+	// Returned marks a response shaped by a non-identity `return`
+	// block: which preset it resolved from ("custom" for an explicit
+	// include / exclude without one), the plan digest and the wire
+	// precision. Nil — and absent on the wire — for an unshaped
+	// response, so a request without `return` (or with one that
+	// resolves to the full response) is byte-identical. It cannot be
+	// excluded.
+	Returned *ReturnedMarker `json:"returned,omitempty"`
+
+	// plan is the resolved selection the response was shaped under;
+	// its MarshalJSON honours it, so a plain json.Marshal of a shaped
+	// response writes the shaped form. Set only by the facade.
+	plan *returnplan.Plan
 }
 
 // ResponseComponents carries the constituent-parts metadata emitted by

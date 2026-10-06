@@ -22,6 +22,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/returnshape"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/internal/template"
@@ -730,10 +731,23 @@ func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
 }
 
 // Process executes a single processing request against a cohort.
+//
+// A `return` block on req shapes the response here, at the outermost
+// facade, after the engine finished: excluded slots are pruned from the
+// Go value and absent from its JSON, and Response.Returned stamps the
+// selection. No block (or one resolving to the full response) returns
+// the response untouched.
 func (p *Pulse) Process(ctx context.Context, req *Request) (*Response, error) {
 	resp, err := p.svc.Process(ctx, req)
 	if err == nil && req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	}
+	if err == nil && req != nil && req.Return != nil {
+		plan, rerr := descx.ResolveReturn(req, p.svc.InstanceSnapshot())
+		if rerr != nil {
+			return nil, rerr
+		}
+		returnshape.Apply(resp, plan)
 	}
 	return resp, err
 }

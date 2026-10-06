@@ -379,6 +379,18 @@ unknown preset, a precision out of range or a malformed path is
 digest}`, a predict result field, not part of this schema); equivalent
 spellings share a `digest`.
 
+At runtime the plan is applied to the finished `Response`: an excluded
+slot is **absent** on the wire — never `null`, required keys such as
+`metadata.total_rows` or `tests[*].p_value` included — and zero (nil
+when nillable) on the Go value. A shaped response carries `returned`
+(`ReturnedMarker {preset, digest, precision?}` — `preset` is `custom`
+for an explicit include / exclude without one; `digest` equals
+predict's); it is emitted only when the plan changes something and is
+not itself a selectable path (naming it is `PULSE_RETURN_INVALID`). An
+include through a map key or an open value that matched nothing in the
+executed response adds a `PULSE_RETURN_PATH_UNMATCHED` entry to
+`warnings` (details `path`) unless `warnings` is excluded.
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a

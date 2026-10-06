@@ -2767,6 +2767,9 @@
             "null"
           ]
         },
+        "returned": {
+          "$ref": "#/$defs/ReturnedMarker"
+        },
         "tests": {
           "items": {
             "$ref": "#/$defs/TestResult"
@@ -2912,6 +2915,25 @@
         "standard"
       ],
       "type": "string"
+    },
+    "ReturnedMarker": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "precision": {
+          "type": "integer"
+        },
+        "preset": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "digest",
+        "preset"
+      ],
+      "type": "object"
     },
     "RunComponents": {
       "additionalProperties": false,
@@ -3341,4 +3363,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ffa4aef9492bd34746105912565b60a65eaaa41f7ee8b7e7e7101a27489f0d47
+// golden-hash: 2903e03b2c29ca9dd62fa0caef082a581113708e349ddf31d9f146f09d2dbb17

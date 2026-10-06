@@ -66,6 +66,11 @@ func (s *Service) checkFieldRefs(req *types.Request, schema *encoding.Schema) er
 	if err := descx.ScopedFieldRefRefusal(req, schema, s.instance); err != nil {
 		return markLocated(err)
 	}
+	// `return` data columns — the rule predict applies right after the
+	// field-reference walk, on the same defaults-resolved request.
+	if err := descx.ReturnColumnRefusal(req, schema, s.instance); err != nil {
+		return markLocated(err)
+	}
 	return s.resolveWeights(req, schema)
 }
 

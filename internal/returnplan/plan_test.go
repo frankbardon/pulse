@@ -219,3 +219,29 @@ func TestReturnPlan_ImportBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestPath_Matches(t *testing.T) {
+	mustParse := func(s string) Path {
+		p, err := Parse(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	c := []Segment{Key("tests"), Elem(), Key("details"), Key("effect_size")}
+	for _, tc := range []struct {
+		path string
+		want bool
+	}{
+		{"tests[*].details.effect_size", true},
+		{"tests[*].details.effect_*", true},
+		{"tests[*].details.*", true},
+		{"tests[*].details", false}, // an ancestor, not this node
+		{"tests[*].details.effect_size.x", false},
+		{"tests[*].details.p_*", false},
+	} {
+		if got := mustParse(tc.path).Matches(c); got != tc.want {
+			t.Errorf("%s.Matches(%v) = %v, want %v", tc.path, c, got, tc.want)
+		}
+	}
+}

@@ -1,0 +1,497 @@
+package types
+
+import (
+	"bytes"
+	"encoding/json"
+	"reflect"
+	"sort"
+	"strings"
+
+	"github.com/frankbardon/pulse/internal/returnplan"
+)
+
+// return_shape.go applies a resolved `return` plan (internal/returnplan)
+// to a Response in two layers:
+//
+//  1. The PRUNE (applyReturnPlan, installed as the returnplan applier):
+//     every excluded slot the Go value can represent as absent is
+//     zeroed in place — nil pointers / slices / maps, deleted map keys
+//     (data row columns included), zero non-nillable leaves.
+//  2. The PLANNED ENCODER (planEncoder, reached from
+//     Response.MarshalJSON when the response carries a plan): a
+//     non-omitempty leaf the prune could only zero (`total_rows`,
+//     `tests[*].p_value`, `matrices[*].primary`, …) is dropped from the
+//     wire, never written as a zero or null.
+//
+// Both walk the value by reflection under encoding/json's field rules
+// and ask Plan.Visit per concrete node. A subtree the plan selects
+// whole is handed to encodeFinite untouched, so its bytes cannot drift
+// from the unshaped form. The result types whose MarshalJSON is the
+// plain alias → MarshalFinite form (structuralTypes) are walked
+// structurally, which is how the plan reaches inside them — the matrix
+// marshalers (MatrixValues, MatrixResult, MatrixComponents) included —
+// without a plan parameter on their methods. Any other marshaller is an
+// opaque leaf.
+//
+// A node the plan keeps only as the ANCESTOR of a selected path (Keep
+// without Whole) that turns out to be a scalar — an include reaching
+// below a leaf inside an open map — selected nothing, so it is dropped;
+// a nil interface likewise. Both layers apply that rule identically.
+
+// returnedKey is the Response.Returned JSON key: emitted whenever set,
+// whatever the plan says.
+const returnedKey = "returned"
+
+// structuralTypes are the result types whose MarshalJSON is exactly
+// MarshalFinite over a method-free alias: encoding them field by field
+// reproduces their bytes, so the planned encoder may descend into them.
+var structuralTypes = map[reflect.Type]bool{
+	reflect.TypeFor[Response]():                   true,
+	reflect.TypeFor[ComposedResponse]():           true,
+	reflect.TypeFor[ChainResponse]():              true,
+	reflect.TypeFor[FacetResult]():                true,
+	reflect.TypeFor[OverlayLayer]():               true,
+	reflect.TypeFor[ResponseComponents]():         true,
+	reflect.TypeFor[AggregationComponents]():      true,
+	reflect.TypeFor[AggregationGroupComponents](): true,
+	reflect.TypeFor[GrouperComponents]():          true,
+	reflect.TypeFor[CrosstabComponents]():         true,
+	reflect.TypeFor[CrosstabResult]():             true,
+	reflect.TypeFor[MatrixPayload]():              true,
+	reflect.TypeFor[OverlayPayload]():             true,
+	reflect.TypeFor[OverlaySummary]():             true,
+	reflect.TypeFor[TestResult]():                 true,
+	reflect.TypeFor[RegressionResult]():           true,
+	reflect.TypeFor[FacetField]():                 true,
+	reflect.TypeFor[MatrixValues]():               true,
+	reflect.TypeFor[MatrixResult]():               true,
+	reflect.TypeFor[MatrixComponents]():           true,
+}
+
+func init() { returnplan.SetApplier(applyReturnPlan) }
+
+// opaqueType reports whether t (or *t) owns its wire form through a
+// marshaller the planned walk cannot reproduce field by field.
+func opaqueType(t reflect.Type) bool {
+	if structuralTypes[t] {
+		return false
+	}
+	return implementsMarshaler(t) || implementsMarshaler(reflect.PointerTo(t))
+}
+
+func appendSeg(path []returnplan.Segment, s returnplan.Segment) []returnplan.Segment {
+	out := make([]returnplan.Segment, len(path), len(path)+1)
+	copy(out, path)
+	return append(out, s)
+}
+
+// jsonField is one serialised struct field under encoding/json's rules.
+type jsonField struct {
+	value reflect.Value
+	name  string
+	opts  string
+}
+
+// jsonFields lists rv's serialised fields in declaration order: `-`
+// and unexported fields skipped, untagged embedded structs flattened
+// (a nil embedded pointer contributes nothing) — writeFiniteFields'
+// rules.
+func jsonFields(rv reflect.Value) []jsonField {
+	var out []jsonField
+	rt := rv.Type()
+	for i := range rt.NumField() {
+		sf := rt.Field(i)
+		tag := sf.Tag.Get("json")
+		if tag == "-" {
+			continue
+		}
+		name, opts, _ := strings.Cut(tag, ",")
+		fv := rv.Field(i)
+		if sf.Anonymous && name == "" {
+			inner := fv
+			if inner.Kind() == reflect.Pointer {
+				if inner.IsNil() {
+					continue
+				}
+				inner = inner.Elem()
+			}
+			if inner.Kind() == reflect.Struct {
+				out = append(out, jsonFields(inner)...)
+				continue
+			}
+		}
+		if !sf.IsExported() {
+			continue
+		}
+		if name == "" {
+			name = sf.Name
+		}
+		out = append(out, jsonField{value: fv, name: name, opts: opts})
+	}
+	return out
+}
+
+// applyReturnPlan is the returnplan applier: prune r under p, attach p,
+// report the Open includes nothing matched.
+func applyReturnPlan(target any, p *returnplan.Plan) ([]returnplan.Path, bool) {
+	r, ok := target.(*Response)
+	if !ok {
+		return nil, false
+	}
+	if r == nil || p.Identity() {
+		return nil, true
+	}
+	pr := &returnPruner{plan: p, matched: make([]bool, len(p.Include))}
+	pr.pruneFields(reflect.ValueOf(r).Elem(), nil)
+	r.plan = p
+	var unmatched []returnplan.Path
+	for i, in := range p.Include {
+		if in.Open && !pr.matched[i] {
+			unmatched = append(unmatched, in)
+		}
+	}
+	return unmatched, true
+}
+
+// returnPruner is layer 1. matched[i] records that Include[i] selected
+// at least one concrete node.
+type returnPruner struct {
+	plan    *returnplan.Plan
+	matched []bool
+}
+
+func (s *returnPruner) mark(c []returnplan.Segment) {
+	for i, in := range s.plan.Include {
+		if !s.matched[i] && in.Open && in.Matches(c) {
+			s.matched[i] = true
+		}
+	}
+}
+
+// pruneFields prunes the fields of the addressable struct rv at path.
+func (s *returnPruner) pruneFields(rv reflect.Value, path []returnplan.Segment) {
+	for _, f := range jsonFields(rv) {
+		if !f.value.CanSet() {
+			continue
+		}
+		if len(path) == 0 && f.name == returnedKey {
+			continue
+		}
+		child := appendSeg(path, returnplan.Key(f.name))
+		vd := s.plan.Visit(child)
+		if !vd.Keep {
+			f.value.Set(reflect.Zero(f.value.Type()))
+			continue
+		}
+		s.mark(child)
+		if vd.Whole {
+			continue
+		}
+		nv, keep := s.prune(f.value, child)
+		if !keep {
+			f.value.Set(reflect.Zero(f.value.Type()))
+			continue
+		}
+		f.value.Set(nv)
+	}
+}
+
+// prune shapes v, a node kept without its whole subtree, and returns
+// the value to store back (a struct reached through an interface or a
+// map value is copied) and whether the node stays at all.
+func (s *returnPruner) prune(v reflect.Value, path []returnplan.Segment) (reflect.Value, bool) {
+	switch v.Kind() {
+	case reflect.Pointer:
+		if v.IsNil() || opaqueType(v.Type().Elem()) {
+			return v, true
+		}
+		e := v.Elem()
+		nv, keep := s.prune(e, path)
+		if !keep {
+			return v, false
+		}
+		e.Set(nv)
+		return v, true
+	case reflect.Interface:
+		if v.IsNil() {
+			return v, false
+		}
+		nv, keep := s.prune(v.Elem(), path)
+		if !keep {
+			return v, false
+		}
+		w := reflect.New(v.Type()).Elem()
+		w.Set(nv)
+		return w, true
+	case reflect.Struct:
+		if opaqueType(v.Type()) {
+			return v, true
+		}
+		if !v.CanAddr() {
+			c := reflect.New(v.Type()).Elem()
+			c.Set(v)
+			v = c
+		}
+		s.pruneFields(v, path)
+		return v, true
+	case reflect.Map:
+		if v.IsNil() || v.Type().Key().Kind() != reflect.String || opaqueType(v.Type()) {
+			return v, true
+		}
+		for _, k := range v.MapKeys() {
+			child := appendSeg(path, returnplan.Key(k.String()))
+			vd := s.plan.Visit(child)
+			if !vd.Keep {
+				v.SetMapIndex(k, reflect.Value{})
+				continue
+			}
+			s.mark(child)
+			if vd.Whole {
+				continue
+			}
+			nv, keep := s.prune(v.MapIndex(k), child)
+			if !keep {
+				v.SetMapIndex(k, reflect.Value{})
+				continue
+			}
+			v.SetMapIndex(k, nv)
+		}
+		return v, true
+	case reflect.Slice, reflect.Array:
+		if v.Kind() == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 {
+			// A byte string is a scalar.
+			return v, false
+		}
+		if opaqueType(v.Type()) {
+			return v, true
+		}
+		if v.Kind() == reflect.Slice && v.IsNil() {
+			return v, true
+		}
+		if !v.CanAddr() {
+			c := reflect.New(v.Type()).Elem()
+			c.Set(v)
+			v = c
+		}
+		child := appendSeg(path, returnplan.Elem())
+		vd := s.plan.Visit(child)
+		if !vd.Keep {
+			if v.Kind() == reflect.Slice {
+				return v.Slice(0, 0), true
+			}
+			v.Set(reflect.Zero(v.Type()))
+			return v, true
+		}
+		if v.Len() > 0 {
+			s.mark(child)
+		}
+		if vd.Whole {
+			return v, true
+		}
+		if v.Kind() == reflect.Array {
+			for i := range v.Len() {
+				nv, keep := s.prune(v.Index(i), child)
+				if !keep {
+					v.Index(i).Set(reflect.Zero(v.Type().Elem()))
+					continue
+				}
+				v.Index(i).Set(nv)
+			}
+			return v, true
+		}
+		kept := 0
+		for i := range v.Len() {
+			nv, keep := s.prune(v.Index(i), child)
+			if !keep {
+				continue
+			}
+			v.Index(kept).Set(nv)
+			kept++
+		}
+		return v.Slice(0, kept), true
+	}
+	// A scalar reached only as the ancestor of a deeper path selected
+	// nothing.
+	return v, false
+}
+
+// planEncoder is layer 2: MarshalFinite under a plan.
+type planEncoder struct {
+	plan *returnplan.Plan
+}
+
+// marshalPlanned encodes v (the response root) under p.
+func marshalPlanned(v reflect.Value, p *returnplan.Plan) ([]byte, error) {
+	e := &planEncoder{plan: p}
+	vd := p.Visit(nil)
+	b, _, err := e.encode(v, nil, vd.Whole)
+	return b, err
+}
+
+// encode writes v at path. whole means the plan selects the subtree
+// untouched; present false means the node is absent.
+func (e *planEncoder) encode(v reflect.Value, path []returnplan.Segment, whole bool) ([]byte, bool, error) {
+	if whole {
+		b, err := encodeFinite(v)
+		return b, true, err
+	}
+	if !v.IsValid() {
+		return nil, false, nil
+	}
+	switch v.Kind() {
+	case reflect.Pointer:
+		if v.IsNil() {
+			return []byte("null"), true, nil
+		}
+		if opaqueType(v.Type().Elem()) {
+			b, err := encodeFinite(v)
+			return b, true, err
+		}
+		return e.encode(v.Elem(), path, false)
+	case reflect.Interface:
+		if v.IsNil() {
+			return nil, false, nil
+		}
+		return e.encode(v.Elem(), path, false)
+	case reflect.Struct:
+		if opaqueType(v.Type()) {
+			b, err := encodeFinite(v)
+			return b, true, err
+		}
+		b, err := e.encodeStruct(v, path)
+		return b, true, err
+	case reflect.Map:
+		if v.IsNil() {
+			return []byte("null"), true, nil
+		}
+		if opaqueType(v.Type()) || v.Type().Key().Kind() != reflect.String {
+			b, err := encodeFinite(v)
+			return b, true, err
+		}
+		return e.encodeMap(v, path)
+	case reflect.Slice, reflect.Array:
+		if v.Type().Elem().Kind() == reflect.Uint8 && v.Kind() == reflect.Slice {
+			return nil, false, nil
+		}
+		if v.Kind() == reflect.Slice && v.IsNil() {
+			return []byte("null"), true, nil
+		}
+		if opaqueType(v.Type()) {
+			b, err := encodeFinite(v)
+			return b, true, err
+		}
+		child := appendSeg(path, returnplan.Elem())
+		vd := e.plan.Visit(child)
+		if !vd.Keep {
+			return []byte("[]"), true, nil
+		}
+		var buf bytes.Buffer
+		buf.WriteByte('[')
+		n := 0
+		for i := range v.Len() {
+			b, present, err := e.encode(v.Index(i), child, vd.Whole)
+			if err != nil {
+				return nil, false, err
+			}
+			if !present {
+				continue
+			}
+			if n > 0 {
+				buf.WriteByte(',')
+			}
+			buf.Write(b)
+			n++
+		}
+		buf.WriteByte(']')
+		return buf.Bytes(), true, nil
+	}
+	return nil, false, nil
+}
+
+func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	first := true
+	for _, f := range jsonFields(v) {
+		var vd returnplan.Verdict
+		if len(path) == 0 && f.name == returnedKey {
+			vd = returnplan.Verdict{Keep: true, Whole: true}
+		} else {
+			vd = e.plan.Visit(appendSeg(path, returnplan.Key(f.name)))
+		}
+		if !vd.Keep {
+			continue
+		}
+		if hasOpt(f.opts, "omitempty") && isEmptyJSONValue(f.value) {
+			continue
+		}
+		if hasOpt(f.opts, "omitzero") && isZeroJSONValue(f.value) {
+			continue
+		}
+		b, present, err := e.encode(f.value, appendSeg(path, returnplan.Key(f.name)), vd.Whole)
+		if err != nil {
+			return nil, err
+		}
+		if !present {
+			continue
+		}
+		if !first {
+			buf.WriteByte(',')
+		}
+		first = false
+		kb, err := json.Marshal(f.name)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(kb)
+		buf.WriteByte(':')
+		buf.Write(b)
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), nil
+}
+
+// encodeMap writes a string-keyed map in encoding/json's key order,
+// asking the plan per key.
+func (e *planEncoder) encodeMap(v reflect.Value, path []returnplan.Segment) ([]byte, bool, error) {
+	type kv struct {
+		key string
+		val reflect.Value
+	}
+	entries := make([]kv, 0, v.Len())
+	iter := v.MapRange()
+	for iter.Next() {
+		entries = append(entries, kv{key: iter.Key().String(), val: iter.Value()})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	n := 0
+	for _, en := range entries {
+		child := appendSeg(path, returnplan.Key(en.key))
+		vd := e.plan.Visit(child)
+		if !vd.Keep {
+			continue
+		}
+		b, present, err := e.encode(en.val, child, vd.Whole)
+		if err != nil {
+			return nil, false, err
+		}
+		if !present {
+			continue
+		}
+		if n > 0 {
+			buf.WriteByte(',')
+		}
+		kb, err := json.Marshal(en.key)
+		if err != nil {
+			return nil, false, err
+		}
+		buf.Write(kb)
+		buf.WriteByte(':')
+		buf.Write(b)
+		n++
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), true, nil
+}

@@ -87,6 +87,12 @@ func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnap
 	if err != nil {
 		return nil, err
 	}
+	if err := refuseReturnedMarker("include", include, ret.Include); err != nil {
+		return nil, err
+	}
+	if err := refuseReturnedMarker("exclude", exclude, ret.Exclude); err != nil {
+		return nil, err
+	}
 	for i := range include {
 		if err := resolveReturnPath(root, &include[i], inst, "include", i, ret.Include[i]); err != nil {
 			return nil, err
@@ -151,6 +157,26 @@ func parseReturnPaths(key string, raw []string) ([]returnplan.Path, error) {
 	return out, nil
 }
 
+// returnMarkerKey is Response.Returned: stamped on every shaped
+// response, so it is outside the path space — never a root key, never
+// selectable or excludable.
+const returnMarkerKey = "returned"
+
+// refuseReturnedMarker refuses a path naming the `returned` marker as
+// PULSE_RETURN_INVALID.
+func refuseReturnedMarker(key string, paths []returnplan.Path, raw []string) error {
+	for i, p := range paths {
+		if s0 := p.Segments[0]; s0.Glob || s0.Index || s0.Name != returnMarkerKey {
+			continue
+		}
+		reason := "the returned marker is stamped on every shaped response and cannot be selected or excluded"
+		return errors.NewCodedErrorWithDetails(errors.PULSE_RETURN_INVALID,
+			"return "+key+"["+strconv.Itoa(i)+"] "+strconv.Quote(raw[i])+": "+reason,
+			map[string]any{"key": key, "index": i, "value": raw[i], "reason": reason})
+	}
+	return nil
+}
+
 // returnField is one visible JSON property of a struct type.
 type returnField struct {
 	name string
@@ -170,7 +196,7 @@ func returnStructFields(t reflect.Type, inst *InstanceSnapshot) []returnField {
 			continue
 		}
 		name, _, skip := jsonFieldName(f)
-		if skip || slices.Contains(hidden, name) {
+		if skip || slices.Contains(hidden, name) || (t == returnRoot && name == returnMarkerKey) {
 			continue
 		}
 		if f.Anonymous && f.Type.Kind() == reflect.Struct && name == f.Name {

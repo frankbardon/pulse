@@ -731,6 +731,7 @@ pulse: type Response field Metadata *pulse/types.ResponseMetadata "json:\"metada
 pulse: type Response field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type Response field PostTests []*pulse/types.TestResult "json:\"post_tests,omitempty\""
 pulse: type Response field Regressions []*pulse/types.RegressionResult "json:\"regressions,omitempty\""
+pulse: type Response field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse: type Response field Tests []*pulse/types.TestResult "json:\"tests,omitempty\""
 pulse: type Response field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse: type Response method (Response) MarshalJSON() ([]byte, error)
@@ -4028,6 +4029,7 @@ pulse/types: type Response field Metadata *pulse/types.ResponseMetadata "json:\"
 pulse/types: type Response field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type Response field PostTests []*pulse/types.TestResult "json:\"post_tests,omitempty\""
 pulse/types: type Response field Regressions []*pulse/types.RegressionResult "json:\"regressions,omitempty\""
+pulse/types: type Response field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse/types: type Response field Tests []*pulse/types.TestResult "json:\"tests,omitempty\""
 pulse/types: type Response field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse/types: type Response method (Response) MarshalJSON() ([]byte, error)
@@ -4056,6 +4058,10 @@ pulse/types: type ReturnPreset string
 pulse/types: const ReturnPresetFull pulse/types.ReturnPreset = "full"
 pulse/types: const ReturnPresetMinimal pulse/types.ReturnPreset = "minimal"
 pulse/types: const ReturnPresetStandard pulse/types.ReturnPreset = "standard"
+pulse/types: type ReturnedMarker struct
+pulse/types: type ReturnedMarker field Digest string "json:\"digest\""
+pulse/types: type ReturnedMarker field Precision int "json:\"precision,omitempty\""
+pulse/types: type ReturnedMarker field Preset string "json:\"preset\""
 pulse/types: type RunComponents struct
 pulse/types: type RunComponents field FilteredRecords int64 "json:\"filtered_records\""
 pulse/types: type RunComponents field NullRecords int64 "json:\"null_records\""
@@ -4179,4 +4185,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4665320bddbb01088ece06081ce4f0d0379e34fbd73fbb314d1bf01e922bb157
+// golden-hash: 503efa63dd18fc56f009aa0c14523fd17a32cd484c754abddbf6d7dd57bba717

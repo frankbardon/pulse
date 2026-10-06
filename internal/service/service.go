@@ -604,6 +604,13 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err != nil {
 		return nil, err
 	}
+	// The `return` block resolves beside it (descx.ResolveReturn — the
+	// pass predict runs), so a bad block is refused before any record
+	// is read. The plan is APPLIED by the outermost facade, never here:
+	// Compose overlays and chain stages read the unshaped response.
+	if _, err := descx.ResolveReturn(req, s.instance); err != nil {
+		return nil, markLocated(err)
+	}
 
 	resp, err := s.processDispatch(ctx, req)
 	if err != nil {

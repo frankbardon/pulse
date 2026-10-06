@@ -401,8 +401,15 @@ func anyNonFinite(v any, depth int) bool {
 
 // MarshalJSON writes the response with every non-finite float as null;
 // see MarshalFinite.
+//
+// A response shaped by a `return` block carries its resolved plan and
+// writes only the selected parts: an excluded slot is absent, never
+// null (see return_shape.go).
 func (r Response) MarshalJSON() ([]byte, error) {
 	type alias Response
+	if r.plan != nil && !r.plan.Identity() {
+		return marshalPlanned(reflect.ValueOf((*alias)(&r)), r.plan)
+	}
 	return MarshalFinite((*alias)(&r))
 }
 

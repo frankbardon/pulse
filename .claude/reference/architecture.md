@@ -32,7 +32,9 @@ internal/io/               jobs, inference, transfer; internal/io/<fmt>/ adapter
                            (csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel|spss)
                            + helpers exportoverlay, nullcell, settristate, setwide
 internal/synth/            generator, profile capture, structural rules, fidelity
-internal/template/         request templating (import ceiling: stdlib + types + errors)
+internal/template/         request templating (import ceiling: stdlib + types + errors; the stdlib-only internal/returnplan rides in through types)
+internal/returnplan/       `return` path grammar + canonical Plan + Visit + digest (leaf: stdlib only; TestReturnPlan_ImportBoundary) — types carries a *Plan in an unexported Response field; types installs its pruner as the init-time applier (returnplan.SetApplier)
+internal/returnshape/      Apply(resp, plan): the one per-Response shaping pass (prune, attach plan, PULSE_RETURN_PATH_UNMATCHED, Returned marker) the facade runs after the engine returns — never inside Service.Process
 internal/temporal/         epoch-day + calendar + zone math (leaf over stdlib + errors; public encoding forwards into it)
                            + Zone (own embedded zoneinfo.zip, TZDataVersion), per-instance zone Cache; gate TestNoZoneMathOutsideTemporal
 internal/mcp/              SDK-free MCP core; internal/mcp/toolmeta/ leaf metadata
