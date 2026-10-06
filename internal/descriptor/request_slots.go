@@ -95,6 +95,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "crosstab", visible: capabilityGate(featCrosstab)},
 		{key: "joins", visible: capabilityGate(featJoins)},
 		{key: "overlays", visible: overlayGate(featCrosstab, featCompose)},
+		{key: "vectors", visible: capabilityGate(featMatrices)},
 		weightSlotGate,
 		multiplicitySlotGate,
 	},
@@ -301,6 +302,9 @@ func setSlots(v any) []string {
 		}
 		if len(r.Overlays) > 0 {
 			out = append(out, "overlays")
+		}
+		if len(r.Vectors) > 0 {
+			out = append(out, "vectors")
 		}
 		if r.Weight != nil {
 			out = append(out, weightKey)

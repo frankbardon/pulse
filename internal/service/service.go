@@ -608,6 +608,7 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := foldRequestMultiplicity(plan, resp); err != nil {
 		return nil, err
 	}
+	appendVectorWarnings(req, resp)
 	return resp, nil
 }
 

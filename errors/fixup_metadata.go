@@ -2986,4 +2986,96 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_VECTOR_INVALID: {
+		Message: "A `vectors` entry is malformed, so the request is refused before any record is read — predict refuses it identically. Each entry needs a non-empty `name` and exactly one of `fields` (literal member names, or glob entries using `*`, `?` or `[...]`) and `pattern` (a regular expression over field names); every `fields` entry must be non-empty, every glob and regular expression must compile, and `coerce`, when set, must be a known value. The entry's path is under `vector`, its name under `name`, the rule under `reason` and, where one applies, the offending value under `value` and the accepted values under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "pattern"},
+				Hint:   "Keep exactly one of `fields` and `pattern` on the vector: list the members, or match them with one regular expression.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"vectors", "*", "coerce"},
+				Hint:     "Set `coerce` to one of the values under `valid`, or drop it.",
+				Examples: []any{"binary"},
+			},
+		},
+	},
+	PULSE_VECTOR_EMPTY: {
+		Message: "A vector resolved to no field: none of its `fields` entries or its `pattern` matched a schema field, so it has no members. A `pattern` is a Go regular expression matched against every field name (unanchored); a glob entry in `fields` matches whole names. The entry's path is under `vector`, its name under `name` and the expression that matched nothing under `fields` or `pattern`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "pattern"},
+				Hint:   "Inspect the cohort's field names and correct the pattern or glob so it matches the intended columns.",
+			},
+		},
+	},
+	PULSE_VECTOR_MEMBER_TYPE: {
+		Message: "A vector member has a field type a vector cannot carry. Members must be integer (u4, u8, u16, u32, u64) or float (f32, f64) fields. A packed_bool member is admitted only with `coerce: \"binary\"` (read as 0 / 1). Categorical, set, date, datetime and decimal128 members are always refused: a category code or a date is not a measurement, and decimal128 would lose precision in the floating-point accumulators. The vector is under `vector` / `name`, the member under `field` and its type under `field_type`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"vectors", "*", "coerce"},
+				Hint:     "For a packed_bool member, set `coerce` to binary to read it as 0 / 1.",
+				Examples: []any{"binary"},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Remove the member named under `field`, or narrow the pattern so it matches only numeric fields.",
+			},
+		},
+	},
+	PULSE_VECTOR_DUPLICATE: {
+		Message: "A vector name or member is repeated. Vector names are unique per request (the clashing entries are under `indices`), and one vector lists each member once after its glob or pattern entries expand (the vector is under `vector` / `name`, the repeated member under `field`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "name"},
+				Hint:   "Rename one of the clashing vectors, or merge them into one.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Drop the literal entry a glob already covers, or narrow the glob so the member appears once.",
+			},
+		},
+	},
+	PULSE_VECTOR_LABELS_MISMATCH: {
+		Message: "A vector's `labels` count differs from its resolved member count: labels are matched to members by position, one each. The vector is under `vector` / `name`, the two counts under `labels` and `members`, and the resolved member list under `resolved` — run predict to see `resolved_vectors` before writing labels for a glob or pattern.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "labels"},
+				Hint:   "Supply exactly one label per member listed under `resolved`, in that order.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "labels"},
+				Hint:   "Drop `labels` to use the member field names as labels.",
+			},
+		},
+	},
+	PULSE_VECTOR_UNKNOWN: {
+		Message: "An operator slot names a vector the request's `vectors` does not define. The unknown name is under `vector`, the slot under `slot` and the names the request does define under `defined`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors"},
+				Hint:   "Define the vector under `vectors`, or reference one of the names listed under `defined`.",
+			},
+		},
+	},
+	PULSE_VECTOR_UNREFERENCED: {
+		Message: "Warning: a vector is defined but no operator slot references it, so it is resolved and validated but computes nothing. Its name is under `name`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors"},
+				Hint:   "Reference the vector from an operator slot, or remove it from `vectors`.",
+			},
+		},
+	},
 }

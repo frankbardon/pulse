@@ -45,6 +45,7 @@ internal/daterange/        compiled {label,start,end} model for the date-range o
 internal/dategroup/        the one GROUP_DATE params reading (component, week_start, fiscal_offset, hour-needs-datetime); factory and predict both call it (leaf: stdlib + errors/encoding + temporal)
 internal/datepart/         the one ATTR_DATE_PART params + field reading (part enum, date/datetime only, hour-needs-datetime); factory and predict both call it (leaf: stdlib + errors/encoding)
 internal/mergegate/        the one pure merge + chain-stage gate (types/encoding/errors only); engine and chain validator both call it
+internal/vectors/          the one Request.Vectors resolver (leaf: stdlib + encoding/errors/types; no-execute); predict, the field-reference walk and NeededFields all call it
 internal/weighting/        the one weight-class table per built-in aggregator + the per-row weight-validity rule (leaf: stdlib + types); resolver, manifest and engine all read it
 internal/spsssidecar/      SPSS sidecar path helpers used by root sidecar_*.go
 internal/profilefile/      ReadOS: the one host-OS-path feature-profile reader (mcpserve.NewPulse + `pulse features`); imports the root, never imported by it

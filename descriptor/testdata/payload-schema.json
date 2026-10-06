@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:9222a2849c290c3984869787d7e9013c6d7af966f5f10b7f77615f9567f93c12",
+  "$comment": "feature_set_digest: fs1:c7c9d3db782507a32e584f3c0fc802c72c382cc1009d501d78a6d136d8bbb2a6",
   "$defs": {
     "Aggregation": {
       "additionalProperties": false,
@@ -2383,6 +2383,15 @@
         "time_zone": {
           "type": "string"
         },
+        "vectors": {
+          "items": {
+            "$ref": "#/$defs/VectorSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "weight": {
           "$ref": "#/$defs/WeightSpec"
         },
@@ -2814,6 +2823,48 @@
       ],
       "type": "string"
     },
+    "VectorCoerce": {
+      "enum": [
+        "binary"
+      ],
+      "type": "string"
+    },
+    "VectorSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "coerce": {
+          "$ref": "#/$defs/VectorCoerce"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "pattern": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
     "WeightSpec": {
       "additionalProperties": false,
       "properties": {
@@ -2932,4 +2983,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 13026fd17ec7a24e8b20621e0234b1b8211da09a61486e669deb074dfe91f10d
+// golden-hash: cefc12be70dfbdbdb2240c7d6c2de08df3af7cb82af03818c6a615f4db3a21e5

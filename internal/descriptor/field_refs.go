@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -87,6 +88,10 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     field or to an earlier aggregation's label is refused, since the
 //     row holds one value per name and the other figure was silently
 //     lost (not on a crosstab, whose output is its cell grid).
+//  6. vectors — Request.Vectors resolved against the schema alone
+//     (internal/vectors.Resolve): the first PULSE_VECTOR_* refusal, or
+//     the SERVICE_VALIDATION unknown-field refusal for a literal member
+//     the schema lacks.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -428,6 +433,15 @@ func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 				w.checkTest(t, i)
 			}
 		}
+	}
+
+	// 6. Vectors — resolved against the SCHEMA the request executes
+	// over (members are source columns, never derived ones) by the one
+	// resolver internal/vectors, which projection and predict's
+	// resolved_vectors echo also call. Resolution stops at its first
+	// failure, so it contributes one refusal at most.
+	if _, verr := vectors.Resolve(req.Vectors, schema); verr != nil {
+		w.out = append(w.out, verr)
 	}
 	return w.out
 }

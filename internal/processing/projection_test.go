@@ -596,3 +596,31 @@ func TestNeededFields_WeightFields(t *testing.T) {
 		t.Errorf("fields = %v, want %v", g, want)
 	}
 }
+
+// TestNeededFields_VectorMembers: every vector member is decoded — a
+// literal, a glob and a pattern vector alike — and nothing else; an
+// unresolvable vector widens rather than guessing.
+func TestNeededFields_VectorMembers(t *testing.T) {
+	schema := mkSchema("q_1", "q_2", "q_3", "score", "w_a", "w_b", "unused")
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+		Vectors: []types.VectorSpec{
+			{Name: "lit", Fields: []string{"q_3", "q_1"}},
+			{Name: "glob", Fields: []string{"w_*"}},
+			{Name: "re", Pattern: `^q_2$`},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	if got.IsWide() {
+		t.Fatalf("expected narrow set, got wide")
+	}
+	want := []string{"q_1", "q_2", "q_3", "score", "w_a", "w_b"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+
+	req.Vectors = append(req.Vectors, types.VectorSpec{Name: "bad", Pattern: "^nothing$"})
+	if got := NeededFields(req, schema, nil); !got.IsWide() {
+		t.Errorf("an unresolvable vector must widen, got %v", sortedFields(got))
+	}
+}

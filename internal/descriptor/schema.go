@@ -204,6 +204,9 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// defs with them).
 	m[reflect.TypeFor[types.MultiplicityMethod]()] = stringify(types.AllMultiplicityMethods())
 	m[reflect.TypeFor[types.MultiplicityFamily]()] = stringify(types.AllMultiplicityFamilies())
+	// Likewise the vector coercions (a hidden capability:matrices drops
+	// the `vectors` slot, and VectorSpec with it).
+	m[reflect.TypeFor[types.VectorCoerce]()] = stringify(types.AllVectorCoerces())
 	return m
 }
 

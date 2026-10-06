@@ -715,6 +715,7 @@ pulse: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regr
 pulse: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse: type Request field TimeZone string "json:\"time_zone,omitempty\""
+pulse: type Request field Vectors []pulse/types.VectorSpec "json:\"vectors,omitempty\""
 pulse: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
 pulse: type Request method (*Request) Hash() string
@@ -1380,6 +1381,7 @@ pulse/descriptor: type PredictResult field OverlaysSchemaDivergence []pulse/desc
 pulse/descriptor: type PredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse/descriptor: type PredictResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type PredictResult field Request *pulse/types.Request "json:\"request\""
+pulse/descriptor: type PredictResult field ResolvedVectors map[string][]string "json:\"resolved_vectors,omitempty\""
 pulse/descriptor: type PredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
 pulse/descriptor: type PredictResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
 pulse/descriptor: type PredictResult field Streamable bool "json:\"streamable\""
@@ -2027,6 +2029,13 @@ pulse/errors: const PULSE_TEST_UNKNOWN_TYPE pulse/errors.Code = "PULSE_TEST_UNKN
 pulse/errors: const PULSE_TEST_VARIANCE_ZERO pulse/errors.Code = "PULSE_TEST_VARIANCE_ZERO"
 pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_UNKNOWN"
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
+pulse/errors: const PULSE_VECTOR_DUPLICATE pulse/errors.Code = "PULSE_VECTOR_DUPLICATE"
+pulse/errors: const PULSE_VECTOR_EMPTY pulse/errors.Code = "PULSE_VECTOR_EMPTY"
+pulse/errors: const PULSE_VECTOR_INVALID pulse/errors.Code = "PULSE_VECTOR_INVALID"
+pulse/errors: const PULSE_VECTOR_LABELS_MISMATCH pulse/errors.Code = "PULSE_VECTOR_LABELS_MISMATCH"
+pulse/errors: const PULSE_VECTOR_MEMBER_TYPE pulse/errors.Code = "PULSE_VECTOR_MEMBER_TYPE"
+pulse/errors: const PULSE_VECTOR_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_UNKNOWN"
+pulse/errors: const PULSE_VECTOR_UNREFERENCED pulse/errors.Code = "PULSE_VECTOR_UNREFERENCED"
 pulse/errors: const PULSE_WEIGHT_INVALID_ROWS pulse/errors.Code = "PULSE_WEIGHT_INVALID_ROWS"
 pulse/errors: const PULSE_WEIGHT_LOW_NEFF pulse/errors.Code = "PULSE_WEIGHT_LOW_NEFF"
 pulse/errors: const PULSE_WEIGHT_UNSUPPORTED pulse/errors.Code = "PULSE_WEIGHT_UNSUPPORTED"
@@ -3217,6 +3226,7 @@ pulse/types: func AllMultiplicityMethods() []pulse/types.MultiplicityMethod
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllTestTypes() []pulse/types.TestType
+pulse/types: func AllVectorCoerces() []pulse/types.VectorCoerce
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
 pulse/types: type AppliedMultiplicity struct
 pulse/types: type AppliedMultiplicity field Alpha float64 "json:\"alpha\""
@@ -3865,6 +3875,7 @@ pulse/types: type Request field Regressions []*pulse/types.RegressionSpec "json:
 pulse/types: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse/types: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse/types: type Request field TimeZone string "json:\"time_zone,omitempty\""
+pulse/types: type Request field Vectors []pulse/types.VectorSpec "json:\"vectors,omitempty\""
 pulse/types: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse/types: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
 pulse/types: type Request method (*Request) Hash() string
@@ -3977,6 +3988,14 @@ pulse/types: func ValidPairwiseNBasis(s string) bool
 pulse/types: func ValidPairwiseNSource(s string) bool
 pulse/types: func ValidPairwisePSource(s string) bool
 pulse/types: func ValidPanelNSource(s string) bool
+pulse/types: type VectorCoerce string
+pulse/types: const VectorCoerceBinary pulse/types.VectorCoerce = "binary"
+pulse/types: type VectorSpec struct
+pulse/types: type VectorSpec field Coerce pulse/types.VectorCoerce "json:\"coerce,omitempty\""
+pulse/types: type VectorSpec field Fields []string "json:\"fields,omitempty\""
+pulse/types: type VectorSpec field Labels []string "json:\"labels,omitempty\""
+pulse/types: type VectorSpec field Name string "json:\"name\""
+pulse/types: type VectorSpec field Pattern string "json:\"pattern,omitempty\""
 pulse/types: type VersionResponse struct
 pulse/types: type VersionResponse field BuildDate string "json:\"build_date,omitempty\""
 pulse/types: type VersionResponse field GoVersion string "json:\"go_version,omitempty\""
@@ -4010,4 +4029,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: fbd9a53e1e8a786a5c71aad899636498b921b146f1e8e6b7c65fd4e69d5d989c
+// golden-hash: 945a672ece32b02588aef83f98799d275542165225ba26a5d4c56acadcb41d93

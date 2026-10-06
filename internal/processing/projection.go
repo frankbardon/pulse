@@ -7,6 +7,7 @@ import (
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -263,6 +264,17 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 		addKnown(r.Target)
 		addAllKnown(r.Predictors)
 	}
+
+	// Virtual vectors decode every member (internal/vectors, the one
+	// resolver predict and the runtime refuse with). A vector that does
+	// not resolve is refused before any record is read; decode wide
+	// rather than guess.
+	members, ok := vectors.Members(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(members)
 
 	for _, k := range req.Sort {
 		// Sort keys may name output labels rather than schema fields;

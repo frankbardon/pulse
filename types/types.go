@@ -1068,6 +1068,14 @@ type Request struct {
 	// Resample, and Selection variants force the buffered path.
 	Regressions []*RegressionSpec `json:"regressions,omitempty"`
 
+	// Vectors names batteries of numeric columns once per request
+	// (virtual vectors) for the matrix operators to reference by name.
+	// Resolved against the schema before any record is read; predict
+	// echoes the resolved member lists. A vector no operator references
+	// is reported with a PULSE_VECTOR_UNREFERENCED warning. Gated by
+	// capability:matrices. See VectorSpec.
+	Vectors []VectorSpec `json:"vectors,omitempty"`
+
 	// Joins describes pushdown hash-join legs attached to the primary
 	// cohort. v1 supports exactly one inner join per Request; multi-
 	// join chains and the left/outer/anti kinds land in a follow-up.

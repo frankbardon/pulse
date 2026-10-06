@@ -2509,6 +2509,49 @@ const (
 	// rows*cols), a nil operand, or two accumulators of different shape
 	// or mode being merged. Details name the offending dimensions.
 	PULSE_MATRIX_SHAPE_MISMATCH Code = "PULSE_MATRIX_SHAPE_MISMATCH"
+
+	// PULSE_VECTOR_INVALID indicates a malformed `vectors` entry: an
+	// empty name, both or neither of `fields` / `pattern`, an empty
+	// `fields` entry, a glob or regular expression that does not
+	// compile, or an unknown `coerce` value. Refused identically by
+	// predict and the runtime before any record is read. Details carry
+	// "vector" (its index-qualified path), "name", "reason" and, where
+	// it applies, "value" / "valid".
+	PULSE_VECTOR_INVALID Code = "PULSE_VECTOR_INVALID"
+
+	// PULSE_VECTOR_EMPTY indicates a vector whose `fields` / `pattern`
+	// resolves to no schema field. Details carry "vector", "name" and
+	// the "fields" or "pattern" that matched nothing.
+	PULSE_VECTOR_EMPTY Code = "PULSE_VECTOR_EMPTY"
+
+	// PULSE_VECTOR_MEMBER_TYPE indicates a vector member whose field
+	// type a vector cannot carry: categorical, set, date, datetime or
+	// decimal128 (always refused), or packed_bool without
+	// `coerce: "binary"`. Details carry "vector", "name", "field" and
+	// "field_type".
+	PULSE_VECTOR_MEMBER_TYPE Code = "PULSE_VECTOR_MEMBER_TYPE"
+
+	// PULSE_VECTOR_DUPLICATE indicates two vectors sharing a name, or a
+	// member listed twice in one vector after glob / pattern expansion.
+	// Details carry "name" and either "indices" (the clashing vectors)
+	// or "vector" and "field" (the repeated member).
+	PULSE_VECTOR_DUPLICATE Code = "PULSE_VECTOR_DUPLICATE"
+
+	// PULSE_VECTOR_LABELS_MISMATCH indicates a vector whose `labels`
+	// count differs from its resolved member count. Details carry
+	// "vector", "name", "labels" and "members" (both counts) and
+	// "resolved" (the member list).
+	PULSE_VECTOR_LABELS_MISMATCH Code = "PULSE_VECTOR_LABELS_MISMATCH"
+
+	// PULSE_VECTOR_UNKNOWN indicates an operator slot naming a vector
+	// the request's `vectors` does not define. Details carry "vector"
+	// (the unknown name), "slot" and "defined" (the defined names).
+	PULSE_VECTOR_UNKNOWN Code = "PULSE_VECTOR_UNKNOWN"
+
+	// PULSE_VECTOR_UNREFERENCED is a WARNING: a defined vector no
+	// operator slot references, so it is resolved and validated but
+	// computes nothing. Details carry "name".
+	PULSE_VECTOR_UNREFERENCED Code = "PULSE_VECTOR_UNREFERENCED"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -2998,6 +3041,13 @@ var allCodes = []Code{
 	PULSE_MULTIPLICITY_CONFLICT,
 	PULSE_MATRIX_SINGULAR,
 	PULSE_MATRIX_SHAPE_MISMATCH,
+	PULSE_VECTOR_INVALID,
+	PULSE_VECTOR_EMPTY,
+	PULSE_VECTOR_MEMBER_TYPE,
+	PULSE_VECTOR_DUPLICATE,
+	PULSE_VECTOR_LABELS_MISMATCH,
+	PULSE_VECTOR_UNKNOWN,
+	PULSE_VECTOR_UNREFERENCED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

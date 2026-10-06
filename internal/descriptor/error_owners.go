@@ -416,6 +416,17 @@ var errorOwners = map[errors.Code][]string{
 	// single request slot, so its codes are always listed.
 	errors.PULSE_MATRIX_SINGULAR:       shared,
 	errors.PULSE_MATRIX_SHAPE_MISMATCH: shared,
+
+	// Virtual vectors are capability:matrices: with it hidden the
+	// `vectors` slot is refused as an unknown field before any vector is
+	// resolved, so no PULSE_VECTOR_* code can fire.
+	errors.PULSE_VECTOR_INVALID:         own(featMatrices),
+	errors.PULSE_VECTOR_EMPTY:           own(featMatrices),
+	errors.PULSE_VECTOR_MEMBER_TYPE:     own(featMatrices),
+	errors.PULSE_VECTOR_DUPLICATE:       own(featMatrices),
+	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
+	errors.PULSE_VECTOR_UNKNOWN:         own(featMatrices),
+	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

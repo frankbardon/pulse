@@ -24,7 +24,7 @@ var wantCapabilities = []string{
 	"process", "stream", "watch", "compose", "process_chain", "facet",
 	"sample", "joins", "crosstab", "lookup", "index", "shard", "import",
 	"export", "filter_to_file", "dedup", "widen", "templates", "synth",
-	"labels", "range_tables", "weighting", "multiplicity",
+	"labels", "range_tables", "weighting", "multiplicity", "matrices",
 }
 
 // wantOperators collects every registered operator name across the

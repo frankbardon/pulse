@@ -117,6 +117,7 @@ var (
 	featExport       = FeatureName(FeatureKindCapability, "export")
 	featWeighting    = FeatureWeighting
 	featMultiplicity = FeatureMultiplicity
+	featMatrices     = FeatureName(FeatureKindCapability, "matrices")
 )
 
 // FeatureMultiplicity is capability:multiplicity — the multiple-
@@ -164,6 +165,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("range_tables"),   // range tables
 	capability("weighting"),      // Request.Weight + every per-slot weight + Options.DefaultWeight
 	capability("multiplicity"),   // every `multiplicity` slot + Options.DefaultMultiplicity
+	capability("matrices"),       // Request.Vectors (+ the matrix operators' slot)
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -360,6 +362,7 @@ var requestSlotCapabilities = map[string]bool{
 	featJoins:     true,
 	featCrosstab:  true,
 	featWeighting: true,
+	featMatrices:  true,
 }
 
 // overlayHostKinds lists, per host capability, the overlay kinds that

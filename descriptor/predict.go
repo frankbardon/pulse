@@ -206,6 +206,15 @@ type PredictResult struct {
 	// multiplicity blocks are refused, or when the instance hides the
 	// multiple-comparison capability.
 	PValues *PValueCount `json:"p_values,omitempty"`
+
+	// ResolvedVectors maps each Request.Vectors name to its resolved
+	// member list in axis order — literal `fields` entries in the
+	// caller's order, glob and `pattern` expansions in schema order —
+	// computed by the same resolver the runtime refuses with, against
+	// the schema the request executes over. Omitted when the request
+	// defines no vector or a vector is refused (the refusal is the
+	// predict error).
+	ResolvedVectors map[string][]string `json:"resolved_vectors,omitempty"`
 }
 
 // MultiplicityTriggerThreshold is the uncorrected p-value count at or

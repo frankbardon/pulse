@@ -33,7 +33,8 @@ with a feature profile gets a narrower document:
 - the operator, overlay-kind and regression enums list only the enabled
   names;
 - a request slot the instance does not offer (`crosstab`, `joins`,
-  `overlays`, `weight`) is not a property of its request root; without
+  `overlays`, `vectors`, `weight`) is not a property of its request root
+  (a hidden `vectors` takes `VectorSpec` and `VectorCoerce` with it); without
   `capability:weighting` no per-slot `weight` is a property either (so
   `SlotWeight` and `WeightSpec` are absent), and without
   `capability:multiplicity` no `multiplicity` block is a property of any
@@ -278,6 +279,24 @@ value-presence meaning.
 
 Which operators honour, skip or refuse a weight, the invalid-weight
 rules and the unweighted-base recipe: [Row Weighting](../library/weighting.md).
+
+## Vector slot
+
+`vectors` on `Request` is an additive array of `VectorSpec`
+`{name, fields | pattern, labels?, coerce?}` (`format_version` stays
+`"1.1"`; a request with no vectors is byte-identical and hashes
+identically). `coerce` is the closed `VectorCoerce` enum (`binary`).
+What the schema cannot say, predict and the runtime enforce
+identically before any record is read: exactly one of `fields` /
+`pattern`; literal `fields` entries keep the caller's order while glob
+entries and `pattern` (a Go regular expression) expand in schema order;
+members must be integer or float columns (`packed_bool` only with
+`coerce: "binary"`); `labels` count equals the member count; names and
+members are unique — refusals carry the `PULSE_VECTOR_*` codes.
+Predict echoes the resolved members as `data.resolved_vectors`
+(`{name: [members]}`, a predict result field, not part of this schema).
+`Request.Hash()` hashes a vector as written (see
+[Request hashing](../library/request-hashing.md)).
 
 ## Undefined figures
 

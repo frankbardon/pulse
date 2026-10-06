@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:9222a2849c290c3984869787d7e9013c6d7af966f5f10b7f77615f9567f93c12",
+    "feature_set_digest": "fs1:c7c9d3db782507a32e584f3c0fc802c72c382cc1009d501d78a6d136d8bbb2a6",
     "commands": [
       {
         "name": "process",
@@ -6110,7 +6110,7 @@
         ]
       }
     ],
-    "error_codes_count": 266,
+    "error_codes_count": 273,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6378,6 +6378,13 @@
       "PULSE_TEST_VARIANCE_ZERO",
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
+      "PULSE_VECTOR_DUPLICATE",
+      "PULSE_VECTOR_EMPTY",
+      "PULSE_VECTOR_INVALID",
+      "PULSE_VECTOR_LABELS_MISMATCH",
+      "PULSE_VECTOR_MEMBER_TYPE",
+      "PULSE_VECTOR_UNKNOWN",
+      "PULSE_VECTOR_UNREFERENCED",
       "PULSE_WEIGHT_INVALID_ROWS",
       "PULSE_WEIGHT_LOW_NEFF",
       "PULSE_WEIGHT_UNSUPPORTED",
@@ -11744,4 +11751,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3db04551b7e1b2aff4622cf198c402ffc1cd6b1e256a9217623cbd129110d3b6
+// golden-hash: f7597e4af6aec0259207a9ff462562effb7883d46937ead8227e4e4659ef85a1

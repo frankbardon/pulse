@@ -17,6 +17,7 @@
     "capability:range_tables",
     "capability:weighting",
     "capability:multiplicity",
+    "capability:matrices",
     "AGG_COUNT",
     "AGG_SUM",
     "AGG_AVERAGE",

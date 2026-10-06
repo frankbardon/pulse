@@ -365,6 +365,12 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 
+	// Virtual vectors — the field-reference pass above refuses a bad
+	// one; a clean resolution is echoed (resolved_vectors) together with
+	// one PULSE_VECTOR_UNREFERENCED warning per vector no operator slot
+	// references, as the runtime warns.
+	predictVectors(env, result, req, schema)
+
 	// Weight resolution — the same single pass the runtime runs right
 	// after the field-reference rule (ResolveWeights). A refusal is a
 	// predict error carrying the runtime's own code and details.

@@ -91,6 +91,20 @@ The contract is that one answer has the same bits under every concurrency knob.
 
   The first `MAT_*` operator must pass the same invariance through its real registration.
 
+## Virtual vectors — `Request.Vectors` (U16)
+
+`Request.Vectors []types.VectorSpec` (`{name, fields | pattern, labels?, coerce?}`, additive `omitempty`, gated by `capability:matrices`) names a battery of numeric columns once per request. **The one resolver is `internal/vectors`** — a no-execute leaf (stdlib + `encoding` / `errors` / `types`) that predict, the runtime and projection all call, so the three cannot disagree. Consumers (the matrix slot and its operators) read members through it: `vectors.Resolve(req.Vectors, schema)` → `[]Resolved{Name, Members, Labels, Coerce}` index-aligned with the specs; `vectors.Find` by name; `vectors.ResolveSpec(at, spec, schema)` for an inline field list (an operator slot's own `fields`, with its own path in `at`).
+
+- **Shape.** `name` non-empty and unique per request; exactly one of `fields` / `pattern`; `coerce` ∈ `types.AllVectorCoerces()` (`binary`). Violations are `PULSE_VECTOR_INVALID` (`details.reason` = `empty_name` / `fields_and_pattern` / `no_fields_or_pattern` / `unknown_coerce` / `empty_field_entry` / `bad_glob` / `bad_pattern`); a repeated name is `PULSE_VECTOR_DUPLICATE` (`indices`).
+- **Order (axis order).** A `fields` entry without `*` `?` `[` is a literal and keeps the caller's position; a glob entry (`path.Match`, whole name) expands IN PLACE to its matches in schema order; `pattern` is a Go regexp, UNANCHORED, matches in schema order. A member repeated after expansion is `PULSE_VECTOR_DUPLICATE` (`field`); no member at all is `PULSE_VECTOR_EMPTY`. A literal the schema lacks is the field-reference refusal `SERVICE_VALIDATION` (`field`, `vector`, `slot` = `vectors[i].fields[j]`).
+- **Member types.** u4 / u8 / u16 / u32 / u64 / f32 / f64; `packed_bool` only under `coerce: "binary"`; categorical, `set_*`, `date`, `datetime`, `decimal128` refused permanently — `PULSE_VECTOR_MEMBER_TYPE` naming `field` + `field_type` (`vectors.MemberTypeAllowed`).
+- **Labels.** One per member or `PULSE_VECTOR_LABELS_MISMATCH` (`labels`, `members`, `resolved`); absent → the member names.
+- **Order of checks.** Spec by spec in request order; per spec: name, duplicate name, shape, coerce, expansion, empty, member types, labels. First failure wins.
+- **Where it runs.** Step 6 of the field-reference walk (`internal/descriptor/field_refs.go`), so the runtime (`Service.checkFieldRefs`, every execution mode, after zones), predict and the Compose / chain validators refuse identically, against the schema the request executes over (joined or chain-stage schema included). Projection: `processing.NeededFields` adds `vectors.Members` (an unresolvable vector widens). Predict echoes `PredictResult.ResolvedVectors` `{name: [members]}` (omitted when none or refused).
+- **Unreferenced warning.** `vectors.Referenced(req)` is the ONE reference set; a vector outside it is `PULSE_VECTOR_UNREFERENCED` — a predict warning and a `Response.Warnings` entry (`Service.process`, after the multiplicity fold). Nothing references a vector until the matrix slot lands; that slot MUST add its references to `Referenced`.
+- **Hashing.** `Request.Hash()` is schema-free and hashes vectors AS WRITTEN; a vector-free request hashes byte-identically to the pre-slot form (`TestRequestHash_VectorFreeByteIdentical`). Resolved-member identity is `vectors.Normalize(req, schema)`: a shallow copy whose vectors carry their resolved `fields` (pattern cleared), so a pattern and its equivalent explicit list hash alike (`TestNormalize_HashesResolvedMembers`). No runtime site hashes a normalized request yet.
+- **Codes.** All `PULSE_VECTOR_*` are owned by `capability:matrices` (a hidden capability refuses the slot first). `PULSE_VECTOR_UNKNOWN` is reserved for an operator slot naming an undefined vector (`vector`, `slot`, `defined`).
+
 ## Open edges (handed on)
 
 - **U16 decisions.**

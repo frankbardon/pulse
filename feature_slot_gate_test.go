@@ -63,6 +63,9 @@ var requestSlotAppliers = map[string]func(r *types.Request){
 	"multiplicity": func(r *types.Request) {
 		r.Multiplicity = &types.Multiplicity{Method: types.MultiplicityMethodHolm}
 	},
+	"vectors": func(r *types.Request) {
+		r.Vectors = []types.VectorSpec{{Name: "v", Fields: []string{"age"}}}
+	},
 }
 
 // requestSlotEntryPoints run one Request through every entry point
@@ -94,7 +97,7 @@ var requestSlotEntryPoints = map[string]func(h *parityHost, req *types.Request) 
 	"ProcessChain/stage1": func(h *parityHost, req *types.Request) *slotGateOutcome {
 		stage1 := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "total"}}}
 		stage1.Crosstab, stage1.Joins, stage1.Overlays, stage1.Weight = req.Crosstab, req.Joins, req.Overlays, req.Weight
-		stage1.Multiplicity = req.Multiplicity
+		stage1.Multiplicity, stage1.Vectors = req.Multiplicity, req.Vectors
 		_, err := h.p.ProcessChain(context.Background(), &ChainRequest{
 			Cohort: &types.Cohort{Filename: h.cohort},
 			Stages: []*types.ChainStage{{Name: "base", Request: h.base()}, {Name: "probe", Request: stage1}},
