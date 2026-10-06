@@ -320,6 +320,80 @@ func TestMatrixGrouped_BucketOrderFollowsData(t *testing.T) {
 	}
 }
 
+// TestMatrixGrouped_BucketOrderFollowsSort: an explicit Request.Sort
+// reorders the per-bucket matrices with the Data rows — spec-major, each
+// spec's buckets in the sorted rows' key order, Components.Matrices
+// alike, ties in the stable order window.Sort gives the rows — on the
+// streaming and the buffered grouped arms. Only positions move: every
+// bucket's matrix, warnings and Components entry equal the unsorted
+// run's for the same key. (The DecodeWorkers / ShardWorkers arms ride
+// the sort variants of TestMatrixGrouped_WorkerInvariant; Compose and
+// chain stage 0, TestMatrices_ComposeAndChainStageZero.)
+func TestMatrixGrouped_BucketOrderFollowsSort(t *testing.T) {
+	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
+	schema := groupedMatrixSchema(t)
+	specs := groupedMatrixSpecs()
+	region := types.AxisHeader{Fields: []string{"region"}, Types: []string{"GROUP_CATEGORY"}}
+	// 8223 rows round-robin over a / b / c with row 5 moved to d:
+	// counts a 2741, b 2741, c 2740, d 1 — a and b tie.
+	cases := []struct {
+		name string
+		sort []types.OrderKey
+		want []string
+	}{
+		{"count asc (tie keeps a before b)", []types.OrderKey{{Field: "n"}}, []string{"d", "c", "a", "b"}},
+		{"count desc (tie keeps a before b)", []types.OrderKey{{Field: "n", Desc: true}}, []string{"a", "b", "c", "d"}},
+		{"group key desc", []types.OrderKey{{Field: "region", Desc: true}}, []string{"d", "c", "b", "a"}},
+		{"count asc then key desc", []types.OrderKey{{Field: "n"}, {Field: "region", Desc: true}}, []string{"d", "c", "b", "a"}},
+	}
+	arms := []struct {
+		name   string
+		aggs   []*types.Aggregation
+		stream bool
+	}{
+		{"streaming", []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x3", Label: "n"}}, true},
+		{"buffered", []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x3", Label: "n"}, {Type: types.AGG_MEDIAN, Field: "x3", Label: "med"}}, false},
+	}
+	for _, arm := range arms {
+		base := groupedMatrixRequest(&types.Group{Type: types.GROUP_CATEGORY, Field: "region"})
+		base.Aggregations = arm.aggs
+		if got := processing.CanStreamRequest(base, schema); got != arm.stream {
+			t.Fatalf("%s: CanStreamRequest = %v — the arm is not exercised", arm.name, got)
+		}
+		unsorted := processMatrices2(t, cfg, base)
+		unsortedKeys := assertBucketLayout(t, unsorted, specs, region)
+		at := make(map[string]int, len(unsortedKeys))
+		for k, key := range unsortedKeys {
+			at[key] = k
+		}
+		for _, c := range cases {
+			t.Run(arm.name+"/"+c.name, func(t *testing.T) {
+				req := groupedMatrixRequest(&types.Group{Type: types.GROUP_CATEGORY, Field: "region"})
+				req.Aggregations = arm.aggs
+				req.Sort = c.sort
+				resp := processMatrices2(t, cfg, req)
+				keys := assertBucketLayout(t, resp, specs, region)
+				if !reflect.DeepEqual(keys, c.want) {
+					t.Fatalf("sorted Data keys %v, want %v", keys, c.want)
+				}
+				for i := range specs {
+					for k, key := range keys {
+						got, gc := resp.Matrices[i*len(keys)+k], resp.Components.Matrices[i*len(keys)+k]
+						u := i*len(unsortedKeys) + at[key]
+						want, wc := unsorted.Matrices[u], unsorted.Components.Matrices[u]
+						if !reflect.DeepEqual(matrixResultWords(got), matrixResultWords(want)) || !reflect.DeepEqual(got.Warnings, want.Warnings) {
+							t.Errorf("%s bucket %s: differs from the unsorted run's matrix for the same bucket", got.Name, key)
+						}
+						if !reflect.DeepEqual(gc, wc) {
+							t.Errorf("%s bucket %s: components %s, unsorted %s", got.Name, key, mustJSON(t, gc), mustJSON(t, wc))
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
 // TestMatrixGrouped_StreamingEqualsBuffered: the grouped streaming path
 // and the grouped buffered path (an AGG_MEDIAN forces it) return the
 // same per-bucket matrices bit for bit, with the same warnings and

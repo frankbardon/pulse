@@ -23,11 +23,11 @@ Slot: `matrices[i]` `{type, vector | fields, params, weight, encoding}`; members
 
 ## Inputs
 
-Integer / float members; `packed_bool` under `coerce: "binary"`.
+Integer/float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary` covariance (`row_keys` = members), `scalars.determinant` (null unless PD), pairwise `auxiliary.n`, `warnings`. Undefined cells null. Grouped: one result per non-empty bucket (`group_key`, `group_header`), spec-major in Data order; thin buckets warn.
+`primary` covariance (`row_keys` = members), `scalars.determinant` (null unless PD), pairwise `auxiliary.n`, `warnings`. Undefined cells null. Grouped: per non-empty bucket (`group_key`, `group_header`), spec-major in final Data order (after `sort`); thin buckets warn.
 
 ## Components
 

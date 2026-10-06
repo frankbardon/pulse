@@ -169,87 +169,128 @@ func hasCode(env *descriptor.Envelope, code errors.Code) bool {
 // slots each carry their own matrices, equal to the slot run alone, and
 // a ProcessChain stage 0 with matrices runs over the stamped cohort
 // rows — its matrix equals the plain Process one — while the next stage
-// reads only its aggregate rows.
+// reads only its aggregate rows. Under an explicit Request.Sort the
+// per-bucket matrices follow the sorted Data rows on every one of those
+// hosts.
 func TestMatrices_ComposeAndChainStageZero(t *testing.T) {
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
 
-	alone, err := p.Process(ctx, matrixOverCohort(cohort))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// matrixOverCohort is grouped by cat (buckets a, b, c): one matrix
-	// per bucket.
-	if len(alone.Matrices) != 3 {
-		t.Fatalf("Process matrices = %+v, want one per bucket", alone.Matrices)
-	}
-	ungroupedOnly := &types.Request{Cohort: &types.Cohort{Filename: cohort},
-		Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "solo", Fields: []string{"n"}, Params: json.RawMessage(`{"ddof":0}`)}}}
-	solo, err := p.Process(ctx, ungroupedOnly)
-	if err != nil {
-		t.Fatal(err)
-	}
-	composed := func() *types.ComposedRequest {
-		return &types.ComposedRequest{Requests: []*types.Request{matrixOverCohort(cohort), ungroupedOnly}}
-	}
-	wantSlots := []*types.Response{alone, solo}
-	check := func(t *testing.T, resp *types.ComposedResponse) {
-		t.Helper()
-		if len(resp.Responses) != 2 {
-			t.Fatalf("responses = %d", len(resp.Responses))
-		}
-		for i, r := range resp.Responses {
-			if len(r.Matrices) != len(wantSlots[i].Matrices) || !matricesEqual(r.Matrices, wantSlots[i].Matrices) {
-				t.Errorf("slot %d matrices = %+v, want %+v", i, r.Matrices, wantSlots[i].Matrices)
+	for _, c := range []struct {
+		name string
+		sort []types.OrderKey
+		keys []string // the bucket order Data (and so the matrices) ends in
+	}{
+		{"unsorted", nil, []string{"a", "b", "c"}},
+		// Per-bucket sums of n: a 273, b 247, c 260.
+		{"sorted desc", []types.OrderKey{{Field: "total", Desc: true}}, []string{"a", "c", "b"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			grouped := func() *types.Request {
+				req := matrixOverCohort(cohort)
+				req.Sort = c.sort
+				return req
 			}
+			alone, err := p.Process(ctx, grouped())
+			if err != nil {
+				t.Fatal(err)
+			}
+			// matrixOverCohort is grouped by cat (buckets a, b, c): one
+			// matrix per bucket, in the final Data order.
+			assertMatrixKeysFollowData(t, alone, "cat", c.keys)
+			ungroupedOnly := &types.Request{Cohort: &types.Cohort{Filename: cohort},
+				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "solo", Fields: []string{"n"}, Params: json.RawMessage(`{"ddof":0}`)}}}
+			solo, err := p.Process(ctx, ungroupedOnly)
+			if err != nil {
+				t.Fatal(err)
+			}
+			composed := func() *types.ComposedRequest {
+				return &types.ComposedRequest{Requests: []*types.Request{grouped(), ungroupedOnly}}
+			}
+			wantSlots := []*types.Response{alone, solo}
+			check := func(t *testing.T, resp *types.ComposedResponse) {
+				t.Helper()
+				if len(resp.Responses) != 2 {
+					t.Fatalf("responses = %d", len(resp.Responses))
+				}
+				for i, r := range resp.Responses {
+					if len(r.Matrices) != len(wantSlots[i].Matrices) || !matricesEqual(r.Matrices, wantSlots[i].Matrices) {
+						t.Errorf("slot %d matrices = %+v, want %+v", i, r.Matrices, wantSlots[i].Matrices)
+					}
+				}
+				assertMatrixKeysFollowData(t, resp.Responses[0], "cat", c.keys)
+				if resp.Responses[0].Matrices[0].Name == resp.Responses[1].Matrices[0].Name {
+					t.Error("slots share a matrix result")
+				}
+			}
+			t.Run("compose", func(t *testing.T) {
+				resp, err := p.Compose(ctx, composed())
+				if err != nil {
+					t.Fatal(err)
+				}
+				check(t, resp)
+			})
+			t.Run("compose parallel", func(t *testing.T) {
+				resp, err := p.ComposeParallel(ctx, composed(), pulse.ComposeOptions{MaxWorkers: 2})
+				if err != nil {
+					t.Fatal(err)
+				}
+				check(t, resp)
+			})
+			t.Run("chain stage 0", func(t *testing.T) {
+				s0 := grouped()
+				s0.Cohort = nil
+				req := &types.ChainRequest{
+					Cohort: &types.Cohort{Filename: cohort},
+					Stages: []*types.ChainStage{
+						{Name: "s0", Request: s0},
+						{Name: "s1", Request: &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "total", Label: "grand"}}}},
+					},
+				}
+				data, err := afero.ReadFile(fs, cohort)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if env := descx.ValidateChain(bytes.NewReader(data), req); len(env.Errors) != 0 {
+					t.Fatalf("chain validator refused a stage-0 matrix: %+v", env.Errors)
+				}
+				resp, err := p.ProcessChain(ctx, req)
+				if err != nil {
+					t.Fatalf("ProcessChain: %v", err)
+				}
+				if !matricesEqual(resp.Stages[0].Matrices, alone.Matrices) {
+					t.Errorf("stage 0 matrices = %+v, want %+v", resp.Stages[0].Matrices, alone.Matrices)
+				}
+				assertMatrixKeysFollowData(t, resp.Stages[0], "cat", c.keys)
+				if len(resp.Stages[1].Matrices) != 0 || len(resp.Final.Data) != 1 {
+					t.Errorf("stage 1 = %+v", resp.Final)
+				}
+			})
+		})
+	}
+}
+
+// assertMatrixKeysFollowData: resp's Data rows carry bucket keys want in
+// order, and its per-bucket matrices (one spec) and Components entries
+// carry the same keys in the same order.
+func assertMatrixKeysFollowData(t *testing.T, resp *types.Response, field string, want []string) {
+	t.Helper()
+	if len(resp.Data) != len(want) || len(resp.Matrices) != len(want) {
+		t.Fatalf("%d rows / %d matrices, want %d buckets", len(resp.Data), len(resp.Matrices), len(want))
+	}
+	for i, key := range want {
+		if got := resp.Data[i][field]; got != key {
+			t.Errorf("Data row %d: %s = %v, want %s", i, field, got, key)
 		}
-		if resp.Responses[0].Matrices[0].Name == resp.Responses[1].Matrices[0].Name {
-			t.Error("slots share a matrix result")
+		if !reflect.DeepEqual(resp.Matrices[i].GroupKey, types.AxisKey{key}) {
+			t.Errorf("matrix %d: group_key %v, want [%s] (Data order)", i, resp.Matrices[i].GroupKey, key)
+		}
+		if resp.Components != nil && len(resp.Components.Matrices) == len(want) &&
+			!reflect.DeepEqual(resp.Components.Matrices[i].GroupKey, types.AxisKey{key}) {
+			t.Errorf("Components.Matrices %d: group_key %v, want [%s]", i, resp.Components.Matrices[i].GroupKey, key)
 		}
 	}
-	t.Run("compose", func(t *testing.T) {
-		resp, err := p.Compose(ctx, composed())
-		if err != nil {
-			t.Fatal(err)
-		}
-		check(t, resp)
-	})
-	t.Run("compose parallel", func(t *testing.T) {
-		resp, err := p.ComposeParallel(ctx, composed(), pulse.ComposeOptions{MaxWorkers: 2})
-		if err != nil {
-			t.Fatal(err)
-		}
-		check(t, resp)
-	})
-	t.Run("chain stage 0", func(t *testing.T) {
-		s0 := matrixOverCohort(cohort)
-		s0.Cohort = nil
-		req := &types.ChainRequest{
-			Cohort: &types.Cohort{Filename: cohort},
-			Stages: []*types.ChainStage{
-				{Name: "s0", Request: s0},
-				{Name: "s1", Request: &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "total", Label: "grand"}}}},
-			},
-		}
-		data, err := afero.ReadFile(fs, cohort)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if env := descx.ValidateChain(bytes.NewReader(data), req); len(env.Errors) != 0 {
-			t.Fatalf("chain validator refused a stage-0 matrix: %+v", env.Errors)
-		}
-		resp, err := p.ProcessChain(ctx, req)
-		if err != nil {
-			t.Fatalf("ProcessChain: %v", err)
-		}
-		if !matricesEqual(resp.Stages[0].Matrices, alone.Matrices) {
-			t.Errorf("stage 0 matrices = %+v, want %+v", resp.Stages[0].Matrices, alone.Matrices)
-		}
-		if len(resp.Stages[1].Matrices) != 0 || len(resp.Final.Data) != 1 {
-			t.Errorf("stage 1 = %+v", resp.Final)
-		}
-	})
 }
 
 func matricesEqual(a, b []types.MatrixResult) bool {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -87,9 +86,8 @@ type GroupedTail struct {
 	PostTests func(rows []map[string]any) ([]*types.TestResult, error)
 
 	// Matrices is the run's per-bucket Request.Matrices state (nil
-	// without matrices). Its results are rendered over the same ordered
-	// key list as the Data rows (before an explicit Request.Sort, which
-	// reorders rows by their aggregate cells), spec-major then bucket.
+	// without matrices). Its results are rendered in the FINAL Data row
+	// order — an explicit Request.Sort included — spec-major then bucket.
 	Matrices *GroupedMatrices
 
 	// Extensions is the instance registry the SERIES overlay fold
@@ -124,11 +122,6 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	}
 	keys = orderKeysByInclude(includeFilterOf(t.Grouper), keys)
 
-	matrices, matrixComps, err := t.Matrices.finalize(keys, !t.DisableComponents)
-	if err != nil {
-		return nil, err
-	}
-
 	data := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
 		bucket := t.Buckets[key]
@@ -148,8 +141,13 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		data = append(data, row)
 	}
 
-	if len(req.Sort) > 0 {
-		window.Sort(data, req.Sort)
+	keys, err := sortGroupedRows(data, req.Sort, keys)
+	if err != nil {
+		return nil, err
+	}
+	matrices, matrixComps, err := t.Matrices.finalize(keys, !t.DisableComponents)
+	if err != nil {
+		return nil, err
 	}
 
 	var postResults []*types.TestResult

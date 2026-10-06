@@ -1,8 +1,11 @@
 package processing
 
 import (
+	"reflect"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -18,9 +21,10 @@ import (
 //
 // Bucket keys come from the grouper the grouped path executes — the
 // same GroupKeyer / Grouper.Group partition and the same
-// orderKeysByInclude order the Data rows use. The engine executes
-// Request.Groups[0] only today (multi-entry Groups is U35's), and the
-// matrices follow whatever the Data rows do.
+// orderKeysByInclude order the Data rows use, then permuted by an
+// explicit Request.Sort exactly as the rows are (sortGroupedRows). The
+// engine executes Request.Groups[0] only today (multi-entry Groups is
+// U35's), and the matrices follow the FINAL Data order, Sort included.
 
 // GroupedMatrices is a grouped run's matrix state: the resolved specs
 // and one slot set per bucket key. A nil *GroupedMatrices is a request
@@ -137,8 +141,43 @@ func mergeSlotSets(dst, src []*matrixSlot) error {
 	return nil
 }
 
-// finalize renders the per-bucket results over keys — the grouped
-// emission order of the Data rows — spec-major, then bucket. Each
+// sortGroupedRows applies an explicit Request.Sort to the grouped Data
+// rows — window.Sort, the one stable row sort — and returns keys (keys[i]
+// is data[i]'s bucket key on entry) permuted to the rows' final order,
+// so the per-bucket matrices render over exactly the order Data ends in,
+// ties included. Every grouped exit (buffered processRecords and
+// FinalizeGroupedStream — serial streaming and both parallel reducers)
+// sorts through here. The permutation is read off row identity, never
+// the group cell, so a window or label that rewrites that cell cannot
+// misplace a matrix. Without a Sort it is a no-op.
+func sortGroupedRows(data []map[string]any, order []types.OrderKey, keys []string) ([]string, error) {
+	if len(order) == 0 {
+		return keys, nil
+	}
+	if len(keys) != len(data) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"grouped sort: bucket keys and Data rows differ in count",
+			map[string]any{"keys": len(keys), "rows": len(data)})
+	}
+	at := make(map[uintptr]string, len(data))
+	for i, row := range data {
+		at[reflect.ValueOf(row).Pointer()] = keys[i]
+	}
+	window.Sort(data, order)
+	sorted := make([]string, len(data))
+	for i, row := range data {
+		key, ok := at[reflect.ValueOf(row).Pointer()]
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				"grouped sort: a sorted Data row is not one of the bucket rows")
+		}
+		sorted[i] = key
+	}
+	return sorted, nil
+}
+
+// finalize renders the per-bucket results over keys — the final order
+// of the Data rows (sortGroupedRows) — spec-major, then bucket. Each
 // result (and Components entry) carries its bucket's GroupKey and the
 // executed grouper's GroupHeader. A key with no matrix state (no row
 // reached its slots) renders from empty slots, so it is still emitted,

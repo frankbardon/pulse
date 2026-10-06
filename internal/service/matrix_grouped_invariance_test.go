@@ -29,7 +29,9 @@ import (
 // bits — every primary cell, auxiliary.n, the determinant, top_pairs
 // (row, col, r bits, n) — the same matrix warnings (the thin bucket's
 // PULSE_MATRIX_INSUFFICIENT_N, listwise's summed drop count), the same
-// Components.Matrices and Components.Run. The vehicle aggregation
+// Components.Matrices and Components.Run. Sort variants (Request.Sort
+// ascending and descending on an aggregate) move the buckets into the
+// sorted Data order on every arm and leave the bits alone. The vehicle aggregation
 // beside the matrix counts its per-bucket instances, which proves the
 // parallel arm really partitioned the rows.
 
@@ -129,9 +131,26 @@ var groupedInvGroupers = []groupedInvGrouper{
 // in groupedInvRequest and named in String).
 type groupedInvVariant struct {
 	matrixInvarianceVariant
+	// sort is an explicit Request.Sort over the per-bucket sum of x3
+	// (an AGG_SUM labelled "sum" rides the request; the fixtures' bucket
+	// sums are far apart, so the order is the same under any
+	// partitioning and moves every bucket list off its unsorted order in
+	// both directions): matrices follow the sorted Data rows, so the
+	// sorted serial run is the reference.
+	sort []types.OrderKey
 }
 
-func (v groupedInvVariant) String() string { return v.matrixInvarianceVariant.String() }
+func (v groupedInvVariant) String() string {
+	s := v.matrixInvarianceVariant.String()
+	for _, k := range v.sort {
+		dir := "asc"
+		if k.Desc {
+			dir = "desc"
+		}
+		s += "_sort_" + k.Field + "_" + dir
+	}
+	return s
+}
 
 // groupedInvVariants: every built-in operator × missing mode ×
 // weighting, beside the vehicle (the engagement proof).
@@ -140,8 +159,16 @@ var groupedInvVariants = func() []groupedInvVariant {
 	for _, typ := range types.AllMatrixTypes() {
 		for _, pairwise := range []bool{false, true} {
 			for _, weighted := range []bool{false, true} {
-				out = append(out, groupedInvVariant{matrixInvarianceVariant{weighted: weighted, withVehicle: true, typ: typ, pairwise: pairwise}})
+				out = append(out, groupedInvVariant{matrixInvarianceVariant: matrixInvarianceVariant{weighted: weighted, withVehicle: true, typ: typ, pairwise: pairwise}})
 			}
+		}
+		// Request.Sort ascending and descending on an aggregate: the
+		// buckets move, the bits do not.
+		for _, desc := range []bool{false, true} {
+			out = append(out, groupedInvVariant{
+				matrixInvarianceVariant: matrixInvarianceVariant{weighted: true, withVehicle: true, typ: typ, pairwise: desc},
+				sort:                    []types.OrderKey{{Field: "sum", Desc: desc}},
+			})
 		}
 	}
 	return out
@@ -151,6 +178,10 @@ func groupedInvRequest(path string, v groupedInvVariant, g groupedInvGrouper) *t
 	req := matrixInvarianceRequest(path, v.matrixInvarianceVariant)
 	grp := *g.group
 	req.Groups = []*types.Group{&grp}
+	if len(v.sort) > 0 {
+		req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_SUM, Field: "x3", Label: "sum"})
+		req.Sort = v.sort
+	}
 	return req
 }
 
@@ -189,9 +220,21 @@ func runGroupedInv(t *testing.T, cfg *fs.Config, req *types.Request, g groupedIn
 		t.Fatalf("Process(decode=%d, shard=%d): Components.Run / Components.Matrices missing", decodeWorkers, shardWorkers)
 	}
 	out := groupedInvRun{warnings: resp.Warnings, run: *resp.Components.Run, comps: resp.Components.Matrices, instances: stats.instancesWithRows.Load()}
+	// The buckets are g.keys, in the final Data order (Request.Sort
+	// included); results and Components entries mirror that order.
+	dataOrder := make([]any, len(resp.Data))
+	for i, row := range resp.Data {
+		dataOrder[i] = row[g.group.Field]
+	}
+	if sorted := len(req.Sort) > 0; sorted == reflect.DeepEqual(dataOrder, g.keys) {
+		t.Fatalf("Data keys %v under sort %v: want the unsorted order %v moved iff sorted", dataOrder, req.Sort, g.keys)
+	}
+	if !sameKeySet(dataOrder, g.keys) {
+		t.Fatalf("Data keys %v, want a permutation of %v", dataOrder, g.keys)
+	}
 	for i, m := range resp.Matrices {
-		if !reflect.DeepEqual(m.GroupKey, types.AxisKey{g.keys[i]}) {
-			t.Fatalf("result %d: group_key %v, want [%v]", i, m.GroupKey, g.keys[i])
+		if !reflect.DeepEqual(m.GroupKey, types.AxisKey{dataOrder[i]}) || !reflect.DeepEqual(resp.Components.Matrices[i].GroupKey, types.AxisKey{dataOrder[i]}) {
+			t.Fatalf("result %d: group_key %v / components %v, want [%v] (Data order)", i, m.GroupKey, resp.Components.Matrices[i].GroupKey, dataOrder[i])
 		}
 		b := groupedInvBucket{key: m.GroupKey, words: matrixResultWords(m), warnings: m.Warnings}
 		if pairs, ok := m.Vectors["top_pairs"].([]types.MatrixPair); ok {
@@ -211,6 +254,23 @@ func runGroupedInv(t *testing.T, cfg *fs.Config, req *types.Request, g groupedIn
 		out.buckets = append(out.buckets, b)
 	}
 	return out
+}
+
+// sameKeySet reports whether a and b hold the same keys, any order.
+func sameKeySet(a, b []any) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[any]int, len(a))
+	for _, k := range a {
+		seen[k]++
+	}
+	for _, k := range b {
+		if seen[k]--; seen[k] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func assertGroupedInvEqual(t *testing.T, label string, got, want groupedInvRun) {

@@ -1441,7 +1441,13 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		}
 	}
 
-	if len(req.Sort) > 0 {
+	// Grouped, the bucket keys follow the rows through the sort so the
+	// per-bucket matrices render in the final Data order.
+	if len(req.Groups) > 0 {
+		if groupKeys, err = sortGroupedRows(data, req.Sort, groupKeys); err != nil {
+			return nil, err
+		}
+	} else if len(req.Sort) > 0 {
 		window.Sort(data, req.Sort)
 	}
 
@@ -1485,8 +1491,8 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// Matrix slots fold the filtered record set in record order — the
 	// rows and order the streaming path folds, so the per-block state
 	// (and the result's bits) match it. Grouped, processGrouped already
-	// folded each bucket's records; the results render over its ordered
-	// keys.
+	// folded each bucket's records; the results render over its keys in
+	// the final (sorted) Data order.
 	var matrixResults []types.MatrixResult
 	var matrixComps []types.MatrixComponents
 	if len(req.Groups) > 0 {
@@ -1778,7 +1784,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 	// an active Group.Include list, keys emit in include order; otherwise
 	// orderKeysByInclude funnels through sort.Strings (byte-identical to the
 	// pre-Include alphabetical default). An explicit req.Sort below still
-	// overrides this default ordering.
+	// overrides this default ordering — rows and matrix keys together.
 	keys := make([]string, 0, len(groups))
 	for k := range groups {
 		keys = append(keys, k)
