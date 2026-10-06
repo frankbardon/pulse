@@ -2961,7 +2961,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_SINGULAR: {
-		Message: "A matrix could not be factored, solved against or inverted because it is singular or not positive definite: a Cholesky pivot came out zero or negative, or the matrix has fewer independent rows than its order. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. Details carry `rank` and `condition_number` where the failing routine knows them, `pivot` for a factorisation failure and `attempts` / `ridge` when a ridge schedule was exhausted.",
+		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`, `backend_error`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -2970,6 +2970,10 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "Supply more rows than variables, or filter out the rows that make the inputs collinear.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For details.reason non_finite or no_convergence: remove (or impute) the NaN / infinite values before the matrix is built, and rescale variables whose magnitudes differ by many orders so the decomposition can converge.",
 			},
 		},
 	},

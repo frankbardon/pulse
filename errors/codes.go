@@ -2492,11 +2492,15 @@ const (
 	PULSE_MULTIPLICITY_CONFLICT Code = "PULSE_MULTIPLICITY_CONFLICT"
 
 	// PULSE_MATRIX_SINGULAR indicates a matrix the linear-algebra core
-	// (package linalg) cannot factor, solve against or invert: a
-	// non-positive Cholesky pivot, or a rank below the order where full
-	// rank is required. Details carry "rank" and "condition_number" where
-	// the failing routine knows them, "pivot" for a Cholesky failure and
-	// "attempts" / "ridge" when a ridge schedule was exhausted.
+	// (package linalg) cannot factor, solve against, invert or decompose:
+	// a non-positive Cholesky pivot, a condition number past the solver's
+	// ceiling, or — from a gonum-backed decomposition — a NaN / infinite
+	// element or an iteration that did not converge. Details carry
+	// "reason" where the routine classifies the failure
+	// (not_positive_definite, ill_conditioned, backend_error, non_finite,
+	// no_convergence), "pivot" for a reference Cholesky failure,
+	// "attempts" / "ridge" when a ridge schedule was exhausted, and
+	// "condition_number" from the SPD solve / inverse.
 	PULSE_MATRIX_SINGULAR Code = "PULSE_MATRIX_SINGULAR"
 
 	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
