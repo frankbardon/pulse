@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -301,6 +302,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// cohort or applies a default, so predict reports it first.
 	if jerr := JoinCountRefusal(req); jerr != nil {
 		addCodedError(env, jerr)
+	}
+	// The matrix-host rule (matrices with joins or a crosstab), which the
+	// runtime applies right after the join-count rule.
+	if merr := mergegate.MatrixRefusal(req); merr != nil {
+		addCodedError(env, merr)
 	}
 
 	// Multiplicity resolution — the same single pass the runtime runs

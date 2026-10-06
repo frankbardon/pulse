@@ -37,6 +37,7 @@ No `Response.Components` entry; every figure rides `Response.Matrices[i]`.
 - A row of weight 0 counts but adds no mass; an invalid weight skips the row.
 - Unknown `vector` → `PULSE_VECTOR_UNKNOWN`; `vector` and `fields` together → `SERVICE_VALIDATION`.
 - Ungrouped and serial only; streamed runs emit it at terminal flush.
+- `joins` / chain stage ≥ 1 → `PULSE_MATRIX_UNSUPPORTED_SOURCE`; `crosstab` → `PULSE_MATRIX_HOST_CONFLICT`.
 
 ## See
 

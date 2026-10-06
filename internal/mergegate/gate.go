@@ -152,7 +152,18 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 // categorical field, the dictionary index, not the label),
 // AGG_MODE_COUNT's modal count and AGG_FREQUENCY's value count
 // included — so mergeability is the whole rule.
+//
+// A stage's `matrices` slot is not part of the rule: a matrix result
+// lands in Response.Matrices, never in the rows the next stage reads,
+// so it is judged on the stage with the slot stripped. Stage 0 runs as
+// a plain Process over the cohort and computes it; a later stage's is
+// refused first by StageMatrixRefusal.
 func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, stageIndex int, stageName string) error {
+	if req != nil && len(req.Matrices) > 0 {
+		stripped := *req
+		stripped.Matrices = nil
+		req = &stripped
+	}
 	reason := MergeRefusal(req, schema, ext)
 	if reason == "" {
 		return nil
@@ -175,4 +186,50 @@ func StageJoinRefusal(req *types.Request, stageIndex int, stageName string) erro
 	return errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_STAGE_JOIN,
 		"only chain stage 0 may carry Joins; a later stage reads the previous stage's output",
 		map[string]any{"count": len(req.Joins), "stage": stageIndex, "stage_name": stageName})
+}
+
+// MatrixRefusal is the matrix-host rule shared by runtime Process
+// (internal/service, beside the join-count rule and before the crosstab
+// and join dispatch) and every no-execute validator (Predict,
+// ValidateJoin, the Compose slots, a joined chain stage 0), so both
+// refuse with the same code, message and details. Matrix operators fold
+// cohort rows the decode stamps with their merge position, and they
+// have no crosstab arm, so a request carrying `matrices` is refused
+// when it also carries:
+//
+//   - Joins: PULSE_MATRIX_UNSUPPORTED_SOURCE {source: "join", matrices, joins};
+//   - a Crosstab: PULSE_MATRIX_HOST_CONFLICT {host: "crosstab", matrices}.
+//
+// The join refusal wins when both apply. nil without a matrices slot —
+// every other request (every crosstab request included) is untouched.
+func MatrixRefusal(req *types.Request) error {
+	if req == nil || len(req.Matrices) == 0 {
+		return nil
+	}
+	if len(req.Joins) > 0 {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_UNSUPPORTED_SOURCE,
+			"matrices are not supported on a joined request; run them on a Request over the cohort without joins",
+			map[string]any{"source": "join", "matrices": len(req.Matrices), "joins": len(req.Joins)})
+	}
+	if req.Crosstab != nil {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_HOST_CONFLICT,
+			"matrices are not supported on a crosstab request; run them on a separate Request",
+			map[string]any{"host": "crosstab", "matrices": len(req.Matrices)})
+	}
+	return nil
+}
+
+// StageMatrixRefusal is the ProcessChain rule that only stage 0 may
+// carry matrices: nil for stage 0 or a stage without them, else a
+// PULSE_MATRIX_UNSUPPORTED_SOURCE {source: "chain_stage", matrices,
+// stage, stage_name}. A later stage reads the previous stage's output
+// rows, not the cohort. The runtime and the chain validator both check
+// it right after StageJoinRefusal.
+func StageMatrixRefusal(req *types.Request, stageIndex int, stageName string) error {
+	if stageIndex == 0 || req == nil || len(req.Matrices) == 0 {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_UNSUPPORTED_SOURCE,
+		"only chain stage 0 may carry matrices; a later stage reads the previous stage's output",
+		map[string]any{"source": "chain_stage", "matrices": len(req.Matrices), "stage": stageIndex, "stage_name": stageName})
 }

@@ -3078,4 +3078,29 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_UNSUPPORTED_SOURCE: {
+		Message: "A `matrices` slot sits on a request whose rows the matrix operators cannot fold, so the request is refused before any record is read — predict refuses it identically. Matrices read cohort rows directly: a Request that also carries `joins` (details `source` = `join`) and a ProcessChain stage after stage 0 (details `source` = `chain_stage`, which reads the previous stage's output rows; the stage is under `stage` / `stage_name`) are not supported. The number of matrix slots is under `matrices`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices"},
+				Hint:   "Move the `matrices` slot into its own Request over the cohort, without `joins`; Compose can run it beside the joined request.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"stages", "*", "request", "matrices"},
+				Hint:   "Put the matrices on chain stage 0, which reads the cohort, or run them as a separate Process request.",
+			},
+		},
+	},
+	PULSE_MATRIX_HOST_CONFLICT: {
+		Message: "A `matrices` slot sits on a Request whose host cannot carry it: a Request with a `crosstab` (details `host` = `crosstab`) does not compute matrices. The request is refused before the crosstab dispatch — predict refuses it identically. The number of matrix slots is under `matrices`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices"},
+				Hint:   "Run the matrices as a separate Request without `crosstab`; Compose can carry both requests in one call.",
+			},
+		},
+	},
 }

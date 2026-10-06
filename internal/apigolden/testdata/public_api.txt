@@ -1923,8 +1923,10 @@ pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMB
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
+pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX_HOST_CONFLICT"
 pulse/errors: const PULSE_MATRIX_SHAPE_MISMATCH pulse/errors.Code = "PULSE_MATRIX_SHAPE_MISMATCH"
 pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SINGULAR"
+pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
 pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
 pulse/errors: const PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
@@ -4098,4 +4100,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: aa8d16552868db67c329a9b9a9b77a2553cdb50497e5044b60398c159a626ae6
+// golden-hash: f9e56752909b745948c0695a7b830dcaa9288e2450207d61a1caffbcb0fcc1b6

@@ -62,6 +62,7 @@ func matrixCapability() descriptor.MatrixCapability {
 			"Matrices are computed over the whole filtered row set; a grouped request still returns one ungrouped matrix per spec.",
 			"Matrices run on the serial streaming and buffered paths; a request carrying matrices does not fan out over DecodeWorkers or ShardWorkers.",
 			"A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
+			"A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
 		},
 	}
 }

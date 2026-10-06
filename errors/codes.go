@@ -2552,6 +2552,21 @@ const (
 	// operator slot references, so it is resolved and validated but
 	// computes nothing. Details carry "name".
 	PULSE_VECTOR_UNREFERENCED Code = "PULSE_VECTOR_UNREFERENCED"
+
+	// PULSE_MATRIX_UNSUPPORTED_SOURCE indicates a `matrices` slot on a
+	// request whose rows are not cohort rows the matrix operators can
+	// fold: a Request carrying Joins (details "source" = "join",
+	// "matrices", "joins") or a ProcessChain stage after stage 0
+	// (details "source" = "chain_stage", "matrices", "stage",
+	// "stage_name"). Refused identically by predict, the validators and
+	// the runtime before any record is read.
+	PULSE_MATRIX_UNSUPPORTED_SOURCE Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
+
+	// PULSE_MATRIX_HOST_CONFLICT indicates a `matrices` slot on a
+	// request whose host cannot carry one: a Request with a Crosstab
+	// (details "host" = "crosstab", "matrices"). Refused identically by
+	// predict and the runtime before the crosstab dispatch.
+	PULSE_MATRIX_HOST_CONFLICT Code = "PULSE_MATRIX_HOST_CONFLICT"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -3048,6 +3063,8 @@ var allCodes = []Code{
 	PULSE_VECTOR_LABELS_MISMATCH,
 	PULSE_VECTOR_UNKNOWN,
 	PULSE_VECTOR_UNREFERENCED,
+	PULSE_MATRIX_UNSUPPORTED_SOURCE,
+	PULSE_MATRIX_HOST_CONFLICT,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

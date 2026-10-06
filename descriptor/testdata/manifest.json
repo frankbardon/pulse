@@ -6154,7 +6154,7 @@
         ]
       }
     ],
-    "error_codes_count": 273,
+    "error_codes_count": 275,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6290,8 +6290,10 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
+      "PULSE_MATRIX_UNSUPPORTED_SOURCE",
       "PULSE_MULTIPLICITY_CONFLICT",
       "PULSE_MULTIPLICITY_INVALID",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
@@ -6441,7 +6443,7 @@
     "mcp_tools": [
       {
         "name": "pulse_compose",
-        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes."
+        "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes. Each slot's `matrices` (MAT_COVARIANCE, with its `vectors`) runs per slot and lands on that slot's response; a slot combining `matrices` with `joins` or `crosstab` is refused (PULSE_MATRIX_UNSUPPORTED_SOURCE / PULSE_MATRIX_HOST_CONFLICT) like a standalone request."
       },
       {
         "name": "pulse_dedup",
@@ -6461,7 +6463,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `regression`, `tests`, `windows`).\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `matrices`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE over named `vectors`.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_facet",
@@ -6497,7 +6499,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, matrix operators (`matrices`, used through the request's `vectors` / `matrices` slots, plus the `matrix` capability block), synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -6505,11 +6507,11 @@
       },
       {
         "name": "pulse_process",
-        "description": "Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
+        "description": "Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), tier-1 / tier-2 statistical tests, and matrices (`vectors` names a reusable list of numeric fields; `matrices` runs MAT_COVARIANCE over a vector or inline `fields`, results under `matrices` in the response). A `matrices` slot (MAT_COVARIANCE) is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE on a request that also carries `joins`, and with PULSE_MATRIX_HOST_CONFLICT on a `crosstab` request — run the matrices as their own request.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
       },
       {
         "name": "pulse_process_chain",
-        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
+        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
       },
       {
         "name": "pulse_range_tables",
@@ -9202,7 +9204,8 @@
       "limitations": [
         "Matrices are computed over the whole filtered row set; a grouped request still returns one ungrouped matrix per spec.",
         "Matrices run on the serial streaming and buffered paths; a request carrying matrices does not fan out over DecodeWorkers or ShardWorkers.",
-        "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only."
+        "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
+        "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT."
       ]
     },
     "overlays": [
@@ -11822,4 +11825,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3b10b2537ebc77b2c462f40cb69a5b8e7295e107f00d2e10a166235578944764
+// golden-hash: 6a06420f4a43c4e868337765e8ef10cb546af18bcb43e462969b0e63d85b1cb8

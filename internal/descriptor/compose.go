@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -821,6 +822,11 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 		// resolves a zone; Compose locates it like a zone refusal.
 		if jerr := JoinCountRefusal(slot); jerr != nil {
 			addCodedError(env, RefusalAt(jerr, "request", i))
+			continue
+		}
+		// Then the matrix-host rule (matrices with joins or a crosstab).
+		if merr := mergegate.MatrixRefusal(slot); merr != nil {
+			addCodedError(env, RefusalAt(merr, "request", i))
 			continue
 		}
 		schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)

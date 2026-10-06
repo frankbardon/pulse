@@ -45,6 +45,9 @@ var (
 	ownAllOverlays = opsWithPrefix("OVERLAY_")
 	ownAllWindows  = opsWithPrefix("WIN_")
 	ownAllRegs     = opsWithPrefix("REG_")
+	// ownAllMats: every matrix operator (and capability:matrices, which
+	// each depends on) — a code only a `matrices` slot can raise.
+	ownAllMats = plus(own(featMatrices), opsWithPrefix("MAT_"))
 	// ownImportExport: the tabular import core (inference, row decode,
 	// width promotion, overrides) runs under the managed import pool
 	// AND under Convert / ImportTransfer, which capability:export gates.
@@ -427,6 +430,12 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
 	errors.PULSE_VECTOR_UNKNOWN:         own(featMatrices),
 	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
+
+	// The matrix-source refusals fire only on a request carrying the
+	// `matrices` slot, which capability:matrices gates; the MAT_ family
+	// raises them alike.
+	errors.PULSE_MATRIX_UNSUPPORTED_SOURCE: ownAllMats,
+	errors.PULSE_MATRIX_HOST_CONFLICT:      ownAllMats,
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is
