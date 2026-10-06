@@ -65,7 +65,8 @@ func cholesky(s *Sym) (*Matrix, int) {
 type RidgeSchedule []float64
 
 // DefaultRidgeSchedule returns a fresh copy of the default schedule:
-// eight attempts, increments 10^(t-6) for t = 0..7 (1e-6 … 1e-1).
+// eight attempts, increments 10^(t-6) for t = 0..7 (1e-6 … 1e1), so a
+// matrix that fails every attempt reports a total ridge of 11.111111.
 func DefaultRidgeSchedule() RidgeSchedule {
 	out := make(RidgeSchedule, 8)
 	for ridge := range out {
