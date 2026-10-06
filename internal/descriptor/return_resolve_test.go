@@ -1,8 +1,11 @@
 package descriptor
 
 import (
+	"encoding/json"
 	stderrors "errors"
+	"github.com/frankbardon/pulse/internal/returnplan"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -282,5 +285,142 @@ func TestPredict_ReturnPlan(t *testing.T) {
 	req.Return = nil
 	if res := predictFromBytes(data, req, nil).Data.(*descriptor.PredictResult); res.Return != nil {
 		t.Errorf("no block must report no plan, got %+v", res.Return)
+	}
+}
+
+// schemaWalk follows one preset path through the payload JSON Schema
+// from def, reporting the first segment the schema cannot take. It
+// stops (accepting) at an open object (additionalProperties) or a
+// union (oneOf / anyOf) — the same points the reflection resolver
+// marks a path Open.
+func schemaWalk(defs map[string]any, node map[string]any, segs []string) string {
+	for _, seg := range segs {
+		for {
+			ref, ok := node["$ref"].(string)
+			if !ok {
+				break
+			}
+			node, _ = defs[strings.TrimPrefix(ref, "#/$defs/")].(map[string]any)
+		}
+		if _, ok := node["oneOf"]; ok {
+			return ""
+		}
+		if _, ok := node["anyOf"]; ok {
+			return ""
+		}
+		if seg == "[*]" {
+			items, ok := node["items"].(map[string]any)
+			if !ok {
+				return seg
+			}
+			node = items
+			continue
+		}
+		props, _ := node["properties"].(map[string]any)
+		if next, ok := props[seg].(map[string]any); ok {
+			node = next
+			continue
+		}
+		if node["additionalProperties"] != nil && node["additionalProperties"] != false {
+			return ""
+		}
+		return seg
+	}
+	return ""
+}
+
+// TestReturnPathsMatchSchema: every preset path resolves through the
+// shared reflection resolver over the full-registry Response AND walks
+// the published BuildPayloadSchema() Response definition, so a field
+// rename cannot rot a preset silently.
+func TestReturnPathsMatchSchema(t *testing.T) {
+	var schema map[string]any
+	if err := json.Unmarshal(BuildPayloadSchema(), &schema); err != nil {
+		t.Fatal(err)
+	}
+	defs := schema["$defs"].(map[string]any)
+	root := defs["Response"].(map[string]any)
+	n := 0
+	for _, preset := range types.AllReturnPresets() {
+		list, ok := returnPresetPaths[preset]
+		if !ok {
+			t.Fatalf("preset %q has no table entry", preset)
+		}
+		for _, raw := range list {
+			n++
+			p, err := returnplan.Parse(raw)
+			if err != nil {
+				t.Errorf("%s: %q does not parse: %v", preset, raw, err)
+				continue
+			}
+			if err := resolveReturnPath(returnRoot, &p, nil, "preset", 0, raw); err != nil {
+				t.Errorf("%s: %q does not resolve: %v", preset, raw, err)
+			}
+			segs := make([]string, len(p.Segments))
+			for i, s := range p.Segments {
+				segs[i] = s.String()
+			}
+			if at := schemaWalk(defs, root, segs); at != "" {
+				t.Errorf("%s: %q leaves the payload schema at %q", preset, raw, at)
+			}
+		}
+	}
+	if n == 0 {
+		t.Fatal("no preset paths checked")
+	}
+	// The walker is not vacuous: a renamed key is caught.
+	if schemaWalk(defs, root, []string{"tests", "[*]", "pvalue"}) == "" {
+		t.Error("schema walk accepted a nonexistent key")
+	}
+}
+
+// TestReturnPresetsFor_Instance: the manifest's presets are expanded
+// against the instance — full lists every visible top-level key, a
+// listed path a hidden feature owns (matrices, p_adjusted) is absent
+// without error, and the expansion resolves to the same plan
+// ResolveReturn builds for the preset.
+func TestReturnPresetsFor_Instance(t *testing.T) {
+	full := ReturnPresetsFor(nil)
+	if len(full) != 3 || full[0].Name != "full" || full[1].Name != "standard" || full[2].Name != "minimal" {
+		t.Fatalf("presets = %+v", full)
+	}
+	if !slices.Contains(full[0].Paths, "components") || !slices.Contains(full[0].Paths, "matrices") {
+		t.Errorf("full = %v, want every top-level key", full[0].Paths)
+	}
+	for _, pm := range full[1:] {
+		if slices.Contains(pm.Paths, "components") {
+			t.Errorf("%s lists components", pm.Name)
+		}
+		if len(pm.Paths) != len(returnPresetPaths[types.ReturnPreset(pm.Name)]) {
+			t.Errorf("%s: %d paths expanded, table has %d", pm.Name, len(pm.Paths), len(returnPresetPaths[types.ReturnPreset(pm.Name)]))
+		}
+	}
+
+	hidden := scopedOnly(featProcess)
+	scoped := ReturnPresetsFor(hidden)
+	for _, pm := range scoped {
+		if len(pm.Paths) == 0 {
+			t.Errorf("%s expanded to nothing on a scoped instance", pm.Name)
+		}
+		for _, s := range pm.Paths {
+			if strings.HasPrefix(s, "matrices") || strings.HasSuffix(s, "p_adjusted") || strings.HasSuffix(s, "significant_adjusted") {
+				t.Errorf("%s kept hidden path %q", pm.Name, s)
+			}
+		}
+		ret := types.Return{Preset: types.ReturnPreset(pm.Name)}
+		if _, err := ResolveReturn(&types.Request{Return: &ret}, hidden); err != nil {
+			t.Errorf("%s refused on a scoped instance: %v", pm.Name, err)
+		}
+	}
+	if len(scoped[2].Paths) >= len(full[2].Paths) {
+		t.Errorf("minimal kept %d paths on the scoped instance, full registry has %d", len(scoped[2].Paths), len(full[2].Paths))
+	}
+
+	m := BuildManifestForInstance(hidden)
+	if len(m.ReturnPresets) != 3 || slices.Contains(m.ReturnPresets[2].Paths, "matrices[*].primary") {
+		t.Errorf("scoped manifest return_presets = %+v", m.ReturnPresets)
+	}
+	if got := BuildManifest().ReturnPresets; len(got) != 3 || !slices.Contains(got[2].Paths, "matrices[*].primary") {
+		t.Errorf("full manifest return_presets = %+v", got)
 	}
 }

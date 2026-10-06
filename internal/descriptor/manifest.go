@@ -341,6 +341,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		Overlays:           withOverlayIntents(filterOverlays(OverlayCapabilities(), on)),
 		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap, mats),
 		Intents:            instanceIntentIDs(inst),
+		ReturnPresets:      ReturnPresetsFor(inst),
 	}
 	if on(featWeighting) {
 		stampWeightKinds(m)

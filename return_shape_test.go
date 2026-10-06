@@ -303,3 +303,195 @@ func TestReturn_RuntimeColumnRefusalMatchesPredict(t *testing.T) {
 		t.Error("predict accepted a column Process refuses")
 	}
 }
+
+// objKeys decodes b's object keys, sorted.
+func objKeys(t *testing.T, b json.RawMessage) []string {
+	t.Helper()
+	return topKeys(t, b)
+}
+
+// subsetOf reports whether every key is in allowed.
+func subsetOf(keys []string, allowed ...string) bool {
+	for _, k := range keys {
+		found := false
+		for _, a := range allowed {
+			if k == a {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// decodeTop decodes b into its top-level raw members.
+func decodeTop(t *testing.T, b []byte) map[string]json.RawMessage {
+	t.Helper()
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func decodeArr(t *testing.T, b json.RawMessage) []map[string]json.RawMessage {
+	t.Helper()
+	var a []map[string]json.RawMessage
+	if err := json.Unmarshal(b, &a); err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+// TestReturn_PresetsPrimaryResult: `minimal` on a crosstab-only, a
+// matrix-only and a test-only request returns that slot's primary
+// result byte-identical to the unshaped response and nothing beyond the
+// preset; `standard` adds metadata, matrix vectors / scalars, test df /
+// alpha and effect sizes (never the rest of details) and whole
+// overlays, never components or matrix auxiliaries. Both stamp the
+// marker with their preset name.
+func TestReturn_PresetsPrimaryResult(t *testing.T) {
+	p, _, cohort := acceptanceCohort(t)
+	corpus := returnCorpus(cohort)
+	only := func(name string) func() *types.Request {
+		return func() *types.Request {
+			r := corpus[name]()
+			if r.Crosstab == nil {
+				r.Aggregations = nil
+			}
+			return r
+		}
+	}
+	shaped := func(mk func() *types.Request, preset types.ReturnPreset) map[string]json.RawMessage {
+		r := mk()
+		r.Return = &types.Return{Preset: preset}
+		_, b := processJSON(t, p, r)
+		top := decodeTop(t, b)
+		var marker types.ReturnedMarker
+		if err := json.Unmarshal(top["returned"], &marker); err != nil || marker.Preset != string(preset) {
+			t.Fatalf("%s: returned = %s, want preset %q", preset, top["returned"], preset)
+		}
+		if _, ok := top["components"]; ok {
+			t.Errorf("%s kept components", preset)
+		}
+		return top
+	}
+
+	t.Run("crosstab-only", func(t *testing.T) {
+		mk := only("crosstab-overlays")
+		_, b := processJSON(t, p, mk())
+		base := decodeTop(t, b)
+		var baseCT map[string]json.RawMessage
+		_ = json.Unmarshal(base["crosstab"], &baseCT)
+
+		min := shaped(mk, types.ReturnPresetMinimal)
+		if k := topKeys(t, []byte(mustJSON(t, min))); !subsetOf(k, "crosstab", "overlays", "warnings", "returned") {
+			t.Errorf("minimal top keys = %v", k)
+		}
+		var ct map[string]json.RawMessage
+		_ = json.Unmarshal(min["crosstab"], &ct)
+		if k := objKeys(t, min["crosstab"]); strings.Join(k, ",") != "matrix,shape" {
+			t.Errorf("minimal crosstab keys = %v, want matrix,shape", k)
+		}
+		if !bytes.Equal(ct["matrix"], baseCT["matrix"]) {
+			t.Errorf("minimal crosstab.matrix differs from the unshaped matrix")
+		}
+		ov := decodeArr(t, min["overlays"])
+		if len(ov) == 0 {
+			t.Fatal("minimal dropped the overlays")
+		}
+		for _, o := range ov {
+			if _, ok := o["payload"]; ok {
+				t.Errorf("minimal overlay kept payload")
+			}
+			if _, ok := o["name"]; !ok {
+				t.Errorf("minimal overlay lost name")
+			}
+		}
+
+		std := shaped(mk, types.ReturnPresetStandard)
+		if _, ok := std["metadata"]; !ok {
+			t.Error("standard dropped metadata")
+		}
+		if !bytes.Equal(std["crosstab"], base["crosstab"]) || !bytes.Equal(std["overlays"], base["overlays"]) {
+			t.Error("standard did not keep the whole crosstab and overlays")
+		}
+	})
+
+	t.Run("matrix-only", func(t *testing.T) {
+		mk := only("matrices")
+		_, b := processJSON(t, p, mk())
+		baseM := decodeArr(t, decodeTop(t, b)["matrices"])
+
+		min := decodeArr(t, shaped(mk, types.ReturnPresetMinimal)["matrices"])
+		if len(min) != len(baseM) || len(min) == 0 {
+			t.Fatalf("minimal matrices = %d, want %d", len(min), len(baseM))
+		}
+		for i, m := range min {
+			keys := make([]string, 0, len(m))
+			for k := range m {
+				keys = append(keys, k)
+			}
+			if !subsetOf(keys, "name", "type", "group_key", "primary", "warnings") {
+				t.Errorf("minimal matrix keys = %v", keys)
+			}
+			if !bytes.Equal(m["primary"], baseM[i]["primary"]) {
+				t.Errorf("minimal matrices[%d].primary differs from the unshaped one", i)
+			}
+		}
+		std := decodeArr(t, shaped(mk, types.ReturnPresetStandard)["matrices"])
+		for i, m := range std {
+			if _, ok := m["auxiliary"]; ok {
+				t.Errorf("standard matrices[%d] kept auxiliary", i)
+			}
+			if !bytes.Equal(m["primary"], baseM[i]["primary"]) {
+				t.Errorf("standard matrices[%d].primary differs", i)
+			}
+		}
+	})
+
+	t.Run("test-only", func(t *testing.T) {
+		mk := only("tests")
+		_, b := processJSON(t, p, mk())
+		baseT := decodeArr(t, decodeTop(t, b)["tests"])
+
+		min := decodeArr(t, shaped(mk, types.ReturnPresetMinimal)["tests"])
+		if len(min) != len(baseT) || len(min) == 0 {
+			t.Fatalf("minimal tests = %d, want %d", len(min), len(baseT))
+		}
+		for i, tr := range min {
+			keys := make([]string, 0, len(tr))
+			for k := range tr {
+				keys = append(keys, k)
+			}
+			if !subsetOf(keys, "label", "type", "statistic", "p_value", "reject_null", "p_adjusted", "significant_adjusted", "warnings") {
+				t.Errorf("minimal tests[%d] keys = %v", i, keys)
+			}
+			for _, k := range []string{"statistic", "p_value", "reject_null"} {
+				if !bytes.Equal(tr[k], baseT[i][k]) {
+					t.Errorf("minimal tests[%d].%s = %s, want %s", i, k, tr[k], baseT[i][k])
+				}
+			}
+		}
+		std := decodeArr(t, shaped(mk, types.ReturnPresetStandard)["tests"])
+		for i, tr := range std {
+			if !bytes.Equal(tr["alpha"], baseT[i]["alpha"]) {
+				t.Errorf("standard tests[%d] lost alpha", i)
+			}
+			var det, baseDet map[string]json.RawMessage
+			_ = json.Unmarshal(tr["details"], &det)
+			_ = json.Unmarshal(baseT[i]["details"], &baseDet)
+			for k := range det {
+				if k != "effect_size" {
+					t.Errorf("standard tests[%d].details kept %q", i, k)
+				}
+			}
+			if !bytes.Equal(det["effect_size"], baseDet["effect_size"]) {
+				t.Errorf("standard tests[%d].details.effect_size differs", i)
+			}
+		}
+	})
+}

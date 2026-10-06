@@ -241,4 +241,23 @@ type Manifest struct {
 	// fetched on demand. Static: the same list under every feature
 	// profile.
 	Intents []string `json:"intents"`
+
+	// ReturnPresets lists the named `return` presets (full / standard /
+	// minimal, in that order), each with the response paths it selects
+	// EXPANDED against this instance: a path a hidden feature owns is
+	// absent. Always present: `return` is a plain request slot, not a
+	// feature.
+	ReturnPresets []ReturnPresetMeta `json:"return_presets"`
+}
+
+// ReturnPresetMeta is one named `return` preset as the manifest lists
+// it.
+type ReturnPresetMeta struct {
+	// Name is the preset name (a types.ReturnPreset).
+	Name string `json:"name"`
+	// Paths is the selection the preset expands to on this instance, in
+	// table order. Nested `warnings` slots are kept wherever their
+	// parent is emitted and are not listed; full lists every visible
+	// top-level key.
+	Paths []string `json:"paths"`
 }

@@ -1090,9 +1090,104 @@
       "lookup",
       "measure_construct",
       "segment"
+    ],
+    "return_presets": [
+      {
+        "name": "full",
+        "paths": [
+          "data",
+          "metadata",
+          "tests",
+          "post_tests",
+          "regressions",
+          "warnings",
+          "crosstab",
+          "overlays",
+          "components"
+        ]
+      },
+      {
+        "name": "standard",
+        "paths": [
+          "data",
+          "warnings",
+          "metadata",
+          "crosstab",
+          "tests[*].label",
+          "tests[*].type",
+          "tests[*].variant",
+          "tests[*].statistic",
+          "tests[*].df",
+          "tests[*].p_value",
+          "tests[*].alpha",
+          "tests[*].reject_null",
+          "tests[*].details.effect_size",
+          "post_tests[*].label",
+          "post_tests[*].type",
+          "post_tests[*].variant",
+          "post_tests[*].statistic",
+          "post_tests[*].df",
+          "post_tests[*].p_value",
+          "post_tests[*].alpha",
+          "post_tests[*].reject_null",
+          "post_tests[*].details.effect_size",
+          "regressions[*].name",
+          "regressions[*].type",
+          "regressions[*].family",
+          "regressions[*].link",
+          "regressions[*].penalty",
+          "regressions[*].alpha",
+          "regressions[*].l1_ratio",
+          "regressions[*].prior",
+          "regressions[*].resample",
+          "regressions[*].criterion",
+          "regressions[*].coefficients",
+          "regressions[*].std_errors",
+          "regressions[*].p_values",
+          "regressions[*].r2",
+          "regressions[*].adj_r2",
+          "regressions[*].deviance",
+          "regressions[*].null_deviance",
+          "regressions[*].pseudo_r2",
+          "regressions[*].n_obs",
+          "regressions[*].sum_weights",
+          "regressions[*].n_eff",
+          "regressions[*].residual_std_err",
+          "regressions[*].converged_iters",
+          "regressions[*].selected_features",
+          "overlays"
+        ]
+      },
+      {
+        "name": "minimal",
+        "paths": [
+          "data",
+          "warnings",
+          "crosstab.shape",
+          "crosstab.matrix",
+          "tests[*].label",
+          "tests[*].type",
+          "tests[*].statistic",
+          "tests[*].p_value",
+          "tests[*].reject_null",
+          "post_tests[*].label",
+          "post_tests[*].type",
+          "post_tests[*].statistic",
+          "post_tests[*].p_value",
+          "post_tests[*].reject_null",
+          "regressions[*].name",
+          "regressions[*].type",
+          "regressions[*].coefficients",
+          "regressions[*].p_values",
+          "overlays[*].name",
+          "overlays[*].kind",
+          "overlays[*].ref",
+          "overlays[*].summary"
+        ]
+      }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: d0ffde2e38a7720610aba0a69cd66b2e1b30c3704a2112d575a3dfeea40eb019
+// golden-hash: 29e58c0c4f3610e24d36c1a8abd24a5d4a9a603cf2d076fc02861bd4cc0c5b79

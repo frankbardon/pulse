@@ -33,16 +33,77 @@ import (
 // any key is accepted (the path is marked Open); the runtime warns
 // PULSE_RETURN_PATH_UNMATCHED when such an include matched nothing.
 
-// returnPresetPaths is the preset table. A nil list selects the whole
-// Response (every visible top-level key). A listed path a hidden
-// feature owns is dropped silently at expansion, never refused.
+// returnPresetPaths is the preset table — the ONE definition of each
+// preset, listed (expanded against the instance) in the manifest's
+// return_presets block. A nil list selects the whole Response (every
+// visible top-level key). A listed path a hidden feature owns is
+// dropped silently at expansion, never refused. Every listed path must
+// resolve against the full payload schema (TestReturnPathsMatchSchema),
+// so a field rename cannot rot a preset.
 //
-// E2-S3 (response-shaping-core) fills `standard` and `minimal`; until
-// then they expand like `full`.
+// A preset is an INCLUDE allowlist: "X minus Y" is spelled as X's
+// remaining keys, never as an exclude, so a caller's include on top of a
+// preset can always add Y back (an exclude would win over it). Nested
+// `*.warnings` need no entry — they are KEEP paths, emitted wherever
+// their parent object is.
 var returnPresetPaths = map[types.ReturnPreset][]string{
-	types.ReturnPresetFull:     nil,
-	types.ReturnPresetStandard: nil,
-	types.ReturnPresetMinimal:  nil,
+	types.ReturnPresetFull: nil,
+	// standard: the primary result of every slot plus the figures most
+	// callers read beside it; never components.
+	types.ReturnPresetStandard: {
+		"data", "warnings", "metadata", "crosstab",
+		// matrices[*] minus auxiliary
+		"matrices[*].name", "matrices[*].type", "matrices[*].group_key", "matrices[*].group_header",
+		"matrices[*].primary", "matrices[*].vectors", "matrices[*].scalars",
+		// tests headline + df / alpha / variant / multiplicity + effect sizes
+		"tests[*].label", "tests[*].type", "tests[*].variant", "tests[*].statistic", "tests[*].df",
+		"tests[*].p_value", "tests[*].alpha", "tests[*].reject_null", "tests[*].p_adjusted",
+		"tests[*].significant_adjusted", "tests[*].multiplicity", "tests[*].details.effect_size",
+		"post_tests[*].label", "post_tests[*].type", "post_tests[*].variant", "post_tests[*].statistic", "post_tests[*].df",
+		"post_tests[*].p_value", "post_tests[*].alpha", "post_tests[*].reject_null", "post_tests[*].p_adjusted",
+		"post_tests[*].significant_adjusted", "post_tests[*].multiplicity", "post_tests[*].details.effect_size",
+		// regressions[*] minus credible_intervals and selection
+		"regressions[*].name", "regressions[*].type", "regressions[*].family", "regressions[*].link",
+		"regressions[*].penalty", "regressions[*].alpha", "regressions[*].l1_ratio", "regressions[*].prior",
+		"regressions[*].resample", "regressions[*].criterion", "regressions[*].coefficients",
+		"regressions[*].std_errors", "regressions[*].p_values", "regressions[*].r2", "regressions[*].adj_r2",
+		"regressions[*].deviance", "regressions[*].null_deviance", "regressions[*].pseudo_r2",
+		"regressions[*].n_obs", "regressions[*].sum_weights", "regressions[*].n_eff",
+		"regressions[*].residual_std_err", "regressions[*].converged_iters", "regressions[*].selected_features",
+		"overlays",
+	},
+	// minimal: the primary result of every slot; no metadata, no
+	// components, no overlay payload.
+	types.ReturnPresetMinimal: {
+		"data", "warnings",
+		"crosstab.shape", "crosstab.matrix",
+		"matrices[*].name", "matrices[*].type", "matrices[*].group_key", "matrices[*].primary",
+		"tests[*].label", "tests[*].type", "tests[*].statistic", "tests[*].p_value",
+		"tests[*].reject_null", "tests[*].p_adjusted", "tests[*].significant_adjusted",
+		"post_tests[*].label", "post_tests[*].type", "post_tests[*].statistic", "post_tests[*].p_value",
+		"post_tests[*].reject_null", "post_tests[*].p_adjusted", "post_tests[*].significant_adjusted",
+		"regressions[*].name", "regressions[*].type", "regressions[*].coefficients", "regressions[*].p_values",
+		"overlays[*].name", "overlays[*].kind", "overlays[*].ref", "overlays[*].summary",
+	},
+}
+
+// ReturnPresetsFor lists every preset expanded against inst — the
+// manifest's return_presets block — in types.AllReturnPresets order.
+// Paths are the canonical spellings of the preset's selection on this
+// instance (a hidden feature's paths are absent); nested `*.warnings`
+// keep paths are not listed. nil inst is the full registry.
+func ReturnPresetsFor(inst *InstanceSnapshot) []descriptor.ReturnPresetMeta {
+	rootKeys := returnVisibleKeys(returnRoot, inst)
+	out := make([]descriptor.ReturnPresetMeta, 0, len(returnPresetPaths))
+	for _, p := range types.AllReturnPresets() {
+		paths := expandReturnPreset(p, returnRoot, inst, rootKeys)
+		strs := make([]string, len(paths))
+		for i, path := range paths {
+			strs[i] = path.String()
+		}
+		out = append(out, descriptor.ReturnPresetMeta{Name: string(p), Paths: strs})
+	}
+	return out
 }
 
 // returnWarningsKey is the JSON key retained unless explicitly excluded.

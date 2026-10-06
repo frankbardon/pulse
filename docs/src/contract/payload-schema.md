@@ -391,6 +391,35 @@ include through a map key or an open value that matched nothing in the
 executed response adds a `PULSE_RETURN_PATH_UNMATCHED` entry to
 `warnings` (details `path`) unless `warnings` is excluded.
 
+### Presets
+
+The presets are defined once (`internal/descriptor/return_resolve.go`,
+`returnPresetPaths`) and listed in the manifest as `return_presets`
+(`[{name, paths}]`, in `full` / `standard` / `minimal` order) with each
+preset's paths **expanded against the instance**: a path a hidden
+feature owns (e.g. `matrices[*]` without `capability:matrices`,
+`tests[*].p_adjusted` without `capability:multiplicity`) is absent from
+the listing and from the selection, never an error. A preset is an
+include allowlist, so a caller's `include` can always add a part back.
+Nested `*.warnings` are not listed: each is kept wherever its parent is
+emitted. Every listed path must resolve against this schema
+(`TestReturnPathsMatchSchema`).
+
+| Slot | `minimal` (primary result) | `standard` |
+|---|---|---|
+| `data`, `warnings` | yes | yes |
+| `metadata` | no | yes |
+| `crosstab` | `shape`, `matrix` | whole |
+| `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
+| `tests[*]` / `post_tests[*]` | `label`, `type`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` |
+| `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
+| `components` | no | no |
+
+`full` is the identity: every visible top-level key, byte-identical to
+a request without `return`. `standard` and `minimal` stamp `returned`
+with their preset name.
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a

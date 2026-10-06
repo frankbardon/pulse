@@ -1265,6 +1265,7 @@ pulse/descriptor: type Manifest field PostTests []pulse/descriptor.TestMeta "jso
 pulse/descriptor: type Manifest field ProcessChain *pulse/descriptor.ProcessChainCapability "json:\"process_chain,omitempty\""
 pulse/descriptor: type Manifest field PulseVersion string "json:\"pulse_version\""
 pulse/descriptor: type Manifest field Regressions []pulse/descriptor.RegressionMeta "json:\"regressions\""
+pulse/descriptor: type Manifest field ReturnPresets []pulse/descriptor.ReturnPresetMeta "json:\"return_presets\""
 pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:\"skills\""
 pulse/descriptor: type Manifest field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
 pulse/descriptor: type Manifest field TZDataVersion string "json:\"tzdata_version\""
@@ -1500,6 +1501,9 @@ pulse/descriptor: type ReturnPlan field Include []string "json:\"include\""
 pulse/descriptor: type ReturnPlan field Keep []string "json:\"keep\""
 pulse/descriptor: type ReturnPlan field Precision int "json:\"precision,omitempty\""
 pulse/descriptor: type ReturnPlan field Preset string "json:\"preset\""
+pulse/descriptor: type ReturnPresetMeta struct
+pulse/descriptor: type ReturnPresetMeta field Name string "json:\"name\""
+pulse/descriptor: type ReturnPresetMeta field Paths []string "json:\"paths\""
 pulse/descriptor: type Role struct
 pulse/descriptor: type Role field Kinds []pulse/descriptor.FieldKind "json:\"kinds\""
 pulse/descriptor: type Role field Max int "json:\"max\""
@@ -4185,4 +4189,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 503efa63dd18fc56f009aa0c14523fd17a32cd484c754abddbf6d7dd57bba717
+// golden-hash: 3dfb7c8df234500de6ee16063b814851b09d309f8fd6ca4c4270ff31e0e611d7
