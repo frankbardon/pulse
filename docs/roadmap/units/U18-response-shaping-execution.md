@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U17]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [105, 108, 110, 111]
+todo_items: [105, 108, 110, 111, 217, 218, 219]
 branch: response-shaping-execution
 ---
 
@@ -32,7 +32,10 @@ Compile the return selection into the execution plan, so excluded components, ov
 - [ ] **#105** (8. Response shaping) MCP default `standard`: `gosdk.Config.DefaultReturn`, `pulse mcp --return`; MCP goldens regenerated once; release-note callout
 - [ ] **#108** (8. Response shaping) Selection compiled into the execution plan (unrequested parts not computed)
 - [ ] **#110** (8. Response shaping) Predict per-section size estimates
-- [ ] **#111** (8. Response shaping) `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill
+- [ ] **#111** (8. Response shaping) `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill (the skill and the identity / schema-path gates landed in U17: this unit adds `TestReturnSkipsComputation` and extends the skill)
+- [ ] **#217** (8. Response shaping) `PULSE_RETURN_PATH_UNMATCHED` on streams: decide whether and how a stream surfaces it
+- [ ] **#218** (8. Response shaping) MCP `pulse_process` streaming option writes rows through `returnshape.MarshalStreamRow`
+- [ ] **#219** (8. Response shaping) Resolved-plan caching if an instance default's per-`Process` type walk shows in profiling
 
 ## Scope
 
@@ -79,3 +82,14 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(response-shaping-
 ## Human inputs & decisions
 
 - None.
+
+## Handed on from U17
+
+[U17](U17-response-shaping-core.md) shapes at serialization only; everything below is this unit's.
+
+- **Skip computation of excluded parts, per-group accumulators included** (#108). U17's per-group `AggregationComponents.Groups` (#193) are computed even when `components` is excluded; the plan must reach the group accumulators too, along with overlays and auxiliaries. The `DisableComponents` compute gate (`Service.effectiveDisableComponents`) is the existing precedent: extend it from "components off" to "plan excludes the part".
+- **MCP default `standard`** (#105): `standard` already exists in the manifest `return_presets` and the resolver; this unit wires `gosdk.Config.DefaultReturn` / `pulse mcp --return` over `Options.DefaultReturn`. Remember that a request `return` replaces the default, and that a request `return` without `disable_components` computes components even on a `--no-components` instance.
+- **Predict size estimates** (#110): `PredictResult.Return` already carries the resolved plan and digest; add per-section byte estimates with and without the selection.
+- **`PULSE_RETURN_PATH_UNMATCHED` on streams** (#217): a stream has no warnings slot, so the warning is buffered-only today. Decide: terminal-chunk warning, predict-time note, or documented absence.
+- **MCP streaming row encoding** (#218): only `pulse api process|compose --stream` is verified to call `returnshape.MarshalStreamRow`; check the MCP streaming option writes precision-rounded, column-selected rows.
+- **Plan caching** (#219): an instance default re-walks the `Response` type per `Process`; cache the plan without its request-derived `Exact` set if profiling shows it. A request-derived exact set can never be cached across requests.

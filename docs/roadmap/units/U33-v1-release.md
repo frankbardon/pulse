@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220]
 branch: v1-release
 ---
 
@@ -33,6 +33,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#168** (12. Release v1.0.0) `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md))
 - [ ] **#169** (12. Release v1.0.0) Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
+- [ ] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze
 - [ ] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) and the [U12 weighted-inference review](../reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference, and owns the statistical-review CODEOWNERS entries
 - [ ] **#171** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values
 - [ ] **#173** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups
@@ -128,3 +129,7 @@ U12 made the significance tests, regressions, CI bounds, scores, quantile bucket
 - **Open items.** Work its "Open items for the U33 human reviewer (U12)" list — headed by WS-01 (one-way ANOVA F under between-group probability-weight variation) and the undefined-figure cases at tiny n_eff (WS-05 / WS-12). The docs story applied the documentation findings; the engine findings await owner triage.
 - **The method itself.** No external software implements Kish-w* inference, so the probability arm is verified for arithmetic and scale invariance only. Sign off (or not) the framing in `.claude/reference/weighting.md` (Weighted inference): unequal-weighting correction only, weights assumed unrelated to the outcome, not design-based, χ² first-order Kish not Rao-Scott.
 - **CODEOWNERS.** Add `internal/weighting/`, the weighted paths of `internal/processing/test_*.go` / `regression/` / `overlay*.go`, and `internal/service/testdata/weight_reference/` to the reviewer's entries.
+
+## Inherited from U17
+
+- **`pulse.ReturnedMarker` root alias** (#220). `Response.Returned` is a `*types.ReturnedMarker`, reachable through `types`; the root facade aliases most result types but not this one. Decide before the freeze: adding it changes the public-API golden (`TestPublicAPIGolden`, regenerate via `-update`) and `STABILITY.md`; leaving it out is fine if embedders reach the type through `types` (record the decision in the migration doc either way).

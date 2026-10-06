@@ -47,10 +47,12 @@ Every feature has a **stable name**, a **kind** and a **`Since` version**. All t
     "io_format:csv", "io_format:spss"
   ],
   "behaviour": { "disable_projection": true }   // optional; each switch ORs into Options (on only, never off)
-  // "limits" (U19, embedder operations 01) and "return" (U17, response shaping) are REFUSED as
-  // unknown keys until those units define them
+  // "limits" (U19, embedder operations 01) is REFUSED as an unknown key until that unit defines it.
+  // "return": { "preset": "standard" }   // landed in U17: the instance's default response shape
 }
 ```
+
+**`return` section (landed in U17).** A profile may carry an instance default `return` (`pulse.FeatureProfile.Return`, a `*types.Return`), resolved against the profile's OWN feature set at `pulse.New` and `pulse features check`: a path a feature the profile hides is `PULSE_FEATURE_PROFILE_INVALID` reason `invalid_return`. Precedence: a request's `return` replaces everything, then `Options.DefaultReturn`, then the profile's `return`, then `full`. It is a response-shape default, not a feature: no `features.go` row.
 
 **Exact names only (decided).** A profile lists every feature by its exact name. Patterns such as `TEST_*` are not accepted in the file. A pattern would quietly match tests added in later releases, and the alternative fix (pinning patterns to a baseline version) proved hard to reason about. The list is longer, but it means exactly what it says. Embedders never write it by hand: `pulse profile init` (P5) writes the full current list, and the embedder deletes lines. `written_with` is informational only and feeds `pulse profile diff`.
 

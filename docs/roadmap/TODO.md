@@ -38,6 +38,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#195** An operator's own `Components()` keys probe-validated against its `ComponentSchema` at `pulse.New` · [U34](units/U34-extension-validation.md)
 - [ ] **#196** `FeatureRegistration.Streamable` probe-validated at `pulse.New` · [U34](units/U34-extension-validation.md)
 - [ ] **#197** Synth-distribution extension contract: an `extend` factory shape, or a documented decision that distributions are not an extension category · [U34](units/U34-extension-validation.md)
+- [ ] **#216** Extension aggregators declare whether their output is a count, so `return.precision` can write it exact (today every extension aggregator rounds like a measure; built-ins are classified in `countSemanticAggregations`) · [U34](units/U34-extension-validation.md)
 
 #### CLI shell completion
 - [ ] **#208** `pulse completion {bash,zsh,fish,pwsh}` prints an installable script; every command, subcommand and flag of `buildApp()` completes · [U37](units/U37-shell-completion.md)
@@ -52,6 +53,9 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#200** A request with more than one `Groups` entry executes every group or is refused (today only `Groups[0]` runs) · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#201** Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#207** Shard-archive cohesion compares `Nullable`: `AddShard`, `shard verify`, the `NewCohortBuilder` anchored-append pre-check and the archive reader refuse a shard whose per-field nullability differs from the canonical schema, instead of decoding it under the canonical flags · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#213** `Response.overlays` joins the feature gate (`gatedSlots`, `internal/descriptor/request_slots.go`): hiding the overlay features leaves `overlays` paths in the instance payload schema and in the presets · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#214** A joined slot or stage derives its `return` precision-exact set from the defaults-resolved request, as an unjoined one does (today the join path applies defaults to a service-internal clone, so `Plan.Exact` reads the un-defaulted request; `Process` included) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#215** `finalizeMergedPartial`'s empty-partial path emits the zero-n aggregation entries the serial path emits (ungrouped and grouped); today a merged run with an empty partial carries no `Aggregations` block · [U35](units/U35-predict-runtime-parity.md)
 
 #### Cohort facade
 - [x] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
@@ -189,7 +193,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#79** `Request.Matrices` / `Response.Matrices`, `MatrixResult`, and the symmetric/upper-triangle `MatrixPayload` encoding · [U16](units/U16-matrix-result.md)
 - [x] **#80** Matrix components floor; manifest `Matrix` capability block; predict shape and cost · [U16](units/U16-matrix-result.md)
 - [x] **#81** Payload-schema golden regenerated; `.claude/reference/matrix-and-vectors.md` · [U16](units/U16-matrix-result.md)
-- [x] **#82** `MaxMatrixDim`, `precision` and `top_pairs` controls · [U16](units/U16-matrix-result.md) (`top_pairs` only; `precision` → [U17](units/U17-response-shaping-core.md), `MaxMatrixDim` → [U19](units/U19-resource-limits.md))
+- [x] **#82** `MaxMatrixDim`, `precision` and `top_pairs` controls · [U16](units/U16-matrix-result.md) (`top_pairs` only; `precision` → [U17](units/U17-response-shaping-core.md), landed there; `MaxMatrixDim` → [U19](units/U19-resource-limits.md))
 - [x] **#83** `MAT_COVARIANCE` · [U16](units/U16-matrix-result.md)
 - [x] **#84** `MAT_CORRELATION` (Pearson), with parity against `TEST_PEARSON_R` · [U16](units/U16-matrix-result.md)
 
@@ -228,15 +232,18 @@ Theme documents: see the [roadmap index](README.md).
 
 ## 8. Response shaping ([response-shaping 00](v1.0.0-response-shaping/00-design.md))
 
-- [ ] **#104** `Request.Return {preset, include, exclude, precision}`; `Options.DefaultReturn` (library default `full`) · [U17](units/U17-response-shaping-core.md)
+- [x] **#104** `Request.Return {preset, include, exclude, precision}`; `Options.DefaultReturn` (library default `full`) · [U17](units/U17-response-shaping-core.md)
 - [ ] **#105** MCP default `standard`: `gosdk.Config.DefaultReturn`, `pulse mcp --return`; MCP goldens regenerated once; release-note callout · [U18](units/U18-response-shaping-execution.md)
-- [ ] **#106** Path grammar over the response schema; predict-time validation; `PULSE_RETURN_PATH_UNKNOWN` · [U17](units/U17-response-shaping-core.md)
-- [ ] **#107** Presets `full` / `standard` / `minimal` listed in the manifest · [U17](units/U17-response-shaping-core.md)
+- [x] **#106** Path grammar over the response schema; predict-time validation; `PULSE_RETURN_PATH_UNKNOWN` · [U17](units/U17-response-shaping-core.md)
+- [x] **#107** Presets `full` / `standard` / `minimal` listed in the manifest · [U17](units/U17-response-shaping-core.md)
 - [ ] **#108** Selection compiled into the execution plan (unrequested parts not computed) · [U18](units/U18-response-shaping-execution.md)
-- [ ] **#109** Float precision control; old switches documented as shorthands; `returned` marker · [U17](units/U17-response-shaping-core.md)
+- [x] **#109** Float precision control; old switches documented as shorthands; `returned` marker · [U17](units/U17-response-shaping-core.md)
 - [ ] **#110** Predict per-section size estimates · [U18](units/U18-response-shaping-execution.md)
-- [ ] **#111** `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill · [U18](units/U18-response-shaping-execution.md)
+- [ ] **#111** `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill (the skill and the identity / schema-path gates landed in [U17](units/U17-response-shaping-core.md); this unit adds `TestReturnSkipsComputation` and extends the skill) · [U18](units/U18-response-shaping-execution.md)
 - [x] **#193** Per-group aggregator Components: `Components.Aggregations` figures emitted inside each group of a grouped response, for built-in and extension operators alike (wire + payload-schema change, `format_version` stays `"1.1"`) · [U17](units/U17-response-shaping-core.md)
+- [ ] **#217** `PULSE_RETURN_PATH_UNMATCHED` on streams: decide whether a stream surfaces it (it has no warnings slot today, so the buffered-only warning is silent there) and how · [U18](units/U18-response-shaping-execution.md)
+- [ ] **#218** MCP `pulse_process` streaming option writes rows through `returnshape.MarshalStreamRow`, so wire precision and the selected columns apply there too (verified for `pulse api process|compose --stream` only) · [U18](units/U18-response-shaping-execution.md)
+- [ ] **#219** Resolved-plan caching: an instance default re-walks the `Response` type on every `Process`; cache the plan without its request-derived `Exact` set if profiling shows it · [U18](units/U18-response-shaping-execution.md)
 
 ---
 
@@ -330,6 +337,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#168** `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md)) · [U33](units/U33-v1-release.md)
 - [ ] **#169** Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library · [U33](units/U33-v1-release.md)
 - [ ] **#170** `v1.0.0` tagged · [U33](units/U33-v1-release.md)
+- [ ] **#220** Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze; adding it changes the public-API golden and `STABILITY.md` · [U33](units/U33-v1-release.md)
 - [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) and the [U12 weighted-inference review](reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
 
 ---
