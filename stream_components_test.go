@@ -699,6 +699,11 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 	}
 	bv := reflect.ValueOf(buffered).Elem()
 	for i := 0; i < bv.NumField(); i++ {
+		// The unexported `return` plan is not a block; its
+		// carry-through is TestReturn_StreamResultChunks' job.
+		if !bv.Type().Field(i).IsExported() {
+			continue
+		}
 		if bv.Field(i).IsZero() {
 			t.Fatalf("fixture leaves ResponseComponents.%s empty; set it", bv.Type().Field(i).Name)
 		}
@@ -706,6 +711,9 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 	mid := chunkComponents(buffered, []descriptor.ComponentsMergeability{descriptor.Mergeable}, nil, false)
 	mv := reflect.ValueOf(mid).Elem()
 	for i := 0; i < mv.NumField(); i++ {
+		if !mv.Type().Field(i).IsExported() {
+			continue
+		}
 		if !reflect.DeepEqual(mv.Field(i).Interface(), bv.Field(i).Interface()) {
 			t.Errorf("mid-stream chunk drops or alters ResponseComponents.%s", mv.Type().Field(i).Name)
 		}

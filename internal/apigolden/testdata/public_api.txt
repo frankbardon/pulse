@@ -838,6 +838,7 @@ pulse: type StreamChunk[T any] struct
 pulse: type StreamChunk field Components *pulse/types.ResponseComponents "json:\"components,omitempty\""
 pulse: type StreamChunk field Data T
 pulse: type StreamChunk field Progress float64
+pulse: type StreamChunk field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse: type StreamChunk field Sequence int
 pulse: const StreamCompleted pulse.StreamStatus = 0
 pulse: const StreamErrored pulse.StreamStatus = 2
@@ -4195,4 +4196,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4c39cdb8f1fbf39a05a5c7d0004f8a51fd7f1f6f450052235ee181393f314621
+// golden-hash: 6c252112aa10de2c9b09edc95aee1acb0359e366de952bf75aa4cce9167f420c

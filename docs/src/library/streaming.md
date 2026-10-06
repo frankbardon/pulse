@@ -54,6 +54,23 @@ meta := iter.Metadata() // available after drain
 `Metadata()` returns the full `ResponseMetadata` (total rows,
 filtered rows, cohort file) once the iterator has been drained.
 
+## Response shaping
+
+A `return` block on the request (or the instance default) shapes the
+stream the way it shapes a buffered `Process` response. Each row is a
+pruned copy equal to the shaped `data` element. When `data` is
+excluded, the iterator yields no rows. `Components()` and `Metadata()`
+return shaped copies, and the run's own state is never pruned. Once
+the iterator is drained, it reports the `returned` marker through a
+`Returned() *types.ReturnedMarker` method. `ProcessStreamResult` puts
+that marker on the terminal chunk only (`StreamChunk.Returned`).
+
+Precision applies only on the wire, so rows stay full `float64`. To
+write a row at the block's precision, assert
+`interface{ MarshalRow(pulse.Row) ([]byte, error) }` on the iterator;
+`pulse api process --stream` does exactly that. With no effective
+block, the iterator is the unshaped one, byte-identical to before.
+
 ## What actually streams
 
 `ProcessStream` always returns an iterator, but the engine only

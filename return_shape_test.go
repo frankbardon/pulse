@@ -87,7 +87,8 @@ func processJSON(t *testing.T, p *pulse.Pulse, req *types.Request) (*types.Respo
 }
 
 // TestReturnFullIsIdentity: a request without `return`, with an empty
-// block and with preset `full` produce byte-identical responses over
+// block and with preset `full` produce byte-identical responses — and
+// byte-identical ProcessStreamResult chunk streams — over
 // the whole corpus, with no `returned` marker; a non-identity block over
 // the same request does change the bytes (the gate is not vacuous).
 func TestReturnFullIsIdentity(t *testing.T) {
@@ -95,6 +96,7 @@ func TestReturnFullIsIdentity(t *testing.T) {
 	for name, mk := range returnCorpus(cohort) {
 		t.Run(name, func(t *testing.T) {
 			_, baseline := processJSON(t, p, mk())
+			streamBaseline := streamJSON(t, p, mk())
 			if bytes.Contains(baseline, []byte(`"returned"`)) {
 				t.Fatalf("baseline carries a returned marker: %s", baseline)
 			}
@@ -111,6 +113,11 @@ func TestReturnFullIsIdentity(t *testing.T) {
 				_, got := processJSON(t, p, r)
 				if !bytes.Equal(got, baseline) {
 					t.Errorf("%s differs from the no-return baseline:\n got %s\nwant %s", vname, got, baseline)
+				}
+				r = mk()
+				r.Return = ret
+				if got := streamJSON(t, p, r); !bytes.Equal(got, streamBaseline) {
+					t.Errorf("%s stream differs from the no-return baseline:\n got %s\nwant %s", vname, got, streamBaseline)
 				}
 			}
 			r := mk()

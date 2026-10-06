@@ -812,8 +812,31 @@ type RowIter = service.RowIter
 // Predict's Streamable flag reports whether the underlying execution
 // avoids buffering inside the engine; ProcessStream wraps the result
 // regardless, so the API is stable for non-streamable requests too.
+//
+// Shaping: the request's `return` block (else the instance default)
+// shapes the stream exactly as Process shapes the buffered response —
+// each row is a pruned clone equal to the shaped response's `data`
+// element (no rows when `data` is excluded), Components / Metadata are
+// shaped copies (the run keeps accumulating an excluded slot), and the
+// iterator reports the `returned` marker only once exhausted, through a
+// `Returned() *types.ReturnedMarker` method. Precision is wire-only:
+// rows stay full float64, and the shaped iterator's
+// `MarshalRow(Row) ([]byte, error)` writes one at the plan's precision
+// (the `pulse api process --stream` NDJSON writer uses it). With no
+// effective block the service iterator is returned untouched.
 func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error) {
-	return p.svc.ProcessStream(ctx, req)
+	iter, err := p.svc.ProcessStream(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	// The service resolved defaults on req in place, which is what the
+	// plan's precision exemptions read.
+	plan, err := descx.ResolveReturn(req, p.svc.InstanceSnapshot())
+	if err != nil {
+		_ = iter.Close()
+		return nil, err
+	}
+	return returnshape.NewRowIter(iter, plan), nil
 }
 
 // Compose executes multiple requests against a cohort and returns a

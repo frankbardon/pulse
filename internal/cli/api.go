@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/returnshape"
 	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
 )
@@ -89,7 +90,13 @@ func apiProcessCmd() *cli.Command {
 					if !ok {
 						return nil
 					}
-					if err := encodeFinite(enc, row); err != nil {
+					// A `return`-shaped stream writes each row at its
+					// precision; an unshaped one exactly as before.
+					body, err := returnshape.MarshalStreamRow(iter, row)
+					if err != nil {
+						return err
+					}
+					if err := enc.Encode(json.RawMessage(body)); err != nil {
 						return err
 					}
 				}
@@ -255,7 +262,15 @@ func apiComposeCmd() *cli.Command {
 							continue
 						}
 						for _, row := range sub.Data {
-							if err := encodeFinite(enc, map[string]any{"index": i, "row": row}); err != nil {
+							// Compose already pruned each slot's rows
+							// under its `return`; the row encoder adds
+							// the slot's precision. Unshaped slot: the
+							// row is written exactly as before.
+							body, err := returnshape.MarshalRow(sub, row)
+							if err != nil {
+								return err
+							}
+							if err := encodeFinite(enc, map[string]any{"index": i, "row": json.RawMessage(body)}); err != nil {
 								return err
 							}
 						}

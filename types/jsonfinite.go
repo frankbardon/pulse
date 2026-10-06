@@ -448,6 +448,9 @@ func (l OverlayLayer) MarshalJSON() ([]byte, error) {
 // see MarshalFinite.
 func (v ResponseComponents) MarshalJSON() ([]byte, error) {
 	type alias ResponseComponents
+	if v.plan != nil && !v.plan.Identity() {
+		return marshalPlannedAt(reflect.ValueOf((*alias)(&v)), v.plan, componentsPath)
+	}
 	return MarshalFinite((*alias)(&v))
 }
 

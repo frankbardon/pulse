@@ -159,6 +159,11 @@ Pair with [`pulse api predict`](api-predict.md) ahead of time to
 confirm `Streamable=true`; predict-buffered shapes still emit via
 this path, but they materialise inside the engine first.
 
+A request `return` block shapes each line exactly like the buffered
+`data` element: only the selected columns, measures at `precision`
+(count columns exact). A request without `return` streams the
+unchanged rows.
+
 ## Exit codes
 
 | Code | Meaning |

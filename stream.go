@@ -74,11 +74,16 @@ type StreamHeader struct {
 // the terminal chunk (last row before close), as do a grouped run's
 // per-group aggregation figures (components.aggregations[*].groups). nil when the underlying
 // operation produced no Components payload (e.g. SynthStream).
+//
+// Returned, set on the TERMINAL chunk only, is the `return` marker of a
+// stream shaped by a non-identity `return` block (see
+// Pulse.ProcessStream); nil — and absent on the wire — otherwise.
 type StreamChunk[T any] struct {
 	Sequence   int
 	Data       T
 	Progress   float64
 	Components *types.ResponseComponents `json:"components,omitempty"`
+	Returned   *types.ReturnedMarker     `json:"returned,omitempty"`
 }
 
 // StreamTerminator is the single-shot epilogue describing how the
@@ -137,10 +142,12 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 			}
 		}
 	}
-	iter, err := p.svc.ProcessStream(ctx, req)
+	// Through the facade, so a `return` block shapes every chunk.
+	iter, err := p.ProcessStream(ctx, req)
 	if err != nil {
 		return StreamResult[Row]{}, err
 	}
+	marker, _ := iter.(interface{ Returned() *types.ReturnedMarker })
 
 	chunks := make(chan StreamChunk[Row], streamBuffer)
 	done := make(chan StreamTerminator, 1)
@@ -178,6 +185,9 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 				Data:       row,
 				Progress:   streamProgress(rows+1, estimated),
 				Components: chunkComponents(iter.Components(), aggMerge, grpMerge, terminal),
+			}
+			if terminal && marker != nil {
+				chunk.Returned = marker.Returned()
 			}
 			select {
 			case <-ctx.Done():
@@ -453,13 +463,10 @@ func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []de
 	// Shallow-clone the shell so the non-terminal mutation
 	// (Operator-nil for None slots) does not touch the buffered
 	// Response the iterator holds onto.
-	out := &types.ResponseComponents{
-		Groupers:  buffered.Groupers,
-		Crosstab:  buffered.Crosstab,
-		Filterers: buffered.Filterers,
-		Run:       buffered.Run,
-		Matrices:  buffered.Matrices,
-	}
+	// A value copy, so a shaped payload keeps its `return` plan (an
+	// unexported field) and the chunk's wire form stays shaped.
+	shell := *buffered
+	out := &shell
 	if len(buffered.Aggregations) > 0 {
 		clone := make([]types.AggregationComponents, len(buffered.Aggregations))
 		copy(clone, buffered.Aggregations)

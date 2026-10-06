@@ -135,6 +135,8 @@ shapes `data.overlays` after the fold and adds `data.returned` (see the
 ```
 
 The `index` field identifies which slot's request produced each row.
+Each `row` follows its slot's `return`: the selected columns only, at
+that slot's `precision`.
 
 ## Exit codes
 

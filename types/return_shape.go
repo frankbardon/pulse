@@ -70,7 +70,34 @@ var structuralTypes = map[reflect.Type]bool{
 	reflect.TypeFor[MatrixComponents]():           true,
 }
 
-func init() { returnplan.SetApplier(applyReturnPlan) }
+func init() {
+	returnplan.SetApplier(applyReturnPlan)
+	returnplan.SetRowEncoder(encodeReturnRow)
+}
+
+// componentsPath / dataRowPath root a standalone components payload and
+// a single streamed row at their place in the Response, so the plan's
+// Response-rooted paths (and Plan.Exact) apply unchanged.
+var (
+	componentsPath = []returnplan.Segment{returnplan.Key("components")}
+	dataRowPath    = []returnplan.Segment{returnplan.Key("data"), returnplan.Elem()}
+)
+
+// encodeReturnRow is the returnplan row encoder: row written exactly as
+// the planned Response encoder writes one `data` element (column
+// selection + precision, count columns exact), or as MarshalFinite when
+// owner carries no non-identity plan. The row is never pruned here — a
+// streamed row reaches it already pruned (returnshape.RowIter).
+func encodeReturnRow(owner any, row map[string]any) ([]byte, error) {
+	var p *returnplan.Plan
+	if r, ok := owner.(*Response); ok && r != nil {
+		p = r.plan
+	}
+	if p.Identity() {
+		return MarshalFinite(row)
+	}
+	return marshalPlannedAt(reflect.ValueOf(row), p, dataRowPath)
+}
 
 // opaqueType reports whether t (or *t) owns its wire form through a
 // marshaller the planned walk cannot reproduce field by field.
@@ -154,6 +181,19 @@ func applyReturnPlan(target any, p *returnplan.Plan) ([]returnplan.Path, bool) {
 		}
 		root = reflect.ValueOf(r).Elem()
 		r.plan = p
+	case *ResponseComponents:
+		// A standalone components payload (a streamed chunk's), rooted
+		// at the Response's `components` key. The caller drops it when
+		// the plan excludes `components` outright.
+		if r == nil || p.Identity() {
+			return nil, true
+		}
+		r.plan = p
+		pr := &returnPruner{plan: p, matched: make([]bool, len(p.Include))}
+		if vd := p.Visit(componentsPath); vd.Keep && !vd.Whole {
+			pr.pruneFields(reflect.ValueOf(r).Elem(), componentsPath)
+		}
+		return nil, true
 	case *ComposedResponse:
 		// The Compose-level plan: rooted at ComposedResponse, it keeps
 		// `responses` whole (each slot carries its own plan) and shapes
@@ -372,6 +412,18 @@ func marshalPlanned(v reflect.Value, p *returnplan.Plan) ([]byte, error) {
 	e := &planEncoder{plan: p}
 	vd := p.Visit(nil)
 	b, _, err := e.encode(v, nil, vd.Whole)
+	return b, err
+}
+
+// marshalPlannedAt encodes v, the node at path below the response
+// root, under p — a standalone components payload or one streamed row.
+func marshalPlannedAt(v reflect.Value, p *returnplan.Plan, path []returnplan.Segment) ([]byte, error) {
+	e := &planEncoder{plan: p}
+	vd := p.Visit(path)
+	b, present, err := e.encode(v, path, vd.Whole)
+	if err == nil && !present {
+		b = []byte("null")
+	}
 	return b, err
 }
 

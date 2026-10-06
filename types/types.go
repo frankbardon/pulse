@@ -1330,6 +1330,14 @@ type ResponseComponents struct {
 	// result, in the same order (keyed back by Name, and GroupKey on a
 	// grouped result).
 	Matrices []MatrixComponents `json:"matrices,omitempty"`
+
+	// plan is the resolved `return` selection a STANDALONE components
+	// payload (a streamed chunk's) was shaped under, rooted at the
+	// Response's `components` key; its MarshalJSON honours it so the
+	// chunk's wire form equals the buffered shaped response's
+	// `components`. Never set on the Components of a Response — the
+	// Response's own plan reaches them there. Set only by the facade.
+	plan *returnplan.Plan
 }
 
 // AggregationComponents carries per-aggregator constituent-parts
