@@ -12,11 +12,29 @@
 // bit-identical on every architecture, and a caller with a bit-level
 // contract (same seed, same bytes) can rely on it.
 //
-// Routines with no bit contract (eigen-decomposition, SVD, QR, rank,
-// condition number) may be backed by gonum and may differ in the last
-// ulps across architectures. No gonum type ever appears on this
-// package's exported surface: gonum is pre-1.0, and Pulse's public API
-// is frozen.
+// Routines with no bit contract — SymEigen, SVD, QR, Rank and
+// ConditionNumber — are backed by gonum and may differ in the last ulps
+// across architectures. No gonum type ever appears on this package's
+// exported surface: gonum is pre-1.0, and Pulse's public API is frozen.
+//
+// # Order, sign and rank policy
+//
+// gonum's raw output is canonicalised so every decision above rounding
+// is the same on every architecture:
+//
+//   - Order: eigenvalues and singular values are descending. Values
+//     within the rank tolerance of their neighbour form a tie cluster,
+//     ordered by original variable order — the index of each vector's
+//     dominant component, lowest first.
+//   - Sign: every eigenvector, and every right singular vector, is
+//     flipped so its largest-magnitude (dominant) component is positive;
+//     a magnitude tie (within DominanceTolerance, relative) goes to the
+//     lowest index. A singular pair flips U and V together. QR flips so
+//     R's diagonal is non-negative.
+//   - Rank: one tolerance, RankTolerance = max(rows, cols)·Epsilon·σ_max;
+//     a singular value at or below it is zero. Rank uses it unless the
+//     caller passes an explicit tol > 0, and ConditionNumber reports
+//     +Inf for a matrix that is rank-deficient under it.
 //
 // # Reference Cholesky
 //
@@ -37,6 +55,9 @@
 // Every failure is a *errors.CodedError: PULSE_MATRIX_SHAPE_MISMATCH for
 // operands whose dimensions disagree (or a nil operand), and
 // PULSE_MATRIX_SINGULAR for a matrix the kernel cannot factor or invert.
+// A gonum-backed routine handed a NaN or infinite element, or whose
+// iteration does not converge, also reports PULSE_MATRIX_SINGULAR, with
+// details "reason" = "non_finite" / "no_convergence".
 //
 // # Imports
 //

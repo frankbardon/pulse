@@ -2496,7 +2496,9 @@ pulse/io: type WriterOptions field SPSS pulse/io.SPSSWriterOptions
 pulse/linalg: package linalg
 pulse/linalg: func Cholesky(s *pulse/linalg.Sym) (*pulse/linalg.Matrix, error)
 pulse/linalg: func CholeskyRidge(s *pulse/linalg.Sym, schedule pulse/linalg.RidgeSchedule) (*pulse/linalg.Matrix, float64, error)
+pulse/linalg: func ConditionNumber(m *pulse/linalg.Matrix) (float64, error)
 pulse/linalg: func DefaultRidgeSchedule() pulse/linalg.RidgeSchedule
+pulse/linalg: const DominanceTolerance untyped float = 1/67108864
 pulse/linalg: const Epsilon untyped float = 1/4503599627370496
 pulse/linalg: func InverseSPD(s *pulse/linalg.Sym) (*pulse/linalg.Sym, error)
 pulse/linalg: type Matrix struct
@@ -2511,14 +2513,28 @@ pulse/linalg: func NewMatrixFromRows(rows [][]float64) (*pulse/linalg.Matrix, er
 pulse/linalg: func NewSym(n int, packed []float64) (*pulse/linalg.Sym, error)
 pulse/linalg: func NewSymFromRows(rows [][]float64) (*pulse/linalg.Sym, error)
 pulse/linalg: func NewVec(data []float64) *pulse/linalg.Vec
+pulse/linalg: func QR(m *pulse/linalg.Matrix) (*pulse/linalg.QRResult, error)
+pulse/linalg: type QRResult struct
+pulse/linalg: type QRResult field Q *pulse/linalg.Matrix
+pulse/linalg: type QRResult field R *pulse/linalg.Matrix
+pulse/linalg: func Rank(m *pulse/linalg.Matrix, tol float64) (int, error)
 pulse/linalg: func RankTolerance(rows int, cols int, sigmaMax float64) float64
 pulse/linalg: type RidgeSchedule []float64
+pulse/linalg: func SVD(m *pulse/linalg.Matrix) (*pulse/linalg.SVDResult, error)
+pulse/linalg: type SVDResult struct
+pulse/linalg: type SVDResult field U *pulse/linalg.Matrix
+pulse/linalg: type SVDResult field V *pulse/linalg.Matrix
+pulse/linalg: type SVDResult field Values *pulse/linalg.Vec
 pulse/linalg: func SolveSPD(s *pulse/linalg.Sym, b *pulse/linalg.Vec) (*pulse/linalg.Vec, error)
 pulse/linalg: type Sym struct
 pulse/linalg: type Sym method (*Sym) At(i int, j int) float64
 pulse/linalg: type Sym method (*Sym) N() int
 pulse/linalg: type Sym method (*Sym) Set(i int, j int, v float64)
 pulse/linalg: type Sym method (*Sym) ToRows() [][]float64
+pulse/linalg: func SymEigen(s *pulse/linalg.Sym) (*pulse/linalg.SymEigenResult, error)
+pulse/linalg: type SymEigenResult struct
+pulse/linalg: type SymEigenResult field Values *pulse/linalg.Vec
+pulse/linalg: type SymEigenResult field Vectors *pulse/linalg.Matrix
 pulse/linalg: type Vec struct
 pulse/linalg: type Vec method (*Vec) At(i int) float64
 pulse/linalg: type Vec method (*Vec) Len() int
@@ -3964,4 +3980,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 645cc6c99b4f0e9ceee2e8e7f063c9bd0ecfca5c4ead2b5f4699205b65c25011
+// golden-hash: 74920dd787ec77737bd0af2cae2cd1e2f55045b38a225aaad90c759367476d48

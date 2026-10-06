@@ -38,3 +38,30 @@ func TestLinalgFlow(t *testing.T) {
 		t.Fatalf("CholeskyRidge: ridge=%v err=%v", ridge, err)
 	}
 }
+
+// TestLinalgDecompositionFlow drives the gonum-backed decompositions
+// through the public spellings only: eigen, SVD, QR, rank and condition
+// number, with no gonum type in sight.
+func TestLinalgDecompositionFlow(t *testing.T) {
+	s, _ := linalg.NewSymFromRows([][]float64{{2, 1}, {1, 2}})
+	eig, err := linalg.SymEigen(s)
+	if err != nil || eig.Values.Len() != 2 || eig.Values.At(0) < eig.Values.At(1) || eig.Vectors.At(0, 0) <= 0 {
+		t.Fatalf("SymEigen: %+v %v", eig, err)
+	}
+	m, _ := linalg.NewMatrixFromRows([][]float64{{1, 2}, {3, 4}, {5, 6}})
+	svd, err := linalg.SVD(m)
+	if err != nil || svd.U.Rows() != 3 || svd.V.Rows() != 2 || svd.Values.Len() != 2 {
+		t.Fatalf("SVD: %+v %v", svd, err)
+	}
+	qr, err := linalg.QR(m)
+	if err != nil || qr.Q.Cols() != 2 || qr.R.At(0, 0) <= 0 {
+		t.Fatalf("QR: %+v %v", qr, err)
+	}
+	if r, err := linalg.Rank(m, 0); err != nil || r != 2 {
+		t.Fatalf("Rank: %d %v", r, err)
+	}
+	dup, _ := linalg.NewMatrixFromRows([][]float64{{1, 1}, {2, 2}})
+	if k, err := linalg.ConditionNumber(dup); err != nil || k <= 1e300 {
+		t.Fatalf("ConditionNumber of a rank-deficient matrix: %v %v", k, err)
+	}
+}

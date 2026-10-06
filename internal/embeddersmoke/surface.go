@@ -262,6 +262,15 @@ var (
 	_ func(*linalg.Sym) (*linalg.Sym, error)                                   = linalg.InverseSPD
 	_ func(int, int, float64) float64                                          = linalg.RankTolerance
 	_ float64                                                                  = linalg.Epsilon
+	_ float64                                                                  = linalg.DominanceTolerance
+	_ func(*linalg.Sym) (*linalg.SymEigenResult, error)                        = linalg.SymEigen
+	_ func(*linalg.Matrix) (*linalg.SVDResult, error)                          = linalg.SVD
+	_ func(*linalg.Matrix) (*linalg.QRResult, error)                           = linalg.QR
+	_ func(*linalg.Matrix, float64) (int, error)                               = linalg.Rank
+	_ func(*linalg.Matrix) (float64, error)                                    = linalg.ConditionNumber
+	_                                                                          = linalg.SymEigenResult{Values: (*linalg.Vec)(nil), Vectors: (*linalg.Matrix)(nil)}
+	_                                                                          = linalg.SVDResult{U: (*linalg.Matrix)(nil), Values: (*linalg.Vec)(nil), V: (*linalg.Matrix)(nil)}
+	_                                                                          = linalg.QRResult{Q: (*linalg.Matrix)(nil), R: (*linalg.Matrix)(nil)}
 	_                                                                          = perrors.PULSE_MATRIX_SINGULAR
 	_                                                                          = perrors.PULSE_MATRIX_SHAPE_MISMATCH
 )
