@@ -46,7 +46,10 @@ var belowFacade = []string{
 // importing it would drag engine code under the facade. The .pulse codec
 // counts as one unit: public encoding, its internal twin, the bridge
 // between them and internal/temporal, the epoch-day / zone leaf (stdlib +
-// errors) that public encoding forwards into.
+// errors) that public encoding forwards into. internal/returnplan rides in
+// through types (which carries a *returnplan.Plan in an unexported Response
+// field); it is a stdlib-only leaf guarded by TestReturnPlan_ImportBoundary,
+// so it adds no engine code beneath the facade.
 var iocoreAllowed = map[string]bool{
 	modulePrefix + "/internal/iocore":         true,
 	modulePrefix + "/encoding":                true,
@@ -55,6 +58,7 @@ var iocoreAllowed = map[string]bool{
 	modulePrefix + "/internal/temporal":       true,
 	modulePrefix + "/errors":                  true,
 	modulePrefix + "/types":                   true,
+	modulePrefix + "/internal/returnplan":     true,
 }
 
 // goListPackages expands a package pattern into its import paths.
@@ -137,7 +141,7 @@ func TestIOImportBoundary(t *testing.T) {
 	for _, dep := range goListDeps(t, modulePrefix+"/internal/iocore") {
 		if strings.HasPrefix(dep, modulePrefix+"/") || dep == modulePrefix {
 			if !iocoreAllowed[dep] {
-				t.Errorf("internal/iocore depends on %s; the contracts leaf may reach only the encoding codec, errors and types", dep)
+				t.Errorf("internal/iocore depends on %s; the contracts leaf may reach only the encoding codec, errors and types (plus the stdlib-only internal/returnplan leaf types carries)", dep)
 			}
 		}
 	}
