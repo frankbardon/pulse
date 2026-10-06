@@ -230,6 +230,12 @@ type shardPartial struct {
 	// per-block co-moments, so the finalized matrices carry the serial
 	// bits under any worker count.
 	mats *processing.MatrixSlots
+	// groupedMats is a grouped partition's per-bucket Request.Matrices
+	// state (nil without matrices or groups; mats is then nil). A
+	// bucket's slots are minted with its aggregator bucket in
+	// foldGroupedRow and merge key by key, so each bucket's matrices
+	// carry the serial bits under any worker count.
+	groupedMats *processing.GroupedMatrices
 	// grouper is this partition's own grouper instance. Its live
 	// components state is folded across partitions through
 	// processing.MergeableGrouper, so the merged instance's Components()
@@ -318,7 +324,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	primaryNullField := primaryNullFieldFor(req)
 
 	out := newShardPartial(req, specs)
-	if out.mats, err = processing.BuildMatrixSlots(req, schema, s.extensions); err != nil {
+	if err := out.buildMatrices(req, schema, s.extensions, grouper != nil); err != nil {
 		return nil, err
 	}
 	var aggsUngrouped []processing.OnlineAggregator
@@ -441,6 +447,19 @@ func newShardPartial(req *types.Request, specs []aggSpec) *shardPartial {
 	return out
 }
 
+// buildMatrices builds the partition's Request.Matrices state: one slot
+// set for an ungrouped request (mats), per-bucket state for a grouped
+// one (groupedMats). Shared by both parallel reducers.
+func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool) error {
+	var err error
+	if grouped {
+		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts)
+		return err
+	}
+	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts)
+	return err
+}
+
 // observeFloor tallies one filter-passing record into the universal
 // floor (presence via processing.FieldPresent, never NumericValue: a
 // set column has presence but no numeric value), the weighted floor
@@ -494,6 +513,9 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, spe
 			if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
 				return err
 			}
+		}
+		if err := sp.groupedMats.UpdateRow(key, rec); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -632,6 +654,9 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		if err := merged.mats.Merge(p.mats); err != nil {
 			return nil, err
 		}
+		if err := merged.groupedMats.Merge(p.groupedMats); err != nil {
+			return nil, err
+		}
 
 		if merged.aggs != nil {
 			if len(p.aggs) != len(merged.aggs) {
@@ -717,6 +742,8 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // pre-Components baseline.
 func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, disableComponents bool, exts *processing.ExtensionRegistry) (*types.Response, error) {
 	_ = schema
+	// The ungrouped arms' matrices (nil on a grouped partial, whose
+	// per-bucket matrices render in the grouped tail).
 	matrices, matrixComps, err := merged.mats.Finalize(!disableComponents)
 	if err != nil {
 		return nil, err
@@ -775,12 +802,10 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		// Overlays, include ordering and the groupers block — the same
 		// request answering differently under a worker count. Like the
 		// serial path it emits no Components.Aggregations (per-group
-		// components is an unlanded surface).
-		//
-		// The mergeable gate refuses a grouped request carrying matrices
-		// today (per-bucket matrices are not wired), so matrices is nil
-		// here; it is attached anyway so the arm never drops a slot.
-		gresp, err := processing.FinalizeGroupedStream(req, processing.GroupedTail{
+		// components is an unlanded surface). The per-bucket matrices
+		// ride the same tail, rendered over the same ordered keys as
+		// the rows.
+		return processing.FinalizeGroupedStream(req, processing.GroupedTail{
 			Group:             req.Groups[0],
 			Grouper:           merged.grouper,
 			Buckets:           merged.groups,
@@ -790,18 +815,14 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			Assignments:       merged.assignments,
 			FilterCounters:    merged.filterCounters,
 			ShardCount:        shardCount,
+			Matrices:          merged.groupedMats,
 			DisableComponents: disableComponents,
 			Extensions:        exts,
 		})
-		if err != nil {
-			return nil, err
-		}
-		if gresp != nil && len(matrices) > 0 {
-			gresp.Matrices = matrices
-			processing.AttachMatrixComponents(gresp, matrixComps)
-		}
-		return gresp, nil
 	}
+	// Reached only by an EMPTY partial (no worker published one): it
+	// carries no aggregator, grouper or matrix state, so matrices is nil
+	// here and only the counters render.
 	attachMergedFiltererComponents(resp, req, merged, disableComponents)
 	attachMergedRunComponents(resp, merged, shardCount, disableComponents)
 	processing.AttachMatrixComponents(resp, matrixComps)

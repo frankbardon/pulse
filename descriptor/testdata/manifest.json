@@ -8228,11 +8228,11 @@
       },
       {
         "name": "op-mat-correlation",
-        "description": "Pearson correlation matrix of a vector's numeric members (listwise or pairwise), weighted under frequency and probability weights; one MatrixResult per spec, no p-values."
+        "description": "Pearson correlation matrix of a vector's numeric members (listwise or pairwise), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped), no p-values."
       },
       {
         "name": "op-mat-covariance",
-        "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec."
+        "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped)."
       },
       {
         "name": "op-overlay-chisq-col",
@@ -9398,8 +9398,8 @@
       ],
       "merge_block_size": 4096,
       "limitations": [
-        "Matrices are computed over the whole filtered row set; a grouped request still returns one ungrouped matrix per spec.",
-        "An ungrouped request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results; a grouped one runs serially.",
+        "Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the grouped Data row order before any Request.Sort; a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
+        "A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
         "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
         "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT."
       ]
@@ -12128,4 +12128,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ce8153b546e9df59496ee6973118d16f2a1a71dd98c3ea02eb90992237a38e05
+// golden-hash: aaf8749f73409a77911485b88fd8a83c0548592345f3c1cbf1d8ca4a45108202

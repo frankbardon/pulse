@@ -179,8 +179,10 @@ func TestMatrices_ComposeAndChainStageZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(alone.Matrices) != 1 {
-		t.Fatalf("Process matrices = %+v", alone.Matrices)
+	// matrixOverCohort is grouped by cat (buckets a, b, c): one matrix
+	// per bucket.
+	if len(alone.Matrices) != 3 {
+		t.Fatalf("Process matrices = %+v, want one per bucket", alone.Matrices)
 	}
 	ungroupedOnly := &types.Request{Cohort: &types.Cohort{Filename: cohort},
 		Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "solo", Fields: []string{"n"}, Params: json.RawMessage(`{"ddof":0}`)}}}
@@ -198,7 +200,7 @@ func TestMatrices_ComposeAndChainStageZero(t *testing.T) {
 			t.Fatalf("responses = %d", len(resp.Responses))
 		}
 		for i, r := range resp.Responses {
-			if len(r.Matrices) != 1 || !matricesEqual(r.Matrices, wantSlots[i].Matrices) {
+			if len(r.Matrices) != len(wantSlots[i].Matrices) || !matricesEqual(r.Matrices, wantSlots[i].Matrices) {
 				t.Errorf("slot %d matrices = %+v, want %+v", i, r.Matrices, wantSlots[i].Matrices)
 			}
 		}

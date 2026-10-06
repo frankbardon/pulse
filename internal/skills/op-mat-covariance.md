@@ -1,6 +1,6 @@
 ---
 name: op-mat-covariance
-description: Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec.
+description: Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped).
 kind: operator
 category: MAT
 operator: MAT_COVARIANCE
@@ -27,7 +27,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary` covariance (`row_keys` = members), `scalars.determinant` (null unless PD), pairwise `auxiliary.n`, `warnings`. Undefined cells null.
+`primary` covariance (`row_keys` = members), `scalars.determinant` (null unless PD), pairwise `auxiliary.n`, `warnings`. Undefined cells null. Grouped: one result per non-empty bucket (`group_key`, `group_header`), spec-major in Data order; thin buckets warn.
 
 ## Components
 

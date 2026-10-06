@@ -144,8 +144,8 @@ func matrixCapability() descriptor.MatrixCapability {
 		MissingModes:    vectors.MissingModes(),
 		MergeBlockSize:  linalg.MergeBlockSize,
 		Limitations: []string{
-			"Matrices are computed over the whole filtered row set; a grouped request still returns one ungrouped matrix per spec.",
-			"An ungrouped request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results; a grouped one runs serially.",
+			"Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the grouped Data row order before any Request.Sort; a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
+			"A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
 			"A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
 			"A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
 		},

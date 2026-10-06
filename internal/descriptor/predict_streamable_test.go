@@ -458,11 +458,27 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			numericSchema,
 		},
 		{
-			"MAT_COVARIANCE with a grouper buffers",
+			"MAT_COVARIANCE with a grouper streams",
 			&types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 				Groups:       []*types.Group{{Type: types.GROUP_RANGE, Field: "score"}},
 				Matrices:     []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"grouped matrix-only MAT_CORRELATION streams",
+			&types.Request{
+				Groups:   []*types.Group{{Type: types.GROUP_RANGE, Field: "score", Interval: 10}},
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"MAT_COVARIANCE with a non-streamable grouper buffers",
+			&types.Request{
+				Groups:   []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score"}},
+				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}},
 			},
 			numericSchema,
 		},

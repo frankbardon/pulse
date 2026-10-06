@@ -86,6 +86,12 @@ type GroupedTail struct {
 	// means none (the parallel reducers' merge gate refuses post-tests).
 	PostTests func(rows []map[string]any) ([]*types.TestResult, error)
 
+	// Matrices is the run's per-bucket Request.Matrices state (nil
+	// without matrices). Its results are rendered over the same ordered
+	// key list as the Data rows (before an explicit Request.Sort, which
+	// reorders rows by their aggregate cells), spec-major then bucket.
+	Matrices *GroupedMatrices
+
 	// Extensions is the instance registry the SERIES overlay fold
 	// routes kinds through, so a kind the feature set hides misses
 	// like a never-registered one. Nil is the built-in catalog.
@@ -117,6 +123,11 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		keys = append(keys, k)
 	}
 	keys = orderKeysByInclude(includeFilterOf(t.Grouper), keys)
+
+	matrices, matrixComps, err := t.Matrices.finalize(keys, !t.DisableComponents)
+	if err != nil {
+		return nil, err
+	}
 
 	data := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
@@ -156,6 +167,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 			FilteredRows: t.FilteredRows,
 		},
 		PostTests: postResults,
+		Matrices:  matrices,
 	}
 
 	if !t.DisableComponents {
@@ -176,6 +188,8 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 			NullRecords:     t.NullRecords,
 			ShardCount:      t.ShardCount,
 		})
+		// One MatrixComponents entry per Response.Matrices result.
+		attachMatrixComponents(resp, matrixComps)
 	}
 
 	// SERIES-host overlay hook — the same post-finalize wiring as the

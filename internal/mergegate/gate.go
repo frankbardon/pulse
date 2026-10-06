@@ -54,9 +54,9 @@ func (None) Attribute(string) (bool, bool)  { return false, false }
 // has at least one aggregator or matrix; no windows, features,
 // regressions, tests or post-tests; matrices only of a mergeable type
 // (types.MatrixType.Mergeable — they merge through the blocked merge
-// tree, bit-identical to serial) and only on an ungrouped request
-// (per-bucket matrix state is not wired into the grouped reducers);
-// only row-local attributes (ATTR_FORMULA,
+// tree, bit-identical to serial; a grouped request's per-bucket
+// matrices merge bucket by bucket the same way); only row-local
+// attributes (ATTR_FORMULA,
 // ATTR_DATE_PART, row_local extensions); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
@@ -84,9 +84,6 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 			if !m.Type.Mergeable() {
 				return fmt.Sprintf("matrix operator %s is not mergeable", m.Type)
 			}
-		}
-		if len(req.Groups) > 0 {
-			return "grouped matrices are excluded"
 		}
 	}
 	for _, attr := range req.Attributes {

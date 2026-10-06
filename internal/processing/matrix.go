@@ -59,6 +59,26 @@ func (p *Processor) buildMatrixSlots(req *types.Request) ([]*matrixSlot, error) 
 // registry — shared by the Processor and the parallel reducers
 // (BuildMatrixSlots).
 func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) ([]*matrixSlot, error) {
+	set, err := resolveMatrixPlans(req, schema, exts)
+	if err != nil || set == nil {
+		return nil, err
+	}
+	return set.fresh()
+}
+
+// matrixPlanSet is a request's resolved Request.Matrices specs: the
+// plan and the stamped weight per spec, in spec order. Resolved once
+// per run; fresh() mints zero-state slots from it (once for an
+// ungrouped run, once per bucket for a grouped one).
+type matrixPlanSet struct {
+	plans   []vectors.Matrix
+	weights []*types.WeightSpec
+}
+
+// resolveMatrixPlans resolves req.Matrices against schema (nil when
+// there is no spec). req is the STAMPED request. A type the instance
+// hides is an unknown type.
+func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) (*matrixPlanSet, error) {
 	if req == nil || len(req.Matrices) == 0 {
 		return nil, nil
 	}
@@ -68,8 +88,17 @@ func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *Exte
 	if verr != nil {
 		return nil, verr
 	}
-	slots := make([]*matrixSlot, len(plans))
-	for i, plan := range plans {
+	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans))}
+	for i := range plans {
+		set.weights[i] = req.Matrices[i].Weight.Spec()
+	}
+	return set, nil
+}
+
+// fresh returns one zero-state slot per spec, in spec order.
+func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
+	slots := make([]*matrixSlot, len(s.plans))
+	for i, plan := range s.plans {
 		mode := linalg.Listwise
 		if plan.Pairwise {
 			mode = linalg.Pairwise
@@ -80,7 +109,7 @@ func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *Exte
 		}
 		slots[i] = &matrixSlot{
 			plan:   plan,
-			weight: req.Matrices[i].Weight.Spec(),
+			weight: s.weights[i],
 			state:  st,
 			x:      make([]float64, len(plan.Members.Members)),
 		}
@@ -413,19 +442,7 @@ func (m *MatrixSlots) Merge(o *MatrixSlots) error {
 		}
 		return nil
 	}
-	if len(m.slots) != len(o.slots) {
-		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-			"matrix merge: partitions differ in slot count",
-			map[string]any{"slots": len(m.slots), "other_slots": len(o.slots)})
-	}
-	for i, s := range m.slots {
-		if err := MergeBlockMerger(s, o.slots[i]); err != nil {
-			return err
-		}
-		s.dropped += o.slots[i].dropped
-		s.allNull += o.slots[i].allNull
-	}
-	return nil
+	return mergeSlotSets(m.slots, o.slots)
 }
 
 // Finalize renders every slot's result in spec order, and when

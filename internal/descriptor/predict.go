@@ -584,17 +584,14 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		return len(reasons) == 0, reasons
 	}
 
-	// Matrix slots stream on the ungrouped path (mirrors
-	// processing.canStream): an unknown or hidden type, groupers, or a
-	// two-pass attribute route the request buffered.
+	// Matrix slots stream on the ungrouped and grouped paths (mirrors
+	// processing.canStream): an unknown or hidden type or a two-pass
+	// attribute route the request buffered.
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
 			if !opRoute(opts.instance(), m.Type).Streamable() {
 				reasons = append(reasons, "matrix "+string(m.Type)+" requires the buffered path")
 			}
-		}
-		if len(req.Groups) > 0 {
-			reasons = append(reasons, "matrices with groupers run via the buffered path")
 		}
 		if tp := firstTwoPassAttribute(req, opts); tp != "" {
 			reasons = append(reasons, "matrices with two-pass attribute "+string(tp)+" run via the buffered path")
