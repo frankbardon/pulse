@@ -39,6 +39,13 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#196** `FeatureRegistration.Streamable` probe-validated at `pulse.New` · [U34](units/U34-extension-validation.md)
 - [ ] **#197** Synth-distribution extension contract: an `extend` factory shape, or a documented decision that distributions are not an extension category · [U34](units/U34-extension-validation.md)
 
+#### CLI shell completion
+- [ ] **#208** `pulse completion {bash,zsh,fish,pwsh}` prints an installable script; every command, subcommand and flag of `buildApp()` completes · [U37](units/U37-shell-completion.md)
+- [ ] **#209** Closed-vocabulary flag values complete dynamically from the library (operators, features, example profiles, I/O formats, templates, error codes, enum flags), never a CLI-side list · [U37](units/U37-shell-completion.md)
+- [ ] **#210** Cohort-aware completion: `.pulse` cohorts under `PULSE_DATA_DIR` and header-only field names for field-taking flags · [U37](units/U37-shell-completion.md)
+- [ ] **#211** Completion gates: every leaf and flag reachable, deterministic and quick candidates, quiet failure, nothing but candidates on stdout · [U37](units/U37-shell-completion.md)
+- [ ] **#212** Per-shell install docs, `flags.md` row, and generated scripts shipped in the `make dist` archives · [U37](units/U37-shell-completion.md)
+
 #### Predict / runtime parity (pre-existing gaps found in U03 / U05)
 - [ ] **#198** Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#199** The runtime refuses, rather than silently computes on, a field it cannot read: the ledger's "predict stricter, runtime wrong" half (`FEAT_POLY`, `REG_*` and `WIN_*` value windows on categorical / set / decimal / `packed_bool` / `datetime`), plus tier-1 tests on `set_*` · [U35](units/U35-predict-runtime-parity.md)
