@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -48,6 +49,13 @@ import (
 // is byte-aligned per the byte-layout invariants (Schema.RecordByteSize
 // returns 1 byte per bit-packed field). A defensive assertion at the
 // dispatch site catches a malformed schema before fan-out.
+//
+// Segment boundaries are ALSO block-aligned: every boundary is a
+// multiple of linalg.MergeBlockSize records (blockAlignedSegments), so a
+// block-keyed reducer — one that folds the row at absolute record index
+// r into block r / MergeBlockSize and combines blocks with
+// linalg.MergeTree — never sees a block split across two workers, and
+// its result does not depend on the worker count.
 
 // DecodeCallback is invoked once per decoded record by a parallel
 // decode worker. Implementations MUST be safe to call from a single
@@ -66,10 +74,48 @@ type DecodeCallback func(rec *processing.Record) error
 //
 // workerIdx is the worker's 0-based index (0..workers-1) and is stable
 // for the lifetime of the parallel run — partial-state implementations
-// can key per-worker accumulators on it. recordCount is the
-// number of records the worker will receive (not the cohort total),
-// useful when the callback wants to pre-size a slice or accumulator.
-type DecodeCallbackFactory func(workerIdx, recordCount int) DecodeCallback
+// can key per-worker accumulators on it. startRecord is the ABSOLUTE
+// cohort record index of the segment's first record (a multiple of
+// linalg.MergeBlockSize), so the callback's i-th record is record
+// startRecord+i — what a block-keyed reducer keys its blocks on.
+// recordCount is the number of records the worker will receive (not the
+// cohort total), useful when the callback wants to pre-size a slice or
+// accumulator. The factory is never called for an empty segment (more
+// workers than blocks), so recordCount is always >= 1.
+type DecodeCallbackFactory func(workerIdx, startRecord, recordCount int) DecodeCallback
+
+// decodeSegment is one worker's contiguous record range [startRec,
+// endRec) in absolute cohort record indices.
+type decodeSegment struct {
+	startRec int
+	endRec   int // exclusive
+}
+
+// blockAlignedSegments partitions [0, totalRecords) into exactly workers
+// contiguous segments whose boundaries are multiples of
+// linalg.MergeBlockSize. The ceil(totalRecords / MergeBlockSize) blocks
+// are spread evenly — segment w starts at block floor(w·blocks/workers)
+// — so block counts differ by at most one, and the ragged final block
+// (the totalRecords % MergeBlockSize remainder) always lands in the last
+// segment, which is never empty. With more workers than blocks the
+// surplus segments are empty (startRec == endRec); callers skip them.
+// workers must be >= 1.
+func blockAlignedSegments(totalRecords, workers int) []decodeSegment {
+	const block = linalg.MergeBlockSize
+	segs := make([]decodeSegment, workers)
+	if totalRecords <= 0 {
+		return segs
+	}
+	nBlocks := (totalRecords + block - 1) / block
+	for w := 0; w < workers; w++ {
+		segs[w].startRec = (w * nBlocks / workers) * block
+		if w > 0 {
+			segs[w-1].endRec = segs[w].startRec
+		}
+	}
+	segs[workers-1].endRec = totalRecords
+	return segs
+}
 
 // canParallelDecode is the eligibility predicate for the buffered
 // Process path's segment-aware parallel decode. It is the single
@@ -218,8 +264,9 @@ type parallelDecodeContext struct {
 }
 
 // parallelDecodeMmap segments the record region into worker-count
-// contiguous ranges at stride-aligned boundaries and fans out one
-// goroutine per segment. Each worker calls factory(workerIdx,
+// contiguous ranges at block-aligned record boundaries
+// (blockAlignedSegments) and fans out one goroutine per non-empty
+// segment. Each worker calls factory(workerIdx, segmentStartRecord,
 // segmentRecordCount) once to obtain its DecodeCallback, then walks
 // its segment record-by-record firing the callback per row.
 //
@@ -273,20 +320,11 @@ func parallelDecodeMmap(
 		)
 	}
 
-	// Compute per-worker segment boundaries in records. Each worker
-	// receives floor(N/W) records; the last worker absorbs any
-	// remainder so the partition covers exactly [0, totalRecords).
-	type segment struct {
-		startRec int
-		endRec   int // exclusive
-	}
-	segs := make([]segment, workers)
-	base := pctx.totalRecords / workers
-	for w := 0; w < workers; w++ {
-		segs[w].startRec = w * base
-		segs[w].endRec = segs[w].startRec + base
-	}
-	segs[workers-1].endRec = pctx.totalRecords
+	// Per-worker segment boundaries in records, at multiples of
+	// linalg.MergeBlockSize; the last segment absorbs the ragged tail
+	// so the partition covers exactly [0, totalRecords). Surplus
+	// workers (more workers than blocks) get an empty segment.
+	segs := blockAlignedSegments(pctx.totalRecords, workers)
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(workers)
@@ -308,7 +346,7 @@ func parallelDecodeMmap(
 			segBytes := pctx.mmapBytes[startByte:endByte]
 			r := bytes.NewReader(segBytes)
 			rr := encx.NewRecordReader(r, pctx.schema)
-			cb := factory(idx, segmentCount)
+			cb := factory(idx, seg.startRec, segmentCount)
 
 			for recIdx := 0; recIdx < segmentCount; recIdx++ {
 				// Cancellation poll. Cheap (atomic load) and amortised
@@ -426,7 +464,7 @@ func materializeRecordsParallel(
 		publishMu.Unlock()
 	}
 
-	factory := func(workerIdx, recordCount int) DecodeCallback {
+	factory := func(workerIdx, _, recordCount int) DecodeCallback {
 		buf := make([]*processing.Record, 0, recordCount)
 		emitted := 0
 		return func(rec *processing.Record) error {
