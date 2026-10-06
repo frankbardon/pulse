@@ -78,6 +78,9 @@ type DecodeCallback func(rec *processing.Record) error
 // cohort record index of the segment's first record (a multiple of
 // linalg.MergeBlockSize), so the callback's i-th record is record
 // startRecord+i — what a block-keyed reducer keys its blocks on.
+// Each record also arrives stamped with that position
+// (processing.Record.SetMergePosition(0, startRecord+i)), which is what a
+// processing.BlockMerger reads.
 // recordCount is the number of records the worker will receive (not the
 // cohort total), useful when the callback wants to pre-size a slice or
 // accumulator. The factory is never called for an empty segment (more
@@ -401,6 +404,11 @@ func parallelDecodeMmap(
 					return derr
 				}
 
+				// The row's merge-block position: shard 0, its ABSOLUTE
+				// record index — the key the serial iterator stamps on
+				// the same row, so a processing.BlockMerger keys it
+				// identically under any worker count.
+				rec.SetMergePosition(0, seg.startRec+recIdx)
 				if err := cb(rec); err != nil {
 					return err
 				}

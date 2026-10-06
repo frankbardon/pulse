@@ -79,6 +79,11 @@ type streamingIterator struct {
 	// existing plan rather than rebuilding.
 	plan    *encx.DecodePlan
 	planKey string
+
+	// nextRec is the absolute record index of the next row Next hands
+	// out — stamped on it as its merge-block position (shard 0), the
+	// key a processing.BlockMerger folds the row under. Reset rewinds it.
+	nextRec int
 }
 
 // newStreamingIterator creates a streaming iterator for the given cohort.
@@ -155,8 +160,19 @@ func (it *streamingIterator) initFromReader(r io.Reader) {
 	it.reader = encx.NewRecordReader(r, it.schema)
 }
 
-// Next advances to the next record. Returns false when exhausted or on error.
+// Next advances to the next record. Returns false when exhausted or on
+// error. Every record carries its merge-block position: shard 0, its
+// absolute record index.
 func (it *streamingIterator) Next() bool {
+	if !it.next() {
+		return false
+	}
+	it.current.SetMergePosition(0, it.nextRec)
+	it.nextRec++
+	return true
+}
+
+func (it *streamingIterator) next() bool {
 	if it.done {
 		return false
 	}
@@ -361,6 +377,7 @@ func (it *streamingIterator) Reset() {
 	it.current = nil
 	it.done = false
 	it.err = nil
+	it.nextRec = 0
 }
 
 // Err returns any error encountered during iteration.

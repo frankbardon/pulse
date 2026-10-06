@@ -119,7 +119,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 				if cctx.Err() != nil {
 					return
 				}
-				p, err := s.processOneShard(cctx, req, schema, arch, shards[idx].Filename)
+				p, err := s.processOneShard(cctx, req, schema, arch, idx, shards[idx].Filename)
 				if err != nil {
 					errOnce.Do(func() { firstErr = err; cancel() })
 					return
@@ -248,8 +248,11 @@ type shardPartial struct {
 
 // processOneShard streams one shard's records through fresh per-shard
 // OnlineAggregator instances (and per-group buckets when req.Groups is
-// non-empty). Returns a partial state ready for merging.
-func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encx.Archive, shardName string) (*shardPartial, error) {
+// non-empty). Returns a partial state ready for merging. shardIdx is
+// the shard's archive index: with the in-shard record index it is each
+// row's merge-block position, stamped exactly as the serial shardIter
+// stamps it.
+func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encx.Archive, shardIdx int, shardName string) (*shardPartial, error) {
 	sect, err := arch.OpenAt(shardName)
 	if err != nil {
 		return nil, err
@@ -361,6 +364,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		if groupIdx != nil && readGroupIndices(rr, groupIdx) {
 			rec.SetGroupIndices(schema, groupIdx)
 		}
+		rec.SetMergePosition(shardIdx, int(out.totalRows))
 		out.totalRows++
 
 		pass, ferr := processing.ApplyFilterPass(rec, req.Filterers, filterFns, out.filterCounters)
@@ -559,6 +563,13 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 // caller (processShardArchiveParallel) pre-sorts the slice so order is
 // the central-directory enumeration, NOT the worker completion order.
 //
+// A processing.BlockMerger slot (ungrouped or per bucket) absorbs the
+// other partition's per-block partials instead of MergeOnline: blocks
+// are keyed by absolute (shard, block) position and combined only at
+// Finalize through the one fixed tree, so for those slots the partition
+// order here cannot reach the bits. Every other slot folds through
+// MergeableAggregator.MergeOnline exactly as before.
+//
 // For ungrouped requests we merge each aggregator slot's running state
 // across all shards. For grouped requests we union per-key buckets:
 // merging by key preserves the per-key associativity, then a stable
@@ -613,6 +624,12 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 					"shard partial aggregator count mismatch during merge")
 			}
 			for slot, oa := range merged.aggs {
+				if bm, ok := oa.(processing.BlockMerger); ok {
+					if err := processing.MergeBlockMerger(bm, p.aggs[slot]); err != nil {
+						return nil, err
+					}
+					continue
+				}
 				m, ok := oa.(processing.MergeableAggregator)
 				if !ok {
 					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -644,6 +661,12 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 					continue
 				}
 				for slot, oa := range existing {
+					if bm, ok := oa.(processing.BlockMerger); ok {
+						if err := processing.MergeBlockMerger(bm, bucket[slot]); err != nil {
+							return nil, err
+						}
+						continue
+					}
 					m, ok := oa.(processing.MergeableAggregator)
 					if !ok {
 						return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
