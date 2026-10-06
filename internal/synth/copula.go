@@ -1,11 +1,13 @@
 package synth
 
 import (
+	stderrors "errors"
 	"fmt"
 	"math"
 	mrand "math/rand/v2"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg"
 )
 
 // correlator induces pairwise Pearson correlations between numeric
@@ -884,10 +886,20 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 
 // cholesky returns the lower-triangular factor L such that L L^T = M,
 // plus the TOTAL diagonal jitter it had to add to get there (0 when M
-// factorized as given). If M is not positive semi-definite (within
-// tolerance), a small ridge is added to the diagonal until the
-// factorization succeeds. Returns SERVICE_VALIDATION if even the
-// maximally ridge-shifted matrix fails.
+// factorized as given). If M is not positive definite, a ridge is added
+// to the diagonal until the factorization succeeds. Returns
+// SERVICE_VALIDATION if even the maximally ridge-shifted matrix fails.
+//
+// The factorization is linalg.CholeskyRidge with its default schedule —
+// the reference kernel, FMA-free and bit-identical on every
+// architecture, whose operation order (Banachiewicz rows, running
+// subtraction over k ascending, true division, fail iff the pivot is
+// <= 0) and schedule (eight attempts, increments 10^(t-6) for t = 0..7,
+// i.e. 1e-6 .. 1e1) are exactly what this package factored with before
+// it moved there. TestCholeskyPin_* pins both bitwise. Only the lower
+// triangle of m is read. Both correlation scales reach this one
+// function through factorCorrelations, so there is no second factor in
+// the package.
 //
 // The ridge is REPORTED rather than merely applied. It is a genuine
 // safety net for a matrix whose measured entries are jointly
@@ -898,54 +910,29 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 // only trace was in the numbers that came back out. The returned jitter
 // is the accumulated shift, not the last increment, so it reads as "how
 // far from realizable was this" rather than as an iteration counter.
+//
+// linalg refuses with PULSE_MATRIX_SINGULAR; synth's contract is
+// SERVICE_VALIDATION with the message below and no details, so the
+// refusal is translated here rather than surfaced — the matrix is
+// assembled from the caller's spec, and the spec is what is invalid.
 func cholesky(m [][]float64) ([][]float64, float64, error) {
-	n := len(m)
-	work := make([][]float64, n)
-	for i := range work {
-		work[i] = make([]float64, n)
-		copy(work[i], m[i])
+	s, err := linalg.NewSymFromRows(m)
+	if err != nil {
+		// Unreachable from factorCorrelations, which always builds a
+		// square matrix; a ragged input surfaces as linalg's own coded
+		// PULSE_MATRIX_SHAPE_MISMATCH rather than an index panic.
+		return nil, 0, err
 	}
-
-	total := 0.0
-	for ridge := 0; ridge < 8; ridge++ {
-		L, ok := tryCholesky(work)
-		if ok {
-			return L, total, nil
+	L, total, err := linalg.CholeskyRidge(s, nil)
+	if err != nil {
+		var ce *errors.CodedError
+		if stderrors.As(err, &ce) && ce.Code == errors.PULSE_MATRIX_SINGULAR {
+			return nil, total, errors.NewCodedError(errors.SERVICE_VALIDATION,
+				"correlation matrix is not positive semi-definite even after ridge regularization")
 		}
-		// Add a small jitter on the diagonal and retry.
-		jitter := math.Pow(10, float64(ridge-6)) // 1e-6 .. 1e-1
-		for i := 0; i < n; i++ {
-			work[i][i] += jitter
-		}
-		total += jitter
+		return nil, total, err
 	}
-	return nil, total, errors.NewCodedError(errors.SERVICE_VALIDATION,
-		"correlation matrix is not positive semi-definite even after ridge regularization")
-}
-
-func tryCholesky(m [][]float64) ([][]float64, bool) {
-	n := len(m)
-	L := make([][]float64, n)
-	for i := range L {
-		L[i] = make([]float64, n)
-	}
-	for i := 0; i < n; i++ {
-		for j := 0; j <= i; j++ {
-			sum := m[i][j]
-			for k := 0; k < j; k++ {
-				sum -= float64(L[i][k] * L[j][k])
-			}
-			if i == j {
-				if sum <= 0 {
-					return nil, false
-				}
-				L[i][j] = math.Sqrt(sum)
-			} else {
-				L[i][j] = sum / L[j][j]
-			}
-		}
-	}
-	return L, true
+	return L.ToRows(), total, nil
 }
 
 // isBooleanFieldType reports whether a schema type name denotes a
