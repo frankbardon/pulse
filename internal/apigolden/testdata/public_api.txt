@@ -2497,9 +2497,11 @@ pulse/linalg: package linalg
 pulse/linalg: func Cholesky(s *pulse/linalg.Sym) (*pulse/linalg.Matrix, error)
 pulse/linalg: func CholeskyRidge(s *pulse/linalg.Sym, schedule pulse/linalg.RidgeSchedule) (*pulse/linalg.Matrix, float64, error)
 pulse/linalg: func ConditionNumber(m *pulse/linalg.Matrix) (float64, error)
+pulse/linalg: const ConditionTolerance untyped float = 10000000000000000
 pulse/linalg: func DefaultRidgeSchedule() pulse/linalg.RidgeSchedule
 pulse/linalg: const DominanceTolerance untyped float = 1/67108864
 pulse/linalg: const Epsilon untyped float = 1/4503599627370496
+pulse/linalg: func FactorSPD(s *pulse/linalg.Sym) (*pulse/linalg.SPDFactor, error)
 pulse/linalg: func InverseSPD(s *pulse/linalg.Sym) (*pulse/linalg.Sym, error)
 pulse/linalg: type Matrix struct
 pulse/linalg: type Matrix method (*Matrix) At(i int, j int) float64
@@ -2508,6 +2510,7 @@ pulse/linalg: type Matrix method (*Matrix) RowMajor() []float64
 pulse/linalg: type Matrix method (*Matrix) Rows() int
 pulse/linalg: type Matrix method (*Matrix) Set(i int, j int, v float64)
 pulse/linalg: type Matrix method (*Matrix) ToRows() [][]float64
+pulse/linalg: func Mul(a *pulse/linalg.Matrix, b *pulse/linalg.Matrix) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewMatrix(rows int, cols int, data []float64) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewMatrixFromRows(rows [][]float64) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewSym(n int, packed []float64) (*pulse/linalg.Sym, error)
@@ -2520,6 +2523,11 @@ pulse/linalg: type QRResult field R *pulse/linalg.Matrix
 pulse/linalg: func Rank(m *pulse/linalg.Matrix, tol float64) (int, error)
 pulse/linalg: func RankTolerance(rows int, cols int, sigmaMax float64) float64
 pulse/linalg: type RidgeSchedule []float64
+pulse/linalg: type SPDFactor struct
+pulse/linalg: type SPDFactor method (*SPDFactor) ConditionNumber() float64
+pulse/linalg: type SPDFactor method (*SPDFactor) Inverse() (*pulse/linalg.Sym, error)
+pulse/linalg: type SPDFactor method (*SPDFactor) N() int
+pulse/linalg: type SPDFactor method (*SPDFactor) Solve(b *pulse/linalg.Vec) (*pulse/linalg.Vec, error)
 pulse/linalg: func SVD(m *pulse/linalg.Matrix) (*pulse/linalg.SVDResult, error)
 pulse/linalg: type SVDResult struct
 pulse/linalg: type SVDResult field U *pulse/linalg.Matrix
@@ -3980,4 +3988,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 74920dd787ec77737bd0af2cae2cd1e2f55045b38a225aaad90c759367476d48
+// golden-hash: b3c373544c06c8bdb52c49a69981ea1520bd8f1e50c9fec6636a2568ea42d0d2

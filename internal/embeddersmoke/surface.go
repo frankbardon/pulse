@@ -247,8 +247,8 @@ var (
 	_                                           = descriptor.OntologyNode{Kind: descriptor.OntologyNodeSkill}
 )
 
-// Linear-algebra core: Pulse-owned matrix types and the FMA-free
-// reference kernels. No gonum type may appear in any of these spellings.
+// Linear-algebra core: Pulse-owned matrix types, the FMA-free
+// reference kernels and the gonum-backed routines. No gonum type may appear in any of these spellings.
 var (
 	_ func(int, int, []float64) (*linalg.Matrix, error)                        = linalg.NewMatrix
 	_ func([][]float64) (*linalg.Matrix, error)                                = linalg.NewMatrixFromRows
@@ -271,6 +271,13 @@ var (
 	_                                                                          = linalg.SymEigenResult{Values: (*linalg.Vec)(nil), Vectors: (*linalg.Matrix)(nil)}
 	_                                                                          = linalg.SVDResult{U: (*linalg.Matrix)(nil), Values: (*linalg.Vec)(nil), V: (*linalg.Matrix)(nil)}
 	_                                                                          = linalg.QRResult{Q: (*linalg.Matrix)(nil), R: (*linalg.Matrix)(nil)}
+	_ func(*linalg.Sym) (*linalg.SPDFactor, error)                             = linalg.FactorSPD
+	_ func(*linalg.SPDFactor) int                                              = (*linalg.SPDFactor).N
+	_ func(*linalg.SPDFactor) float64                                          = (*linalg.SPDFactor).ConditionNumber
+	_ func(*linalg.SPDFactor, *linalg.Vec) (*linalg.Vec, error)                = (*linalg.SPDFactor).Solve
+	_ func(*linalg.SPDFactor) (*linalg.Sym, error)                             = (*linalg.SPDFactor).Inverse
+	_ func(*linalg.Matrix, *linalg.Matrix) (*linalg.Matrix, error)             = linalg.Mul
+	_ float64                                                                  = linalg.ConditionTolerance
 	_                                                                          = perrors.PULSE_MATRIX_SINGULAR
 	_                                                                          = perrors.PULSE_MATRIX_SHAPE_MISMATCH
 )

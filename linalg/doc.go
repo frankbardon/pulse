@@ -13,9 +13,15 @@
 // contract (same seed, same bytes) can rely on it.
 //
 // Routines with no bit contract — SymEigen, SVD, QR, Rank and
-// ConditionNumber — are backed by gonum and may differ in the last ulps
-// across architectures. No gonum type ever appears on this package's
-// exported surface: gonum is pre-1.0, and Pulse's public API is frozen.
+// ConditionNumber, plus the gonum-backed SPD path FactorSPD (an
+// SPDFactor solved against and inverted) and the dense product Mul —
+// are backed by gonum and may differ in the last ulps across
+// architectures. On one machine the SPD path and Mul equal the raw gonum
+// calls bit for bit (they are thin wrappers, with no policy layered on
+// top), which is what lets the regression engine route through them
+// with byte-identical output. No gonum type ever appears on this
+// package's exported surface: gonum is pre-1.0, and Pulse's public API
+// is frozen.
 //
 // # Order, sign and rank policy
 //

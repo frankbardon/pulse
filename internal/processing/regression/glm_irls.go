@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
-	"gonum.org/v1/gonum/mat"
 )
 
 // irlsFit runs Iteratively Reweighted Least Squares to convergence on
@@ -100,28 +99,26 @@ func irlsFit(xRows, yVec []float64, p int, fam glmFamily, maxIters int, tol floa
 			}
 		}
 
-		sym := mat.NewSymDense(p+1, append([]float64(nil), xtwx...))
-		var chol mat.Cholesky
-		if ok := chol.Factorize(sym); !ok {
+		chol, ok := factorSPD(p+1, xtwx)
+		if !ok {
 			return nil, convergedIters, errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 				"REG_GLM refit: weighted normal equations not positive-definite",
 				map[string]any{"n": n, "p": p, "iter": iter, "family": fam.Name, "link": fam.Link},
 			)
 		}
-		rhs := mat.NewVecDense(p+1, append([]float64(nil), xtwz...))
-		var betaNew mat.VecDense
-		if err := chol.SolveVecTo(&betaNew, rhs); err != nil {
+		betaNew, err := solveSPD(chol, xtwz)
+		if err != nil {
 			return nil, convergedIters, errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 				"REG_GLM refit: Cholesky solve failed inside IRLS",
-				map[string]any{"n": n, "p": p, "iter": iter, "gonum_error": err.Error()},
+				map[string]any{"n": n, "p": p, "iter": iter, "gonum_error": backendErrorText(err)},
 			)
 		}
 
 		var dnum, dnorm float64
 		for a := 0; a < p+1; a++ {
-			bn := betaNew.AtVec(a)
+			bn := betaNew[a]
 			d := bn - beta[a]
 			dnum += d * d
 			dnorm += beta[a] * beta[a]
@@ -129,7 +126,7 @@ func irlsFit(xRows, yVec []float64, p int, fam glmFamily, maxIters int, tol floa
 		dnum = math.Sqrt(dnum)
 		dnorm = math.Sqrt(dnorm)
 		for a := 0; a < p+1; a++ {
-			beta[a] = betaNew.AtVec(a)
+			beta[a] = betaNew[a]
 		}
 		for i := 0; i < n; i++ {
 			s := 0.0

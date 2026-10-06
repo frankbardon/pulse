@@ -5,8 +5,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
-	"gonum.org/v1/gonum/mat"
 )
 
 // glmEngine fits a generalized linear model via iteratively reweighted
@@ -179,11 +179,11 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		tol = defaultGLMTol
 	}
 
-	// We never materialize X as a gonum Dense — the inner IRLS loop
+	// We never materialize X as a dense matrix — the inner IRLS loop
 	// builds XᵀWX and XᵀWz directly from the flat xRows slice. Doing it
 	// this way keeps allocations to a single n × (p+1) buffer per fit;
-	// the only gonum types we touch are the (p+1)×(p+1) Cholesky on
-	// the normal equations.
+	// the only matrix work is the (p+1)×(p+1) Cholesky on the normal
+	// equations, through linalg's gonum-backed SPD path (spd.go).
 
 	// β init: intercept = g(yBarSafe), slopes = 0. ȳ is the prior-
 	// weighted mean (the plain mean unweighted).
@@ -208,7 +208,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	converged := false
 
 	// Cache for the final XᵀWX inverse used for Cov(β).
-	var lastInvXtWX *mat.SymDense
+	var lastInvXtWX *linalg.Sym
 
 	for iter := 0; iter < maxIters; iter++ {
 		// Per-row: compute μ, dμ/dη, W, z.
@@ -258,28 +258,26 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 			}
 		}
 
-		sym := mat.NewSymDense(p+1, xtwx)
-		var chol mat.Cholesky
-		if ok := chol.Factorize(sym); !ok {
+		chol, ok := factorSPD(p+1, xtwx)
+		if !ok {
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 				"REG_GLM weighted normal equations are not positive-definite; predictors are collinear or the fit is saturated",
 				map[string]any{"n": n, "p": p, "iter": iter, "family": e.family.Name, "link": e.family.Link},
 			)
 		}
-		rhs := mat.NewVecDense(p+1, xtwz)
-		var betaNew mat.VecDense
-		if err := chol.SolveVecTo(&betaNew, rhs); err != nil {
+		betaNew, err := solveSPD(chol, xtwz)
+		if err != nil {
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 				"REG_GLM Cholesky solve failed inside IRLS",
-				map[string]any{"n": n, "p": p, "iter": iter, "gonum_error": err.Error()},
+				map[string]any{"n": n, "p": p, "iter": iter, "gonum_error": backendErrorText(err)},
 			)
 		}
 		// Relative-change convergence check.
 		var dnum, dnorm float64
 		for a := 0; a < p+1; a++ {
-			bn := betaNew.AtVec(a)
+			bn := betaNew[a]
 			d := bn - beta[a]
 			dnum += d * d
 			dnorm += beta[a] * beta[a]
@@ -288,7 +286,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		dnorm = math.Sqrt(dnorm)
 		// Copy new β and recompute η.
 		for a := 0; a < p+1; a++ {
-			beta[a] = betaNew.AtVec(a)
+			beta[a] = betaNew[a]
 		}
 		// Cache the inverse of the current XᵀWX for SE computation.
 		// We need the inverse at the converged weights, which is the
@@ -332,24 +330,23 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 					finalXtWX[b*(p+1)+a] = finalXtWX[a*(p+1)+b]
 				}
 			}
-			finalSym := mat.NewSymDense(p+1, finalXtWX)
-			var finalChol mat.Cholesky
-			if ok := finalChol.Factorize(finalSym); !ok {
+			finalChol, ok := factorSPD(p+1, finalXtWX)
+			if !ok {
 				return nil, errors.NewCodedErrorWithDetails(
 					errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 					"REG_GLM converged but final-iteration XᵀWX is singular; SE undefined",
 					map[string]any{"n": n, "p": p, "family": e.family.Name, "link": e.family.Link},
 				)
 			}
-			var invSym mat.SymDense
-			if err := finalChol.InverseTo(&invSym); err != nil {
+			invSym, err := finalChol.Inverse()
+			if err != nil {
 				return nil, errors.NewCodedErrorWithDetails(
 					errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 					"REG_GLM final XᵀWX inverse failed",
-					map[string]any{"gonum_error": err.Error()},
+					map[string]any{"gonum_error": backendErrorText(err)},
 				)
 			}
-			lastInvXtWX = &invSym
+			lastInvXtWX = invSym
 			break
 		}
 	}
