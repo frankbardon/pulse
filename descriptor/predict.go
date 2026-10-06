@@ -248,8 +248,29 @@ type MatrixPredict struct {
 	// state over the members (32 + 8·(p + p(p+1)/2) listwise,
 	// 32 + 56·p(p+1)/2 pairwise). The run holds one per populated merge
 	// block (Manifest.Matrix.merge_block_size rows) until finalize, so
-	// its matrix state is this times its block count.
+	// its matrix state is this times its block count (grouped: times
+	// its buckets too — EstimatedBytes).
 	AccumulatorBytes int64 `json:"accumulator_bytes"`
+	// BucketBasis says how EstimatedBuckets was derived from the
+	// request and the schema: "ungrouped" (1), "dictionary" (the
+	// Groups[0] field's dictionary size), "boolean" (2), "include"
+	// (Group.Include's distinct reachable keys), "quantile_bins"
+	// (GROUP_QUANTILE's bin count) or "unknown" (the keys depend on the
+	// data — ranges, dates, numeric categories — and the three estimate
+	// fields are omitted).
+	BucketBasis string `json:"bucket_basis"`
+	// EstimatedBuckets is the upper bound on the results this spec
+	// emits — one per non-empty bucket of Groups[0]; a bucket no row
+	// reaches is not emitted, so a run returns at most this many.
+	EstimatedBuckets *int64 `json:"estimated_buckets,omitempty"`
+	// EstimatedCells is EstimatedBuckets × p² — the primary cells the
+	// spec's results carry in full encoding.
+	EstimatedCells *int64 `json:"estimated_cells,omitempty"`
+	// EstimatedBytes is EstimatedBuckets × AccumulatorBytes — the
+	// co-moment state per populated merge block across every bucket
+	// (each bucket holds one state per block its rows touch). No guard
+	// acts on it.
+	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
 	// Streamable reports whether the operator folds row by row (its
 	// result is emitted at finalize — terminal flush when streamed).
 	// Request-level routing (groupers, two-pass attributes) is

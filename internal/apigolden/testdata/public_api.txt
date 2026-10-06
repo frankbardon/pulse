@@ -1294,7 +1294,11 @@ pulse/descriptor: type MatrixOutputKeys field Vectors []string "json:\"vectors,o
 pulse/descriptor: type MatrixPredict struct
 pulse/descriptor: type MatrixPredict field AccumulatorBytes int64 "json:\"accumulator_bytes\""
 pulse/descriptor: type MatrixPredict field AxisKeys []string "json:\"axis_keys\""
+pulse/descriptor: type MatrixPredict field BucketBasis string "json:\"bucket_basis\""
 pulse/descriptor: type MatrixPredict field Encoding pulse/types.MatrixEncoding "json:\"encoding\""
+pulse/descriptor: type MatrixPredict field EstimatedBuckets *int64 "json:\"estimated_buckets,omitempty\""
+pulse/descriptor: type MatrixPredict field EstimatedBytes *int64 "json:\"estimated_bytes,omitempty\""
+pulse/descriptor: type MatrixPredict field EstimatedCells *int64 "json:\"estimated_cells,omitempty\""
 pulse/descriptor: type MatrixPredict field Labels []string "json:\"labels,omitempty\""
 pulse/descriptor: type MatrixPredict field Missing string "json:\"missing\""
 pulse/descriptor: type MatrixPredict field Name string "json:\"name\""
@@ -4141,4 +4145,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 74aaa2bb73a327cea5220b26da86d38ae973b5f0943cf2d552b2391a63b7662b
+// golden-hash: 9c15b8a056bef0a05bcb78caf81c67a473ca3c7065cef0becfd2e7a04a282c95

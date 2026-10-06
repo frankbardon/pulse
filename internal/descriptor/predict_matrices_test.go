@@ -3,6 +3,7 @@ package descriptor
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -43,10 +44,81 @@ func TestPredict_Matrices(t *testing.T) {
 		{Name: "c2", Type: types.MAT_COVARIANCE, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
 	}
+	// Ungrouped: one bucket, p² cells, one accumulator per block.
+	for i := range want {
+		p := int64(want[i].Shape[0])
+		want[i].BucketBasis = "ungrouped"
+		want[i].EstimatedBuckets, want[i].EstimatedCells, want[i].EstimatedBytes = i64(1), i64(p*p), i64(want[i].AccumulatorBytes)
+	}
 	if !reflect.DeepEqual(got, want) {
 		g, _ := json.Marshal(got)
 		w, _ := json.Marshal(want)
 		t.Errorf("matrices\n got %s\nwant %s", g, w)
+	}
+}
+
+func i64(v int64) *int64 { return &v }
+
+// TestPredict_MatrixBucketEstimate: a grouped request reports each
+// spec's estimated buckets (from Groups[0] and the schema), cells
+// (buckets × p²) and bytes (buckets × accumulator_bytes); a grouper
+// whose keys depend on the data reports basis "unknown" and omits the
+// three figures — never a guess, never a refusal (no guard: U19).
+func TestPredict_MatrixBucketEstimate(t *testing.T) {
+	pairwise := json.RawMessage(`{"missing": "pairwise"}`)
+	specs := []types.MatrixSpec{
+		{Name: "c", Type: types.MAT_COVARIANCE, Fields: []string{"q_1", "q_2", "q_3"}},
+		{Name: "r", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+	}
+	cases := []struct {
+		name   string
+		groups []*types.Group
+		basis  string
+		want   int64 // buckets; 0 = omitted
+	}{
+		{"dictionary", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}, "dictionary", 2},
+		{"include", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"S", "X", "S"}}}, "include", 1},
+		{"quantile", []*types.Group{{Type: types.GROUP_QUANTILE, Field: "q_1", Interval: 5}}, "quantile_bins", 5},
+		{"range", []*types.Group{{Type: types.GROUP_RANGE, Field: "q_1", Interval: 10}}, "unknown", 0},
+		{"multi-entry keys off Groups[0]", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_RANGE, Field: "q_1", Interval: 10}}, "dictionary", 2},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{Groups: c.groups, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}, Matrices: specs}
+			env := predictFromBytes(vectorPredictSchema(t), req, nil)
+			if len(env.Errors) != 0 {
+				t.Fatalf("unexpected errors: %v", env.Errors)
+			}
+			got := env.Data.(*descriptor.PredictResult).Matrices
+			if len(got) != len(specs) {
+				t.Fatalf("%d matrices, want %d", len(got), len(specs))
+			}
+			for _, mp := range got {
+				if mp.BucketBasis != c.basis {
+					t.Errorf("%s: bucket_basis %q, want %q", mp.Name, mp.BucketBasis, c.basis)
+				}
+				if c.want == 0 {
+					if mp.EstimatedBuckets != nil || mp.EstimatedCells != nil || mp.EstimatedBytes != nil {
+						t.Errorf("%s: unknown basis carries estimates %v %v %v", mp.Name, mp.EstimatedBuckets, mp.EstimatedCells, mp.EstimatedBytes)
+					}
+					b, _ := json.Marshal(mp)
+					if strings.Contains(string(b), "estimated_") {
+						t.Errorf("%s: unknown basis renders estimates: %s", mp.Name, b)
+					}
+					continue
+				}
+				p := int64(mp.Shape[0])
+				if mp.EstimatedBuckets == nil || *mp.EstimatedBuckets != c.want {
+					t.Fatalf("%s: estimated_buckets %v, want %d", mp.Name, mp.EstimatedBuckets, c.want)
+				}
+				if mp.EstimatedCells == nil || *mp.EstimatedCells != c.want*p*p {
+					t.Errorf("%s: estimated_cells %v, want %d", mp.Name, mp.EstimatedCells, c.want*p*p)
+				}
+				if mp.EstimatedBytes == nil || *mp.EstimatedBytes != c.want*mp.AccumulatorBytes {
+					t.Errorf("%s: estimated_bytes %v, want %d", mp.Name, mp.EstimatedBytes, c.want*mp.AccumulatorBytes)
+				}
+			}
+		})
 	}
 }
 

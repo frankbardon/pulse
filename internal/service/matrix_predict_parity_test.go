@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -105,5 +106,74 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestMatrixPredict_BucketEstimateMatchesRuntime: predict's grouped
+// estimate (vectors.EstimateBuckets) agrees with the run — exactly
+// when every reachable key carries rows, and as an upper bound when a
+// filter (or the data) leaves keys empty; estimated_cells and
+// estimated_bytes scale with it, and a data-dependent grouper reports
+// "unknown" with no figures.
+func TestMatrixPredict_BucketEstimateMatchesRuntime(t *testing.T) {
+	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
+	data, err := afero.ReadFile(cfg.Fs(), "g.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	onlyAB := []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{"a", "b"}}}
+	cases := []struct {
+		name    string
+		group   *types.Group
+		filters []*types.Filterer
+		basis   string
+		exact   bool // every estimated key carries rows
+	}{
+		{"category", &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}, nil, "dictionary", true},
+		{"include", &types.Group{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"c", "zz", "a"}}, nil, "include", true},
+		{"per-element", &types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}, nil, "dictionary", true},
+		{"filtered category is an upper bound", &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}, onlyAB, "dictionary", false},
+		{"range", &types.Group{Type: types.GROUP_RANGE, Field: "x3", Interval: 50}, nil, "unknown", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := groupedMatrixRequest(c.group)
+			req.Filterers = c.filters
+			env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{})
+			if len(env.Errors) != 0 {
+				t.Fatalf("predict errors %v", env.Errors)
+			}
+			pr := env.Data.(*descriptor.PredictResult)
+			resp := processMatrices2(t, cfg, req)
+			if len(pr.Matrices) != len(req.Matrices) {
+				t.Fatalf("predict reports %d matrices for %d specs", len(pr.Matrices), len(req.Matrices))
+			}
+			perSpec := int64(len(resp.Matrices) / len(req.Matrices))
+			if perSpec != int64(len(resp.Data)) || perSpec == 0 {
+				t.Fatalf("runtime %d matrices over %d buckets", len(resp.Matrices), len(resp.Data))
+			}
+			for i, mp := range pr.Matrices {
+				if mp.BucketBasis != c.basis {
+					t.Errorf("%s: bucket_basis %q, want %q", mp.Name, mp.BucketBasis, c.basis)
+				}
+				if c.basis == "unknown" {
+					if mp.EstimatedBuckets != nil {
+						t.Errorf("%s: unknown basis estimates %d buckets", mp.Name, *mp.EstimatedBuckets)
+					}
+					continue
+				}
+				if mp.EstimatedBuckets == nil {
+					t.Fatalf("%s: no estimated_buckets", mp.Name)
+				}
+				est := *mp.EstimatedBuckets
+				if perSpec > est || (c.exact && perSpec != est) || (!c.exact && perSpec == est) {
+					t.Errorf("%s: predict estimates %d buckets, runtime emits %d (exact %v)", mp.Name, est, perSpec, c.exact)
+				}
+				p := int64(len(resp.Matrices[i*int(perSpec)].Primary.RowKeys))
+				if *mp.EstimatedCells != est*p*p || *mp.EstimatedBytes != est*mp.AccumulatorBytes {
+					t.Errorf("%s: cells %d / bytes %d, want %d / %d", mp.Name, *mp.EstimatedCells, *mp.EstimatedBytes, est*p*p, est*mp.AccumulatorBytes)
+				}
+			}
+		})
 	}
 }

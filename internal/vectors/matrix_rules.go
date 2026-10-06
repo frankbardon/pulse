@@ -1,6 +1,9 @@
 package vectors
 
-import "github.com/frankbardon/pulse/types"
+import (
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/types"
+)
 
 // matrix_rules.go holds the per-matrix facts predict reports BEFORE a
 // run and the engine honours DURING one, so the two cannot drift: both
@@ -51,4 +54,87 @@ func (m Matrix) AccumulatorBytes() int64 {
 		return coMomentHeaderBytes + pairMomentBytes*cells
 	}
 	return coMomentHeaderBytes + 8*(p+cells)
+}
+
+// How a bucket estimate was derived (MatrixPredict.bucket_basis).
+const (
+	// BucketBasisUngrouped: no Request.Groups — one result per spec.
+	BucketBasisUngrouped = "ungrouped"
+	// BucketBasisDictionary: GROUP_CATEGORY over a categorical field or
+	// GROUP_SET_PER_ELEMENT over a set field — its dictionary size.
+	BucketBasisDictionary = "dictionary"
+	// BucketBasisBoolean: GROUP_CATEGORY over packed_bool — keys "0"
+	// and "1".
+	BucketBasisBoolean = "boolean"
+	// BucketBasisInclude: Group.Include restricts the keys — its
+	// distinct values (those the field can produce, when that is known).
+	BucketBasisInclude = "include"
+	// BucketBasisQuantileBins: GROUP_QUANTILE — its bin count
+	// (Interval, default 4).
+	BucketBasisQuantileBins = "quantile_bins"
+	// BucketBasisUnknown: the grouper's keys depend on the data (ranges,
+	// dates, numeric categories, set compositions) — no estimate.
+	BucketBasisUnknown = "unknown"
+)
+
+// EstimateBuckets is the schema-only upper bound on the number of
+// matrix buckets — the grouped Response.Data rows a request can emit —
+// and how it was derived; known is false when the keys depend on the
+// data. The engine executes Groups[0] only (U35 owns multi-entry
+// Groups), so the estimate reads Groups[0] only. It is an upper bound:
+// a dictionary entry no row carries (or that a filter removes) yields
+// no bucket, so a run emits AT MOST this many results per spec.
+// Header + schema only — importable from internal/descriptor.
+func EstimateBuckets(groups []*types.Group, schema *encoding.Schema) (buckets int64, basis string, known bool) {
+	if len(groups) == 0 || groups[0] == nil {
+		return 1, BucketBasisUngrouped, true
+	}
+	g := groups[0]
+	var field *encoding.Field
+	if schema != nil {
+		field = schema.Field(g.Field)
+	}
+	// possible is the key universe when the schema fixes it.
+	var possible []string
+	basis = BucketBasisUnknown
+	switch g.Type {
+	case types.GROUP_CATEGORY:
+		switch {
+		case field != nil && field.Type.IsCategorical() && field.Dictionary != nil:
+			possible, basis = field.Dictionary.Values(), BucketBasisDictionary
+		case field != nil && field.Type == encoding.FieldTypePackedBool:
+			possible, basis = []string{"0", "1"}, BucketBasisBoolean
+		}
+	case types.GROUP_SET_PER_ELEMENT:
+		if field != nil && field.Type.IsSet() && field.Dictionary != nil {
+			possible, basis = field.Dictionary.Values(), BucketBasisDictionary
+		}
+	case types.GROUP_QUANTILE:
+		bins := int64(g.Interval)
+		if bins <= 0 {
+			bins = 4
+		}
+		return bins, BucketBasisQuantileBins, true
+	}
+	includable := g.Type == types.GROUP_CATEGORY || g.Type == types.GROUP_SET_VALUE || g.Type == types.GROUP_SET_PER_ELEMENT
+	if includable && len(g.Include) > 0 {
+		var universe map[string]bool
+		if basis != BucketBasisUnknown {
+			universe = make(map[string]bool, len(possible))
+			for _, k := range possible {
+				universe[k] = true
+			}
+		}
+		seen := make(map[string]bool, len(g.Include))
+		for _, k := range g.Include {
+			if universe == nil || universe[k] {
+				seen[k] = true
+			}
+		}
+		return int64(len(seen)), BucketBasisInclude, true
+	}
+	if basis == BucketBasisUnknown {
+		return 0, basis, false
+	}
+	return int64(len(possible)), basis, true
 }

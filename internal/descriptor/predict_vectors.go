@@ -32,7 +32,7 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // predictMatrices fills PredictResult.Matrices from the one resolver
 // (internal/vectors.ResolveMatrices, the field-reference pass's own
 // call) and the shared per-matrix rules (vectors.Matrix.PSDRisk /
-// AccumulatorBytes) the engine honours. A refused spec is reported by
+// AccumulatorBytes, vectors.EstimateBuckets) the engine honours. A refused spec is reported by
 // the field-reference pass, so nothing is echoed then.
 func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) {
 	if req == nil || len(req.Matrices) == 0 {
@@ -44,6 +44,7 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 	if err != nil {
 		return
 	}
+	buckets, basis, known := vectors.EstimateBuckets(req.Groups, schema)
 	out := make([]descriptor.MatrixPredict, 0, len(plans))
 	for _, m := range plans {
 		p := len(m.Members.Members)
@@ -57,6 +58,13 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			AccumulatorBytes: m.AccumulatorBytes(),
 			Streamable:       m.Type.Streamable(),
 			PairwisePSDRisk:  m.PSDRisk(),
+			BucketBasis:      basis,
+		}
+		if known {
+			b := buckets
+			cells := b * int64(p) * int64(p)
+			bytes := b * m.AccumulatorBytes()
+			mp.EstimatedBuckets, mp.EstimatedCells, mp.EstimatedBytes = &b, &cells, &bytes
 		}
 		if m.Pairwise {
 			mp.Missing = vectors.MissingPairwise
