@@ -127,8 +127,8 @@ func TestReturnDefaults_Precedence(t *testing.T) {
 // switch × request disable_components (nil / true / false) × the
 // `return` layers, asserting the documented rule: components reach the
 // wire iff the compute gate is open (request flag, else closed only by
-// the engine switch when no request block replaces the instance layer)
-// AND the effective selection keeps them; the marker appears iff some
+// the engine switch — a request `return` block never re-opens it) AND
+// the effective selection keeps them; the marker appears iff some
 // layer supplies a block (DisableComponents alone never marks).
 func TestReturnDefaults_DisableComponentsShorthand(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
@@ -163,12 +163,12 @@ func TestReturnDefaults_DisableComponentsShorthand(t *testing.T) {
 					req.Return = l.reqRet
 
 					// The documented rule.
+					// An engine DisableComponents sticks: only an
+					// explicit request flag overrides it — a request
+					// `return` block never re-opens the gate.
 					gate := engine
-					switch {
-					case dc != nil:
+					if dc != nil {
 						gate = *dc
-					case l.reqRet != nil:
-						gate = false
 					}
 					selected := true
 					switch {

@@ -70,9 +70,10 @@ and [Feature Profiles](feature-profiles.md).
 
 `disable_components` is shorthand: alone it only skips computing
 components (byte-identical, no marker); with a `return` layer it adds
-`exclude: ["components"]`. A request `return` without
-`disable_components` computes components even on an instance that
-disabled them.
+`exclude: ["components"]`. An engine `DisableComponents` sticks: a
+request `return` never re-opens it, so components are not computed and
+the block gains `exclude: ["components"]`. Only an explicit request
+`disable_components: false` turns them back on.
 
 ## Surfaces
 

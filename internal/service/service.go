@@ -149,9 +149,8 @@ func (s *Service) DisableComponents() bool {
 // effectiveDisableComponents resolves the per-request override against
 // the engine default through the rule predict shares
 // (descx.EffectiveDisableComponents): Request.DisableComponents set ⇒
-// it wins (true forces off, false forces on); else a request `return`
-// block replaces the instance-default layer the engine switch folds
-// into ⇒ components computed; else inherit the engine default.
+// it wins (true forces off, false forces on); else inherit the engine
+// default. A request `return` block never re-opens an engine-off gate.
 func (s *Service) effectiveDisableComponents(req *types.Request) bool {
 	return descx.EffectiveDisableComponents(req, s.disableComponents)
 }

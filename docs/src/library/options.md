@@ -204,8 +204,9 @@ including a path only a feature the instance hides has. Data-column paths
 (`data[*].<column>`) are not checked at `New`; one that matches nothing
 draws a `PULSE_RETURN_PATH_UNMATCHED` warning. `DisableComponents` folds
 into this layer: while components are off for a request, the selection
-also excludes `components` (a request `return` replaces the engine
-switch along with the default). Applies to `Process`, each Compose slot and each chain stage. There is no env var
+also excludes `components`. A request `return` replaces the default
+but never the engine switch: with `DisableComponents` on, components stay
+off unless the request sets `disable_components: false`. Applies to `Process`, each Compose slot and each chain stage. There is no env var
 or CLI flag for it.
 
 ```go

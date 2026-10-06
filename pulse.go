@@ -357,7 +357,8 @@ type Options struct {
 	// DisableComponents folds into this layer: when the components
 	// compute gate is off for a request (the engine switch with no
 	// request override, or a request disable_components: true), the
-	// effective selection also excludes `components`. With no `return`
+	// effective selection also excludes `components` — a request
+	// `return` block included: it never re-opens the engine switch. With no `return`
 	// on any layer DisableComponents stays the compute gate alone.
 	//
 	// New() refuses a bad preset, precision or path syntax

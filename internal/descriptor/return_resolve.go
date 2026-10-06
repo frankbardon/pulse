@@ -205,9 +205,10 @@ const returnComponentsKey = "components"
 // The DisableComponents shorthands then merge as `exclude: ["components"]`
 // (exclude wins over any include) exactly when the components compute
 // gate is off for this request (EffectiveDisableComponents): a request
-// `disable_components: true` always; the engine Options.DisableComponents
-// only through the instance-default layer (a request block replaces it,
-// and the gate then reopens); an explicit `false` adds nothing and never
+// `disable_components: true`, or the engine Options.DisableComponents
+// unless the request sets `disable_components: false` — on whichever
+// layer supplies the block, a request block included (it never re-opens
+// the engine gate); an explicit `false` adds nothing and never
 // re-includes what a block excludes or a preset omits. With no block on
 // any layer the shorthands add nothing either — DisableComponents stays
 // the compute gate alone, so its wire form is byte-identical to the
@@ -236,16 +237,13 @@ func EffectiveReturn(req *types.Request, inst *InstanceSnapshot) *types.Return {
 // req on an engine whose Options.DisableComponents is engine — the one
 // rule the runtime (Service.effectiveDisableComponents) and predict
 // (PredictOptions.componentsDisabled) share. A request's explicit
-// disable_components wins; else a request `return` block replaces the
-// instance-default layer the engine switch folds into, so the gate is
-// open; else the engine switch. Without a request block this is the
-// pre-`return` rule unchanged.
+// disable_components wins (an explicit `false` re-opens an engine-off
+// gate, as before `return` existed); else the engine switch. A request
+// `return` block never re-opens it: an engine DisableComponents sticks
+// whatever the request shapes.
 func EffectiveDisableComponents(req *types.Request, engine bool) bool {
 	if req != nil && req.DisableComponents != nil {
 		return *req.DisableComponents
-	}
-	if req != nil && req.Return != nil {
-		return false
 	}
 	return engine
 }

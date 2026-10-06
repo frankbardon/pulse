@@ -133,7 +133,7 @@ Every `Response` carries an optional `Components *ResponseComponents` (additive 
 
 Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers,Matrices}`, each carrying a mergeability class — `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable operators; non-mergeable ones surface only at terminal flush.
 
-**Opt-out.** `Options.DisableComponents bool` (engine default) + `types.Request.DisableComponents *bool` (per-request, `nil` inherits engine unless the request carries `return`); CLI `--no-components` on `pulse api process` / `process-chain` / `compose`. Disabled leaves `Components` `nil` and the wire form byte-identical to the pre-Components baseline — `format_version` is NOT bumped.
+**Opt-out.** `Options.DisableComponents bool` (engine default) + `types.Request.DisableComponents *bool` (per-request, `nil` inherits engine — a request `return` never re-opens an engine-off gate; only explicit `false` does); CLI `--no-components` on `pulse api process` / `process-chain` / `compose`. Disabled leaves `Components` `nil` and the wire form byte-identical to the pre-Components baseline — `format_version` is NOT bumped.
 
 **Weighted slots** add `omitempty` aggregator-floor keys `sum_weights`, `n_eff` (probability only), `n_weight_invalid` — absent means unweighted; `n` / `n_null` and every count stay raw ints. Long form: `.claude/reference/weighting.md`.
 
