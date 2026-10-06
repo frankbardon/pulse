@@ -1352,6 +1352,48 @@ type AggregationComponents struct {
 	// internal/descriptor/capabilities_aggregators.go. Values are JSON-compatible
 	// scalars or nested maps.
 	Operator map[string]any `json:"operator,omitempty"`
+
+	// Groups carries one AggregationGroupComponents entry per Data row
+	// of a grouped (Request.Groups, non-crosstab) run, in the final
+	// Response.Data order — Request.Sort included. Absent on an
+	// ungrouped run. On a grouped run the slot-level N / NNull (and the
+	// weighted floor keys) are the cohort-wide totals over every
+	// filter-passing record, Operator is omitted, and each bucket's
+	// figures ride its entry here.
+	Groups []AggregationGroupComponents `json:"groups,omitempty"`
+}
+
+// AggregationGroupComponents is one bucket's figures for one
+// aggregation slot of a grouped run: the universal floor, the weighted
+// floor keys and the operator's own keys, exactly as an ungrouped run
+// over that bucket's records would report them. GroupKey identifies
+// the bucket (the same key the Data row carries under the grouper's
+// field), mirroring MatrixComponents.GroupKey.
+type AggregationGroupComponents struct {
+	// GroupKey is the bucket's key tuple (one entry per grouper).
+	GroupKey AxisKey `json:"group_key"`
+
+	// N counts the bucket's records whose source field was present.
+	N int `json:"n"`
+
+	// NNull counts the bucket's records whose source field was null.
+	NNull int `json:"n_null"`
+
+	// SumWeights is Σw over the bucket's value-present, valid-weight
+	// rows — set only on a weighted slot.
+	SumWeights *float64 `json:"sum_weights,omitempty"`
+
+	// NEff is the bucket's Kish effective sample size — set only on a
+	// slot weighted with kind probability.
+	NEff *float64 `json:"n_eff,omitempty"`
+
+	// NWeightInvalid counts the bucket's value-present rows excluded
+	// for an invalid weight — set only on a weighted slot.
+	NWeightInvalid *int `json:"n_weight_invalid,omitempty"`
+
+	// Operator carries the per-aggregator schema-declared keys for the
+	// bucket, from the bucket aggregator's own components hook.
+	Operator map[string]any `json:"operator,omitempty"`
 }
 
 // GrouperComponents carries per-grouper constituent-parts metadata —

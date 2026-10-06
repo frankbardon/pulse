@@ -711,3 +711,33 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 		}
 	}
 }
+
+// TestChunkComponents_NonTerminalRedactsNonMergeableGroups: on a
+// grouped slot the operator figures ride groups[]; a non-terminal chunk
+// redacts each bucket's Operator for a None-mergeability slot (keeping
+// the per-bucket floor) and leaves a Mergeable slot's untouched, without
+// mutating the buffered original.
+func TestChunkComponents_NonTerminalRedactsNonMergeableGroups(t *testing.T) {
+	buffered := &types.ResponseComponents{
+		Aggregations: []types.AggregationComponents{
+			{Label: "s", N: 4, Groups: []types.AggregationGroupComponents{
+				{GroupKey: types.AxisKey{"a"}, N: 4, Operator: map[string]any{"sum": 10.0}}}},
+			{Label: "m", N: 4, Groups: []types.AggregationGroupComponents{
+				{GroupKey: types.AxisKey{"a"}, N: 4, Operator: map[string]any{"median": 2.0}}}},
+		},
+	}
+	mid := chunkComponents(buffered, []descriptor.ComponentsMergeability{descriptor.Mergeable, descriptor.None}, nil, false)
+	if mid.Aggregations[0].Groups[0].Operator == nil {
+		t.Error("mergeable slot's per-group Operator stripped")
+	}
+	g := mid.Aggregations[1].Groups[0]
+	if g.Operator != nil {
+		t.Errorf("non-mergeable slot's per-group Operator = %v, want nil", g.Operator)
+	}
+	if g.N != 4 || g.GroupKey[0] != "a" {
+		t.Errorf("per-group floor lost on the redacted entry: %+v", g)
+	}
+	if buffered.Aggregations[1].Groups[0].Operator == nil {
+		t.Error("buffered per-group Operator mutated")
+	}
+}

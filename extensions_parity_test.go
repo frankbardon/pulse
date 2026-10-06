@@ -591,7 +591,7 @@ func runParityArm(t *testing.T, p *pulse.Pulse, path string, req *types.Request)
 	}
 	out := parityOutcome{
 		data:       mustJSON(t, resp.Data),
-		components: mustJSON(t, resp.Components),
+		components: mustJSON(t, stripGroupedAggComponents(&r, resp.Components)),
 		metadata:   mustJSON(t, resp.Metadata),
 		tests:      mustJSON(t, []any{resp.Tests, resp.PostTests}),
 	}
@@ -600,6 +600,7 @@ func runParityArm(t *testing.T, p *pulse.Pulse, path string, req *types.Request)
 		t.Fatalf("ProcessStreamResult: %v", err)
 	}
 	for c := range sr.Chunks {
+		c.Components = stripGroupedAggComponents(&r, c.Components)
 		out.chunks = append(out.chunks, mustJSON(t, c))
 	}
 	if done := <-sr.Done; done.Status != pulse.StreamCompleted {

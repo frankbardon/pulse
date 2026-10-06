@@ -29,6 +29,15 @@
     "AggregationComponents": {
       "additionalProperties": false,
       "properties": {
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/AggregationGroupComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -59,6 +68,49 @@
         }
       },
       "required": [
+        "n",
+        "n_null"
+      ],
+      "type": "object"
+    },
+    "AggregationGroupComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "group_key": {
+          "items": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_eff": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "n_weight_invalid": {
+          "type": "integer"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "group_key",
         "n",
         "n_null"
       ],
@@ -3248,4 +3300,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 5d6e64690cd41c07a967ed2a739d5cb50e8d2a52dfda39462bf30f61a7f24963
+// golden-hash: 7dc681e7e1e95a8fee9dd61284fbb742be59cdafc8334d88e0869a2859a3fa09

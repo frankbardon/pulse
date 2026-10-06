@@ -468,6 +468,17 @@ func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []de
 				// intact so consumers still see "this slot exists"
 				// plus the running-row counters.
 				clone[i].Operator = nil
+				// A grouped slot's operator figures ride per bucket:
+				// redact each groups[] entry's Operator too, on a copy
+				// so the buffered original keeps them.
+				if len(clone[i].Groups) > 0 {
+					groups := make([]types.AggregationGroupComponents, len(clone[i].Groups))
+					copy(groups, clone[i].Groups)
+					for g := range groups {
+						groups[g].Operator = nil
+					}
+					clone[i].Groups = groups
+				}
 			}
 		}
 		out.Aggregations = clone

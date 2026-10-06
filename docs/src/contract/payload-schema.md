@@ -338,6 +338,21 @@ sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and
 weighted keys only when they apply). Contract:
 `.claude/reference/matrix-and-vectors.md`.
 
+## Per-group aggregation components
+
+`groups` on `AggregationComponents` is an additive `omitempty` array of
+`AggregationGroupComponents` `{group_key, n, n_null, sum_weights?,
+n_eff?, n_weight_invalid?, operator?}` (`format_version` stays `"1.1"`;
+an ungrouped or crosstab response has no `groups` key and is
+byte-identical). On a grouped, non-crosstab run each
+`components.aggregations[i]` carries the cohort-wide floor (no
+`operator`) and one `groups` entry per `data` row, in `data` order
+(`sort` included), each equal to an ungrouped run over that bucket's
+records. What the schema cannot say: entry `i` describes `data[i]`, and
+only the buffered grouped arm emits it so far. Contract:
+`.claude/reference/response-components.md` (Per-group aggregation
+components).
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a
@@ -352,7 +367,8 @@ key keeps meaning "not reported for this kind".
 The schema says so: every float slot on a result-only def —
 `TestResult`, `RegressionResult`, `OverlaySummary`, the
 `OverlayPayload.scalar` arm, `FacetNumeric`, `FacetHistogram` and the
-weighted floor's `sum_weights` / `n_eff` on `AggregationComponents` —
+weighted floor's `sum_weights` / `n_eff` on `AggregationComponents` and
+`AggregationGroupComponents` —
 is `"type": ["number", "null"]`. The open slots (`data` rows,
 components operator maps, matrix cell `value`) already admit `null`.
 Request floats stay `"number"`: a decoded request never carries a

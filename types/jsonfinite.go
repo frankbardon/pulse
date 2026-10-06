@@ -448,6 +448,13 @@ func (v AggregationComponents) MarshalJSON() ([]byte, error) {
 	return MarshalFinite((*alias)(&v))
 }
 
+// MarshalJSON writes one bucket's aggregation components with every
+// non-finite float as null; see MarshalFinite.
+func (v AggregationGroupComponents) MarshalJSON() ([]byte, error) {
+	type alias AggregationGroupComponents
+	return MarshalFinite((*alias)(&v))
+}
+
 // MarshalJSON writes the grouper components with every non-finite float as null;
 // see MarshalFinite.
 func (v GrouperComponents) MarshalJSON() ([]byte, error) {
