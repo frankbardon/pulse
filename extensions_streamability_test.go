@@ -239,7 +239,7 @@ func TestExtensions_StreamingGrouperMatchesBuffered(t *testing.T) {
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}, {Type: types.AGG_COUNT, Field: "score", Label: "n"}},
 		}
 		resp := processE2E(t, p, req)
-		return mustJSON(t, resp.Data) + mustJSON(t, stripGroupedAggComponents(req, resp.Components))
+		return mustJSON(t, resp.Data) + mustJSON(t, resp.Components)
 	}
 	for _, pair := range [][2]types.GroupType{{streamGrpOn, streamGrpOff}, {streamGrpFan, streamFanOff}} {
 		if s, b := run(pair[0]), run(pair[1]); s != b {

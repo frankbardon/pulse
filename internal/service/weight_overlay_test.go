@@ -206,7 +206,7 @@ func TestWeightShareIndexOverlaysReadWeightedHost(t *testing.T) {
 			bare := run(t, weighted, decodeWeightedOverlayRequest[types.Request](t, tc.req, wp, true, true))
 			for name, pair := range map[string][2]any{
 				"data": {got.Data, bare.Data}, "crosstab": {got.Crosstab, bare.Crosstab},
-				"components": {stripGroupedAggComponents(wreq, got.Components), stripGroupedAggComponents(wreq, bare.Components)},
+				"components": {got.Components, bare.Components},
 			} {
 				if g, b := mustMarshal(t, pair[0]), mustMarshal(t, pair[1]); !bytes.Equal(g, b) {
 					t.Errorf("%s: overlays changed the host payload\nwith    %s\nwithout %s", name, g, b)

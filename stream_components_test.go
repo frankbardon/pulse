@@ -712,32 +712,39 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 	}
 }
 
-// TestChunkComponents_NonTerminalRedactsNonMergeableGroups: on a
-// grouped slot the operator figures ride groups[]; a non-terminal chunk
-// redacts each bucket's Operator for a None-mergeability slot (keeping
-// the per-bucket floor) and leaves a Mergeable slot's untouched, without
-// mutating the buffered original.
-func TestChunkComponents_NonTerminalRedactsNonMergeableGroups(t *testing.T) {
+// TestChunkComponents_NonTerminalCarriesNoGroups: per-group figures
+// are TERMINAL-only. A non-terminal chunk drops every slot's groups[]
+// whatever its mergeability (the slot-level floor stays, a None slot's
+// Operator is still redacted), without mutating the buffered original;
+// the terminal chunk carries groups[] verbatim.
+func TestChunkComponents_NonTerminalCarriesNoGroups(t *testing.T) {
 	buffered := &types.ResponseComponents{
 		Aggregations: []types.AggregationComponents{
 			{Label: "s", N: 4, Groups: []types.AggregationGroupComponents{
 				{GroupKey: types.AxisKey{"a"}, N: 4, Operator: map[string]any{"sum": 10.0}}}},
-			{Label: "m", N: 4, Groups: []types.AggregationGroupComponents{
+			{Label: "m", N: 4, Operator: map[string]any{"median": 2.0}, Groups: []types.AggregationGroupComponents{
 				{GroupKey: types.AxisKey{"a"}, N: 4, Operator: map[string]any{"median": 2.0}}}},
 		},
 	}
-	mid := chunkComponents(buffered, []descriptor.ComponentsMergeability{descriptor.Mergeable, descriptor.None}, nil, false)
-	if mid.Aggregations[0].Groups[0].Operator == nil {
-		t.Error("mergeable slot's per-group Operator stripped")
+	merge := []descriptor.ComponentsMergeability{descriptor.Mergeable, descriptor.None}
+	mid := chunkComponents(buffered, merge, nil, false)
+	for _, a := range mid.Aggregations {
+		if a.Groups != nil {
+			t.Errorf("slot %s: mid-stream chunk carries groups %+v, want none", a.Label, a.Groups)
+		}
+		if a.N != 4 {
+			t.Errorf("slot %s: slot floor lost mid-stream: n = %d", a.Label, a.N)
+		}
 	}
-	g := mid.Aggregations[1].Groups[0]
-	if g.Operator != nil {
-		t.Errorf("non-mergeable slot's per-group Operator = %v, want nil", g.Operator)
+	if mid.Aggregations[1].Operator != nil {
+		t.Error("None slot's Operator not redacted mid-stream")
 	}
-	if g.N != 4 || g.GroupKey[0] != "a" {
-		t.Errorf("per-group floor lost on the redacted entry: %+v", g)
+	for _, a := range buffered.Aggregations {
+		if len(a.Groups) != 1 || a.Groups[0].Operator == nil {
+			t.Errorf("slot %s: buffered groups mutated: %+v", a.Label, a.Groups)
+		}
 	}
-	if buffered.Aggregations[1].Groups[0].Operator == nil {
-		t.Error("buffered per-group Operator mutated")
+	if end := chunkComponents(buffered, merge, nil, true); len(end.Aggregations[1].Groups) != 1 {
+		t.Errorf("terminal chunk lost groups[]: %+v", end.Aggregations[1])
 	}
 }

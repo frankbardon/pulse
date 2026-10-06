@@ -646,31 +646,43 @@ func shedUnity(t *testing.T, resp *types.Response, row parityOp, op descriptor.O
 	for _, k := range row.weightOnlyKeys {
 		optional[k] = true
 	}
-	for i := range resp.Components.Aggregations {
-		a := &resp.Components.Aggregations[i]
-		if a.SumWeights == nil || a.NWeightInvalid == nil {
-			t.Fatalf("slot %s: weighted floor missing — the weight did not apply", a.Label)
+	// shed pins one floor (slot or per-group) to its unity values, then
+	// drops what the weight adds: the floor keys and the optional /
+	// weight-only operator keys.
+	shed := func(where string, n int, sumW, nEff **float64, nInv **int, operator map[string]any) {
+		if *sumW == nil || *nInv == nil {
+			t.Fatalf("%s: weighted floor missing — the weight did not apply", where)
 		}
-		if *a.SumWeights != float64(a.N) || *a.NWeightInvalid != 0 {
-			t.Errorf("slot %s: unity floor sum_weights=%v n_weight_invalid=%d, want %d / 0", a.Label, *a.SumWeights, *a.NWeightInvalid, a.N)
+		if **sumW != float64(n) || **nInv != 0 {
+			t.Errorf("%s: unity floor sum_weights=%v n_weight_invalid=%d, want %d / 0", where, **sumW, **nInv, n)
 		}
 		switch {
-		case kind == types.WeightKindProbability && (a.NEff == nil || *a.NEff != float64(a.N)):
-			t.Errorf("slot %s: unity n_eff = %v, want %d", a.Label, deref(a.NEff), a.N)
-		case kind == types.WeightKindFrequency && a.NEff != nil:
-			t.Errorf("slot %s: n_eff %v under kind frequency", a.Label, *a.NEff)
+		case kind == types.WeightKindProbability && (*nEff == nil || **nEff != float64(n)):
+			t.Errorf("%s: unity n_eff = %v, want %d", where, deref(*nEff), n)
+		case kind == types.WeightKindFrequency && *nEff != nil:
+			t.Errorf("%s: n_eff %v under kind frequency", where, **nEff)
 		}
-		a.SumWeights, a.NEff, a.NWeightInvalid = nil, nil, nil
-		for k, v := range a.Operator {
+		*sumW, *nEff, *nInv = nil, nil, nil
+		for k, v := range operator {
 			if to, ok := row.renameKeys[k]; ok {
-				delete(a.Operator, k)
-				a.Operator[to] = v
+				delete(operator, k)
+				operator[to] = v
 			}
 		}
-		for k := range a.Operator {
+		for k := range operator {
 			if optional[k] {
-				delete(a.Operator, k)
+				delete(operator, k)
 			}
+		}
+	}
+	for i := range resp.Components.Aggregations {
+		a := &resp.Components.Aggregations[i]
+		where := "slot " + a.Label
+		shed(where, a.N, &a.SumWeights, &a.NEff, &a.NWeightInvalid, a.Operator)
+		// A grouped slot carries the same floor per bucket.
+		for j := range a.Groups {
+			g := &a.Groups[j]
+			shed(fmt.Sprintf("%s group %v", where, g.GroupKey), g.N, &g.SumWeights, &g.NEff, &g.NWeightInvalid, g.Operator)
 		}
 	}
 }

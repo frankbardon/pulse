@@ -348,8 +348,9 @@ byte-identical). On a grouped, non-crosstab run each
 `components.aggregations[i]` carries the cohort-wide floor (no
 `operator`) and one `groups` entry per `data` row, in `data` order
 (`sort` included), each equal to an ungrouped run over that bucket's
-records. What the schema cannot say: entry `i` describes `data[i]`, and
-only the buffered grouped arm emits it so far. Contract:
+records. What the schema cannot say: entry `i` describes `data[i]`; every
+execution arm (buffered, streaming, parallel) emits the same figures, and
+a stream carries them on its terminal chunk only. Contract:
 `.claude/reference/response-components.md` (Per-group aggregation
 components).
 

@@ -19,43 +19,135 @@ import (
 // execution path that mints buckets, so the per-group shape cannot
 // drift between them.
 
-// slotTotalComponents builds the cohort-wide slot-level entries of a
-// grouped run: one per aggregation slot in declared order, carrying
-// Label, the {n, n_null} floor tallied through FieldPresent (never
-// NumericValue — a set column has no numeric value) and, on a weighted
-// slot, the weighted floor keys — all over records, the filter-passing
-// set. Operator stays nil: a grouped slot's operator figures are per
-// bucket.
-func slotTotalComponents(aggs []*types.Aggregation, records []*Record) []types.AggregationComponents {
+// SlotFloor is one aggregation slot's floor tally: {n, n_null} through
+// FieldPresent (never NumericValue — a set column has presence but no
+// numeric value) plus the slot's weighted floor (inert on an unweighted
+// slot). It is a plain per-record sum, so partitions merge slot-wise in
+// any order. Every grouped arm tallies through it — the buffered
+// cohort-wide totals, the streaming-grouped path (cohort-wide and per
+// bucket) and the shard / parallel-decode partials — so a slot's floor
+// has one implementation whatever the worker count.
+type SlotFloor struct {
+	field  string
+	n      int
+	nNull  int
+	weight WeightFloor
+}
+
+// NewSlotFloors returns one empty tally per aggregation slot, in
+// declared order.
+func NewSlotFloors(aggs []*types.Aggregation) []SlotFloor {
 	if len(aggs) == 0 {
 		return nil
 	}
-	type floor struct{ n, nNull int }
-	floors := make(map[string]floor, len(aggs))
+	out := make([]SlotFloor, len(aggs))
+	for i, agg := range aggs {
+		out[i] = SlotFloor{field: agg.Field, weight: NewWeightFloor(agg)}
+	}
+	return out
+}
+
+// ObserveSlotFloors folds one filter-passing record into every slot's
+// tally. Call it AFTER row-local attributes land, so a slot over an
+// attribute label sees the presence the buffered arm sees. A nil slice
+// (components disabled) is inert.
+func ObserveSlotFloors(floors []SlotFloor, r *Record) {
+	for i := range floors {
+		f := &floors[i]
+		if FieldPresent(r, f.field) {
+			f.n++
+		} else {
+			f.nNull++
+		}
+		f.weight.Observe(r, f.field)
+	}
+}
+
+// MergeSlotFloors folds src's tallies into dst slot-wise.
+func MergeSlotFloors(dst, src []SlotFloor) {
+	for i := range dst {
+		if i >= len(src) {
+			return
+		}
+		dst[i].n += src[i].n
+		dst[i].nNull += src[i].nNull
+		dst[i].weight.Merge(src[i].weight)
+	}
+}
+
+// N is the slot's present-input count.
+func (f SlotFloor) N() int { return f.n }
+
+// NNull is the slot's null-input count.
+func (f SlotFloor) NNull() int { return f.nNull }
+
+// Stamp writes the weighted floor keys onto e; no-op on an unweighted
+// slot.
+func (f SlotFloor) Stamp(e *types.AggregationComponents) { f.weight.Stamp(e) }
+
+// slotFloorTotals renders cohort-wide slot-level entries from finished
+// tallies: Label, {n, n_null} and the weighted floor keys; Operator
+// stays nil (a grouped slot's operator figures are per bucket).
+func slotFloorTotals(aggs []*types.Aggregation, floors []SlotFloor) []types.AggregationComponents {
+	if len(aggs) == 0 {
+		return nil
+	}
 	out := make([]types.AggregationComponents, 0, len(aggs))
-	for _, agg := range aggs {
-		fl, ok := floors[agg.Field]
-		if !ok {
-			for _, r := range records {
-				if FieldPresent(r, agg.Field) {
-					fl.n++
-				} else {
-					fl.nNull++
-				}
-			}
-			floors[agg.Field] = fl
+	for i, agg := range aggs {
+		var f SlotFloor
+		if i < len(floors) {
+			f = floors[i]
 		}
-		entry := types.AggregationComponents{Label: agg.Label, N: fl.n, NNull: fl.nNull}
-		wf := NewWeightFloor(agg)
-		if wf.spec != nil {
-			for _, r := range records {
-				wf.Observe(r, agg.Field)
-			}
-			wf.Stamp(&entry)
-		}
+		entry := types.AggregationComponents{Label: agg.Label, N: f.n, NNull: f.nNull}
+		f.Stamp(&entry)
 		out = append(out, entry)
 	}
 	return out
+}
+
+// slotTotalComponents builds the cohort-wide slot-level entries of a
+// buffered grouped run over records, the filter-passing set: one per
+// aggregation slot in declared order (see slotFloorTotals).
+func slotTotalComponents(aggs []*types.Aggregation, records []*Record) []types.AggregationComponents {
+	floors := NewSlotFloors(aggs)
+	for _, r := range records {
+		ObserveSlotFloors(floors, r)
+	}
+	return slotFloorTotals(aggs, floors)
+}
+
+// streamedGroupedAggregationComponents assembles a streaming or merged
+// grouped run's Components.Aggregations from its live per-bucket
+// aggregators (already Finalized) and floor tallies, over the FINAL Data
+// order. Each bucket entry comes off the same builder the ungrouped
+// streaming exit uses (buildAggregationComponents + the weighted floor),
+// so it equals the buffered arm's entry for that bucket.
+func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, buckets map[string][]OnlineAggregator, floors map[string][]SlotFloor, keys []string) ([]types.AggregationComponents, error) {
+	if len(totals) != len(aggs) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"grouped components: cohort-wide slot floors missing",
+			map[string]any{"slots": len(aggs), "floors": len(totals)})
+	}
+	entries := make(map[string][]types.AggregationComponents, len(keys))
+	for _, key := range keys {
+		bucket, fl := buckets[key], floors[key]
+		if len(bucket) != len(aggs) || len(fl) != len(aggs) {
+			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				"grouped components: a bucket has no per-slot floor tally",
+				map[string]any{"group_key": key, "slots": len(aggs), "floors": len(fl)})
+		}
+		row := make([]types.AggregationComponents, len(aggs))
+		for i, oa := range bucket {
+			e, err := buildAggregationComponents(oa, aggs[i], fl[i].n, fl[i].nNull)
+			if err != nil {
+				return nil, err
+			}
+			fl[i].Stamp(&e)
+			row[i] = e
+		}
+		entries[key] = row
+	}
+	return GroupedAggregationComponents(slotFloorTotals(aggs, totals), entries, keys)
 }
 
 // AggregationGroupEntry converts one bucket's slot entry — built by the

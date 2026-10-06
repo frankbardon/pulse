@@ -185,6 +185,9 @@ func (s *Service) reduceParallelBuffered(
 			}
 		} else if buildErr == nil {
 			out.groups = make(map[string][]processing.OnlineAggregator)
+			if !s.effectiveDisableComponents(req) && len(req.Aggregations) > 0 {
+				out.groupFloors = make(map[string][]processing.SlotFloor)
+			}
 			out.grouper = grouperInst
 			out.keyer, buildErr = processing.NewGroupKeyer(grouperInst)
 		}

@@ -1104,15 +1104,16 @@ State these plainly to users rather than discovering them at run time:
   crosstab runs the buffered arm with the same result. An axis grouper
   fuses only on a declared `Streamable` or `FansOut`. Predict reports
   the answer as `crosstab_fusable` + `crosstab_fusion_reasons`.
-- **Grouped Components: grouper figures yes, per-group aggregator
-  figures no — for every operator.** An extension grouper's
-  `ComponentsFunc` output lands on `Components.Groupers[i].Operator` on
-  every grouped path (streaming, buffered, and the merged parallel arms
-  via `MergeState`), exactly as a built-in grouper's does. What no
-  grouped run emits — built-in or extension — is
-  `Components.Aggregations` (operator figures inside each group): that
-  is an unlanded surface, not an extension gap. Ungrouped runs emit an
-  extension aggregator's figures on every path.
+- **Grouped Components: grouper and per-group aggregator figures, on
+  every path.** An extension grouper's `ComponentsFunc` output lands on
+  `Components.Groupers[i].Operator` on every grouped path (streaming,
+  buffered, and the merged parallel arms via `MergeState`), exactly as a
+  built-in grouper's does. An extension aggregator under a grouper gets
+  the per-group floor automatically and its `operator` map off each
+  per-bucket instance's own components hook in
+  `Components.Aggregations[i].Groups` — buffered, streaming (terminal
+  flush) and merged parallel arms alike, with no new API. Ungrouped runs
+  emit an extension aggregator's figures on every path.
 - **Two-pass attributes keep a crosstab buffered.** A `two_pass`
   extension attribute declines the fused crosstab exactly as the
   built-in `ATTR_ZSCORE` does — the fused walk never runs a `PrePass`.

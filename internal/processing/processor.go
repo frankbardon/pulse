@@ -843,6 +843,15 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 
 	// Per-group aggregator buckets; FinalizeGroupedStream orders them.
 	buckets := make(map[string][]OnlineAggregator)
+	// Per-group aggregation Components' floors: cohort-wide per slot
+	// and per bucket, tallied only when components are on (built
+	// behind the gate, not discarded).
+	var slotTotals []SlotFloor
+	var bucketFloors map[string][]SlotFloor
+	if !p.disableComponents && len(req.Aggregations) > 0 {
+		slotTotals = NewSlotFloors(req.Aggregations)
+		bucketFloors = make(map[string][]SlotFloor)
+	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
 	// matrices).
 	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts)
@@ -912,6 +921,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			primaryNullRecords++
 		}
 		weights.Observe(r)
+		ObserveSlotFloors(slotTotals, r)
 
 		rowKeys, ok, err := keyer.Keys(r, grp.Field)
 		if err != nil {
@@ -940,12 +950,16 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 				}
 				b = online
 				buckets[key] = b
+				if bucketFloors != nil {
+					bucketFloors[key] = NewSlotFloors(req.Aggregations)
+				}
 			}
 			for i, oa := range b {
 				if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
 					return nil, err
 				}
 			}
+			ObserveSlotFloors(bucketFloors[key], r)
 			if err := matrices.UpdateRow(key, r); err != nil {
 				return nil, err
 			}
@@ -963,6 +977,8 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		Group:             grp,
 		Grouper:           grouperInstance,
 		Buckets:           buckets,
+		SlotTotals:        slotTotals,
+		BucketFloors:      bucketFloors,
 		TotalRows:         totalRows,
 		FilteredRows:      filteredRows,
 		NullRecords:       primaryNullRecords,

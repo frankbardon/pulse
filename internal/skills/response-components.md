@@ -38,7 +38,7 @@ Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n
 | `run` | always on a successful run | `total_records` (pre-filter), `filtered_records`, `null_records`, `shard_count` (0 = single file), `partial_cohort_reason` (a shard failed to open) |
 | `matrices` | one per `Response.Matrices` result, same order · `name` | `n` (weight-0 rows count), `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted floor; `operator` |
 
-- **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (every filter-passing record, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. Buffered runs only so far: a streamed or parallel grouped run emits no `aggregations`.
+- **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (every filter-passing record, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream carries `groups[]` on its terminal chunk only.
 - A fan-out grouper (one record → several buckets, e.g. each option of a multi-select) has a bucket sum EXCEEDING `total_n` — correct.
 - `run` coexists with `Response.Metadata`: `Metadata.TotalRows == Run.TotalRecords`; `Metadata` keeps non-numerical run facts (cohort filename), `run` the typed counters.
 
@@ -76,7 +76,7 @@ Disabled ⇒ `Response.Components` stays `nil` (wire form byte-identical to the 
 
 Predict flags each `None` slot with `buffered_components: true` — check it once when planning a streaming request. Per-chunk behaviour: `streaming-and-watching`.
 
-**Worker counts never change the answer** — parallel runs emit the blocks a serial run emits (grouped `aggregations` aside, above). Examples: `pulse_examples_search tags=["welford-triple"]`.
+**Worker counts never change the answer** — parallel runs emit the blocks a serial run emits. Examples: `pulse_examples_search tags=["welford-triple"]`.
 
 ## Extensions
 

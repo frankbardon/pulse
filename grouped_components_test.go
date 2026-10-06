@@ -213,21 +213,3 @@ func TestGroupedComponents_OptOut(t *testing.T) {
 		t.Errorf("engine opt-out: Components = %s, want nil", mustJSON(t, resp.Components))
 	}
 }
-
-// stripGroupedAggComponents drops Components.Aggregations from a
-// grouped, non-crosstab response so a buffered grouped arm (which
-// emits per-group aggregation Components) compares against the
-// streaming / parallel grouped arms (which do not yet).
-//
-// TODO(response-shaping-core E1-S2): delete this helper and every call
-// site once the streaming terminal flush and the shard / parallel
-// reducers emit groups[] — the parity gates must then compare the full
-// block again.
-func stripGroupedAggComponents(req *types.Request, c *types.ResponseComponents) *types.ResponseComponents {
-	if c == nil || req == nil || len(req.Groups) == 0 || req.Crosstab != nil {
-		return c
-	}
-	out := *c
-	out.Aggregations = nil
-	return &out
-}

@@ -33,7 +33,7 @@ Add `Request.Return {preset, include, exclude, precision}` and `Options.DefaultR
 - [ ] **#106** (8. Response shaping) Path grammar over the response schema; predict-time validation; `PULSE_RETURN_PATH_UNKNOWN`
 - [ ] **#107** (8. Response shaping) Presets `full` / `standard` / `minimal` listed in the manifest
 - [ ] **#109** (8. Response shaping) Float precision control; old switches documented as shorthands; `returned` marker
-- [ ] **#193** (8. Response shaping) Per-group aggregator Components: `Components.Aggregations` figures emitted inside each group of a grouped response, for built-in and extension operators alike
+- [x] **#193** (8. Response shaping) Per-group aggregator Components: `Components.Aggregations` figures emitted inside each group of a grouped response, for built-in and extension operators alike
 
 ## Scope
 

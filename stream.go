@@ -71,7 +71,8 @@ type StreamHeader struct {
 // buffered Process run. Mergeable / partial aggregators surface their
 // running state on every chunk so consumers can render mid-stream;
 // non-mergeable operators (AGG_MEDIAN, AGG_PERCENTILE) appear only on
-// the terminal chunk (last row before close). nil when the underlying
+// the terminal chunk (last row before close), as do a grouped run's
+// per-group aggregation figures (components.aggregations[*].groups). nil when the underlying
 // operation produced no Components payload (e.g. SynthStream).
 type StreamChunk[T any] struct {
 	Sequence   int
@@ -416,11 +417,12 @@ func grpMergeabilityVector(req *Request) []descriptor.ComponentsMergeability {
 //   - terminal=true: return the full buffered Components verbatim.
 //     The terminal chunk is byte-equal to the buffered Process call's
 //     Response.Components.
-//   - terminal=false: clone the shell and strip the Operator map (the
-//     per-operator schema-declared keys) from every aggregation /
-//     grouper slot whose mergeability is None. Mergeable / Partial
-//     slots keep their running state so consumers can render
-//     mid-stream. The universal floor (N, NNull, Label / Field) is
+//   - terminal=false: clone the shell, drop every aggregation slot's
+//     per-group figures (groups[] is terminal-only), and strip the
+//     Operator map (the per-operator schema-declared keys) from every
+//     aggregation / grouper slot whose mergeability is None.
+//     Mergeable / Partial slots keep their running state so consumers
+//     can render mid-stream. The universal floor (N, NNull, Label / Field) is
 //     preserved on every slot regardless of mergeability — those keys
 //     carry no algorithmic dependence on a sorted full input and the
 //     buffered shim has them at hand.
@@ -462,23 +464,18 @@ func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []de
 		clone := make([]types.AggregationComponents, len(buffered.Aggregations))
 		copy(clone, buffered.Aggregations)
 		for i := range clone {
+			// A grouped slot's per-group figures are TERMINAL-only:
+			// a mid-stream chunk carries no per-group state at all,
+			// whatever the slot's mergeability. Dropped on the clone,
+			// so the buffered original keeps them for the terminal
+			// chunk.
+			clone[i].Groups = nil
 			if i < len(aggMerge) && aggMerge[i] == descriptor.None {
 				// Non-mergeable aggregator: strip the per-operator key
 				// map; keep the universal floor (N, NNull, Label)
 				// intact so consumers still see "this slot exists"
 				// plus the running-row counters.
 				clone[i].Operator = nil
-				// A grouped slot's operator figures ride per bucket:
-				// redact each groups[] entry's Operator too, on a copy
-				// so the buffered original keeps them.
-				if len(clone[i].Groups) > 0 {
-					groups := make([]types.AggregationGroupComponents, len(clone[i].Groups))
-					copy(groups, clone[i].Groups)
-					for g := range groups {
-						groups[g].Operator = nil
-					}
-					clone[i].Groups = groups
-				}
 			}
 		}
 		out.Aggregations = clone
