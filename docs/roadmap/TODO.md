@@ -171,11 +171,11 @@ Theme documents: see the [roadmap index](README.md).
 ## 6. Vector & matrix — foundation
 
 ### E1 — Linear-algebra core & co-moment accumulator
-- [ ] **#73** `linalg/` with Cholesky, SymEigen, SVD, QR, tolerances, sign convention and ordering; import-boundary gate · [U15](units/U15-linalg-core.md)
-- [ ] **#74** Synth Cholesky migrated onto `linalg` (fidelity goldens byte-identical) · [U15](units/U15-linalg-core.md)
-- [ ] **#75** Regression solve and inverse migrated onto `linalg` · [U15](units/U15-linalg-core.md)
-- [ ] **#76** Weighted co-moment accumulator (listwise and pairwise) with exact merge; property tests · [U15](units/U15-linalg-core.md)
-- [ ] **#77** Deterministic merge tree under `ShardWorkers` / `DecodeWorkers` · [U15](units/U15-linalg-core.md)
+- [x] **#73** `linalg/` with Cholesky, SymEigen, SVD, QR, tolerances, sign convention and ordering; import-boundary gate · [U15](units/U15-linalg-core.md)
+- [x] **#74** Synth Cholesky migrated onto `linalg` (fidelity goldens byte-identical) · [U15](units/U15-linalg-core.md)
+- [x] **#75** Regression solve and inverse migrated onto `linalg` · [U15](units/U15-linalg-core.md)
+- [x] **#76** Weighted co-moment accumulator (listwise and pairwise) with exact merge; property tests · [U15](units/U15-linalg-core.md)
+- [x] **#77** Deterministic merge tree under `ShardWorkers` / `DecodeWorkers` · [U15](units/U15-linalg-core.md)
 
 ### E2 — Virtual vectors & matrix result
 - [ ] **#78** `Request.Vectors`: resolution, hashing, projection, predict echo · [U16](units/U16-matrix-result.md)
