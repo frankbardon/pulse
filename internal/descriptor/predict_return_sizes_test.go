@@ -51,22 +51,62 @@ func sizesRequest(ret *types.Return) *types.Request {
 	}
 }
 
-func predictSizes(t *testing.T, data []byte, req *types.Request) *descriptor.ReturnPlan {
+// predictSizes predicts req and returns the result; a request carrying
+// a `return` block must report its resolved plan.
+func predictSizes(t *testing.T, data []byte, req *types.Request) *descriptor.PredictResult {
 	t.Helper()
 	res := predictFromBytes(data, req, nil).Data.(*descriptor.PredictResult)
-	if res.Return == nil {
+	if req.Return != nil && res.Return == nil {
 		t.Fatalf("no return plan reported for %+v", req.Return)
 	}
-	return res.Return
+	return res
 }
 
-func sizeOf(rp *descriptor.ReturnPlan, section string) (descriptor.ReturnSectionSize, bool) {
-	for _, s := range rp.Sizes {
+func sizeOf(res *descriptor.PredictResult, section string) (descriptor.ResponseSectionSize, bool) {
+	for _, s := range res.Sizes {
 		if s.Section == section {
 			return s, true
 		}
 	}
-	return descriptor.ReturnSectionSize{}, false
+	return descriptor.ResponseSectionSize{}, false
+}
+
+// TestPredict_Sizes_NoReturnBlock: a request with no `return` block
+// still reports every modelled section, shaped equal to full, and each
+// section's full size matches the same request under `return:
+// standard` — the selection never moves the unshaped figure.
+func TestPredict_Sizes_NoReturnBlock(t *testing.T) {
+	data := sizesCohort(t, 50)
+	bare := predictSizes(t, data, sizesRequest(nil))
+	if bare.Return != nil {
+		t.Fatalf("no return block, plan reported: %+v", bare.Return)
+	}
+	want := []string{"data", "metadata", "tests", "regressions", "matrices", "components"}
+	var got []string
+	for _, s := range bare.Sizes {
+		got = append(got, s.Section)
+		if s.FullBytes <= 0 || s.ShapedBytes != s.FullBytes {
+			t.Errorf("no return block %s: full = %d, shaped = %d", s.Section, s.FullBytes, s.ShapedBytes)
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("sections = %v, want %v", got, want)
+	}
+	std := predictSizes(t, data, sizesRequest(&types.Return{Preset: types.ReturnPresetStandard}))
+	if len(std.Sizes) != len(bare.Sizes) {
+		t.Fatalf("standard sections = %d, bare = %d", len(std.Sizes), len(bare.Sizes))
+	}
+	for i, s := range std.Sizes {
+		if b := bare.Sizes[i]; s.Section != b.Section || s.FullBytes != b.FullBytes || s.Basis != b.Basis {
+			t.Errorf("standard %+v vs bare %+v", s, b)
+		}
+	}
+
+	// A refused `return` block withholds the estimates.
+	res := predictFromBytes(data, sizesRequest(&types.Return{Preset: "nope"}), nil).Data.(*descriptor.PredictResult)
+	if res.Sizes != nil {
+		t.Errorf("refused return block, sizes reported: %+v", res.Sizes)
+	}
 }
 
 // TestPredict_ReturnSizes_ShapedNeverAboveFull: every section reports a
@@ -231,12 +271,12 @@ func TestPredict_ReturnUnresolvedIncludes(t *testing.T) {
 		Include: []string{"tests[*].details.effect_size", "data[*].AGG_SUM_revenue", "matrices[*].auxiliary.n"},
 	}))
 	want := []string{"matrices[*].auxiliary.n", "tests[*].details.effect_size"}
-	if !slices.Equal(rp.UnresolvedIncludes, want) {
-		t.Errorf("unresolved = %v, want %v", rp.UnresolvedIncludes, want)
+	if !slices.Equal(rp.Return.UnresolvedIncludes, want) {
+		t.Errorf("unresolved = %v, want %v", rp.Return.UnresolvedIncludes, want)
 	}
 	rp = predictSizes(t, data, sizesRequest(&types.Return{Include: []string{"data[*].AGG_SUM_revenue", "metadata"}}))
-	if rp.UnresolvedIncludes != nil {
-		t.Errorf("resolvable includes listed: %v", rp.UnresolvedIncludes)
+	if rp.Return.UnresolvedIncludes != nil {
+		t.Errorf("resolvable includes listed: %v", rp.Return.UnresolvedIncludes)
 	}
 	// Under a crosstab the data column set is open: listed.
 	xt := &types.Request{
@@ -247,7 +287,7 @@ func TestPredict_ReturnUnresolvedIncludes(t *testing.T) {
 		},
 		Return: &types.Return{Include: []string{"data[*].anything"}},
 	}
-	if rp := predictSizes(t, data, xt); !slices.Equal(rp.UnresolvedIncludes, []string{"data[*].anything"}) {
-		t.Errorf("crosstab data include: %v", rp.UnresolvedIncludes)
+	if rp := predictSizes(t, data, xt); !slices.Equal(rp.Return.UnresolvedIncludes, []string{"data[*].anything"}) {
+		t.Errorf("crosstab data include: %v", rp.Return.UnresolvedIncludes)
 	}
 }

@@ -115,9 +115,11 @@ refused.
 
 ## Predict size estimates
 
-When a request carries an effective `return` block, `Predict` reports
-`return.sizes`: per top-level section `{section, full_bytes,
-shaped_bytes, basis}` with `basis` one of `exact`, `upper_bound` or
-`heuristic`. An excluded section is 0, and a section whose size depends
+`Predict` reports `sizes` on every request, with or without a `return`
+block: per top-level section `{section, full_bytes, shaped_bytes,
+basis}` with `basis` one of `exact`, `upper_bound` or `heuristic`.
+Without an effective `return` block `shaped_bytes` equals `full_bytes`;
+under one, an excluded section is 0. A refused block reports no sizes,
+and a section whose size depends
 on the data is omitted rather than guessed. The figures are guidance
 for choosing a preset before running, not a byte-accuracy contract.

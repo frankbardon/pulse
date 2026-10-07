@@ -101,7 +101,7 @@ Shipped on `response-shaping-execution` (no release tag cut by the unit). Epics 
 - **Compute plan (#108, #111).** `processing.ComputePlan` plus `WorkStats()` counters; excluded components (aggregations incl. `groups`, groupers, filterers, run), crosstab cell maps, auxiliary margins and matrices (slot, auxiliary, scalars, vectors) are never computed on every arm, per Compose slot and per chain stage. The execution arm is chosen from the ORIGINAL request, so a shaped request never changes path. `TestReturnSkipsComputation` is the gate.
 - **Overlays, tests, regressions.** An excluded overlay layer, test / post-test entry or whole regressions slot is skipped. Vetoes keep the run correct: an overlay that reads host components keeps `components.crosstab` computed (absent on the wire); a multiplicity family claims its layers / tests so `p_adjusted` and `m` stay byte-identical; a Compose overlay dependency vetoes.
 - **Error rule.** An excluded part is not computed and therefore not validated: no `PULSE_OVERLAY_COMPONENTS_REQUIRED`, `PULSE_TEST_*`, `PROCESSING_REGRESSION_*` or `PULSE_WEIGHT_LOW_NEFF`. `Predict` stays the validator. Chain stages still refuse tests / regressions (`PULSE_CHAIN_NOT_MERGEABLE`) because the refusal reads the original request. In Go results a partly skipped `tests` / `post_tests` slice holds nil at skipped positions.
-- **Predict sizes (#110).** `return.sizes[]` `{section, full_bytes, shaped_bytes, basis}` and `return.unresolved_includes`.
+- **Predict sizes (#110).** `sizes[]` `{section, full_bytes, shaped_bytes, basis}` (moved to `PredictResult.Sizes` on `u18-followups`) and `return.unresolved_includes`.
 - **MCP default (#105).** `standard`; `gosdk.Config.DefaultReturn`, `mcpserve.Options.DefaultReturn`, `pulse mcp --return`. Precedence: request, host, feature profile, built-in. Breaking for MCP users; migration guide lists it.
 - **#217** decided: a stream never raises `PULSE_RETURN_PATH_UNMATCHED`; the predict-time `unresolved_includes` note is the surface.
 - **#218** finding: the MCP tools have no streaming option, so there is no path to verify; library `StreamChunk` values are not precision-rounded, because precision is wire-only (only the CLI writers round).
@@ -109,7 +109,7 @@ Shipped on `response-shaping-execution` (no release tag cut by the unit). Epics 
 
 ## Open follow-ups (owner decisions)
 
-- Predict `sizes` appear only when an effective `return` block exists (FR-30 placement); a request without one reports none.
+- ~~Predict `sizes` appear only when an effective `return` block exists (FR-30 placement); a request without one reports none.~~ Resolved on `u18-followups`: `PredictResult.Sizes` (`descriptor.ResponseSectionSize`) is reported on every request; `shaped_bytes == full_bytes` without a `return` block.
 - The chi-square / Fisher component veto is over-cautious when the run is unweighted.
 - Layer-local multiplicity families veto conservatively.
 - Compose-host overlays are skipped all-or-nothing.

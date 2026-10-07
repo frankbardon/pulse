@@ -12,7 +12,7 @@ import (
 )
 
 // predict_return_sizes.go is the predict-time size model behind
-// ReturnPlan.Sizes and the Open-include note behind
+// PredictResult.Sizes and the Open-include note behind
 // ReturnPlan.UnresolvedIncludes. Header + schema only: every count comes
 // from the request, the schema's dictionaries (vectors.EstimateBuckets,
 // the rule MatrixPredict already reports) and the record count derived
@@ -21,9 +21,10 @@ import (
 // Each section is a small tree of sizeNodes mirroring its JSON shape.
 // Its full size is the tree's sum; its shaped size walks the same tree
 // through the plan's Visit, dropping every node the plan drops — so
-// shaped <= full by construction and an excluded section is 0.
+// shaped <= full by construction and an excluded section is 0. With no
+// effective plan, shaped is full.
 
-// Size bases (ReturnSectionSize.Basis).
+// Size bases (ResponseSectionSize.Basis).
 const (
 	returnSizeExact      = "exact"
 	returnSizeUpperBound = "upper_bound"
@@ -320,19 +321,28 @@ func returnSections(in returnSizeInputs) []returnSection {
 	return out
 }
 
-// returnSizes is ReturnPlan.Sizes: every modelled section, full and
-// under plan.
-func returnSizes(plan *returnplan.Plan, in returnSizeInputs) []descriptor.ReturnSectionSize {
-	if plan == nil || in.req == nil || in.schema == nil {
+// responseSizes is PredictResult.Sizes: every modelled section, full
+// and under plan. A nil plan (no effective `return` block) shapes
+// nothing, so shaped equals full.
+func responseSizes(plan *returnplan.Plan, in returnSizeInputs) []descriptor.ResponseSectionSize {
+	if in.req == nil || in.schema == nil {
 		return nil
 	}
 	sections := returnSections(in)
-	out := make([]descriptor.ReturnSectionSize, 0, len(sections))
+	if len(sections) == 0 {
+		return nil
+	}
+	out := make([]descriptor.ResponseSectionSize, 0, len(sections))
 	for _, s := range sections {
-		out = append(out, descriptor.ReturnSectionSize{
+		full := s.node.full()
+		shaped := full
+		if plan != nil {
+			shaped = s.node.shaped(plan, nil)
+		}
+		out = append(out, descriptor.ResponseSectionSize{
 			Section:     s.node.seg.Name,
-			FullBytes:   s.node.full(),
-			ShapedBytes: s.node.shaped(plan, nil),
+			FullBytes:   full,
+			ShapedBytes: shaped,
 			Basis:       s.basis,
 		})
 	}
