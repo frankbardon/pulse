@@ -49,6 +49,10 @@ Instance default: `Options.DefaultReturn`, else the feature profile's `return`, 
 
 `disable_components` is shorthand: alone it only skips computing components (byte-identical, no marker). Combined with any `return` layer it adds `exclude: ["components"]`. An engine that disabled components stays disabled under a request `return`: the components are not computed and the block gains `exclude: ["components"]`. Only an explicit request `disable_components: false` re-opens them.
 
+## Excluded means not computed
+
+An excluded `components` part (aggregations incl. `groups`, groupers, filterers, run) is never computed — the run does less work, not just the wire. When the request, a Compose or a chain carries an overlay, components are computed anyway (an overlay may read them) and still pruned from the wire. Kept figures never change, and the execution path is chosen from the full request.
+
 ## Surfaces
 
 - Process: shapes the one response.

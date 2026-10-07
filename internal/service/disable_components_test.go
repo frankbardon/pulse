@@ -123,8 +123,9 @@ func TestDisableComponents_RequestOverrideFalse(t *testing.T) {
 	}
 }
 
-// TestEffectiveDisableComponents_TableDriven covers the resolver directly
-// so the per-request override semantics stay regression-safe.
+// TestEffectiveDisableComponents_TableDriven covers the gate's fold into
+// the ComputePlan directly (no `return` on ctx: the gate alone) so the
+// per-request override semantics stay regression-safe.
 func TestEffectiveDisableComponents_TableDriven(t *testing.T) {
 	cases := []struct {
 		name        string
@@ -150,8 +151,8 @@ func TestEffectiveDisableComponents_TableDriven(t *testing.T) {
 			svc := &Service{}
 			svc.SetDisableComponents(tc.engine)
 			req := &types.Request{DisableComponents: tc.reqOverride, Return: tc.reqReturn}
-			if got := svc.effectiveDisableComponents(req); got != tc.want {
-				t.Errorf("effectiveDisableComponents(engine=%v, req=%v) = %v; want %v",
+			if got := !svc.computePlanFor(context.Background(), req).AnyComponents(); got != tc.want {
+				t.Errorf("components off (engine=%v, req=%v) = %v; want %v",
 					tc.engine, tc.reqOverride, got, tc.want)
 			}
 		})
@@ -162,8 +163,8 @@ func TestEffectiveDisableComponents_TableDriven(t *testing.T) {
 	t.Run("nil_request_uses_engine", func(t *testing.T) {
 		svc := &Service{}
 		svc.SetDisableComponents(true)
-		if got := svc.effectiveDisableComponents(nil); !got {
-			t.Errorf("effectiveDisableComponents(nil) = %v; want true (engine default)", got)
+		if got := !svc.computePlanFor(context.Background(), nil).AnyComponents(); !got {
+			t.Errorf("components off (nil request) = %v; want true (engine default)", got)
 		}
 	})
 }

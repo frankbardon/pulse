@@ -101,6 +101,12 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	ctx = withinCompose(ctx)
+	// A Compose overlay reads its slots' Components after they run, so
+	// no slot `return` may skip them (conservative: any overlay keeps
+	// every slot's Components).
+	if len(composed.Overlays) > 0 {
+		ctx = withComponentsVeto(ctx)
+	}
 
 	// Synthesize Label auto-defaults + collision-check on a clone of the
 	// slot list before the worker pool starts; see applyComposeLabelDefaults

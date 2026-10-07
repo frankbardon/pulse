@@ -146,15 +146,6 @@ func (s *Service) DisableComponents() bool {
 	return s.disableComponents
 }
 
-// effectiveDisableComponents resolves the per-request override against
-// the engine default through the rule predict shares
-// (descx.EffectiveDisableComponents): Request.DisableComponents set ⇒
-// it wins (true forces off, false forces on); else inherit the engine
-// default. A request `return` block never re-opens an engine-off gate.
-func (s *Service) effectiveDisableComponents(req *types.Request) bool {
-	return descx.EffectiveDisableComponents(req, s.disableComponents)
-}
-
 // SetProjectBufferedFields enables buffered-decode field projection.
 // When enabled the streaming iterator computes the set of fields a
 // request actually reads (NeededFields) and skips map writes for
@@ -605,11 +596,16 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	}
 	// The `return` block resolves beside it (descx.ResolveReturn — the
 	// pass predict runs), so a bad block is refused before any record
-	// is read. The plan is APPLIED by the outermost facade, never here:
-	// Compose overlays and chain stages read the unshaped response.
-	if _, err := descx.ResolveReturn(req, s.instance); err != nil {
+	// is read. The selection is APPLIED by the outermost facade, never
+	// here: Compose overlays and chain stages read the unshaped
+	// response. What it lets the run SKIP compiles into the ComputePlan
+	// every arm below consults (compute_plan.go); dispatch still reads
+	// the original request.
+	retPlan, err := descx.ResolveReturn(req, s.instance)
+	if err != nil {
 		return nil, markLocated(err)
 	}
+	ctx = withComputePlan(ctx, s.resolveComputePlan(ctx, req, retPlan))
 
 	resp, err := s.processDispatch(ctx, req)
 	if err != nil {
@@ -736,7 +732,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 
 	s.applyProjection(iter, req, cohort.Schema())
 
-	proc := s.newProcessor(cohort.Schema(), req)
+	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {
 		return nil, err
@@ -1055,6 +1051,12 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	ctx = withinCompose(ctx)
+	// A Compose overlay reads its slots' Components after they run, so
+	// no slot `return` may skip them (conservative: any overlay keeps
+	// every slot's Components).
+	if len(composed.Overlays) > 0 {
+		ctx = withComponentsVeto(ctx)
+	}
 
 	requests, err := applyComposeLabelDefaults(composed)
 	if err != nil {

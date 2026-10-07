@@ -109,7 +109,15 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		})
 	}
 
-	firstResp, err := s.Process(ctx, stage0)
+	// A chain overlay reads the stages' responses after the chain ran,
+	// so stage 0's `return` may not skip its Components (conservative:
+	// any chain overlay keeps them). Later stages run through
+	// runChainStage, whose context carries no plan: the gate alone.
+	stage0Ctx := ctx
+	if len(req.Overlays) > 0 {
+		stage0Ctx = withComponentsVeto(ctx)
+	}
+	firstResp, err := s.Process(stage0Ctx, stage0)
 	if err != nil {
 		return nil, locate(err, "stage", 0)
 	}
@@ -319,7 +327,7 @@ func snapshotRequest(req *types.Request) *types.Request {
 // nil or inactive plan is a no-op (byte-identical output).
 func (s *Service) runChainStage(ctx context.Context, req *types.Request, plan *descx.MultiplicityPlan, schema *encoding.Schema, records []*processing.Record) (*types.Response, error) {
 	iter := processing.NewSliceIterator(records)
-	proc := s.newProcessor(schema, req)
+	proc := s.newProcessor(ctx, schema, req)
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {
 		return nil, err

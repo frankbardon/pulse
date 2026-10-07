@@ -684,7 +684,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// path normalises its live accumulators into the same shape.
 	//
 	// Computed HERE rather than inside that block, i.e. OUTSIDE the
-	// disableComponents gate, because this call is also what refuses an
+	// components gate, because this call is also what refuses an
 	// auxiliary naming an operator no registry knows — which the fused
 	// arm refuses at construction, unconditionally. Moving it inside the
 	// gate would make that refusal depend on whether components happened
@@ -954,10 +954,10 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		grandMarginComponentsSlot = grandMarginComponents
 	}
 	// Components emission block — gated by the processor's
-	// disableComponents flag. The axis grouper instantiation +
+	// ComputePlan (components.crosstab). The axis grouper instantiation +
 	// MetaGrouper.Components walk is expensive on wide cohorts, so the
 	// gate skips that work entirely rather than building then discarding.
-	if !p.disableComponents {
+	if p.compute.Crosstab {
 		// Per-axis grouper components for the row + column axes. Each
 		// axis grouper is instantiated fresh and exercised against the full
 		// filtered set so MetaGrouper.Components() reflects the cohort-wide

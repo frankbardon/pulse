@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -53,13 +55,14 @@ func (s *Service) neededFields(req *types.Request, schema *encoding.Schema) proc
 }
 
 // newProcessor builds the processor every execution mode runs a
-// Request on: the instance's extensions, the effective Components
-// opt-out, and the weighting knobs (Options.DefaultWeight, which the
+// Request on: the instance's extensions, the request's ComputePlan
+// (computePlanFor: the plan Service.process resolved onto ctx), and the
+// weighting knobs (Options.DefaultWeight, which the
 // processor folds into each run through processing.StampWeights, and
 // strict mode, which turns PULSE_WEIGHT_INVALID_ROWS into an error).
-func (s *Service) newProcessor(schema *encoding.Schema, req *types.Request) *processing.Processor {
+func (s *Service) newProcessor(ctx context.Context, schema *encoding.Schema, req *types.Request) *processing.Processor {
 	proc := processing.NewProcessorWithExtensions(schema, s.extensions)
-	proc.SetDisableComponents(s.effectiveDisableComponents(req))
+	proc.SetComputePlan(s.computePlanFor(ctx, req))
 	proc.SetWeighting(s.defaultWeight, s.strict)
 	return proc
 }

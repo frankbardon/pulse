@@ -67,7 +67,8 @@ type GroupedTail struct {
 	// every filter-passing record (bucketed or not), and BucketFloors the
 	// per-bucket per-slot tallies minted with each bucket — together the
 	// floors behind Components.Aggregations' slot entries and groups[].
-	// Both are nil when components are disabled; every caller tallies
+	// SlotTotals is nil unless the plan computes Aggs, BucketFloors
+	// unless it computes Groups (NewGroupFloors); every caller tallies
 	// them through ObserveSlotFloors (the parallel reducers merge them
 	// with MergeSlotFloors), so the figures match whatever the worker
 	// count.
@@ -89,8 +90,11 @@ type GroupedTail struct {
 
 	// ShardCount is the archive's shard count (0 for a single file); it
 	// lands on Components.Run.ShardCount.
-	ShardCount        int
-	DisableComponents bool
+	ShardCount int
+	// Compute is the run's ComputePlan: which Components sub-parts the
+	// tail builds. The zero value builds none — callers pass the
+	// processor's (or the service's) resolved plan.
+	Compute ComputePlan
 
 	// PostTests runs Request.PostTests over the finished rows; nil
 	// means none (the parallel reducers' merge gate refuses post-tests).
@@ -157,7 +161,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	if err != nil {
 		return nil, err
 	}
-	matrices, matrixComps, err := t.Matrices.finalize(keys, !t.DisableComponents)
+	matrices, matrixComps, err := t.Matrices.finalize(keys, t.Compute.Matrices)
 	if err != nil {
 		return nil, err
 	}
@@ -180,21 +184,27 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		Matrices:  matrices,
 	}
 
-	if !t.DisableComponents {
+	if t.Compute.Aggs && len(req.Aggregations) > 0 {
 		// Per-group aggregation Components at TERMINAL flush: the
-		// cohort-wide slot floors plus one groups[] entry per Data row,
-		// in the final (sorted) order — the buffered arm's shape, off the
-		// live per-bucket aggregators (Finalized above) and the floor
-		// tallies the caller kept beside them.
-		if len(req.Aggregations) > 0 {
-			grouped, err := streamedGroupedAggregationComponents(req.Aggregations, t.SlotTotals, t.Buckets, t.BucketFloors, keys)
+		// cohort-wide slot floors plus (when the plan computes Groups) one
+		// groups[] entry per Data row, in the final (sorted) order — the
+		// buffered arm's shape, off the live per-bucket aggregators
+		// (Finalized above) and the floor tallies the caller kept beside
+		// them.
+		var grouped []types.AggregationComponents
+		if t.Compute.Groups {
+			grouped, err = streamedGroupedAggregationComponents(req.Aggregations, t.SlotTotals, t.Buckets, t.BucketFloors, keys)
 			if err != nil {
 				return nil, err
 			}
-			for _, entry := range grouped {
-				attachAggregationComponents(resp, entry)
-			}
+		} else {
+			grouped = slotFloorTotals(req.Aggregations, t.SlotTotals)
 		}
+		for _, entry := range grouped {
+			attachAggregationComponents(resp, entry)
+		}
+	}
+	if t.Compute.Groupers {
 		// One GrouperComponents entry off the grouper's live state;
 		// TotalN sums the bucket counts and NNull is every post-filter
 		// record that landed in no bucket (null key, include rejection,
@@ -204,16 +214,21 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 			return nil, err
 		}
 		attachGrouperComponents(resp, entry)
+	}
+	if t.Compute.Filterers {
 		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, t.FilterCounters))
+	}
+	if t.Compute.Run {
 		attachRunComponents(resp, RunCountersInput{
 			TotalRecords:    t.TotalRows,
 			FilteredRecords: t.FilteredRows,
 			NullRecords:     t.NullRecords,
 			ShardCount:      t.ShardCount,
 		})
-		// One MatrixComponents entry per Response.Matrices result.
-		attachMatrixComponents(resp, matrixComps)
 	}
+	// One MatrixComponents entry per Response.Matrices result (nil when
+	// the plan skips them).
+	attachMatrixComponents(resp, matrixComps)
 
 	// SERIES-host overlay hook — the same post-finalize wiring as the
 	// buffered processRecords path, over the same finished rows. On the

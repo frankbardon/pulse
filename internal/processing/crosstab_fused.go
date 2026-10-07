@@ -47,12 +47,13 @@ type FusedCrosstabState struct {
 	schema *encoding.Schema
 	exts   *ExtensionRegistry
 
-	// disableComponents mirrors Processor.disableComponents — set by
+	// compute mirrors the Processor's ComputePlan — set by
 	// RunCrosstabFused before Update / Finalize drains the iterator so
-	// the Components-emission tail in Finalize can be skipped under the
-	// pulse.Options.DisableComponents / Request.DisableComponents
-	// opt-out. Default false (components emitted, current behavior).
-	disableComponents bool
+	// the Components-emission tail in Finalize can be skipped when the
+	// plan drops components.crosstab (the `return` selection or the
+	// DisableComponents opt-out). Default FullComputePlan (components
+	// emitted).
+	compute ComputePlan
 
 	// Cell aggregator wiring. cellFactory is the constructor used to
 	// lazily build a per-cell OnlineAggregator the first time a record
@@ -353,6 +354,7 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 	}
 
 	st := &FusedCrosstabState{
+		compute:      FullComputePlan(),
 		spec:         spec,
 		schema:       schema,
 		exts:         ext,
@@ -2007,10 +2009,10 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		grandMarginCountSlot = s.grandMarginCount
 		grandMarginComponentsSlot = grandComponentsMap
 	}
-	// Components emission block — gated by disableComponents (mirrors
-	// the processor flag set by RunCrosstabFused). Skipping here drops
+	// Components emission block — gated by the plan's Crosstab flag
+	// (mirrors the processor plan set by RunCrosstabFused). Skipping here drops
 	// the MetaGrouper.Components walk + projection work entirely.
-	if !s.disableComponents {
+	if s.compute.Crosstab {
 		// Per-axis grouper components emission. Each axis grouper
 		// already accumulated liveBuckets via its keying side-effect
 		// path during Update (KeyForRow for single-key entries,

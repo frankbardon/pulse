@@ -200,6 +200,7 @@ func (m *matrixSlot) result(withComponents bool) (types.MatrixResult, *types.Mat
 // the merged state cm and the integer row tallies — every input is
 // worker-invariant, so the entry is too.
 func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
+	workMatrixComponentBuilds.Add(1)
 	c := &types.MatrixComponents{
 		Name:             m.plan.Name,
 		Type:             m.plan.Type,

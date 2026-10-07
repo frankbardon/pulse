@@ -42,7 +42,7 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 
-	proc := s.newProcessor(joinedSchema, req)
+	proc := s.newProcessor(ctx, joinedSchema, req)
 	resp, err := proc.Process(ctx, s.zoned(&clone, zones), join)
 	if err != nil {
 		return nil, err
