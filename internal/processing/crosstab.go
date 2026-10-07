@@ -527,7 +527,16 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// half is empty and the cell's payload is the floor alone. Empty
 	// cells (no bucket) emit nil — preserved by the nil sentinel
 	// populateCrosstabComponents writes when no entry exists for (r, c).
-	cellComponents := make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
+	//
+	// Built only when the ComputePlan computes components.crosstab (the
+	// `return` selection and the DisableComponents gate): a nil map
+	// skips every per-cell and per-margin MetaAggregator.Components()
+	// call below, not merely their emission.
+	buildComps := p.compute.Crosstab
+	var cellComponents map[crosstabCellKey]map[string]any
+	if buildComps {
+		cellComponents = make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
+	}
 
 	for _, rkey := range rowPart.Keys {
 		rowRecs := rowPart.Records[rkey]
@@ -550,12 +559,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if err != nil {
 				return nil, err
 			}
-			compMap, err := buildCellComponentMap(instance, n, nNull)
-			if err != nil {
-				return nil, err
+			if buildComps {
+				compMap, err := buildCellComponentMap(instance, n, nNull)
+				if err != nil {
+					return nil, err
+				}
+				val.weight.stampMap(compMap)
+				cellComponents[ck] = compMap
 			}
-			val.weight.stampMap(compMap)
-			cellComponents[ck] = compMap
 			if !val.present {
 				continue
 			}
@@ -570,8 +581,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// buildCellComponentMap which merges the universal floor {n, n_null}
 	// with the cell aggregator's MetaAggregator.Components() output for
 	// the row-margin / column-margin / grand-total components emission.
-	// Component maps are tracked unconditionally when the margin slot is
-	// computed (NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin),
+	// Component maps are tracked whenever the plan computes
+	// components.crosstab and the margin slot is computed
+	// (NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin),
 	// but only flow to Response.Components when the corresponding
 	// display flag is set — mirroring the MatrixPayload.RowMargins /
 	// ColumnMargins / GrandTotal emission rule (computed for
@@ -584,7 +596,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		rowMargins = make(map[string]any, len(rowPart.Keys))
 		rowMarginPresent = make(map[string]bool, len(rowPart.Keys))
 		rowMarginCounts = make(map[string]int, len(rowPart.Keys))
-		rowMarginComponents = make(map[string]map[string]any, len(rowPart.Keys))
+		if buildComps {
+			rowMarginComponents = make(map[string]map[string]any, len(rowPart.Keys))
+		}
 		for _, rkey := range rowPart.Keys {
 			bucket := rowPart.Records[rkey]
 			if len(bucket) == 0 {
@@ -595,12 +609,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			rowMarginCounts[rkey] = n + nNull
-			compMap, err := buildCellComponentMap(instance, n, nNull)
-			if err != nil {
-				return nil, err
+			if buildComps {
+				compMap, err := buildCellComponentMap(instance, n, nNull)
+				if err != nil {
+					return nil, err
+				}
+				val.weight.stampMap(compMap)
+				rowMarginComponents[rkey] = compMap
 			}
-			val.weight.stampMap(compMap)
-			rowMarginComponents[rkey] = compMap
 			if !val.present {
 				continue
 			}
@@ -617,7 +633,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		colMargins = make(map[string]any, len(colPart.Keys))
 		colMarginPresent = make(map[string]bool, len(colPart.Keys))
 		colMarginCounts = make(map[string]int, len(colPart.Keys))
-		colMarginComponents = make(map[string]map[string]any, len(colPart.Keys))
+		if buildComps {
+			colMarginComponents = make(map[string]map[string]any, len(colPart.Keys))
+		}
 		for _, ckey := range colPart.Keys {
 			bucket := colPart.Records[ckey]
 			if len(bucket) == 0 {
@@ -628,12 +646,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			colMarginCounts[ckey] = n + nNull
-			compMap, err := buildCellComponentMap(instance, n, nNull)
-			if err != nil {
-				return nil, err
+			if buildComps {
+				compMap, err := buildCellComponentMap(instance, n, nNull)
+				if err != nil {
+					return nil, err
+				}
+				val.weight.stampMap(compMap)
+				colMarginComponents[ckey] = compMap
 			}
-			val.weight.stampMap(compMap)
-			colMarginComponents[ckey] = compMap
 			if !val.present {
 				continue
 			}
@@ -653,12 +673,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			grandMarginCount = n + nNull
-			compMap, err := buildCellComponentMap(instance, n, nNull)
-			if err != nil {
-				return nil, err
+			if buildComps {
+				compMap, err := buildCellComponentMap(instance, n, nNull)
+				if err != nil {
+					return nil, err
+				}
+				val.weight.stampMap(compMap)
+				grandMarginComponents = compMap
 			}
-			val.weight.stampMap(compMap)
-			grandMarginComponents = compMap
 			if val.present {
 				grandMargin = val.value
 				grandPresent = true
@@ -689,7 +711,10 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// arm refuses at construction, unconditionally. Moving it inside the
 	// gate would make that refusal depend on whether components happened
 	// to be enabled
-	// (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused).
+	// (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused). The
+	// ACCUMULATION past that refusal does ride the plan:
+	// computeAuxMargins returns nil without evaluating a figure when
+	// ComputePlan.AuxMargins is off.
 	auxMargins, err := p.computeAuxMargins(spec, filtered, rowPart, colPart)
 	if err != nil {
 		return nil, err
@@ -1728,6 +1753,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 // emission returns one — same dispatch contract as
 // buildAggregationComponents in the ungrouped path.
 func buildCellComponentMap(instance any, n, nNull int) (map[string]any, error) {
+	workCrosstabComponentMaps.Add(1)
 	var operator map[string]any
 	if meta, ok := instance.(MetaAggregator); ok {
 		op, err := meta.Components()

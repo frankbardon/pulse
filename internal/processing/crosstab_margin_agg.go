@@ -155,6 +155,14 @@ func (p *Processor) computeAuxMargins(spec *types.CrosstabSpec, filtered []*Reco
 			map[string]any{"aggregation": string(aux.Type), "slot": "margin_aggregations"})
 	}
 
+	// Past the refusal, the figures are compute-plan work: a `return`
+	// selection (or the DisableComponents gate) that drops the
+	// `*_margin_aggregations` figures evaluates none of them. nil is the
+	// same carrier an undeclared auxiliary yields, so nothing is emitted.
+	if !p.compute.AuxMargins {
+		return nil, nil
+	}
+
 	out := &crosstabAuxMargins{Labels: spec.MarginAggregationLabels()}
 
 	needRow := spec.NeedsRowMargin()
@@ -343,6 +351,7 @@ func (p *Processor) auxFiguresFor(spec *types.CrosstabSpec, admitted []*Record) 
 		return figures, nil
 	}
 	for i, aux := range spec.MarginAggregations {
+		workAuxMarginAccumulators.Add(1)
 		val, instance, n, nNull, err := p.runCellAggregation(aux, admitted)
 		if err != nil {
 			return nil, err

@@ -47,12 +47,13 @@ type FusedCrosstabState struct {
 	schema *encoding.Schema
 	exts   *ExtensionRegistry
 
-	// compute mirrors the Processor's ComputePlan — set by
-	// RunCrosstabFused before Update / Finalize drains the iterator so
-	// the Components-emission tail in Finalize can be skipped when the
-	// plan drops components.crosstab (the `return` selection or the
-	// DisableComponents opt-out). Default FullComputePlan (components
-	// emitted).
+	// compute mirrors the Processor's ComputePlan — installed by
+	// RunCrosstabFused through setCompute before Update drains the
+	// iterator. Crosstab off skips every Finalize-time component map
+	// (cells, margins) and the emission tail; AuxMargins off skips the
+	// per-record auxiliary accumulation. Either comes from the `return`
+	// selection or the DisableComponents opt-out. Default
+	// FullComputePlan (everything computed).
 	compute ComputePlan
 
 	// Cell aggregator wiring. cellFactory is the constructor used to
@@ -1195,6 +1196,22 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	return nil
 }
 
+// setCompute installs the run's ComputePlan before Update. With
+// AuxMargins off it also forgets the declared auxiliaries, exactly as
+// if none were declared: the interner grows no accumulator slice,
+// Update folds nothing, and finalizeAuxMargins emits nil. The
+// auxiliaries were already resolved against the registry at
+// construction, so an unknown type stays refused whatever the plan.
+func (s *FusedCrosstabState) setCompute(c ComputePlan) {
+	s.compute = c
+	if c.AuxMargins {
+		return
+	}
+	s.auxAggs, s.auxFactories, s.auxPresent = nil, nil, nil
+	s.auxRowSlot, s.auxColSlot, s.auxGrandSlot = false, false, false
+	s.rowMarginAux, s.colMarginAux, s.grandMarginAux = nil, nil, nil
+}
+
 // updateAuxMargins folds one record into every auxiliary margin-only
 // accumulator it is ADMITTED to.
 //
@@ -1284,6 +1301,7 @@ func (s *FusedCrosstabState) foldAuxSlot(slot []auxMarginAccumulator, rec *Recor
 			}
 			acc.agg = instance
 			acc.weight = NewWeightFloor(s.auxAggs[i])
+			workAuxMarginAccumulators.Add(1)
 		}
 		if err := acc.agg.UpdateRow(rec, s.auxAggs[i].Field); err != nil {
 			return err
@@ -1818,13 +1836,15 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		// cell aggregator's MetaAggregator.Components() output. Mirrors
 		// the buffered grand-margin emission so the buffered/fused
 		// parity gate holds across the grand-total slot too.
-		n := s.grandMarginCount - s.grandMarginNNull
-		compMap, cerr := buildCellComponentMap(s.grandMargin, n, s.grandMarginNNull)
-		if cerr != nil {
-			return nil, cerr
+		if s.compute.Crosstab {
+			n := s.grandMarginCount - s.grandMarginNNull
+			compMap, cerr := buildCellComponentMap(s.grandMargin, n, s.grandMarginNNull)
+			if cerr != nil {
+				return nil, cerr
+			}
+			s.grandMarginWeight.stampMap(compMap)
+			grandComponentsMap = compMap
 		}
-		s.grandMarginWeight.stampMap(compMap)
-		grandComponentsMap = compMap
 	}
 
 	// Partial-depth (normalize_level) denominators. When the leaf was
@@ -2104,7 +2124,10 @@ func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[cross
 	nCells := len(s.rowKeys) * len(s.colKeys)
 	values := make(map[crosstabCellKey]any, nCells)
 	present := make(map[crosstabCellKey]bool, nCells)
-	components := make(map[crosstabCellKey]map[string]any, nCells)
+	var components map[crosstabCellKey]map[string]any
+	if s.compute.Crosstab {
+		components = make(map[crosstabCellKey]map[string]any, nCells)
+	}
 	for rIdx, row := range s.cells {
 		rKey := s.rowKeys[rIdx]
 		for cIdx, agg := range row {
@@ -2122,6 +2145,9 @@ func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[cross
 			ck := crosstabCellKey{row: rKey, col: s.colKeys[cIdx]}
 			values[ck] = v
 			present[ck] = true
+			if components == nil {
+				continue // the plan skips components.crosstab
+			}
 			// Per-cell components emission. n = records routed
 			// to (r, c) minus null inputs; n_null = null inputs. Matches
 			// the buffered path's runCellAggregation walk byte-for-byte.
@@ -2158,7 +2184,10 @@ func (s *FusedCrosstabState) finalizeRowMargins() (map[string]any, map[string]bo
 	values := make(map[string]any, len(s.rowMargins))
 	present := make(map[string]bool, len(s.rowMargins))
 	counts := make(map[string]int, len(s.rowMargins))
-	components := make(map[string]map[string]any, len(s.rowMargins))
+	var components map[string]map[string]any
+	if s.compute.Crosstab {
+		components = make(map[string]map[string]any, len(s.rowMargins))
+	}
 	for i, agg := range s.rowMargins {
 		key := s.rowKeys[i]
 		// Always emit the count + components for the row key when any
@@ -2182,6 +2211,9 @@ func (s *FusedCrosstabState) finalizeRowMargins() (map[string]any, map[string]bo
 		values[key] = v
 		present[key] = true
 		counts[key] = s.rowMarginCount[i]
+		if components == nil {
+			continue // the plan skips components.crosstab
+		}
 		n := s.rowMarginCount[i] - s.rowMarginNNull[i]
 		compMap, cerr := buildCellComponentMap(agg, n, s.rowMarginNNull[i])
 		if cerr != nil {
@@ -2203,7 +2235,10 @@ func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bo
 	values := make(map[string]any, len(s.colMargins))
 	present := make(map[string]bool, len(s.colMargins))
 	counts := make(map[string]int, len(s.colMargins))
-	components := make(map[string]map[string]any, len(s.colMargins))
+	var components map[string]map[string]any
+	if s.compute.Crosstab {
+		components = make(map[string]map[string]any, len(s.colMargins))
+	}
 	for i, agg := range s.colMargins {
 		key := s.colKeys[i]
 		if agg == nil {
@@ -2220,6 +2255,9 @@ func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bo
 		values[key] = v
 		present[key] = true
 		counts[key] = s.colMarginCount[i]
+		if components == nil {
+			continue // the plan skips components.crosstab
+		}
 		n := s.colMarginCount[i] - s.colMarginNNull[i]
 		compMap, cerr := buildCellComponentMap(agg, n, s.colMarginNNull[i])
 		if cerr != nil {

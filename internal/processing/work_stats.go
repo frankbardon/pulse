@@ -14,6 +14,8 @@ var (
 	workFiltererComponentBuilds atomic.Int64
 	workRunComponentBuilds      atomic.Int64
 	workMatrixComponentBuilds   atomic.Int64
+	workCrosstabComponentMaps   atomic.Int64
+	workAuxMarginAccumulators   atomic.Int64
 )
 
 // WorkStatsSnapshot is a snapshot of the process-wide work counters.
@@ -35,30 +37,45 @@ type WorkStatsSnapshot struct {
 	RunComponentBuilds int64
 	// MatrixComponentBuilds counts Components.Matrices entries built.
 	MatrixComponentBuilds int64
+	// CrosstabCellComponentMaps counts crosstab component maps built
+	// (buildCellComponentMap): one per occupied cell, per row / column
+	// margin slot, the grand margin, and per auxiliary margin figure.
+	// Every one lands under components.crosstab.
+	CrosstabCellComponentMaps int64
+	// AuxMarginAccumulators counts auxiliary margin aggregator
+	// instances run (crosstab.margin_aggregations): one per (auxiliary,
+	// margin slot) the buffered arm evaluates over a non-empty admitted
+	// set, and one per (auxiliary, slot) the fused arm constructs on a
+	// slot's first admitted record.
+	AuxMarginAccumulators int64
 }
 
 // WorkStats returns the process-wide work counters. Diagnostic only;
 // tests read deltas.
 func WorkStats() WorkStatsSnapshot {
 	return WorkStatsSnapshot{
-		AggComponentBuilds:      workAggComponentBuilds.Load(),
-		GroupFloorBuilds:        workGroupFloorBuilds.Load(),
-		GrouperComponentBuilds:  workGrouperComponentBuilds.Load(),
-		FiltererComponentBuilds: workFiltererComponentBuilds.Load(),
-		RunComponentBuilds:      workRunComponentBuilds.Load(),
-		MatrixComponentBuilds:   workMatrixComponentBuilds.Load(),
+		AggComponentBuilds:        workAggComponentBuilds.Load(),
+		GroupFloorBuilds:          workGroupFloorBuilds.Load(),
+		GrouperComponentBuilds:    workGrouperComponentBuilds.Load(),
+		FiltererComponentBuilds:   workFiltererComponentBuilds.Load(),
+		RunComponentBuilds:        workRunComponentBuilds.Load(),
+		MatrixComponentBuilds:     workMatrixComponentBuilds.Load(),
+		CrosstabCellComponentMaps: workCrosstabComponentMaps.Load(),
+		AuxMarginAccumulators:     workAuxMarginAccumulators.Load(),
 	}
 }
 
 // Sub is the per-counter delta s - o.
 func (s WorkStatsSnapshot) Sub(o WorkStatsSnapshot) WorkStatsSnapshot {
 	return WorkStatsSnapshot{
-		AggComponentBuilds:      s.AggComponentBuilds - o.AggComponentBuilds,
-		GroupFloorBuilds:        s.GroupFloorBuilds - o.GroupFloorBuilds,
-		GrouperComponentBuilds:  s.GrouperComponentBuilds - o.GrouperComponentBuilds,
-		FiltererComponentBuilds: s.FiltererComponentBuilds - o.FiltererComponentBuilds,
-		RunComponentBuilds:      s.RunComponentBuilds - o.RunComponentBuilds,
-		MatrixComponentBuilds:   s.MatrixComponentBuilds - o.MatrixComponentBuilds,
+		AggComponentBuilds:        s.AggComponentBuilds - o.AggComponentBuilds,
+		GroupFloorBuilds:          s.GroupFloorBuilds - o.GroupFloorBuilds,
+		GrouperComponentBuilds:    s.GrouperComponentBuilds - o.GrouperComponentBuilds,
+		FiltererComponentBuilds:   s.FiltererComponentBuilds - o.FiltererComponentBuilds,
+		RunComponentBuilds:        s.RunComponentBuilds - o.RunComponentBuilds,
+		MatrixComponentBuilds:     s.MatrixComponentBuilds - o.MatrixComponentBuilds,
+		CrosstabCellComponentMaps: s.CrosstabCellComponentMaps - o.CrosstabCellComponentMaps,
+		AuxMarginAccumulators:     s.AuxMarginAccumulators - o.AuxMarginAccumulators,
 	}
 }
 
