@@ -1051,22 +1051,20 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	ctx = withinCompose(ctx)
-	// A Compose overlay reads its slots' Components after they run, so
-	// no slot `return` may skip them (conservative: any overlay keeps
-	// every slot's Components).
-	if len(composed.Overlays) > 0 {
-		ctx = withComponentsVeto(ctx)
-	}
 
 	requests, err := applyComposeLabelDefaults(composed)
 	if err != nil {
 		return nil, err
 	}
 	*slots = requests
+	// A Compose overlay reads the slots it names after they run, so a
+	// named slot's `return` may not skip its Components; an unnamed
+	// slot skips what its selection excludes.
+	vetoes := composeSlotVetoes(composed.Overlays, requests)
 
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		resp, err := s.Process(ctx, req)
+		resp, err := s.Process(composeSlotContext(ctx, vetoes, i), req)
 		if err != nil {
 			return nil, fmt.Errorf("request %d: %w", i, locate(err, "request", i))
 		}

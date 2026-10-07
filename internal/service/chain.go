@@ -8,6 +8,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -57,6 +58,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// stage folds its own plan in runChainStage. No family spans
 	// stages.
 	plans := make([]*descx.MultiplicityPlan, len(req.Stages))
+	rets := make([]*returnplan.Plan, len(req.Stages))
 	for i, st := range req.Stages {
 		plan, err := s.resolveMultiplicity(ctx, st.Request)
 		if err != nil {
@@ -67,9 +69,11 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		// ValidateChain runs per stage). It is APPLIED by the facade
 		// only after the whole chain finished, so a later stage always
 		// reads the unshaped rows; stage 0 re-resolves inside Process.
-		if _, err := descx.ResolveReturn(st.Request, s.instance); err != nil {
+		ret, err := descx.ResolveReturn(st.Request, s.instance)
+		if err != nil {
 			return nil, descx.RefusalAt(err, "stage", i)
 		}
+		rets[i] = ret
 	}
 
 	// Stage 0 runs against the on-disk cohort.
@@ -109,15 +113,10 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		})
 	}
 
-	// A chain overlay reads the stages' responses after the chain ran,
-	// so stage 0's `return` may not skip its Components (conservative:
-	// any chain overlay keeps them). Later stages run through
-	// runChainStage, whose context carries no plan: the gate alone.
-	stage0Ctx := ctx
-	if len(req.Overlays) > 0 {
-		stage0Ctx = withComponentsVeto(ctx)
-	}
-	firstResp, err := s.Process(stage0Ctx, stage0)
+	// A chain overlay reads its stages' data and crosstab payload only
+	// (never skipped), so it vetoes no stage's `return` skip; stage 0
+	// resolves its own compute plan inside Process.
+	firstResp, err := s.Process(ctx, stage0)
 	if err != nil {
 		return nil, locate(err, "stage", 0)
 	}
@@ -173,7 +172,10 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 			})
 		}
 
-		resp, err := s.runChainStage(ctx, s.zoned(stage, zones), plans[i], synthSchema, records)
+		// The stage's own compute plan: what its `return` excludes is
+		// never built. Its data — the next stage's input — has no skip.
+		stageCtx := withComputePlan(ctx, s.resolveComputePlan(ctx, stage, rets[i]))
+		resp, err := s.runChainStage(stageCtx, s.zoned(stage, zones), plans[i], synthSchema, records)
 		if err != nil {
 			return nil, err
 		}

@@ -1271,6 +1271,22 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 	return 0, 0, "rows", "columns"
 }
 
+// OverlayReadsHostComponents reports whether a Request.Overlays kind
+// reads its crosstab host's Response.Components.Crosstab — the rule the
+// service's compute plan vetoes a `return` skip with (U18), beside its
+// refusal half validateOverlayHiddenFloor. The OVERLAY_PAIRWISE_* family
+// reads per-cell floors, Welford triples, margin and slab counts
+// (PULSE_OVERLAY_COMPONENTS_REQUIRED without them); the
+// weighting.ScalesByHostFloor kinds and OVERLAY_FISHER_EXACT_CELL read
+// the cells' weighted floors (Kish n_eff, the stamped sum_weights) on a
+// weighted host. Every other host kind reads the MatrixPayload only.
+// Components.Crosstab is the only Components sub-part any overlay
+// reads.
+func OverlayReadsHostComponents(kind types.OverlayKind) bool {
+	return types.IsPairwiseOverlayKind(kind) || weighting.ScalesByHostFloor(kind) ||
+		kind == types.OverlayKindFisherExactCell
+}
+
 // validateOverlaySpec applies the per-kind ruleset to one OverlaySpec.
 // Errors are emitted with deterministic Details so MCP / CLI
 // envelopes can render the index, kind, and offending value without
@@ -1285,7 +1301,8 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 // weighting-inferential E3-S3): a kind that scales the host's Σw by the
 // n_eff on its floor, over a crosstab cell weighted under kind
 // probability whose components are disabled (the request's
-// disable_components, else Options.DisableComponents).
+// disable_components, else Options.DisableComponents). Its kinds are a
+// subset of OverlayReadsHostComponents, the rule a `return` skip obeys.
 func validateOverlayHiddenFloor(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if !weighting.ScalesByHostFloor(spec.Kind) || !opts.componentsDisabled(req) ||
 		crosstabCellWeightBasis(req, opts) != weighting.Probability {

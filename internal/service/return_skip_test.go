@@ -267,10 +267,12 @@ func TestReturnSkipsComputation(t *testing.T) {
 }
 
 // The DisableComponents gate closes every sub-part whatever `return`
-// keeps; an overlay on the request (or downstream, componentsVetoed)
-// keeps them whatever `return` excludes; the matrices slot follows the
-// selection unvetoed (minimal drops its auxiliary / scalars / vectors);
-// the other whole-slot parts stay on until the stories that wire them.
+// keeps; a request overlay that reads its host's components keeps
+// components.crosstab only (a payload-only overlay keeps nothing); a
+// Compose overlay naming the slot (componentsVetoed) keeps every
+// sub-part; the matrices slot follows the selection unvetoed (minimal
+// drops its auxiliary / scalars / vectors); the other whole-slot parts
+// stay on until the stories that wire them.
 func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 	full := processing.FullComputePlan()
 	svc := &Service{}
@@ -278,26 +280,55 @@ func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 	minimal := processing.ComputePlanFor(nil).WithoutComponents()
 	minimal.MatrixAuxiliary, minimal.MatrixScalars, minimal.MatrixVectors = false, false, false
 	vetoed := minimal.WithComponentsOf(full)
+	crosstabKept := minimal
+	crosstabKept.Crosstab = true
 
 	excl := &types.Request{}
 	ret := mustResolveReturn(t, &types.Request{Return: &types.Return{Preset: types.ReturnPresetMinimal}})
 	if got := svc.resolveComputePlan(ctx, excl, ret); got != minimal {
 		t.Errorf("minimal: %+v; want components and matrix sub-parts off, whole-slot parts on", got)
 	}
-	overlaid := &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow}}}
-	if got := svc.resolveComputePlan(ctx, overlaid, ret); got != vetoed {
-		t.Errorf("request overlay veto: %+v; want every component kept", got)
+	payloadOnly := &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow}}}
+	if got := svc.resolveComputePlan(ctx, payloadOnly, ret); got != minimal {
+		t.Errorf("payload-only overlay: %+v; want no veto", got)
+	}
+	for _, kind := range []types.OverlayKind{types.OverlayKindPairwisePropZ, types.OverlayKindChiSqRow, types.OverlayKindFisherExactCell} {
+		reading := &types.Request{Overlays: []types.OverlaySpec{
+			{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow},
+			{Kind: kind, Scope: types.OverlayScopeRow},
+		}}
+		if got := svc.resolveComputePlan(ctx, reading, ret); got != crosstabKept {
+			t.Errorf("%s: %+v; want components.crosstab kept, aux margins and the rest skipped", kind, got)
+		}
 	}
 	if got := svc.resolveComputePlan(withComponentsVeto(ctx), excl, ret); got != vetoed {
-		t.Errorf("downstream overlay veto: %+v; want every component kept", got)
+		t.Errorf("Compose slot veto: %+v; want every component kept", got)
 	}
 	svc.SetDisableComponents(true)
-	if got := svc.resolveComputePlan(withComponentsVeto(ctx), overlaid, nil); got.AnyComponents() {
+	reading := &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeRow}}}
+	if got := svc.resolveComputePlan(withComponentsVeto(ctx), reading, nil); got.AnyComponents() {
 		t.Errorf("closed gate under a veto: %+v; want every sub-part off", got)
 	}
 	// computePlanFor prefers the plan Service.process put on ctx.
 	if got := svc.computePlanFor(withComputePlan(ctx, minimal), excl); got != minimal {
 		t.Errorf("computePlanFor ignored the ctx plan: %+v", got)
+	}
+}
+
+// composeSlotVetoes names exactly the slots a Compose overlay reads:
+// its reference and its targets (no targets: every slot).
+func TestComposeSlotVetoes(t *testing.T) {
+	reqs := []*types.Request{{Label: "a"}, {Label: "b"}, {Label: "c"}, nil}
+	if got := composeSlotVetoes(nil, reqs); got != nil {
+		t.Errorf("no overlays: %v; want nil", got)
+	}
+	got := composeSlotVetoes([]types.ComposeOverlaySpec{{Reference: "a", Targets: []string{"c"}}}, reqs)
+	if want := []bool{true, false, true, false}; !reflect.DeepEqual(got, want) {
+		t.Errorf("ref a, target c: %v; want %v", got, want)
+	}
+	got = composeSlotVetoes([]types.ComposeOverlaySpec{{Reference: "b"}}, reqs)
+	if want := []bool{true, true, true, false}; !reflect.DeepEqual(got, want) {
+		t.Errorf("no targets: %v; want %v", got, want)
 	}
 }
 
@@ -345,46 +376,4 @@ func assertKeptComponentsEqual(t *testing.T, base, got *types.ResponseComponents
 	check("groupers", !zero["groupers"], base.Groupers, got.Groupers, got.Groupers == nil)
 	check("filterers", !zero["filterers"], base.Filterers, got.Filterers, got.Filterers == nil)
 	check("run", !zero["run"], base.Run, got.Run, got.Run == nil)
-}
-
-// A chain overlay reads the stages' responses after the whole chain, so
-// stage 0's `return` may not skip its Components while the chain
-// carries one (conservative veto); without a chain overlay the same
-// stage skips them.
-func TestReturnSkipsComputation_ChainOverlayVeto(t *testing.T) {
-	cfg := fs.NewMemMap()
-	if err := afero.WriteFile(cfg.Fs(), "skip.pulse", skipPayload(t, 300, 0), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	svc := New(cfg)
-	zero := 0
-	chain := func(overlaid bool) *types.ChainRequest {
-		stage0 := skipRequest("", true, false)
-		stage0.Cohort = nil
-		stage0.Return = &types.Return{Preset: types.ReturnPresetStandard}
-		req := &types.ChainRequest{
-			Cohort: &types.Cohort{Filename: "skip.pulse"},
-			Stages: []*types.ChainStage{{Name: "s0", Request: stage0}},
-		}
-		if overlaid {
-			req.Overlays = []*types.ChainOverlaySpec{{
-				Name: "idx", Kind: types.OverlayKindIndexVsStage, Scope: types.OverlayScopeTotal,
-				Ref: types.StageRef{Index: &zero}, Target: types.StageRef{Index: &zero},
-			}}
-		}
-		return req
-	}
-	for _, overlaid := range []bool{false, true} {
-		before := processing.WorkStats()
-		if _, err := svc.ProcessChain(context.Background(), chain(overlaid)); err != nil {
-			t.Fatalf("ProcessChain(overlaid=%v): %v", overlaid, err)
-		}
-		got := processing.WorkStats().Sub(before).AggComponentBuilds
-		if overlaid && got <= 0 {
-			t.Errorf("chain overlay present: stage 0 components skipped (delta %d); the veto must keep them", got)
-		}
-		if !overlaid && got != 0 {
-			t.Errorf("no chain overlay: stage 0 standard still built aggregation components %d time(s)", got)
-		}
-	}
 }

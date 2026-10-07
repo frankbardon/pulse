@@ -101,12 +101,6 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	ctx = withinCompose(ctx)
-	// A Compose overlay reads its slots' Components after they run, so
-	// no slot `return` may skip them (conservative: any overlay keeps
-	// every slot's Components).
-	if len(composed.Overlays) > 0 {
-		ctx = withComponentsVeto(ctx)
-	}
 
 	// Synthesize Label auto-defaults + collision-check on a clone of the
 	// slot list before the worker pool starts; see applyComposeLabelDefaults
@@ -116,6 +110,8 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	*slots = requests
+	// Per-slot Components veto, exactly as on the serial path.
+	vetoes := composeSlotVetoes(composed.Overlays, requests)
 
 	o := opts.resolved()
 	n := len(requests)
@@ -154,7 +150,7 @@ func (s *Service) composeParallel(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			reqCtx := runCtx
+			reqCtx := composeSlotContext(runCtx, vetoes, i)
 			if o.PerRequestTimeout > 0 {
 				var reqCancel context.CancelFunc
 				reqCtx, reqCancel = context.WithTimeout(runCtx, o.PerRequestTimeout)
