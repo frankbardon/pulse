@@ -87,7 +87,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(shell-completion/
 
 - `docs/src/cli/flags.md` command index; `internal/descriptor/features.go` `commandBindings`
 - `skills/session-bootstrap.md` only if a flag is agent-relevant (probably not)
-- CLAUDE.md "Architecture" CLI command list (keep under 50,000 bytes)
+- CLAUDE.md "Architecture" CLI command list (keep under 40,000 bytes)
 
 ## Human inputs & decisions
 

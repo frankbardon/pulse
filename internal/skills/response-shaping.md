@@ -9,7 +9,7 @@ covers: [return, presets, include, exclude, precision, returned]
 
 # Response shaping (`return`)
 
-`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict resolves and validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, precision?, identity, digest}`) plus `sizes` — per top-level section `{section, full_bytes, shaped_bytes, basis}` (`exact` / `upper_bound` / `heuristic`; excluded = 0; omitted when the size depends on data) — and `unresolved_includes`.
+`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, precision?, identity, digest}`) plus `sizes` (per section `{section, full_bytes, shaped_bytes, basis}`, basis `exact` / `upper_bound` / `heuristic`; omitted when data-dependent) and `unresolved_includes`.
 
 ```json
 {"return": {"preset": "standard", "exclude": ["warnings"], "precision": 4}}
@@ -27,7 +27,7 @@ Presets (closed enum; the manifest `return_presets` lists each one's paths, alre
 
 ## Path grammar
 
-Paths use the Response JSON names at any depth: `.` between keys, `[*]` into every array element, a trailing `*` on a map-key segment as a prefix glob (`tests[*].details.effect_*`, `components.aggregations[*].groups`). `data[*].<column>` selects output columns; a column the request cannot produce is refused.
+Paths use the Response JSON names at any depth: `.` between keys, `[*]` into every array element, a trailing `*` on a map-key segment as a prefix glob (`tests[*].details.effect_*`). `data[*].<column>` selects output columns; a column the request cannot produce is refused.
 
 ## Errors
 
@@ -53,14 +53,14 @@ MCP tools default to `standard`: request `return` > host `pulse mcp --return` / 
 
 ## Excluded means not computed
 
-An excluded `components` part (aggregations incl. `groups`, groupers, filterers, run) is never computed — the run does less work, not just the wire. An excluded `matrices` slot is never accumulated (unless `components.matrices` is kept), and an excluded `auxiliary`, `scalars` or `vectors` is never built. An excluded overlay layer, test or post-test is never computed and raises nothing, unless a multiplicity family claims it; excluded regressions are never fitted. A kept overlay that reads components keeps them computed, still pruned from the wire. Kept figures never change, and the execution path is chosen from the full request.
+An excluded `components` part (aggregations incl. `groups`, groupers, filterers, run) is never computed — the run does less work, not just the wire. An excluded `matrices` slot is never accumulated (unless `components.matrices` is kept), and an excluded `auxiliary`, `scalars` or `vectors` is never built. An excluded overlay layer, test or post-test is never computed, unless a multiplicity family claims it; excluded regressions are never fitted. **Not computed means not validated:** an excluded part raises no refusal or warning (`PULSE_OVERLAY_COMPONENTS_REQUIRED`, `PULSE_TEST_*`, `PROCESSING_REGRESSION_*`) — predict stays the validator, so predict first. A kept overlay that reads components keeps them computed, still pruned from the wire. Kept figures never change, and the execution path is chosen from the full request.
 
 ## Surfaces
 
 - Process: shapes the one response.
 - Compose: each slot's `return` (else the instance default) shapes `responses[i]`; `ComposedRequest.return` shapes top-level overlays only (`overlays…` paths), `responses` stays whole.
 - Chain: each stage has its own `return`, applied AFTER the whole chain, so a stage excluding `data` still feeds the next stage; `final` follows the last stage.
-- Streaming: rows carry only selected columns at the requested precision; `returned` rides the terminal chunk only; excluding `data` emits no rows. Details: `streaming-and-watching`.
+- Streaming (CLI `--stream`, library iterator): rows carry only selected columns, `returned` rides the terminal chunk only, excluding `data` emits no rows; no `PULSE_RETURN_PATH_UNMATCHED` (predict `unresolved_includes` instead). MCP has no streaming. Precision is wire-only: `StreamChunk` values stay full float64. Details: `streaming-and-watching`.
 
 ## See
 

@@ -97,7 +97,7 @@ When a request slot names a field but omits `Type`, engine infers from schema ty
 | `datetime` | (explicit only) | `GROUP_DATE` (`"day"`) |
 | `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 
-`Field.Nullable` orthogonal — never changes inferred operator. Defaults apply only when `Field` set and `Type` empty; never override explicit `Type`; never cross categories; never default tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
+`Field.Nullable` never changes the inferred operator. Defaults apply only when `Field` is set and `Type` empty; never override `Type`, cross categories, or default tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
 
 **Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept both `date` and `datetime`; all epoch-day / calendar / zone math lives in `internal/temporal` (`TestNoZoneMathOutsideTemporal`). Long form: `execution-modes.md` (Date-family field types, Time zones); skill `skills/time-zones.md`.
 
@@ -142,8 +142,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 ### Structural defense bans
 
 - **No `fmt.Sprintf`-built JSON.** Use `encoding/json`. Grep-gated by `TestDescriptorNoFmtSprintf`.
-- **No hand-built XML/CDATA.** Use `encoding/xml`.
-- Use `descriptor.NewEnvelope(data)` for the standard envelope.
+- **No hand-built XML/CDATA.** Use `encoding/xml`; envelopes via `descriptor.NewEnvelope(data)`.
 
 ### Payload JSON Schema
 

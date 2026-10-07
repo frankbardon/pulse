@@ -27,7 +27,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 - [ ] Every new error code has `codeMetadata` (Message + ≥1 Fixup).
 - [ ] Every new operator has an atomic skill, manifest capability entry, example tag, `Since`, dependency edges and (once U07 has landed) `Purpose` / `Interpretation`. It is weight-aware or explicitly refuses a weight (once U11 has landed), and multiplicity-aware if it emits p-values (once U13 has landed).
 - [ ] Wire changes are additive. `format_version` stays `"1.1"`. Goldens are regenerated with `-update`, never hand-edited.
-- [ ] CLAUDE.md stays ≤ 50,000 bytes (long form goes to `.claude/reference/`).
+- [ ] CLAUDE.md stays ≤ 40,000 bytes (long form goes to `.claude/reference/`).
 - [ ] The unit's TODO items are ticked, and its `status` is `done`.
 
 ## Suggested order

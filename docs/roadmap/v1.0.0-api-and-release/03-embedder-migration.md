@@ -344,11 +344,11 @@ Complete for U17 (no release tag cut by the unit). Contract: `docs/src/contract/
 | `descriptor.PredictResult` and the manifest had no return keys | `PredictResult.Return` (`descriptor.ReturnPlan`: expanded paths, `rp1:` digest), manifest `return_presets` (`[{name, paths}]`, expanded against the instance) | added | none | U17 |
 | no return error codes | `PULSE_RETURN_INVALID`, `PULSE_RETURN_PATH_UNKNOWN`, `PULSE_RETURN_PATH_UNMATCHED` (warning, buffered runs only) | added | resolve with `pulse errors lookup CODE`; the manifest golden changed (error list only) | U17 |
 
-Not shipped, by decision: skipping the computation of excluded parts, the MCP `standard` default and predict size estimates (U18); a `pulse.ReturnedMarker` root alias (U33 decides before the freeze; use `types.ReturnedMarker`); an extension hook marking an aggregator count-semantic, so extension figures always round under `precision` (U34); `Response.overlays` is not yet feature-gated, so hiding overlays leaves its paths listed (U35).
+Not shipped, by decision: a `pulse.ReturnedMarker` root alias (U33 decides before the freeze; use `types.ReturnedMarker`); an extension hook marking an aggregator count-semantic, so extension figures always round under `precision` (U34); `Response.overlays` is not yet feature-gated, so hiding overlays leaves its paths listed (U35).
 
 ## Changes from U18 (response shaping execution)
 
-In progress for U18 (no release tag cut by the unit). The library default is unchanged: a request without `return`, on an instance with no default, stays byte-identical and `format_version` stays `"1.1"`.
+Landed in U18 (no release tag cut by the unit). The library default is unchanged: a request without `return`, on an instance with no default, stays byte-identical and `format_version` stays `"1.1"`.
 
 > **Release note — `breaking` for MCP users.** The MCP tools now shape a request WITHOUT its own `return` block by the `standard` preset: `pulse_process`, `pulse_predict`, every `pulse_compose` slot and every `pulse_process_chain` stage drop `components` (and `matrices[*].auxiliary`, regression `credible_intervals` / `selection`, test details other than `effect_size`) and stamp `returned {preset: "standard", digest}`. An agent that needs everything sends `"return": {"preset": "full"}`; an operator restores the old output with `pulse mcp --return full` (or `gosdk.Config{DefaultReturn: types.ReturnPresetFull}` / `mcpserve.Options{DefaultReturn: ...}`). The library default stays `full`.
 
@@ -356,6 +356,8 @@ In progress for U18 (no release tag cut by the unit). The library default is unc
 |---|---|---|---|---|
 | MCP tools returned the full Response unless a request carried `return` | MCP default preset `standard`; precedence request `return`, then host `gosdk.Config.DefaultReturn` / `mcpserve.Options.DefaultReturn` / `pulse mcp --return`, then the instance default (`pulse.Options.DefaultReturn`, else the feature profile's `return`), then `standard`. An engine `DisableComponents` still keeps components off; only a request `disable_components: false` re-opens them | behaviour change — **breaking (MCP wire)** | MCP clients that read `components` (or other non-`standard` parts) send `return: {"preset": "full"}` or include the paths; hosts wanting the old output set the host default to `full` | U18 |
 | no host knob for the MCP response shape | `gosdk.Config.DefaultReturn` and `mcpserve.Options.DefaultReturn` (`types.ReturnPreset`; zero value defers to the instance default, else `standard`), CLI `pulse mcp --return PRESET` | added | none; `Register` / `Serve` / `pulse mcp` refuse an unknown preset with `PULSE_RETURN_INVALID` | U18 |
+| an excluded overlay, test, post-test or regression slot still ran and could refuse or warn | an excluded part is not computed, so it raises no refusal or warning (`PULSE_OVERLAY_COMPONENTS_REQUIRED`, `PULSE_TEST_*`, `PROCESSING_REGRESSION_*`, `PULSE_WEIGHT_LOW_NEFF`); `Predict` stays the validator. Chain stages still refuse tests / regressions (`PULSE_CHAIN_NOT_MERGEABLE`); a partly skipped Go `tests` / `post_tests` slice holds nil at skipped positions | behaviour change — **only for requests with an excluding `return`** | run `Predict` to validate a request before shaping it; keep a part in `return` to have it validated and computed | U18 |
+| no per-section size figure | `PredictResult.Return.Sizes` (`descriptor.ReturnSectionSize`) and `Return.UnresolvedIncludes` | added | none | U18 |
 
 ## Third-party dependency
 

@@ -106,3 +106,18 @@ refused.
 - Streaming: rows carry only the selected columns; `returned` rides the
   terminal chunk only; excluding `data` yields no rows. See
   [Streaming & ProcessStream](streaming.md).
+  A stream never raises `PULSE_RETURN_PATH_UNMATCHED` (it has no
+  warnings slot); `Predict` lists the includes that may match nothing as
+  `return.unresolved_includes`. Precision is wire-only: the library
+  `StreamChunk` keeps full float64, and only the writers
+  (`api process --stream`, `api compose --stream`) round. The MCP tools
+  have no streaming option.
+
+## Predict size estimates
+
+When a request carries an effective `return` block, `Predict` reports
+`return.sizes`: per top-level section `{section, full_bytes,
+shaped_bytes, basis}` with `basis` one of `exact`, `upper_bound` or
+`heuristic`. An excluded section is 0, and a section whose size depends
+on the data is omitted rather than guessed. The figures are guidance
+for choosing a preset before running, not a byte-accuracy contract.

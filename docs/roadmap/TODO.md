@@ -233,17 +233,17 @@ Theme documents: see the [roadmap index](README.md).
 ## 8. Response shaping ([response-shaping 00](v1.0.0-response-shaping/00-design.md))
 
 - [x] **#104** `Request.Return {preset, include, exclude, precision}`; `Options.DefaultReturn` (library default `full`) · [U17](units/U17-response-shaping-core.md)
-- [ ] **#105** MCP default `standard`: `gosdk.Config.DefaultReturn`, `pulse mcp --return`; MCP goldens regenerated once; release-note callout · [U18](units/U18-response-shaping-execution.md)
+- [x] **#105** MCP default `standard`: `gosdk.Config.DefaultReturn`, `pulse mcp --return`; MCP goldens regenerated once; release-note callout · [U18](units/U18-response-shaping-execution.md)
 - [x] **#106** Path grammar over the response schema; predict-time validation; `PULSE_RETURN_PATH_UNKNOWN` · [U17](units/U17-response-shaping-core.md)
 - [x] **#107** Presets `full` / `standard` / `minimal` listed in the manifest · [U17](units/U17-response-shaping-core.md)
-- [ ] **#108** Selection compiled into the execution plan (unrequested parts not computed) · [U18](units/U18-response-shaping-execution.md)
+- [x] **#108** Selection compiled into the execution plan (unrequested parts not computed) · [U18](units/U18-response-shaping-execution.md)
 - [x] **#109** Float precision control; old switches documented as shorthands; `returned` marker · [U17](units/U17-response-shaping-core.md)
-- [ ] **#110** Predict per-section size estimates · [U18](units/U18-response-shaping-execution.md)
-- [ ] **#111** `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill (the skill and the identity / schema-path gates landed in [U17](units/U17-response-shaping-core.md); this unit adds `TestReturnSkipsComputation` and extends the skill) · [U18](units/U18-response-shaping-execution.md)
+- [x] **#110** Predict per-section size estimates · [U18](units/U18-response-shaping-execution.md)
+- [x] **#111** `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill (the skill and the identity / schema-path gates landed in [U17](units/U17-response-shaping-core.md); this unit adds `TestReturnSkipsComputation` and extends the skill) · [U18](units/U18-response-shaping-execution.md)
 - [x] **#193** Per-group aggregator Components: `Components.Aggregations` figures emitted inside each group of a grouped response, for built-in and extension operators alike (wire + payload-schema change, `format_version` stays `"1.1"`) · [U17](units/U17-response-shaping-core.md)
-- [ ] **#217** `PULSE_RETURN_PATH_UNMATCHED` on streams: decide whether a stream surfaces it (it has no warnings slot today, so the buffered-only warning is silent there) and how · [U18](units/U18-response-shaping-execution.md)
-- [ ] **#218** MCP `pulse_process` streaming option writes rows through `returnshape.MarshalStreamRow`, so wire precision and the selected columns apply there too (verified for `pulse api process|compose --stream` only) · [U18](units/U18-response-shaping-execution.md)
-- [ ] **#219** Resolved-plan caching: an instance default re-walks the `Response` type on every `Process`; cache the plan without its request-derived `Exact` set if profiling shows it · [U18](units/U18-response-shaping-execution.md)
+- [x] **#217** `PULSE_RETURN_PATH_UNMATCHED` on streams: decide whether a stream surfaces it (it has no warnings slot today, so the buffered-only warning is silent there) and how · [U18](units/U18-response-shaping-execution.md)
+- [x] **#218** MCP `pulse_process` streaming option writes rows through `returnshape.MarshalStreamRow`, so wire precision and the selected columns apply there too (verified for `pulse api process|compose --stream` only) · [U18](units/U18-response-shaping-execution.md)
+- [x] **#219** Resolved-plan caching: an instance default re-walks the `Response` type on every `Process`; cache the plan without its request-derived `Exact` set if profiling shows it · [U18](units/U18-response-shaping-execution.md)
 
 ---
 
@@ -351,5 +351,5 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#175** Every new gate is listed by name in CLAUDE.md "Non-Skippable CI Gates" · [U33](units/U33-v1-release.md)
 - [ ] **#176** The Update Demand table has rows for: `Purpose`, `Since` / dependencies, topical-skill fences, `Request.Vectors` / `Matrices`, `Response.Matrices`, `Request.Weight` / `Multiplicity` / `TimeZone` / `Return`, `Options.Limits` / `Logger` / `Hooks` / `Metrics` · [U33](units/U33-v1-release.md)
 - [ ] **#177** New env vars and CLI flags documented (CLAUDE.md "Build / Env", `flags.md`, `session-bootstrap.md`) · [U33](units/U33-v1-release.md)
-- [ ] **#178** CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`; 131 B headroom after U07 — next editor displaces first, see U08) · [U33](units/U33-v1-release.md)
+- [ ] **#178** CLAUDE.md stays at or under 40,000 bytes (long form moved to `.claude/reference/`; ceiling lowered 50,000 → 40,000 in U18) · [U33](units/U33-v1-release.md)
 - [ ] **#179** `format_version` remains `"1.1"` (every wire change additive) · [U33](units/U33-v1-release.md)
