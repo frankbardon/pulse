@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -96,6 +97,23 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*proc
 		return nil, nil, "", nil, markLocated(err)
 	}
 
+	// MaxJoinBuildRows, before the build decodes a record: the right
+	// side is decoded unfiltered, so its header-only count is the exact
+	// build size — the figure predict grades certain
+	// (descx joinBuildLimitFinding). A located refusal, like the
+	// join-key rule.
+	l := s.Limits()
+	buildBounded := !limits.IsUnlimited(l.MaxJoinBuildRows)
+	if buildBounded {
+		n, err := joinBuildCount(ctx, s, spec.Right)
+		if err != nil {
+			return nil, nil, "", nil, err
+		}
+		if lerr := limits.CheckJoinBuildRows(l, int64(n)); lerr != nil {
+			return nil, nil, "", nil, markLocated(lerr)
+		}
+	}
+
 	// Materialise the right side as a slice. v1 does not spill; the
 	// memory cost is O(right_record_count × per_record_state). Tests
 	// and skills call this out.
@@ -103,6 +121,13 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*proc
 	defer rightIter.Close()
 	var rightRecords []*processing.Record
 	for rightIter.Next() {
+		// Backstop for a header miscount: refuse as soon as the decode
+		// passes the limit, before the slice grows further.
+		if buildBounded {
+			if lerr := limits.CheckJoinBuildRows(l, int64(len(rightRecords))+1); lerr != nil {
+				return nil, nil, "", nil, markLocated(lerr)
+			}
+		}
 		// Copy values so the slice survives iterator reuse.
 		src := rightIter.Record()
 		values := make(map[string]float64, len(src.Schema().Fields))
@@ -129,4 +154,12 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*proc
 		return nil, nil, "", nil, err
 	}
 	return join, joinedSchema, leftPath, leftIter, nil
+}
+
+// joinBuildCount is the header-only right-side record count the join
+// build pre-flight reads (Service.CountRecords — never
+// Cohort.RecordCount, which reads the whole file). A variable so a test
+// can feed a miscount and prove the in-loop backstop.
+var joinBuildCount = func(ctx context.Context, s *Service, path string) (uint64, error) {
+	return s.CountRecords(ctx, path)
 }

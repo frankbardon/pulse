@@ -85,7 +85,9 @@ exceeds a limit. A `certain` finding is an exact figure — the request
 is refused with `PULSE_LIMIT_EXCEEDED` (`valid: false`), exactly as
 `process` would refuse it before reading a record. A `possible` finding
 is an upper bound and only a warning. Today predict reports
-`max_matrix_dim` (a matrix's member count).
+`max_matrix_dim` (a matrix's member count) and `max_join_build_rows`
+(a join's right-side record count, read from the right cohort's header
+without reading a record).
 
 When the request emits inferential p-values, `p_values` reports
 `{total, uncorrected, basis, threshold}`: how many it emits and how many

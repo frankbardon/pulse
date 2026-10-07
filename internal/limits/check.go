@@ -74,6 +74,14 @@ func CheckChainStages(l Limits, stages int) *errors.CodedError {
 	return Check(l, MaxChainStages, int64(stages))
 }
 
+// CheckJoinBuildRows refuses a join whose build (right) side holds
+// more than MaxJoinBuildRows records. The runtime calls it twice: on
+// the header-only right-side count before the build decodes a record,
+// and on the running decode count as a backstop for a miscount.
+func CheckJoinBuildRows(l Limits, rows int64) *errors.CodedError {
+	return Check(l, MaxJoinBuildRows, rows)
+}
+
 // FirstCertain returns the error of the first Certain finding in fs —
 // the pre-flight refusal — or nil when none is certain.
 func FirstCertain(fs []Finding) *errors.CodedError {

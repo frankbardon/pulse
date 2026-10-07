@@ -71,12 +71,42 @@ func limitFindingsDescriptor(fs []limits.Finding) []descriptor.LimitFinding {
 	return out
 }
 
+// joinBuildLimitFinding is the predict-time MaxJoinBuildRows rule: a
+// Certain finding when req carries exactly one JoinSpec whose right
+// (build) side holds more records than l allows. rightRows is the
+// count opts.RecordCounter reads from the right cohort's header — the
+// runtime decodes the right side unfiltered, so it is the exact build
+// size. The runtime raises the same breach through
+// limits.CheckJoinBuildRows on the same header-only count before the
+// build decodes a record.
+func joinBuildLimitFinding(req *types.Request, l limits.Limits, rightRows func(path string) (int64, error)) (limits.Finding, bool) {
+	if req == nil || len(req.Joins) != 1 || req.Joins[0] == nil || rightRows == nil {
+		return limits.Finding{}, false
+	}
+	if limits.IsUnlimited(limits.Value(l, limits.MaxJoinBuildRows)) {
+		return limits.Finding{}, false
+	}
+	n, err := rightRows(req.Joins[0].Right)
+	if err != nil {
+		// The right cohort's open fault is reported by the joined-schema
+		// pass (predictJoinedSchema) under its own code.
+		return limits.Finding{}, false
+	}
+	return limits.Evaluate(l, limits.MaxJoinBuildRows, n, limits.Certain)
+}
+
 // predictLimits fills PredictResult.LimitFindings and adds the
 // PULSE_LIMIT_EXCEEDED error of every Certain finding — the error the
 // process pre-flight raises — so a certain finding leaves Valid false.
-// A Possible finding is reported only.
-func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) {
-	fs := RequestLimitFindings(req, schema, inst, inst.Limits())
+// A Possible finding is reported only. Findings follow limit
+// declaration order: the request-level rules, then MaxJoinBuildRows.
+func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions) {
+	inst := opts.instance()
+	l := inst.Limits()
+	fs := RequestLimitFindings(req, schema, inst, l)
+	if f, ok := joinBuildLimitFinding(req, l, opts.RecordCounter); ok {
+		fs = append(fs, f)
+	}
 	result.LimitFindings = limitFindingsDescriptor(fs)
 	for _, f := range fs {
 		if f.Grade == limits.Certain {

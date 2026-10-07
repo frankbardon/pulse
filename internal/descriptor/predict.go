@@ -163,6 +163,16 @@ type PredictOptions struct {
 	// unresolved and validation runs against the left schema alone.
 	SchemaLoader func(path string) (*encoding.Schema, error)
 
+	// RecordCounter returns the record count of the cohort at a path
+	// from its header + schema alone (no record data) — the facade
+	// passes the runtime's own header-only counter (Service.
+	// CountRecords). Predict uses it for the build (right) side of a
+	// Request.Joins entry, whose count is exactly the number of records
+	// the runtime's join build decodes, so a MaxJoinBuildRows breach is
+	// a certain finding. Nil (or a count error) yields no join-build
+	// finding.
+	RecordCounter func(path string) (int64, error)
+
 	// Instance is the instance feature set. The request-time overlay
 	// kind gates (Request, Compose and Facet hosts) report a kind it
 	// hides exactly as a kind not in the catalog. Nil hides nothing.
@@ -415,7 +425,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// Instance resource limits — the rule the process pre-flight
 	// refuses with (LimitRefusal), on the defaults-resolved request over
 	// the schema it executes over. A certain finding is a predict error.
-	predictLimits(env, result, req, schema, opts.Instance)
+	predictLimits(env, result, req, schema, opts)
 
 	// Response size estimates — on every request, on the
 	// defaults-resolved request over the schema it executes over. With

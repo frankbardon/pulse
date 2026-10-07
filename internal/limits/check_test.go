@@ -31,7 +31,7 @@ func TestEvaluate(t *testing.T) {
 
 func TestChecks(t *testing.T) {
 	l := Defaults()
-	l.MaxMatrixDim, l.MaxComposeSlots, l.MaxChainStages = 2, 3, 4
+	l.MaxMatrixDim, l.MaxComposeSlots, l.MaxChainStages, l.MaxJoinBuildRows = 2, 3, 4, 999
 	for _, c := range []struct {
 		name       Name
 		over, at   *errors.CodedError
@@ -41,6 +41,7 @@ func TestChecks(t *testing.T) {
 		{MaxMatrixDim, CheckMatrixDim(l, 3), CheckMatrixDim(l, 2), 2, 3},
 		{MaxComposeSlots, CheckComposeSlots(l, 4), CheckComposeSlots(l, 3), 3, 4},
 		{MaxChainStages, CheckChainStages(l, 5), CheckChainStages(l, 4), 4, 5},
+		{MaxJoinBuildRows, CheckJoinBuildRows(l, 1000), CheckJoinBuildRows(l, 999), 999, 1000},
 	} {
 		if c.at != nil {
 			t.Errorf("%s: at the limit refused: %v", c.name, c.at)

@@ -1288,6 +1288,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		DisableComponents:     p.svc.DisableComponents(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
+		RecordCounter:         p.predictRecordCounter(ctx),
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 		// Echoed (never applied) when no weight resolves.
 		SuggestedWeightVariable: p.sidecarWeightVariable(path),
@@ -1362,6 +1363,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		DisableComponents:     p.svc.DisableComponents(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
+		RecordCounter:         p.predictRecordCounter(ctx),
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 	}), nil
 }
@@ -1377,6 +1379,20 @@ func (p *Pulse) predictSchemaLoader(ctx context.Context) func(string) (*encoding
 			return nil, err
 		}
 		return c.Schema(), nil
+	}
+}
+
+// predictRecordCounter counts a cohort's records through the runtime's
+// header-only counter (Service.CountRecords — the count the join build
+// pre-flight reads), so predict grades MaxJoinBuildRows on the figure
+// the runtime refuses with. No record is read.
+func (p *Pulse) predictRecordCounter(ctx context.Context) func(string) (int64, error) {
+	return func(path string) (int64, error) {
+		n, err := p.svc.CountRecords(ctx, path)
+		if err != nil {
+			return 0, err
+		}
+		return int64(n), nil
 	}
 }
 

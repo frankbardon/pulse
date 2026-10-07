@@ -53,7 +53,7 @@ The manifest `join` block (`max_joins_per_request`, `kinds`, `spill_bytes`, `lim
 
 - **One join per Request.** Two or more ⇒ `PULSE_JOIN_TOO_MANY`. For a multi-hop question, pre-join into a cohort.<!-- feature: capability:process_chain --> In a chain only stage 0 may join.<!-- /feature -->
 - **Inner only.** `"left"` / `"outer"` / `"anti"` ⇒ `PULSE_JOIN_KIND_NOT_IMPLEMENTED`. An unmatched left row is dropped — it reaches no group, cell or count.
-- **No spill.** The right side materialises fully in RAM, `O(right_records)`. Put the SMALLER cohort on the right; the build side is always `right` (no automatic swap). `pulse_inspect` reports each side's `record_count` without reading records.
+- **No spill.** The right side materialises fully in RAM, `O(right_records)`. Put the SMALLER cohort on the right; the build side is always `right` (no automatic swap). A right side over the instance's `max_join_build_rows` limit is refused `PULSE_LIMIT_EXCEEDED` before any record decodes; `pulse_predict` reports it as a `certain` `limit_findings` entry. `pulse_inspect` reports each side's `record_count` without reading records.
 - **Crosstab honours the join.** `Request.Crosstab` crosstabs the JOINED rows — axes and cell may name `as`-prefixed fields; unmatched left rows reach no cell or margin; always buffered.
 - **No shard-parallel join.** A shard-archive left side runs serial on a joined request.
 
