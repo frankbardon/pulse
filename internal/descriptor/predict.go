@@ -186,14 +186,15 @@ type PredictOptions struct {
 // entry reported when PredictOptions.DisableCrosstabFusion is set.
 const CrosstabFusionDisabledReason = "crosstab fusion disabled on this instance (Options.DisableCrosstabFusion)"
 
-// instance returns the options' instance feature set (nil — hide
-// nothing — on a nil receiver). Nil-receiver-safe.
-// componentsDisabled is the runtime's effectiveDisableComponents: the
+// componentsDisabled mirrors the runtime's components gate
+// (Service.componentsGateClosed, which feeds the compute plan): the
 // request's disable_components when set, else the engine default.
 func (o *PredictOptions) componentsDisabled(req *types.Request) bool {
 	return EffectiveDisableComponents(req, o != nil && o.DisableComponents)
 }
 
+// instance returns the options' instance feature set (nil — hide
+// nothing — on a nil receiver). Nil-receiver-safe.
 func (o *PredictOptions) instance() *InstanceSnapshot {
 	if o == nil {
 		return nil
