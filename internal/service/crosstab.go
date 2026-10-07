@@ -204,11 +204,11 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 		return nil, err
 	}
 
-	var records []*processing.Record
-	for join.Next() {
-		// HashJoinIterator.Record builds a fresh record per call, so the
-		// slice survives the left iterator's buffer reuse.
-		records = append(records, join.Record())
+	// HashJoinIterator.Record builds a fresh record per call, so the
+	// slice survives the left iterator's buffer reuse.
+	records, err := materializeRecords(ctx, join)
+	if err != nil {
+		return nil, err
 	}
 	if err := leftIter.Err(); err != nil {
 		return nil, err
@@ -302,10 +302,16 @@ func (s *Service) crosstabDecodeReduceMergeable(
 // materializeRecords drains an iterator into a slice. Crosstab forces
 // buffered execution, so this materialization is unavoidable. Pulled out
 // of processCrosstab so future variants (streamable long-shape passthrough)
-// can share the helper.
-func materializeRecords(iter scanIterator) ([]*processing.Record, error) {
+// can share the helper; the joined crosstab drains its HashJoinIterator
+// through it too. It polls ctx every processing.CtxPollInterval rows and
+// returns the caller's ctx error unchanged.
+func materializeRecords(ctx context.Context, iter processing.RecordIterator) ([]*processing.Record, error) {
 	var records []*processing.Record
+	poll := processing.NewCtxPoller(ctx)
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		records = append(records, iter.Record())
 	}
 	return records, nil
@@ -342,7 +348,7 @@ func (s *Service) crosstabDecodeRecords(
 	// the shard reducer doesn't speak crosstab); intra-shard segment
 	// decode on top would double-stack workers. Bail.
 	if len(cohort.Shards()) > 0 {
-		return s.crosstabDecodeRecordsSerial(iter)
+		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
 
 	si, ok := iter.(*streamingIterator)
@@ -351,14 +357,14 @@ func (s *Service) crosstabDecodeRecords(
 		// *streamingIterator from newScanIter. Future iterator variants
 		// would have to opt in to parallel decode via a new interface;
 		// for now anything unrecognised falls back to serial.
-		return s.crosstabDecodeRecordsSerial(iter)
+		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
 
 	// Pre-flight bail: DecodeWorkers==1 means "force serial" and short-
 	// circuits before we even probe the fs. Mirrors the symmetric
 	// shouldFanOut shape in shard_reduce.go.
 	if s.decodeWorkers == 1 {
-		return s.crosstabDecodeRecordsSerial(iter)
+		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
 
 	// Build the parallel context: probes the fs for a real on-disk
@@ -383,7 +389,7 @@ func (s *Service) crosstabDecodeRecords(
 		return nil, err
 	}
 	if !available {
-		return s.crosstabDecodeRecordsSerial(iter)
+		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
 
 	// Now that the resolved totalRecords is in hand, apply the
@@ -397,7 +403,7 @@ func (s *Service) crosstabDecodeRecords(
 		if cleanup != nil {
 			_ = cleanup()
 		}
-		return s.crosstabDecodeRecordsSerial(iter)
+		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
 	defer func() {
 		if cleanup != nil {
@@ -411,7 +417,7 @@ func (s *Service) crosstabDecodeRecords(
 	// aligned stride, the resulting fractional split would silently
 	// truncate; surface that loudly instead.
 	if pctx.stride <= 0 {
-		return s.crosstabDecodeRecordsSerial(iter)
+		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
 
 	return materializeRecordsParallel(ctx, pctx, workers)
@@ -420,8 +426,8 @@ func (s *Service) crosstabDecodeRecords(
 // crosstabDecodeRecordsSerial is the existing materializeRecords path
 // wrapped so the dispatcher can call it from every bail arm with the
 // same signature.
-func (s *Service) crosstabDecodeRecordsSerial(iter scanIterator) ([]*processing.Record, error) {
-	records, err := materializeRecords(iter)
+func (s *Service) crosstabDecodeRecordsSerial(ctx context.Context, iter scanIterator) ([]*processing.Record, error) {
+	records, err := materializeRecords(ctx, iter)
 	if err != nil {
 		return nil, err
 	}

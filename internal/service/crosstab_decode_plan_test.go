@@ -212,7 +212,7 @@ func processCrosstabWithoutPlan(ctx context.Context, s *Service, req *types.Requ
 	si.plan = nil
 	si.planKey = ""
 
-	records, err := materializeRecords(iter)
+	records, err := materializeRecords(ctx, iter)
 	if err != nil {
 		return nil, err
 	}

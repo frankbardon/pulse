@@ -178,9 +178,14 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 		return resp, nil
 	}
 
-	// Buffered path: collect every record then dispatch.
+	// Buffered path: collect every record then dispatch. The
+	// materialize loop polls ctx every CtxPollInterval rows.
 	var allRecords []*Record
+	poll := NewCtxPoller(ctx)
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		allRecords = append(allRecords, iter.Record())
 	}
 	resp, err := p.processRecords(ctx, req, allRecords)
@@ -459,6 +464,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 // emits derived columns into each record before filters and online
 // aggregators see it.
 func (p *Processor) processStreaming(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	poll := NewCtxPoller(ctx)
 	// Streaming consumes each record inline; opt the iterator into
 	// per-row Record reuse so the map allocations in the source
 	// (typically service.streamingIterator) collapse to one set for the
@@ -477,6 +483,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 
 		// Pass 1: feed every record through each computer's PrePass.
 		for iter.Next() {
+			if err := poll.Poll(); err != nil {
+				return nil, err
+			}
 			rec := iter.Record()
 			for _, h := range streamingFeatures {
 				if err := h.Computer.PrePass(rec, h.Feature.Field); err != nil {
@@ -572,6 +581,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 
 	var totalRows, filteredRows int64
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		totalRows++
 		r := iter.Record()
 
@@ -711,7 +723,6 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		return nil, err
 	}
 
-	_ = ctx
 	resp := &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{
@@ -799,6 +810,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 // groups still hold every key's aggregator in memory; the win is avoiding
 // the full record buffer that the buffered path requires.
 func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	poll := NewCtxPoller(ctx)
 	EnableReuse(iter)
 	grp := req.Groups[0]
 	grouperFactory, ok := p.exts.LookupGrouper(grp.Type)
@@ -841,6 +853,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 		streamingFeatures = handles
 		for iter.Next() {
+			if err := poll.Poll(); err != nil {
+				return nil, err
+			}
 			rec := iter.Record()
 			for _, h := range streamingFeatures {
 				if err := h.Computer.PrePass(rec, h.Feature.Field); err != nil {
@@ -908,6 +923,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 
 	var totalRows, filteredRows, assignments int64
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		totalRows++
 		r := iter.Record()
 
@@ -1001,7 +1019,6 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 	}
 
-	_ = ctx
 	// Row order, the Rich-or-scalar lift, Sort, post-tests, Components
 	// and the SERIES overlay fold live in the ONE grouped tail the
 	// parallel reducers share, so no worker count can change the answer.
@@ -1100,6 +1117,7 @@ func (p *Processor) buildTwoPassStages(attrs []*types.Attribute) ([]twoPassStage
 // fields or row-locals of them; one more per dependent two-pass layer.
 // The underlying file is typically OS-page-cached after scan 1.
 func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	poll := NewCtxPoller(ctx)
 	EnableReuse(iter)
 	filterFns, err := p.buildFilterFuncs(req.Filterers)
 	if err != nil {
@@ -1180,6 +1198,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		needed := plan.needed[layer]
 		for iter.Next() {
+			if err := poll.Poll(); err != nil {
+				return nil, err
+			}
 			r := iter.Record()
 			var pass bool
 			if layer == 0 {
@@ -1230,6 +1251,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	// order (each sees every earlier label, as on the buffered arm),
 	// fold each aggregation.
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		r := iter.Record()
 		pass, err := passesFilters(r)
 		if err != nil {
@@ -1285,7 +1309,6 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		return nil, err
 	}
 
-	_ = ctx
 	resp := &types.Response{
 		Data: data,
 		Metadata: &types.ResponseMetadata{

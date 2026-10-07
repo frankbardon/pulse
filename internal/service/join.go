@@ -153,7 +153,13 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	rightIter := s.newScanIter(rightCohort, spec.Right)
 	defer rightIter.Close()
 	var rightRecords []*processing.Record
+	poll := processing.NewCtxPoller(ctx)
 	for rightIter.Next() {
+		// The caller's ctx error, unchanged, every
+		// processing.CtxPollInterval build rows.
+		if err := poll.Poll(); err != nil {
+			return nil, nil, "", nil, err
+		}
 		// Backstop for a header miscount: refuse as soon as the decode
 		// passes the limit, before the slice grows further.
 		if buildBounded {

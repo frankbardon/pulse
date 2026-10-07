@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -176,9 +177,10 @@ func (s *Service) composeParallel(
 	}
 	wg.Wait()
 
-	// Aggregate errors if any. FailFast surfaces the first observed error
-	// (lowest-index winner); non-FailFast wraps every error with its slot
-	// index so callers see the full picture.
+	// Aggregate errors if any. FailFast surfaces the lowest-index error
+	// that is not a sibling cancellation (failFastWinner); non-FailFast
+	// wraps every error with its slot index so callers see the full
+	// picture.
 	var firstErr error
 	var failed []int
 	for i, e := range errs {
@@ -195,9 +197,10 @@ func (s *Service) composeParallel(
 			// barrier entirely. When ComposeOptions.FailFast is true
 			// and any slot fails, overlays are skipped — no
 			// applyComposeOverlays call, no partial emission. The
-			// failing call returns immediately with the first
-			// observed error.
-			return nil, fmt.Errorf("compose parallel: request %d: %w", failed[0], locate(firstErr, "request", failed[0]))
+			// failing call returns immediately with the error that
+			// tripped FailFast.
+			w := failFastWinner(ctx, errs, failed)
+			return nil, fmt.Errorf("compose parallel: request %d: %w", w, locate(errs[w], "request", w))
 		}
 		details := map[string]any{"failed_indices": failed, "first_error": firstErr.Error()}
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_INTERNAL,
@@ -249,4 +252,22 @@ func (s *Service) composeParallel(
 	}
 
 	return out, nil
+}
+
+// failFastWinner picks the slot whose error a FailFast Compose reports:
+// the lowest-index failure that is not a sibling cancellation. A slot
+// that was still running when another slot's error cancelled runCtx
+// stops with context.Canceled (the serial loops poll ctx); reporting
+// that would hide the real failure behind its own side effect. When
+// the CALLER's ctx is done every cancellation is genuine, so the
+// lowest-index failure wins as before. failed is non-empty.
+func failFastWinner(ctx context.Context, errs []error, failed []int) int {
+	if ctx.Err() == nil {
+		for _, i := range failed {
+			if !stderrors.Is(errs[i], context.Canceled) {
+				return i
+			}
+		}
+	}
+	return failed[0]
 }

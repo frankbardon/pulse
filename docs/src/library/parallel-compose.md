@@ -81,9 +81,13 @@ for i, resp := range resps {
 With `FailFast = true` (the default):
 
 - The first request to return an error cancels the shared context.
-- In-flight siblings observe cancellation via `ctx.Err()` and return
-  early.
-- `ComposeParallel` returns `(nil, theFirstError)`.
+- In-flight siblings observe cancellation via `ctx.Err()` (every
+  serial per-record loop polls it every 4,096 rows) and return early
+  with `context.Canceled`.
+- `ComposeParallel` returns `(nil, err)` where `err` is the
+  lowest-index failure that is not such a sibling cancellation, so the
+  error that tripped FailFast is the one reported. When the caller's
+  own ctx is done, the lowest-index failure is reported as is.
 
 With `FailFast = false`:
 
