@@ -10,7 +10,7 @@ requires: [capability:crosstab]
 
 # Crosstab
 
-`Request.Crosstab` pivots ONE cell aggregation across rows × columns; margins and normalize are cross-cell. Mutually exclusive with top-level `groups` + `aggregations` (`PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS`).
+`Request.Crosstab` pivots ONE cell aggregation across rows × columns; margins and normalize are cross-cell. Exclusive with top-level `groups` + `aggregations` (`PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS`).
 
 ```jsonc
 {"crosstab": {
@@ -39,13 +39,13 @@ Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins,
 
 ## Margins recompute from raw rows
 
-Row / column / grand margins aggregate the **raw rows of that margin**, NOT the cell values. So mean / median / stddev / percentile margins are correct, and cell-sum agreement holds only for true sums. Distinct-count style margins are the **union** — a respondent in two rows counts once in the column margin. A row weight weighs cells and every margin alike; normalize divides weighted by weighted.
+Row / column / grand margins aggregate the **raw rows of that margin**, NOT the cell values. So mean / median / stddev / percentile margins are correct, and cell-sum agreement holds only for true sums. Distinct-count margins are the **union** — a respondent in two rows counts once in the column margin. A row weight weighs cells and every margin alike; normalize divides weighted by weighted.
 
-The manifest classifies every cell aggregator: `crosstab.summable_aggregators`, `mean_reducible_aggregators`, `independent_aggregators` (keeps its own margin accumulator) and `recompute_aggregators` (needs a raw-row rescan, so it never fuses).
+The manifest classifies every cell aggregator: `crosstab.summable_aggregators`, `mean_reducible_aggregators`, `independent_aggregators` (own margin accumulator) and `recompute_aggregators` (needs a raw-row rescan, so it never fuses).
 
 ## Normalize
 
-`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize implies the matching margin even when `margins.*` is false (computed, not displayed).
+`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize computes the matching margin even when `margins.*` is false (not displayed).
 
 - `normalize_level: L` — same-axis rollup; cells sharing the first `L+1` groupers sum to 1. Rejections: `_OUT_OF_RANGE`, `_WITHOUT_NESTED_AXIS`, `_INCOMPATIBLE` (with `total`).
 - `normalize_within: W` — fixes a prefix of the **opposite** axis in the denominator; composes with `normalize_level`. Canonical: `rows=[brand]`, `columns=[wave,response]`, `normalize=row`, `normalize_within=0` — each cell is brand's wave-share to that response. Rejections: `_WITHIN_OUT_OF_RANGE`, `_WITHIN_WITHOUT_AXIS`, `_WITHIN_INCOMPATIBLE`.
@@ -62,11 +62,13 @@ Crosstab output is buffered (`pulse predict` reports `streamable_reasons`); what
 
 Records fold into per-cell / per-margin state in one decode pass — memory `O(cells + margins)`, not `O(records)`. Automatic (predict: `crosstab_fusable`); identical output. It applies when:
 
-- the cell aggregator is in `crosstab.summable_aggregators`, `mean_reducible_aggregators` or `independent_aggregators` — never `recompute_aggregators` — and every `margin_aggregations` entry is mergeable;
+- the cell aggregator is not in `crosstab.recompute_aggregators`, and every `margin_aggregations` entry is mergeable;
 - every axis grouper keys one record at a time — all but the rank-based quantile one, fan-out included, any axis (extension: declared `Streamable` / `FansOut`);
 - nothing needs whole-cohort context: no join, no tests, features, formula attributes or expression filters, no decimal cell field.
 
-Overlays never prevent fusing. A fan-out axis makes margins non-additive on both paths (a 3-option record counts 3× across row margins).
+Overlays never prevent fusing. A fan-out axis makes margins non-additive on both paths (a 3-option record counts 3× in row margins).
+
+**Grid cap.** Rows × columns over `max_crosstab_cells` refuses either path with `PULSE_LIMIT_EXCEEDED`; predict flags it `possible`.
 
 **Joins.** A joined crosstab runs buffered over the JOINED rows: axes / cell may name `as`-prefixed right fields; an unmatched left row is counted nowhere; a 1:N match counts once per joined row<!-- feature: capability:joins --> (`join-design`)<!-- /feature -->.
 

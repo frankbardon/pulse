@@ -64,6 +64,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 		return nil, err
 	}
 	state.setCompute(p.compute)
+	state.setLimits(p.limits)
 	// Defensive: echo the static gate's exclusions so a stale dispatch
 	// shortcut that drifts past a newly added request slot fails fast
 	// here rather than producing a divergent fused result.

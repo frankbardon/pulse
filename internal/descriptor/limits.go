@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -27,6 +28,10 @@ import (
 //     header count; the pre-flight passes -1 — a Possible finding never
 //     refuses, so it needs no count). Unknown-cardinality groupers
 //     yield no finding.
+//   - MaxCrosstabCells (Possible): the crosstab grid upper bound
+//     EstimateCrosstabCells derives (rows x cols, each axis clamped by
+//     records). An axis with an unknown-cardinality grouper yields no
+//     finding.
 //   - MaxMatrixDim (Certain): each matrix's dimension p — its resolved
 //     member count, from vectors.ResolveMatrices, the resolver the
 //     runtime mints its accumulators from. A refused spec yields no
@@ -39,6 +44,13 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 	if n, ok := EstimateGroups(req.Groups, schema, inst, records); ok {
 		if f, ok := limits.Evaluate(l, limits.MaxGroups, n, limits.Possible); ok {
 			out = append(out, f)
+		}
+	}
+	if req.Crosstab != nil {
+		if n, ok := EstimateCrosstabCells(req.Crosstab, schema, inst, records); ok {
+			if f, ok := limits.Evaluate(l, limits.MaxCrosstabCells, n, limits.Possible); ok {
+				out = append(out, f)
+			}
 		}
 	}
 	if len(req.Matrices) > 0 {
@@ -108,6 +120,60 @@ func EstimateGroups(groups []*types.Group, schema *encoding.Schema, inst *Instan
 		n = records
 	}
 	return n, true
+}
+
+// EstimateCrosstabCells is the schema-only upper bound on a crosstab's
+// grid — rows x cols, the figure both runtime arms check against
+// MaxCrosstabCells (buffered after PartitionByAxis, fused at the
+// axis-key interners). Each axis is the product of its positions'
+// EstimateGroups bounds, clamped by records when records >= 0 unless a
+// position fans out (GROUP_SET_PER_ELEMENT). False when any position's
+// cardinality is unknown. The product is a Cartesian upper bound — the
+// runtime grid holds only the axis keys the data produces.
+func EstimateCrosstabCells(spec *types.CrosstabSpec, schema *encoding.Schema, inst *InstanceSnapshot, records int64) (int64, bool) {
+	if spec == nil {
+		return 0, false
+	}
+	r, rok := crosstabAxisEstimate(spec.Rows, schema, inst, records)
+	c, cok := crosstabAxisEstimate(spec.Columns, schema, inst, records)
+	if !rok || !cok {
+		return 0, false
+	}
+	return mulSaturating(r, c), true
+}
+
+// crosstabAxisEstimate is one crosstab axis's distinct composite-key
+// upper bound: the product of each position's EstimateGroups bound,
+// clamped by records (>= 0) unless a position fans one record into
+// several keys. False when any position is unknown. The return-size
+// model reads it with records = -1.
+func crosstabAxisEstimate(axis []*types.Group, schema *encoding.Schema, inst *InstanceSnapshot, records int64) (int64, bool) {
+	n := int64(1)
+	fanout := false
+	for _, g := range axis {
+		b, ok := EstimateGroups([]*types.Group{g}, schema, inst, -1)
+		if !ok {
+			return 0, false
+		}
+		n = mulSaturating(n, b)
+		fanout = fanout || g.Type == types.GROUP_SET_PER_ELEMENT
+	}
+	if records >= 0 && !fanout && n > records {
+		n = records
+	}
+	return n, true
+}
+
+// mulSaturating multiplies two non-negative estimates, saturating at
+// math.MaxInt64 rather than wrapping.
+func mulSaturating(a, b int64) int64 {
+	if a == 0 || b == 0 {
+		return 0
+	}
+	if a > math.MaxInt64/b {
+		return math.MaxInt64
+	}
+	return a * b
 }
 
 // dateRangeCount is a GROUP_DATE_RANGES grouper's range count: its

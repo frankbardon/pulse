@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -489,6 +490,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	}
 	colPart, err := p.PartitionByAxis(spec.Columns, filtered)
 	if err != nil {
+		return nil, err
+	}
+	// MaxCrosstabCells: the observed grid is rows x cols, refused before
+	// the per-cell maps below preallocate it. The fused arm checks the
+	// same product at its axis-key interners.
+	if err := limits.Check(p.limits, limits.MaxCrosstabCells, int64(len(rowPart.Keys))*int64(len(colPart.Keys))); err != nil {
 		return nil, err
 	}
 

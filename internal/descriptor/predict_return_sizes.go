@@ -143,21 +143,12 @@ func (in returnSizeInputs) dataRows() (int64, string, bool) {
 }
 
 // crosstabCells is the crosstab's row and column counts (the product of
-// each axis's per-grouper key counts) and whether both are known.
+// each axis's per-grouper key counts) and whether both are known — the
+// per-axis bound the MaxCrosstabCells rule (EstimateCrosstabCells)
+// shares, unclamped.
 func (in returnSizeInputs) crosstabCells() (rows, cols int64, ok bool) {
-	axis := func(gs []*types.Group) (int64, bool) {
-		n := int64(1)
-		for _, g := range gs {
-			b, _, known := vectors.EstimateBuckets([]*types.Group{g}, in.schema)
-			if !known {
-				return 0, false
-			}
-			n *= b
-		}
-		return n, true
-	}
-	r, rok := axis(in.req.Crosstab.Rows)
-	c, cok := axis(in.req.Crosstab.Columns)
+	r, rok := crosstabAxisEstimate(in.req.Crosstab.Rows, in.schema, in.inst, -1)
+	c, cok := crosstabAxisEstimate(in.req.Crosstab.Columns, in.schema, in.inst, -1)
 	return r, c, rok && cok
 }
 
