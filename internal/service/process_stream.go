@@ -49,6 +49,8 @@ func (s *Service) ProcessStream(ctx context.Context, req *types.Request) (RowIte
 		return nil, pulseerrors.NewCodedError(pulseerrors.SERVICE_VALIDATION,
 			"process_stream request requires a cohort")
 	}
+	// RequestTimeout bounds the buffered run inside Process (which maps
+	// its trip); draining the returned iterator is the caller's.
 	resp, err := s.Process(ctx, req)
 	if err != nil {
 		return nil, err

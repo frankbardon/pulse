@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/processing"
 )
 
 // Facet returns distinct values for the named field in the cohort.
@@ -27,6 +28,16 @@ import (
 // fast path returns the schema's dictionary, which is already resident
 // and mints nothing, so it is not counted.
 func (s *Service) Facet(ctx context.Context, path string, field string) ([]string, error) {
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
+	values, err := s.facet(ctx, path, field)
+	if err != nil {
+		return nil, MapRequestTimeout(ctx, err)
+	}
+	return values, nil
+}
+
+func (s *Service) facet(ctx context.Context, path string, field string) ([]string, error) {
 	cohort, err := s.Open(ctx, path)
 	if err != nil {
 		return nil, err
@@ -57,7 +68,11 @@ func (s *Service) Facet(ctx context.Context, path string, field string) ([]strin
 	l := s.Limits()
 	seen := make(map[float64]struct{})
 	var values []string
+	poll := processing.NewCtxPoller(ctx)
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		v, ok := iter.Record().NumericValue(field)
 		if !ok {
 			continue

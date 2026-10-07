@@ -35,8 +35,10 @@ const maxHistogramBins = 256
 // counts run a parallel discrete accumulator with the additive field's
 // own filter clauses stripped from the base filter.
 func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*types.FacetResult, error) {
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	resp, err := s.facetSchema(ctx, req)
-	return resp, s.scopeRefusal(err)
+	return resp, s.scopeRefusal(MapRequestTimeout(ctx, err))
 }
 
 func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*types.FacetResult, error) {
@@ -136,7 +138,11 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	defer iter.Close()
 
 	var totalRows, filteredRows int64
+	poll := processing.NewCtxPoller(ctx)
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		totalRows++
 		r := iter.Record()
 

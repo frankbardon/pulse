@@ -48,8 +48,10 @@ const (
 // Requests can never override an instance limit.
 type Limits struct {
 	// RequestTimeout bounds the wall-clock time of one top-level call
-	// (Process, ProcessStream, Compose, ProcessChain, Facet). Default:
-	// no timeout.
+	// (Process, ProcessStream / ProcessStreamResult, Facet /
+	// FacetSchema, the whole Compose / ComposeParallel / ProcessChain
+	// call). A trip is PULSE_LIMIT_EXCEEDED; the caller's own ctx
+	// deadline or cancel passes through unchanged. Default: no timeout.
 	RequestTimeout time.Duration
 
 	// MaxGroups bounds the number of distinct group buckets one grouped

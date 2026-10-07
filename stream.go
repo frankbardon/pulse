@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -130,10 +131,17 @@ const streamBuffer = 4
 //
 // Cancellation: closing ctx delivers a StreamTerminator with
 // Status: StreamCancelled and a non-nil Error matching ctx.Err().
+//
+// Options.Limits.RequestTimeout bounds the whole call — the run and the
+// drain. A deadline that fires during the run returns the coded
+// PULSE_LIMIT_EXCEEDED error directly; one that fires mid-stream
+// delivers Status: StreamErrored carrying that coded error (never
+// StreamCancelled, which stays the caller's own cancel or deadline).
 func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamResult[Row], error) {
 	if req == nil {
 		return StreamResult[Row]{}, errors.New("pulse: nil request")
 	}
+	ctx, release := p.svc.BoundRequest(ctx)
 	estimated := int64(-1)
 	if req.Cohort != nil && req.Cohort.Filename != "" {
 		if n, err := p.CountRecords(ctx, req.Cohort.Filename); err == nil {
@@ -145,7 +153,8 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 	// Through the facade, so a `return` block shapes every chunk.
 	iter, err := p.ProcessStream(ctx, req)
 	if err != nil {
-		return StreamResult[Row]{}, err
+		release()
+		return StreamResult[Row]{}, service.MapRequestTimeout(ctx, err)
 	}
 	marker, _ := iter.(interface{ Returned() *types.ReturnedMarker })
 
@@ -162,6 +171,7 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 	grpMerge := grpMergeabilityVector(req)
 
 	go func() {
+		defer release()
 		defer close(chunks)
 		defer iter.Close()
 		var (
@@ -179,6 +189,16 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 			}
 			close(done)
 		}
+		// stopped terminates a stream whose ctx is done: the
+		// RequestTimeout deadline is StreamErrored with the coded limit
+		// error, the caller's own cancel or deadline StreamCancelled.
+		stopped := func() {
+			if lim := service.MapRequestTimeout(ctx, ctx.Err()); lim != ctx.Err() {
+				emitTerminator(StreamErrored, lim)
+				return
+			}
+			emitTerminator(StreamCancelled, ctx.Err())
+		}
 		emit := func(row Row, terminal bool) bool {
 			chunk := StreamChunk[Row]{
 				Sequence:   seq,
@@ -191,7 +211,7 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 			}
 			select {
 			case <-ctx.Done():
-				emitTerminator(StreamCancelled, ctx.Err())
+				stopped()
 				return false
 			case chunks <- chunk:
 				seq++
@@ -203,7 +223,7 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 			row, ok, err := iter.Next(ctx)
 			if err != nil {
 				if ctx.Err() != nil {
-					emitTerminator(StreamCancelled, ctx.Err())
+					stopped()
 					return
 				}
 				emitTerminator(StreamErrored, err)

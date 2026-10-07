@@ -27,8 +27,10 @@ import (
 // Process; a stage >= 1 carrying Joins is PULSE_CHAIN_STAGE_JOIN. Stage 0's Request.Cohort is replaced with req.Cohort; any
 // Request.Cohort on stages >= 1 is ignored.
 func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, error) {
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	resp, err := s.processChain(ctx, req)
-	return resp, s.scopeRefusal(err)
+	return resp, s.scopeRefusal(MapRequestTimeout(ctx, err))
 }
 
 func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, error) {

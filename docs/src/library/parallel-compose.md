@@ -98,6 +98,21 @@ With `FailFast = false`:
 - Successful slots populate the returned response array; failed
   slots are `nil` at their index.
 
+A ctx that is already done before every slot launched returns the
+ctx error (with no slot error to report), never a response with
+unrun `nil` slots.
+
+## Timeouts
+
+`PerRequestTimeout` bounds each slot; a slot that runs out returns
+`context.DeadlineExceeded`, unchanged. The instance-wide
+`Options.Limits.RequestTimeout`, when set, bounds the whole
+`ComposeParallel` (or `Compose`) call instead: when it fires, the call
+returns `PULSE_LIMIT_EXCEEDED` with
+`{limit: "request_timeout", configured, observed}` (nanoseconds) and no
+partial result. A deadline or cancel on the caller's own ctx always
+passes through as `context.DeadlineExceeded` / `context.Canceled`.
+
 ## CLI parity
 
 ```

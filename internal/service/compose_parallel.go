@@ -70,10 +70,14 @@ func (s *Service) ComposeParallelResolved(
 	composed *types.ComposedRequest,
 	opts ComposeOptions,
 ) (*types.ComposedResponse, []*types.Request, error) {
+	// RequestTimeout bounds the whole call; PerRequestTimeout stays the
+	// per-slot knob, and its raw DeadlineExceeded passes through.
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	var slots []*types.Request
 	resp, err := s.composeParallel(ctx, composed, opts, &slots)
 	if err != nil {
-		return nil, nil, s.scopeRefusal(err)
+		return nil, nil, s.scopeRefusal(MapRequestTimeout(ctx, err))
 	}
 	return resp, slots, nil
 }
@@ -147,11 +151,13 @@ func (s *Service) composeParallel(
 	sem := make(chan struct{}, o.MaxWorkers)
 	var wg sync.WaitGroup
 
+	launched := 0
 	for i, req := range requests {
 		// Bail before launching when ctx is already cancelled.
 		if runCtx.Err() != nil {
 			break
 		}
+		launched++
 		i, req := i, req
 		wg.Add(1)
 		sem <- struct{}{}
@@ -190,6 +196,12 @@ func (s *Service) composeParallel(
 				firstErr = e
 			}
 		}
+	}
+	// A done ctx that stopped the launch loop before every slot ran,
+	// with no slot error to report, is the ctx's own error — never a
+	// "successful" response with unrun (nil) slots.
+	if firstErr == nil && launched < n {
+		return nil, runCtx.Err()
 	}
 	if firstErr != nil {
 		if o.FailFast {

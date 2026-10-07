@@ -44,6 +44,11 @@ type Service struct {
 	// pulse.New through SetLimits. Nil: the built-in defaults.
 	limits *limits.Limits
 
+	// entryHook, when set (tests only), runs inside BoundRequest with
+	// the ctx every RequestTimeout entry hands its run — bounded or not
+	// — so a test can wait out a tiny deadline deterministically.
+	entryHook func(ctx context.Context)
+
 	// decodeWorkers caps the per-cohort parallel decode worker pool
 	// the buffered Process path spawns when the cohort exceeds
 	// parallelDecodeRecordThreshold and the request is mergeable.
@@ -578,8 +583,10 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 // Records are streamed from disk — the full file is never held in memory as raw bytes
 // alongside the decoded records.
 func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Response, error) {
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	resp, err := s.process(ctx, req)
-	return resp, s.scopeRefusal(err)
+	return resp, s.scopeRefusal(MapRequestTimeout(ctx, err))
 }
 
 func (s *Service) process(ctx context.Context, req *types.Request) (*types.Response, error) {
@@ -1052,10 +1059,14 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 // defaults-resolved request for its precision exemptions) and shapes
 // the finished, overlay-folded response; the service never shapes.
 func (s *Service) ComposeResolved(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, []*types.Request, error) {
+	// RequestTimeout bounds the whole Compose call; every slot's
+	// Process runs under the same deadline (BoundRequest nests).
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	var slots []*types.Request
 	resp, err := s.compose(ctx, composed, &slots)
 	if err != nil {
-		return nil, nil, s.scopeRefusal(err)
+		return nil, nil, s.scopeRefusal(MapRequestTimeout(ctx, err))
 	}
 	return resp, slots, nil
 }
