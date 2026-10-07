@@ -61,11 +61,18 @@ type ComputePlan struct {
 	Overlays      bool
 	overlayLayers *layerMask
 
-	// Whole-slot parts outside Components. Carried for the stories that
-	// wire them (tests, regressions); the service keeps them on until
-	// their veto rules land.
-	Tests       bool
-	PostTests   bool
+	// Tests / PostTests are the Response.Tests / Response.PostTests
+	// slots: whether the run builds ANY tier-1 row test / tier-2 post
+	// test. testEntries / postTestEntries, when non-nil, narrow them to
+	// the entries they mark (index-aligned with Request.Tests /
+	// Request.PostTests) — the entries a multiplicity family keeps
+	// while the selection excludes the slot (see WithTestEntries).
+	Tests           bool
+	testEntries     *layerMask
+	PostTests       bool
+	postTestEntries *layerMask
+	// Regressions is the whole Response.Regressions slot: no fit (and
+	// none of its refusals or low-n_eff warnings) runs without it.
 	Regressions bool
 }
 
@@ -80,22 +87,64 @@ type layerMask struct{ keep []bool }
 // off, every one marked is the plain whole slot (no mask), anything
 // between computes exactly the marked layers. keep is copied.
 func (c ComputePlan) WithOverlayLayers(keep []bool) ComputePlan {
+	c.Overlays, c.overlayLayers = narrowSlot(keep)
+	return c
+}
+
+// WithTestEntries narrows the tests slot to the entries keep marks
+// (index-aligned with Request.Tests), with WithOverlayLayers' rules:
+// none marked turns the slot off, every one marked is the whole slot.
+// keep is copied. WithPostTestEntries is the same for
+// Request.PostTests.
+func (c ComputePlan) WithTestEntries(keep []bool) ComputePlan {
+	c.Tests, c.testEntries = narrowSlot(keep)
+	return c
+}
+
+func (c ComputePlan) WithPostTestEntries(keep []bool) ComputePlan {
+	c.PostTests, c.postTestEntries = narrowSlot(keep)
+	return c
+}
+
+// narrowSlot is the (on, mask) pair a per-entry keep list compiles to.
+func narrowSlot(keep []bool) (bool, *layerMask) {
 	some, all := false, len(keep) > 0
 	for _, k := range keep {
 		some = some || k
 		all = all && k
 	}
-	c.overlayLayers = nil
 	switch {
 	case !some:
-		c.Overlays = false
+		return false, nil
 	case all:
-		c.Overlays = true
+		return true, nil
 	default:
-		c.Overlays = true
-		c.overlayLayers = &layerMask{keep: append([]bool(nil), keep...)}
+		return true, &layerMask{keep: append([]bool(nil), keep...)}
 	}
-	return c
+}
+
+// computesEntry is the per-entry verdict of a narrowed slot.
+func computesEntry(on bool, m *layerMask, i int) bool {
+	if !on {
+		return false
+	}
+	if m == nil {
+		return true
+	}
+	return i >= 0 && i < len(m.keep) && m.keep[i]
+}
+
+// ComputesTest / ComputesPostTest report whether the run builds tier-1
+// test i / tier-2 post-test i. A skipped entry runs no fold and raises
+// no refusal or warning; when any other entry of its slot is computed
+// its position holds nil, so index alignment with the request — which
+// the multiplicity fold reads — survives.
+func (c ComputePlan) ComputesTest(i int) bool {
+	return computesEntry(c.Tests, c.testEntries, i)
+}
+
+func (c ComputePlan) ComputesPostTest(i int) bool {
+	return computesEntry(c.PostTests, c.postTestEntries, i)
 }
 
 // ComputesOverlay reports whether the run folds request overlay layer
@@ -104,13 +153,7 @@ func (c ComputePlan) WithOverlayLayers(keep []bool) ComputePlan {
 // holds a zero layer, so index alignment with Request.Overlays — which
 // the multiplicity fold reads — survives.
 func (c ComputePlan) ComputesOverlay(i int) bool {
-	if !c.Overlays {
-		return false
-	}
-	if c.overlayLayers == nil {
-		return true
-	}
-	return i >= 0 && i < len(c.overlayLayers.keep) && c.overlayLayers.keep[i]
+	return computesEntry(c.Overlays, c.overlayLayers, i)
 }
 
 // overlayKeep is ComputesOverlay as a per-index predicate for the

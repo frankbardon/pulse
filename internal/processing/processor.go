@@ -538,9 +538,14 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// regression spec is streamable (today: unpenalized REG_OLS with no
 	// modifiers); BuildStreaming surfaces PROCESSING_INTERNAL if any
 	// engine slipped through without a streaming implementation.
-	regressionEngines, err := regression.BuildStreamingWith(req.Regressions, p.schema, p.exts.LookupRegression)
-	if err != nil {
-		return nil, err
+	// An excluded regressions slot (ComputePlan) builds no engine: no
+	// fit, no fit refusal, no low-n_eff warning.
+	var regressionEngines []regression.StreamingEngine
+	if p.compute.Regressions {
+		if regressionEngines, err = regression.BuildStreamingWith(req.Regressions, p.schema, p.exts.LookupRegression); err != nil {
+			return nil, err
+		}
+		workRegressionFits.Add(int64(len(regressionEngines)))
 	}
 
 	// Matrix slots fold the same filter-passing record; results are
@@ -662,7 +667,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		data = []map[string]any{row}
 	}
 
-	testResults, err := finalizeRowTests(rowTests)
+	testResults, err := finalizeRowTests(rowTests, len(req.Tests))
 	if err != nil {
 		return nil, err
 	}
@@ -1496,7 +1501,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			}
 		}
 	}
-	testResults, err := finalizeRowTests(rowTests)
+	testResults, err := finalizeRowTests(rowTests, len(req.Tests))
 	if err != nil {
 		return nil, err
 	}
@@ -1515,9 +1520,13 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// for unimplemented operators (penalized OLS, GLM, Bayes, and the
 	// Resample/Selection modifier wrappers) still surface
 	// PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit().
-	regressionResults, err := regression.FitBufferedWith(req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
-	if err != nil {
-		return nil, err
+	// An excluded regressions slot (ComputePlan) fits nothing.
+	var regressionResults []*types.RegressionResult
+	if p.compute.Regressions && len(req.Regressions) > 0 {
+		workRegressionFits.Add(int64(len(req.Regressions)))
+		if regressionResults, err = regression.FitBufferedWith(req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression); err != nil {
+			return nil, err
+		}
 	}
 
 	// Matrix slots fold the filtered record set in record order — the

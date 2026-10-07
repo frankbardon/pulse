@@ -271,8 +271,8 @@ func TestReturnSkipsComputation(t *testing.T) {
 // components.crosstab only (a payload-only overlay keeps nothing); a
 // Compose overlay naming the slot (componentsVetoed) keeps every
 // sub-part; the matrices slot follows the selection unvetoed (minimal
-// drops its auxiliary / scalars / vectors); the other whole-slot parts
-// stay on until the stories that wire them.
+// drops its auxiliary / scalars / vectors); tests, post-tests and
+// regressions follow the selection (minimal keeps them).
 func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 	full := processing.FullComputePlan()
 	svc := &Service{}

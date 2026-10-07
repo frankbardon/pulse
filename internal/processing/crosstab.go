@@ -911,7 +911,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			}
 		}
 	}
-	testResults, err := finalizeRowTests(rowTests)
+	testResults, err := finalizeRowTests(rowTests, len(req.Tests))
 	if err != nil {
 		return nil, err
 	}

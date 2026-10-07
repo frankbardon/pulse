@@ -51,7 +51,7 @@ Instance default: `Options.DefaultReturn`, else the feature profile's `return`, 
 
 ## Excluded means not computed
 
-An excluded `components` part (aggregations incl. `groups`, groupers, filterers, run) is never computed — the run does less work, not just the wire. An excluded `matrices` slot is never accumulated (unless `components.matrices` is kept), and an excluded `auxiliary`, `scalars` or `vectors` is never built. An excluded overlay layer is never folded and raises no refusal, unless a multiplicity family claims it. A kept overlay that reads components keeps them computed, still pruned from the wire. Kept figures never change, and the execution path is chosen from the full request.
+An excluded `components` part (aggregations incl. `groups`, groupers, filterers, run) is never computed — the run does less work, not just the wire. An excluded `matrices` slot is never accumulated (unless `components.matrices` is kept), and an excluded `auxiliary`, `scalars` or `vectors` is never built. An excluded overlay layer, test or post-test is never computed and raises nothing, unless a multiplicity family claims it; excluded regressions are never fitted. A kept overlay that reads components keeps them computed, still pruned from the wire. Kept figures never change, and the execution path is chosen from the full request.
 
 ## Surfaces
 

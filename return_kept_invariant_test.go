@@ -17,7 +17,8 @@ import (
 // only what nothing kept reads. Covered: request overlays that READ the
 // host's components (probability-weighted χ², pairwise proportion z),
 // on the buffered and fused crosstab arms, and a Compose overlay naming
-// two of three slots, serial and parallel. Every vetoed part is
+// two of three slots, serial and parallel; a multiplicity family
+// pooling an excluded overlay or test. Every vetoed part is
 // computed (its work counter moves) yet absent on the wire.
 func TestReturnKeptNumberInvariant(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
@@ -100,6 +101,18 @@ func TestReturnKeptNumberInvariant(t *testing.T) {
 			t.Errorf("%d layer folds; want the 1 member layer", got)
 		}
 		assertKeptPathsIdentical(t, full, shaped, "overlays")
+
+		// U18 E3-S2: the converse — the excluded test is a member, so it
+		// still folds and every kept layer's p_adjusted is the full run's.
+		before = processing.WorkStats()
+		shaped, err = p.Process(ctx, build(&types.Return{Exclude: []string{"tests"}}))
+		if err != nil {
+			t.Fatalf("shaped: %v", err)
+		}
+		if got := processing.WorkStats().Sub(before).RowTestFolds; got != 1 {
+			t.Errorf("%d test folds; want the 1 member test", got)
+		}
+		assertKeptPathsIdentical(t, full, shaped, "tests")
 	})
 
 	t.Run("compose_overlay_names_slots", func(t *testing.T) {

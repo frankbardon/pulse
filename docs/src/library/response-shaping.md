@@ -79,10 +79,15 @@ the block gains `exclude: ["components"]`. Only an explicit request
 
 An excluded part is skipped at execution, not only on the wire: the
 run does less work, and a kept figure never changes. An excluded
-overlay layer runs no handler and so raises none of its refusals or
-warnings; `Predict` still validates it. A layer that belongs to a
-`multiplicity` family is computed anyway, so every kept `p_adjusted`
-matches the full run.
+overlay layer, test or post-test runs no handler, and an excluded
+`regressions` slot fits nothing, so none raises its refusals or
+warnings (a rank-deficient fit, a low effective sample size);
+`Predict` still validates them. A layer, test or post-test that
+belongs to a `multiplicity` family is computed anyway, so every kept
+`p_adjusted` matches the full run. The execution path is chosen from
+the full request: excluding a test never moves a request onto the
+parallel or shard path, and a chain stage carrying tests is still
+refused.
 
 ## Surfaces
 

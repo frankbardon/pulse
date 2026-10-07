@@ -22,6 +22,9 @@ var (
 	workMatrixScalarBuilds      atomic.Int64
 	workMatrixVectorBuilds      atomic.Int64
 	workOverlayLayerRuns        atomic.Int64
+	workRowTestFolds            atomic.Int64
+	workPostTestRuns            atomic.Int64
+	workRegressionFits          atomic.Int64
 )
 
 // WorkStatsSnapshot is a snapshot of the process-wide work counters.
@@ -76,6 +79,16 @@ type WorkStatsSnapshot struct {
 	// runs through its handler. A layer the ComputePlan skips counts
 	// nothing.
 	OverlayLayerRuns int64
+	// RowTestFolds counts tier-1 row tests built (each then folds every
+	// filter-passing record): one per Request.Tests entry the plan
+	// computes. PostTestRuns counts tier-2 post-tests run, one per
+	// computed Request.PostTests entry.
+	RowTestFolds int64
+	PostTestRuns int64
+	// RegressionFits counts regression fits started: one per
+	// Request.Regressions spec, streaming or buffered. A skipped slot
+	// counts nothing.
+	RegressionFits int64
 }
 
 // WorkStats returns the process-wide work counters. Diagnostic only;
@@ -96,6 +109,9 @@ func WorkStats() WorkStatsSnapshot {
 		MatrixScalarBuilds:        workMatrixScalarBuilds.Load(),
 		MatrixVectorBuilds:        workMatrixVectorBuilds.Load(),
 		OverlayLayerRuns:          workOverlayLayerRuns.Load(),
+		RowTestFolds:              workRowTestFolds.Load(),
+		PostTestRuns:              workPostTestRuns.Load(),
+		RegressionFits:            workRegressionFits.Load(),
 	}
 }
 
@@ -116,6 +132,9 @@ func (s WorkStatsSnapshot) Sub(o WorkStatsSnapshot) WorkStatsSnapshot {
 		MatrixScalarBuilds:        s.MatrixScalarBuilds - o.MatrixScalarBuilds,
 		MatrixVectorBuilds:        s.MatrixVectorBuilds - o.MatrixVectorBuilds,
 		OverlayLayerRuns:          s.OverlayLayerRuns - o.OverlayLayerRuns,
+		RowTestFolds:              s.RowTestFolds - o.RowTestFolds,
+		PostTestRuns:              s.PostTestRuns - o.PostTestRuns,
+		RegressionFits:            s.RegressionFits - o.RegressionFits,
 	}
 }
 

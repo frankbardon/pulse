@@ -195,6 +195,24 @@ func TestComputePlan_OverlayLayers(t *testing.T) {
 	}
 }
 
+// Tests and post-tests narrow per entry with the overlay rules; each
+// slot independently, and the realigned results hold nil at a skipped
+// position.
+func TestComputePlan_TestEntries(t *testing.T) {
+	full := FullComputePlan()
+	if all := full.WithTestEntries([]bool{true}).WithPostTestEntries([]bool{true, true}); all != full {
+		t.Errorf("every entry marked: %+v; want FullComputePlan", all)
+	}
+	some := full.WithTestEntries([]bool{true, false}).WithPostTestEntries(nil)
+	if !some.ComputesTest(0) || some.ComputesTest(1) || some.PostTests || some.ComputesPostTest(0) || !some.Regressions {
+		t.Errorf("tests [true false], post-tests none: %+v", some)
+	}
+	a, b := &types.TestResult{Label: "a"}, &types.TestResult{Label: "b"}
+	if got := realignTestResults([]*types.TestResult{a, b}, []int{0, 2}, 3); len(got) != 3 || got[0] != a || got[1] != nil || got[2] != b {
+		t.Errorf("realign: %+v", got)
+	}
+}
+
 // The series dispatch loop folds only the layers keep marks: a skipped
 // spec runs no handler (no fold counted) and holds a zero layer, so the
 // result stays index-aligned with the specs.

@@ -56,8 +56,9 @@ func componentsVetoed(ctx context.Context) bool {
 // a non-crosstab slot's must stay as the unshaped run builds it. Nothing
 // else a Compose overlay reads is skippable: a slot's data and crosstab
 // payload are never skipped, and the slot's tests / post-tests /
-// overlays (the `compose` multiplicity family) stay computed until
-// their skip lands. nil when there are no Compose overlays.
+// overlays a `compose` multiplicity family claims stay computed through
+// the multiplicity veto (composeSlotContext). nil when there are no
+// Compose overlays.
 func composeSlotVetoes(overlays []types.ComposeOverlaySpec, requests []*types.Request) []bool {
 	if len(overlays) == 0 {
 		return nil
@@ -187,19 +188,21 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 //  1. processing.ComputePlanFor(ret): a part is computed iff the
 //     selection keeps it or something below it;
 //  2. the matrices slot and its auxiliary / scalars / vectors
-//     sub-parts follow the selection with no veto: nothing downstream
-//     reads them (matrices are refused under joins and crosstab, sit
-//     outside the multiplicity pool, and no Compose / chain overlay
-//     reads them); tests, post-tests and regressions stay computed —
-//     their skip rules land with the story that wires them;
-//  3. the overlay slot follows the selection, per layer: an excluded
-//     slot still computes every layer a resolved multiplicity family
-//     claims (multiplicityVetoes over mult.Overlays — mult is the
-//     request's plan, or the Compose slot's share of its batch's when
-//     nil), so the family's m and every kept p_adjusted are the full
-//     run's. Nothing else reads a request overlay layer: Compose and
-//     chain overlays read slots' data, crosstab payload and Components
-//     only. A skipped layer runs no handler and raises no refusal;
+//     sub-parts, and the regressions slot, follow the selection with
+//     no veto: nothing downstream reads them (matrices are refused
+//     under joins and crosstab; neither sits in the multiplicity pool;
+//     no Compose / chain overlay reads them). A skipped regression
+//     fits nothing and raises no fit refusal or low-n_eff warning;
+//  3. the overlay, tests and post-tests slots follow the selection,
+//     per entry: an excluded slot still computes every entry a
+//     resolved multiplicity family claims (multiplicityVetoes over
+//     mult.Overlays / .Tests / .PostTests — mult is the request's
+//     plan, or the Compose slot's share of its batch's when nil), so
+//     the family's m and every kept p_adjusted are the full run's.
+//     Nothing else reads them: Compose and chain overlays read slots'
+//     data, crosstab payload and Components only. A skipped entry runs
+//     no handler or fold and raises no refusal or warning (incl.
+//     PULSE_WEIGHT_LOW_NEFF);
 //  4. veto: a COMPUTED request overlay layer that reads its host's
 //     components (requestOverlaysReadComponents) keeps
 //     components.crosstab — the only sub-part an overlay reads; its
@@ -214,16 +217,23 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, ret *returnplan.Plan, mult *descx.MultiplicityPlan) processing.ComputePlan {
 	full := processing.FullComputePlan()
 	plan := processing.ComputePlanFor(ret)
-	plan.Tests, plan.PostTests, plan.Regressions = full.Tests, full.PostTests, full.Regressions
-	if !plan.Overlays && req != nil && len(req.Overlays) > 0 {
-		if mult == nil {
-			mult = slotMultiplicity(ctx)
+	if mult == nil {
+		mult = slotMultiplicity(ctx)
+	}
+	var claimed descx.MultiplicityPlan
+	if mult != nil {
+		claimed = *mult
+	}
+	if req != nil {
+		if !plan.Overlays && len(req.Overlays) > 0 {
+			plan = plan.WithOverlayLayers(multiplicityVetoes(claimed.Overlays, len(req.Overlays)))
 		}
-		var claimed []descx.ResolvedMultiplicity
-		if mult != nil {
-			claimed = mult.Overlays
+		if !plan.Tests && len(req.Tests) > 0 {
+			plan = plan.WithTestEntries(multiplicityVetoes(claimed.Tests, len(req.Tests)))
 		}
-		plan = plan.WithOverlayLayers(multiplicityVetoes(claimed, len(req.Overlays)))
+		if !plan.PostTests && len(req.PostTests) > 0 {
+			plan = plan.WithPostTestEntries(multiplicityVetoes(claimed.PostTests, len(req.PostTests)))
+		}
 	}
 	if requestOverlaysReadComponents(req, plan) {
 		plan.Crosstab = true
