@@ -26,8 +26,9 @@ import (
 // it — but the Behaviour switches take effect immediately.
 //
 // The JSON form is decoded strictly: a key outside profile,
-// written_with, features, behaviour and return (including the reserved
-// limits section) is refused with PULSE_FEATURE_PROFILE_INVALID.
+// written_with, features, behaviour, return and limits — or an unknown
+// key inside one of those sections — is refused with
+// PULSE_FEATURE_PROFILE_INVALID.
 type FeatureProfile struct {
 	// Profile is a free-form label naming the profile, e.g.
 	// "self-serve". Informational only.
@@ -59,6 +60,15 @@ type FeatureProfile struct {
 	// instance does not have — one a hidden feature owns included — is
 	// PULSE_FEATURE_PROFILE_INVALID reason "invalid_return".
 	Return *types.Return `json:"return,omitempty"`
+
+	// Limits is the instance resource-limit layer the profile supplies.
+	// Per field, a non-zero Options.Limits value wins over it and an
+	// absent or 0 key falls back to the built-in default. Nil leaves
+	// every limit to Options and the defaults. A value below -1 (or an
+	// unparseable request_timeout) is PULSE_FEATURE_PROFILE_INVALID
+	// reason "invalid_limits". Limits are not features: they never
+	// enter the feature-set digest.
+	Limits *FeatureProfileLimits `json:"limits,omitempty"`
 }
 
 // FeatureProfileBehaviour holds the engine switches a FeatureProfile
@@ -93,6 +103,7 @@ const (
 	featureProfileReasonMissingFeatures = "missing_features"
 	featureProfileReasonDuplicate       = "duplicate_feature"
 	featureProfileReasonInvalidReturn   = "invalid_return"
+	featureProfileReasonInvalidLimits   = "invalid_limits"
 )
 
 // featureProfileFile is the decode target for a profile file. Features
@@ -104,6 +115,7 @@ type featureProfileFile struct {
 	Features    *[]string                `json:"features"`
 	Behaviour   *FeatureProfileBehaviour `json:"behaviour"`
 	Return      *types.Return            `json:"return"`
+	Limits      *FeatureProfileLimits    `json:"limits"`
 }
 
 // resolveFeatureProfile turns the two Options profile fields into one
@@ -195,11 +207,15 @@ func validateOptionsAgainstFeatureProfile(opts Options, fp *FeatureProfile) erro
 }
 
 // validateFeatureProfile runs the three validation classes in order —
-// structural (INVALID), name resolution (UNKNOWN), dependencies
-// (DEPENDENCY) — and stops at the first failing class. It is the one
+// structural (INVALID, the `limits` section included), name resolution
+// (UNKNOWN), dependencies (DEPENDENCY) — then the `return` check, and
+// stops at the first failing class. It is the one
 // path shared by pulse.New and CheckFeatureProfile.
 func validateFeatureProfile(fp *FeatureProfile, u featureUniverse, path string) error {
 	if err := validateFeatureProfileShape(fp, path); err != nil {
+		return err
+	}
+	if err := validateFeatureProfileLimits(fp, path); err != nil {
 		return err
 	}
 	if err := validateFeatureProfileNames(fp, u, path); err != nil {
@@ -309,6 +325,7 @@ func decodeFeatureProfile(raw []byte, path string) (*FeatureProfile, error) {
 		Features:    append([]string{}, (*doc.Features)...),
 		Behaviour:   doc.Behaviour,
 		Return:      doc.Return,
+		Limits:      doc.Limits,
 	}, nil
 }
 
@@ -362,6 +379,10 @@ func cloneFeatureProfile(in *FeatureProfile) *FeatureProfile {
 		r.Include = append([]string(nil), in.Return.Include...)
 		r.Exclude = append([]string(nil), in.Return.Exclude...)
 		out.Return = &r
+	}
+	if in.Limits != nil {
+		l := *in.Limits
+		out.Limits = &l
 	}
 	return &out
 }

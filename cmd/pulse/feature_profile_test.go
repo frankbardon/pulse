@@ -60,7 +60,7 @@ func TestMCP_FeatureProfileFlag(t *testing.T) {
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	dataDir := t.TempDir()
 	cwd := t.TempDir()
-	writeProfileFile(t, cwd, "broken.json", `{"features": [], "limits": {}}`)
+	writeProfileFile(t, cwd, "broken.json", `{"features": [], "limits": {"max_rows": 1}}`)
 	writeProfileFile(t, cwd, "ok.json", `{"features": []}`)
 	t.Chdir(cwd)
 
@@ -80,7 +80,7 @@ func TestMCP_FeatureProfileFlag(t *testing.T) {
 func TestMCP_FeatureProfileEnv(t *testing.T) {
 	dataDir := t.TempDir()
 	dir := t.TempDir()
-	broken := writeProfileFile(t, dir, "broken.json", `{"features": [], "limits": {}}`)
+	broken := writeProfileFile(t, dir, "broken.json", `{"features": [], "limits": {"max_rows": 1}}`)
 	ok := writeProfileFile(t, dir, "ok.json", `{"features": []}`)
 	t.Setenv("PULSE_FEATURE_PROFILE", broken)
 
@@ -100,7 +100,7 @@ func TestMCP_FeatureProfileEnv(t *testing.T) {
 // that construct a Pulse still succeed.
 func TestNonMCPLeavesIgnoreFeatureProfileEnv(t *testing.T) {
 	dir := t.TempDir()
-	broken := writeProfileFile(t, dir, "broken.json", `{"features": [], "limits": {}}`)
+	broken := writeProfileFile(t, dir, "broken.json", `{"features": [], "limits": {"max_rows": 1}}`)
 	t.Setenv("PULSE_FEATURE_PROFILE", broken)
 	pulsePath := createTestPulseFile(t, dir)
 

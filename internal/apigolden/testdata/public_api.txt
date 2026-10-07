@@ -309,6 +309,7 @@ pulse: type FeatureDescription field Unknown *pulse.FeatureProfileUnknownName "j
 pulse: type FeatureProfile struct
 pulse: type FeatureProfile field Behaviour *pulse.FeatureProfileBehaviour "json:\"behaviour,omitempty\""
 pulse: type FeatureProfile field Features []string "json:\"features\""
+pulse: type FeatureProfile field Limits *pulse.FeatureProfileLimits "json:\"limits,omitempty\""
 pulse: type FeatureProfile field Profile string "json:\"profile,omitempty\""
 pulse: type FeatureProfile field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type FeatureProfile field WrittenWith string "json:\"written_with,omitempty\""
@@ -339,6 +340,15 @@ pulse: type FeatureProfileDiff field Profile string "json:\"profile,omitempty\""
 pulse: type FeatureProfileDiff field Unknown []pulse.FeatureProfileUnknownName "json:\"unknown\""
 pulse: type FeatureProfileDiff field Version string "json:\"version\""
 pulse: type FeatureProfileDiff field WrittenWith string "json:\"written_with,omitempty\""
+pulse: type FeatureProfileLimits struct
+pulse: type FeatureProfileLimits field MaxChainStages int64 "json:\"max_chain_stages,omitempty\""
+pulse: type FeatureProfileLimits field MaxComposeSlots int64 "json:\"max_compose_slots,omitempty\""
+pulse: type FeatureProfileLimits field MaxCrosstabCells int64 "json:\"max_crosstab_cells,omitempty\""
+pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_estimated_memory,omitempty\""
+pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
+pulse: type FeatureProfileLimits field MaxJoinBuildRows int64 "json:\"max_join_build_rows,omitempty\""
+pulse: type FeatureProfileLimits field MaxMatrixDim int64 "json:\"max_matrix_dim,omitempty\""
+pulse: type FeatureProfileLimits field RequestTimeout string "json:\"request_timeout,omitempty\""
 pulse: type FeatureProfileMissing struct
 pulse: type FeatureProfileMissing field Category string "json:\"category,omitempty\""
 pulse: type FeatureProfileMissing field Kind string "json:\"kind\""
@@ -4237,4 +4247,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 52ae14229c6c9947a740a410f2d6783605f4724debc7b830e96e5ba2281998ad
+// golden-hash: 1a77a70f7a94e2595d25b55a151008d5b654aca7f9e18b09d061360dc25cce58

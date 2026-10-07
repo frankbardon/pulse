@@ -2397,9 +2397,11 @@ const (
 	// PULSE_FEATURE_PROFILE_INVALID indicates a feature profile handed
 	// to pulse.New is structurally unusable: the profile file is
 	// missing or unreadable, its body is not well-formed JSON, it
-	// carries a key the profile model does not declare (including the
-	// reserved "limits" and "return" sections), "features" is absent,
-	// a feature name is listed more than once, or both
+	// carries a key the profile model does not declare (at the top level
+	// or inside a section), "features" is absent, a feature name is
+	// listed more than once, a "limits" value is invalid (reason
+	// "invalid_limits", details "limit" and "value"), the "return"
+	// section does not resolve ("invalid_return"), or both
 	// Options.FeatureProfile and Options.FeatureProfileFile are set.
 	// Structural faults are the first validation class: a profile that
 	// fails here is never checked for unknown names or dependencies.

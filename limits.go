@@ -51,9 +51,16 @@ func resolveLimits(opts Options, profile *FeatureProfile) (limits.Limits, error)
 }
 
 // profileLimits returns the feature profile's `limits` layer, nil when
-// the profile carries none. The profile model has no `limits` section
-// yet (the key is reserved and refused at decode), so this is nil for
-// every profile today.
-func profileLimits(_ *FeatureProfile) *limits.Limits {
-	return nil
+// there is no profile or it carries no `limits` section. The profile
+// was validated by resolveFeatureProfile (invalid_limits), so a refusal
+// here cannot happen; it is treated as "no layer".
+func profileLimits(fp *FeatureProfile) *limits.Limits {
+	if fp == nil || fp.Limits == nil {
+		return nil
+	}
+	l, _, _, ok := featureProfileLimitsValue(fp.Limits)
+	if !ok {
+		return nil
+	}
+	return &l
 }

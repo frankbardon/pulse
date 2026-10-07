@@ -19,7 +19,7 @@ const (
 	// plainProfile is valid and leaves the scan on.
 	plainProfile = `{"features": []}`
 	// brokenProfile is refused by the strict decode.
-	brokenProfile = `{"features": [], "limits": {}}`
+	brokenProfile = `{"features": [], "limits": {"max_rows": 1}}`
 )
 
 func writeProfile(t *testing.T, dir, name, body string) string {
