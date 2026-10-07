@@ -1,6 +1,10 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/frankbardon/pulse/internal/returnplan"
+)
 
 // This file defines the request/response types for Pulse as plain Go structs
 // with JSON tags. These types are the JSON-serializable shapes used by the
@@ -1155,6 +1159,11 @@ type Request struct {
 	// pulse.Options.DefaultMultiplicity; with neither, nothing is
 	// corrected. See Multiplicity.
 	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
+
+	// Return shapes the Response: a preset, include / exclude paths and
+	// a wire float precision. Nil returns the whole Response. See
+	// Return.
+	Return *Return `json:"return,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -1252,6 +1261,20 @@ type Response struct {
 	// omits `filterers`, etc. format_version stays at "1.0" because
 	// the slot is additive.
 	Components *ResponseComponents `json:"components,omitempty"`
+
+	// Returned marks a response shaped by a non-identity `return`
+	// block: which preset it resolved from ("custom" for an explicit
+	// include / exclude without one), the plan digest and the wire
+	// precision. Nil — and absent on the wire — for an unshaped
+	// response, so a request without `return` (or with one that
+	// resolves to the full response) is byte-identical. It cannot be
+	// excluded.
+	Returned *ReturnedMarker `json:"returned,omitempty"`
+
+	// plan is the resolved selection the response was shaped under;
+	// its MarshalJSON honours it, so a plain json.Marshal of a shaped
+	// response writes the shaped form. Set only by the facade.
+	plan *returnplan.Plan
 }
 
 // ResponseComponents carries the constituent-parts metadata emitted by
@@ -1307,6 +1330,14 @@ type ResponseComponents struct {
 	// result, in the same order (keyed back by Name, and GroupKey on a
 	// grouped result).
 	Matrices []MatrixComponents `json:"matrices,omitempty"`
+
+	// plan is the resolved `return` selection a STANDALONE components
+	// payload (a streamed chunk's) was shaped under, rooted at the
+	// Response's `components` key; its MarshalJSON honours it so the
+	// chunk's wire form equals the buffered shaped response's
+	// `components`. Never set on the Components of a Response — the
+	// Response's own plan reaches them there. Set only by the facade.
+	plan *returnplan.Plan
 }
 
 // AggregationComponents carries per-aggregator constituent-parts
@@ -1351,6 +1382,48 @@ type AggregationComponents struct {
 	// set is governed by the operator's ComponentSchema declaration in
 	// internal/descriptor/capabilities_aggregators.go. Values are JSON-compatible
 	// scalars or nested maps.
+	Operator map[string]any `json:"operator,omitempty"`
+
+	// Groups carries one AggregationGroupComponents entry per Data row
+	// of a grouped (Request.Groups, non-crosstab) run, in the final
+	// Response.Data order — Request.Sort included. Absent on an
+	// ungrouped run. On a grouped run the slot-level N / NNull (and the
+	// weighted floor keys) are the cohort-wide totals over every
+	// filter-passing record, Operator is omitted, and each bucket's
+	// figures ride its entry here.
+	Groups []AggregationGroupComponents `json:"groups,omitempty"`
+}
+
+// AggregationGroupComponents is one bucket's figures for one
+// aggregation slot of a grouped run: the universal floor, the weighted
+// floor keys and the operator's own keys, exactly as an ungrouped run
+// over that bucket's records would report them. GroupKey identifies
+// the bucket (the same key the Data row carries under the grouper's
+// field), mirroring MatrixComponents.GroupKey.
+type AggregationGroupComponents struct {
+	// GroupKey is the bucket's key tuple (one entry per grouper).
+	GroupKey AxisKey `json:"group_key"`
+
+	// N counts the bucket's records whose source field was present.
+	N int `json:"n"`
+
+	// NNull counts the bucket's records whose source field was null.
+	NNull int `json:"n_null"`
+
+	// SumWeights is Σw over the bucket's value-present, valid-weight
+	// rows — set only on a weighted slot.
+	SumWeights *float64 `json:"sum_weights,omitempty"`
+
+	// NEff is the bucket's Kish effective sample size — set only on a
+	// slot weighted with kind probability.
+	NEff *float64 `json:"n_eff,omitempty"`
+
+	// NWeightInvalid counts the bucket's value-present rows excluded
+	// for an invalid weight — set only on a weighted slot.
+	NWeightInvalid *int `json:"n_weight_invalid,omitempty"`
+
+	// Operator carries the per-aggregator schema-declared keys for the
+	// bucket, from the bucket aggregator's own components hook.
 	Operator map[string]any `json:"operator,omitempty"`
 }
 
@@ -1517,6 +1590,14 @@ type ComposedRequest struct {
 	// the members across slots. Nil inherits
 	// pulse.Options.DefaultMultiplicity. See Multiplicity.
 	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
+
+	// Return shapes the TOP-LEVEL Compose overlays: paths root at
+	// ComposedResponse and only `overlays…` paths are valid (a slot is
+	// shaped by its own Requests[i].Return). Applied after the overlay
+	// fold, so the layers are computed from the unshaped slot
+	// responses. Nil leaves the overlays whole; no instance default
+	// applies at this level. See Return.
+	Return *Return `json:"return,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -1549,6 +1630,15 @@ type ComposedResponse struct {
 	// per-Request layers with the same machinery. Omitted entirely when
 	// the originating ComposedRequest had no Overlays.
 	Overlays []OverlayLayer `json:"overlays,omitempty"`
+
+	// Returned marks a ComposedResponse whose top-level overlays were
+	// shaped by a non-identity ComposedRequest.Return. Nil (absent) for
+	// an unshaped one; each slot carries its own Response.Returned.
+	Returned *ReturnedMarker `json:"returned,omitempty"`
+
+	// plan is the resolved Compose-level selection; MarshalJSON honours
+	// it. Set only by the facade.
+	plan *returnplan.Plan
 }
 
 // VersionResponse provides build and version information.

@@ -121,6 +121,11 @@ the slot is `omitempty` so overlay-free Compose responses are
 byte-identical to the legacy `[]*Response` wire shape that shipped
 under `format_version: "1.0"`.
 
+Response shaping passes through: each slot's `return` shapes
+`data.responses[i]`, and a top-level `return` (`overlays…` paths only)
+shapes `data.overlays` after the fold and adds `data.returned` (see the
+[Return slot](../contract/payload-schema.md#compose-and-chain)).
+
 ### `--stream`
 
 ```json
@@ -130,6 +135,8 @@ under `format_version: "1.0"`.
 ```
 
 The `index` field identifies which slot's request produced each row.
+Each `row` follows its slot's `return`: the selected columns only, at
+that slot's `precision`.
 
 ## Exit codes
 

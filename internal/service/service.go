@@ -147,13 +147,12 @@ func (s *Service) DisableComponents() bool {
 }
 
 // effectiveDisableComponents resolves the per-request override against
-// the engine default. Request.DisableComponents nil ⇒ inherit; explicit
-// pointer ⇒ override (true forces off, false forces on).
+// the engine default through the rule predict shares
+// (descx.EffectiveDisableComponents): Request.DisableComponents set ⇒
+// it wins (true forces off, false forces on); else inherit the engine
+// default. A request `return` block never re-opens an engine-off gate.
 func (s *Service) effectiveDisableComponents(req *types.Request) bool {
-	if req != nil && req.DisableComponents != nil {
-		return *req.DisableComponents
-	}
-	return s.disableComponents
+	return descx.EffectiveDisableComponents(req, s.disableComponents)
 }
 
 // SetProjectBufferedFields enables buffered-decode field projection.
@@ -604,6 +603,13 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err != nil {
 		return nil, err
 	}
+	// The `return` block resolves beside it (descx.ResolveReturn — the
+	// pass predict runs), so a bad block is refused before any record
+	// is read. The plan is APPLIED by the outermost facade, never here:
+	// Compose overlays and chain stages read the unshaped response.
+	if _, err := descx.ResolveReturn(req, s.instance); err != nil {
+		return nil, markLocated(err)
+	}
 
 	resp, err := s.processDispatch(ctx, req)
 	if err != nil {
@@ -1011,11 +1017,26 @@ func (s *Service) installProjection(iter scanIterator, req *types.Request, schem
 // Compose-only overlay kinds resolve sibling references by final Label
 // so the names must be unique across the batch.
 func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
-	resp, err := s.compose(ctx, composed)
-	return resp, s.scopeRefusal(err)
+	resp, _, err := s.ComposeResolved(ctx, composed)
+	return resp, err
 }
 
-func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
+// ComposeResolved is Compose that also returns the slot requests the
+// responses ran — the label- and defaults-resolved clones, index-aligned
+// with ComposedResponse.Responses (nil on error). The facade resolves
+// each slot's `return` plan from them (descx.ResolveReturn reads the
+// defaults-resolved request for its precision exemptions) and shapes
+// the finished, overlay-folded response; the service never shapes.
+func (s *Service) ComposeResolved(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, []*types.Request, error) {
+	var slots []*types.Request
+	resp, err := s.compose(ctx, composed, &slots)
+	if err != nil {
+		return nil, nil, s.scopeRefusal(err)
+	}
+	return resp, slots, nil
+}
+
+func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, slots *[]*types.Request) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
 	}
@@ -1028,12 +1049,18 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) 
 	if err != nil {
 		return nil, err
 	}
+	// The Compose-level `return` (top-level overlays) resolves before
+	// any slot runs; each slot's own block resolves inside its Process.
+	if _, err := descx.ResolveComposeReturn(composed, s.instance); err != nil {
+		return nil, err
+	}
 	ctx = withinCompose(ctx)
 
 	requests, err := applyComposeLabelDefaults(composed)
 	if err != nil {
 		return nil, err
 	}
+	*slots = requests
 
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {

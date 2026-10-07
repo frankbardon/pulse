@@ -330,6 +330,22 @@ Complete for U16 (no release tag cut by the unit). Contract: `.claude/reference/
 
 Not shipped, by decision: `precision` on matrix cells (U17), `MaxMatrixDim` and a buckets x p^2 guard (U19), `repair: "nearest"` and non-PSD refusal by decompositions (U24), raw p-values and intervals on correlation and a matrix overlay host (U28), matrices in crosstab arms (U28), `BlockMerger` through `extend` (U30).
 
+## Changes from U17 (response shaping core)
+
+Complete for U17 (no release tag cut by the unit). Contract: `docs/src/contract/payload-schema.md` (Return slot); guide `docs/src/library/response-shaping.md`; skill `skills/response-shaping.md`. Additive: a request without `return`, on an instance with no default, is byte-identical in request hash, response and components, and `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| no way to choose response parts or float digits | `types.Request.Return` and `types.ComposedRequest.Return` (`types.Return {Preset, Include, Exclude, Precision}`; `types.ReturnPreset` with `ReturnPresetFull` / `Standard` / `Minimal`, `types.AllReturnPresets()`) | added | none; opt in per request. Compose-level `return` accepts `overlays...` paths only | U17 |
+| `Response` always carried every computed part | `types.Response.Returned`, `ComposedResponse.Returned` (`types.ReturnedMarker {Preset, Digest, Precision}`), `StreamChunk.Returned` (terminal chunk only), `Returned()` and `MarshalRow` on the `ProcessStream` iterator | added | a shaped response is a projection, not schema-valid against the full payload schema; an excluded part is absent on the wire and zero / nil on the Go value, so read `Returned` before trusting an empty slot | U17 |
+| `Components.Aggregations[i]` described the ungrouped run only | `types.AggregationComponents.Groups` (one entry per group, in `data` order: group key, `n`, `n_null`, weighted floor keys, operator map), on buffered, streaming and sharded runs; terminal chunk only when streaming | added | none; `DisableComponents` still yields the pre-Components wire | U17 |
+| no instance default for response shape | `pulse.Options.DefaultReturn` (a `*types.Return`) and `pulse.FeatureProfile.Return` (JSON `return`); precedence request `return`, then `DefaultReturn`, then profile `return`, then `full`; a request block REPLACES the default | added | set one default per instance; a bad preset, precision or path fails `pulse.New` (`PULSE_RETURN_INVALID` / `_PATH_UNKNOWN`), a profile `return` fails with `PULSE_FEATURE_PROFILE_INVALID` reason `invalid_return` | U17 |
+| `DisableComponents` with request shaping | an engine `DisableComponents` always wins over a request `return` block: components are not computed and the block gains `exclude: ["components"]` (the response carries a `returned` marker). Only an explicit request `disable_components: false` re-opens them, exactly as before U17; `DisableComponents` alone stays byte-identical with no marker | added | none | U17 |
+| `descriptor.PredictResult` and the manifest had no return keys | `PredictResult.Return` (`descriptor.ReturnPlan`: expanded paths, `rp1:` digest), manifest `return_presets` (`[{name, paths}]`, expanded against the instance) | added | none | U17 |
+| no return error codes | `PULSE_RETURN_INVALID`, `PULSE_RETURN_PATH_UNKNOWN`, `PULSE_RETURN_PATH_UNMATCHED` (warning, buffered runs only) | added | resolve with `pulse errors lookup CODE`; the manifest golden changed (error list only) | U17 |
+
+Not shipped, by decision: skipping the computation of excluded parts, the MCP `standard` default and predict size estimates (U18); a `pulse.ReturnedMarker` root alias (U33 decides before the freeze; use `types.ReturnedMarker`); an extension hook marking an aggregator count-semantic, so extension figures always round under `precision` (U34); `Response.overlays` is not yet feature-gated, so hiding overlays leaves its paths listed (U35).
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

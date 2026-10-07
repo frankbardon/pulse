@@ -22,6 +22,8 @@ import (
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/returnplan"
+	"github.com/frankbardon/pulse/internal/returnshape"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/internal/template"
@@ -345,6 +347,28 @@ type Options struct {
 	// falls back to that surface's default there.
 	DefaultMultiplicity *types.Multiplicity
 
+	// DefaultReturn is the instance `return` default: the response
+	// selection a request WITHOUT its own `return` block is shaped by.
+	// A request block replaces it entirely (it never merges). Nil
+	// defers to the feature profile's `return` section, else the
+	// library default `full` (identity). Precedence: Request.Return >
+	// DefaultReturn > FeatureProfile.Return > full.
+	//
+	// DisableComponents folds into this layer: when the components
+	// compute gate is off for a request (the engine switch with no
+	// request override, or a request disable_components: true), the
+	// effective selection also excludes `components` — a request
+	// `return` block included: it never re-opens the engine switch. With no `return`
+	// on any layer DisableComponents stays the compute gate alone.
+	//
+	// New() refuses a bad preset, precision or path syntax
+	// (PULSE_RETURN_INVALID) and a path the instance does not have —
+	// including one a hidden feature owns (PULSE_RETURN_PATH_UNKNOWN).
+	// A `data[*].<column>` path is accepted (no schema to judge it
+	// against); the runtime warns PULSE_RETURN_PATH_UNMATCHED when it
+	// matches nothing. Applies at Process today.
+	DefaultReturn *types.Return
+
 	// Strict promotes request-validation warnings into hard errors at
 	// runtime. Today this covers the numeric-aggregation-on-categorical
 	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
@@ -619,7 +643,21 @@ func New(opts Options) (*Pulse, error) {
 		extSnap.Skills = universe.skills
 		extSnap.Examples = universe.examples
 	}
-	svc.SetInstanceSnapshot(descx.NewInstanceSnapshot(extSnap, featureSet))
+	snap := descx.NewInstanceSnapshot(extSnap, featureSet)
+	// The instance `return` default: Options.DefaultReturn, else the
+	// (already validated) feature profile's section. Validated against
+	// the scoped snapshot so a hidden feature's path is refused.
+	defaultReturn := opts.DefaultReturn
+	if err := descx.ValidateDefaultReturn(defaultReturn, snap); err != nil {
+		return nil, err
+	}
+	if defaultReturn == nil && featureProfile != nil {
+		defaultReturn = featureProfile.Return
+	}
+	if defaultReturn != nil {
+		snap = snap.WithDefaultReturn(defaultReturn)
+	}
+	svc.SetInstanceSnapshot(snap)
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)
@@ -730,10 +768,29 @@ func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
 }
 
 // Process executes a single processing request against a cohort.
+//
+// A `return` block on req — else the instance default
+// (Options.DefaultReturn, then the feature profile's `return`) — shapes
+// the response here, at the outermost facade, after the engine
+// finished: excluded slots are pruned from the Go value and absent from
+// its JSON, and Response.Returned stamps the selection. No block on any
+// layer (or one resolving to the full response) returns the response
+// untouched.
 func (p *Pulse) Process(ctx context.Context, req *Request) (*Response, error) {
 	resp, err := p.svc.Process(ctx, req)
 	if err == nil && req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	}
+	if err == nil && req != nil {
+		// The effective block: the request's own, else the instance
+		// default (descx.EffectiveReturn); nil leaves resp untouched.
+		plan, rerr := descx.ResolveReturn(req, p.svc.InstanceSnapshot())
+		if rerr != nil {
+			return nil, rerr
+		}
+		if plan != nil {
+			returnshape.Apply(resp, plan)
+		}
 	}
 	return resp, err
 }
@@ -756,8 +813,31 @@ type RowIter = service.RowIter
 // Predict's Streamable flag reports whether the underlying execution
 // avoids buffering inside the engine; ProcessStream wraps the result
 // regardless, so the API is stable for non-streamable requests too.
+//
+// Shaping: the request's `return` block (else the instance default)
+// shapes the stream exactly as Process shapes the buffered response —
+// each row is a pruned clone equal to the shaped response's `data`
+// element (no rows when `data` is excluded), Components / Metadata are
+// shaped copies (the run keeps accumulating an excluded slot), and the
+// iterator reports the `returned` marker only once exhausted, through a
+// `Returned() *types.ReturnedMarker` method. Precision is wire-only:
+// rows stay full float64, and the shaped iterator's
+// `MarshalRow(Row) ([]byte, error)` writes one at the plan's precision
+// (the `pulse api process --stream` NDJSON writer uses it). With no
+// effective block the service iterator is returned untouched.
 func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error) {
-	return p.svc.ProcessStream(ctx, req)
+	iter, err := p.svc.ProcessStream(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	// The service resolved defaults on req in place, which is what the
+	// plan's precision exemptions read.
+	plan, err := descx.ResolveReturn(req, p.svc.InstanceSnapshot())
+	if err != nil {
+		_ = iter.Close()
+		return nil, err
+	}
+	return returnshape.NewRowIter(iter, plan), nil
 }
 
 // Compose executes multiple requests against a cohort and returns a
@@ -778,8 +858,45 @@ func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error
 //     emitted by the handler (cohesion failures, missing host
 //     coordinates, threshold breaches). Empty when the layer produced
 //     no diagnostics.
+//
+// Shaping: each Requests[i].Return (else the instance default) shapes
+// Responses[i] exactly as Process would; req.Return shapes the
+// top-level Overlays (paths rooted at ComposedResponse, `overlays…`
+// only) and stamps ComposedResponse.Returned. Both apply after the
+// overlay fold, so every layer is computed from the unshaped slots.
 func (p *Pulse) Compose(ctx context.Context, req *ComposedRequest) (*ComposedResponse, error) {
-	return p.svc.Compose(ctx, req)
+	out, slots, err := p.svc.ComposeResolved(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.shapeComposed(req, slots, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// shapeComposed resolves every slot's `return` plan from the
+// defaults-resolved slot requests the service ran, plus the
+// Compose-level plan, and applies them to the finished response.
+func (p *Pulse) shapeComposed(req *ComposedRequest, slots []*Request, out *ComposedResponse) error {
+	inst := p.svc.InstanceSnapshot()
+	top, err := descx.ResolveComposeReturn(req, inst)
+	if err != nil {
+		return err
+	}
+	plans := make([]*returnplan.Plan, len(slots))
+	for i, slot := range slots {
+		if slot == nil {
+			continue
+		}
+		plan, err := descx.ResolveReturn(slot, inst)
+		if err != nil {
+			return descx.RefusalAt(err, "request", i)
+		}
+		plans[i] = plan
+	}
+	returnshape.ApplyComposed(out, plans, top)
+	return nil
 }
 
 // CountRecords returns the number of records in the cohort at path
@@ -825,12 +942,32 @@ type ChainResponse = types.ChainResponse
 // ProcessChain collapses those into one open + one synth-schema
 // per intermediate stage, keeping the streaming iterator stack alive
 // across stages.
+//
+// Shaping: each Stages[i].Request.Return (else the instance default)
+// shapes Stages[i], applied only after the WHOLE chain completed — a
+// stage that excludes `data` still feeds the next stage its rows.
+// Final follows the last stage's return; there is no chain-level knob.
 func (p *Pulse) ProcessChain(ctx context.Context, req *ChainRequest) (*ChainResponse, error) {
 	resp, err := p.svc.ProcessChain(ctx, req)
-	if err == nil && req != nil && req.Cohort != nil {
+	if err != nil {
+		return resp, err
+	}
+	if req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
 	}
-	return resp, err
+	// The service ran every stage request in place, defaults resolved,
+	// which is what the plan's precision exemptions read.
+	inst := p.svc.InstanceSnapshot()
+	plans := make([]*returnplan.Plan, len(req.Stages))
+	for i, st := range req.Stages {
+		plan, rerr := descx.ResolveReturn(st.Request, inst)
+		if rerr != nil {
+			return nil, descx.RefusalAt(rerr, "stage", i)
+		}
+		plans[i] = plan
+	}
+	returnshape.ApplyChain(resp, plans)
+	return resp, nil
 }
 
 // ComposeOptions controls parallel execution. See internal/service.ComposeOptions.
@@ -859,8 +996,18 @@ type ComposeOptions = service.ComposeOptions
 //     surfaced by distributeComposeWarnings (cohesion failures,
 //     missing host coordinates, panel-target overflow). Empty when
 //     the layer produced no diagnostics.
+//
+// Shaping is Compose's, applied after every slot settled and the
+// overlay fold ran.
 func (p *Pulse) ComposeParallel(ctx context.Context, req *ComposedRequest, opts ComposeOptions) (*ComposedResponse, error) {
-	return p.svc.ComposeParallel(ctx, req, opts)
+	out, slots, err := p.svc.ComposeParallelResolved(ctx, req, opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.shapeComposed(req, slots, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // Import converts tabular source data into a .pulse file.

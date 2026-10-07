@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 200, 201, 207]
+todo_items: [198, 199, 200, 201, 207, 213, 214, 215]
 branch: predict-runtime-parity
 ---
 
@@ -38,6 +38,9 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 - [ ] **#199** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) The runtime refuses, rather than silently computes on, a field it cannot read: the "predict stricter, runtime wrong" half of the ledger (`FEAT_POLY`, `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` and the `WIN_*` value windows on categorical, set, decimal, `packed_bool` or `datetime` columns), plus tier-1 tests on `set_*` fields
 - [ ] **#200** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A request with more than one `Groups` entry executes every group or is refused; today only `Groups[0]` runs
 - [ ] **#201** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection
+- [ ] **#213** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) `Response.overlays` joins the feature gate (`gatedSlots`)
+- [ ] **#214** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A joined slot or stage derives its `return` precision-exact set from the defaults-resolved request
+- [ ] **#215** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) `finalizeMergedPartial`'s empty-partial path emits the zero-n aggregation entries the serial path emits
 - [ ] **#207** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Shard-archive cohesion compares `Nullable`: `AddShard`, `shard verify`, the `NewCohortBuilder` anchored-append pre-check and the archive reader refuse a shard whose per-field nullability differs from the canonical schema, instead of decoding it under the canonical flags
 
 ## Scope
@@ -107,3 +110,9 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 ## Inherited from U02c
 
 - **Shard cohesion ignores `Nullable`** (#207). Found while adding the U02c anchored-append pre-check (PR #311): `AddShard`'s structural cohesion compares name, type, order and set rung but never the per-field nullable flag, and the pre-check reuses that code, so it inherits the gap. The dangerous direction is an archive field declared non-nullable receiving a shard whose field is nullable: when the bitmap width still matches (other nullable fields exist), the stride check passes and the archive reader, which decodes an anchored shard under the CANONICAL schema, would ignore that field's null bits, so a null could come back as a value (inferred from the code path, not yet reproduced — write the failing test first). Fix in the shared cohesion check so every caller picks it up; decide whether non-nullable→nullable widening is a legal rewrite (like set widening) or a refusal.
+
+## Inherited from U17
+
+- **`Response.overlays` is not feature-gated** (#213). `internal/descriptor/request_slots.go` (`gatedSlots`) has no entry for it, so an instance hiding the overlay features still lists `overlays` paths in its payload schema and in the `return` presets (`standard` / `minimal` expand them). Gate it like `matrices`, and let `TestReturnPathsMatchSchema` / `TestReturnPresetsFor_Instance` cover a profile without overlays.
+- **Joined slot / stage `Plan.Exact`** (#214). A join gives the slot or stage defaults on a service-internal clone, so the `return` precision-exact set derives from the un-defaulted request (`Process` included). A count column that exists only after defaults would round. Resolve the plan from the defaults-resolved request on that path. The Compose-level (`overlays` root) plan likewise has no `Exact` set of its own: give it one if an overlay payload ever carries a float count.
+- **`finalizeMergedPartial` empty partial** (#215). A merged (parallel decode / shard) run whose partial is empty emits no `Aggregations` block while the serial path emits zero-n entries, ungrouped and grouped. Pre-existing; found by E1's per-group parity gates.

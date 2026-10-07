@@ -27,6 +27,11 @@ var allowedIntraModuleDeps = map[string]bool{
 	modulePrefix + "/internal/template": true, // the package itself
 	modulePrefix + "/types":             true, // public request roots
 	modulePrefix + "/errors":            true, // CodedError system
+	// The stdlib-only response-shaping leaf: types carries a resolved
+	// `return` plan in an unexported Response field, so it rides in
+	// through types. It executes nothing and imports no pulse package
+	// (TestReturnPlan_ImportBoundary).
+	modulePrefix + "/internal/returnplan": true,
 }
 
 // forbiddenDeps are the packages named explicitly in the import ceiling.

@@ -130,6 +130,7 @@ func TestEffectiveDisableComponents_TableDriven(t *testing.T) {
 		name        string
 		engine      bool
 		reqOverride *bool
+		reqReturn   *types.Return
 		want        bool
 	}{
 		{name: "engine_off_no_override", engine: false, reqOverride: nil, want: false},
@@ -138,12 +139,17 @@ func TestEffectiveDisableComponents_TableDriven(t *testing.T) {
 		{name: "engine_on_force_on", engine: true, reqOverride: boolPtr(false), want: false},
 		{name: "engine_off_force_on", engine: false, reqOverride: boolPtr(false), want: false},
 		{name: "engine_on_force_off", engine: true, reqOverride: boolPtr(true), want: true},
+		// An engine DisableComponents sticks over a request `return`
+		// block; only an explicit `false` re-opens it.
+		{name: "engine_on_request_return", engine: true, reqReturn: &types.Return{Preset: types.ReturnPresetFull}, want: true},
+		{name: "engine_on_request_return_force_on", engine: true, reqOverride: boolPtr(false), reqReturn: &types.Return{Preset: types.ReturnPresetFull}, want: false},
+		{name: "engine_off_request_return", engine: false, reqReturn: &types.Return{Preset: types.ReturnPresetFull}, want: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := &Service{}
 			svc.SetDisableComponents(tc.engine)
-			req := &types.Request{DisableComponents: tc.reqOverride}
+			req := &types.Request{DisableComponents: tc.reqOverride, Return: tc.reqReturn}
 			if got := svc.effectiveDisableComponents(req); got != tc.want {
 				t.Errorf("effectiveDisableComponents(engine=%v, req=%v) = %v; want %v",
 					tc.engine, tc.reqOverride, got, tc.want)

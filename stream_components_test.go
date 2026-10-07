@@ -699,6 +699,11 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 	}
 	bv := reflect.ValueOf(buffered).Elem()
 	for i := 0; i < bv.NumField(); i++ {
+		// The unexported `return` plan is not a block; its
+		// carry-through is TestReturn_StreamResultChunks' job.
+		if !bv.Type().Field(i).IsExported() {
+			continue
+		}
 		if bv.Field(i).IsZero() {
 			t.Fatalf("fixture leaves ResponseComponents.%s empty; set it", bv.Type().Field(i).Name)
 		}
@@ -706,8 +711,48 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 	mid := chunkComponents(buffered, []descriptor.ComponentsMergeability{descriptor.Mergeable}, nil, false)
 	mv := reflect.ValueOf(mid).Elem()
 	for i := 0; i < mv.NumField(); i++ {
+		if !mv.Type().Field(i).IsExported() {
+			continue
+		}
 		if !reflect.DeepEqual(mv.Field(i).Interface(), bv.Field(i).Interface()) {
 			t.Errorf("mid-stream chunk drops or alters ResponseComponents.%s", mv.Type().Field(i).Name)
 		}
+	}
+}
+
+// TestChunkComponents_NonTerminalCarriesNoGroups: per-group figures
+// are TERMINAL-only. A non-terminal chunk drops every slot's groups[]
+// whatever its mergeability (the slot-level floor stays, a None slot's
+// Operator is still redacted), without mutating the buffered original;
+// the terminal chunk carries groups[] verbatim.
+func TestChunkComponents_NonTerminalCarriesNoGroups(t *testing.T) {
+	buffered := &types.ResponseComponents{
+		Aggregations: []types.AggregationComponents{
+			{Label: "s", N: 4, Groups: []types.AggregationGroupComponents{
+				{GroupKey: types.AxisKey{"a"}, N: 4, Operator: map[string]any{"sum": 10.0}}}},
+			{Label: "m", N: 4, Operator: map[string]any{"median": 2.0}, Groups: []types.AggregationGroupComponents{
+				{GroupKey: types.AxisKey{"a"}, N: 4, Operator: map[string]any{"median": 2.0}}}},
+		},
+	}
+	merge := []descriptor.ComponentsMergeability{descriptor.Mergeable, descriptor.None}
+	mid := chunkComponents(buffered, merge, nil, false)
+	for _, a := range mid.Aggregations {
+		if a.Groups != nil {
+			t.Errorf("slot %s: mid-stream chunk carries groups %+v, want none", a.Label, a.Groups)
+		}
+		if a.N != 4 {
+			t.Errorf("slot %s: slot floor lost mid-stream: n = %d", a.Label, a.N)
+		}
+	}
+	if mid.Aggregations[1].Operator != nil {
+		t.Error("None slot's Operator not redacted mid-stream")
+	}
+	for _, a := range buffered.Aggregations {
+		if len(a.Groups) != 1 || a.Groups[0].Operator == nil {
+			t.Errorf("slot %s: buffered groups mutated: %+v", a.Label, a.Groups)
+		}
+	}
+	if end := chunkComponents(buffered, merge, nil, true); len(end.Aggregations[1].Groups) != 1 {
+		t.Errorf("terminal chunk lost groups[]: %+v", end.Aggregations[1])
 	}
 }

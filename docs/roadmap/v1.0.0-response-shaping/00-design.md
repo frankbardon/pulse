@@ -1,6 +1,8 @@
 # Response shaping — ask for what you need
 
-**Status:** proposal · **Target:** v1.0.0
+**Status:** U17 landed (selection at serialization); U18 pending (computation skipping, MCP default, size estimates) · **Target:** v1.0.0
+
+> **Amended at U17 (landed).** Shipped as designed except where listed here; the unit doc's Landed deviations carry the full record. `include` without a preset is an allowlist over an empty base. `minimal` is the primary result of each slot (data and warnings alone would drop test statistics and matrices); `standard` keeps metadata and drops components. Selection runs at serialization in two layers (a Go-value prune, then a planned wire encoder), so precision is wire-only and counts stay exact. `data[*].<column>` is validated against the request's output columns. Codes: `PULSE_RETURN_PATH_UNKNOWN`, `PULSE_RETURN_INVALID`, and the buffered-only warning `PULSE_RETURN_PATH_UNMATCHED`. The `returned {preset, digest, precision?}` marker is stamped only for a non-identity plan. `DisableComponents` is a shorthand only beside a `return` layer; `EchoRequest` is not folded in. `ComposedRequest.Return` (overlays only) joined per-slot and per-stage `return`. Feature profiles DO carry a `return` section (see feature-profiles 01). Still open for U18: skip computation, MCP `standard` default, predict size estimates, `PULSE_RETURN_PATH_UNMATCHED` on streams.
 
 ## The problem (from the planning review)
 

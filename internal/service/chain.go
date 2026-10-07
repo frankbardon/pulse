@@ -63,6 +63,13 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 			return nil, locate(err, "stage", i)
 		}
 		plans[i] = plan
+		// The stage's `return` block resolves beside it (the pass
+		// ValidateChain runs per stage). It is APPLIED by the facade
+		// only after the whole chain finished, so a later stage always
+		// reads the unshaped rows; stage 0 re-resolves inside Process.
+		if _, err := descx.ResolveReturn(st.Request, s.instance); err != nil {
+			return nil, descx.RefusalAt(err, "stage", i)
+		}
 	}
 
 	// Stage 0 runs against the on-disk cohort.

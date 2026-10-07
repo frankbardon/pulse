@@ -32,7 +32,9 @@ internal/io/               jobs, inference, transfer; internal/io/<fmt>/ adapter
                            (csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel|spss)
                            + helpers exportoverlay, nullcell, settristate, setwide
 internal/synth/            generator, profile capture, structural rules, fidelity
-internal/template/         request templating (import ceiling: stdlib + types + errors)
+internal/template/         request templating (import ceiling: stdlib + types + errors; the stdlib-only internal/returnplan rides in through types)
+internal/returnplan/       `return` path grammar + canonical Plan + Visit + digest (leaf: stdlib only; TestReturnPlan_ImportBoundary) — types carries a *Plan in an unexported Response field; types installs its pruner as the init-time applier (returnplan.SetApplier)
+internal/returnshape/      Apply(resp, plan): the one per-Response shaping pass (prune, attach plan, PULSE_RETURN_PATH_UNMATCHED, Returned marker) the facade runs after the engine returns — never inside Service.Process
 internal/temporal/         epoch-day + calendar + zone math (leaf over stdlib + errors; public encoding forwards into it)
                            + Zone (own embedded zoneinfo.zip, TZDataVersion), per-instance zone Cache; gate TestNoZoneMathOutsideTemporal
 internal/mcp/              SDK-free MCP core; internal/mcp/toolmeta/ leaf metadata
@@ -75,7 +77,7 @@ Three techniques, chosen per package:
 
 **Root aliases.** Facade-returned types from internal packages keep their `pulse.X` spelling as aliases (`ComposeOptions`, `Row`, `RowIter`, the shard and index result types, `ImportSpec` / `ImportResult` / `ImportEntry` / `ImportSidecar`, `Example` / `ExampleSummary`, `SkillMetadata`, `Template*` / `RenderedTemplate`, `CohesionWarning`, `GroupIndexHeadroom`, `SidecarIndex`, …). `DateRangeSpec`, `MemberSet` and `LoadMemberSetResult` are root-NATIVE types, not aliases. `pulse.go` also re-exports `types.Request` / `Response` / `ComposedRequest` and `synth.Spec` / `Result` / `Options` / `Profile` / `ProfileOptions`.
 
-**The `io` import boundary.** Nothing under `internal/io/**` or `internal/iocore` may import the public `io` — its factory (`io.NewReader`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, typed `io.Format` constants, `FormatFromPath`) imports every adapter, so the reverse edge is a cycle. Adapters import `internal/iocore` for contracts and `internal/io` for jobs. Gated by `TestIOImportBoundary*` (`internal/iocore/boundary_test.go`); when an adapter moves, move its path in `belowFacade` with it.
+**The `io` import boundary.** Nothing under `internal/io/**` or `internal/iocore` may import the public `io` — its factory (`io.NewReader`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, typed `io.Format` constants, `FormatFromPath`) imports every adapter, so the reverse edge is a cycle. Adapters import `internal/iocore` for contracts and `internal/io` for jobs. `internal/iocore` itself is a leaf reaching only the `.pulse` codec (`encoding`, `internal/encoding`, `internal/encodingbridge`, `internal/temporal`), `errors` and `types` — plus the stdlib-only `internal/returnplan`, which rides in through `types`. Gated by `TestIOImportBoundary*` (`internal/iocore/boundary_test.go`); when an adapter moves, move its path in `belowFacade` with it.
 
 **Surface guards.** `TestPublicAPIGolden` (blocking) freezes every public package's exported shape, aliases expanded; regenerate with `go test ./internal/apigolden/ -run TestPublicAPIGolden -update` only for an intentional surface change and review the diff. The `apidiff` job in `.github/workflows/api-compat.yml` is advisory against the latest tag (label `api-break-ok` marks an intentional break) and flips to blocking once a stable `v1.0.0` tag exists. `make smoke` builds `internal/embeddersmoke`, an external module that only uses public spellings. Contributor prose: `docs/src/contributing/pr-process.md`.
 

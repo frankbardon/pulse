@@ -69,10 +69,17 @@ data profiling (`Pulse.Profile`, `pulse profile create`).
 | `written_with` | no | The Pulse version you wrote the profile against. Stored as-is, never compared, and never an error |
 | `features` | **yes** | The exact feature names the instance offers. May be empty (`[]`), and must not repeat a name |
 | `behaviour` | no | Engine switches the profile turns on (below) |
+| `return` | no | The instance's default response selection — the `return` block a request without its own is shaped by (`{"preset": "standard"}`, `include`, `exclude`, `precision`) |
 
-Any other key is refused. That includes `limits` and `return`, which are
-reserved for later v1.0.0 units. Trailing data after the JSON object is
-refused too.
+Any other key is refused. That includes `limits`, which is reserved for a
+later v1.0.0 unit. Trailing data after the JSON object is refused too.
+
+`return` takes the request block's shape. A request `return` replaces it
+entirely, and `Options.DefaultReturn` wins over it. `pulse.New` checks it
+against the profile's own feature set: a path only a feature the profile
+leaves out has (for example `matrices` without `capability:matrices`), an
+unknown preset or a precision outside 1–17 is refused with
+`PULSE_FEATURE_PROFILE_INVALID`, reason `invalid_return`.
 
 ## Feature names
 

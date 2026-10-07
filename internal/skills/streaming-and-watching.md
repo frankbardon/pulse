@@ -9,13 +9,13 @@ covers: [Request.Hash, StreamResult, Watch, WatchDir, FilterToFileWithRequest, C
 
 # Streaming & watching
 
-Four primitives for deterministic identity, incremental output, and reactive observation. Manifest annotations wire caching policy.
+Primitives for deterministic identity, incremental output and reactive observation.
 
 ## `Request.Hash()`
 
 `Hash() string` returns a 32-char hex digest of canonical-JSON form. Supported: `Request`, `ComposedRequest`, `FacetRequest`, `ChainRequest`, `synth.Spec`. Lower-level: `types.CanonicalHash(tag, v)`.
 
-Guarantees: same logical request → same hash across processes/versions; round-trip stable; field-order invariant; default-normalising (`Limit: 0` ≡ omitted); `-0.0` ≡ `0.0`; namespace tag separates shapes (e.g. `Request` vs `ComposedRequest`).
+Guarantees: stable across processes/versions; field-order invariant; default-normalising (`Limit: 0` ≡ omitted); `-0.0` ≡ `0.0`; a namespace tag separates shapes. `return` is part of the hash.
 
 ```go
 key := req.Hash()
@@ -49,6 +49,8 @@ What a chunk's `Components` holds depends on each operator's `mergeability` clas
 
 Identity: the terminal chunk's `Components` is `DeepEqual` to the buffered `Process` result's. With components disabled every chunk carries `nil`.
 
+A `return` block shapes streamed rows (selected columns, wire precision via `returnshape.MarshalRow`); `returned` rides the terminal chunk only. See `response-shaping`.
+
 ```go
 res, _ := p.ProcessStreamResult(ctx, req)
 var terminal *types.ResponseComponents
@@ -63,7 +65,7 @@ for chunk := range res.Chunks {
 
 ### Two-pass attributes
 
-Attributes that need a whole-cohort statistic first (a z-score, a regression fit, a declared two-pass extension) stream in two passes: they keep declared order and read earlier labels as buffered does; each dependent layer adds a scan.
+Attributes needing a whole-cohort statistic first (z-score, regression fit, declared two-pass extension) stream in two passes in declared order; each dependent layer adds a scan.
 
 ## `Watch` / `WatchDir`
 
@@ -80,7 +82,7 @@ No pre-seed — pre-existing files surface as `ChangeCreated` on the first tick.
 
 `WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network filesystems should raise `PollInterval` to ~30 s.
 
-Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` when paths share a directory, the temp matches `<target>.tmp`/`.partial`/`.swp`, `~<target>`, hidden-dotfile, or `<target>.NNNN`, inside `CoalesceWindow`.
+Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` when both share a directory, the temp looks like an editor/atomic-write temp name, and both fall inside `CoalesceWindow`.
 
 ## `FilterToFileWithRequest`
 
@@ -119,4 +121,4 @@ A buffered overlay downgrades a streamable Process to buffered — price it as b
 
 ## See
 
-`response-components` (shape, mergeability classes) · `overlay-system` (overlay streamability)<!-- feature: capability:compose --> · `compose-requests` (per-slot Components)<!-- /feature --><!-- feature: capability:process_chain --> · `process-chain` (per-stage Components)<!-- /feature -->.
+`response-components` (shape, mergeability classes) · `response-shaping` (`return`) · `overlay-system` (overlay streamability)<!-- feature: capability:compose --> · `compose-requests` (per-slot Components)<!-- /feature --><!-- feature: capability:process_chain --> · `process-chain` (per-stage Components)<!-- /feature -->.

@@ -233,11 +233,12 @@ func TestExtensions_StreamingGrouperMatchesBuffered(t *testing.T) {
 	probe, grp, calls := &parityProbe{}, &r6GrouperCalls{}, &e2eCalls{}
 	p, cohort := openE2E(t, streamabilityExtensions(probe, grp, calls))
 	run := func(g types.GroupType) string {
-		resp := processE2E(t, p, &types.Request{
+		req := &types.Request{
 			Cohort:       cohort,
 			Groups:       []*types.Group{{Type: g, Field: "score"}},
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}, {Type: types.AGG_COUNT, Field: "score", Label: "n"}},
-		})
+		}
+		resp := processE2E(t, p, req)
 		return mustJSON(t, resp.Data) + mustJSON(t, resp.Components)
 	}
 	for _, pair := range [][2]types.GroupType{{streamGrpOn, streamGrpOff}, {streamGrpFan, streamFanOff}} {

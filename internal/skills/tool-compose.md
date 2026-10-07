@@ -12,7 +12,7 @@ Multiple distinct `types.Request` payloads against the same or different cohorts
 
 ## Input
 
-`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see `compose-requests`). Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`.
+`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see `compose-requests`). Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
 
 ## Output
 

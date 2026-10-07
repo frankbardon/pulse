@@ -26,6 +26,15 @@
     "AggregationComponents": {
       "additionalProperties": false,
       "properties": {
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/AggregationGroupComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -56,6 +65,49 @@
         }
       },
       "required": [
+        "n",
+        "n_null"
+      ],
+      "type": "object"
+    },
+    "AggregationGroupComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "group_key": {
+          "items": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_eff": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "n_weight_invalid": {
+          "type": "integer"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "group_key",
         "n",
         "n_null"
       ],
@@ -1775,6 +1827,9 @@
             "null"
           ]
         },
+        "return": {
+          "$ref": "#/$defs/Return"
+        },
         "sort": {
           "items": {
             "$ref": "#/$defs/OrderKey"
@@ -1856,6 +1911,9 @@
             "array",
             "null"
           ]
+        },
+        "returned": {
+          "$ref": "#/$defs/ReturnedMarker"
         },
         "tests": {
           "items": {
@@ -1953,6 +2011,63 @@
       "required": [
         "code",
         "message"
+      ],
+      "type": "object"
+    },
+    "Return": {
+      "additionalProperties": false,
+      "properties": {
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "precision": {
+          "type": "integer"
+        },
+        "preset": {
+          "$ref": "#/$defs/ReturnPreset"
+        }
+      },
+      "type": "object"
+    },
+    "ReturnPreset": {
+      "enum": [
+        "full",
+        "minimal",
+        "standard"
+      ],
+      "type": "string"
+    },
+    "ReturnedMarker": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "precision": {
+          "type": "integer"
+        },
+        "preset": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "digest",
+        "preset"
       ],
       "type": "object"
     },
@@ -2220,4 +2335,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 03500486c9c5efeaedec66bc34413594e32b9825d2f48ee2a90764051df721cc
+// golden-hash: 7f5e2dada2731311455d11a44fe89823579cf1cd21e0d397668c7b4b59621493

@@ -27,7 +27,7 @@ pulse api process --request FILE [--json] [--stream] [--no-defaults]
 | `--json`          |      | bool   | false      | Emit the result wrapped in the JSON envelope |
 | `--stream`        |      | bool   | false      | Stream rows as NDJSON (one per line) instead of buffering |
 | `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference; require explicit `Type` on every aggregation and grouper |
-| `--no-components` |      | bool   | false      | Suppress `Response.Components` (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline |
+| `--no-components` |      | bool   | false      | Suppress `Response.Components` (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline. The flag wins over a request `return` block (Components are still not computed, and the block gains `exclude: ["components"]`); only a request `"disable_components": false` re-opens them |
 | `--no-project`    |      | bool   | false      | Disable buffered-decode field projection; force full-record decode. Projection is on by default and output-transparent (same result, only faster), so this is an opt-out for debugging or full-map decode |
 | `--strict`        |      | bool   | false      | Promote request-validation warnings (e.g. numeric aggregation on a categorical field) into hard errors |
 | `--echo-request`  |      | bool   | false      | Include the normalized (post-defaults) request on `envelope.request`. Ignored under `--stream` because NDJSON has no envelope |
@@ -158,6 +158,11 @@ NDJSON of result rows, one per line. No envelope, no metadata footer.
 Pair with [`pulse api predict`](api-predict.md) ahead of time to
 confirm `Streamable=true`; predict-buffered shapes still emit via
 this path, but they materialise inside the engine first.
+
+A request `return` block shapes each line exactly like the buffered
+`data` element: only the selected columns, measures at `precision`
+(count columns exact). A request without `return` streams the
+unchanged rows.
 
 ## Exit codes
 

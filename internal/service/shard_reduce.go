@@ -184,34 +184,38 @@ type shardPartial struct {
 	// Response.Components.Run.NullRecords. Merger sums across shards.
 	nullRecords int64
 
-	// aggN / aggNNull carry the UNIVERSAL FLOOR of
-	// Response.Components.Aggregations — one {n, n_null} pair per
-	// req.Aggregations slot, indexed by slot position. Both are plain
-	// per-record tallies, so the merge is a slot-wise sum and is
-	// associative and commutative: any partition of the record stream
+	// aggFloor carries the UNIVERSAL FLOOR of
+	// Response.Components.Aggregations — one {n, n_null} pair plus the
+	// weighted floor tally (sum_weights, n_eff, n_weight_invalid; inert
+	// on an unweighted slot) per req.Aggregations slot, indexed by slot
+	// position. On a grouped partial it is the COHORT-WIDE slot floor.
+	// All plain per-record tallies, so the merge is a slot-wise sum and
+	// is associative and commutative: any partition of the record stream
 	// across workers or shards yields the serial totals.
 	//
-	// They exist because nullRecords above is a SINGLE primary-field
+	// It exists because nullRecords above is a SINGLE primary-field
 	// counter. It answers Run.NullRecords and nothing else, so before
-	// these fields the parallel arms emitted no per-slot floor at all
-	// while the serial path emitted one entry per aggregator — the
-	// same request returning a different Components shape depending on
-	// a concurrency knob.
+	// it the parallel arms emitted no per-slot floor at all while the
+	// serial path emitted one entry per aggregator — the same request
+	// returning a different Components shape depending on a concurrency
+	// knob.
 	//
 	// Presence is asked through processing.FieldPresent, never through
 	// NumericValue: a set-typed column has no numeric value but does
 	// have presence, and asking the wrong question would move every
 	// respondent in a set column into n_null.
-	aggN     []int64
-	aggNNull []int64
+	aggFloor []processing.SlotFloor
 
-	// aggWeight carries each slot's weighted floor tally (sum_weights,
-	// n_eff, n_weight_invalid) — inert on an unweighted slot — and
-	// weights the per-weight-field invalid-row tally behind the
-	// PULSE_WEIGHT_INVALID_ROWS warning (nil when nothing is weighted).
-	// Both are plain sums, merged slot-wise like aggN.
-	aggWeight []processing.WeightFloor
-	weights   *processing.WeightRowTally
+	// groupFloors is a grouped partial's per-bucket aggFloor, minted
+	// with each bucket in foldGroupedRow and merged key by key like the
+	// buckets — the floors behind Components.Aggregations' groups[].
+	// Nil when components are disabled or the request is ungrouped.
+	groupFloors map[string][]processing.SlotFloor
+
+	// weights is the per-weight-field invalid-row tally behind the
+	// PULSE_WEIGHT_INVALID_ROWS warning (nil when nothing is weighted),
+	// merged like aggFloor.
+	weights *processing.WeightRowTally
 
 	// filterCounters carries the per-slot {n_in, n_out, n_null_input}
 	// triple behind Response.Components.Filterers, one entry per
@@ -345,6 +349,9 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		out.aggs = aggsUngrouped
 	} else {
 		out.groups = make(map[string][]processing.OnlineAggregator)
+		if !s.effectiveDisableComponents(req) && len(req.Aggregations) > 0 {
+			out.groupFloors = make(map[string][]processing.SlotFloor)
+		}
 		out.grouper = grouper
 		if out.keyer, err = processing.NewGroupKeyer(grouper); err != nil {
 			return nil, err
@@ -434,17 +441,15 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 // universal floor, the weighted floor and invalid-row tallies, and the
 // filter counters. Shared by both parallel reducers.
 func newShardPartial(req *types.Request, specs []aggSpec) *shardPartial {
-	out := &shardPartial{
-		aggN:           make([]int64, len(specs)),
-		aggNNull:       make([]int64, len(specs)),
-		aggWeight:      make([]processing.WeightFloor, len(specs)),
+	aggs := make([]*types.Aggregation, len(specs))
+	for i, sp := range specs {
+		aggs[i] = sp.agg
+	}
+	return &shardPartial{
+		aggFloor:       processing.NewSlotFloors(aggs),
 		weights:        processing.NewWeightRowTally(req),
 		filterCounters: processing.NewFilterPassCounters(req.Filterers),
 	}
-	for i, sp := range specs {
-		out.aggWeight[i] = processing.NewWeightFloor(sp.agg)
-	}
-	return out
 }
 
 // buildMatrices builds the partition's Request.Matrices state: one slot
@@ -468,14 +473,7 @@ func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schem
 // reducers.
 func (sp *shardPartial) observeFloor(rec *processing.Record, specs []aggSpec) {
 	sp.weights.Observe(rec)
-	for i := range specs {
-		if processing.FieldPresent(rec, specs[i].agg.Field) {
-			sp.aggN[i]++
-		} else {
-			sp.aggNNull[i]++
-		}
-		sp.aggWeight[i].Observe(rec, specs[i].agg.Field)
-	}
+	processing.ObserveSlotFloors(sp.aggFloor, rec)
 }
 
 // foldGroupedRow fans one filter-passing record into every bucket this
@@ -508,17 +506,30 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, spe
 			}
 			sp.groups[key] = bucket
 			sp.keyOrder = append(sp.keyOrder, key)
+			if sp.groupFloors != nil {
+				sp.groupFloors[key] = processing.NewSlotFloors(sp.slotAggs(specs))
+			}
 		}
 		for i, oa := range bucket {
 			if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
 				return err
 			}
 		}
+		processing.ObserveSlotFloors(sp.groupFloors[key], rec)
 		if err := sp.groupedMats.UpdateRow(key, rec); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// slotAggs returns the slot declarations behind specs, in order.
+func (sp *shardPartial) slotAggs(specs []aggSpec) []*types.Aggregation {
+	aggs := make([]*types.Aggregation, len(specs))
+	for i := range specs {
+		aggs[i] = specs[i].agg
+	}
+	return aggs
 }
 
 // primaryNullFieldFor resolves the field whose per-record null tally
@@ -638,17 +649,7 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		// ordering guarantee is needed here (unlike the Welford merge
 		// below, which is why this function walks partials in shard
 		// insertion order regardless).
-		for slot := range merged.aggN {
-			if slot < len(p.aggN) {
-				merged.aggN[slot] += p.aggN[slot]
-			}
-			if slot < len(p.aggNNull) {
-				merged.aggNNull[slot] += p.aggNNull[slot]
-			}
-			if slot < len(merged.aggWeight) && slot < len(p.aggWeight) {
-				merged.aggWeight[slot].Merge(p.aggWeight[slot])
-			}
-		}
+		processing.MergeSlotFloors(merged.aggFloor, p.aggFloor)
 		merged.weights.Merge(p.weights)
 		processing.MergeFilterPassCounters(merged.filterCounters, p.filterCounters)
 		if err := merged.mats.Merge(p.mats); err != nil {
@@ -698,7 +699,13 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 				if !exists {
 					merged.groups[key] = bucket
 					merged.keyOrder = append(merged.keyOrder, key)
+					if merged.groupFloors != nil {
+						merged.groupFloors[key] = p.groupFloors[key]
+					}
 					continue
+				}
+				if merged.groupFloors != nil {
+					processing.MergeSlotFloors(merged.groupFloors[key], p.groupFloors[key])
 				}
 				for slot, oa := range existing {
 					if bm, ok := oa.(processing.BlockMerger); ok {
@@ -800,12 +807,12 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		// grouper's live state, filterers, run and the SERIES overlay
 		// fold. A private copy of that tail here used to drop Sort,
 		// Overlays, include ordering and the groupers block — the same
-		// request answering differently under a worker count. Like the
-		// serial path it emits no Components.Aggregations (per-group
-		// components is an unlanded surface). The per-bucket matrices
-		// ride the same tail, rendered over the same ordered keys as
-		// the rows.
-		return processing.FinalizeGroupedStream(req, processing.GroupedTail{
+		// request answering differently under a worker count. The
+		// per-group aggregation Components ride the same tail off the
+		// merged buckets and the merged floors (cohort-wide aggFloor,
+		// per-bucket groupFloors), as do the per-bucket matrices,
+		// rendered over the same ordered keys as the rows.
+		tail := processing.GroupedTail{
 			Group:             req.Groups[0],
 			Grouper:           merged.grouper,
 			Buckets:           merged.groups,
@@ -818,7 +825,11 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			Matrices:          merged.groupedMats,
 			DisableComponents: disableComponents,
 			Extensions:        exts,
-		})
+		}
+		if !disableComponents {
+			tail.SlotTotals, tail.BucketFloors = merged.aggFloor, merged.groupFloors
+		}
+		return processing.FinalizeGroupedStream(req, tail)
 	}
 	// Reached only by an EMPTY partial (no worker published one): it
 	// carries no aggregator, grouper or matrix state, so matrices is nil
@@ -859,20 +870,15 @@ func attachMergedAggregationComponents(resp *types.Response, req *types.Request,
 		if i < len(req.Aggregations) {
 			slot = req.Aggregations[i]
 		}
-		var n, nNull int
-		if i < len(merged.aggN) {
-			n = int(merged.aggN[i])
+		var fl processing.SlotFloor
+		if i < len(merged.aggFloor) {
+			fl = merged.aggFloor[i]
 		}
-		if i < len(merged.aggNNull) {
-			nNull = int(merged.aggNNull[i])
-		}
-		entry, err := processing.BuildAggregationComponents(oa, slot, n, nNull)
+		entry, err := processing.BuildAggregationComponents(oa, slot, fl.N(), fl.NNull())
 		if err != nil {
 			return err
 		}
-		if i < len(merged.aggWeight) {
-			merged.aggWeight[i].Stamp(&entry)
-		}
+		fl.Stamp(&entry)
 		processing.AttachAggregationComponents(resp, entry)
 	}
 	return nil

@@ -111,7 +111,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 75,
+    "error_codes_count": 78,
     "error_domains": [
       "CLI",
       "DATA",
@@ -187,6 +187,9 @@
       "PULSE_MATRIX_SINGULAR",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
+      "PULSE_RETURN_INVALID",
+      "PULSE_RETURN_PATH_UNKNOWN",
+      "PULSE_RETURN_PATH_UNMATCHED",
       "PULSE_SHARD_HEADER_INVALID",
       "PULSE_SHARD_MISSING",
       "PULSE_SHARD_RESERVED_NAME",
@@ -407,6 +410,10 @@
         "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
       },
       {
+        "name": "response-shaping",
+        "description": "The request `return` block — choose which parts of a response come back (presets, include / exclude paths) and how many significant digits floats carry on the wire; what is projected, what stays exact, and how it composes with streaming and instance defaults."
+      },
+      {
         "name": "session-bootstrap",
         "description": "Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session."
       },
@@ -570,9 +577,104 @@
       "flows",
       "lookup",
       "measure_construct"
+    ],
+    "return_presets": [
+      {
+        "name": "full",
+        "paths": [
+          "data",
+          "metadata",
+          "tests",
+          "post_tests",
+          "regressions",
+          "warnings",
+          "crosstab",
+          "overlays",
+          "components"
+        ]
+      },
+      {
+        "name": "standard",
+        "paths": [
+          "data",
+          "warnings",
+          "metadata",
+          "crosstab",
+          "tests[*].label",
+          "tests[*].type",
+          "tests[*].variant",
+          "tests[*].statistic",
+          "tests[*].df",
+          "tests[*].p_value",
+          "tests[*].alpha",
+          "tests[*].reject_null",
+          "tests[*].details.effect_size",
+          "post_tests[*].label",
+          "post_tests[*].type",
+          "post_tests[*].variant",
+          "post_tests[*].statistic",
+          "post_tests[*].df",
+          "post_tests[*].p_value",
+          "post_tests[*].alpha",
+          "post_tests[*].reject_null",
+          "post_tests[*].details.effect_size",
+          "regressions[*].name",
+          "regressions[*].type",
+          "regressions[*].family",
+          "regressions[*].link",
+          "regressions[*].penalty",
+          "regressions[*].alpha",
+          "regressions[*].l1_ratio",
+          "regressions[*].prior",
+          "regressions[*].resample",
+          "regressions[*].criterion",
+          "regressions[*].coefficients",
+          "regressions[*].std_errors",
+          "regressions[*].p_values",
+          "regressions[*].r2",
+          "regressions[*].adj_r2",
+          "regressions[*].deviance",
+          "regressions[*].null_deviance",
+          "regressions[*].pseudo_r2",
+          "regressions[*].n_obs",
+          "regressions[*].sum_weights",
+          "regressions[*].n_eff",
+          "regressions[*].residual_std_err",
+          "regressions[*].converged_iters",
+          "regressions[*].selected_features",
+          "overlays"
+        ]
+      },
+      {
+        "name": "minimal",
+        "paths": [
+          "data",
+          "warnings",
+          "crosstab.shape",
+          "crosstab.matrix",
+          "tests[*].label",
+          "tests[*].type",
+          "tests[*].statistic",
+          "tests[*].p_value",
+          "tests[*].reject_null",
+          "post_tests[*].label",
+          "post_tests[*].type",
+          "post_tests[*].statistic",
+          "post_tests[*].p_value",
+          "post_tests[*].reject_null",
+          "regressions[*].name",
+          "regressions[*].type",
+          "regressions[*].coefficients",
+          "regressions[*].p_values",
+          "overlays[*].name",
+          "overlays[*].kind",
+          "overlays[*].ref",
+          "overlays[*].summary"
+        ]
+      }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: efaaa45466bab435a6c95b361fb65031640b2753513bc7618230a4ca1bc2b286
+// golden-hash: 47d70b6a97e904ee357d0caf11f9742d5babfa706f0768bd946e4ec44d97ca2d

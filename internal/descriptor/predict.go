@@ -191,10 +191,7 @@ const CrosstabFusionDisabledReason = "crosstab fusion disabled on this instance 
 // componentsDisabled is the runtime's effectiveDisableComponents: the
 // request's disable_components when set, else the engine default.
 func (o *PredictOptions) componentsDisabled(req *types.Request) bool {
-	if req != nil && req.DisableComponents != nil {
-		return *req.DisableComponents
-	}
-	return o != nil && o.DisableComponents
+	return EffectiveDisableComponents(req, o != nil && o.DisableComponents)
 }
 
 func (o *PredictOptions) instance() *InstanceSnapshot {
@@ -317,6 +314,14 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		addCodedError(env, merr)
 	}
 
+	// Response shaping — the same schema-free pass the runtime runs
+	// before dispatch (ResolveReturn). The resolved plan is reported
+	// once the data-column rule below also passes.
+	returnPlan, rerr := ResolveReturn(req, opts.Instance)
+	if rerr != nil {
+		addCodedError(env, rerr)
+	}
+
 	// A join executes over the joined schema; validate against it.
 	// SchemaInfo above stays the cohort's own schema.
 	cohortSchema := schema
@@ -375,6 +380,17 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// one; a clean resolution is echoed (resolved_vectors) together with
 	// one PULSE_VECTOR_UNREFERENCED warning per vector no operator slot
 	// references, as the runtime warns.
+	// `return` data columns — judged on the defaults-resolved request
+	// (a defaulted aggregation's label carries its inferred type) over
+	// the schema it executes over.
+	if rerr == nil {
+		if cerr := ReturnColumnRefusal(req, schema, opts.Instance); cerr != nil {
+			addCodedError(env, cerr)
+		} else {
+			result.Return = returnPlanDescriptor(returnPlan)
+		}
+	}
+
 	predictVectors(env, result, req, schema)
 	predictMatrices(result, req, schema, opts.Instance)
 

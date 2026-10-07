@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/frankbardon/pulse/types"
 )
 
 // FeatureSetDigestPrefix versions the feature_set_digest algorithm. A
@@ -87,6 +89,13 @@ type InstanceSnapshot struct {
 	names     []string
 	behaviour FeatureBehaviour
 	digest    string
+
+	// defaultReturn is the instance's `return` default — the layer a
+	// request without its own block resolves through
+	// (Options.DefaultReturn, else the feature profile's `return`).
+	// Nil: the library default `full`. Not covered by the digest: it
+	// shapes responses, never the feature set.
+	defaultReturn *types.Return
 
 	// ontology is the instance graph (base + extension nodes, pruned to
 	// the feature set) and discovery the skill / example view walking
@@ -226,6 +235,43 @@ func (s *InstanceSnapshot) Behaviour() FeatureBehaviour {
 		return FeatureBehaviour{}
 	}
 	return s.behaviour
+}
+
+// WithDefaultReturn returns a copy of the snapshot carrying r as the
+// instance `return` default (nil clears it). r is cloned. pulse.New
+// installs the validated default (Options.DefaultReturn, else the
+// feature profile's `return`) so predict and the runtime resolve a
+// request through the same layer. A nil receiver yields an unscoped
+// snapshot carrying only the default.
+func (s *InstanceSnapshot) WithDefaultReturn(r *types.Return) *InstanceSnapshot {
+	var out InstanceSnapshot
+	if s != nil {
+		out = *s
+	} else {
+		out.buildOntology()
+	}
+	out.defaultReturn = cloneReturn(r)
+	return &out
+}
+
+// DefaultReturn returns a copy of the instance `return` default, nil
+// when the instance has none (the library default `full`). Nil-safe.
+func (s *InstanceSnapshot) DefaultReturn() *types.Return {
+	if s == nil {
+		return nil
+	}
+	return cloneReturn(s.defaultReturn)
+}
+
+// cloneReturn deep-copies a Return block (nil stays nil).
+func cloneReturn(r *types.Return) *types.Return {
+	if r == nil {
+		return nil
+	}
+	out := *r
+	out.Include = append([]string(nil), r.Include...)
+	out.Exclude = append([]string(nil), r.Exclude...)
+	return &out
 }
 
 // Digest returns the instance's feature_set_digest ("fs1:<sha256hex>"),

@@ -192,6 +192,27 @@ byte-identical. There is no env var or CLI flag for it. Full guide:
 p, err := pulse.New(pulse.Options{DefaultMultiplicity: &types.Multiplicity{Method: types.MultiplicityMethodHolm}})
 ```
 
+### `DefaultReturn *types.Return`
+
+The response selection (`preset`, `include`, `exclude`, `precision`) a
+request without its own `return` block is shaped by. A request block
+replaces it entirely, never merging. Precedence: the request's `return`,
+then `DefaultReturn`, then the feature profile's `return`, then `full`
+(the whole response, unchanged). `pulse.New` refuses a bad preset,
+precision or path (`PULSE_RETURN_INVALID` / `PULSE_RETURN_PATH_UNKNOWN`),
+including a path only a feature the instance hides has. Data-column paths
+(`data[*].<column>`) are not checked at `New`; one that matches nothing
+draws a `PULSE_RETURN_PATH_UNMATCHED` warning. `DisableComponents` folds
+into this layer: while components are off for a request, the selection
+also excludes `components`. A request `return` replaces the default
+but never the engine switch: with `DisableComponents` on, components stay
+off unless the request sets `disable_components: false`. Applies to `Process`, each Compose slot and each chain stage. There is no env var
+or CLI flag for it.
+
+```go
+p, err := pulse.New(pulse.Options{DefaultReturn: &types.Return{Preset: types.ReturnPresetStandard}})
+```
+
 ### `FeatureProfile *FeatureProfile` / `FeatureProfileFile string`
 
 Declare the instance's feature set: a Go value, or a JSON file read

@@ -21,7 +21,8 @@ import (
 // Components shapes depending on Options.ShardWorkers.
 //
 // This pins the WHOLE {Data, Components} document of the serial arm
-// (ShardWorkers=1) against the parallel arm (ShardWorkers=2,3) for every
+// (ShardWorkers=1) against the parallel arm (ShardWorkers=2,3) — per-group
+// aggregation Components (groups[]) included — for every
 // mergeable grouper the shard fixture can carry plus the ungrouped
 // request, over a FLAT (0x01) archive and its GROUPED (0x02) twin.
 
@@ -166,6 +167,11 @@ func TestShardWorkers_ComponentsParity_GroupedAndFlatArchives(t *testing.T) {
 					if len(gc) != 1 || gc[0].TotalN == 0 || gc[0].Operator == nil {
 						t.Fatalf("serial arm emitted a degenerate groupers block %+v; parity against it proves nothing", gc)
 					}
+					// Per-group aggregation Components ride every arm too.
+					ac := serial.Components.Aggregations
+					if len(ac) != len(req.Aggregations) || len(ac[0].Groups) == 0 || len(ac[0].Groups) != len(serial.Data) {
+						t.Fatalf("serial arm emitted no per-group aggregation components (%d slots, Data %d rows); parity against it proves nothing", len(ac), len(serial.Data))
+					}
 				}
 				for _, workers := range []int{2, 3} {
 					if got, _ := answer(workers); got != want {
@@ -231,6 +237,9 @@ func TestDecodeWorkers_GroupedAnswersParity(t *testing.T) {
 		}
 		if resp.Components == nil || len(resp.Components.Groupers) != 1 {
 			t.Fatalf("DecodeWorkers=%d emitted no groupers block: %+v", workers, resp.Components)
+		}
+		if ac := resp.Components.Aggregations; len(ac) != len(req.Aggregations) || len(ac[0].Groups) != len(resp.Data) {
+			t.Fatalf("DecodeWorkers=%d emitted no per-group aggregation components", workers)
 		}
 		b, _ := json.Marshal(struct {
 			Data       any

@@ -31,13 +31,14 @@ Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n
 
 | Block | Cardinality · identity | Carries |
 |---|---|---|
-| `aggregations` | one per `Request.Aggregations`, declared order · `label` | floor + `operator` |
+| `aggregations` | one per `Request.Aggregations`, declared order · `label` | floor + `operator`; grouped: cohort-wide floor + `groups` (below) |
 | `groupers` | one per `Request.Groups`, declared order · `field` (+ `label` when a field repeats) | floor + `operator` (bucket edges, dictionary mappings, `buckets`) |
 | `crosstab` | only when the Request carried `crosstab` | cell / margin / axis-key components (below) |
 | `filterers` | one per `Request.Filterers`, declared order · `label` | floor only |
 | `run` | always on a successful run | `total_records` (pre-filter), `filtered_records`, `null_records`, `shard_count` (0 = single file), `partial_cohort_reason` (a shard failed to open) |
 | `matrices` | one per `Response.Matrices` result, same order · `name` | `n` (weight-0 rows count), `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted floor; `operator` |
 
+- **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (every filter-passing record, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream carries `groups[]` on its terminal chunk only.
 - A fan-out grouper (one record → several buckets, e.g. each option of a multi-select) has a bucket sum EXCEEDING `total_n` — correct.
 - `run` coexists with `Response.Metadata`: `Metadata.TotalRows == Run.TotalRecords`; `Metadata` keeps non-numerical run facts (cohort filename), `run` the typed counters.
 
@@ -57,17 +58,15 @@ Auxiliary margin-only figures land BESIDE the margin components, and a record re
 | `types.Request.DisableComponents *bool` | per request — `nil` inherits, `true` forces off, `false` forces ON even on an engine shipping them off |
 | `--no-components` | CLI, on `pulse api process`<!-- feature: capability:process_chain --> / `process-chain`<!-- /feature --><!-- feature: capability:compose --> / `compose`<!-- /feature -->; request JSON `"disable_components"` wins over it |
 
-`effective = req.DisableComponents != nil ? *req.DisableComponents : opts.DisableComponents`.
-
 Disabled ⇒ `Response.Components` stays `nil` (wire form byte-identical to the pre-Components baseline; the work is skipped). Streaming consumers MUST tolerate a `nil` block. Compose: each `requests[i]` carries its own override. MCP tools do not surface the knob.
 
 ## Manifest declaration
 
-`manifest.components_schemas` holds operator-name-keyed maps — `aggregators`, `groupers`, `filterers`, `matrices`. Each value is a `ComponentSchema`: `keys` (each `{name, type, description}`; `type` ∈ `"int"`, `"float64"`, `"WelfordTriple"`, `"map[string]int"`, …) in emission order, plus `mergeability`. Aggregators and matrices list their floor; empty `keys` is a valid floor-only operator.
+`manifest.components_schemas` holds operator-name-keyed maps — `aggregators`, `groupers`, `filterers`, `matrices`. Each value is a `ComponentSchema`: `keys` (each `{name, type, description}`) in emission order, plus `mergeability`. Aggregators and matrices list their floor; empty `keys` is a valid floor-only operator.
 
 ## Mergeability
 
-`mergeability` classifies how an operator's components fold across streaming chunks and parallel partitions. Read the class off the manifest — never infer it from the operator's name.
+`mergeability` classifies how an operator's components fold across streaming chunks and parallel partitions.
 
 | Class | Wire | Meaning for a consumer |
 |---|---|---|
@@ -77,18 +76,7 @@ Disabled ⇒ `Response.Components` stays `nil` (wire form byte-identical to the 
 
 Predict flags each `None` slot with `buffered_components: true` — check it once when planning a streaming request. Per-chunk behaviour: `streaming-and-watching`.
 
-**Worker counts never change the answer** — parallel runs emit the blocks a serial run emits (grouped runs emit no `aggregations` block either way).
-
-## Reading it
-
-```go
-for _, a := range resp.Components.Aggregations {   // floor + operator keys
-    mean, _ := a.Operator["mean"].(float64)
-    fmt.Println(a.Label, a.N, a.NNull, mean)
-}
-```
-
-Examples: `pulse_examples_search tags=["welford-triple"]`.
+**Worker counts never change the answer** — parallel runs emit the blocks a serial run emits. Examples: `pulse_examples_search tags=["welford-triple"]`.
 
 ## Extensions
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -25,8 +26,8 @@ import (
 // it — but the Behaviour switches take effect immediately.
 //
 // The JSON form is decoded strictly: a key outside profile,
-// written_with, features and behaviour (including the reserved limits
-// and return sections) is refused with PULSE_FEATURE_PROFILE_INVALID.
+// written_with, features, behaviour and return (including the reserved
+// limits section) is refused with PULSE_FEATURE_PROFILE_INVALID.
 type FeatureProfile struct {
 	// Profile is a free-form label naming the profile, e.g.
 	// "self-serve". Informational only.
@@ -47,6 +48,17 @@ type FeatureProfile struct {
 	// Behaviour carries engine switches the profile turns on. Nil
 	// leaves every switch to Options.
 	Behaviour *FeatureProfileBehaviour `json:"behaviour,omitempty"`
+
+	// Return is the instance `return` default the profile supplies: the
+	// response selection a request without its own `return` block is
+	// shaped by. Options.DefaultReturn wins over it; a request block
+	// replaces either entirely. Nil leaves the library default `full`.
+	// pulse.New (and CheckFeatureProfile) resolve it against the
+	// profile's own feature set after the dependency class: a bad
+	// preset, precision or path syntax, or a path the profile's
+	// instance does not have — one a hidden feature owns included — is
+	// PULSE_FEATURE_PROFILE_INVALID reason "invalid_return".
+	Return *types.Return `json:"return,omitempty"`
 }
 
 // FeatureProfileBehaviour holds the engine switches a FeatureProfile
@@ -80,6 +92,7 @@ const (
 	featureProfileReasonUnknownKey      = "unknown_key"
 	featureProfileReasonMissingFeatures = "missing_features"
 	featureProfileReasonDuplicate       = "duplicate_feature"
+	featureProfileReasonInvalidReturn   = "invalid_return"
 )
 
 // featureProfileFile is the decode target for a profile file. Features
@@ -90,6 +103,7 @@ type featureProfileFile struct {
 	WrittenWith string                   `json:"written_with"`
 	Features    *[]string                `json:"features"`
 	Behaviour   *FeatureProfileBehaviour `json:"behaviour"`
+	Return      *types.Return            `json:"return"`
 }
 
 // resolveFeatureProfile turns the two Options profile fields into one
@@ -191,7 +205,40 @@ func validateFeatureProfile(fp *FeatureProfile, u featureUniverse, path string) 
 	if err := validateFeatureProfileNames(fp, u, path); err != nil {
 		return err
 	}
-	return validateFeatureProfileDependencies(fp, u, path)
+	if err := validateFeatureProfileDependencies(fp, u, path); err != nil {
+		return err
+	}
+	return validateFeatureProfileReturn(fp, u, path)
+}
+
+// validateFeatureProfileReturn resolves the profile's `return` section
+// against the instance the profile itself scopes (its resolved feature
+// set), so a path a hidden feature owns is refused exactly like a
+// nonexistent one. It runs after the dependency class because it needs
+// a valid feature set. Any resolver refusal is re-raised as
+// PULSE_FEATURE_PROFILE_INVALID reason "invalid_return", carrying the
+// resolver's code under "return_code" and its details under "return".
+func validateFeatureProfileReturn(fp *FeatureProfile, u featureUniverse, path string) error {
+	if fp.Return == nil {
+		return nil
+	}
+	snap := descx.NewInstanceSnapshot(nil, resolveFeatureSet(u, fp, descx.FeatureBehaviour{}))
+	err := descx.ValidateDefaultReturn(fp.Return, snap)
+	if err == nil {
+		return nil
+	}
+	details := map[string]any{}
+	if path != "" {
+		details["path"] = path
+	}
+	msg := err.Error()
+	var ce *errors.CodedError
+	if stderrors.As(err, &ce) {
+		details["return_code"] = string(ce.Code)
+		details["return"] = ce.Details
+		msg = ce.Message
+	}
+	return featureProfileInvalid(featureProfileReasonInvalidReturn, "feature profile: return: "+msg, details)
 }
 
 // loadFeatureProfileFile reads and strictly decodes a profile file
@@ -261,6 +308,7 @@ func decodeFeatureProfile(raw []byte, path string) (*FeatureProfile, error) {
 		WrittenWith: doc.WrittenWith,
 		Features:    append([]string{}, (*doc.Features)...),
 		Behaviour:   doc.Behaviour,
+		Return:      doc.Return,
 	}, nil
 }
 
@@ -308,6 +356,12 @@ func cloneFeatureProfile(in *FeatureProfile) *FeatureProfile {
 	if in.Behaviour != nil {
 		b := *in.Behaviour
 		out.Behaviour = &b
+	}
+	if in.Return != nil {
+		r := *in.Return
+		r.Include = append([]string(nil), in.Return.Include...)
+		r.Exclude = append([]string(nil), in.Return.Exclude...)
+		out.Return = &r
 	}
 	return &out
 }

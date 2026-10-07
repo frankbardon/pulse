@@ -401,8 +401,15 @@ func anyNonFinite(v any, depth int) bool {
 
 // MarshalJSON writes the response with every non-finite float as null;
 // see MarshalFinite.
+//
+// A response shaped by a `return` block carries its resolved plan and
+// writes only the selected parts: an excluded slot is absent, never
+// null (see return_shape.go).
 func (r Response) MarshalJSON() ([]byte, error) {
 	type alias Response
+	if r.plan != nil && !r.plan.Identity() {
+		return marshalPlanned(reflect.ValueOf((*alias)(&r)), r.plan)
+	}
 	return MarshalFinite((*alias)(&r))
 }
 
@@ -410,6 +417,9 @@ func (r Response) MarshalJSON() ([]byte, error) {
 // as null; see MarshalFinite.
 func (r ComposedResponse) MarshalJSON() ([]byte, error) {
 	type alias ComposedResponse
+	if r.plan != nil && !r.plan.Identity() {
+		return marshalPlanned(reflect.ValueOf((*alias)(&r)), r.plan)
+	}
 	return MarshalFinite((*alias)(&r))
 }
 
@@ -438,6 +448,9 @@ func (l OverlayLayer) MarshalJSON() ([]byte, error) {
 // see MarshalFinite.
 func (v ResponseComponents) MarshalJSON() ([]byte, error) {
 	type alias ResponseComponents
+	if v.plan != nil && !v.plan.Identity() {
+		return marshalPlannedAt(reflect.ValueOf((*alias)(&v)), v.plan, componentsPath)
+	}
 	return MarshalFinite((*alias)(&v))
 }
 
@@ -445,6 +458,13 @@ func (v ResponseComponents) MarshalJSON() ([]byte, error) {
 // see MarshalFinite.
 func (v AggregationComponents) MarshalJSON() ([]byte, error) {
 	type alias AggregationComponents
+	return MarshalFinite((*alias)(&v))
+}
+
+// MarshalJSON writes one bucket's aggregation components with every
+// non-finite float as null; see MarshalFinite.
+func (v AggregationGroupComponents) MarshalJSON() ([]byte, error) {
+	type alias AggregationGroupComponents
 	return MarshalFinite((*alias)(&v))
 }
 

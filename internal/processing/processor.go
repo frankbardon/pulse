@@ -843,6 +843,15 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 
 	// Per-group aggregator buckets; FinalizeGroupedStream orders them.
 	buckets := make(map[string][]OnlineAggregator)
+	// Per-group aggregation Components' floors: cohort-wide per slot
+	// and per bucket, tallied only when components are on (built
+	// behind the gate, not discarded).
+	var slotTotals []SlotFloor
+	var bucketFloors map[string][]SlotFloor
+	if !p.disableComponents && len(req.Aggregations) > 0 {
+		slotTotals = NewSlotFloors(req.Aggregations)
+		bucketFloors = make(map[string][]SlotFloor)
+	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
 	// matrices).
 	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts)
@@ -912,6 +921,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			primaryNullRecords++
 		}
 		weights.Observe(r)
+		ObserveSlotFloors(slotTotals, r)
 
 		rowKeys, ok, err := keyer.Keys(r, grp.Field)
 		if err != nil {
@@ -940,12 +950,16 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 				}
 				b = online
 				buckets[key] = b
+				if bucketFloors != nil {
+					bucketFloors[key] = NewSlotFloors(req.Aggregations)
+				}
 			}
 			for i, oa := range b {
 				if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
 					return nil, err
 				}
 			}
+			ObserveSlotFloors(bucketFloors[key], r)
 			if err := matrices.UpdateRow(key, r); err != nil {
 				return nil, err
 			}
@@ -963,6 +977,8 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		Group:             grp,
 		Grouper:           grouperInstance,
 		Buckets:           buckets,
+		SlotTotals:        slotTotals,
+		BucketFloors:      bucketFloors,
 		TotalRows:         totalRows,
 		FilteredRows:      filteredRows,
 		NullRecords:       primaryNullRecords,
@@ -1409,13 +1425,17 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// bucket's records and hands back the ordered keys they emit over.
 	var groupedMatrices *GroupedMatrices
 	var groupKeys []string
+	// A grouped run's per-bucket aggregation Components, keyed by bucket
+	// key; assembled over the final (sorted) keys below. Nil when
+	// components are disabled.
+	var bucketAggComponents map[string][]types.AggregationComponents
 
 	recordRows := false
 	if len(req.Groups) > 0 {
 		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts); err != nil {
 			return nil, err
 		}
-		data, grpComponents, groupKeys, err = p.processGrouped(req, filtered, groupedMatrices)
+		data, grpComponents, bucketAggComponents, groupKeys, err = p.processGrouped(req, filtered, groupedMatrices)
 		if err != nil {
 			return nil, err
 		}
@@ -1534,13 +1554,25 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// upstream was skipped too.
 	if !p.disableComponents {
 		// Attach per-slot AggregationComponents emitted by
-		// aggregateWithComponents. The grouped buffered path leaves
-		// aggComponents nil (per-group components emission is reserved
-		// for a later story); the ungrouped buffered exit and the two
+		// aggregateWithComponents. The ungrouped buffered exit and the
 		// streaming exits all flow through the same attach helper so the
 		// shape of Response.Components.Aggregations stays uniform.
 		for _, entry := range aggComponents {
 			attachAggregationComponents(resp, entry)
+		}
+
+		// Grouped: cohort-wide slot floors plus one groups[] entry per
+		// Data row, in the final (sorted) Data order. Kept apart from
+		// aggComponents so the RunComponents null_records rule below is
+		// unchanged.
+		if len(req.Groups) > 0 && len(req.Aggregations) > 0 {
+			grouped, err := GroupedAggregationComponents(slotTotalComponents(req.Aggregations, filtered), bucketAggComponents, groupKeys)
+			if err != nil {
+				return nil, err
+			}
+			for _, entry := range grouped {
+				attachAggregationComponents(resp, entry)
+			}
 		}
 
 		// Attach per-slot GrouperComponents emitted by
@@ -1760,23 +1792,23 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 // records, in record order, so the per-bucket matrices fold exactly the
 // rows (and blocks) the streaming-grouped path folds; the ordered bucket
 // keys are returned for their emission.
-func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, []string, error) {
+func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, error) {
 	// Use the first group for now (single-level grouping)
 	grp := req.Groups[0]
 	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
-		return nil, nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, nil, nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
 	grouper, err := factory(grp, p.schema)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	ApplyGrouperExtensions(grouper, p.exts)
 
 	groups, err := grouper.Group(records, grp.Field)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// Stable-emit by group key so row order is deterministic across runs
@@ -1791,12 +1823,24 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 	}
 	keys = orderKeysByInclude(includeFilterOf(grouper), keys)
 
+	// Per-bucket aggregation Components ride the same builder the
+	// ungrouped exit uses, so a bucket's figures are the ones an
+	// ungrouped run over its records reports. Skipped (nil) when
+	// components are disabled — built behind the gate, not discarded.
+	collect := !p.disableComponents && len(req.Aggregations) > 0
+	var bucketComps map[string][]types.AggregationComponents
+	if collect {
+		bucketComps = make(map[string][]types.AggregationComponents, len(keys))
+	}
 	data := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
 		groupRecords := groups[key]
-		row, err := p.aggregate(req.Aggregations, groupRecords)
+		row, comps, err := p.aggregateWithComponents(req.Aggregations, groupRecords, collect)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
+		}
+		if collect {
+			bucketComps[key] = comps
 		}
 		if row == nil {
 			// +1 reserved for the group key written below.
@@ -1805,7 +1849,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 		row[grp.Field] = key
 		data = append(data, row)
 		if err := matrices.foldRecords(key, groupRecords); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 	}
 
@@ -1822,13 +1866,13 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 	// drops the slice on the floor anyway. processRecords passes the
 	// returned slice through its own disableComponents gate.
 	if p.disableComponents {
-		return data, nil, keys, nil
+		return data, nil, nil, keys, nil
 	}
 	entry, gerr := buildGrouperComponents(grouper, grp, groups, len(records))
 	if gerr != nil {
-		return nil, nil, nil, gerr
+		return nil, nil, nil, nil, gerr
 	}
-	return data, []types.GrouperComponents{entry}, keys, nil
+	return data, []types.GrouperComponents{entry}, bucketComps, keys, nil
 }
 
 func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map[string]any, error) {
@@ -1844,9 +1888,9 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 // floor-only entries today (the decimal aggregation path lives
 // outside the MetaAggregator dispatch).
 //
-// Pass collectComponents=true on the ungrouped buffered exit; the
-// grouped buffered exit (processGrouped) leaves it false because
-// per-group components emission is reserved for a later story.
+// Pass collectComponents=true on the ungrouped buffered exit and per
+// bucket on the grouped buffered exit (processGrouped), each gated on
+// the processor's disableComponents flag.
 func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records []*Record, collectComponents bool) (map[string]any, []types.AggregationComponents, error) {
 	if len(aggs) == 0 {
 		return nil, nil, nil

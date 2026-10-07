@@ -144,6 +144,12 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			addCodedError(env, RefusalAt(merr, "stage", i))
 			result.Valid = false
 		}
+		// The stage's `return` block (ResolveReturn), resolved beside
+		// its multiplicity before the cohort opens, as the runtime does.
+		if _, rerr := ResolveReturn(st.Request, opts.instance()); rerr != nil {
+			addCodedError(env, RefusalAt(rerr, "stage", i))
+			result.Valid = false
+		}
 	}
 	if req.Cohort == nil {
 		env.AddError(string(errors.SERVICE_VALIDATION), "chain request requires Cohort for stage 0", nil)
@@ -253,9 +259,18 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			for _, ce := range refs {
 				addCodedError(env, RefusalAt(ce, "stage", i))
 			}
+			// `return` data columns, right after the field references
+			// (the runtime's checkFieldRefs order).
+			colsOK := true
+			if len(refs) == 0 {
+				if cerr := ReturnColumnRefusal(fieldReq, fieldSchema, opts.instance()); cerr != nil {
+					addCodedError(env, RefusalAt(cerr, "stage", i))
+					colsOK = false
+				}
+			}
 			// The runtime resolves the stage's weights right after its
 			// field references pass (ResolveWeights).
-			if len(refs) == 0 {
+			if len(refs) == 0 && colsOK {
 				if _, werr := ResolveWeights(fieldReq, fieldSchema, opts.DefaultWeight, opts.instance()); werr != nil {
 					addCodedError(env, RefusalAt(werr, "stage", i))
 				}

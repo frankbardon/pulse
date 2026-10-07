@@ -338,6 +338,126 @@ sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and
 weighted keys only when they apply). Contract:
 `.claude/reference/matrix-and-vectors.md`.
 
+## Per-group aggregation components
+
+`groups` on `AggregationComponents` is an additive `omitempty` array of
+`AggregationGroupComponents` `{group_key, n, n_null, sum_weights?,
+n_eff?, n_weight_invalid?, operator?}` (`format_version` stays `"1.1"`;
+an ungrouped or crosstab response has no `groups` key and is
+byte-identical). On a grouped, non-crosstab run each
+`components.aggregations[i]` carries the cohort-wide floor (no
+`operator`) and one `groups` entry per `data` row, in `data` order
+(`sort` included), each equal to an ungrouped run over that bucket's
+records. What the schema cannot say: entry `i` describes `data[i]`; every
+execution arm (buffered, streaming, parallel) emits the same figures, and
+a stream carries them on its terminal chunk only. Contract:
+`.claude/reference/response-components.md` (Per-group aggregation
+components).
+
+## Return slot
+
+`return` on `Request` is an additive `Return` object
+`{preset?, include?, exclude?, precision?}` (`format_version` stays
+`"1.1"`; a request without one is byte-identical and hashes
+identically). `preset` is the closed `ReturnPreset` enum (`full`,
+`standard`, `minimal`); `precision` is significant digits, 1–17 (0 or
+absent: unlimited). `include` / `exclude` are paths over this schema's
+`Response` JSON names at any depth — `.` between keys, `[*]` into every
+array element, a trailing `*` on a map-key segment as a prefix glob
+(`tests[*].details.effect_*`). What the schema cannot say, predict and
+the runtime enforce identically before any record is read: resolution
+runs preset, then include adds, then exclude removes (exclude wins);
+include without a preset starts from an empty base; top-level
+`warnings`, and every nested `warnings` whose parent is emitted, stay
+unless excluded. A path this instance's `Response` does not carry — a
+hidden feature's included — is `PULSE_RETURN_PATH_UNKNOWN`, as is a
+`data[*].<column>` the request cannot produce (data under a join or a
+crosstab, test `details` and operator component maps accept any key); an
+unknown preset, a precision out of range or a malformed path is
+`PULSE_RETURN_INVALID`. Predict echoes the resolved plan as
+`data.return` (`{preset, include, exclude, keep, precision?, identity,
+digest}`, a predict result field, not part of this schema); equivalent
+spellings share a `digest`.
+
+At runtime the plan is applied to the finished `Response`: an excluded
+slot is **absent** on the wire — never `null`, required keys such as
+`metadata.total_rows` or `tests[*].p_value` included — and zero (nil
+when nillable) on the Go value. A shaped response carries `returned`
+(`ReturnedMarker {preset, digest, precision?}` — `preset` is `custom`
+for an explicit include / exclude without one; `digest` equals
+predict's); it is emitted only when the plan changes something and is
+not itself a selectable path (naming it is `PULSE_RETURN_INVALID`). An
+include through a map key or an open value that matched nothing in the
+executed response adds a `PULSE_RETURN_PATH_UNMATCHED` entry to
+`warnings` (details `path`) unless `warnings` is excluded.
+
+`precision` is **wire-only**: the Go response keeps full float64, and on
+the wire every float (data cells, tests, regressions, overlays, matrices
+incl. `top_pairs[*].r` and `scalars.determinant`, component maps) is
+`strconv.FormatFloat(v, 'g', precision, 64)` — so `3e-9` at 4 digits is
+`3e-09` and `123456.789` is `1.235e+05`. NaN / ±Inf stay `null`; ints
+are never touched. Exempt (written exact): integer-semantics floats —
+`matrices[*].auxiliary.n` on every request, and, derived from the
+request, the `data` column of a count aggregation (`AGG_COUNT`,
+`AGG_DISTINCT_COUNT`, `AGG_NULL_COUNT`, `AGG_MODE_COUNT`,
+`AGG_FREQUENCY`, `AGG_SET_FREQUENCY`, `AGG_SET_CARDINALITY_SUM`,
+`AGG_SET_DISTINCT_VALUES`), a count crosstab cell under `normalize`
+none (cells, margins, grand total, long-form column) and a count
+auxiliary margin aggregation's figures — plus `decimal128` values, which
+are decimal strings. The `upper` matrix encoding keeps its shape.
+
+A shaped response is a **projection**: it is not schema-valid against
+the full payload schema (required keys may be absent), so validate the
+request and the plan, not the shaped output. A request without `return`
+stays byte-identical. Agent-facing summary: `skills/response-shaping.md`;
+library walkthrough: `library/response-shaping.md`.
+
+### Presets
+
+The presets are defined once (`internal/descriptor/return_resolve.go`,
+`returnPresetPaths`) and listed in the manifest as `return_presets`
+(`[{name, paths}]`, in `full` / `standard` / `minimal` order) with each
+preset's paths **expanded against the instance**: a path a hidden
+feature owns (e.g. `matrices[*]` without `capability:matrices`,
+`tests[*].p_adjusted` without `capability:multiplicity`) is absent from
+the listing and from the selection, never an error. A preset is an
+include allowlist, so a caller's `include` can always add a part back.
+Nested `*.warnings` are not listed: each is kept wherever its parent is
+emitted. Every listed path must resolve against this schema
+(`TestReturnPathsMatchSchema`).
+
+| Slot | `minimal` (primary result) | `standard` |
+|---|---|---|
+| `data`, `warnings` | yes | yes |
+| `metadata` | no | yes |
+| `crosstab` | `shape`, `matrix` | whole |
+| `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
+| `tests[*]` / `post_tests[*]` | `label`, `type`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` |
+| `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
+| `components` | no | no |
+
+`full` is the identity: every visible top-level key, byte-identical to
+a request without `return`. `standard` and `minimal` stamp `returned`
+with their preset name.
+
+### Compose and chain
+
+Every Compose slot and every chain stage is a `Request`, so its own
+`return` (else the instance default) shapes `responses[i]` /
+`stages[i]` exactly as a single Process would; a refusal carries
+`details.request` / `details.stage`. `ComposedRequest` adds its own
+`return` (same `Return` def) whose paths root at `ComposedResponse`:
+only `overlays…` paths are valid (any other is `PULSE_RETURN_INVALID`,
+details `root: "compose"`), `responses` is always kept whole, presets
+expand to their overlay paths, and no instance default applies at that
+level. A non-identity Compose-level plan stamps
+`ComposedResponse.returned`. Shaping runs after the Compose overlay and
+multiplicity folds — layers are computed from unshaped slots — and after
+the whole chain, so a stage that excludes `data` still feeds the next
+stage its rows. `final` is the last stage, shaped by its `return`;
+there is no chain-level block.
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a
@@ -352,7 +472,8 @@ key keeps meaning "not reported for this kind".
 The schema says so: every float slot on a result-only def —
 `TestResult`, `RegressionResult`, `OverlaySummary`, the
 `OverlayPayload.scalar` arm, `FacetNumeric`, `FacetHistogram` and the
-weighted floor's `sum_weights` / `n_eff` on `AggregationComponents` —
+weighted floor's `sum_weights` / `n_eff` on `AggregationComponents` and
+`AggregationGroupComponents` —
 is `"type": ["number", "null"]`. The open slots (`data` rows,
 components operator maps, matrix cell `value`) already admit `null`.
 Request floats stay `"number"`: a decoded request never carries a

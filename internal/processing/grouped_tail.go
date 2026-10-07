@@ -63,6 +63,17 @@ type GroupedTail struct {
 	Grouper Grouper
 	Buckets map[string][]OnlineAggregator
 
+	// SlotTotals is each aggregation slot's COHORT-WIDE floor tally over
+	// every filter-passing record (bucketed or not), and BucketFloors the
+	// per-bucket per-slot tallies minted with each bucket — together the
+	// floors behind Components.Aggregations' slot entries and groups[].
+	// Both are nil when components are disabled; every caller tallies
+	// them through ObserveSlotFloors (the parallel reducers merge them
+	// with MergeSlotFloors), so the figures match whatever the worker
+	// count.
+	SlotTotals   []SlotFloor
+	BucketFloors map[string][]SlotFloor
+
 	TotalRows, FilteredRows, NullRecords int64
 	FilterCounters                       []FilterPassCounters
 
@@ -99,7 +110,8 @@ type GroupedTail struct {
 // FinalizeGroupedStream is the ONE emission tail of a single-grouper
 // streaming run: row order (include order, else sorted keys), the
 // Rich-or-scalar lift per cell, an explicit Request.Sort, post-tests,
-// Components (groupers, filterers, run) and the SERIES overlay fold.
+// Components (per-group aggregations, groupers, filterers, run) and the
+// SERIES overlay fold.
 //
 // The serial processStreamingGrouped exit and both parallel reducers
 // (service.finalizeMergedPartial) call it, so a grouped request answers
@@ -169,11 +181,24 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	}
 
 	if !t.DisableComponents {
+		// Per-group aggregation Components at TERMINAL flush: the
+		// cohort-wide slot floors plus one groups[] entry per Data row,
+		// in the final (sorted) order — the buffered arm's shape, off the
+		// live per-bucket aggregators (Finalized above) and the floor
+		// tallies the caller kept beside them.
+		if len(req.Aggregations) > 0 {
+			grouped, err := streamedGroupedAggregationComponents(req.Aggregations, t.SlotTotals, t.Buckets, t.BucketFloors, keys)
+			if err != nil {
+				return nil, err
+			}
+			for _, entry := range grouped {
+				attachAggregationComponents(resp, entry)
+			}
+		}
 		// One GrouperComponents entry off the grouper's live state;
 		// TotalN sums the bucket counts and NNull is every post-filter
 		// record that landed in no bucket (null key, include rejection,
-		// empty set mask). Grouped runs emit no Components.Aggregations —
-		// per-group components is an unlanded surface.
+		// empty set mask).
 		entry, err := buildStreamingGrouperComponents(t.Grouper, t.Group, int(t.FilteredRows), t.Assignments)
 		if err != nil {
 			return nil, err

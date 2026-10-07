@@ -45,7 +45,7 @@ When the gate refuses, run stage 0 as an ordinary request<!-- feature: capabilit
 
 ## Per-stage `Response.Components`
 
-Each stage emits its own `components` on `ChainResponse.stages[i]` — the universal floor (`{n, n_null}` per aggregator, `{total_n, n_null}` per grouper, `{n_in, n_out, n_null_input}` per filterer) plus operator keys. `ChainResponse.final` is the last stage's response. Overlays read these as inputs and never rewrite them (`response-components`).
+Each stage emits its own `components` on `ChainResponse.stages[i]` — the universal floor (`{n, n_null}` per aggregator, `{total_n, n_null}` per grouper, `{n_in, n_out, n_null_input}` per filterer) plus operator keys. `ChainResponse.final` is the last stage's response. A stage's `return` shapes it after the whole chain ran. Overlays read these as inputs and never rewrite them (`response-components`).
 
 ## Dual-slot overlay design
 
