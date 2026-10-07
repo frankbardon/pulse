@@ -165,7 +165,7 @@ func (s *Service) reduceParallelBuffered(
 
 		out := newShardPartial(req, specs)
 		if buildErr == nil {
-			buildErr = out.buildMatrices(req, schema, s.extensions, grouperInst != nil)
+			buildErr = out.buildMatrices(req, schema, s.extensions, grouperInst != nil, compute)
 		}
 		if buildErr == nil && grouperInst == nil {
 			ungroupedAggs = make([]processing.OnlineAggregator, len(specs))

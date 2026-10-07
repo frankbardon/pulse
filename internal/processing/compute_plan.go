@@ -40,14 +40,25 @@ type ComputePlan struct {
 	// Matrices is components.matrices.
 	Matrices bool
 
+	// MatricesSlot is the whole Response.Matrices slot. A run folds its
+	// matrix specs per record iff it computes MatricesSlot or Matrices
+	// (components.matrices rests on the same co-moment state), and
+	// renders a MatrixResult only under MatricesSlot. MatrixAuxiliary /
+	// MatrixScalars / MatrixVectors are matrices[*].auxiliary /
+	// .scalars / .vectors — finalize-only sub-parts, each implying
+	// MatricesSlot.
+	MatricesSlot    bool
+	MatrixAuxiliary bool
+	MatrixScalars   bool
+	MatrixVectors   bool
+
 	// Whole-slot parts outside Components. Carried for the stories that
-	// wire them (matrices, overlays, tests, regressions); the service
-	// keeps them on until their veto rules land.
-	MatricesSlot bool
-	Overlays     bool
-	Tests        bool
-	PostTests    bool
-	Regressions  bool
+	// wire them (overlays, tests, regressions); the service keeps them
+	// on until their veto rules land.
+	Overlays    bool
+	Tests       bool
+	PostTests   bool
+	Regressions bool
 }
 
 // FullComputePlan computes every part — the plan of a request without
@@ -57,7 +68,8 @@ func FullComputePlan() ComputePlan {
 	return ComputePlan{
 		Aggs: true, Groups: true, Groupers: true, Filterers: true, Run: true,
 		Crosstab: true, AuxMargins: true, Matrices: true,
-		MatricesSlot: true, Overlays: true, Tests: true, PostTests: true, Regressions: true,
+		MatricesSlot: true, MatrixAuxiliary: true, MatrixScalars: true, MatrixVectors: true,
+		Overlays: true, Tests: true, PostTests: true, Regressions: true,
 	}
 }
 
@@ -110,10 +122,20 @@ func ComputePlanFor(ret *returnplan.Plan) ComputePlan {
 		Regressions:  k("regressions").Keep,
 	}
 	c.Groups = c.Aggs && k("components", "aggregations", "[*]", "groups").Keep
+	c.MatrixAuxiliary = c.MatricesSlot && k("matrices", "[*]", "auxiliary").Keep
+	c.MatrixScalars = c.MatricesSlot && k("matrices", "[*]", "scalars").Keep
+	c.MatrixVectors = c.MatricesSlot && k("matrices", "[*]", "vectors").Keep
 	c.AuxMargins = c.Crosstab && (k("components", "crosstab", "row_margin_aggregations").Keep ||
 		k("components", "crosstab", "column_margin_aggregations").Keep ||
 		k("components", "crosstab", "grand_total_aggregations").Keep)
 	return c
+}
+
+// AccumulatesMatrices reports whether the run folds Request.Matrices
+// per record at all: the slot or its Components entries need the
+// co-moment state; neither, and no matrix slot is ever built.
+func (c ComputePlan) AccumulatesMatrices() bool {
+	return c.MatricesSlot || c.Matrices
 }
 
 // visitChain walks the concrete path named step by step ("[*]" is an

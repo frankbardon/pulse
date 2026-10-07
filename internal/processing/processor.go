@@ -686,7 +686,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		}
 	}
 
-	matrixResults, matrixComps, err := finalizeMatrixSlots(matrixSlots, p.compute.Matrices)
+	matrixResults, matrixComps, err := finalizeMatrixSlots(matrixSlots)
 	if err != nil {
 		return nil, err
 	}
@@ -864,7 +864,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
 	// matrices).
-	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts)
+	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts, p.compute)
 	if err != nil {
 		return nil, err
 	}
@@ -1444,7 +1444,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 
 	recordRows := false
 	if len(req.Groups) > 0 {
-		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts); err != nil {
+		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute); err != nil {
 			return nil, err
 		}
 		data, grpComponents, bucketAggComponents, groupKeys, err = p.processGrouped(req, filtered, groupedMatrices)
@@ -1528,7 +1528,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var matrixResults []types.MatrixResult
 	var matrixComps []types.MatrixComponents
 	if len(req.Groups) > 0 {
-		matrixResults, matrixComps, err = groupedMatrices.finalize(groupKeys, p.compute.Matrices)
+		matrixResults, matrixComps, err = groupedMatrices.finalize(groupKeys)
 		if err != nil {
 			return nil, err
 		}
@@ -1540,7 +1540,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		if err := foldMatrixRecords(matrixSlots, filtered); err != nil {
 			return nil, err
 		}
-		matrixResults, matrixComps, err = finalizeMatrixSlots(matrixSlots, p.compute.Matrices)
+		matrixResults, matrixComps, err = finalizeMatrixSlots(matrixSlots)
 		if err != nil {
 			return nil, err
 		}

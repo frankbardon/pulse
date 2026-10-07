@@ -328,7 +328,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	primaryNullField := primaryNullFieldFor(req)
 
 	out := newShardPartial(req, specs)
-	if err := out.buildMatrices(req, schema, s.extensions, grouper != nil); err != nil {
+	if err := out.buildMatrices(req, schema, s.extensions, grouper != nil, s.computePlanFor(ctx, req)); err != nil {
 		return nil, err
 	}
 	var aggsUngrouped []processing.OnlineAggregator
@@ -454,14 +454,17 @@ func newShardPartial(req *types.Request, specs []aggSpec) *shardPartial {
 
 // buildMatrices builds the partition's Request.Matrices state: one slot
 // set for an ungrouped request (mats), per-bucket state for a grouped
-// one (groupedMats). Shared by both parallel reducers.
-func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool) error {
+// one (groupedMats). Shared by both parallel reducers. compute is the
+// run's plan: a plan that accumulates no matrix (the `matrices` slot
+// and components.matrices both excluded) builds none, so no partition
+// folds a record into one.
+func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool, compute processing.ComputePlan) error {
 	var err error
 	if grouped {
-		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts)
+		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts, compute)
 		return err
 	}
-	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts)
+	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts, compute)
 	return err
 }
 
@@ -751,7 +754,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 	_ = schema
 	// The ungrouped arms' matrices (nil on a grouped partial, whose
 	// per-bucket matrices render in the grouped tail).
-	matrices, matrixComps, err := merged.mats.Finalize(compute.Matrices)
+	matrices, matrixComps, err := merged.mats.Finalize()
 	if err != nil {
 		return nil, err
 	}

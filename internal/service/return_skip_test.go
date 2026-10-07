@@ -268,25 +268,28 @@ func TestReturnSkipsComputation(t *testing.T) {
 
 // The DisableComponents gate closes every sub-part whatever `return`
 // keeps; an overlay on the request (or downstream, componentsVetoed)
-// keeps them whatever `return` excludes; the whole-slot parts stay on
-// until the stories that wire them.
+// keeps them whatever `return` excludes; the matrices slot follows the
+// selection unvetoed (minimal drops its auxiliary / scalars / vectors);
+// the other whole-slot parts stay on until the stories that wire them.
 func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 	full := processing.FullComputePlan()
 	svc := &Service{}
 	ctx := context.Background()
 	minimal := processing.ComputePlanFor(nil).WithoutComponents()
+	minimal.MatrixAuxiliary, minimal.MatrixScalars, minimal.MatrixVectors = false, false, false
+	vetoed := minimal.WithComponentsOf(full)
 
 	excl := &types.Request{}
 	ret := mustResolveReturn(t, &types.Request{Return: &types.Return{Preset: types.ReturnPresetMinimal}})
 	if got := svc.resolveComputePlan(ctx, excl, ret); got != minimal {
-		t.Errorf("minimal: %+v; want components off, whole-slot parts on", got)
+		t.Errorf("minimal: %+v; want components and matrix sub-parts off, whole-slot parts on", got)
 	}
 	overlaid := &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow}}}
-	if got := svc.resolveComputePlan(ctx, overlaid, ret); got != full {
-		t.Errorf("request overlay veto: %+v; want full", got)
+	if got := svc.resolveComputePlan(ctx, overlaid, ret); got != vetoed {
+		t.Errorf("request overlay veto: %+v; want every component kept", got)
 	}
-	if got := svc.resolveComputePlan(withComponentsVeto(ctx), excl, ret); got != full {
-		t.Errorf("downstream overlay veto: %+v; want full", got)
+	if got := svc.resolveComputePlan(withComponentsVeto(ctx), excl, ret); got != vetoed {
+		t.Errorf("downstream overlay veto: %+v; want every component kept", got)
 	}
 	svc.SetDisableComponents(true)
 	if got := svc.resolveComputePlan(withComponentsVeto(ctx), overlaid, nil); got.AnyComponents() {

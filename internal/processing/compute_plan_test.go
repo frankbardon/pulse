@@ -48,6 +48,7 @@ func TestComputePlanFor(t *testing.T) {
 			want: func() ComputePlan {
 				c := none
 				c.MatricesSlot, c.Tests, c.PostTests, c.Regressions = false, false, false, false
+				c.MatrixAuxiliary, c.MatrixScalars, c.MatrixVectors = false, false, false
 				return c
 			}()},
 		{name: "exclude_aggregations", exclude: []string{"components.aggregations"},
@@ -62,6 +63,22 @@ func TestComputePlanFor(t *testing.T) {
 			want: func() ComputePlan { c := full; c.Run = false; return c }()},
 		{name: "exclude_component_matrices", exclude: []string{"components.matrices"},
 			want: func() ComputePlan { c := full; c.Matrices = false; return c }()},
+		// The matrices slot takes its sub-parts with it; each sub-part
+		// alone leaves the slot (and its fold) computed.
+		{name: "exclude_matrices_slot", exclude: []string{"matrices"},
+			want: func() ComputePlan {
+				c := full
+				c.MatricesSlot, c.MatrixAuxiliary, c.MatrixScalars, c.MatrixVectors = false, false, false, false
+				return c
+			}()},
+		{name: "exclude_matrix_auxiliary", exclude: []string{"matrices[*].auxiliary"},
+			want: func() ComputePlan { c := full; c.MatrixAuxiliary = false; return c }()},
+		{name: "exclude_matrix_scalars", exclude: []string{"matrices[*].scalars"},
+			want: func() ComputePlan { c := full; c.MatrixScalars = false; return c }()},
+		{name: "exclude_matrix_vectors", exclude: []string{"matrices[*].vectors"},
+			want: func() ComputePlan { c := full; c.MatrixVectors = false; return c }()},
+		{name: "include_matrix_primary", include: []string{"matrices[*].primary"},
+			want: ComputePlan{MatricesSlot: true}},
 		{name: "exclude_aux_margins", exclude: []string{"components.crosstab.row_margin_aggregations", "components.crosstab.column_margin_aggregations", "components.crosstab.grand_total_aggregations"},
 			want: func() ComputePlan { c := full; c.AuxMargins = false; return c }()},
 		// A narrow include below a sub-part still computes the sub-part

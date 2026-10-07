@@ -16,6 +16,11 @@ var (
 	workMatrixComponentBuilds   atomic.Int64
 	workCrosstabComponentMaps   atomic.Int64
 	workAuxMarginAccumulators   atomic.Int64
+	workMatrixAccumulators      atomic.Int64
+	workMatrixResultBuilds      atomic.Int64
+	workMatrixAuxiliaryBuilds   atomic.Int64
+	workMatrixScalarBuilds      atomic.Int64
+	workMatrixVectorBuilds      atomic.Int64
 )
 
 // WorkStatsSnapshot is a snapshot of the process-wide work counters.
@@ -48,6 +53,23 @@ type WorkStatsSnapshot struct {
 	// set, and one per (auxiliary, slot) the fused arm constructs on a
 	// slot's first admitted record.
 	AuxMarginAccumulators int64
+	// MatrixAccumulators counts Request.Matrices slots minted — the
+	// per-record co-moment fold: one per spec on an ungrouped run (per
+	// partition on the parallel / shard arms, one more for the
+	// merge-target), one per (bucket, spec) on a grouped run.
+	MatrixAccumulators int64
+	// MatrixResultBuilds counts MatrixResults rendered at finalize (the
+	// primary matrix and its warnings): one per (spec, bucket). A run
+	// that keeps only components.matrices folds but renders none.
+	MatrixResultBuilds int64
+	// MatrixAuxiliaryBuilds / MatrixScalarBuilds / MatrixVectorBuilds
+	// count the finalize-only matrices[*].auxiliary (a pairwise slot's
+	// per-pair n), .scalars (the Cholesky determinant) and .vectors
+	// (top_pairs) renders: one per rendered MatrixResult carrying the
+	// sub-part.
+	MatrixAuxiliaryBuilds int64
+	MatrixScalarBuilds    int64
+	MatrixVectorBuilds    int64
 }
 
 // WorkStats returns the process-wide work counters. Diagnostic only;
@@ -62,6 +84,11 @@ func WorkStats() WorkStatsSnapshot {
 		MatrixComponentBuilds:     workMatrixComponentBuilds.Load(),
 		CrosstabCellComponentMaps: workCrosstabComponentMaps.Load(),
 		AuxMarginAccumulators:     workAuxMarginAccumulators.Load(),
+		MatrixAccumulators:        workMatrixAccumulators.Load(),
+		MatrixResultBuilds:        workMatrixResultBuilds.Load(),
+		MatrixAuxiliaryBuilds:     workMatrixAuxiliaryBuilds.Load(),
+		MatrixScalarBuilds:        workMatrixScalarBuilds.Load(),
+		MatrixVectorBuilds:        workMatrixVectorBuilds.Load(),
 	}
 }
 
@@ -76,6 +103,11 @@ func (s WorkStatsSnapshot) Sub(o WorkStatsSnapshot) WorkStatsSnapshot {
 		MatrixComponentBuilds:     s.MatrixComponentBuilds - o.MatrixComponentBuilds,
 		CrosstabCellComponentMaps: s.CrosstabCellComponentMaps - o.CrosstabCellComponentMaps,
 		AuxMarginAccumulators:     s.AuxMarginAccumulators - o.AuxMarginAccumulators,
+		MatrixAccumulators:        s.MatrixAccumulators - o.MatrixAccumulators,
+		MatrixResultBuilds:        s.MatrixResultBuilds - o.MatrixResultBuilds,
+		MatrixAuxiliaryBuilds:     s.MatrixAuxiliaryBuilds - o.MatrixAuxiliaryBuilds,
+		MatrixScalarBuilds:        s.MatrixScalarBuilds - o.MatrixScalarBuilds,
+		MatrixVectorBuilds:        s.MatrixVectorBuilds - o.MatrixVectorBuilds,
 	}
 }
 

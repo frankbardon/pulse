@@ -43,23 +43,27 @@ type matrixSlot struct {
 	// null — the rows pairwise admits nowhere (its n_null). Summed at
 	// Merge like dropped.
 	allNull int64
+	// compute is the run's plan: which result sub-parts and whether
+	// the Components entry finalize renders (result).
+	compute ComputePlan
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
 
 // buildMatrixSlots resolves req.Matrices against the processor's
-// schema and returns one fresh slot per spec (nil when there is none).
-// req is the STAMPED request: each spec's `weight` is its resolved
-// weight. A type the instance hides is an unknown type.
+// schema and returns one fresh slot per spec (nil when there is none,
+// or when the processor's plan accumulates no matrix). req is the
+// STAMPED request: each spec's `weight` is its resolved weight. A type
+// the instance hides is an unknown type.
 func (p *Processor) buildMatrixSlots(req *types.Request) ([]*matrixSlot, error) {
-	return buildMatrixSlotsFor(req, p.schema, p.exts)
+	return buildMatrixSlotsFor(req, p.schema, p.exts, p.compute)
 }
 
-// buildMatrixSlotsFor is buildMatrixSlots over an explicit schema and
-// registry — shared by the Processor and the parallel reducers
-// (BuildMatrixSlots).
-func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) ([]*matrixSlot, error) {
-	set, err := resolveMatrixPlans(req, schema, exts)
+// buildMatrixSlotsFor is buildMatrixSlots over an explicit schema,
+// registry and plan — shared by the Processor and the parallel
+// reducers (BuildMatrixSlots).
+func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan) ([]*matrixSlot, error) {
+	set, err := resolveMatrixPlans(req, schema, exts, compute)
 	if err != nil || set == nil {
 		return nil, err
 	}
@@ -73,13 +77,18 @@ func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *Exte
 type matrixPlanSet struct {
 	plans   []vectors.Matrix
 	weights []*types.WeightSpec
+	compute ComputePlan
 }
 
 // resolveMatrixPlans resolves req.Matrices against schema (nil when
 // there is no spec). req is the STAMPED request. A type the instance
-// hides is an unknown type.
-func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) (*matrixPlanSet, error) {
-	if req == nil || len(req.Matrices) == 0 {
+// hides is an unknown type. A plan that accumulates no matrix (the
+// `matrices` slot and components.matrices both excluded) resolves to
+// nil too: no slot is minted, so no record is ever folded — the
+// request-derived Request.Vectors warnings are raised elsewhere and
+// stay.
+func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan) (*matrixPlanSet, error) {
+	if req == nil || len(req.Matrices) == 0 || !compute.AccumulatesMatrices() {
 		return nil, nil
 	}
 	plans, verr := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
@@ -88,14 +97,15 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	if verr != nil {
 		return nil, verr
 	}
-	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans))}
+	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans)), compute: compute}
 	for i := range plans {
 		set.weights[i] = req.Matrices[i].Weight.Spec()
 	}
 	return set, nil
 }
 
-// fresh returns one zero-state slot per spec, in spec order.
+// fresh returns one zero-state slot per spec, in spec order, counting
+// each as a matrix accumulator (WorkStats.MatrixAccumulators).
 func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 	slots := make([]*matrixSlot, len(s.plans))
 	for i, plan := range s.plans {
@@ -108,11 +118,13 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			return nil, err
 		}
 		slots[i] = &matrixSlot{
-			plan:   plan,
-			weight: s.weights[i],
-			state:  st,
-			x:      make([]float64, len(plan.Members.Members)),
+			plan:    plan,
+			weight:  s.weights[i],
+			state:   st,
+			x:       make([]float64, len(plan.Members.Members)),
+			compute: s.compute,
 		}
+		workMatrixAccumulators.Add(1)
 	}
 	return slots, nil
 }
@@ -160,18 +172,35 @@ func (m *matrixSlot) Finalize() (float64, error) { return math.NaN(), nil }
 // BlockMoments returns the slot's per-block state.
 func (m *matrixSlot) BlockMoments() *BlockCoMoments { return m.state }
 
-// result combines the blocks through the fixed tree and renders the
-// operator's MatrixResult and, when withComponents, its
-// Response.Components.Matrices entry (nil otherwise, so an opted-out
-// run skips the build).
-func (m *matrixSlot) result(withComponents bool) (types.MatrixResult, *types.MatrixComponents, error) {
+// result combines the blocks through the fixed tree and renders what
+// the slot's plan computes: the operator's MatrixResult under
+// MatricesSlot (zero otherwise) — its auxiliary / scalars / vectors
+// sub-parts each only under their own flag — and its
+// Response.Components.Matrices entry under Matrices (nil otherwise).
+// A skipped sub-part is never built: absent on the wire, zero in Go.
+func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, error) {
 	cm, err := m.state.Tree()
 	if err != nil {
 		return types.MatrixResult{}, nil, err
 	}
+	var res types.MatrixResult
+	if m.compute.MatricesSlot {
+		if res, err = m.render(cm); err != nil {
+			return types.MatrixResult{}, nil, err
+		}
+	}
+	if !m.compute.Matrices {
+		return res, nil, nil
+	}
+	return res, m.components(cm), nil
+}
+
+// render is the slot's MatrixResult off the merged state cm.
+func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, error) {
+	workMatrixResultBuilds.Add(1)
 	fin, ok := matrixFinalizers[m.plan.Type]
 	if !ok {
-		return types.MatrixResult{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return types.MatrixResult{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
 	}
 	primary := fin(cm, m.plan)
@@ -179,21 +208,23 @@ func (m *matrixSlot) result(withComponents bool) (types.MatrixResult, *types.Mat
 		Name:     m.plan.Name,
 		Type:     m.plan.Type,
 		Primary:  m.values(primary.At),
-		Scalars:  map[string]float64{"determinant": determinantSPD(primary)},
 		Warnings: m.warnings(cm, primary),
 	}
-	if m.plan.Pairwise {
+	if m.compute.MatrixScalars {
+		workMatrixScalarBuilds.Add(1)
+		res.Scalars = map[string]float64{"determinant": determinantSPD(primary)}
+	}
+	if m.plan.Pairwise && m.compute.MatrixAuxiliary {
+		workMatrixAuxiliaryBuilds.Add(1)
 		res.Auxiliary = map[string]*types.MatrixValues{
 			"n": m.values(func(i, j int) float64 { return float64(cm.PairN(i, j)) }),
 		}
 	}
-	if m.plan.TopPairs > 0 {
+	if m.plan.TopPairs > 0 && m.compute.MatrixVectors {
+		workMatrixVectorBuilds.Add(1)
 		res.Vectors = map[string]any{"top_pairs": topPairs(primary, cm.PairN, m.plan.Members.Members, m.plan.TopPairs)}
 	}
-	if !withComponents {
-		return res, nil, nil
-	}
-	return res, m.components(cm), nil
+	return res, nil
 }
 
 // components renders the slot's Response.Components.Matrices entry off
@@ -339,21 +370,25 @@ func determinantSPD(s *linalg.Sym) float64 {
 	return det
 }
 
-// finalizeMatrixSlots renders every slot's result in spec order, and
-// when withComponents each one's Response.Components.Matrices entry in
-// the same order; nil when there is no slot.
-func finalizeMatrixSlots(slots []*matrixSlot, withComponents bool) ([]types.MatrixResult, []types.MatrixComponents, error) {
+// finalizeMatrixSlots renders, in spec order, every slot's result when
+// the plan computes the matrices slot, and each one's
+// Response.Components.Matrices entry when it computes
+// components.matrices; nil when there is no slot (or that half is
+// skipped).
+func finalizeMatrixSlots(slots []*matrixSlot) ([]types.MatrixResult, []types.MatrixComponents, error) {
 	if len(slots) == 0 {
 		return nil, nil, nil
 	}
-	out := make([]types.MatrixResult, 0, len(slots))
+	var out []types.MatrixResult
 	var comps []types.MatrixComponents
 	for _, s := range slots {
-		res, c, err := s.result(withComponents)
+		res, c, err := s.result()
 		if err != nil {
 			return nil, nil, err
 		}
-		out = append(out, res)
+		if s.compute.MatricesSlot {
+			out = append(out, res)
+		}
 		if c != nil {
 			comps = append(comps, *c)
 		}
@@ -408,11 +443,12 @@ type MatrixSlots struct {
 }
 
 // BuildMatrixSlots returns fresh slot state for req.Matrices (nil when
-// there is none). req must be the STAMPED request
-// (StampWeightsWith), so each spec's weight is resolved, exactly as
-// the Processor builds its slots.
-func BuildMatrixSlots(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) (*MatrixSlots, error) {
-	slots, err := buildMatrixSlotsFor(req, schema, exts)
+// there is none, or when compute accumulates no matrix). req must be
+// the STAMPED request (StampWeightsWith), so each spec's weight is
+// resolved, exactly as the Processor builds its slots; compute is the
+// run's plan (the Processor's own).
+func BuildMatrixSlots(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan) (*MatrixSlots, error) {
+	slots, err := buildMatrixSlotsFor(req, schema, exts, compute)
 	if err != nil || len(slots) == 0 {
 		return nil, err
 	}
@@ -446,12 +482,12 @@ func (m *MatrixSlots) Merge(o *MatrixSlots) error {
 	return mergeSlotSets(m.slots, o.slots)
 }
 
-// Finalize renders every slot's result in spec order, and when
-// withComponents its Response.Components.Matrices entry in the same
-// order (nil when there is none).
-func (m *MatrixSlots) Finalize(withComponents bool) ([]types.MatrixResult, []types.MatrixComponents, error) {
+// Finalize renders every slot's result and Response.Components.Matrices
+// entry in spec order, each as the plan the slots were built under
+// computes it (finalizeMatrixSlots).
+func (m *MatrixSlots) Finalize() ([]types.MatrixResult, []types.MatrixComponents, error) {
 	if m == nil {
 		return nil, nil, nil
 	}
-	return finalizeMatrixSlots(m.slots, withComponents)
+	return finalizeMatrixSlots(m.slots)
 }

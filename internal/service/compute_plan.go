@@ -61,9 +61,13 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 //
 //  1. processing.ComputePlanFor(ret): a part is computed iff the
 //     selection keeps it or something below it;
-//  2. the whole-slot parts (matrices, overlays, tests, post-tests,
-//     regressions) stay computed — their skip rules and vetoes land
-//     with the stories that wire them;
+//  2. the matrices slot and its auxiliary / scalars / vectors
+//     sub-parts follow the selection with no veto: nothing downstream
+//     reads them (matrices are refused under joins and crosstab, sit
+//     outside the multiplicity pool, and no Compose / chain overlay
+//     reads them); the other whole-slot parts (overlays, tests,
+//     post-tests, regressions) stay computed — their skip rules and
+//     vetoes land with the stories that wire them;
 //  3. veto (conservative until the precise overlay-reads-components
 //     rule lands): any overlay on the request, or a Compose / chain
 //     overlay downstream (componentsVetoed), keeps every Components
@@ -75,8 +79,8 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, ret *returnplan.Plan) processing.ComputePlan {
 	full := processing.FullComputePlan()
 	plan := processing.ComputePlanFor(ret)
-	plan.MatricesSlot, plan.Overlays, plan.Tests, plan.PostTests, plan.Regressions =
-		full.MatricesSlot, full.Overlays, full.Tests, full.PostTests, full.Regressions
+	plan.Overlays, plan.Tests, plan.PostTests, plan.Regressions =
+		full.Overlays, full.Tests, full.PostTests, full.Regressions
 	if (req != nil && len(req.Overlays) > 0) || componentsVetoed(ctx) {
 		plan = plan.WithComponentsOf(full)
 	}

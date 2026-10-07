@@ -80,7 +80,7 @@ func TestMatrixCorrelation_TopPairsResult(t *testing.T) {
 	} {
 		t.Run(c.params, func(t *testing.T) {
 			req := &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"x", "y", "z"}, Params: json.RawMessage(c.params)}}}
-			slots, err := buildMatrixSlotsFor(req, schema, nil)
+			slots, err := buildMatrixSlotsFor(req, schema, nil, FullComputePlan())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -97,7 +97,7 @@ func TestMatrixCorrelation_TopPairsResult(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			res, _, err := slots[0].result(false)
+			res, _, err := slots[0].result()
 			if err != nil {
 				t.Fatal(err)
 			}

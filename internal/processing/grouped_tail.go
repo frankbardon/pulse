@@ -161,7 +161,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	if err != nil {
 		return nil, err
 	}
-	matrices, matrixComps, err := t.Matrices.finalize(keys, t.Compute.Matrices)
+	matrices, matrixComps, err := t.Matrices.finalize(keys)
 	if err != nil {
 		return nil, err
 	}
