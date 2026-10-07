@@ -196,7 +196,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#79** `Request.Matrices` / `Response.Matrices`, `MatrixResult`, and the symmetric/upper-triangle `MatrixPayload` encoding · [U16](units/U16-matrix-result.md)
 - [x] **#80** Matrix components floor; manifest `Matrix` capability block; predict shape and cost · [U16](units/U16-matrix-result.md)
 - [x] **#81** Payload-schema golden regenerated; `.claude/reference/matrix-and-vectors.md` · [U16](units/U16-matrix-result.md)
-- [x] **#82** `MaxMatrixDim`, `precision` and `top_pairs` controls · [U16](units/U16-matrix-result.md) (`top_pairs` only; `precision` → [U17](units/U17-response-shaping-core.md), landed there; `MaxMatrixDim` → [U19](units/U19-resource-limits.md))
+- [x] **#82** `MaxMatrixDim`, `precision` and `top_pairs` controls · [U16](units/U16-matrix-result.md) (`top_pairs` only; `precision` → [U17](units/U17-response-shaping-core.md), landed there; `MaxMatrixDim` → [U19](units/U19-resource-limits.md), landed there)
 - [x] **#83** `MAT_COVARIANCE` · [U16](units/U16-matrix-result.md)
 - [x] **#84** `MAT_CORRELATION` (Pearson), with parity against `TEST_PEARSON_R` · [U16](units/U16-matrix-result.md)
 
@@ -253,12 +253,12 @@ Theme documents: see the [roadmap index](README.md).
 ## 9. Embedder operations
 
 ### Resource limits ([embedder-operations 01](v1.0.0-embedder-operations/01-resource-limits.md))
-- [ ] **#112** `Options.Limits` with high defaults; validation at `pulse.New` · [U19](units/U19-resource-limits.md)
-- [ ] **#113** Predict-time checks + `PredictResult.LimitFindings` · [U19](units/U19-resource-limits.md)
-- [ ] **#114** Runtime checks (groups, crosstab cells, join build, matrix dim, compose / chain fan-out, memory estimate, timeout) · [U19](units/U19-resource-limits.md)
-- [ ] **#115** `PULSE_LIMIT_EXCEEDED` with tuning fixups · [U19](units/U19-resource-limits.md)
-- [ ] **#116** Profile-file `limits` section; manifest `limits` block; `pulse mcp --limit` · [U19](units/U19-resource-limits.md)
-- [ ] **#117** Defaults-never-trip, predict/runtime parity and memory-release gates; "Tuning limits" docs page · [U19](units/U19-resource-limits.md)
+- [x] **#112** `Options.Limits` with high defaults; validation at `pulse.New` · [U19](units/U19-resource-limits.md)
+- [x] **#113** Predict-time checks + `PredictResult.LimitFindings` · [U19](units/U19-resource-limits.md)
+- [x] **#114** Runtime checks (groups, crosstab cells, join build, matrix dim, compose / chain fan-out, memory estimate, timeout) · [U19](units/U19-resource-limits.md)
+- [x] **#115** `PULSE_LIMIT_EXCEEDED` with tuning fixups · [U19](units/U19-resource-limits.md)
+- [x] **#116** Profile-file `limits` section; manifest `limits` block; `pulse mcp --limit` · [U19](units/U19-resource-limits.md)
+- [x] **#117** Defaults-never-trip, predict/runtime parity and memory-release gates; "Tuning limits" docs page · [U19](units/U19-resource-limits.md)
 
 ### Observability ([embedder-operations 02](v1.0.0-embedder-operations/02-observability.md))
 - [ ] **#118** `Options.Logger` (`slog`, nil = silent); context-aware; no row data · [U20](units/U20-observability.md)

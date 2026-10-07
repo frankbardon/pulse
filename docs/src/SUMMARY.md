@@ -48,6 +48,7 @@
 - [Multiple-Comparison Correction](library/multiplicity.md)
 - [Time Zones](library/time-zones.md)
 - [Feature Profiles](library/feature-profiles.md)
+- [Tuning Limits](library/tuning-limits.md)
 - [Guided-Analysis Vocabulary](library/guided-analysis.md)
 - [Linear Algebra (linalg)](library/linalg.md)
 - [Vectors and Matrices](library/matrices.md)

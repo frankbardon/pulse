@@ -95,8 +95,12 @@ With `FailFast = false`:
 - Errors are aggregated into a single `SERVICE_INTERNAL` error whose
   `details` map carries `failed_indices` (a list of slot indices
   that errored).
-- Successful slots populate the returned response array; failed
-  slots are `nil` at their index.
+- The call returns `(nil, err)`: no partial response array is
+  returned, so the successful slots' results are discarded along with
+  the failed ones. The error is `SERVICE_INTERNAL`
+  (`compose parallel: N/M requests failed`); `details.first_error` holds
+  the lowest-index failure's text. A caller that needs the slots that
+  succeeded must call `Process` per request.
 
 A ctx that is already done before every slot launched returns the
 ctx error (with no slot error to report), never a response with

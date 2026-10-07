@@ -48,6 +48,11 @@ type Options struct {
     FeatureProfile     *FeatureProfile
     FeatureProfileFile string
 
+    // Limits bounds runaway requests (groups, crosstab cells, memory
+    // estimate, matrix dim, compose/chain fan-out, join build rows,
+    // request timeout). Zero field = default; pulse.Unlimited (-1) = none.
+    Limits Limits
+
     // ... further fields (concurrency, projection, imports, labels,
     // templates) are documented on the Options type in pulse.go.
 }
@@ -231,6 +236,23 @@ p, err := pulse.New(pulse.Options{
 })
 ```
 
+### `Limits Limits`
+
+The instance resource limits: `RequestTimeout`, `MaxGroups`,
+`MaxCrosstabCells`, `MaxEstimatedMemory`, `MaxMatrixDim`,
+`MaxComposeSlots`, `MaxChainStages`, `MaxJoinBuildRows`. Per field, `0`
+means the default (`pulse.DefaultMaxGroups`, …), `pulse.Unlimited` (`-1`)
+means no limit, any other negative fails `pulse.New` with
+`PULSE_LIMIT_INVALID`. Precedence per field: a non-zero `Options.Limits`
+value, then the feature profile's `limits`, then the default. Read the
+effective values with `p.Limits()`. A breach is `PULSE_LIMIT_EXCEEDED`
+with `{limit, configured, observed, option}`. Defaults, checks and
+reading a breach: [Tuning Limits](tuning-limits.md).
+
+```go
+p, err := pulse.New(pulse.Options{Limits: pulse.Limits{MaxGroups: 1_000_000}})
+```
+
 ## Defaults at a glance
 
 | Field omitted from `Options` | Effective behaviour |
@@ -242,6 +264,7 @@ p, err := pulse.New(pulse.Options{
 | `DisableDefaults` omitted     | Defaults enabled. |
 | `DisableCrosstabFusion` omitted | Fusion engages whenever the gate admits the crosstab. |
 | `DefaultTimeZone` omitted     | Zone-capable slots without `tz` / `time_zone` resolve to `UTC`. |
+| `Limits` omitted              | Count limits at their high defaults; `RequestTimeout` and `MaxEstimatedMemory` unlimited. |
 | `FeatureProfile` / `FeatureProfileFile` omitted | No profile: every feature, byte-identical to a profile-free build. |
 
 ## Re-using a Pulse instance

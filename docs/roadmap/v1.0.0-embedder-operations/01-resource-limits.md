@@ -51,3 +51,16 @@ All limits accept `0` = unlimited (except where "derive" is noted), and negative
 - [ ] Profile-file `limits` section; manifest `limits` block; `pulse mcp --limit`
 - [ ] Defaults-never-trip, parity and memory-release gates
 - [ ] Embedder docs page "Tuning limits"
+
+## As landed (U19)
+
+The deviations from the proposal above, all deliberate:
+
+- **Encoding.** `0` means "use the default" and `-1` (`pulse.Unlimited`) means no limit, on every layer (Go, profile, `--limit`); the proposal's `0` = unlimited was dropped because a zero value could not then be both "unset" and "unlimited". Other negatives fail `pulse.New` with `PULSE_LIMIT_INVALID`.
+- **`MaxEstimatedMemory`.** Default is unlimited, not "80% of `GOMEMLIMIT`". There is no `GOMEMLIMIT` coupling; an embedder opts in with a byte count. The estimate is an upper bound (about 1.3x to 4.9x the measured peak heap) and is checked at predict and again as a pre-flight before any record decodes.
+- **Grades.** Each `LimitFinding` is `certain` or `possible`. Only `certain` findings refuse (`valid` false); `MaxGroups` and `MaxCrosstabCells` are `possible` because they come from dictionary-size upper bounds.
+- **`limits_digest`.** The manifest's `limits` block ships with `limits_digest` (`lim1:` + SHA-256), outside `feature_set_digest` (limits are behaviour, not features).
+- **Facet.** Covered: the rich facet has a memory pre-flight and `RequestTimeout`; the simple `pulse.Facet(path, field)` has no pre-flight.
+- **`RequestTimeout`.** Covers the whole Compose / ComposeParallel / ProcessChain call and the `ProcessStreamResult` drain; only the inner deadline is `PULSE_LIMIT_EXCEEDED`.
+- **Streaming.** `ProcessStream` is buffered, so a breach errors before the stream exists; a mid-stream timeout ends `ProcessStreamResult` with the coded error.
+- **Compose.** `FailFast=false` returns `(nil, SERVICE_INTERNAL)` rather than partial slots (the doc previously claimed otherwise).

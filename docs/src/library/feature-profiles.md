@@ -106,6 +106,7 @@ embedder can still tighten or relax one limit on top of a shared
 profile. `p.Limits()` reports the effective values. In Go the section
 is `FeatureProfile.Limits` (`*pulse.FeatureProfileLimits`). Limits are
 behaviour, not features: they never change `feature_set_digest`.
+Full guide: [Tuning Limits](tuning-limits.md).
 
 ## Feature names
 

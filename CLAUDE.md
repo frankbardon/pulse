@@ -194,7 +194,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 Both table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
-**Knobs.** `pulse.Options` concurrency `ShardWorkers` / `DecodeWorkers` (default `0` ⇒ `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs `DictPrefixFast` / `MaxPanelTargets`: `.claude/reference/execution-modes.md` (Parallel shards, Parallel buffered Process, Overlays).
+**Knobs.** `pulse.Options` concurrency `ShardWorkers` / `DecodeWorkers` (default `0` ⇒ `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs `DictPrefixFast` / `MaxPanelTargets`: `.claude/reference/execution-modes.md` (Parallel shards, Parallel buffered Process, Overlays). Resource limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), guide `docs/src/library/tuning-limits.md`.
 
 Hermetic testing: `fs.NewMemMap()` (`internal/fs`) returns an `afero.NewMemMapFs()`-backed `Config`; no disk I/O.
 
