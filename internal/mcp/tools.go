@@ -26,6 +26,13 @@ import (
 // is injected.
 type Config struct {
 	Version string
+
+	// DefaultReturn is the `return` preset an MCP request without its
+	// own block is shaped by (return_default.go). Empty defers to the
+	// instance default (pulse.Options.DefaultReturn, else the feature
+	// profile's `return`), else the built-in `standard`. `full` restores
+	// the library's unshaped output.
+	DefaultReturn types.ReturnPreset
 }
 
 // InvokeFunc is the type-erased entry point for one tool: it strict-decodes
@@ -166,15 +173,15 @@ func instanceOf(p *pulse.Pulse) *descx.InstanceSnapshot {
 }
 
 // invokers maps each tool name to its type-erased Invoke. cfg is threaded in
-// so future tool closures can capture runtime configuration; today the catalog
-// is config-independent.
-func invokers(_ Config) map[string]InvokeFunc {
+// so tool closures capture runtime configuration: the request-carrying
+// tools apply cfg's MCP `return` default at decode.
+func invokers(cfg Config) map[string]InvokeFunc {
 	return map[string]InvokeFunc{
 		toolmeta.ToolInspect:        makeInvoke(lenientDecode[InspectIn], HandleInspect),
-		toolmeta.ToolPredict:        makeInvoke(strictRequestDecode, HandlePredict),
-		toolmeta.ToolProcess:        makeInvoke(strictRequestDecode, HandleProcess),
-		toolmeta.ToolProcessChain:   makeInvoke(strictChainDecode, HandleProcessChain),
-		toolmeta.ToolCompose:        makeInvoke(strictComposedDecode, HandleCompose),
+		toolmeta.ToolPredict:        makeInvoke(withReturnDefault(cfg, strictRequestDecode, fillRequestReturn), HandlePredict),
+		toolmeta.ToolProcess:        makeInvoke(withReturnDefault(cfg, strictRequestDecode, fillRequestReturn), HandleProcess),
+		toolmeta.ToolProcessChain:   makeInvoke(withReturnDefault(cfg, strictChainDecode, fillChainReturn), HandleProcessChain),
+		toolmeta.ToolCompose:        makeInvoke(withReturnDefault(cfg, strictComposedDecode, fillComposeReturn), HandleCompose),
 		toolmeta.ToolSample:         makeInvoke(lenientDecode[SampleIn], HandleSample),
 		toolmeta.ToolFacet:          makeInvoke(lenientDecode[FacetIn], HandleFacet),
 		toolmeta.ToolFacetSchema:    makeInvoke(lenientDecode[FacetSchemaIn], HandleFacetSchema),

@@ -19,6 +19,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/mcp/gosdk"
+	"github.com/frankbardon/pulse/types"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -65,6 +66,14 @@ type Options struct {
 	// instance is constructed, so serve an instance built by NewPulse
 	// (or by pulse.New with a profile) to get one.
 	FeatureProfileFile string
+
+	// DefaultReturn is the `return` preset an MCP request without its own
+	// `return` block is shaped by, threaded into gosdk.Config.DefaultReturn.
+	// The zero value defers to the instance default (pulse.Options.DefaultReturn,
+	// else the feature profile's `return`), else the built-in `standard`
+	// preset. types.ReturnPresetFull serves the unshaped library output.
+	// Serve refuses an unknown preset (PULSE_RETURN_INVALID).
+	DefaultReturn types.ReturnPreset
 }
 
 // newServer builds a bare go-sdk server and mounts the full Pulse surface onto
@@ -82,6 +91,7 @@ func newServer(p *pulse.Pulse, opts Options) (*mcpsdk.Server, error) {
 		Version:           version,
 		BindOnInspect:     opts.BindOnOpen,
 		DisableCohortScan: opts.DisableCohortScan,
+		DefaultReturn:     opts.DefaultReturn,
 	}); err != nil {
 		return nil, fmt.Errorf("registering mcp surface: %w", err)
 	}

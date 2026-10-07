@@ -68,6 +68,13 @@ record is read.
 replaces the default entirely. See [`pulse.New` & Options](options.md)
 and [Feature Profiles](feature-profiles.md).
 
+The MCP tools add one layer on top: a request without a block is shaped
+by `gosdk.Config.DefaultReturn` / `mcpserve.Options.DefaultReturn` /
+`pulse mcp --return`, else the instance default above, else the
+built-in `standard` preset — never `full`. A request block still wins;
+`full` on the host restores the unshaped output. See
+[`pulse mcp --return`](../cli/mcp.md#--return).
+
 `disable_components` is shorthand: alone it only skips computing
 components (byte-identical, no marker); with a `return` layer it adds
 `exclude: ["components"]`. An engine `DisableComponents` sticks: a

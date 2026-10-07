@@ -51,7 +51,7 @@ Docs: <https://frankbardon.github.io/pulse/>.
 
 CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `schema`, `mcp`, `widen`, `dedup`, `version`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `index {build,list,verify,drop}`, `features {init,check,diff,show}`, `api {process,compose,facet,process-chain,lookup}`. `pulse schema` prints the payload JSON Schema RAW — not envelope-wrapped.
 
-**MCP:** `internal/mcp/` is the SDK-free core (`TestMCPCore_NoSDKImport`); `mcp/gosdk/` is the ONLY go-sdk importer (`Register(server, p, cfg)`). **The manifest is the source-of-truth tool count, never hardcode it**; `pulse://schema` is a RESOURCE, not a tool. **Tools, prompts and resources are registered per instance** — a profiled instance mounts only what it enables, so `gosdk.RegisteredTools()` / `RegisteredPrompts()` stay the GLOBAL lists. Detail: `.claude/reference/architecture.md` (MCP layer split).
+**MCP:** `internal/mcp/` is the SDK-free core (`TestMCPCore_NoSDKImport`); `mcp/gosdk/` is the ONLY go-sdk importer (`Register(server, p, cfg)`). **The manifest is the source-of-truth tool count, never hardcode it**; `pulse://schema` is a RESOURCE, not a tool. **Tools, prompts and resources are registered per instance** — a profiled instance mounts only what it enables, so `gosdk.RegisteredTools()` / `RegisteredPrompts()` stay the GLOBAL lists. MCP `return` defaults to `standard`, not `full`. Detail: `.claude/reference/architecture.md` (MCP layer split).
 
 ## Code Conventions
 

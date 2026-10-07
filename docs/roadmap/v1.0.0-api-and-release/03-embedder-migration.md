@@ -346,6 +346,17 @@ Complete for U17 (no release tag cut by the unit). Contract: `docs/src/contract/
 
 Not shipped, by decision: skipping the computation of excluded parts, the MCP `standard` default and predict size estimates (U18); a `pulse.ReturnedMarker` root alias (U33 decides before the freeze; use `types.ReturnedMarker`); an extension hook marking an aggregator count-semantic, so extension figures always round under `precision` (U34); `Response.overlays` is not yet feature-gated, so hiding overlays leaves its paths listed (U35).
 
+## Changes from U18 (response shaping execution)
+
+In progress for U18 (no release tag cut by the unit). The library default is unchanged: a request without `return`, on an instance with no default, stays byte-identical and `format_version` stays `"1.1"`.
+
+> **Release note — `breaking` for MCP users.** The MCP tools now shape a request WITHOUT its own `return` block by the `standard` preset: `pulse_process`, `pulse_predict`, every `pulse_compose` slot and every `pulse_process_chain` stage drop `components` (and `matrices[*].auxiliary`, regression `credible_intervals` / `selection`, test details other than `effect_size`) and stamp `returned {preset: "standard", digest}`. An agent that needs everything sends `"return": {"preset": "full"}`; an operator restores the old output with `pulse mcp --return full` (or `gosdk.Config{DefaultReturn: types.ReturnPresetFull}` / `mcpserve.Options{DefaultReturn: ...}`). The library default stays `full`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| MCP tools returned the full Response unless a request carried `return` | MCP default preset `standard`; precedence request `return`, then host `gosdk.Config.DefaultReturn` / `mcpserve.Options.DefaultReturn` / `pulse mcp --return`, then the instance default (`pulse.Options.DefaultReturn`, else the feature profile's `return`), then `standard`. An engine `DisableComponents` still keeps components off; only a request `disable_components: false` re-opens them | behaviour change — **breaking (MCP wire)** | MCP clients that read `components` (or other non-`standard` parts) send `return: {"preset": "full"}` or include the paths; hosts wanting the old output set the host default to `full` | U18 |
+| no host knob for the MCP response shape | `gosdk.Config.DefaultReturn` and `mcpserve.Options.DefaultReturn` (`types.ReturnPreset`; zero value defers to the instance default, else `standard`), CLI `pulse mcp --return PRESET` | added | none; `Register` / `Serve` / `pulse mcp` refuse an unknown preset with `PULSE_RETURN_INVALID` | U18 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

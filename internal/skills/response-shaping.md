@@ -47,6 +47,8 @@ An excluded part is ABSENT on the wire — never `null`, even a required key suc
 
 Instance default: `Options.DefaultReturn`, else the feature profile's `return`, else `full`. A request's `return` REPLACES the default entirely (include-only over a `standard` default gives an empty base) — blocks never merge.
 
+MCP tools default to `standard`: request `return` > host `pulse mcp --return` / `DefaultReturn` > instance default > `standard`. Send `"return": {"preset": "full"}` when you need components or everything.
+
 `disable_components` is shorthand: alone it only skips computing components (byte-identical, no marker). Combined with any `return` layer it adds `exclude: ["components"]`. An engine that disabled components stays disabled under a request `return`: the components are not computed and the block gains `exclude: ["components"]`. Only an explicit request `disable_components: false` re-opens them.
 
 ## Excluded means not computed

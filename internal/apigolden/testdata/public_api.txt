@@ -2665,6 +2665,7 @@ pulse/mcp/gosdk: const CohortURIScheme untyped string = "pulse://"
 pulse/mcp/gosdk: const CohortURITemplate untyped string = "pulse://{+path}"
 pulse/mcp/gosdk: type Config struct
 pulse/mcp/gosdk: type Config field BindOnInspect bool
+pulse/mcp/gosdk: type Config field DefaultReturn pulse/types.ReturnPreset
 pulse/mcp/gosdk: type Config field DisableCohortScan bool
 pulse/mcp/gosdk: type Config field Version string
 pulse/mcp/gosdk: const DescPromptAuthorRequest untyped string = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
@@ -2682,6 +2683,7 @@ pulse/mcpserve: func Describe(p *pulse.Pulse, opts pulse/mcpserve.Options) pulse
 pulse/mcpserve: func NewPulse(popts pulse.Options, opts pulse/mcpserve.Options) (*pulse.Pulse, error)
 pulse/mcpserve: type Options struct
 pulse/mcpserve: type Options field BindOnOpen bool
+pulse/mcpserve: type Options field DefaultReturn pulse/types.ReturnPreset
 pulse/mcpserve: type Options field DisableCohortScan bool
 pulse/mcpserve: type Options field FeatureProfileFile string
 pulse/mcpserve: type Options field Version string
@@ -4203,4 +4205,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a47e9ad0dacdcb482699da0dd983db8cbdd93fa047e7f407b5006967e3bc8bfe
+// golden-hash: 837f0857629880b4a4e80a07203c64696a6c578bf69185449e4408ca973ae1bd

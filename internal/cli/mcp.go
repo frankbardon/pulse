@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/mcp/gosdk"
 	"github.com/frankbardon/pulse/mcpserve"
+	"github.com/frankbardon/pulse/types"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	cli "github.com/urfave/cli/v3"
 )
@@ -45,6 +46,11 @@ func MCPCommand(version string) *cli.Command {
 				Name: "feature-profile",
 				Usage: "Feature profile JSON file (OS path, relative to the working directory, not the data dir). " +
 					"Falls back to PULSE_FEATURE_PROFILE. An invalid profile fails startup.",
+			},
+			&cli.StringFlag{
+				Name: "return",
+				Usage: "Response preset (full|standard|minimal) for a tool request without its own return block. " +
+					"Unset: the instance or feature-profile return default, else standard. full serves the unshaped library output.",
 			},
 			&cli.BoolFlag{
 				Name:  "bind-on-open",
@@ -85,6 +91,7 @@ func MCPCommand(version string) *cli.Command {
 				Version:           version,
 				BindOnInspect:     bindOnOpen,
 				DisableCohortScan: noCohortScan,
+				DefaultReturn:     types.ReturnPreset(cmd.String("return")),
 			}); err != nil {
 				return fmt.Errorf("registering mcp surface: %w", err)
 			}
