@@ -350,8 +350,11 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 // CLAUDE.md's "## Non-Skippable CI Gates" section — the gate that stops the
 // file growing is itself documented in the file it guards.
 //
+// The ceiling was 50,000 until U18 slimmed CLAUDE.md below 38,000 and lowered
+// it to 40,000. Lowering is allowed; raising is the thing this gate forbids.
+//
 // Non-skippable CI gate.
-const claudeMdSizeCeiling = 50_000
+const claudeMdSizeCeiling = 40_000
 
 func TestClaudeMdSizeBudget(t *testing.T) {
 	size := len(readClaudeMd(t))

@@ -1,6 +1,6 @@
 # Request templating — the `internal/template/` document model
 
-Relocated verbatim from CLAUDE.md (section `## Request templating`). CLAUDE.md keeps the one-paragraph identity inline — what the surface is, the `internal/template/` import ceiling, the five facade methods, and the fact that this is a **library/embedding surface only: no CLI leaf, no MCP tool**. Everything below is the long form it points at.
+Relocated verbatim from CLAUDE.md (section `## Request templating`). CLAUDE.md keeps a three-line identity inline (since U18 E1-S2) — what the surface is, that it is a **library/embedding surface only: no CLI leaf, no MCP tool**, and that it is not expr-lang; the import ceiling and the five facade methods are the "Import ceiling and facade" paragraph below. Everything below is the long form it points at.
 
 Load it before changing the request-template document model (`template.Template` / `Variable` / `Summary` wrapper keys), the variable type set (`template.AllVarTypes`), the target set (`template.AllTargets`), or the substitution syntax (`$var` / `{{}}` / `$when`) — CLAUDE.md's Update Demand table names this file as a required companion for exactly that trigger.
 
@@ -11,18 +11,22 @@ Load it before changing the request-template document model (`template.Template`
 Paragraph order below is the file's order; each entry is that paragraph's bold lead-in.
 
 1. Not expr-lang.
-2. File wrapper.
-3. Substitution — three forms, no expression language.
-4. Nine variable types
-5. Directory precedence.
-6. Hot-reload lifecycle — phase split is the contract. (carries the three-row phase table)
-7. Errors — nine `PULSE_TEMPLATE_*` codes, chosen by provenance not detection time.
-8. Render never opens a cohort.
-9. `format_version` stays `"1.1"`.
+2. Import ceiling and facade.
+3. File wrapper.
+4. Substitution — three forms, no expression language.
+5. Nine variable types
+6. Directory precedence.
+7. No sidecar exclusion.
+8. Hot-reload lifecycle — phase split is the contract. (carries the three-row phase table)
+9. Errors — nine `PULSE_TEMPLATE_*` codes, chosen by provenance not detection time.
+10. Render never opens a cohort.
+11. `format_version` stays `"1.1"`.
 
 ## The contract
 
 **Not expr-lang.** `$var` / `{{}}` / `$when` are *request-authoring* parameters substituted **before** decode; `ATTR_FORMULA` / `FILTER_EXPRESSION` are expr-lang over *row fields* at execution time. No interop by design — a formula cannot see a template variable, and a formula string in a body is inert text to the renderer.
+
+**Import ceiling and facade (relocated from CLAUDE.md at U18 E1-S2).** `internal/template/` is the whole implementation and imports stdlib + `types` + `errors` only, plus the stdlib-only `internal/returnplan` reached via `types` — never `descriptor/`, `internal/processing/` or `internal/service/` (`TestTemplatePackage_ImportBoundary`). The facade is `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`; there is no CLI leaf and no MCP tool. Skill `skills/request-templating.md`; docs `docs/src/library/request-templating.md`.
 
 **File wrapper.** `{"name"?, "description"?, "target", "variables"[], "body"}`; **unknown top-level keys rejected** (a typo'd `"varaibles"` yielding zero variables is the silent failure this feature exists to kill). `target` ∈ `request | composed | chain | facet | sample` (lowercase) selects the strict-decode root — one of the five `types` request roots — required, never inferred. `name` derives from the file path (path relative to its own root, minus `.json`, forward-slash separated); a `name` key disagreeing with the path is rejected. `body` is a non-empty object, deliberately **not runnable as-is**.
 
@@ -30,7 +34,7 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 
 **Nine variable types** (`template.AllVarTypes()`): `string`, `number`, `integer` (`1.0` yes, `1.5` no), `boolean`, `field` (a string today; cohort binding can layer on later without a wire change), `enum` (+`values`, exact + case-sensitive), `list` (+`items`, scalar element types only — lists do not nest), `date` (only `YYYY-MM-DD`, a strict subset of `encoding.DateFormats`; `03/04/2024` is ambiguous), `period` (exactly one of `ranges` XOR `table`, mirroring the `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES` `Params` shape; unknown keys in it or in a `{label,start,end}` range rejected). The six scalars (`string`/`number`/`integer`/`boolean`/`field`/`date`) are the legal `items` values. **Root spellings:** every target and variable type is re-declared at the facade as `pulse.TemplateTarget<Name>` / `pulse.TemplateVar<Name>` (equal to the internal value); a new internal value without its root constant fails `TestTemplateConstants_RootSetComplete`, so add both together. Per-declaration slots: `required` (legal together with `default` — the default resolves it, so it can never go missing), `default` (raw JSON, so integer fidelity survives; explicit `null` = no default), `description`.
 
-**Directory precedence.** `Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator` — the programmatic option wins outright and suppresses the env var entirely. Roots are an **ordered precedence list; first root wins**. A same-named template under a later root is **shadowed, not rejected**, and the losers land on the winner's `Summary.Shadows` rather than being discarded (shadowed entries get no summary of their own — a listing whose entries cannot all be fetched would be a trap). Blank root → skipped; missing root → skipped; root that exists but is a **regular file** → error naming the path. **Filesystem faults are `DATA_FILE`**, deliberately outside the `PULSE_TEMPLATE_*` family. Config-dir loading goes through `os`, not afero — same sanctioned exception as `label_loader.go` / `range_loader.go`.
+**Directory precedence.** `Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator` — the programmatic option wins outright and suppresses the env var entirely. Roots are an **ordered precedence list; first root wins**. A same-named template under a later root is **shadowed, not rejected**, and the losers land on the winner's `Summary.Shadows` rather than being discarded (shadowed entries get no summary of their own — a listing whose entries cannot all be fetched would be a trap). Blank root → skipped; missing root → skipped; root that exists but is a **regular file** → error naming the path. **Filesystem faults are `DATA_FILE`**, deliberately outside the `PULSE_TEMPLATE_*` family. Config-dir loading goes through `os`, not afero — same sanctioned exception as `label_loader.go` / `range_loader.go`. With `PULSE_TEMPLATES_DIR` unset and no `TemplateDirs`, no store is built and every lookup is `PULSE_TEMPLATE_NOT_FOUND` (relocated from CLAUDE.md "Build / Env" at U18 E1-S2).
 
 **No sidecar exclusion (relocated from CLAUDE.md "Build / Env").** The label- and range-table directory loaders skip Pulse's own sidecars by suffix (`isPulseSidecarName`); `PULSE_TEMPLATES_DIR` does **not** yet carry that exclusion — its recursive walk and `Summary.Broken` lifecycle make that a separate design call.
 

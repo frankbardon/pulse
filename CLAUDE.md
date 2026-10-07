@@ -45,7 +45,7 @@ Between them the rows carry every word `TestUpdateDemandTableCovers` checks; kee
 
 ## Architecture
 
-**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free reference kernels + gonum-backed decompositions). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` — the full tree, the split-in-place vs alias-facade technique, root aliases, the `io` import boundary, the `linalg` two-backend split, and the MCP layer split; load it before moving a package or adding a public symbol.**
+**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free reference kernels + gonum-backed decompositions). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
 
 Docs: <https://frankbardon.github.io/pulse/>.
 
@@ -168,26 +168,15 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 ## Non-Skippable CI Gates
 
-**The list is self-expanding.** `TestClaudeMdMentionsAllNonSkippableGates` scans every `*_test.go` for eight prefixes — `TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage` — and requires each match to be listed BY NAME below, including one added in a different package. Write the gate and its list entry together or the suite fails.
+`TestClaudeMdMentionsAllNonSkippableGates` scans every `*_test.go` for eight prefixes — `TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage` — and requires each match listed BY NAME below, from any package. Write the gate and its entry together. What each one checks: `.claude/reference/update-demand.md` (The CLAUDE.md CI-gate list, per-gate prose).
 
-CLAUDE.md hygiene — `TestClaudeMdMentionsFormatVersion` (the literal `"1.1"` appears), `TestClaudeMdMentionsAllEnvVars` (every `PULSE_*` in Go source appears), `TestClaudeMdMentionsAllNonSkippableGates` (the prefix rule above), `TestClaudeMdMentionsComponentsContract` (`Response.Components` shape + universal floor + the `Response.Metadata` collision note), `TestClaudeMdSizeBudget` (**CLAUDE.md ≤ 50,000 bytes — displace prose into `.claude/reference/`, never raise the ceiling**), `TestUpdateDemandTableCovers` (every category word inside the Update Demand SECTION, not the whole file), `TestUpdateDemandTableCoversComponents` (the `Response.Components` / per-operator `ComponentSchema` / extension `ComponentSchema` rows).
+- CLAUDE.md hygiene: `TestClaudeMdMentionsFormatVersion`, `TestClaudeMdMentionsAllEnvVars`, `TestClaudeMdMentionsAllNonSkippableGates`, `TestClaudeMdMentionsComponentsContract`, `TestClaudeMdSizeBudget` (**CLAUDE.md ≤ 40,000 bytes — displace prose into `.claude/reference/`, never raise the ceiling**), `TestUpdateDemandTableCovers`, `TestUpdateDemandTableCoversComponents`.
+- Predecessor references: `TestNoOrbitPrefix`, `TestNoOrbitPrefixes`.
+- Descriptor contracts: `TestPredictNoExecutionImports`, `TestDescriptorNoFmtSprintf`, `TestGoldensNotHandEdited`, `TestPerPackageCoverageFloors`.
+- Skill coverage: `TestSkillsCoverAllComponents`, `TestSkillsCoverAllFieldTypes`, `TestSkillsCoverAllWindowTypes`, `TestSkillsCoverAllMCPTools`, `TestSkillsCoverAllSynthDistributions`, `TestSkillsCoverAllRegressions`, `TestSkillsCoverAllMatrixOps`, `TestSkillsCoverAllOverlayKinds`, `TestSkillsCoverAllPurposes`, `TestSkillsCoverShardingTopics`, `TestSkillsCoverAllCliLeaves`, `TestSkillsCoverAllOperatorComponents`, `TestSkillsCoverProfileGet`, `TestSkillsCoverFeatureFences`, `TestSkillsCoverAllCrossReferences`.
+- Atomic-skill structure / budget / example tag (not prefix-matched): `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestOperatorHasAtomicSkill`, `TestEveryOperatorHasAnExampleTag`.
 
-Predecessor-reference hygiene — `TestNoOrbitPrefix` (no type constant), `TestNoOrbitPrefixes` (no error code) contains a predecessor reference.
-
-Descriptor contracts — `TestPredictNoExecutionImports` (the Predict structural ban), `TestDescriptorNoFmtSprintf` (no `fmt.Sprintf` in `envelope.go`/`manifest.go`/`predict.go`/`inspect.go`), `TestGoldensNotHandEdited` (every golden ends with a valid `// golden-hash:` line), `TestPerPackageCoverageFloors` (package dirs exist; documents the coverage floors).
-
-Skill coverage — each asserts an atomic skill file exists at the conventional stem: `TestSkillsCoverAllComponents` (aggregators / attributes / filterers / groupers / features → `op-<category>-<kebab>.md`), `TestSkillsCoverAllFieldTypes` (`type-*`), `TestSkillsCoverAllWindowTypes` (`op-win-*`), `TestSkillsCoverAllMCPTools` (`tool-*`, strip `pulse_`), `TestSkillsCoverAllSynthDistributions` (`op-synth-*`), `TestSkillsCoverAllRegressions` (`op-reg-*`), `TestSkillsCoverAllMatrixOps` (`op-mat-*`), `TestSkillsCoverAllOverlayKinds` (`op-overlay-*`). Plus seven that check content rather than existence:
-- `TestSkillsCoverAllPurposes` — built-in Purposes valid; a missing one fails unless exempted (`guided-analysis.md`).
-- `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section.
-- `TestSkillsCoverAllCliLeaves` — two-way: every runnable `buildApp()` leaf is named under `skills/` or `docs/src/` with a `docs/src/cli/flags.md` row, and every row is a mounted leaf (detail: `update-demand.md`).
-- `TestSkillsCoverAllOperatorComponents` — each aggregator/grouper/filterer's `ComponentSchema` keys appear under a `## Components` section in its atomic skill.
-- `TestSkillsCoverProfileGet` — per shipped feature profile, a pruned skill or example lists, searches and reads (facade + MCP) exactly like a never-existing name.
-- `TestSkillsCoverFeatureFences` — an operator, feature-owned tool or `<kind>:<name>` mention in a skill body sits in a fence naming it, never in a `description`; malformed fences fail too (`skill-pack.md`).
-- `TestSkillsCoverAllCrossReferences` — every skill stem named in CLAUDE.md, `.claude/reference/*.md` or the pack resolves, and a section-qualified `` `skills/<stem>.md` (Section) `` pointer names a heading the target really carries. Deliberate non-skill kebab tokens ride the allowlist in `skill_xref_test.go`.
-
-Atomic-skill structure / budget / example-tag — `TestAtomicSkillHasRequiredSections` (the required `##` set per family), `TestSkillTokenBudget` (per-family body size; hard for `kind: design`, soft for atomic), `TestOperatorHasAtomicSkill` (every operator, MCP tool and field type has a file at its stem), `TestEveryOperatorHasAnExampleTag` (every operator name is tagged on at least one `internal/examples/<dir>/*.json`).
-
-Other load-bearing contract gates are **not** prefix-matched (they are enforced by their own packages) and are listed in `.claude/reference/update-demand.md` (Other load-bearing contract gates) — the `TestManifest*Complete` family, `TestStreamability_*`, `TestExtensions_*`, `TestExamples_*`, `TestShardArchive*` and the per-mode suites.
+Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestExtensions_*`, `TestExamples_*`, `TestShardArchive*`, the per-mode suites): `.claude/reference/update-demand.md` (Other load-bearing contract gates).
 
 ## Build / Env
 
@@ -202,54 +191,37 @@ Other load-bearing contract gates are **not** prefix-matched (they are enforced 
 - `PULSE_RANGE_TABLES_DIR` — same shape for `RangeTables` (bare `{label,start,end}` array or a `{"description","ranges"}` wrapper; filename minus `.json` is the table name), validated through the shared range-compilation pass. A name declared both programmatically and on disk is a hard error.
 - `PULSE_MCP_NO_COHORT_SCAN` — `pulse mcp` only (flag `--no-cohort-scan`): skip enumerating `.pulse` files as `pulse://` resources; the template stays, so cohorts stay readable. Library: `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan`.
 - `PULSE_FEATURE_PROFILE` — `pulse mcp` / `mcpserve.NewPulse` only (flag `--feature-profile` wins): OS path to a feature profile.
-- `PULSE_TEMPLATES_DIR` — request-template roots, `os.PathListSeparator`-separated in PATH-style precedence (first root wins; a same-named template under a later root is shadowed, not rejected). Unset with no `TemplateDirs` builds no store (`PULSE_TEMPLATE_NOT_FOUND`). **The hot-reload phase table is the contract: `.claude/reference/request-templating.md` (Hot-reload lifecycle).**
+- `PULSE_TEMPLATES_DIR` — request-template roots, `os.PathListSeparator`-separated, PATH-style precedence (first root wins). **Precedence and the hot-reload phase table: `.claude/reference/request-templating.md` (Directory precedence, Hot-reload lifecycle).**
 
-Both table directories skip Pulse's own sidecars by suffix yet hard-fail any OTHER unparseable `*.json`; `PULSE_TEMPLATES_DIR` does not skip: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
+Both table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
-**Knobs.** Concurrency (`pulse.Options`, both default `0` ⇒ `NumCPU`, negatives rejected at `pulse.New()`, orthogonal to each other): `ShardWorkers` — per-shard pool for archives, explicit `1` forces serial; `DecodeWorkers` — per-segment pool for single-file cohorts above `parallelDecodeRecordThreshold` (100K records). Overlay knobs `DictPrefixFast` / `MaxPanelTargets`: `.claude/reference/execution-modes.md` (Overlays).
+**Knobs.** `pulse.Options` concurrency `ShardWorkers` / `DecodeWorkers` (default `0` ⇒ `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs `DictPrefixFast` / `MaxPanelTargets`: `.claude/reference/execution-modes.md` (Parallel shards, Parallel buffered Process, Overlays).
 
 Hermetic testing: `fs.NewMemMap()` (`internal/fs`) returns an `afero.NewMemMapFs()`-backed `Config`; no disk I/O.
 
 ## Extension Points
 
-`pulse.Options.Extensions` is the public surface for embedders injecting domain operators or expression-runtime extensions — eight operator categories plus expr functions and three named-table kinds, all registered at `pulse.New()` time and treated identically to built-ins by predict, manifest, MCP and runtime. **Operators are authored against the public `extend` package** (`extend.Record` / `extend.Rows`, one factory type per category plus optional streaming siblings); the engine under `internal/processing` is unreachable to embedders (`TestExtendImportBoundary`, `TestRootSurfaceNamesNoProcessing`). **Full recipe: `docs/src/internals/extension-points.md`; engine-side wiring: `.claude/reference/architecture.md` (Extension surface).**
-
-- **Naming policy:** `^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$`. Reserved namespaces `BUILTIN` / `STANDARD` / `CORE` / `PULSE`; a collision with a built-in is rejected.
-- **Probe-validation (`PULSE_EXTENSION_*`), expr env + `LookupTables` / `LabelTables` / `RangeTables`, snapshot, `FieldInputs`, DECLARED `Streamable` / `Mergeable`, `DependsOn`, embedder skills / examples, `Purpose`:** `.claude/reference/architecture.md` (Extension surface + the relocated bullets at its end).
-
-Surface: root `extensions*.go`; runtime overlay `internal/processing/extensions.go`.
+`pulse.Options.Extensions` registers embedder operators (eight categories, authored against the public `extend` package), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`, `TestRootSurfaceNamesNoProcessing`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipe: `docs/src/internals/extension-points.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
 
 ## Feature profiles
 
-A **feature profile** (never bare "profile" — synth owns it) is an instance's closed feature allowlist: operators bare, other kinds `<kind>:<name>`. `pulse.New` validates it (`PULSE_FEATURE_PROFILE_INVALID` → `_UNKNOWN` → `_DEPENDENCY`) and enforces it (U05): a hidden feature acts never-registered (operators, overlay kinds, tables, request slots), and the manifest, payload schema (`p.PayloadSchema()`, also served as MCP `pulse://schema`), error lists and runtime refusal prose show only the instance. Every payload carries `feature_set_digest` (`p.FeatureSetDigest()`; additive, `format_version` stays `"1.1"`); facade METHODS stay ungated. MCP mounts only the instance too; tooling is `pulse features {init,check,diff,show}`. `behaviour` switches OR into Options. `pulse.New` never reads `PULSE_FEATURE_PROFILE`, and no runtime skill mentions profiles. **Contract: `.claude/reference/feature-profiles.md`.**
+A **feature profile** (never bare "profile" — synth owns it) is an instance's closed feature allowlist, validated and enforced by `pulse.New` (`PULSE_FEATURE_PROFILE_INVALID` → `_UNKNOWN` → `_DEPENDENCY`): a hidden feature acts never-registered, and manifest, payload schema, errors and MCP show only the instance; every payload carries `feature_set_digest`. `pulse.New` never reads `PULSE_FEATURE_PROFILE`, and no runtime skill mentions profiles. **Contract: `.claude/reference/feature-profiles.md`.**
 
 ## Guided analysis
 
-Declared, never executed: a closed intent taxonomy (manifest `intents[]` = IDs only, plus per-entry `intents`), per-operator `Purpose`, per-output `Interpretation` (bands always name a `Convention`), a glossary (virtual `glossary` / `intents` skills, `pulse.Glossary()` / `pulse.Intents()`), and `details.effect_size.*` keys (omitted when undefined). **Prose is pulled, never pushed** — `TestManifestGuidanceBudget` bans it from default payloads and caps guidance per manifest entry. Coverage gates bind; gaps need owner-tagged exemptions. **Contract: `.claude/reference/guided-analysis.md`.**
+Declared, never executed: intents, per-operator `Purpose`, per-output `Interpretation`, a glossary and `details.effect_size.*` keys. **Prose is pulled, never pushed** (`TestManifestGuidanceBudget`). **Contract: `.claude/reference/guided-analysis.md`.**
 
 ## Request templating
 
-Stored parameterised JSON that renders into a **validated typed request**. `internal/template/` is the whole implementation (import ceiling: stdlib + `types` + `errors` only, plus stdlib-only `internal/returnplan` via `types` — never `descriptor/`, `internal/processing/`, `internal/service/`; gated by `TestTemplatePackage_ImportBoundary`). Facade: `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`. **No CLI leaf, no MCP tool** — library/embedding surface only. **It is NOT expr-lang:** `$var` / `{{}}` / `$when` are request-authoring parameters substituted BEFORE decode, while `ATTR_FORMULA` / `FILTER_EXPRESSION` are expr-lang over row fields at execution time, and there is no interop by design.
-
-**Contract: `.claude/reference/request-templating.md` — load it before changing the document model, the variable or target sets, or the substitution syntax.** It carries the file wrapper, the substitution forms, the variable types, directory precedence, the hot-reload phase table, the `PULSE_TEMPLATE_*` codes and why render never opens a cohort. Env var `PULSE_TEMPLATES_DIR`; skill `skills/request-templating.md`; docs `docs/src/library/request-templating.md`.
+Stored parameterised JSON that `internal/template/` renders into a **validated typed request** (import ceiling: `TestTemplatePackage_ImportBoundary`) — a library surface only, no CLI leaf, no MCP tool. **Not expr-lang:** `$var` / `{{}}` / `$when` substitute BEFORE decode. **Contract: `.claude/reference/request-templating.md`** — load it before changing the document model, the variable or target sets, or the substitution syntax; skill `skills/request-templating.md`.
 
 ## Synthetic data
 
-**Contract: `.claude/reference/synthetic-data.md` — you MUST load it before changing any `synth/` or `internal/synth/` code, configuration or public surface**: profile capture, `SpecFromProfile` translation, generation, structural rules, the `--suggest-rules` detectors, `--run-continuation` (the run-skip hit rate, measured on the profile scan — never in header-only `inspect`), the fidelity report. **Every failure it records was SILENT** — the run succeeded and a number was quietly wrong. It covers conditional pair capture; per-numeric linear models (selection, shrinkage, the composed draw, shape-fitted conditioning); float-fusion determinism; `bernoulli` / `discrete` marginals; correlation and residual-correlation capture, draw and recovery; the warning summary; and `Spec.Rules`.
-
-`format_version` does NOT move for a synth change — `synth.Profile` / `synth.Spec` live in `synth/`, not `types/`, so they are unreachable from `internal/descriptor.BuildPayloadSchema`. Skills: `skills/synthetic-data.md`, `skills/synth-models.md`, `skills/synth-structural-rules.md`.
+**Contract: `.claude/reference/synthetic-data.md` — you MUST load it before changing any `synth/` or `internal/synth/` code, configuration or public surface. Every failure it records was SILENT** — the run succeeded and a number was quietly wrong. `format_version` does NOT move for a synth change (`synth/` types are not payload-reachable). Skills: `skills/synthetic-data.md`, `skills/synth-models.md`, `skills/synth-structural-rules.md`.
 
 ## Skill Pack
 
-The pack under `internal/skills/` (addressed pack-relative as `skills/<stem>.md`) is the LLM surface, embedded via `//go:embed *.md`. Two shapes — **atomic** (one file per registered surface) and **topical** (one file per cross-cutting design topic, `kind: design`).
-
-**Contract: `.claude/reference/skill-pack.md` — load it before adding or restructuring a skill file, changing frontmatter keys, changing a family's required `##` section set, or moving a budget.** It carries the frontmatter blocks, the required-section table per family, the budget table, the per-trigger stem table and the add-a-skill procedure. The always-load half:
-
-- **The stem encodes the surface**, and frontmatter `name:` MUST equal the file stem: `op-<category>-<kebab>.md` per registered operator constant, `tool-<kebab>.md` per MCP tool (strip `pulse_`), `type-<kebab>.md` per `FieldType`.
-- **Each family has a required `##` section set** (`TestAtomicSkillHasRequiredSections`, keyed off the `category:` frontmatter field) and a body budget (`TestSkillTokenBudget`: `op-*` ≤1200 chars, `tool-*`/`type-*` ≤2000, `kind: design` ≤6000 (hard), at `chars / 4 ≈ tokens`). Both tables are in the reference file.
-- **There is no `skills/index.json`.** `skills.List()` walks the embedded `embed.FS` and parses frontmatter — the filesystem IS the manifest (plus the virtual `glossary` / `intents` skills rendered from Go registries), so a new file with valid frontmatter is picked up automatically. Never create or bump an index.
-- **Never hardcode a registered count** in docs. Counts come from `pulse_manifest`; the coverage gates reject drift.
-- Cross-cutting topics that are not operator-keyed route to a topical skill: `Response.Components` → `skills/response-components.md`; request slot map / smart defaults → `request-envelope`; streaming / `Watch` / request hashing → `streaming-and-watching`; error-code prose → `errors/fixup_metadata.go` via `pulse_errors_lookup`; extensions → `docs/src/internals/extension-points.md`.
+The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `//go:embed *.md`) is the LLM surface: **atomic** files whose stem encodes the surface — `op-<category>-<kebab>.md`, `tool-<kebab>.md` (strip `pulse_`), `type-<kebab>.md`; frontmatter `name:` = stem — and **topical** `kind: design` files. The filesystem IS the manifest: never create a `skills/index.json`, never hardcode a registered count. **Contract (required sections, budgets, stems, routing, add-a-skill): `.claude/reference/skill-pack.md`.**
 
 ## What NOT to Do
 
@@ -266,22 +238,22 @@ The pack under `internal/skills/` (addressed pack-relative as `skills/<stem>.md`
 
 ## Reference Docs
 
-`.claude/reference/*.md` is where CLAUDE.md's long form lives. **This is the complete index.** CLAUDE.md carries only the always-load half of each contract, so a change to one of these surfaces is not adequately informed by CLAUDE.md alone — load the named file BEFORE the work, not after. Most are also named as required companions by the Update Demand table, which makes loading them binding rather than advisory.
+`.claude/reference/*.md` is where CLAUDE.md's long form lives. **This is the complete index.** CLAUDE.md carries only the always-load half of each contract — load the named file BEFORE the work, not after. Most are also required companions in the Update Demand table, which makes loading them binding.
 
 | File | Holds | Load before... |
 |---|---|---|
-| `architecture.md` | the full package tree (public vs `internal/`), split-in-place vs alias-facade narrowing, root aliases, the `io` import boundary, the surface guards, the MCP layer split, the extension surface (`extend` adapters, snapshot, streamability rule, limits) | moving a package, adding a public package or exported symbol, or touching an import-boundary gate |
-| `update-demand.md` | the exhaustive per-slot trigger table + the non-prefix-matched gate list | touching ANY contract; add a row here when introducing a new Request slot, Response slot, capability block or execution-mode wiring |
-| `byte-layout.md` | the sidecar index and its manifest, the SPSS metadata sidecar, derived columns, SPSS export, target-aware export predict, projected decode | changing the `.pulse` format, a field type, shard-archive layout, any sidecar file, an SPSS surface, or the projection contract |
-| `execution-modes.md` | full wiring prose per mode, including every overlay host | engine work (`internal/service/`, `internal/processing/`) or adding an execution mode |
-| `response-components.md` | the `crosstab.margin_aggregations` auxiliary figures (ADMISSION rule, `present` semantics, display-flag gate, allocation/emission gap), the opt-out, the Compose surface | changing `Response.Components`, a per-operator `ComponentSchema`, or `CrosstabSpec.MarginAggregations` on either arm |
-| `predict-inspect.md` | inspect's envelope-vs-result split, the truncated-tail warning, `CountRecords`' deliberate silence, the predict import ban | changing `internal/descriptor/predict.go` or `inspect.go`, `Pulse.Inspect` / `InspectEnvelope`, `pulse_inspect`, or `CountRecords` |
-| `request-templating.md` | the file wrapper, the three substitution forms, the nine variable types, directory precedence, the hot-reload phase table, the nine `PULSE_TEMPLATE_*` codes | changing the request-template document model, the variable or target sets, or the substitution syntax |
-| `synthetic-data.md` | the whole `synth/` contract — capture, models, marginals, correlation and residual recovery, structural rules, the detectors, the fidelity report | ANY `synth/` change. Every failure it records was SILENT: the run succeeded and a number was quietly wrong |
-| `feature-profiles.md` | feature kinds + spelling, the feature table, `Since` + version compare, dependencies, the profile model, codes + order, the env-var reader, U05/U06 notes | adding any feature, or touching feature-profile code |
-| `skill-pack.md` | frontmatter blocks, the required `##` set per family, the budget table, the per-trigger stem table, the add-a-skill procedure | adding or restructuring a skill file, changing frontmatter keys, changing a family's required sections, or moving a budget |
-| `weighting.md` | the weight surface (Request / per-slot / Options; null ≠ absent), resolution order, validation, the aggregator weight classes, refusals, floor keys, the op-order exactness rule, the extension and SPSS hooks, the feature gate | touching ANY weight surface |
-| `guided-analysis.md` | intents, `Purpose`, `Interpretation` paths + probes, glossary + jargon rule, virtual skills, effect-size keys, the two-tier + budget gates, the extension hook | touching any guidance registry, an effect-size key, an overlay `Inferential` flag or the extension `Purpose` hook |
-| `matrix-and-vectors.md` | `linalg` backend policy, tolerance / order / sign rules, `CoMoment` semantics, the blocked merge tree and its shard caveat | touching `linalg/`, its callers or the blocked merge |
+| `architecture.md` | package tree, facade narrowing, `io` boundary, surface guards, MCP layer split, extension surface | moving a package, adding a public package or exported symbol, or touching an import-boundary gate |
+| `update-demand.md` | the per-slot trigger table, per-gate prose, the non-prefix-matched gates | touching ANY contract; add a row for a new Request slot, Response slot, capability block or execution-mode wiring |
+| `byte-layout.md` | format version, parent groups, wide sets, shard archives, sidecars, SPSS, projected decode | changing the `.pulse` format, a field type, shard-archive layout, any sidecar file, an SPSS surface, or the projection contract |
+| `execution-modes.md` | wiring prose per mode, every overlay host, multiplicity, time zones | engine work (`internal/service/`, `internal/processing/`) or adding an execution mode |
+| `response-components.md` | auxiliary crosstab margins (ADMISSION rule), opt-out, Compose surface + envelope, undefined figures | changing `Response.Components`, a per-operator `ComponentSchema`, or `CrosstabSpec.MarginAggregations` on either arm |
+| `predict-inspect.md` | inspect's envelope split, truncated-tail warning, `CountRecords`' silence, the predict import ban | changing `predict.go` / `inspect.go`, `Pulse.Inspect` / `InspectEnvelope`, `pulse_inspect`, or `CountRecords` |
+| `request-templating.md` | file wrapper, substitution forms, variable types, precedence, hot-reload phases, `PULSE_TEMPLATE_*` codes | changing the request-template document model, the variable or target sets, or the substitution syntax |
+| `synthetic-data.md` | the whole `synth/` contract | ANY `synth/` change — every failure it records was SILENT |
+| `feature-profiles.md` | feature kinds, the feature table, `Since`, dependencies, the profile model, codes | adding any feature, or touching feature-profile code |
+| `skill-pack.md` | frontmatter, required sections, budgets, stems, add-a-skill | adding or restructuring a skill file, frontmatter keys, a family's required sections, or a budget |
+| `weighting.md` | the weight surface (null ≠ absent), resolution, weight classes, refusals, floor keys, op-order exactness | touching ANY weight surface |
+| `guided-analysis.md` | intents, `Purpose`, `Interpretation`, glossary, virtual skills, effect-size keys, budget gates | touching any guidance registry, an effect-size key, an overlay `Inferential` flag or the extension `Purpose` hook |
+| `matrix-and-vectors.md` | `linalg` backend policy, tolerance rules, `CoMoment`, the blocked merge, the matrix slot | touching `linalg/`, its callers or the blocked merge |
 
-`TestClaudeMdSizeBudget` caps CLAUDE.md at 50,000 bytes so a new contract DISPLACES long form into that directory; never raise the ceiling. `.claude/reference/*.md` is inside `TestSkillsCoverAllCrossReferences`' corpus — a heading renamed in moved text still breaks the pointer that names it.
+`TestClaudeMdSizeBudget` caps CLAUDE.md at 40,000 bytes so a new contract DISPLACES long form into that directory; never raise the ceiling. `.claude/reference/*.md` is inside `TestSkillsCoverAllCrossReferences`' corpus — a heading renamed in moved text still breaks the pointer that names it.
