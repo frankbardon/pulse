@@ -108,7 +108,12 @@ Shipped on `resource-limits` (no release tag cut by the unit). Epics ran E1 fan-
 
 ## Open follow-ups
 
-- `ComposeOptions.FailFast=false` returns `(nil, SERVICE_INTERNAL)`, discarding successful slots; the code was the intended contract and the doc was fixed. Whether to return the partial slots is an owner decision.
-- `pulse.Facet(path, field)` (the simple facade) has no limits pre-flight.
-- `mcpserve.Describe` / `ServeInfo` does not report the effective limits.
-- No predict surface for Compose / chain / facet limit findings.
+All handed on; tracked in [TODO](../TODO.md) "Follow-ups from U19".
+
+- #224 → [U33](U33-v1-release.md): `ComposeOptions.FailFast=false` returns `(nil, SERVICE_INTERNAL)` and discards the slots that succeeded; decide whether partial slots are returned before the freeze (the doc now states today's behaviour)
+- #225 → [U35](U35-predict-runtime-parity.md): The simple `pulse.Facet(path, field)` facade runs no limits pre-flight (only `FacetSchema` / the rich facet is guarded); give it the same `MaxEstimatedMemory` pre-flight
+- #226 → [U35](U35-predict-runtime-parity.md): Predict reports no limit findings for Compose, ProcessChain or Facet requests (no facade predict surface); slot/stage counts and facet group counts are treated as unknowable at predict
+- #227 → [U20](U20-observability.md): `mcpserve.Describe` / `ServeInfo` report the effective limits (the manifest `limits` block and the `pulse mcp` startup line already do)
+- #228 → [U33](U33-v1-release.md): `Pulse.ProcessStream` (RowIter) bounds only the run with `RequestTimeout`; draining with `Next(ctx)` runs under the caller's ctx (`ProcessStreamResult` bounds both). Keep and document, or bound the drain too
+- #229 → [U35](U35-predict-runtime-parity.md): Tighten the memory estimate: it ignores field projection (up to ~4.9x over on projected buffered runs) and assumes at most one right match per left row (a 1:N fan-out join can exceed it)
+- #230 → [U34](U34-extension-validation.md): Extension aggregators declare a state-size hint so the memory estimate can bound extensions with unbounded state (today they are outside the model)

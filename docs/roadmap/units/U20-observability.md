@@ -91,3 +91,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(observability/E<n
 
 - **`pulse mcp` doesn't show the effective `return` preset** (#222). U18 made MCP tool calls default to `standard`, overridable by `pulse mcp --return`, `gosdk.Config.DefaultReturn` / `mcpserve.Options.DefaultReturn` and the feature profile's `return`. The startup line and `ServeInfo` were left unchanged, so an operator can't see which preset agents get. Add it alongside the other `pulse mcp` observability output.
 - **`standard` preset's residual cost is unattributed** (#223). U18's `BenchmarkProcessDefaultReturn` (root `return_default_bench_test.go`) on darwin/arm64: unset 88.8 µs, `full` 89.6 µs, `standard` 97.7 µs; the cached plan resolution is 240 ns (~0.27%), so ~+9% comes from elsewhere — most likely the `returnshape.Apply` pruning pass. The operation hooks' phase timings should name a shaping phase so this is measurable in production, and a sub-benchmark should isolate Apply; optimise only if it dominates.
+
+## Inherited from U19
+
+- **`ServeInfo` omits effective limits** (#227). U19 added the manifest `limits` block + `limits_digest` and echoes tuned limits in the `pulse mcp` startup line (read from `p.Limits()`), but `mcpserve.Describe` / `ServeInfo` don't carry them. Add alongside #222.

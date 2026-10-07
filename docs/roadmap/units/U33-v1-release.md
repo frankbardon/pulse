@@ -133,3 +133,8 @@ U12 made the significance tests, regressions, CI bounds, scores, quantile bucket
 ## Inherited from U17
 
 - **`pulse.ReturnedMarker` root alias** (#220). `Response.Returned` is a `*types.ReturnedMarker`, reachable through `types`; the root facade aliases most result types but not this one. Decide before the freeze: adding it changes the public-API golden (`TestPublicAPIGolden`, regenerate via `-update`) and `STABILITY.md`; leaving it out is fine if embedders reach the type through `types` (record the decision in the migration doc either way).
+
+## Inherited from U19
+
+- **`FailFast=false` discards successful slots** (#224). `ComposeParallel` with `FailFast=false` returns `(nil, SERVICE_INTERNAL)` with `failed_indices` / `first_error` details, dropping every slot that succeeded. U19 corrected `docs/src/library/parallel-compose.md`, which claimed the successful slots populate the response. Decide before the freeze whether to return the partial `ComposedResponse` (a behaviour change for `STABILITY.md` and the migration doc) or keep the all-or-nothing contract and say so in `STABILITY.md`.
+- **`RequestTimeout` and the RowIter drain** (#228). U19 bounds `ProcessStreamResult` across run and drain (a stalled consumer trips it), but `Pulse.ProcessStream` returns a `RowIter` whose `Next(ctx)` drain runs under the caller's ctx only. Decide the frozen contract: keep (document it in `STABILITY.md` and the Tuning limits page) or carry the inner deadline into the iterator.

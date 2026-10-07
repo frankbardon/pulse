@@ -260,6 +260,15 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#116** Profile-file `limits` section; manifest `limits` block; `pulse mcp --limit` · [U19](units/U19-resource-limits.md)
 - [x] **#117** Defaults-never-trip, predict/runtime parity and memory-release gates; "Tuning limits" docs page · [U19](units/U19-resource-limits.md)
 
+#### Follow-ups from U19
+- [ ] **#224** `ComposeOptions.FailFast=false` returns `(nil, SERVICE_INTERNAL)` and discards the slots that succeeded; decide whether partial slots are returned before the freeze (the doc now states today's behaviour) · [U33](units/U33-v1-release.md)
+- [ ] **#225** The simple `pulse.Facet(path, field)` facade runs no limits pre-flight (only `FacetSchema` / the rich facet is guarded); give it the same `MaxEstimatedMemory` pre-flight · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#226** Predict reports no limit findings for Compose, ProcessChain or Facet requests (no facade predict surface); slot/stage counts and facet group counts are treated as unknowable at predict · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#227** `mcpserve.Describe` / `ServeInfo` report the effective limits (the manifest `limits` block and the `pulse mcp` startup line already do) · [U20](units/U20-observability.md)
+- [ ] **#228** `Pulse.ProcessStream` (RowIter) bounds only the run with `RequestTimeout`; draining with `Next(ctx)` runs under the caller's ctx (`ProcessStreamResult` bounds both). Keep and document, or bound the drain too · [U33](units/U33-v1-release.md)
+- [ ] **#229** Tighten the memory estimate: it ignores field projection (up to ~4.9x over on projected buffered runs) and assumes at most one right match per left row (a 1:N fan-out join can exceed it) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#230** Extension aggregators declare a state-size hint so the memory estimate can bound extensions with unbounded state (today they are outside the model) · [U34](units/U34-extension-validation.md)
+
 ### Observability ([embedder-operations 02](v1.0.0-embedder-operations/02-observability.md))
 - [ ] **#118** `Options.Logger` (`slog`, nil = silent); context-aware; no row data · [U20](units/U20-observability.md)
 - [ ] **#119** `Options.Hooks`: operation start/end (context-returning), phase timings; panic-safe · [U20](units/U20-observability.md)
