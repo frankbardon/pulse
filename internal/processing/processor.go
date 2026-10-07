@@ -51,10 +51,10 @@ func (p ProcessPath) String() string {
 // It handles filtering, attribute computation, grouping, and aggregation
 // over record iterators backed by .pulse encoded data.
 type Processor struct {
-	schema            *encoding.Schema
-	lastPath          ProcessPath
-	exts              *ExtensionRegistry
-	disableComponents bool
+	schema   *encoding.Schema
+	lastPath ProcessPath
+	exts     *ExtensionRegistry
+	compute  ComputePlan
 
 	// defaultWeight is pulse.Options.DefaultWeight (nil = none) and
 	// strictWeights promotes PULSE_WEIGHT_INVALID_ROWS to an error;
@@ -79,38 +79,43 @@ func (p *Processor) stampWeights(req *types.Request) *types.Request {
 	return StampWeightsWith(req, p.defaultWeight, p.exts)
 }
 
-// SetDisableComponents toggles Response.Components emission for this
-// processor instance. When true, every attach helper (aggregation,
-// grouper, filterer, run, crosstab) early-returns before constructing
-// any per-operator components map — the MetaAggregator.Components /
-// MetaGrouper.Components calls are skipped entirely. Service-layer
-// callers compute the effective decision (per-request override against
-// the engine default) and flip this flag before invoking Process. See
-// pulse.Options.DisableComponents and types.Request.DisableComponents
-// for the full contract.
-func (p *Processor) SetDisableComponents(disabled bool) {
-	p.disableComponents = disabled
+// SetComputePlan installs the parts this processor computes (see
+// ComputePlan). Service-layer callers resolve the plan per request —
+// the `return` selection, the DisableComponents gate and the veto set —
+// before invoking Process. A processor built without the call computes
+// everything (FullComputePlan).
+func (p *Processor) SetComputePlan(plan ComputePlan) {
+	p.compute = plan
 }
 
-// DisableComponents reports the current setting. Exposed so the
-// crosstab / fused-crosstab dispatch paths (which build their own
-// emission helper) can consult it.
-func (p *Processor) DisableComponents() bool {
-	return p.disableComponents
+// ComputePlan reports the installed plan.
+func (p *Processor) ComputePlan() ComputePlan {
+	return p.compute
+}
+
+// SetDisableComponents is the all-or-nothing shorthand: true turns every
+// Components sub-part off, false turns every one on, leaving the rest
+// of the plan alone.
+func (p *Processor) SetDisableComponents(disabled bool) {
+	if disabled {
+		p.compute = p.compute.WithoutComponents()
+		return
+	}
+	p.compute = p.compute.WithComponentsOf(FullComputePlan())
 }
 
 // NewProcessor creates a new Processor for the given schema. The
 // resulting Processor uses only Pulse-shipped operator factories;
 // embedder extensions land via NewProcessorWithExtensions.
 func NewProcessor(schema *encoding.Schema) *Processor {
-	return &Processor{schema: schema}
+	return &Processor{schema: schema, compute: FullComputePlan()}
 }
 
 // NewProcessorWithExtensions creates a Processor whose operator
 // lookups consult exts before falling through to the built-in
 // registries. Passing nil is equivalent to NewProcessor.
 func NewProcessorWithExtensions(schema *encoding.Schema, exts *ExtensionRegistry) *Processor {
-	return &Processor{schema: schema, exts: exts}
+	return &Processor{schema: schema, exts: exts, compute: FullComputePlan()}
 }
 
 // LastPath returns the ProcessPath taken by the most recent Process call
@@ -185,7 +190,7 @@ func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
 // is their DECLARED registration flag (ExtensionRegistry.IsStreamable).
 // A nil exts is exactly CanStreamRequest.
 func CanStreamRequestWithExtensions(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) bool {
-	p := &Processor{schema: schema, exts: exts}
+	p := &Processor{schema: schema, exts: exts, compute: FullComputePlan()}
 	return p.canStream(req)
 }
 
@@ -533,9 +538,14 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// regression spec is streamable (today: unpenalized REG_OLS with no
 	// modifiers); BuildStreaming surfaces PROCESSING_INTERNAL if any
 	// engine slipped through without a streaming implementation.
-	regressionEngines, err := regression.BuildStreamingWith(req.Regressions, p.schema, p.exts.LookupRegression)
-	if err != nil {
-		return nil, err
+	// An excluded regressions slot (ComputePlan) builds no engine: no
+	// fit, no fit refusal, no low-n_eff warning.
+	var regressionEngines []regression.StreamingEngine
+	if p.compute.Regressions {
+		if regressionEngines, err = regression.BuildStreamingWith(req.Regressions, p.schema, p.exts.LookupRegression); err != nil {
+			return nil, err
+		}
+		workRegressionFits.Add(int64(len(regressionEngines)))
 	}
 
 	// Matrix slots fold the same filter-passing record; results are
@@ -657,7 +667,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		data = []map[string]any{row}
 	}
 
-	testResults, err := finalizeRowTests(rowTests)
+	testResults, err := finalizeRowTests(rowTests, len(req.Tests))
 	if err != nil {
 		return nil, err
 	}
@@ -681,7 +691,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		}
 	}
 
-	matrixResults, matrixComps, err := finalizeMatrixSlots(matrixSlots, !p.disableComponents)
+	matrixResults, matrixComps, err := finalizeMatrixSlots(matrixSlots)
 	if err != nil {
 		return nil, err
 	}
@@ -699,11 +709,12 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		Matrices:    matrixResults,
 	}
 
-	// Components emission block — opt-out via
-	// pulse.Options.DisableComponents / Request.DisableComponents. The
-	// gate sits on the build+attach pair so the MetaAggregator.Components
-	// construction work is skipped, not built then discarded.
-	if !p.disableComponents {
+	// Components emission block — one gate per sub-part off the
+	// processor's ComputePlan (the `return` selection plus the
+	// DisableComponents opt-out). Each gate sits on its build+attach
+	// pair so the MetaAggregator.Components construction work is
+	// skipped, not built then discarded.
+	if p.compute.Aggs {
 		// Emit AggregationComponents per slot. Universal floor (n,
 		// nNull) is the orchestrator-tracked per-record bookkeeping; the
 		// operator-specific map rides off the MetaAggregator sibling when
@@ -719,12 +730,14 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			fe.weight.Stamp(&entry)
 			attachAggregationComponents(resp, entry)
 		}
-
+	}
+	if p.compute.Filterers {
 		// Emit FiltererComponents per slot from the per-record
 		// counter walk. Empty filter chains stay nil so the omitempty
 		// wire shape is byte-identical.
 		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
-
+	}
+	if p.compute.Run {
 		// Emit RunComponents — typed cohort-level counters.
 		// NullRecords pulls from the FIRST aggregator's per-record nNull
 		// counter (the primary-field convention locked in
@@ -739,10 +752,10 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			FilteredRecords: filteredRows,
 			NullRecords:     nullRecords,
 		})
-
-		// One MatrixComponents entry per Response.Matrices result.
-		attachMatrixComponents(resp, matrixComps)
 	}
+	// One MatrixComponents entry per Response.Matrices result (nil when
+	// the plan skips them: finalizeMatrixSlots built none).
+	attachMatrixComponents(resp, matrixComps)
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -848,13 +861,15 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// behind the gate, not discarded).
 	var slotTotals []SlotFloor
 	var bucketFloors map[string][]SlotFloor
-	if !p.disableComponents && len(req.Aggregations) > 0 {
+	if p.compute.Aggs && len(req.Aggregations) > 0 {
 		slotTotals = NewSlotFloors(req.Aggregations)
-		bucketFloors = make(map[string][]SlotFloor)
+		if p.compute.Groups {
+			bucketFloors = NewGroupFloors()
+		}
 	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
 	// matrices).
-	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts)
+	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts, p.compute)
 	if err != nil {
 		return nil, err
 	}
@@ -974,18 +989,18 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// a single iterator whatever the cohort topology); the service stamps
 	// Run.ShardCount on an archive.
 	resp, err := FinalizeGroupedStream(req, GroupedTail{
-		Group:             grp,
-		Grouper:           grouperInstance,
-		Buckets:           buckets,
-		SlotTotals:        slotTotals,
-		BucketFloors:      bucketFloors,
-		TotalRows:         totalRows,
-		FilteredRows:      filteredRows,
-		NullRecords:       primaryNullRecords,
-		Assignments:       assignments,
-		FilterCounters:    filterCounters,
-		Matrices:          matrices,
-		DisableComponents: p.disableComponents,
+		Group:          grp,
+		Grouper:        grouperInstance,
+		Buckets:        buckets,
+		SlotTotals:     slotTotals,
+		BucketFloors:   bucketFloors,
+		TotalRows:      totalRows,
+		FilteredRows:   filteredRows,
+		NullRecords:    primaryNullRecords,
+		Assignments:    assignments,
+		FilterCounters: filterCounters,
+		Matrices:       matrices,
+		Compute:        p.compute,
 		PostTests: func(rows []map[string]any) ([]*types.TestResult, error) {
 			return p.runPostTests(req.PostTests, rows)
 		},
@@ -1260,10 +1275,10 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		PostTests: postResults,
 	}
 
-	// Components emission block — gated by the processor's
-	// disableComponents flag (see attachAggregationComponents for the
+	// Components emission block — one gate per sub-part off the
+	// processor's ComputePlan (see attachAggregationComponents for the
 	// full opt-out contract).
-	if !p.disableComponents {
+	if p.compute.Aggs {
 		// Emit AggregationComponents per slot for the two-pass
 		// streaming path. Mirrors the single-pass streaming exit (see
 		// processStreaming above).
@@ -1276,13 +1291,15 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			e.weight.Stamp(&entry)
 			attachAggregationComponents(resp, entry)
 		}
-
+	}
+	if p.compute.Filterers {
 		// Emit FiltererComponents per slot. Counters were
 		// populated during pass 1 (pass 2 re-runs the filter funcs for
 		// gating but skips the counter increment so totals match the
 		// observed record set, not pass-1+pass-2 visits).
 		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
-
+	}
+	if p.compute.Run {
 		// Emit RunComponents — typed cohort-level counters.
 		// NullRecords pulls from the FIRST aggregator's per-record nNull
 		// counter (mirrors processStreaming above); two-pass streaming has
@@ -1432,7 +1449,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 
 	recordRows := false
 	if len(req.Groups) > 0 {
-		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts); err != nil {
+		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute); err != nil {
 			return nil, err
 		}
 		data, grpComponents, bucketAggComponents, groupKeys, err = p.processGrouped(req, filtered, groupedMatrices)
@@ -1441,7 +1458,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		}
 	} else if len(req.Aggregations) > 0 {
 		var row map[string]any
-		row, aggComponents, err = p.aggregateWithComponents(req.Aggregations, filtered, !p.disableComponents)
+		row, aggComponents, err = p.aggregateWithComponents(req.Aggregations, filtered, p.compute.Aggs)
 		if err != nil {
 			return nil, err
 		}
@@ -1484,7 +1501,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			}
 		}
 	}
-	testResults, err := finalizeRowTests(rowTests)
+	testResults, err := finalizeRowTests(rowTests, len(req.Tests))
 	if err != nil {
 		return nil, err
 	}
@@ -1503,9 +1520,13 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// for unimplemented operators (penalized OLS, GLM, Bayes, and the
 	// Resample/Selection modifier wrappers) still surface
 	// PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit().
-	regressionResults, err := regression.FitBufferedWith(req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
-	if err != nil {
-		return nil, err
+	// An excluded regressions slot (ComputePlan) fits nothing.
+	var regressionResults []*types.RegressionResult
+	if p.compute.Regressions && len(req.Regressions) > 0 {
+		workRegressionFits.Add(int64(len(req.Regressions)))
+		if regressionResults, err = regression.FitBufferedWith(req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression); err != nil {
+			return nil, err
+		}
 	}
 
 	// Matrix slots fold the filtered record set in record order — the
@@ -1516,7 +1537,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var matrixResults []types.MatrixResult
 	var matrixComps []types.MatrixComponents
 	if len(req.Groups) > 0 {
-		matrixResults, matrixComps, err = groupedMatrices.finalize(groupKeys, !p.disableComponents)
+		matrixResults, matrixComps, err = groupedMatrices.finalize(groupKeys)
 		if err != nil {
 			return nil, err
 		}
@@ -1528,7 +1549,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		if err := foldMatrixRecords(matrixSlots, filtered); err != nil {
 			return nil, err
 		}
-		matrixResults, matrixComps, err = finalizeMatrixSlots(matrixSlots, !p.disableComponents)
+		matrixResults, matrixComps, err = finalizeMatrixSlots(matrixSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -1546,13 +1567,13 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		Matrices:    matrixResults,
 	}
 
-	// Components emission block — gated by the processor's
-	// disableComponents flag (see attachAggregationComponents for the
+	// Components emission block — one gate per sub-part off the
+	// processor's ComputePlan (see attachAggregationComponents for the
 	// full opt-out contract). aggregateWithComponents above already
-	// received !p.disableComponents as its collectComponents argument,
-	// so aggComponents is nil when this gate trips and the build cost
-	// upstream was skipped too.
-	if !p.disableComponents {
+	// received p.compute.Aggs as its collectComponents argument, and
+	// processGrouped skipped the per-bucket and grouper builds its own
+	// sub-parts exclude, so the build cost upstream was skipped too.
+	if p.compute.Aggs {
 		// Attach per-slot AggregationComponents emitted by
 		// aggregateWithComponents. The ungrouped buffered exit and the
 		// streaming exits all flow through the same attach helper so the
@@ -1562,28 +1583,33 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		}
 
 		// Grouped: cohort-wide slot floors plus one groups[] entry per
-		// Data row, in the final (sorted) Data order. Kept apart from
-		// aggComponents so the RunComponents null_records rule below is
-		// unchanged.
+		// Data row, in the final (sorted) Data order (groups[] only when
+		// the plan computes Groups). Kept apart from aggComponents so the
+		// RunComponents null_records rule below is unchanged.
 		if len(req.Groups) > 0 && len(req.Aggregations) > 0 {
-			grouped, err := GroupedAggregationComponents(slotTotalComponents(req.Aggregations, filtered), bucketAggComponents, groupKeys)
-			if err != nil {
-				return nil, err
+			grouped := slotTotalComponents(req.Aggregations, filtered)
+			if p.compute.Groups {
+				var err error
+				if grouped, err = GroupedAggregationComponents(grouped, bucketAggComponents, groupKeys); err != nil {
+					return nil, err
+				}
 			}
 			for _, entry := range grouped {
 				attachAggregationComponents(resp, entry)
 			}
 		}
+	}
 
-		// Attach per-slot GrouperComponents emitted by
-		// processGrouped. The ungrouped path leaves grpComponents nil so
-		// nothing is appended; the grouped exit always appends exactly
-		// one entry per Request.Groups slot (the single-grouper limit
-		// matches processGrouped today).
-		for _, entry := range grpComponents {
-			attachGrouperComponents(resp, entry)
-		}
+	// Attach per-slot GrouperComponents emitted by processGrouped (nil
+	// when the plan skips them). The ungrouped path leaves grpComponents
+	// nil so nothing is appended; the grouped exit appends exactly one
+	// entry per Request.Groups slot (the single-grouper limit matches
+	// processGrouped today).
+	for _, entry := range grpComponents {
+		attachGrouperComponents(resp, entry)
+	}
 
+	if p.compute.Filterers {
 		// Attach per-slot FiltererComponents. The buffered
 		// applyFiltersWithCounters returned one counter triple per
 		// declared filterer slot; build + attach mirrors the streaming
@@ -1592,23 +1618,31 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		// filterCounters nil so the omitempty wire shape stays
 		// byte-identical.
 		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
+	}
 
+	if p.compute.Run {
 		// Emit RunComponents — typed cohort-level counters.
 		// NullRecords resolution: the FIRST aggregator's nNull from
 		// aggComponents when the ungrouped exit computed it (the per-field
-		// floor cache); otherwise a scan of the post-filter records for
-		// nulls on the primary field (first aggregator's Field, else the
-		// grouper's) — the rule every streaming exit applies. A grouped
-		// run emits no aggComponents, and this used to fall back to the
-		// grouper's NNull instead: a different quantity (it also counts
-		// include rejections, and is about the GROUPER field), so a
-		// grouped request reported a different null_records on the
-		// buffered path than on the streaming one. The buffered path has
-		// no shard concept (the service stamps ShardCount on an archive).
+		// floor cache) — or, when the plan skipped the aggregation
+		// components, the same FieldPresent floor recounted for that one
+		// field, so the figure never depends on `return`; otherwise a scan
+		// of the post-filter records for nulls on the primary field (first
+		// aggregator's Field, else the grouper's) — the rule every
+		// streaming exit applies. A grouped run emits no aggComponents,
+		// and this used to fall back to the grouper's NNull instead: a
+		// different quantity (it also counts include rejections, and is
+		// about the GROUPER field), so a grouped request reported a
+		// different null_records on the buffered path than on the
+		// streaming one. The buffered path has no shard concept (the
+		// service stamps ShardCount on an archive).
 		var nullRecords int64
-		if len(aggComponents) > 0 {
+		switch {
+		case len(aggComponents) > 0:
 			nullRecords = int64(aggComponents[0].NNull)
-		} else {
+		case len(req.Groups) == 0 && len(req.Aggregations) > 0:
+			nullRecords = countAbsentBuffered(filtered, req.Aggregations[0].Field)
+		default:
 			nullRecords = countNullsBuffered(filtered, primaryNullFieldName(req))
 		}
 		attachRunComponents(resp, RunCountersInput{
@@ -1616,10 +1650,11 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			FilteredRecords: int64(len(filtered)),
 			NullRecords:     nullRecords,
 		})
-
-		// One MatrixComponents entry per Response.Matrices result.
-		attachMatrixComponents(resp, matrixComps)
 	}
+
+	// One MatrixComponents entry per Response.Matrices result (nil when
+	// the plan skips them).
+	attachMatrixComponents(resp, matrixComps)
 
 	// SERIES-host overlay hook. Wraps the finalized per-group
 	// Response.Data as a SeriesHostView and dispatches each
@@ -1631,7 +1666,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// processRecords (Service.Process dispatches them to
 	// processCrosstab), so the SERIES hook never collides with the
 	// MATRIX hook in internal/processing/crosstab.go.
-	if err := applyOverlaysSeriesToResponse(req, resp, p.exts); err != nil {
+	if err := applyOverlaysSeriesToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
 
@@ -1827,7 +1862,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 	// ungrouped exit uses, so a bucket's figures are the ones an
 	// ungrouped run over its records reports. Skipped (nil) when
 	// components are disabled — built behind the gate, not discarded.
-	collect := !p.disableComponents && len(req.Aggregations) > 0
+	collect := p.compute.Groups && len(req.Aggregations) > 0
 	var bucketComps map[string][]types.AggregationComponents
 	if collect {
 		bucketComps = make(map[string][]types.AggregationComponents, len(keys))
@@ -1864,9 +1899,9 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 	// Skip the build entirely when components emission is disabled —
 	// MetaGrouper.Components is non-trivial work and the caller's gate
 	// drops the slice on the floor anyway. processRecords passes the
-	// returned slice through its own disableComponents gate.
-	if p.disableComponents {
-		return data, nil, nil, keys, nil
+	// returned slice through its own gate.
+	if !p.compute.Groupers {
+		return data, nil, bucketComps, keys, nil
 	}
 	entry, gerr := buildGrouperComponents(grouper, grp, groups, len(records))
 	if gerr != nil {
@@ -1890,7 +1925,7 @@ func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map
 //
 // Pass collectComponents=true on the ungrouped buffered exit and per
 // bucket on the grouped buffered exit (processGrouped), each gated on
-// the processor's disableComponents flag.
+// the processor's ComputePlan.
 func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records []*Record, collectComponents bool) (map[string]any, []types.AggregationComponents, error) {
 	if len(aggs) == 0 {
 		return nil, nil, nil
@@ -1955,6 +1990,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 				}
 				row[label] = out
 				if collectComponents {
+					workAggComponentBuilds.Add(1)
 					fl := floorFor(agg.Field)
 					components = append(components, types.AggregationComponents{
 						Label: agg.Label,
@@ -2094,6 +2130,7 @@ func dispatchAggregatorCellResult(agg any, scalar float64) (any, error) {
 // path) and OnlineAggregator (streaming path) instances — the concrete
 // type satisfies both interfaces when it implements MetaAggregator.
 func buildAggregationComponents(agg any, slot *types.Aggregation, n, nNull int) (types.AggregationComponents, error) {
+	workAggComponentBuilds.Add(1)
 	entry := types.AggregationComponents{
 		N:     n,
 		NNull: nNull,
@@ -2120,7 +2157,7 @@ func buildAggregationComponents(agg any, slot *types.Aggregation, n, nNull int) 
 // marshals to a no-op when the slice ends up empty.
 //
 // Callers MUST guard the build+attach call sequence with a check on
-// the processor's disableComponents flag — the guard sits at the
+// the processor's ComputePlan — the guard sits at the
 // per-execution-path emission block so the upstream
 // MetaAggregator.Components / build work is skipped too, not built
 // then discarded.
@@ -2151,6 +2188,7 @@ func attachAggregationComponents(resp *types.Response, entry types.AggregationCo
 // on the streaming path), so the simple subtraction stays correct for
 // the single-key buffered grouped exit.
 func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[string][]*Record, totalFiltered int) (types.GrouperComponents, error) {
+	workGrouperComponentBuilds.Add(1)
 	totalN := 0
 	for _, bucket := range groups {
 		totalN += len(bucket)
@@ -2185,6 +2223,7 @@ func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[strin
 // map — so an extension grouper (no buckets payload, or no
 // MetaGrouper at all) reports the same floor on either path.
 func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFiltered int, assignments int64) (types.GrouperComponents, error) {
+	workGrouperComponentBuilds.Add(1)
 	entry := types.GrouperComponents{
 		Field: slot.Field,
 	}
@@ -2227,7 +2266,7 @@ func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFilter
 // to a no-op when the slice ends up empty.
 //
 // Callers MUST guard the build+attach call sequence with a check on
-// the processor's disableComponents flag; see attachAggregationComponents
+// the processor's ComputePlan; see attachAggregationComponents
 // for the full opt-out contract.
 func attachGrouperComponents(resp *types.Response, entry types.GrouperComponents) {
 	if resp.Components == nil {

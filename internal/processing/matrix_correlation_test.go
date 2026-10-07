@@ -25,7 +25,7 @@ func TestMatrixCorrelation_ZeroWeightRowsCountTowardN(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			wt := types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: kind})
 			req := &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"x", "y"}, Weight: wt}}}
-			slots, err := buildMatrixSlotsFor(req, schema, nil)
+			slots, err := buildMatrixSlotsFor(req, schema, nil, FullComputePlan())
 			if err != nil || len(slots) != 1 {
 				t.Fatalf("buildMatrixSlotsFor: %d slots, %v", len(slots), err)
 			}
@@ -72,7 +72,7 @@ func TestMatrixCorrelation_ZeroWeightRowsCountTowardN(t *testing.T) {
 			if got, want := cm.N(), pn+int64(zero); got != want {
 				t.Errorf("mat.n = %d, want pearson.n %d + zero-weight rows %d = %d", got, pn, zero, want)
 			}
-			mres, _, err := slots[0].result(false)
+			mres, _, err := slots[0].result()
 			if err != nil {
 				t.Fatalf("result: %v", err)
 			}

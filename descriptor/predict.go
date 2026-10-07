@@ -255,6 +255,47 @@ type ReturnPlan struct {
 	// Digest identifies the resolved selection ("rp1:" + sha256 hex);
 	// the preset name does not enter it.
 	Digest string `json:"digest"`
+	// Sizes estimates each top-level Response section the request
+	// produces, unshaped and under this plan, in Response key order. A
+	// section whose size depends on data predict cannot see (a grouper
+	// with data-dependent keys, a join's column set, a single file's
+	// row-level output with no record count) is omitted; a section the
+	// request does not produce is omitted. Guidance only — never a
+	// byte-accurate figure.
+	Sizes []ReturnSectionSize `json:"sizes,omitempty"`
+	// UnresolvedIncludes lists the Open include paths (through a map key
+	// or an open value) predict cannot resolve without data: at runtime
+	// each may match nothing, which a buffered run reports as
+	// PULSE_RETURN_PATH_UNMATCHED and a stream never reports. A
+	// `data[*].<column>` include predict can match against the
+	// request's known output columns is resolved and not listed.
+	// Omitted when none.
+	UnresolvedIncludes []string `json:"unresolved_includes,omitempty"`
+}
+
+// ReturnSectionSize is the size estimate of one top-level Response
+// section (`data`, `metadata`, `tests`, `post_tests`, `regressions`,
+// `matrices`, `crosstab`, `overlays`, `components`): rows or cells
+// times a bytes-per-value model of its compact JSON form.
+type ReturnSectionSize struct {
+	// Section is the top-level Response key.
+	Section string `json:"section"`
+	// FullBytes estimates the section's wire bytes without the
+	// selection.
+	FullBytes int64 `json:"full_bytes"`
+	// ShapedBytes estimates the section's wire bytes under the plan —
+	// the same model with every node the plan drops removed; 0 when the
+	// plan excludes the section. Never above FullBytes.
+	ShapedBytes int64 `json:"shaped_bytes"`
+	// Basis says how the section's row / cell count was derived:
+	// "exact" (fixed by the request and schema — an ungrouped
+	// aggregation's one row, an ungrouped matrix), "upper_bound" (a
+	// schema bound the run never exceeds — grouper dictionary sizes
+	// clamped to the record count, crosstab axis dictionaries, the
+	// record count of a row-level output) or "heuristic" (a typical-size
+	// guess — test details, regression terms, overlay payloads,
+	// component operator maps, metadata).
+	Basis string `json:"basis"`
 }
 
 // MatrixPredict is the per-spec predict surface for one entry of

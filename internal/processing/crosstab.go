@@ -527,7 +527,16 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// half is empty and the cell's payload is the floor alone. Empty
 	// cells (no bucket) emit nil — preserved by the nil sentinel
 	// populateCrosstabComponents writes when no entry exists for (r, c).
-	cellComponents := make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
+	//
+	// Built only when the ComputePlan computes components.crosstab (the
+	// `return` selection and the DisableComponents gate): a nil map
+	// skips every per-cell and per-margin MetaAggregator.Components()
+	// call below, not merely their emission.
+	buildComps := p.compute.Crosstab
+	var cellComponents map[crosstabCellKey]map[string]any
+	if buildComps {
+		cellComponents = make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
+	}
 
 	for _, rkey := range rowPart.Keys {
 		rowRecs := rowPart.Records[rkey]
@@ -550,12 +559,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			if err != nil {
 				return nil, err
 			}
-			compMap, err := buildCellComponentMap(instance, n, nNull)
-			if err != nil {
-				return nil, err
+			if buildComps {
+				compMap, err := buildCellComponentMap(instance, n, nNull)
+				if err != nil {
+					return nil, err
+				}
+				val.weight.stampMap(compMap)
+				cellComponents[ck] = compMap
 			}
-			val.weight.stampMap(compMap)
-			cellComponents[ck] = compMap
 			if !val.present {
 				continue
 			}
@@ -570,8 +581,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// buildCellComponentMap which merges the universal floor {n, n_null}
 	// with the cell aggregator's MetaAggregator.Components() output for
 	// the row-margin / column-margin / grand-total components emission.
-	// Component maps are tracked unconditionally when the margin slot is
-	// computed (NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin),
+	// Component maps are tracked whenever the plan computes
+	// components.crosstab and the margin slot is computed
+	// (NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin),
 	// but only flow to Response.Components when the corresponding
 	// display flag is set — mirroring the MatrixPayload.RowMargins /
 	// ColumnMargins / GrandTotal emission rule (computed for
@@ -584,7 +596,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		rowMargins = make(map[string]any, len(rowPart.Keys))
 		rowMarginPresent = make(map[string]bool, len(rowPart.Keys))
 		rowMarginCounts = make(map[string]int, len(rowPart.Keys))
-		rowMarginComponents = make(map[string]map[string]any, len(rowPart.Keys))
+		if buildComps {
+			rowMarginComponents = make(map[string]map[string]any, len(rowPart.Keys))
+		}
 		for _, rkey := range rowPart.Keys {
 			bucket := rowPart.Records[rkey]
 			if len(bucket) == 0 {
@@ -595,12 +609,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			rowMarginCounts[rkey] = n + nNull
-			compMap, err := buildCellComponentMap(instance, n, nNull)
-			if err != nil {
-				return nil, err
+			if buildComps {
+				compMap, err := buildCellComponentMap(instance, n, nNull)
+				if err != nil {
+					return nil, err
+				}
+				val.weight.stampMap(compMap)
+				rowMarginComponents[rkey] = compMap
 			}
-			val.weight.stampMap(compMap)
-			rowMarginComponents[rkey] = compMap
 			if !val.present {
 				continue
 			}
@@ -617,7 +633,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		colMargins = make(map[string]any, len(colPart.Keys))
 		colMarginPresent = make(map[string]bool, len(colPart.Keys))
 		colMarginCounts = make(map[string]int, len(colPart.Keys))
-		colMarginComponents = make(map[string]map[string]any, len(colPart.Keys))
+		if buildComps {
+			colMarginComponents = make(map[string]map[string]any, len(colPart.Keys))
+		}
 		for _, ckey := range colPart.Keys {
 			bucket := colPart.Records[ckey]
 			if len(bucket) == 0 {
@@ -628,12 +646,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			colMarginCounts[ckey] = n + nNull
-			compMap, err := buildCellComponentMap(instance, n, nNull)
-			if err != nil {
-				return nil, err
+			if buildComps {
+				compMap, err := buildCellComponentMap(instance, n, nNull)
+				if err != nil {
+					return nil, err
+				}
+				val.weight.stampMap(compMap)
+				colMarginComponents[ckey] = compMap
 			}
-			val.weight.stampMap(compMap)
-			colMarginComponents[ckey] = compMap
 			if !val.present {
 				continue
 			}
@@ -653,12 +673,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			grandMarginCount = n + nNull
-			compMap, err := buildCellComponentMap(instance, n, nNull)
-			if err != nil {
-				return nil, err
+			if buildComps {
+				compMap, err := buildCellComponentMap(instance, n, nNull)
+				if err != nil {
+					return nil, err
+				}
+				val.weight.stampMap(compMap)
+				grandMarginComponents = compMap
 			}
-			val.weight.stampMap(compMap)
-			grandMarginComponents = compMap
 			if val.present {
 				grandMargin = val.value
 				grandPresent = true
@@ -684,12 +706,15 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// path normalises its live accumulators into the same shape.
 	//
 	// Computed HERE rather than inside that block, i.e. OUTSIDE the
-	// disableComponents gate, because this call is also what refuses an
+	// components gate, because this call is also what refuses an
 	// auxiliary naming an operator no registry knows — which the fused
 	// arm refuses at construction, unconditionally. Moving it inside the
 	// gate would make that refusal depend on whether components happened
 	// to be enabled
-	// (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused).
+	// (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused). The
+	// ACCUMULATION past that refusal does ride the plan:
+	// computeAuxMargins returns nil without evaluating a figure when
+	// ComputePlan.AuxMargins is off.
 	auxMargins, err := p.computeAuxMargins(spec, filtered, rowPart, colPart)
 	if err != nil {
 		return nil, err
@@ -886,7 +911,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			}
 		}
 	}
-	testResults, err := finalizeRowTests(rowTests)
+	testResults, err := finalizeRowTests(rowTests, len(req.Tests))
 	if err != nil {
 		return nil, err
 	}
@@ -954,10 +979,10 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		grandMarginComponentsSlot = grandMarginComponents
 	}
 	// Components emission block — gated by the processor's
-	// disableComponents flag. The axis grouper instantiation +
+	// ComputePlan (components.crosstab). The axis grouper instantiation +
 	// MetaGrouper.Components walk is expensive on wide cohorts, so the
 	// gate skips that work entirely rather than building then discarding.
-	if !p.disableComponents {
+	if p.compute.Crosstab {
 		// Per-axis grouper components for the row + column axes. Each
 		// axis grouper is instantiated fresh and exercised against the full
 		// filtered set so MetaGrouper.Components() reflects the cohort-wide
@@ -1022,7 +1047,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//     FusedCrosstabState.Finalize returns, so an overlay-carrying
 	//     crosstab no longer forces the buffered path and both paths
 	//     emit identical Response.Overlays / Response.Warnings.
-	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
+	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
 
@@ -1062,8 +1087,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // On unknown overlay kind, applyOverlays returns a CodedError whose own
 // Code is the canonical errors.PULSE_OVERLAY_KIND_UNKNOWN — every overlay
 // fault carries its real code so `pulse errors lookup` resolves it.
-func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry) error {
-	if req == nil || len(req.Overlays) == 0 {
+//
+// compute is the run's ComputePlan: a layer it skips (ComputesOverlay)
+// runs no handler and raises no refusal — the slab-partition gate
+// included — and no layer computed is the overlay-free exit.
+func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry, compute ComputePlan) error {
+	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
 	}
 	// Distinct-key slab partition gate — the RUNTIME twin of the predict
@@ -1075,7 +1104,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	// funnel through here. It runs BEFORE the MATRIX-payload guard below
 	// so a shape=long host refuses identically to the way predict does —
 	// the refusal is a property of the request, not of the payload.
-	if err := checkPairwiseSlabPartition(req, exts); err != nil {
+	if err := checkPairwiseSlabPartition(req, exts, compute.overlayKeep()); err != nil {
 		return err
 	}
 	if resp == nil || resp.Crosstab == nil || resp.Crosstab.Matrix == nil {
@@ -1109,7 +1138,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	// builtins, etc.) are reachable from OVERLAY_FORMULA expressions.
 	// Non-FORMULA kinds ignore the registry — their handlers continue
 	// to use the (spec, host) signature unchanged.
-	layers, warnings, err := ApplyOverlaysWithExtensions(req.Overlays, host, exts)
+	layers, warnings, err := applyOverlaysPlanned(req.Overlays, host, exts, compute.overlayKeep())
 	if err != nil {
 		return err
 	}
@@ -1146,11 +1175,16 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 // internal/descriptor.ExtensionsSnapshot instead — different route, one
 // resolution order, because both call
 // types.CheckPairwiseSlabPartitionWith.
-func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry) error {
+//
+// keep (nil: every spec) limits the gate to the layers the run folds.
+func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry, keep func(int) bool) error {
 	if req == nil || req.Crosstab == nil {
 		return nil
 	}
 	for i := range req.Overlays {
+		if keep != nil && !keep(i) {
+			continue
+		}
 		spec := &req.Overlays[i]
 		if !types.IsPairwiseOverlayKind(exts.overlayRoute(spec.Kind)) {
 			continue
@@ -1728,6 +1762,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 // emission returns one — same dispatch contract as
 // buildAggregationComponents in the ungrouped path.
 func buildCellComponentMap(instance any, n, nNull int) (map[string]any, error) {
+	workCrosstabComponentMaps.Add(1)
 	var operator map[string]any
 	if meta, ok := instance.(MetaAggregator); ok {
 		op, err := meta.Components()

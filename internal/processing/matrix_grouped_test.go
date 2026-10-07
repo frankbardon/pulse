@@ -23,7 +23,7 @@ func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
 		Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"x", "y"}}},
 	}
 	build := func() *GroupedMatrices {
-		g, err := BuildGroupedMatrices(req, schema, nil)
+		g, err := BuildGroupedMatrices(req, schema, nil, FullComputePlan())
 		if err != nil || g == nil {
 			t.Fatalf("BuildGroupedMatrices = %v, %v", g, err)
 		}
@@ -58,7 +58,7 @@ func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
 		t.Errorf("merged bucket thin holds %d blocks, want 1", n)
 	}
 
-	res, comps, err := a.finalize([]string{"wide", "thin"}, true)
+	res, comps, err := a.finalize([]string{"wide", "thin"})
 	if err != nil {
 		t.Fatalf("finalize: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
 		t.Fatalf("finalize: %d results, components %+v; want 2 with n 3 and 1", len(res), comps)
 	}
 
-	if g, err := BuildGroupedMatrices(&types.Request{Matrices: req.Matrices}, schema, nil); g != nil || err != nil {
+	if g, err := BuildGroupedMatrices(&types.Request{Matrices: req.Matrices}, schema, nil, FullComputePlan()); g != nil || err != nil {
 		t.Errorf("ungrouped request built grouped matrix state %v, %v", g, err)
 	}
 }

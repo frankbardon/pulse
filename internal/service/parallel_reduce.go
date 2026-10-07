@@ -79,6 +79,9 @@ func (s *Service) reduceParallelBuffered(
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"reduceParallelBuffered: nil decode context")
 	}
+	// The run's ComputePlan — resolved once by Service.process; this arm
+	// bypasses newProcessor, so it reads the plan itself.
+	compute := s.computePlanFor(ctx, req)
 	if workers < 1 {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"reduceParallelBuffered: workers must be >= 1")
@@ -162,7 +165,7 @@ func (s *Service) reduceParallelBuffered(
 
 		out := newShardPartial(req, specs)
 		if buildErr == nil {
-			buildErr = out.buildMatrices(req, schema, s.extensions, grouperInst != nil)
+			buildErr = out.buildMatrices(req, schema, s.extensions, grouperInst != nil, compute)
 		}
 		if buildErr == nil && grouperInst == nil {
 			ungroupedAggs = make([]processing.OnlineAggregator, len(specs))
@@ -185,8 +188,8 @@ func (s *Service) reduceParallelBuffered(
 			}
 		} else if buildErr == nil {
 			out.groups = make(map[string][]processing.OnlineAggregator)
-			if !s.effectiveDisableComponents(req) && len(req.Aggregations) > 0 {
-				out.groupFloors = make(map[string][]processing.SlotFloor)
+			if compute.Groups && len(req.Aggregations) > 0 {
+				out.groupFloors = processing.NewGroupFloors()
 			}
 			out.grouper = grouperInst
 			out.keyer, buildErr = processing.NewGroupKeyer(grouperInst)
@@ -283,7 +286,7 @@ func (s *Service) reduceParallelBuffered(
 		if partials[0] == nil {
 			partials[0] = &shardPartial{}
 		}
-		resp, err := finalizeMergedPartial(req, schema, partials[0], 0, s.effectiveDisableComponents(req), s.extensions)
+		resp, err := finalizeMergedPartial(req, schema, partials[0], 0, compute, s.extensions)
 		if err != nil {
 			return nil, err
 		}
@@ -303,7 +306,7 @@ func (s *Service) reduceParallelBuffered(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged, 0, s.effectiveDisableComponents(req), s.extensions)
+	resp, err := finalizeMergedPartial(req, schema, merged, 0, compute, s.extensions)
 	if err != nil {
 		return nil, err
 	}

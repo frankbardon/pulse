@@ -136,7 +136,7 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	// disabled — the floor is the only place the slot's weight shows
 	// (weighting-inferential E3-S3). Same rule, same slots as
 	// ValidateComposeWithOptions.
-	if err := descx.ComposeOverlayHiddenFloorRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance, s.effectiveDisableComponents); err != nil {
+	if err := descx.ComposeOverlayHiddenFloorRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance, s.componentsGateClosed); err != nil {
 		return nil, nil, err
 	}
 	// The requests-aware entry point, not the bare one: the panel's

@@ -146,7 +146,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.effectiveDisableComponents(req), s.extensions)
+	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.computePlanFor(ctx, req), s.extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +328,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	primaryNullField := primaryNullFieldFor(req)
 
 	out := newShardPartial(req, specs)
-	if err := out.buildMatrices(req, schema, s.extensions, grouper != nil); err != nil {
+	if err := out.buildMatrices(req, schema, s.extensions, grouper != nil, s.computePlanFor(ctx, req)); err != nil {
 		return nil, err
 	}
 	var aggsUngrouped []processing.OnlineAggregator
@@ -349,8 +349,8 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		out.aggs = aggsUngrouped
 	} else {
 		out.groups = make(map[string][]processing.OnlineAggregator)
-		if !s.effectiveDisableComponents(req) && len(req.Aggregations) > 0 {
-			out.groupFloors = make(map[string][]processing.SlotFloor)
+		if s.computePlanFor(ctx, req).Groups && len(req.Aggregations) > 0 {
+			out.groupFloors = processing.NewGroupFloors()
 		}
 		out.grouper = grouper
 		if out.keyer, err = processing.NewGroupKeyer(grouper); err != nil {
@@ -454,14 +454,17 @@ func newShardPartial(req *types.Request, specs []aggSpec) *shardPartial {
 
 // buildMatrices builds the partition's Request.Matrices state: one slot
 // set for an ungrouped request (mats), per-bucket state for a grouped
-// one (groupedMats). Shared by both parallel reducers.
-func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool) error {
+// one (groupedMats). Shared by both parallel reducers. compute is the
+// run's plan: a plan that accumulates no matrix (the `matrices` slot
+// and components.matrices both excluded) builds none, so no partition
+// folds a record into one.
+func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool, compute processing.ComputePlan) error {
 	var err error
 	if grouped {
-		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts)
+		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts, compute)
 		return err
 	}
-	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts)
+	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts, compute)
 	return err
 }
 
@@ -742,16 +745,16 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // single-file cohorts so the omitempty wire shape is byte-identical
 // against the single-cohort baseline.
 //
-// disableComponents mirrors the engine-level
-// pulse.Options.DisableComponents (with per-request override) — when
-// true, attachMergedRunComponents is a no-op and Response.Components
-// stays nil so the merged-shard wire form is byte-identical to the
+// compute is the run's processing.ComputePlan (Service.computePlanFor):
+// each Components sub-part it drops is never built — with every
+// sub-part off (the DisableComponents opt-out) Response.Components stays
+// nil, so the merged-shard wire form is byte-identical to the
 // pre-Components baseline.
-func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, disableComponents bool, exts *processing.ExtensionRegistry) (*types.Response, error) {
+func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, compute processing.ComputePlan, exts *processing.ExtensionRegistry) (*types.Response, error) {
 	_ = schema
 	// The ungrouped arms' matrices (nil on a grouped partial, whose
 	// per-bucket matrices render in the grouped tail).
-	matrices, matrixComps, err := merged.mats.Finalize(!disableComponents)
+	matrices, matrixComps, err := merged.mats.Finalize()
 	if err != nil {
 		return nil, err
 	}
@@ -790,11 +793,11 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		if len(merged.aggs) > 0 {
 			resp.Data = []map[string]any{row}
 		}
-		if err := attachMergedAggregationComponents(resp, req, merged, disableComponents); err != nil {
+		if err := attachMergedAggregationComponents(resp, req, merged, compute.Aggs); err != nil {
 			return nil, err
 		}
-		attachMergedFiltererComponents(resp, req, merged, disableComponents)
-		attachMergedRunComponents(resp, merged, shardCount, disableComponents)
+		attachMergedFiltererComponents(resp, req, merged, compute.Filterers)
+		attachMergedRunComponents(resp, merged, shardCount, compute.Run)
 		processing.AttachMatrixComponents(resp, matrixComps)
 		return resp, nil
 	}
@@ -813,29 +816,32 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		// per-bucket groupFloors), as do the per-bucket matrices,
 		// rendered over the same ordered keys as the rows.
 		tail := processing.GroupedTail{
-			Group:             req.Groups[0],
-			Grouper:           merged.grouper,
-			Buckets:           merged.groups,
-			TotalRows:         merged.totalRows,
-			FilteredRows:      merged.filteredRows,
-			NullRecords:       merged.nullRecords,
-			Assignments:       merged.assignments,
-			FilterCounters:    merged.filterCounters,
-			ShardCount:        shardCount,
-			Matrices:          merged.groupedMats,
-			DisableComponents: disableComponents,
-			Extensions:        exts,
+			Group:          req.Groups[0],
+			Grouper:        merged.grouper,
+			Buckets:        merged.groups,
+			TotalRows:      merged.totalRows,
+			FilteredRows:   merged.filteredRows,
+			NullRecords:    merged.nullRecords,
+			Assignments:    merged.assignments,
+			FilterCounters: merged.filterCounters,
+			ShardCount:     shardCount,
+			Matrices:       merged.groupedMats,
+			Compute:        compute,
+			Extensions:     exts,
 		}
-		if !disableComponents {
-			tail.SlotTotals, tail.BucketFloors = merged.aggFloor, merged.groupFloors
+		if compute.Aggs {
+			tail.SlotTotals = merged.aggFloor
+		}
+		if compute.Groups {
+			tail.BucketFloors = merged.groupFloors
 		}
 		return processing.FinalizeGroupedStream(req, tail)
 	}
 	// Reached only by an EMPTY partial (no worker published one): it
 	// carries no aggregator, grouper or matrix state, so matrices is nil
 	// here and only the counters render.
-	attachMergedFiltererComponents(resp, req, merged, disableComponents)
-	attachMergedRunComponents(resp, merged, shardCount, disableComponents)
+	attachMergedFiltererComponents(resp, req, merged, compute.Filterers)
+	attachMergedRunComponents(resp, merged, shardCount, compute.Run)
 	processing.AttachMatrixComponents(resp, matrixComps)
 	return resp, nil
 }
@@ -859,10 +865,10 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 // ComponentSchema classifies its keys "none" is refused with
 // PULSE_EXTENSION_MERGEABLE_MISMATCH.
 //
-// No-op when disableComponents is true, so the build cost is skipped
-// rather than incurred and discarded.
-func attachMergedAggregationComponents(resp *types.Response, req *types.Request, merged *shardPartial, disableComponents bool) error {
-	if resp == nil || merged == nil || disableComponents || merged.aggs == nil {
+// No-op unless the plan computes the aggregation components (build),
+// so the build cost is skipped rather than incurred and discarded.
+func attachMergedAggregationComponents(resp *types.Response, req *types.Request, merged *shardPartial, build bool) error {
+	if resp == nil || merged == nil || !build || merged.aggs == nil {
 		return nil
 	}
 	for i, oa := range merged.aggs {
@@ -890,8 +896,8 @@ func attachMergedAggregationComponents(resp *types.Response, req *types.Request,
 // parallel arms and the serial paths cannot disagree on the shape.
 // An empty filter chain leaves the slice nil and the wire form
 // byte-identical.
-func attachMergedFiltererComponents(resp *types.Response, req *types.Request, merged *shardPartial, disableComponents bool) {
-	if resp == nil || merged == nil || disableComponents {
+func attachMergedFiltererComponents(resp *types.Response, req *types.Request, merged *shardPartial, build bool) {
+	if resp == nil || merged == nil || !build {
 		return
 	}
 	processing.AttachFiltererComponents(resp,
@@ -905,21 +911,18 @@ func attachMergedFiltererComponents(resp *types.Response, req *types.Request, me
 // typed cohort counters without reaching into the processing package's
 // unexported helper.
 //
-// No-op when disableComponents is true — the caller's gate (the
-// effective engine + per-request decision) suppresses Response.Components
-// entirely, so this helper leaves resp.Components at nil for
-// byte-identical wire output against the pre-Components baseline.
-func attachMergedRunComponents(resp *types.Response, merged *shardPartial, shardCount int, disableComponents bool) {
-	if resp == nil || merged == nil || disableComponents {
+// No-op unless the plan computes the run components (build) — with the
+// DisableComponents opt-out every sub-part is off, so resp.Components
+// stays nil for byte-identical wire output against the pre-Components
+// baseline.
+func attachMergedRunComponents(resp *types.Response, merged *shardPartial, shardCount int, build bool) {
+	if resp == nil || merged == nil || !build {
 		return
 	}
-	if resp.Components == nil {
-		resp.Components = &types.ResponseComponents{}
-	}
-	resp.Components.Run = &types.RunComponents{
+	processing.AttachRunComponents(resp, processing.RunCountersInput{
 		TotalRecords:    merged.totalRows,
 		FilteredRecords: merged.filteredRows,
 		NullRecords:     merged.nullRecords,
 		ShardCount:      shardCount,
-	}
+	})
 }

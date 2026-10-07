@@ -9,7 +9,7 @@ covers: [return, presets, include, exclude, precision, returned]
 
 # Response shaping (`return`)
 
-`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict resolves and validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, precision?, identity, digest}`).
+`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, precision?, identity, digest}`) plus `sizes` (per section `{section, full_bytes, shaped_bytes, basis}`, basis `exact` / `upper_bound` / `heuristic`; omitted when data-dependent) and `unresolved_includes`.
 
 ```json
 {"return": {"preset": "standard", "exclude": ["warnings"], "precision": 4}}
@@ -27,13 +27,13 @@ Presets (closed enum; the manifest `return_presets` lists each one's paths, alre
 
 ## Path grammar
 
-Paths use the Response JSON names at any depth: `.` between keys, `[*]` into every array element, a trailing `*` on a map-key segment as a prefix glob (`tests[*].details.effect_*`, `components.aggregations[*].groups`). `data[*].<column>` selects output columns; a column the request cannot produce is refused.
+Paths use the Response JSON names at any depth: `.` between keys, `[*]` into every array element, a trailing `*` on a map-key segment as a prefix glob (`tests[*].details.effect_*`). `data[*].<column>` selects output columns; a column the request cannot produce is refused.
 
 ## Errors
 
 - `PULSE_RETURN_INVALID` — unknown preset, precision outside 1–17, malformed path, naming `returned`, or a non-overlay path in a Compose-level block.
 - `PULSE_RETURN_PATH_UNKNOWN` — a path this instance's Response does not carry (a hidden feature's path counts).
-- `PULSE_RETURN_PATH_UNMATCHED` — WARNING, buffered runs only: an include through an open map matched nothing in the executed response. Never raised on streams.
+- `PULSE_RETURN_PATH_UNMATCHED` — WARNING, buffered runs only: an include through an open map matched nothing in the executed response. Never raised on streams; predict lists the includes that may go unmatched as `unresolved_includes`.
 
 ## Precision
 
@@ -47,14 +47,20 @@ An excluded part is ABSENT on the wire — never `null`, even a required key suc
 
 Instance default: `Options.DefaultReturn`, else the feature profile's `return`, else `full`. A request's `return` REPLACES the default entirely (include-only over a `standard` default gives an empty base) — blocks never merge.
 
+MCP tools default to `standard`: request `return` > host `pulse mcp --return` / `DefaultReturn` > instance default > `standard`. Send `"return": {"preset": "full"}` when you need components or everything.
+
 `disable_components` is shorthand: alone it only skips computing components (byte-identical, no marker). Combined with any `return` layer it adds `exclude: ["components"]`. An engine that disabled components stays disabled under a request `return`: the components are not computed and the block gains `exclude: ["components"]`. Only an explicit request `disable_components: false` re-opens them.
+
+## Excluded means not computed
+
+An excluded `components` part (aggregations incl. `groups`, groupers, filterers, run) is never computed — the run does less work, not just the wire. An excluded `matrices` slot is never accumulated (unless `components.matrices` is kept), and an excluded `auxiliary`, `scalars` or `vectors` is never built. An excluded overlay layer, test or post-test is never computed, unless a multiplicity family claims it; excluded regressions are never fitted. **Not computed means not validated:** an excluded part raises no refusal or warning (`PULSE_OVERLAY_COMPONENTS_REQUIRED`, `PULSE_TEST_*`, `PROCESSING_REGRESSION_*`) — predict stays the validator, so predict first. A kept overlay that reads components keeps them computed, still pruned from the wire. Kept figures never change, and the execution path is chosen from the full request.
 
 ## Surfaces
 
 - Process: shapes the one response.
 - Compose: each slot's `return` (else the instance default) shapes `responses[i]`; `ComposedRequest.return` shapes top-level overlays only (`overlays…` paths), `responses` stays whole.
 - Chain: each stage has its own `return`, applied AFTER the whole chain, so a stage excluding `data` still feeds the next stage; `final` follows the last stage.
-- Streaming: rows carry only selected columns at the requested precision; `returned` rides the terminal chunk only; excluding `data` emits no rows. Details: `streaming-and-watching`.
+- Streaming (CLI `--stream`, library iterator): rows carry only selected columns, `returned` rides the terminal chunk only, excluding `data` emits no rows; no `PULSE_RETURN_PATH_UNMATCHED` (predict `unresolved_includes` instead). MCP has no streaming. Precision is wire-only: `StreamChunk` values stay full float64. Details: `streaming-and-watching`.
 
 ## See
 

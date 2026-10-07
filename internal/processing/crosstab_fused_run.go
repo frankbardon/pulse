@@ -63,7 +63,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 	if err != nil {
 		return nil, err
 	}
-	state.disableComponents = p.disableComponents
+	state.setCompute(p.compute)
 	// Defensive: echo the static gate's exclusions so a stale dispatch
 	// shortcut that drifts past a newly added request slot fails fast
 	// here rather than producing a divergent fused result.
@@ -151,7 +151,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 	// Called here rather than inside Finalize because Finalize has
 	// neither the *types.Request nor the ExtensionRegistry the fold
 	// needs; RunCrosstabFused has both.
-	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
+	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {

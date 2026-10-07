@@ -77,6 +77,7 @@ func attachRunComponents(resp *types.Response, in RunCountersInput) {
 	if resp == nil {
 		return
 	}
+	workRunComponentBuilds.Add(1)
 	if resp.Components == nil {
 		resp.Components = &types.ResponseComponents{}
 	}
@@ -87,6 +88,12 @@ func attachRunComponents(resp *types.Response, in RunCountersInput) {
 		ShardCount:          in.ShardCount,
 		PartialCohortReason: in.PartialCohortReason,
 	}
+}
+
+// AttachRunComponents is attachRunComponents for the parallel
+// reducers, so every arm builds Components.Run through one helper.
+func AttachRunComponents(resp *types.Response, in RunCountersInput) {
+	attachRunComponents(resp, in)
 }
 
 // primaryNullFieldName returns the name of the field whose null count
@@ -109,6 +116,20 @@ func primaryNullFieldName(req *types.Request) string {
 		}
 	}
 	return ""
+}
+
+// countAbsentBuffered counts records whose named field has no value by
+// the aggregation-floor rule (FieldPresent): an ungrouped buffered run's
+// Run.NullRecords when the plan skipped the aggregation components that
+// carry the same figure.
+func countAbsentBuffered(records []*Record, field string) int64 {
+	var n int64
+	for _, r := range records {
+		if !FieldPresent(r, field) {
+			n++
+		}
+	}
+	return n
 }
 
 // countNullsBuffered counts records whose named field is null over the

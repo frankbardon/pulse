@@ -189,6 +189,21 @@ What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compos
 
 Disable binding entirely with `--bind-on-open=false`.
 
+## Lean responses by default
+
+`pulse_process`, `pulse_predict`, every `pulse_compose` slot and every
+`pulse_process_chain` stage shape a request WITHOUT its own `return`
+block by the `standard` preset — the primary result plus metadata,
+tests, crosstab and overlays, never `components` — and stamp
+`returned {preset: "standard", digest}`. Precedence: request `return` >
+host (`pulse mcp --return`, `gosdk.Config.DefaultReturn`,
+`mcpserve.Options.DefaultReturn`) > instance default
+(`pulse.Options.DefaultReturn`, else the feature profile's `return`) >
+`standard`. An agent that needs everything sends
+`"return": {"preset": "full"}`; an operator restores the pre-default
+output with `pulse mcp --return full`. The library default is
+unchanged (`full`). Contract: [Response shaping](../library/response-shaping.md).
+
 ## Configuration
 
 | Env var | Purpose | Default |

@@ -31,6 +31,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/facadebridge"
 	core "github.com/frankbardon/pulse/internal/mcp"
+	"github.com/frankbardon/pulse/types"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -68,6 +69,18 @@ type Config struct {
 	// into this field: either one skips the scan, and false here cannot
 	// turn a profile's true back off.
 	DisableCohortScan bool
+
+	// DefaultReturn is the `return` preset an MCP request (pulse_process,
+	// pulse_predict, every pulse_compose slot, every pulse_process_chain
+	// stage) WITHOUT its own `return` block is shaped by. The zero value
+	// defers to the instance default (pulse.Options.DefaultReturn, else
+	// the feature profile's `return`), else the built-in `standard`
+	// preset — so an MCP agent gets lean responses by default while the
+	// library default stays `full`. Set types.ReturnPresetFull to serve
+	// the unshaped output. A request's own block always wins, and an
+	// engine DisableComponents still keeps components off. Register
+	// refuses an unknown preset with PULSE_RETURN_INVALID.
+	DefaultReturn types.ReturnPreset
 }
 
 // coreConfig projects the adapter Config onto the SDK-free core Config consumed by
@@ -79,7 +92,7 @@ func (c Config) coreConfig() core.Config {
 	if version == "" {
 		version = pulse.Version()
 	}
-	return core.Config{Version: version}
+	return core.Config{Version: version, DefaultReturn: c.DefaultReturn}
 }
 
 // Register mounts the Pulse MCP surface onto the caller-supplied server:
@@ -89,8 +102,9 @@ func (c Config) coreConfig() core.Config {
 // enumeration whose feature the instance does not offer is never
 // registered, so it is indistinguishable from one that does not exist.
 // Without a feature profile the full surface is mounted.
-// It returns an error only if a sub-registration fails; today every step is
-// total, so a nil server or nil Pulse is the only failure mode.
+// It returns an error for a nil server, a nil Pulse, or a
+// cfg.DefaultReturn that is not a known preset (PULSE_RETURN_INVALID);
+// every registration step is otherwise total.
 //
 // The server's lifecycle is the caller's: Register never serves. After this
 // call returns, the caller drives srv.Run / srv.Connect with whatever transport
@@ -101,6 +115,10 @@ func Register(server *mcpsdk.Server, p *pulse.Pulse, cfg Config) error {
 	}
 	if p == nil {
 		return errNilPulse
+	}
+
+	if err := cfg.coreConfig().Validate(instanceOf(p)); err != nil {
+		return err
 	}
 
 	// A feature profile's behaviour.disable_cohort_scan ORs into the

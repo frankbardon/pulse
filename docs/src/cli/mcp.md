@@ -15,7 +15,7 @@ stdio streams, and shuts it down on session close.
 ## Synopsis
 
 ```
-pulse mcp [--data-dir PATH] [--feature-profile FILE] [--bind-on-open] [--no-cohort-scan]
+pulse mcp [--data-dir PATH] [--feature-profile FILE] [--return PRESET] [--bind-on-open] [--no-cohort-scan]
 ```
 
 The command reads stdin, writes MCP responses on stdout, and writes a
@@ -29,6 +29,7 @@ one-line startup notice (and any subsequent diagnostics) on stderr.
 | `--bind-on-open` | bool   | true | Register session-scoped JSON-schema-bound tool variants on successful `pulse_inspect` |
 | `--no-cohort-scan` | bool | false | Skip the startup walk that enumerates `.pulse` files as `pulse://` resources (env: `PULSE_MCP_NO_COHORT_SCAN`) |
 | `--feature-profile` | string | from `PULSE_FEATURE_PROFILE` env var | Feature profile JSON file — an OS path, not resolved under the data dir. An invalid profile fails startup |
+| `--return` | string | unset (instance / profile default, else `standard`) | `return` preset (`full`, `standard`, `minimal`) for a tool request without its own `return` block. An unknown preset fails startup (`PULSE_RETURN_INVALID`) |
 
 `--data-dir` is **required** in one of its two forms (env var or
 flag). The MCP server fails to start otherwise:
@@ -65,6 +66,26 @@ Embedders get the same effective view from
 `mcpserve.Describe(p, opts)`, which returns a `mcpserve.ServeInfo`
 (`CohortScan`, `FeatureProfileLoaded`, `FeatureProfile`). The library
 contract is [Feature Profiles](../library/feature-profiles.md).
+
+## --return
+
+MCP agents pay tokens for every key they receive, so the request-carrying
+tools (`pulse_process`, `pulse_predict`, every `pulse_compose` slot, every
+`pulse_process_chain` stage) shape a request WITHOUT its own `return` block
+by the `standard` preset: the primary result plus metadata, tests, crosstab
+and overlays, never `components`. The library default stays `full`.
+Precedence, highest first:
+
+1. the request's own `return` block (a slot's, a stage's);
+2. `--return` / `gosdk.Config.DefaultReturn` / `mcpserve.Options.DefaultReturn`;
+3. the instance default — `pulse.Options.DefaultReturn`, else the feature
+   profile's `return`;
+4. the built-in `standard`.
+
+`--return full` restores the unshaped (pre-default) output byte for byte.
+An engine that disables components keeps them off under any `return`;
+only a request `disable_components: false` re-opens them. The full contract
+is [Response shaping](../library/response-shaping.md).
 
 ## --bind-on-open
 

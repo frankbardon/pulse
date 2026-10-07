@@ -37,7 +37,7 @@ func (s *Service) processCrosstabFused(ctx context.Context, cohort *Cohort, path
 	// to deliver the win on wide cohorts.
 	s.applyCrosstabProjection(iter, req, cohort.Schema())
 
-	proc := s.newProcessor(cohort.Schema(), req)
+	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.RunCrosstabFused(ctx, req, iter)
 	if err != nil {
 		return nil, err

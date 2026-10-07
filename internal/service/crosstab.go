@@ -135,7 +135,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 
-	proc := s.newProcessor(cohort.Schema(), req)
+	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.RunCrosstab(ctx, req, records)
 	if err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 		return nil, err
 	}
 
-	proc := s.newProcessor(joinedSchema, req)
+	proc := s.newProcessor(ctx, joinedSchema, req)
 	resp, err := proc.RunCrosstab(ctx, s.zoned(&clone, zones), records)
 	if err != nil {
 		return nil, err

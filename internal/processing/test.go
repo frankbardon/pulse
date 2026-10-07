@@ -91,6 +91,9 @@ type rowTestEntry struct {
 	spec  *types.Test
 	test  RowTest
 	label string
+	// idx is the entry's position in Request.Tests (the ComputePlan
+	// may skip others; finalizeRowTests realigns by it).
+	idx int
 }
 
 // postTestEntry pairs a Test spec with its constructed PostTest instance
@@ -99,16 +102,23 @@ type postTestEntry struct {
 	spec  *types.Test
 	test  PostTest
 	label string
+	idx   int
 }
 
-// buildRowTests constructs RowTest instances for tier-1 tests. Returns
-// PULSE_TEST_UNKNOWN_TYPE if any TestType is not registered as a row test.
+// buildRowTests constructs RowTest instances for the tier-1 tests
+// (Request.Tests) the ComputePlan computes; a skipped one is never
+// constructed, so it folds nothing and raises nothing. Returns
+// PULSE_TEST_UNKNOWN_TYPE if any built TestType is not registered as a
+// row test.
 func (p *Processor) buildRowTests(tests []*types.Test) ([]rowTestEntry, error) {
 	if len(tests) == 0 {
 		return nil, nil
 	}
 	out := make([]rowTestEntry, 0, len(tests))
-	for _, t := range tests {
+	for i, t := range tests {
+		if !p.compute.ComputesTest(i) {
+			continue
+		}
 		factory, ok := p.exts.LookupRowTest(t.Type)
 		if !ok {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_UNKNOWN_TYPE,
@@ -119,19 +129,25 @@ func (p *Processor) buildRowTests(tests []*types.Test) ([]rowTestEntry, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, rowTestEntry{spec: t, test: inst, label: testLabel(t)})
+		workRowTestFolds.Add(1)
+		out = append(out, rowTestEntry{spec: t, test: inst, label: testLabel(t), idx: i})
 	}
 	return out, nil
 }
 
-// buildPostTests constructs PostTest instances for tier-2 tests. Returns
-// PULSE_TEST_UNKNOWN_TYPE if any TestType is not registered as a post test.
+// buildPostTests constructs PostTest instances for the tier-2 tests
+// (Request.PostTests) the ComputePlan computes. Returns
+// PULSE_TEST_UNKNOWN_TYPE if any built TestType is not registered as a
+// post test.
 func (p *Processor) buildPostTests(tests []*types.Test) ([]postTestEntry, error) {
 	if len(tests) == 0 {
 		return nil, nil
 	}
 	out := make([]postTestEntry, 0, len(tests))
-	for _, t := range tests {
+	for i, t := range tests {
+		if !p.compute.ComputesPostTest(i) {
+			continue
+		}
 		factory, ok := p.exts.LookupPostTest(t.Type)
 		if !ok {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_UNKNOWN_TYPE,
@@ -142,7 +158,7 @@ func (p *Processor) buildPostTests(tests []*types.Test) ([]postTestEntry, error)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, postTestEntry{spec: t, test: inst, label: testLabel(t)})
+		out = append(out, postTestEntry{spec: t, test: inst, label: testLabel(t), idx: i})
 	}
 	return out, nil
 }
@@ -175,8 +191,9 @@ func canRunRowTests(tests []*types.Test, exts *ExtensionRegistry) bool {
 // finalizeRowTests calls Finalize on every entry and collects the
 // TestResults in the same order as the request. Each entry's resolved
 // label is written onto its TestResult so callers can look results up by
-// caller-supplied alias.
-func finalizeRowTests(entries []rowTestEntry) ([]*types.TestResult, error) {
+// caller-supplied alias. n is len(Request.Tests): when the ComputePlan
+// skipped some entries the result holds nil at their positions.
+func finalizeRowTests(entries []rowTestEntry, n int) ([]*types.TestResult, error) {
 	if len(entries) == 0 {
 		return nil, nil
 	}
@@ -191,12 +208,33 @@ func finalizeRowTests(entries []rowTestEntry) ([]*types.TestResult, error) {
 		}
 		out = append(out, res)
 	}
-	return out, nil
+	idx := make([]int, len(entries))
+	for i, e := range entries {
+		idx[i] = e.idx
+	}
+	return realignTestResults(out, idx, n), nil
 }
 
-// runPostTests constructs the post-test instances and runs each one over
-// the materialized result row set. Returns nil when tests is empty so
-// the caller can leave Response.PostTests as the zero value.
+// realignTestResults places results (one per built entry, at request
+// positions idx) back at their request positions in an n-long slice,
+// nil where the ComputePlan skipped the entry. Every entry built is the
+// unplanned slice, returned as is.
+func realignTestResults(results []*types.TestResult, idx []int, n int) []*types.TestResult {
+	if len(results) == n {
+		return results
+	}
+	out := make([]*types.TestResult, n)
+	for i, r := range results {
+		out[idx[i]] = r
+	}
+	return out
+}
+
+// runPostTests constructs the post-test instances the ComputePlan
+// computes and runs each one over the materialized result row set.
+// Returns nil when none is built so the caller can leave
+// Response.PostTests as the zero value; a partially skipped slot holds
+// nil at the skipped positions.
 func (p *Processor) runPostTests(tests []*types.Test, rows []map[string]any) ([]*types.TestResult, error) {
 	entries, err := p.buildPostTests(tests)
 	if err != nil {
@@ -206,7 +244,9 @@ func (p *Processor) runPostTests(tests []*types.Test, rows []map[string]any) ([]
 		return nil, nil
 	}
 	out := make([]*types.TestResult, 0, len(entries))
+	idx := make([]int, 0, len(entries))
 	for _, e := range entries {
+		workPostTestRuns.Add(1)
 		res, err := e.test.Run(rows)
 		if err != nil {
 			return nil, err
@@ -215,6 +255,7 @@ func (p *Processor) runPostTests(tests []*types.Test, rows []map[string]any) ([]
 			res.Label = e.label
 		}
 		out = append(out, res)
+		idx = append(idx, e.idx)
 	}
-	return out, nil
+	return realignTestResults(out, idx, len(tests)), nil
 }

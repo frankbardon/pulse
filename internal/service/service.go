@@ -146,15 +146,6 @@ func (s *Service) DisableComponents() bool {
 	return s.disableComponents
 }
 
-// effectiveDisableComponents resolves the per-request override against
-// the engine default through the rule predict shares
-// (descx.EffectiveDisableComponents): Request.DisableComponents set ⇒
-// it wins (true forces off, false forces on); else inherit the engine
-// default. A request `return` block never re-opens an engine-off gate.
-func (s *Service) effectiveDisableComponents(req *types.Request) bool {
-	return descx.EffectiveDisableComponents(req, s.disableComponents)
-}
-
 // SetProjectBufferedFields enables buffered-decode field projection.
 // When enabled the streaming iterator computes the set of fields a
 // request actually reads (NeededFields) and skips map writes for
@@ -605,11 +596,16 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	}
 	// The `return` block resolves beside it (descx.ResolveReturn — the
 	// pass predict runs), so a bad block is refused before any record
-	// is read. The plan is APPLIED by the outermost facade, never here:
-	// Compose overlays and chain stages read the unshaped response.
-	if _, err := descx.ResolveReturn(req, s.instance); err != nil {
+	// is read. The selection is APPLIED by the outermost facade, never
+	// here: Compose overlays and chain stages read the unshaped
+	// response. What it lets the run SKIP compiles into the ComputePlan
+	// every arm below consults (compute_plan.go); dispatch still reads
+	// the original request.
+	retPlan, err := descx.ResolveReturn(req, s.instance)
+	if err != nil {
 		return nil, markLocated(err)
 	}
+	ctx = withComputePlan(ctx, s.resolveComputePlan(ctx, req, retPlan, plan))
 
 	resp, err := s.processDispatch(ctx, req)
 	if err != nil {
@@ -736,7 +732,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 
 	s.applyProjection(iter, req, cohort.Schema())
 
-	proc := s.newProcessor(cohort.Schema(), req)
+	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {
 		return nil, err
@@ -1051,9 +1047,13 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	}
 	// The Compose-level `return` (top-level overlays) resolves before
 	// any slot runs; each slot's own block resolves inside its Process.
-	if _, err := descx.ResolveComposeReturn(composed, s.instance); err != nil {
+	// What it lets the batch skip: the Compose-host overlays, unless a
+	// multiplicity family claims one (composeOverlaysComputed).
+	composeRet, err := descx.ResolveComposeReturn(composed, s.instance)
+	if err != nil {
 		return nil, err
 	}
+	foldOverlays := composeOverlaysComputed(composed, composeRet, multPlan)
 	ctx = withinCompose(ctx)
 
 	requests, err := applyComposeLabelDefaults(composed)
@@ -1061,10 +1061,18 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	*slots = requests
+	// A Compose overlay reads the slots it names after they run, so a
+	// named slot's `return` may not skip its Components; an unnamed
+	// slot skips what its selection excludes. A skipped Compose overlay
+	// reads nothing, so it vetoes nothing.
+	var vetoes []bool
+	if foldOverlays {
+		vetoes = composeSlotVetoes(composed.Overlays, requests)
+	}
 
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		resp, err := s.Process(ctx, req)
+		resp, err := s.Process(composeSlotContext(ctx, vetoes, multPlan, i), req)
 		if err != nil {
 			return nil, fmt.Errorf("request %d: %w", i, locate(err, "request", i))
 		}
@@ -1078,9 +1086,15 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// barrier every slot succeeded — the hook is unconditional.
 	// Empty / nil req.Overlays short-circuits with no allocation
 	// (byte-identical JSON vs the overlay-free baseline).
-	layers, warnings, err := s.applyComposeOverlays(ctx, composed, requests, responses)
-	if err != nil {
-		return nil, err
+	var (
+		layers   []types.OverlayLayer
+		warnings []types.OverlayWarning
+	)
+	if foldOverlays {
+		layers, warnings, err = s.applyComposeOverlays(ctx, composed, requests, responses)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Build the ComposedResponse wrapper. Overlay-free composes leave

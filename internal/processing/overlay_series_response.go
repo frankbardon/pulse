@@ -82,8 +82,12 @@ import (
 //
 // exts is the processor's registry: a kind the instance feature set
 // hides routes as never registered (ExtensionRegistry.overlayRoute).
-func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry) error {
-	if req == nil || len(req.Overlays) == 0 {
+//
+// compute is the run's ComputePlan: a layer it skips (ComputesOverlay)
+// runs no handler and raises nothing; no layer computed is the
+// overlay-free exit.
+func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry, compute ComputePlan) error {
+	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
 	}
 	if req.Crosstab != nil {
@@ -120,7 +124,7 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 	// spec already carries its own frequency Param (the override path),
 	// the orchestrator leaves it unchanged.
 	specs := promoteYoYFrequencyFromGroupParams(req, exts)
-	layers, warnings, err := applyOverlaysSeriesWith(specs, host, exts)
+	layers, warnings, err := applyOverlaysSeriesWith(specs, host, exts, compute.overlayKeep())
 	if err != nil {
 		return err
 	}

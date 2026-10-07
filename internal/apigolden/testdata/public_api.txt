@@ -1506,9 +1506,16 @@ pulse/descriptor: type ReturnPlan field Include []string "json:\"include\""
 pulse/descriptor: type ReturnPlan field Keep []string "json:\"keep\""
 pulse/descriptor: type ReturnPlan field Precision int "json:\"precision,omitempty\""
 pulse/descriptor: type ReturnPlan field Preset string "json:\"preset\""
+pulse/descriptor: type ReturnPlan field Sizes []pulse/descriptor.ReturnSectionSize "json:\"sizes,omitempty\""
+pulse/descriptor: type ReturnPlan field UnresolvedIncludes []string "json:\"unresolved_includes,omitempty\""
 pulse/descriptor: type ReturnPresetMeta struct
 pulse/descriptor: type ReturnPresetMeta field Name string "json:\"name\""
 pulse/descriptor: type ReturnPresetMeta field Paths []string "json:\"paths\""
+pulse/descriptor: type ReturnSectionSize struct
+pulse/descriptor: type ReturnSectionSize field Basis string "json:\"basis\""
+pulse/descriptor: type ReturnSectionSize field FullBytes int64 "json:\"full_bytes\""
+pulse/descriptor: type ReturnSectionSize field Section string "json:\"section\""
+pulse/descriptor: type ReturnSectionSize field ShapedBytes int64 "json:\"shaped_bytes\""
 pulse/descriptor: type Role struct
 pulse/descriptor: type Role field Kinds []pulse/descriptor.FieldKind "json:\"kinds\""
 pulse/descriptor: type Role field Max int "json:\"max\""
@@ -2658,6 +2665,7 @@ pulse/mcp/gosdk: const CohortURIScheme untyped string = "pulse://"
 pulse/mcp/gosdk: const CohortURITemplate untyped string = "pulse://{+path}"
 pulse/mcp/gosdk: type Config struct
 pulse/mcp/gosdk: type Config field BindOnInspect bool
+pulse/mcp/gosdk: type Config field DefaultReturn pulse/types.ReturnPreset
 pulse/mcp/gosdk: type Config field DisableCohortScan bool
 pulse/mcp/gosdk: type Config field Version string
 pulse/mcp/gosdk: const DescPromptAuthorRequest untyped string = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
@@ -2675,6 +2683,7 @@ pulse/mcpserve: func Describe(p *pulse.Pulse, opts pulse/mcpserve.Options) pulse
 pulse/mcpserve: func NewPulse(popts pulse.Options, opts pulse/mcpserve.Options) (*pulse.Pulse, error)
 pulse/mcpserve: type Options struct
 pulse/mcpserve: type Options field BindOnOpen bool
+pulse/mcpserve: type Options field DefaultReturn pulse/types.ReturnPreset
 pulse/mcpserve: type Options field DisableCohortScan bool
 pulse/mcpserve: type Options field FeatureProfileFile string
 pulse/mcpserve: type Options field Version string
@@ -4196,4 +4205,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6c252112aa10de2c9b09edc95aee1acb0359e366de952bf75aa4cce9167f420c
+// golden-hash: 837f0857629880b4a4e80a07203c64696a6c578bf69185449e4408ca973ae1bd

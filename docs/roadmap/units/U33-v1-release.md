@@ -41,7 +41,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#175** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new gate is listed by name in CLAUDE.md "Non-Skippable CI Gates"
 - [ ] **#176** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) The Update Demand table has rows for: `Purpose`, `Since` / dependencies, topical-skill fences, `Request.Vectors` / `Matrices`, `Response.Matrices`, `Request.Weight` / `Multiplicity` / `TimeZone` / `Return`, `Options.Limits` / `Logger` / `Hooks` / `Metrics`
 - [ ] **#177** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) New env vars and CLI flags documented (CLAUDE.md "Build / Env", `flags.md`, `session-bootstrap.md`)
-- [ ] **#178** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`)
+- [ ] **#178** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) CLAUDE.md stays at or under 40,000 bytes (long form moved to `.claude/reference/`)
 - [ ] **#179** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) `format_version` remains `"1.1"` (every wire change additive)
 
 ## Scope

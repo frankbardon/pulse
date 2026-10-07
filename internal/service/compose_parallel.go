@@ -97,9 +97,11 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	// The Compose-level `return`, exactly as on the serial path.
-	if _, err := descx.ResolveComposeReturn(composed, s.instance); err != nil {
+	composeRet, err := descx.ResolveComposeReturn(composed, s.instance)
+	if err != nil {
 		return nil, err
 	}
+	foldOverlays := composeOverlaysComputed(composed, composeRet, multPlan)
 	ctx = withinCompose(ctx)
 
 	// Synthesize Label auto-defaults + collision-check on a clone of the
@@ -110,6 +112,11 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	*slots = requests
+	// Per-slot Components veto, exactly as on the serial path.
+	var vetoes []bool
+	if foldOverlays {
+		vetoes = composeSlotVetoes(composed.Overlays, requests)
+	}
 
 	o := opts.resolved()
 	n := len(requests)
@@ -148,10 +155,10 @@ func (s *Service) composeParallel(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			reqCtx := runCtx
+			reqCtx := composeSlotContext(runCtx, vetoes, multPlan, i)
 			if o.PerRequestTimeout > 0 {
 				var reqCancel context.CancelFunc
-				reqCtx, reqCancel = context.WithTimeout(runCtx, o.PerRequestTimeout)
+				reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)
 				defer reqCancel()
 			}
 
@@ -206,9 +213,15 @@ func (s *Service) composeParallel(
 	// `req.Overlays` spec order regardless of slot dispatch order
 	// because `responses` is keyed by slot index, not completion
 	// order.
-	layers, warnings, err := s.applyComposeOverlays(ctx, composed, requests, responses)
-	if err != nil {
-		return nil, err
+	var (
+		layers   []types.OverlayLayer
+		warnings []types.OverlayWarning
+	)
+	if foldOverlays {
+		layers, warnings, err = s.applyComposeOverlays(ctx, composed, requests, responses)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Build the ComposedResponse wrapper. Overlay-free composes leave

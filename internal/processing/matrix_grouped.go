@@ -37,12 +37,13 @@ type GroupedMatrices struct {
 
 // BuildGroupedMatrices returns empty per-bucket matrix state for a
 // grouped req (nil when req carries no matrices or no groups). req
-// must be the STAMPED request, as for BuildMatrixSlots.
-func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) (*GroupedMatrices, error) {
+// must be the STAMPED request and compute the run's plan, as for
+// BuildMatrixSlots (nil when compute accumulates no matrix).
+func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan) (*GroupedMatrices, error) {
 	if req == nil || len(req.Groups) == 0 || req.Groups[0] == nil {
 		return nil, nil
 	}
-	set, err := resolveMatrixPlans(req, schema, exts)
+	set, err := resolveMatrixPlans(req, schema, exts, compute)
 	if err != nil || set == nil {
 		return nil, err
 	}
@@ -182,7 +183,7 @@ func sortGroupedRows(data []map[string]any, order []types.OrderKey, keys []strin
 // executed grouper's GroupHeader. A key with no matrix state (no row
 // reached its slots) renders from empty slots, so it is still emitted,
 // as the thin bucket it is.
-func (g *GroupedMatrices) finalize(keys []string, withComponents bool) ([]types.MatrixResult, []types.MatrixComponents, error) {
+func (g *GroupedMatrices) finalize(keys []string) ([]types.MatrixResult, []types.MatrixComponents, error) {
 	if g == nil {
 		return nil, nil, nil
 	}
@@ -194,20 +195,25 @@ func (g *GroupedMatrices) finalize(keys []string, withComponents bool) ([]types.
 		}
 		sets[k] = slots
 	}
-	out := make([]types.MatrixResult, 0, len(g.set.plans)*len(keys))
+	var out []types.MatrixResult // nil when the plan skips the slot
+	if g.set.compute.MatricesSlot {
+		out = make([]types.MatrixResult, 0, len(g.set.plans)*len(keys))
+	}
 	var comps []types.MatrixComponents
 	for i := range g.set.plans {
 		for k, key := range keys {
-			res, c, err := sets[k][i].result(withComponents)
+			res, c, err := sets[k][i].result()
 			if err != nil {
 				return nil, nil, err
 			}
-			res.GroupKey = types.AxisKey{key}
-			res.GroupHeader = &types.AxisHeader{
-				Fields: append([]string(nil), g.header.Fields...),
-				Types:  append([]string(nil), g.header.Types...),
+			if g.set.compute.MatricesSlot {
+				res.GroupKey = types.AxisKey{key}
+				res.GroupHeader = &types.AxisHeader{
+					Fields: append([]string(nil), g.header.Fields...),
+					Types:  append([]string(nil), g.header.Types...),
+				}
+				out = append(out, res)
 			}
-			out = append(out, res)
 			if c != nil {
 				c.GroupKey = types.AxisKey{key}
 				comps = append(comps, *c)

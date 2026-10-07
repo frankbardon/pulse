@@ -92,6 +92,7 @@ func slotFloorTotals(aggs []*types.Aggregation, floors []SlotFloor) []types.Aggr
 	if len(aggs) == 0 {
 		return nil
 	}
+	workAggComponentBuilds.Add(1)
 	out := make([]types.AggregationComponents, 0, len(aggs))
 	for i, agg := range aggs {
 		var f SlotFloor
@@ -172,6 +173,7 @@ func AggregationGroupEntry(key string, e types.AggregationComponents) types.Aggr
 // after sortGroupedRows — so groups[i] describes Data[i]. totals is
 // returned with Groups filled in.
 func GroupedAggregationComponents(totals []types.AggregationComponents, buckets map[string][]types.AggregationComponents, keys []string) ([]types.AggregationComponents, error) {
+	workGroupFloorBuilds.Add(1)
 	for i := range totals {
 		groups := make([]types.AggregationGroupComponents, 0, len(keys))
 		for _, key := range keys {

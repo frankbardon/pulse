@@ -223,6 +223,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
+	workOverlayLayerRuns.Add(int64(len(specs)))
 	// Build the per-slot lookup map ONCE per barrier entry via the
 	// canonical resolver. The chassis adapter builds a synthetic
 	// *types.ComposedRequest from the parallel labels slice so the

@@ -117,6 +117,7 @@ func buildFiltererComponents(filterers []*types.Filterer, counters []filterPassC
 	if len(filterers) == 0 {
 		return nil
 	}
+	workFiltererComponentBuilds.Add(1)
 	out := make([]types.FiltererComponents, len(filterers))
 	for i := range filterers {
 		out[i] = types.FiltererComponents{
