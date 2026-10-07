@@ -1438,6 +1438,7 @@ pulse/descriptor: type PredictResult field ResolvedVectors map[string][]string "
 pulse/descriptor: type PredictResult field Return *pulse/descriptor.ReturnPlan "json:\"return,omitempty\""
 pulse/descriptor: type PredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
 pulse/descriptor: type PredictResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
+pulse/descriptor: type PredictResult field Sizes []pulse/descriptor.ResponseSectionSize "json:\"sizes,omitempty\""
 pulse/descriptor: type PredictResult field Streamable bool "json:\"streamable\""
 pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
 pulse/descriptor: type PredictResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
@@ -1498,6 +1499,11 @@ pulse/descriptor: type ResolvedZone field Operator string "json:\"operator\""
 pulse/descriptor: type ResolvedZone field Slot string "json:\"slot\""
 pulse/descriptor: type ResolvedZone field Source string "json:\"source\""
 pulse/descriptor: type ResolvedZone field TZ *string "json:\"tz\""
+pulse/descriptor: type ResponseSectionSize struct
+pulse/descriptor: type ResponseSectionSize field Basis string "json:\"basis\""
+pulse/descriptor: type ResponseSectionSize field FullBytes int64 "json:\"full_bytes\""
+pulse/descriptor: type ResponseSectionSize field Section string "json:\"section\""
+pulse/descriptor: type ResponseSectionSize field ShapedBytes int64 "json:\"shaped_bytes\""
 pulse/descriptor: type ReturnPlan struct
 pulse/descriptor: type ReturnPlan field Digest string "json:\"digest\""
 pulse/descriptor: type ReturnPlan field Exclude []string "json:\"exclude\""
@@ -1506,16 +1512,10 @@ pulse/descriptor: type ReturnPlan field Include []string "json:\"include\""
 pulse/descriptor: type ReturnPlan field Keep []string "json:\"keep\""
 pulse/descriptor: type ReturnPlan field Precision int "json:\"precision,omitempty\""
 pulse/descriptor: type ReturnPlan field Preset string "json:\"preset\""
-pulse/descriptor: type ReturnPlan field Sizes []pulse/descriptor.ReturnSectionSize "json:\"sizes,omitempty\""
 pulse/descriptor: type ReturnPlan field UnresolvedIncludes []string "json:\"unresolved_includes,omitempty\""
 pulse/descriptor: type ReturnPresetMeta struct
 pulse/descriptor: type ReturnPresetMeta field Name string "json:\"name\""
 pulse/descriptor: type ReturnPresetMeta field Paths []string "json:\"paths\""
-pulse/descriptor: type ReturnSectionSize struct
-pulse/descriptor: type ReturnSectionSize field Basis string "json:\"basis\""
-pulse/descriptor: type ReturnSectionSize field FullBytes int64 "json:\"full_bytes\""
-pulse/descriptor: type ReturnSectionSize field Section string "json:\"section\""
-pulse/descriptor: type ReturnSectionSize field ShapedBytes int64 "json:\"shaped_bytes\""
 pulse/descriptor: type Role struct
 pulse/descriptor: type Role field Kinds []pulse/descriptor.FieldKind "json:\"kinds\""
 pulse/descriptor: type Role field Max int "json:\"max\""
@@ -4205,4 +4205,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 837f0857629880b4a4e80a07203c64696a6c578bf69185449e4408ca973ae1bd
+// golden-hash: d4786e775de7f562bbabd9ac00de0e67e63d7f63bff7ef35bbe200a1fc28026c

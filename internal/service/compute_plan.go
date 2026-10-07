@@ -6,6 +6,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/returnplan"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -158,13 +159,25 @@ func composeOverlaysComputed(composed *types.ComposedRequest, ret *returnplan.Pl
 // requestOverlaysReadComponents reports whether any of req's own
 // overlays that plan computes reads its crosstab host's
 // Components.Crosstab — the rule predict shares
-// (descx.OverlayReadsHostComponents). A skipped layer reads nothing.
-func requestOverlaysReadComponents(req *types.Request, plan processing.ComputePlan) bool {
+// (descx.OverlayReadsHostComponents), over the crosstab cell's weight
+// basis resolved exactly as the runtime stamps it (request, slot and
+// the instance default weight; descx.CrosstabCellWeightBasis). A
+// skipped layer reads nothing; the basis is resolved only when a
+// computed layer's kind depends on it.
+func (s *Service) requestOverlaysReadComponents(req *types.Request, plan processing.ComputePlan) bool {
 	if req == nil {
 		return false
 	}
+	basis, resolved := weighting.Unweighted, false
 	for i := range req.Overlays {
-		if plan.ComputesOverlay(i) && descx.OverlayReadsHostComponents(req.Overlays[i].Kind) {
+		if !plan.ComputesOverlay(i) {
+			continue
+		}
+		kind := req.Overlays[i].Kind
+		if !resolved && !types.IsPairwiseOverlayKind(kind) {
+			basis, resolved = descx.CrosstabCellWeightBasis(req, s.defaultWeight, s.instance), true
+		}
+		if descx.OverlayReadsHostComponents(kind, basis) {
 			return true
 		}
 	}
@@ -204,7 +217,8 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 //     no handler or fold and raises no refusal or warning (incl.
 //     PULSE_WEIGHT_LOW_NEFF);
 //  4. veto: a COMPUTED request overlay layer that reads its host's
-//     components (requestOverlaysReadComponents) keeps
+//     components (requestOverlaysReadComponents: a pairwise kind, or
+//     a χ² / Fisher kind over a weighted crosstab cell) keeps
 //     components.crosstab — the only sub-part an overlay reads; its
 //     *_margin_aggregations figures follow the selection — and a
 //     Compose overlay naming this slot (componentsVetoed) keeps every
@@ -235,7 +249,7 @@ func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, re
 			plan = plan.WithPostTestEntries(multiplicityVetoes(claimed.PostTests, len(req.PostTests)))
 		}
 	}
-	if requestOverlaysReadComponents(req, plan) {
+	if s.requestOverlaysReadComponents(req, plan) {
 		plan.Crosstab = true
 	}
 	if componentsVetoed(ctx) {

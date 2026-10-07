@@ -103,9 +103,29 @@
     "overlays_applied": [],
     "overlays_schema_divergence": [],
     "overlay_cost": {},
-    "time_zones": []
+    "time_zones": [],
+    "sizes": [
+      {
+        "section": "data",
+        "full_bytes": 37,
+        "shaped_bytes": 37,
+        "basis": "exact"
+      },
+      {
+        "section": "metadata",
+        "full_bytes": 116,
+        "shaped_bytes": 116,
+        "basis": "heuristic"
+      },
+      {
+        "section": "components",
+        "full_bytes": 249,
+        "shaped_bytes": 249,
+        "basis": "heuristic"
+      }
+    ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1b6f0952ddbfd2de33aa678596031526d66450a998a011c781fa35604a65647a
+// golden-hash: ebb35db620728cf431f81b5b3c42641834ae76aed79142f1f7f040bdf4415a2c

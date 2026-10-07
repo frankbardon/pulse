@@ -272,7 +272,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 // predictSingle is Predict over one header + schema. records is the
 // cohort's record count when the caller knows it (an archive's
 // per-shard sum); nil derives it from a single file's length. It only
-// bounds the return size estimates (ReturnPlan.Sizes) — RecordCount
+// bounds the response size estimates (PredictResult.Sizes) — RecordCount
 // stays the archive-only figure it documents.
 func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64) *descriptor.Envelope {
 	if opts == nil {
@@ -413,12 +413,16 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	predictVectors(env, result, req, schema)
 	predictMatrices(result, req, schema, opts.Instance)
 
-	// `return` size estimates and the Open includes predict cannot
-	// resolve — on the defaults-resolved request over the schema it
-	// executes over, once the plan is reported.
-	if result.Return != nil {
+	// Response size estimates — on every request, on the
+	// defaults-resolved request over the schema it executes over. With
+	// no effective `return` block (nil plan) shaped equals full; a
+	// refused block withholds them. The Open includes predict cannot
+	// resolve ride the reported plan.
+	if rerr == nil && (returnPlan == nil || result.Return != nil) {
 		sizeIn.req, sizeIn.schema, sizeIn.inst, sizeIn.matrices = req, schema, opts.Instance, result.Matrices
-		result.Return.Sizes = returnSizes(returnPlan, sizeIn)
+		result.Sizes = responseSizes(returnPlan, sizeIn)
+	}
+	if result.Return != nil {
 		result.Return.UnresolvedIncludes = unresolvedIncludes(returnPlan, req, schema, opts.Instance)
 	}
 

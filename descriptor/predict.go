@@ -224,6 +224,18 @@ type PredictResult struct {
 	// predict error).
 	Matrices []MatrixPredict `json:"matrices,omitempty"`
 
+	// Sizes estimates each top-level Response section the request
+	// produces, unshaped and under the effective `return` plan, in
+	// Response key order — reported on every request, with or without
+	// a `return` block (no effective block: shaped equals full). A
+	// section whose size depends on data predict cannot see (a grouper
+	// with data-dependent keys, a join's column set, a single file's
+	// row-level output with no record count) is omitted; a section the
+	// request does not produce is omitted. Omitted entirely when the
+	// `return` block is refused. Guidance only — never a byte-accurate
+	// figure.
+	Sizes []ResponseSectionSize `json:"sizes,omitempty"`
+
 	// Return is the resolved `return` plan — the expanded selection the
 	// runtime will apply, computed by the same resolver it calls.
 	// Omitted when the request carries no `return` block or the block is
@@ -255,14 +267,6 @@ type ReturnPlan struct {
 	// Digest identifies the resolved selection ("rp1:" + sha256 hex);
 	// the preset name does not enter it.
 	Digest string `json:"digest"`
-	// Sizes estimates each top-level Response section the request
-	// produces, unshaped and under this plan, in Response key order. A
-	// section whose size depends on data predict cannot see (a grouper
-	// with data-dependent keys, a join's column set, a single file's
-	// row-level output with no record count) is omitted; a section the
-	// request does not produce is omitted. Guidance only — never a
-	// byte-accurate figure.
-	Sizes []ReturnSectionSize `json:"sizes,omitempty"`
 	// UnresolvedIncludes lists the Open include paths (through a map key
 	// or an open value) predict cannot resolve without data: at runtime
 	// each may match nothing, which a buffered run reports as
@@ -273,19 +277,20 @@ type ReturnPlan struct {
 	UnresolvedIncludes []string `json:"unresolved_includes,omitempty"`
 }
 
-// ReturnSectionSize is the size estimate of one top-level Response
+// ResponseSectionSize is the size estimate of one top-level Response
 // section (`data`, `metadata`, `tests`, `post_tests`, `regressions`,
 // `matrices`, `crosstab`, `overlays`, `components`): rows or cells
 // times a bytes-per-value model of its compact JSON form.
-type ReturnSectionSize struct {
+type ResponseSectionSize struct {
 	// Section is the top-level Response key.
 	Section string `json:"section"`
 	// FullBytes estimates the section's wire bytes without the
 	// selection.
 	FullBytes int64 `json:"full_bytes"`
-	// ShapedBytes estimates the section's wire bytes under the plan —
-	// the same model with every node the plan drops removed; 0 when the
-	// plan excludes the section. Never above FullBytes.
+	// ShapedBytes estimates the section's wire bytes under the
+	// effective `return` plan — the same model with every node the plan
+	// drops removed; 0 when the plan excludes the section, FullBytes
+	// when there is no effective plan. Never above FullBytes.
 	ShapedBytes int64 `json:"shaped_bytes"`
 	// Basis says how the section's row / cell count was derived:
 	// "exact" (fixed by the request and schema — an ungrouped

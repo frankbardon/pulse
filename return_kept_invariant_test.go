@@ -15,7 +15,9 @@ import (
 // TestReturnKeptNumberInvariant (U18 E2-S4, FR-29): a shaped run's kept
 // paths are byte-identical to the full run's — the compute plan skips
 // only what nothing kept reads. Covered: request overlays that READ the
-// host's components (probability-weighted χ², pairwise proportion z),
+// host's components (probability- and frequency-weighted χ², frequency
+// Fisher, pairwise proportion z), and χ² / Fisher over an unweighted
+// host, whose component maps `standard` skips,
 // on the buffered and fused crosstab arms, and a Compose overlay naming
 // two of three slots, serial and parallel; a multiplicity family
 // pooling an excluded overlay or test. Every vetoed part is
@@ -23,6 +25,10 @@ import (
 func TestReturnKeptNumberInvariant(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
 	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
+	freq := types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
+	// unvetoed names the requests whose overlays read no component over
+	// their unweighted host: `standard` builds no component map for them.
+	unvetoed := map[string]bool{"chisq_fisher_unweighted": true}
 	standard := &types.Return{Preset: types.ReturnPresetStandard}
 	ctx := context.Background()
 
@@ -31,6 +37,22 @@ func TestReturnKeptNumberInvariant(t *testing.T) {
 			r := floorCrosstab(cohort, &prob, types.SlotWeight{}, nil,
 				types.OverlaySpec{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
 				types.OverlaySpec{Name: "r", Kind: types.OverlayKindChiSqRow, Scope: types.OverlayScopeRow})
+			r.Return = ret
+			return r
+		},
+		"chisq_fisher_frequency": func(ret *types.Return) *types.Request {
+			r := floorCrosstab(cohort, &freq, types.SlotWeight{}, nil,
+				types.OverlaySpec{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
+				types.OverlaySpec{Name: "c", Kind: types.OverlayKindChiSqCol, Scope: types.OverlayScopeColumn},
+				types.OverlaySpec{Name: "f", Kind: types.OverlayKindFisherExactCell, Scope: types.OverlayScopeCell})
+			r.Return = ret
+			return r
+		},
+		"chisq_fisher_unweighted": func(ret *types.Return) *types.Request {
+			r := floorCrosstab(cohort, nil, types.SlotWeight{}, nil,
+				types.OverlaySpec{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
+				types.OverlaySpec{Name: "r", Kind: types.OverlayKindChiSqRow, Scope: types.OverlayScopeRow},
+				types.OverlaySpec{Name: "f", Kind: types.OverlayKindFisherExactCell, Scope: types.OverlayScopeCell})
 			r.Return = ret
 			return r
 		},
@@ -61,7 +83,11 @@ func TestReturnKeptNumberInvariant(t *testing.T) {
 				if err != nil {
 					t.Fatalf("shaped: %v", err)
 				}
-				if processing.WorkStats().Sub(before).CrosstabCellComponentMaps <= 0 {
+				maps := processing.WorkStats().Sub(before).CrosstabCellComponentMaps
+				if unvetoed[name] && maps != 0 {
+					t.Errorf("unweighted χ² / Fisher host built %d component map(s) under standard; want 0", maps)
+				}
+				if !unvetoed[name] && maps <= 0 {
 					t.Error("vetoed components.crosstab was not computed")
 				}
 				assertKeptPathsIdentical(t, full, shaped, "components")

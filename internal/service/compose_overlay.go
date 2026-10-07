@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	stderrors "errors"
 
+	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -139,6 +141,15 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	if err := descx.ComposeOverlayHiddenFloorRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance, s.componentsGateClosed); err != nil {
 		return nil, nil, err
 	}
+	// Same rule against what the slots actually returned. The refusal
+	// above and the compute plan's Compose veto (composeSlotVetoes)
+	// should guarantee every probability-weighted slot such a kind reads
+	// carries its crosstab Components; if one does not, the handler
+	// would read Σw as n and fold silently unweighted p-values. Fail
+	// loudly instead — reaching here is an engine invariant violation.
+	if err := s.composeOverlayFloorsPresent(req, requests, labels, responses); err != nil {
+		return nil, nil, err
+	}
 	// The requests-aware entry point, not the bare one: the panel's
 	// within-prefix slab gate turns on each slot's authored
 	// Crosstab.Rows grouper types, which no materialised *Response
@@ -146,4 +157,41 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	// fan-out grouper reaches that gate. Both are already in hand
 	// here; the dispatcher cannot obtain either on its own.
 	return processing.ApplyComposeOverlaysWithRequests(req.Overlays, responses, labels, requests, s.extensions)
+}
+
+// composeOverlayFloorsPresent re-runs descx.ComposeOverlayHiddenFloorRefusal
+// with "this slot came back without crosstab Components" in place of the
+// DisableComponents gate. A hit is PROCESSING_INTERNAL: the gate refusal
+// and the Compose veto exist so it can never happen.
+func (s *Service) composeOverlayFloorsPresent(req *types.ComposedRequest, requests []*types.Request, labels []string, responses []*types.Response) error {
+	missing := func(r *types.Request) bool {
+		for j, rr := range requests {
+			if rr != r {
+				continue
+			}
+			if j >= len(responses) || responses[j] == nil {
+				return false // failed slot: the dispatcher's slot rules own it
+			}
+			c := responses[j].Components
+			return c == nil || c.Crosstab == nil
+		}
+		return false
+	}
+	err := descx.ComposeOverlayHiddenFloorRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance, missing)
+	if err == nil {
+		return nil
+	}
+	// Keep the rule's coordinates (overlay, kind, slot) but not its
+	// prose: that advises the caller to re-enable components, and here
+	// the caller did nothing wrong.
+	details := map[string]any{"invariant": "compose overlay host floor missing at fold"}
+	var ce *perr.CodedError
+	if stderrors.As(err, &ce) {
+		for k, v := range ce.Details {
+			details[k] = v
+		}
+	}
+	return perr.NewCodedErrorWithDetails(perr.PROCESSING_INTERNAL,
+		"engine invariant violated: a Compose overlay would fold a probability-weighted slot whose crosstab Components were not computed; refusing rather than reading weight sums as the sample size",
+		details)
 }

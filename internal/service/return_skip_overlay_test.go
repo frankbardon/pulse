@@ -33,8 +33,9 @@ func overlayRuns(t *testing.T, run func()) int64 {
 // TestReturnSkipsComputation_Overlays: the crosstab host (buffered and
 // fused). Excluded: no layer folds and Overlays is nil, every other
 // part byte-identical. A skipped component-reading layer stops vetoing
-// components.crosstab, so `standard` + an excluded Fisher layer builds
-// no component map while `standard` alone does.
+// components.crosstab, so on a frequency-weighted host `standard` + an
+// excluded Fisher layer builds no component map while `standard` alone
+// does.
 func TestReturnSkipsComputation_Overlays(t *testing.T) {
 	fused, buffered := overlayFoldService(t)
 	for name, svc := range map[string]*Service{"fused": fused, "buffered": buffered} {
@@ -62,11 +63,13 @@ func TestReturnSkipsComputation_Overlays(t *testing.T) {
 				t.Error("a kept part moved when the overlays were skipped")
 			}
 
-			// The skipped Fisher layer (it reads components.crosstab)
-			// no longer vetoes the components skip.
+			// The skipped Fisher layer (it reads components.crosstab over
+			// a weighted cell) no longer vetoes the components skip.
+			freq := &types.WeightSpec{Field: "id", Kind: types.WeightKindFrequency}
 			std := &types.Return{Preset: types.ReturnPresetStandard}
 			before := processing.WorkStats()
 			req = overlayCrosstabRequest(false)
+			req.Weight = freq
 			req.Return = std
 			mustProcess(t, svc, req)
 			if processing.WorkStats().Sub(before).CrosstabCellComponentMaps <= 0 {
@@ -74,6 +77,7 @@ func TestReturnSkipsComputation_Overlays(t *testing.T) {
 			}
 			before = processing.WorkStats()
 			req = overlayCrosstabRequest(false)
+			req.Weight = freq
 			req.Return = &types.Return{Preset: types.ReturnPresetStandard, Exclude: []string{"overlays"}}
 			mustProcess(t, svc, req)
 			if d := processing.WorkStats().Sub(before); d.CrosstabCellComponentMaps != 0 || d.OverlayLayerRuns != 0 {
