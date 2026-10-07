@@ -347,6 +347,17 @@ type Options struct {
 	// falls back to that surface's default there.
 	DefaultMultiplicity *types.Multiplicity
 
+	// Limits are the instance resource limits: request timeout, group
+	// count, crosstab cells, estimated memory, matrix dimension, Compose
+	// slots, chain stages and join build rows. A zero field uses the
+	// built-in default (DefaultMaxGroups, ...), Unlimited (-1) disables
+	// that limit, and any other negative value fails New() with
+	// PULSE_LIMIT_INVALID. Precedence per field: a non-zero value here >
+	// the feature profile's value > the built-in default. Requests can
+	// never override a limit; a breach is PULSE_LIMIT_EXCEEDED.
+	// Pulse.Limits() reports the effective values.
+	Limits Limits
+
 	// DefaultReturn is the instance `return` default: the response
 	// selection a request WITHOUT its own `return` block is shaped by.
 	// A request block replaces it entirely (it never merges). Nil
@@ -626,6 +637,10 @@ func New(opts Options) (*Pulse, error) {
 	if opts.DecodeWorkers < 0 {
 		return nil, fmt.Errorf("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
 	}
+	effectiveLimits, err := resolveLimits(opts, featureProfile)
+	if err != nil {
+		return nil, err
+	}
 
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
@@ -657,7 +672,9 @@ func New(opts Options) (*Pulse, error) {
 	if defaultReturn != nil {
 		snap = snap.WithDefaultReturn(defaultReturn)
 	}
+	snap = snap.WithLimits(effectiveLimits)
 	svc.SetInstanceSnapshot(snap)
+	svc.SetLimits(effectiveLimits)
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)

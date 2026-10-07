@@ -11,6 +11,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/temporal"
@@ -38,6 +39,10 @@ type Service struct {
 	// execution. The reducer caps spawn count at the shard count
 	// regardless of this knob.
 	shardWorkers int
+
+	// limits is the instance's effective resource limits, installed by
+	// pulse.New through SetLimits. Nil: the built-in defaults.
+	limits *limits.Limits
 
 	// decodeWorkers caps the per-cohort parallel decode worker pool
 	// the buffered Process path spawns when the cohort exceeds
@@ -205,6 +210,22 @@ func (s *Service) Extensions() *processing.ExtensionRegistry {
 // API boundary.
 func (s *Service) SetShardWorkers(n int) {
 	s.shardWorkers = n
+}
+
+// SetLimits installs the instance's effective (resolved, validated)
+// resource limits. pulse.New resolves and validates them; this setter
+// stores them as given.
+func (s *Service) SetLimits(l limits.Limits) {
+	s.limits = &l
+}
+
+// Limits returns the effective resource limits — the built-in defaults
+// when SetLimits was never called. The result is a copy.
+func (s *Service) Limits() limits.Limits {
+	if s.limits == nil {
+		return limits.Defaults()
+	}
+	return *s.limits
 }
 
 // ShardWorkers returns the configured cap. Exposed for tests and the

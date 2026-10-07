@@ -3191,4 +3191,30 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_LIMIT_INVALID: {
+		Message: "An instance resource limit in Options.Limits holds a negative value other than -1, so pulse.New refused it before any instance existed. Every limit field uses one encoding: 0 means the built-in default, -1 (pulse.Unlimited) means no limit, and a positive value is the bound (nanoseconds for RequestTimeout). The snake_case limit name is under `limit` and the refused value under `value`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Limits"},
+				Hint:     "Set the field named by `limit` to 0 for the built-in default, -1 (pulse.Unlimited) to disable the limit, or a positive bound.",
+				Examples: []any{0, -1, 10000000},
+			},
+		},
+	},
+	PULSE_LIMIT_EXCEEDED: {
+		Message: "The request breached one of the instance's effective resource limits, so it was refused. The limit is named under `limit` (snake_case), its configured value under `configured`, the value the request reached under `observed` and the Go option under `option`; the message repeats the configured value. A request cannot raise an instance limit — only the host can.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Limits"},
+				Hint:   "Raise the limit on the instance: set Options.Limits.<Field> (named under `option`), the feature profile `limits.<limit>` key, or `pulse mcp --limit <limit>=<value>`; -1 disables it.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"request"},
+				Hint:   "Reduce the request so it stays within the configured value: group on a lower-cardinality field, filter first, narrow the crosstab axes or the matrix fields, split the Compose or chain into smaller calls, or shrink the join's right side.",
+			},
+		},
+	},
 }

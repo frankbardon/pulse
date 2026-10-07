@@ -2622,6 +2622,21 @@ const (
 	// executed Response. Predict accepts any key there because the keys
 	// are knowable only at runtime. Details carry "path".
 	PULSE_RETURN_PATH_UNMATCHED Code = "PULSE_RETURN_PATH_UNMATCHED"
+
+	// PULSE_LIMIT_INVALID indicates an instance resource limit
+	// (pulse.Options.Limits) holding a negative value other than
+	// pulse.Unlimited (-1). Raised by pulse.New before any instance
+	// exists. Details carry "limit" (the snake_case limit name) and
+	// "value" (the refused value; nanoseconds for request_timeout).
+	PULSE_LIMIT_INVALID Code = "PULSE_LIMIT_INVALID"
+
+	// PULSE_LIMIT_EXCEEDED indicates a request that breached one of the
+	// instance's effective resource limits. Every raise site builds it
+	// through internal/limits.Exceeded, so the details are identical
+	// everywhere and the message carries the configured value. Details
+	// carry "limit" (snake_case name), "configured", "observed" and
+	// "option" (the Go spelling, Options.Limits.<Field>).
+	PULSE_LIMIT_EXCEEDED Code = "PULSE_LIMIT_EXCEEDED"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -3127,6 +3142,8 @@ var allCodes = []Code{
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,
+	PULSE_LIMIT_INVALID,
+	PULSE_LIMIT_EXCEEDED,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

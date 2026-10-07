@@ -174,6 +174,14 @@ pulse: type DedupResult field DedupReport.Target string "json:\"target\""
 pulse: type DedupResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type DedupResult field SidecarWarnings []*pulse/errors.CodedError "json:\"sidecar_warnings,omitempty\""
 pulse: type DedupResult method (*DedupResult) Warnings() []*pulse/errors.CodedError
+pulse: const DefaultMaxChainStages int64 = 1000
+pulse: const DefaultMaxComposeSlots int64 = 1000
+pulse: const DefaultMaxCrosstabCells int64 = 10000000
+pulse: const DefaultMaxEstimatedMemory int64 = -1
+pulse: const DefaultMaxGroups int64 = 10000000
+pulse: const DefaultMaxJoinBuildRows int64 = 100000000
+pulse: const DefaultMaxMatrixDim int64 = 2048
+pulse: const DefaultRequestTimeout time.Duration = -1
 pulse: func DescribeFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDescription, error)
 pulse: func DiffFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDiff, error)
 pulse: type DistributionRegistration struct
@@ -502,6 +510,16 @@ pulse: type LabelTableInfo struct
 pulse: type LabelTableInfo field Enumerable bool "json:\"enumerable\""
 pulse: type LabelTableInfo field Name string "json:\"name\""
 pulse: type LabelTableInfo field RowCount int "json:\"row_count\""
+pulse: type Limits = pulse/internal/limits.Limits
+pulse: type Limits underlying struct
+pulse: type Limits field MaxChainStages int64
+pulse: type Limits field MaxComposeSlots int64
+pulse: type Limits field MaxCrosstabCells int64
+pulse: type Limits field MaxEstimatedMemory int64
+pulse: type Limits field MaxGroups int64
+pulse: type Limits field MaxJoinBuildRows int64
+pulse: type Limits field MaxMatrixDim int64
+pulse: type Limits field RequestTimeout time.Duration
 pulse: func LoadMemberSetFromReader(r io.Reader, schema *pulse/encoding.Schema, fieldName string) (pulse.LoadMemberSetResult, error)
 pulse: type LoadMemberSetResult struct
 pulse: type LoadMemberSetResult field Invalid int
@@ -561,6 +579,7 @@ pulse: type Options field ImportSourceJailRoot string
 pulse: type Options field ImportTTL time.Duration
 pulse: type Options field ImportsDir string
 pulse: type Options field LabelTablesDir string
+pulse: type Options field Limits pulse.Limits
 pulse: type Options field ProjectBufferedFields bool
 pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
@@ -642,6 +661,7 @@ pulse: type Pulse method (*Pulse) InspectBytes(ctx context.Context, data []byte,
 pulse: type Pulse method (*Pulse) InspectEnvelope(ctx context.Context, path string, opts *pulse/descriptor.InspectOptions) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) InvalidatedSidecars(ctx context.Context, cohortPath string) ([]pulse.StaleSidecar, error)
 pulse: type Pulse method (*Pulse) LabelTables() []pulse.LabelTableInfo
+pulse: type Pulse method (*Pulse) Limits() pulse.Limits
 pulse: type Pulse method (*Pulse) ListIndexes(ctx context.Context, path string) ([]pulse.IndexInfo, error)
 pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath string) ([]pulse.ShardEntry, error)
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
@@ -955,6 +975,7 @@ pulse: type TestRegistration field WeightAware bool
 pulse: type TestTier string
 pulse: const TestTierPost pulse.TestTier = "tier2"
 pulse: const TestTierRow pulse.TestTier = "tier1"
+pulse: const Unlimited untyped int = -1
 pulse: type VerifyIndexResult = pulse/internal/service.VerifyIndexResult
 pulse: type VerifyIndexResult underlying struct
 pulse: type VerifyIndexResult field FastPath bool
@@ -1965,6 +1986,8 @@ pulse/errors: const PULSE_LABEL_FIELD_UNKNOWN pulse/errors.Code = "PULSE_LABEL_F
 pulse/errors: const PULSE_LABEL_LOOKUP_MISS pulse/errors.Code = "PULSE_LABEL_LOOKUP_MISS"
 pulse/errors: const PULSE_LABEL_TABLE_NOT_ENUMERABLE pulse/errors.Code = "PULSE_LABEL_TABLE_NOT_ENUMERABLE"
 pulse/errors: const PULSE_LABEL_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LABEL_TABLE_UNKNOWN"
+pulse/errors: const PULSE_LIMIT_EXCEEDED pulse/errors.Code = "PULSE_LIMIT_EXCEEDED"
+pulse/errors: const PULSE_LIMIT_INVALID pulse/errors.Code = "PULSE_LIMIT_INVALID"
 pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMBIGUOUS"
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
@@ -4205,4 +4228,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d4786e775de7f562bbabd9ac00de0e67e63d7f63bff7ef35bbe200a1fc28026c
+// golden-hash: 05299765e3f4dd01dd40aae34a814aef355074afa202be44bdc5585acdba959b

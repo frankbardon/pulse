@@ -6341,7 +6341,7 @@
         ]
       }
     ],
-    "error_codes_count": 282,
+    "error_codes_count": 284,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6473,6 +6473,8 @@
       "PULSE_LABEL_LOOKUP_MISS",
       "PULSE_LABEL_TABLE_NOT_ENUMERABLE",
       "PULSE_LABEL_TABLE_UNKNOWN",
+      "PULSE_LIMIT_EXCEEDED",
+      "PULSE_LIMIT_INVALID",
       "PULSE_LOOKUP_AMBIGUOUS",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
@@ -12256,4 +12258,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f82a77187a2fac13bb8cf88d279f13eac3a09eee65cc724ff2db50d55009d8dc
+// golden-hash: 8c153b4586c833f56ab5490ab297431144c561df9c56009aa865604253f2b35c

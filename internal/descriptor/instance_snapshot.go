@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -96,6 +97,11 @@ type InstanceSnapshot struct {
 	// Nil: the library default `full`. Not covered by the digest: it
 	// shapes responses, never the feature set.
 	defaultReturn *types.Return
+
+	// limits is the instance's effective resource limits (resolved by
+	// pulse.New: Options.Limits > feature profile > built-in default).
+	// Nil: the built-in defaults. Not covered by the feature-set digest.
+	limits *limits.Limits
 
 	// returnPlans memoizes Response-rooted `return` resolutions
 	// (return_plan_cache.go). Allocated by buildOntology; shared by
@@ -268,6 +274,31 @@ func (s *InstanceSnapshot) DefaultReturn() *types.Return {
 		return nil
 	}
 	return cloneReturn(s.defaultReturn)
+}
+
+// WithLimits returns a copy of the snapshot carrying l as the
+// instance's effective resource limits. pulse.New installs the resolved
+// limits so predict, the runtime and the manifest read the same values.
+// A nil receiver yields an unscoped snapshot carrying only the limits.
+func (s *InstanceSnapshot) WithLimits(l limits.Limits) *InstanceSnapshot {
+	var out InstanceSnapshot
+	if s != nil {
+		out = *s
+	} else {
+		out.buildOntology()
+	}
+	out.limits = &l
+	return &out
+}
+
+// Limits returns the instance's effective resource limits — the
+// built-in defaults when none were installed. Nil-safe; the result is a
+// copy.
+func (s *InstanceSnapshot) Limits() limits.Limits {
+	if s == nil || s.limits == nil {
+		return limits.Defaults()
+	}
+	return *s.limits
 }
 
 // cloneReturn deep-copies a Return block (nil stays nil).
