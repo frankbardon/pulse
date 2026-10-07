@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -54,7 +57,11 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
 		return nil, err
 	}
-	if err := s.limitsPreflight(req, cohort.Schema()); err != nil {
+	lin, err := s.limitInputs(ctx, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.limitsPreflight(req, cohort.Schema(), lin); err != nil {
 		return nil, err
 	}
 
@@ -168,28 +175,30 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 // crosstab projection are single-cohort optimisations and do not apply
 // to the joined stream.
 func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Request) (*types.Response, error) {
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req)
+	// Strip Joins so RunCrosstab sees a plain crosstab over the joined
+	// records — the same clone processWithJoin hands its processor.
+	// Defaults, zones, field references and the limits pre-flight run
+	// on the joined schema before the build side decodes a record.
+	clone := *req
+	clone.Joins = nil
+	var zones []descriptor.ResolvedZone
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) error {
+		s.applyDefaults(&clone, joined)
+		z, err := s.resolveZones(&clone, joined)
+		if err != nil {
+			return err
+		}
+		zones = z
+		if err := s.checkFieldRefs(&clone, joined); err != nil {
+			return err
+		}
+		return s.limitsPreflight(&clone, joined, lin)
+	})
 	if err != nil {
 		return nil, err
 	}
 	defer leftIter.Close()
 
-	// Strip Joins so RunCrosstab sees a plain crosstab over the joined
-	// records — the same clone processWithJoin hands its processor.
-	clone := *req
-	clone.Joins = nil
-
-	s.applyDefaults(&clone, joinedSchema)
-	zones, err := s.resolveZones(&clone, joinedSchema)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
-		return nil, err
-	}
-	if err := s.limitsPreflight(&clone, joinedSchema); err != nil {
-		return nil, err
-	}
 	s.applyAutoLabels(&clone.Labels, joinedSchema, collectOutputLabels(&clone), nil)
 	if err := s.validateProcessLabels(&clone, joinedSchema); err != nil {
 		return nil, err

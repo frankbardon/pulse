@@ -170,8 +170,11 @@ func TestMatrixPredict_BucketEstimateMatchesRuntime(t *testing.T) {
 					t.Errorf("%s: predict estimates %d buckets, runtime emits %d (exact %v)", mp.Name, est, perSpec, c.exact)
 				}
 				p := int64(len(resp.Matrices[i*int(perSpec)].Primary.RowKeys))
-				if *mp.EstimatedCells != est*p*p || *mp.EstimatedBytes != est*mp.AccumulatorBytes {
-					t.Errorf("%s: cells %d / bytes %d, want %d / %d", mp.Name, *mp.EstimatedCells, *mp.EstimatedBytes, est*p*p, est*mp.AccumulatorBytes)
+				// The run holds one CoMoment per populated merge block per
+				// bucket: the cohort spans three blocks.
+				const blocks = 3
+				if *mp.EstimatedCells != est*p*p || *mp.EstimatedBytes != blocks*est*mp.AccumulatorBytes {
+					t.Errorf("%s: cells %d / bytes %d, want %d / %d", mp.Name, *mp.EstimatedCells, *mp.EstimatedBytes, est*p*p, blocks*est*mp.AccumulatorBytes)
 				}
 			}
 		})

@@ -168,7 +168,12 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		if err := s.checkFieldRefs(stage, synthSchema); err != nil {
 			return nil, locate(err, "stage", i)
 		}
-		if err := s.limitsPreflight(stage, synthSchema); err != nil {
+		if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{
+			Records:        int64(len(records)),
+			JoinRightRows:  -1,
+			Extensions:     s.ExtensionsSnapshot(),
+			FusionDisabled: s.disableCrosstabFusion,
+		}); err != nil {
 			return nil, locate(err, "stage", i)
 		}
 

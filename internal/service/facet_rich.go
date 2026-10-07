@@ -75,6 +75,15 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err := s.checkFacetFieldRefs(req, schema); err != nil {
 		return nil, err
 	}
+	// Instance resource limits: a set MaxEstimatedMemory refuses before
+	// the scan (the facet's only pre-scan limit).
+	lin, err := s.limitInputs(ctx, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	if lerr := descx.FacetLimitRefusal(req, schema, s.Limits(), lin); lerr != nil {
+		return nil, markLocated(lerr)
+	}
 	// Inject configured default label bindings (schema-filtered) for the
 	// fields being faceted so registered tables render in facet output
 	// without per-call bindings.

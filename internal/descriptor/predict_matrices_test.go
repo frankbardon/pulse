@@ -1,12 +1,15 @@
 package descriptor
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,7 +28,7 @@ func TestPredict_Matrices(t *testing.T) {
 			{Name: "c2", Type: types.MAT_COVARIANCE, Fields: []string{"q_1", "q_3"}, Params: pairwise},
 		},
 	}
-	env := predictFromBytes(vectorPredictSchema(t), req, nil)
+	env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("unexpected errors: %v", env.Errors)
 	}
@@ -44,11 +47,11 @@ func TestPredict_Matrices(t *testing.T) {
 		{Name: "c2", Type: types.MAT_COVARIANCE, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
 	}
-	// Ungrouped: one bucket, p² cells, one accumulator per block.
+	// Ungrouped: one bucket, p² cells, one accumulator per merge block.
 	for i := range want {
 		p := int64(want[i].Shape[0])
 		want[i].BucketBasis = "ungrouped"
-		want[i].EstimatedBuckets, want[i].EstimatedCells, want[i].EstimatedBytes = i64(1), i64(p*p), i64(want[i].AccumulatorBytes)
+		want[i].EstimatedBuckets, want[i].EstimatedCells, want[i].EstimatedBytes = i64(1), i64(p*p), i64(matrixFixtureBlocks*want[i].AccumulatorBytes)
 	}
 	if !reflect.DeepEqual(got, want) {
 		g, _ := json.Marshal(got)
@@ -58,6 +61,86 @@ func TestPredict_Matrices(t *testing.T) {
 }
 
 func i64(v int64) *int64 { return &v }
+
+// matrixFixtureRecords spans two merge blocks (one full, one holding a
+// single record), so every estimated_bytes expectation pins the blocks
+// multiplier: matrixFixtureBlocks x buckets x accumulator_bytes.
+const (
+	matrixFixtureRecords = linalg.MergeBlockSize + 1
+	matrixFixtureBlocks  = 2
+)
+
+// vectorPredictCohort is vectorPredictSchema carrying n zero-valued
+// records — predict derives the record count from the file length.
+func vectorPredictCohort(t *testing.T, n int) []byte {
+	t.Helper()
+	data := vectorPredictSchema(t)
+	r := bytes.NewReader(data)
+	v, err := encoding.ReadHeader(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := encoding.ReadSchema(r, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(data, make([]byte, n*schema.RecordByteSize())...)
+}
+
+// TestPredict_MatrixEstimatedBytesCountsBlocks pins
+// MatrixPredict.EstimatedBytes as the real state — merge blocks x
+// buckets x accumulator bytes, blocks counted PER SHARD on an archive
+// (block numbering restarts per shard).
+func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
+	req := func() *types.Request {
+		return &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}},
+			Matrices:     []types.MatrixSpec{{Name: "c", Type: types.MAT_COVARIANCE, Fields: []string{"id", "score"}}},
+		}
+	}
+	bytesOf := func(t *testing.T, data []byte) *int64 {
+		t.Helper()
+		env := predictFromBytes(data, req(), nil)
+		if len(env.Errors) != 0 {
+			t.Fatalf("unexpected errors: %v", env.Errors)
+		}
+		ms := env.Data.(*descriptor.PredictResult).Matrices
+		if len(ms) != 1 {
+			t.Fatalf("matrices = %d", len(ms))
+		}
+		return ms[0].EstimatedBytes
+	}
+	acc := int64(32 + 8*(2+3))
+	shards := func(counts ...int) []byte {
+		specs := make([]struct {
+			Name    string
+			NRecord int
+		}, len(counts))
+		for i, n := range counts {
+			specs[i].Name, specs[i].NRecord = "p"+string(rune('1'+i))+".pulse", n
+		}
+		return buildShardArchiveBytes(t, twoShardInspectSchema(t), specs)
+	}
+	cases := []struct {
+		name string
+		data []byte
+		want int64
+	}{
+		// 4,097 + 5 records: two blocks in the first shard, one in the
+		// second — three, where the same 4,102 rows in one file hold two.
+		{"archive blocks per shard", shards(linalg.MergeBlockSize+1, 5), 3 * acc},
+		{"one shard", shards(linalg.MergeBlockSize + 5), 2 * acc},
+		{"exactly one block", shards(linalg.MergeBlockSize), acc},
+		{"no records", shards(0), 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := bytesOf(t, c.data); got == nil || *got != c.want {
+				t.Fatalf("estimated_bytes = %v, want %d", got, c.want)
+			}
+		})
+	}
+}
 
 // TestPredict_MatrixBucketEstimate: a grouped request reports each
 // spec's estimated buckets (from Groups[0] and the schema), cells
@@ -85,7 +168,7 @@ func TestPredict_MatrixBucketEstimate(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			req := &types.Request{Groups: c.groups, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}, Matrices: specs}
-			env := predictFromBytes(vectorPredictSchema(t), req, nil)
+			env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
 			if len(env.Errors) != 0 {
 				t.Fatalf("unexpected errors: %v", env.Errors)
 			}
@@ -114,8 +197,8 @@ func TestPredict_MatrixBucketEstimate(t *testing.T) {
 				if mp.EstimatedCells == nil || *mp.EstimatedCells != c.want*p*p {
 					t.Errorf("%s: estimated_cells %v, want %d", mp.Name, mp.EstimatedCells, c.want*p*p)
 				}
-				if mp.EstimatedBytes == nil || *mp.EstimatedBytes != c.want*mp.AccumulatorBytes {
-					t.Errorf("%s: estimated_bytes %v, want %d", mp.Name, mp.EstimatedBytes, c.want*mp.AccumulatorBytes)
+				if want := matrixFixtureBlocks * c.want * mp.AccumulatorBytes; mp.EstimatedBytes == nil || *mp.EstimatedBytes != want {
+					t.Errorf("%s: estimated_bytes %v, want %d", mp.Name, mp.EstimatedBytes, want)
 				}
 			}
 		})

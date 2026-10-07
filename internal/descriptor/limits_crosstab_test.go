@@ -79,14 +79,14 @@ func TestRequestLimitFindings_MaxCrosstabCellsPossible(t *testing.T) {
 	l.MaxCrosstabCells = 9
 	req := &types.Request{Crosstab: &types.CrosstabSpec{Rows: catAxis("cat"), Columns: catAxis("flag")}}
 	want := limits.Finding{Limit: limits.MaxCrosstabCells, Configured: 9, Estimated: 10, Grade: limits.Possible}
-	if fs := RequestLimitFindings(req, schema, nil, l, -1); len(fs) != 1 || fs[0] != want {
+	if fs := RequestLimitFindings(req, schema, nil, l, LimitInputs{Records: -1, JoinRightRows: -1}); len(fs) != 1 || fs[0] != want {
 		t.Fatalf("findings = %+v, want [%+v]", fs, want)
 	}
-	if err := LimitRefusal(req, schema, nil, l); err != nil {
+	if err := LimitRefusal(req, schema, nil, l, LimitInputs{Records: -1, JoinRightRows: -1}); err != nil {
 		t.Fatalf("a possible finding refused the pre-flight: %v", err)
 	}
 	l.MaxCrosstabCells = 10
-	if fs := RequestLimitFindings(req, schema, nil, l, -1); len(fs) != 0 {
+	if fs := RequestLimitFindings(req, schema, nil, l, LimitInputs{Records: -1, JoinRightRows: -1}); len(fs) != 0 {
 		t.Fatalf("at the limit: findings = %+v", fs)
 	}
 	l.MaxCrosstabCells = 1
@@ -94,7 +94,7 @@ func TestRequestLimitFindings_MaxCrosstabCellsPossible(t *testing.T) {
 		Rows:    catAxis("cat"),
 		Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "num", Interval: 10}},
 	}}
-	if fs := RequestLimitFindings(unknown, schema, nil, l, -1); len(fs) != 0 {
+	if fs := RequestLimitFindings(unknown, schema, nil, l, LimitInputs{Records: -1, JoinRightRows: -1}); len(fs) != 0 {
 		t.Fatalf("unknown axis: findings = %+v", fs)
 	}
 }

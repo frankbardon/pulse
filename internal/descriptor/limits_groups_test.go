@@ -107,19 +107,19 @@ func TestRequestLimitFindings_MaxGroupsPossible(t *testing.T) {
 	l := limits.Defaults()
 	l.MaxGroups = 4
 	req := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}}
-	fs := RequestLimitFindings(req, schema, nil, l, 100)
+	fs := RequestLimitFindings(req, schema, nil, l, LimitInputs{Records: 100, JoinRightRows: -1})
 	want := limits.Finding{Limit: limits.MaxGroups, Configured: 4, Estimated: 5, Grade: limits.Possible}
 	if len(fs) != 1 || fs[0] != want {
 		t.Fatalf("findings = %+v, want [%+v]", fs, want)
 	}
-	if err := LimitRefusal(req, schema, nil, l); err != nil {
+	if err := LimitRefusal(req, schema, nil, l, LimitInputs{Records: -1, JoinRightRows: -1}); err != nil {
 		t.Fatalf("a possible finding refused the pre-flight: %v", err)
 	}
-	if fs := RequestLimitFindings(req, schema, nil, l, 4); len(fs) != 0 {
+	if fs := RequestLimitFindings(req, schema, nil, l, LimitInputs{Records: 4, JoinRightRows: -1}); len(fs) != 0 {
 		t.Fatalf("records 4 clamp the estimate to the limit; findings = %+v", fs)
 	}
 	l.MaxGroups = limits.Unlimited
-	if fs := RequestLimitFindings(req, schema, nil, l, 100); len(fs) != 0 {
+	if fs := RequestLimitFindings(req, schema, nil, l, LimitInputs{Records: 100, JoinRightRows: -1}); len(fs) != 0 {
 		t.Fatalf("unlimited: findings = %+v", fs)
 	}
 }

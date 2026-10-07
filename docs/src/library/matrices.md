@@ -69,7 +69,12 @@ With `groups`, a matrix is computed per bucket, in `Response.Data` order
 `accumulator_bytes`, `pairwise_psd_risk`, and for a grouped request
 `bucket_basis`, `estimated_buckets`, `estimated_cells` and
 `estimated_bytes` (an upper bound; omitted when the bucket count depends
-on the data). Nothing caps them yet.
+on the data). `estimated_bytes` is the run's co-moment state: merge
+blocks (`ceil(records / 4096)`, counted per shard for an archive) ×
+buckets × `accumulator_bytes`. Matrix dimension is capped by
+`Options.Limits.MaxMatrixDim`, and the opt-in
+`Options.Limits.MaxEstimatedMemory` counts `estimated_bytes` in the
+memory estimate it checks before any record is read.
 
 Refused identically by predict and the run: matrices with `joins` or on a
 chain stage after the first (`PULSE_MATRIX_UNSUPPORTED_SOURCE`), and with

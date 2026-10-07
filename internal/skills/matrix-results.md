@@ -59,9 +59,9 @@ A request with `groups` returns one `MatrixResult` per non-empty bucket and spec
 | `bucket_basis` | where the bucket count comes from: `ungrouped`, `dictionary`, `boolean`, `include`, `quantile_bins`, `unknown` |
 | `estimated_buckets` | upper bound on buckets (omitted when `unknown`) |
 | `estimated_cells` | buckets × p² |
-| `estimated_bytes` | buckets × `accumulator_bytes` |
+| `estimated_bytes` | merge blocks (`ceil(records / 4096)`, per shard) × buckets × `accumulator_bytes` — the run's state |
 
-A range or date grouper is `unknown`: the three figures are omitted, never guessed. They are a report, not a guard — large p with many buckets is your call.
+A range or date grouper is `unknown`: the three figures are omitted, never guessed. They are a report; the host's `max_estimated_memory` limit (opt-in) counts `estimated_bytes` in its memory estimate.
 
 ## 6. What is refused
 

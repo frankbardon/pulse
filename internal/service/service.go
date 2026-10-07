@@ -673,7 +673,11 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
 		return nil, err
 	}
-	if err := s.limitsPreflight(req, cohort.Schema()); err != nil {
+	lin, err := s.limitInputs(ctx, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.limitsPreflight(req, cohort.Schema(), lin); err != nil {
 		return nil, err
 	}
 

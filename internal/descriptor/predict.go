@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
@@ -276,15 +277,17 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if data, ok := sniffArchive(fileData); ok {
 		return predictArchive(data, req, opts)
 	}
-	return predictSingle(fileData, req, opts, nil)
+	return predictSingle(fileData, req, opts, nil, nil)
 }
 
 // predictSingle is Predict over one header + schema. records is the
 // cohort's record count when the caller knows it (an archive's
-// per-shard sum); nil derives it from a single file's length. It only
-// bounds the response size estimates (PredictResult.Sizes) — RecordCount
-// stays the archive-only figure it documents.
-func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64) *descriptor.Envelope {
+// per-shard sum); nil derives it from a single file's length. It bounds
+// the response size estimates (PredictResult.Sizes), the limit findings
+// and the matrix state estimate — RecordCount stays the archive-only
+// figure it documents. shardRecords are an archive's per-shard counts
+// (merge blocks restart per shard); nil for a single file.
+func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -421,7 +424,15 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	}
 
 	predictVectors(env, result, req, schema)
-	predictMatrices(result, req, schema, opts.Instance)
+	// The merge-block count the matrix state scales with: per shard for
+	// an archive, else over the record count; unknown without one.
+	blocks := int64(-1)
+	if len(shardRecords) > 0 {
+		blocks = limits.MergeBlocks(shardRecords...)
+	} else if sizeIn.recordsKnown {
+		blocks = limits.MergeBlocks(sizeIn.records)
+	}
+	predictMatrices(result, req, schema, opts.Instance, blocks)
 	// Instance resource limits — the rule the process pre-flight
 	// refuses with (LimitRefusal), on the defaults-resolved request over
 	// the schema it executes over. A certain finding is a predict error.
@@ -429,7 +440,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if sizeIn.recordsKnown {
 		limitRecords = sizeIn.records
 	}
-	predictLimits(env, result, req, schema, opts, limitRecords)
+	predictLimits(env, result, req, schema, opts, limitRecords, shardRecords)
 
 	// Response size estimates — on every request, on the
 	// defaults-resolved request over the schema it executes over. With
@@ -806,6 +817,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 	// The cumulative record count bounds the return size estimates;
 	// unknown when a shard header cannot be peeked (reported below).
 	var records *int64
+	var shardRecords []int64
 	var total int64
 	known := true
 	for _, entry := range arch.Entries() {
@@ -818,12 +830,15 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 			break
 		}
 		total += count
+		shardRecords = append(shardRecords, count)
 	}
 	if known {
 		records = &total
+	} else {
+		shardRecords = nil
 	}
 
-	env := predictSingle(bytes.NewReader(canonical), req, opts, records)
+	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords)
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return env

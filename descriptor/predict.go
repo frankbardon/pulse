@@ -353,10 +353,12 @@ type MatrixPredict struct {
 	// EstimatedCells is EstimatedBuckets × p² — the primary cells the
 	// spec's results carry in full encoding.
 	EstimatedCells *int64 `json:"estimated_cells,omitempty"`
-	// EstimatedBytes is EstimatedBuckets × AccumulatorBytes — the
-	// co-moment state per populated merge block across every bucket
-	// (each bucket holds one state per block its rows touch). No guard
-	// acts on it.
+	// EstimatedBytes is the run's co-moment state: merge blocks ×
+	// EstimatedBuckets × AccumulatorBytes, the blocks being
+	// ceil(records / merge_block_size) — per shard for an archive, whose
+	// block numbering restarts per shard. An upper bound (a bucket holds
+	// one state per block its rows touch). Omitted with the bucket count
+	// unknown. It is the matrix term of the MaxEstimatedMemory estimate.
 	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
 	// Streamable reports whether the operator folds row by row (its
 	// result is emitted at finalize — terminal flush when streamed).

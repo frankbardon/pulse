@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -21,30 +23,32 @@ import (
 // shards on the join leg. See skills/join-design.md for the v1
 // scope envelope.
 func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*types.Response, error) {
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req)
+	// Strip Joins from the spec passed to the processor so the
+	// processor's standard pipeline runs against the joined records
+	// without re-triggering join logic. Defaults, zones, field
+	// references and the limits pre-flight run on the joined schema
+	// before the build side decodes a record (openJoinStream's
+	// preflight hook).
+	clone := *req
+	clone.Joins = nil
+	clone.Cohort = nil
+	var zones []descriptor.ResolvedZone
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) error {
+		s.applyDefaults(&clone, joined)
+		z, err := s.resolveZones(&clone, joined)
+		if err != nil {
+			return err
+		}
+		zones = z
+		if err := s.checkFieldRefs(&clone, joined); err != nil {
+			return err
+		}
+		return s.limitsPreflight(&clone, joined, lin)
+	})
 	if err != nil {
 		return nil, err
 	}
 	defer leftIter.Close()
-
-	// Strip Joins from the spec passed to the processor so the
-	// processor's standard pipeline runs against the joined records
-	// without re-triggering join logic.
-	clone := *req
-	clone.Joins = nil
-	clone.Cohort = nil
-
-	s.applyDefaults(&clone, joinedSchema)
-	zones, err := s.resolveZones(&clone, joinedSchema)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
-		return nil, err
-	}
-	if err := s.limitsPreflight(&clone, joinedSchema); err != nil {
-		return nil, err
-	}
 
 	proc := s.newProcessor(ctx, joinedSchema, req)
 	resp, err := proc.Process(ctx, s.zoned(&clone, zones), join)
@@ -73,8 +77,16 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 // wraps: the caller owns it (Close, and Err after draining) whenever
 // err is nil.
 //
+// preflight is the host's own checks over the joined schema —
+// defaults, zones, field references and the limits pre-flight, which
+// reads the LimitInputs built here (the left header count and the
+// right one MaxJoinBuildRows / MaxEstimatedMemory read). It runs after
+// the join-key rule and the MaxJoinBuildRows check and BEFORE the build
+// side decodes a record, so a refusal costs no record decode on either
+// side.
+//
 // Process applied descx.JoinCountRefusal before either caller runs.
-func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
+func (s *Service) openJoinStream(ctx context.Context, req *types.Request, preflight func(joined *encoding.Schema, lin descx.LimitInputs) error) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
 	spec := req.Joins[0]
 	if spec == nil {
 		return nil, nil, "", nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
@@ -104,14 +116,35 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*proc
 	// join-key rule.
 	l := s.Limits()
 	buildBounded := !limits.IsUnlimited(l.MaxJoinBuildRows)
-	if buildBounded {
+	rightRows := int64(-1)
+	if buildBounded || s.memoryBounded() {
 		n, err := joinBuildCount(ctx, s, spec.Right)
 		if err != nil {
 			return nil, nil, "", nil, err
 		}
-		if lerr := limits.CheckJoinBuildRows(l, int64(n)); lerr != nil {
+		rightRows = int64(n)
+	}
+	if buildBounded {
+		if lerr := limits.CheckJoinBuildRows(l, rightRows); lerr != nil {
 			return nil, nil, "", nil, markLocated(lerr)
 		}
+	}
+
+	// The host's checks over the joined schema — defaults, zones, field
+	// references and the limits pre-flight (MaxEstimatedMemory reads
+	// the left header count and the right one above) — before the
+	// build decodes a record.
+	joined, err := processing.JoinedSchema(leftCohort.Schema(), rightCohort.Schema(), spec)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+	lin, err := s.limitInputs(ctx, leftCohort, leftPath)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+	lin.Join, lin.JoinRightRows = true, rightRows
+	if err := preflight(joined, lin); err != nil {
+		return nil, nil, "", nil, err
 	}
 
 	// Materialise the right side as a slice. v1 does not spill; the
