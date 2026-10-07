@@ -21,6 +21,7 @@ var (
 	workMatrixAuxiliaryBuilds   atomic.Int64
 	workMatrixScalarBuilds      atomic.Int64
 	workMatrixVectorBuilds      atomic.Int64
+	workOverlayLayerRuns        atomic.Int64
 )
 
 // WorkStatsSnapshot is a snapshot of the process-wide work counters.
@@ -70,6 +71,11 @@ type WorkStatsSnapshot struct {
 	MatrixAuxiliaryBuilds int64
 	MatrixScalarBuilds    int64
 	MatrixVectorBuilds    int64
+	// OverlayLayerRuns counts overlay layer folds: one per spec a
+	// request-host (crosstab or series) or Compose-host dispatch loop
+	// runs through its handler. A layer the ComputePlan skips counts
+	// nothing.
+	OverlayLayerRuns int64
 }
 
 // WorkStats returns the process-wide work counters. Diagnostic only;
@@ -89,6 +95,7 @@ func WorkStats() WorkStatsSnapshot {
 		MatrixAuxiliaryBuilds:     workMatrixAuxiliaryBuilds.Load(),
 		MatrixScalarBuilds:        workMatrixScalarBuilds.Load(),
 		MatrixVectorBuilds:        workMatrixVectorBuilds.Load(),
+		OverlayLayerRuns:          workOverlayLayerRuns.Load(),
 	}
 }
 
@@ -108,6 +115,7 @@ func (s WorkStatsSnapshot) Sub(o WorkStatsSnapshot) WorkStatsSnapshot {
 		MatrixAuxiliaryBuilds:     s.MatrixAuxiliaryBuilds - o.MatrixAuxiliaryBuilds,
 		MatrixScalarBuilds:        s.MatrixScalarBuilds - o.MatrixScalarBuilds,
 		MatrixVectorBuilds:        s.MatrixVectorBuilds - o.MatrixVectorBuilds,
+		OverlayLayerRuns:          s.OverlayLayerRuns - o.OverlayLayerRuns,
 	}
 }
 

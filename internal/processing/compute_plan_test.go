@@ -173,3 +173,44 @@ func TestComputePlan_RunNullRecordsIndependentOfAggs(t *testing.T) {
 		t.Errorf("Run with aggregation components skipped = %+v; want %+v", *got, *want)
 	}
 }
+
+// WithOverlayLayers: none marked turns the slot off, all marked is the
+// plain whole slot (still comparable to FullComputePlan), anything
+// between computes exactly the marked layers.
+func TestComputePlan_OverlayLayers(t *testing.T) {
+	full := FullComputePlan()
+	if off := full.WithOverlayLayers(nil); off.Overlays || off.ComputesOverlay(0) {
+		t.Errorf("no layer marked: %+v; want the slot off", off)
+	}
+	if all := full.WithOverlayLayers([]bool{true, true}); all != full {
+		t.Errorf("every layer marked: %+v; want FullComputePlan", all)
+	}
+	keep := []bool{false, true, false}
+	some := full.WithOverlayLayers(keep)
+	keep[1] = false // the mask is a copy
+	for i, want := range []bool{false, true, false, false} {
+		if got := some.ComputesOverlay(i); got != want {
+			t.Errorf("layer %d computed=%v, want %v", i, got, want)
+		}
+	}
+}
+
+// The series dispatch loop folds only the layers keep marks: a skipped
+// spec runs no handler (no fold counted) and holds a zero layer, so the
+// result stays index-aligned with the specs.
+func TestApplyOverlaysSeries_SkipsUnmarkedLayers(t *testing.T) {
+	host := newStubSeriesHost([]types.AxisKey{{"jan"}, {"feb"}, {"mar"}}, []float64{10, 20, 30})
+	specs := []types.OverlaySpec{newIndexVsBaselineSpec("a", 0), newDeltaVsBaselineSpec("b", 0)}
+	plan := FullComputePlan().WithOverlayLayers([]bool{false, true})
+	before := WorkStats()
+	layers, _, err := applyOverlaysSeriesWith(specs, host, nil, plan.overlayKeep())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := WorkStats().Sub(before).OverlayLayerRuns; got != 1 {
+		t.Errorf("%d layer folds; want 1", got)
+	}
+	if len(layers) != 2 || layers[0].Kind != "" || layers[1].Kind != types.OverlayKindDeltaVsBaseline {
+		t.Errorf("layers %+v; want [zero, DELTA_VS_BASELINE]", layers)
+	}
+}

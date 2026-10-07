@@ -68,6 +68,40 @@ func TestReturnKeptNumberInvariant(t *testing.T) {
 		}
 	}
 
+	// U18 E3-S1: a `request` multiplicity family pools the test with the
+	// inferential layers, so excluding the overlays still folds them —
+	// the test's p_adjusted and m are the full run's — while the
+	// descriptive layer, no member, is skipped. Overlays are absent.
+	t.Run("multiplicity_family_vetoes_excluded_overlays", func(t *testing.T) {
+		p := newReturnInstance(t, fs, pulse.Options{})
+		build := func(ret *types.Return) *types.Request {
+			r := floorCrosstab(cohort, nil, types.SlotWeight{}, nil,
+				types.OverlaySpec{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
+				types.OverlaySpec{Name: "d", Kind: types.OverlayKindShareOfRow, Scope: types.OverlayScopeRow,
+					Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}})
+			r.Tests = []*types.Test{{Type: types.TEST_T, Field: "x", Params: json.RawMessage(`{"mu":10}`), Label: "t"}}
+			r.Multiplicity = &types.Multiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyRequest}
+			r.Return = ret
+			return r
+		}
+		full, err := p.Process(ctx, build(nil))
+		if err != nil {
+			t.Fatalf("full: %v", err)
+		}
+		if len(full.Tests) != 1 || full.Tests[0].Multiplicity == nil || full.Tests[0].Multiplicity.M < 2 {
+			t.Fatalf("full run's test is not pooled with the overlay: %+v", full.Tests)
+		}
+		before := processing.WorkStats()
+		shaped, err := p.Process(ctx, build(&types.Return{Exclude: []string{"overlays"}}))
+		if err != nil {
+			t.Fatalf("shaped: %v", err)
+		}
+		if got := processing.WorkStats().Sub(before).OverlayLayerRuns; got != 1 {
+			t.Errorf("%d layer folds; want the 1 member layer", got)
+		}
+		assertKeptPathsIdentical(t, full, shaped, "overlays")
+	})
+
 	t.Run("compose_overlay_names_slots", func(t *testing.T) {
 		p := newReturnInstance(t, fs, pulse.Options{})
 		fixture := func(ret *types.Return) *types.ComposedRequest {

@@ -605,7 +605,7 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err != nil {
 		return nil, markLocated(err)
 	}
-	ctx = withComputePlan(ctx, s.resolveComputePlan(ctx, req, retPlan))
+	ctx = withComputePlan(ctx, s.resolveComputePlan(ctx, req, retPlan, plan))
 
 	resp, err := s.processDispatch(ctx, req)
 	if err != nil {
@@ -1047,9 +1047,13 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	}
 	// The Compose-level `return` (top-level overlays) resolves before
 	// any slot runs; each slot's own block resolves inside its Process.
-	if _, err := descx.ResolveComposeReturn(composed, s.instance); err != nil {
+	// What it lets the batch skip: the Compose-host overlays, unless a
+	// multiplicity family claims one (composeOverlaysComputed).
+	composeRet, err := descx.ResolveComposeReturn(composed, s.instance)
+	if err != nil {
 		return nil, err
 	}
+	foldOverlays := composeOverlaysComputed(composed, composeRet, multPlan)
 	ctx = withinCompose(ctx)
 
 	requests, err := applyComposeLabelDefaults(composed)
@@ -1059,12 +1063,16 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	*slots = requests
 	// A Compose overlay reads the slots it names after they run, so a
 	// named slot's `return` may not skip its Components; an unnamed
-	// slot skips what its selection excludes.
-	vetoes := composeSlotVetoes(composed.Overlays, requests)
+	// slot skips what its selection excludes. A skipped Compose overlay
+	// reads nothing, so it vetoes nothing.
+	var vetoes []bool
+	if foldOverlays {
+		vetoes = composeSlotVetoes(composed.Overlays, requests)
+	}
 
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		resp, err := s.Process(composeSlotContext(ctx, vetoes, i), req)
+		resp, err := s.Process(composeSlotContext(ctx, vetoes, multPlan, i), req)
 		if err != nil {
 			return nil, fmt.Errorf("request %d: %w", i, locate(err, "request", i))
 		}
@@ -1078,9 +1086,15 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// barrier every slot succeeded — the hook is unconditional.
 	// Empty / nil req.Overlays short-circuits with no allocation
 	// (byte-identical JSON vs the overlay-free baseline).
-	layers, warnings, err := s.applyComposeOverlays(ctx, composed, requests, responses)
-	if err != nil {
-		return nil, err
+	var (
+		layers   []types.OverlayLayer
+		warnings []types.OverlayWarning
+	)
+	if foldOverlays {
+		layers, warnings, err = s.applyComposeOverlays(ctx, composed, requests, responses)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Build the ComposedResponse wrapper. Overlay-free composes leave

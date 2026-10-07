@@ -474,19 +474,28 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 // do not engage prefix-bucket denominators, and the per-kind handlers
 // add their own gates when their math requires it.
 func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
-	return applyOverlaysSeriesWith(specs, host, nil)
+	return applyOverlaysSeriesWith(specs, host, nil, nil)
 }
 
 // applyOverlaysSeriesWith is ApplyOverlaysSeries dispatching on the
 // route exts gives each kind: a kind the instance feature set hides
 // misses the table exactly like a never-registered kind.
-func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+//
+// keep (nil: every spec) is the ComputePlan's overlay mask: a skipped
+// spec runs no handler and raises nothing, and its position holds a
+// zero layer so the result stays index-aligned with specs.
+func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
 	layers := make([]types.OverlayLayer, 0, len(specs))
 	var warnings []types.OverlayWarning
 	for i := range specs {
+		if keep != nil && !keep(i) {
+			layers = append(layers, types.OverlayLayer{})
+			continue
+		}
+		workOverlayLayerRuns.Add(1)
 		spec := &specs[i]
 		handler, ok := seriesOverlayHandlers[exts.overlayRoute(spec.Kind)]
 		if !ok {

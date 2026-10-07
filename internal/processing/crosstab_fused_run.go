@@ -151,7 +151,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 	// Called here rather than inside Finalize because Finalize has
 	// neither the *types.Request nor the ExtensionRegistry the fold
 	// needs; RunCrosstabFused has both.
-	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
+	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {

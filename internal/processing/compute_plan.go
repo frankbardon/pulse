@@ -52,13 +52,75 @@ type ComputePlan struct {
 	MatrixScalars   bool
 	MatrixVectors   bool
 
+	// Overlays is the Response.Overlays slot: whether the run folds ANY
+	// request overlay layer. overlayLayers, when non-nil, narrows it to
+	// the layers it marks (index-aligned with Request.Overlays) — the
+	// layers a veto keeps while the selection excludes the slot (see
+	// WithOverlayLayers). A layer is one compute unit: its payload and
+	// summary are never split.
+	Overlays      bool
+	overlayLayers *layerMask
+
 	// Whole-slot parts outside Components. Carried for the stories that
-	// wire them (overlays, tests, regressions); the service keeps them
-	// on until their veto rules land.
-	Overlays    bool
+	// wire them (tests, regressions); the service keeps them on until
+	// their veto rules land.
 	Tests       bool
 	PostTests   bool
 	Regressions bool
+}
+
+// layerMask is an immutable per-entry compute mask. ComputePlan holds
+// it by pointer so the plan stays a comparable value; a plan built
+// without one (every plan but a partially vetoed one) compares as
+// before.
+type layerMask struct{ keep []bool }
+
+// WithOverlayLayers narrows the overlay slot to the layers keep marks
+// (index-aligned with Request.Overlays): none marked turns the slot
+// off, every one marked is the plain whole slot (no mask), anything
+// between computes exactly the marked layers. keep is copied.
+func (c ComputePlan) WithOverlayLayers(keep []bool) ComputePlan {
+	some, all := false, len(keep) > 0
+	for _, k := range keep {
+		some = some || k
+		all = all && k
+	}
+	c.overlayLayers = nil
+	switch {
+	case !some:
+		c.Overlays = false
+	case all:
+		c.Overlays = true
+	default:
+		c.Overlays = true
+		c.overlayLayers = &layerMask{keep: append([]bool(nil), keep...)}
+	}
+	return c
+}
+
+// ComputesOverlay reports whether the run folds request overlay layer
+// i. A skipped layer runs no handler and raises no refusal or warning;
+// its position in Response.Overlays (when any other layer is computed)
+// holds a zero layer, so index alignment with Request.Overlays — which
+// the multiplicity fold reads — survives.
+func (c ComputePlan) ComputesOverlay(i int) bool {
+	if !c.Overlays {
+		return false
+	}
+	if c.overlayLayers == nil {
+		return true
+	}
+	return i >= 0 && i < len(c.overlayLayers.keep) && c.overlayLayers.keep[i]
+}
+
+// overlayKeep is ComputesOverlay as a per-index predicate for the
+// overlay dispatch loops; nil when every layer is computed (the
+// unplanned loop).
+func (c ComputePlan) overlayKeep() func(int) bool {
+	if c.Overlays && c.overlayLayers == nil {
+		return nil
+	}
+	return c.ComputesOverlay
 }
 
 // FullComputePlan computes every part — the plan of a request without

@@ -285,11 +285,11 @@ func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 
 	excl := &types.Request{}
 	ret := mustResolveReturn(t, &types.Request{Return: &types.Return{Preset: types.ReturnPresetMinimal}})
-	if got := svc.resolveComputePlan(ctx, excl, ret); got != minimal {
+	if got := svc.resolveComputePlan(ctx, excl, ret, nil); got != minimal {
 		t.Errorf("minimal: %+v; want components and matrix sub-parts off, whole-slot parts on", got)
 	}
 	payloadOnly := &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow}}}
-	if got := svc.resolveComputePlan(ctx, payloadOnly, ret); got != minimal {
+	if got := svc.resolveComputePlan(ctx, payloadOnly, ret, nil); got != minimal {
 		t.Errorf("payload-only overlay: %+v; want no veto", got)
 	}
 	for _, kind := range []types.OverlayKind{types.OverlayKindPairwisePropZ, types.OverlayKindChiSqRow, types.OverlayKindFisherExactCell} {
@@ -297,16 +297,16 @@ func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 			{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow},
 			{Kind: kind, Scope: types.OverlayScopeRow},
 		}}
-		if got := svc.resolveComputePlan(ctx, reading, ret); got != crosstabKept {
+		if got := svc.resolveComputePlan(ctx, reading, ret, nil); got != crosstabKept {
 			t.Errorf("%s: %+v; want components.crosstab kept, aux margins and the rest skipped", kind, got)
 		}
 	}
-	if got := svc.resolveComputePlan(withComponentsVeto(ctx), excl, ret); got != vetoed {
+	if got := svc.resolveComputePlan(withComponentsVeto(ctx), excl, ret, nil); got != vetoed {
 		t.Errorf("Compose slot veto: %+v; want every component kept", got)
 	}
 	svc.SetDisableComponents(true)
 	reading := &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeRow}}}
-	if got := svc.resolveComputePlan(withComponentsVeto(ctx), reading, nil); got.AnyComponents() {
+	if got := svc.resolveComputePlan(withComponentsVeto(ctx), reading, nil, nil); got.AnyComponents() {
 		t.Errorf("closed gate under a veto: %+v; want every sub-part off", got)
 	}
 	// computePlanFor prefers the plan Service.process put on ctx.

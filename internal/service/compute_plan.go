@@ -81,23 +81,89 @@ func composeSlotVetoes(overlays []types.ComposeOverlaySpec, requests []*types.Re
 }
 
 // composeSlotContext is ctx for slot i: marked with the Components veto
-// when a Compose overlay names it (vetoes from composeSlotVetoes).
-func composeSlotContext(ctx context.Context, vetoes []bool, i int) context.Context {
+// when a Compose overlay names it (vetoes from composeSlotVetoes), and
+// carrying the slot's share of the batch's multiplicity plan (mult;
+// the batch resolved it, so the slot's Process does not) for the
+// multiplicity veto.
+func composeSlotContext(ctx context.Context, vetoes []bool, mult *descx.ComposeMultiplicityPlan, i int) context.Context {
 	if i < len(vetoes) && vetoes[i] {
-		return withComponentsVeto(ctx)
+		ctx = withComponentsVeto(ctx)
+	}
+	if mult != nil && i < len(mult.Requests) && mult.Requests[i] != nil {
+		ctx = context.WithValue(ctx, slotMultiplicityKey{}, mult.Requests[i])
 	}
 	return ctx
 }
 
+// slotMultiplicityKey carries a Compose slot's resolved multiplicity
+// plan (its entry of the batch's ComposeMultiplicityPlan) to the slot's
+// compute plan.
+type slotMultiplicityKey struct{}
+
+func slotMultiplicity(ctx context.Context) *descx.MultiplicityPlan {
+	m, _ := ctx.Value(slotMultiplicityKey{}).(*descx.MultiplicityPlan)
+	return m
+}
+
+// multiplicityVetoes is the multiplicity veto over one whole slot list
+// (request overlays here; tests and post-tests reuse it): per entry of
+// an n-long list, whether a resolved multiplicity family claims it
+// (descx.ResolvedMultiplicity.Member, index-aligned). A member keeps
+// computing whatever the selection excludes, so the family's size m
+// and every kept p_adjusted are exactly the full run's. nil when no
+// entry is a member.
+func multiplicityVetoes(slots []descx.ResolvedMultiplicity, n int) []bool {
+	var out []bool
+	for i := 0; i < n && i < len(slots); i++ {
+		if !slots[i].Member {
+			continue
+		}
+		if out == nil {
+			out = make([]bool, n)
+		}
+		out[i] = true
+	}
+	return out
+}
+
+// anyMember reports whether a resolved multiplicity family claims any
+// entry of slots.
+func anyMember(slots []descx.ResolvedMultiplicity) bool {
+	for _, r := range slots {
+		if r.Member {
+			return true
+		}
+	}
+	return false
+}
+
+// composeOverlaysComputed reports whether a Compose batch folds its
+// Compose-host overlays: always when its Compose-level `return` (ret,
+// nil when absent) keeps `overlays`; otherwise only when a resolved
+// multiplicity family (mult.Overlays) claims one of them — then all of
+// them run, since a Compose-host spec may emit several layers and the
+// fold aligns its families by position. Skipped, they run no handler
+// and raise no refusal, and they read (so veto) no slot's Components.
+func composeOverlaysComputed(composed *types.ComposedRequest, ret *returnplan.Plan, mult *descx.ComposeMultiplicityPlan) bool {
+	if composed == nil || len(composed.Overlays) == 0 {
+		return false
+	}
+	if processing.ComputePlanFor(ret).Overlays {
+		return true
+	}
+	return mult != nil && anyMember(mult.Overlays)
+}
+
 // requestOverlaysReadComponents reports whether any of req's own
-// overlays reads its crosstab host's Components.Crosstab — the rule
-// predict shares (descx.OverlayReadsHostComponents).
-func requestOverlaysReadComponents(req *types.Request) bool {
+// overlays that plan computes reads its crosstab host's
+// Components.Crosstab — the rule predict shares
+// (descx.OverlayReadsHostComponents). A skipped layer reads nothing.
+func requestOverlaysReadComponents(req *types.Request, plan processing.ComputePlan) bool {
 	if req == nil {
 		return false
 	}
 	for i := range req.Overlays {
-		if descx.OverlayReadsHostComponents(req.Overlays[i].Kind) {
+		if plan.ComputesOverlay(i) && descx.OverlayReadsHostComponents(req.Overlays[i].Kind) {
 			return true
 		}
 	}
@@ -124,26 +190,42 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 //     sub-parts follow the selection with no veto: nothing downstream
 //     reads them (matrices are refused under joins and crosstab, sit
 //     outside the multiplicity pool, and no Compose / chain overlay
-//     reads them); the other whole-slot parts (overlays, tests,
-//     post-tests, regressions) stay computed — their skip rules and
-//     vetoes land with the stories that wire them;
-//  3. veto: a KEPT request overlay that reads its host's components
-//     (requestOverlaysReadComponents) keeps components.crosstab — the
-//     only sub-part an overlay reads; its *_margin_aggregations figures
-//     follow the selection — and a Compose overlay naming this slot
-//     (componentsVetoed) keeps every Components sub-part. A chain
-//     overlay reads its stages' data and crosstab payload only, so it
-//     vetoes nothing;
-//  4. the closed DisableComponents gate drops every Components sub-part,
+//     reads them); tests, post-tests and regressions stay computed —
+//     their skip rules land with the story that wires them;
+//  3. the overlay slot follows the selection, per layer: an excluded
+//     slot still computes every layer a resolved multiplicity family
+//     claims (multiplicityVetoes over mult.Overlays — mult is the
+//     request's plan, or the Compose slot's share of its batch's when
+//     nil), so the family's m and every kept p_adjusted are the full
+//     run's. Nothing else reads a request overlay layer: Compose and
+//     chain overlays read slots' data, crosstab payload and Components
+//     only. A skipped layer runs no handler and raises no refusal;
+//  4. veto: a COMPUTED request overlay layer that reads its host's
+//     components (requestOverlaysReadComponents) keeps
+//     components.crosstab — the only sub-part an overlay reads; its
+//     *_margin_aggregations figures follow the selection — and a
+//     Compose overlay naming this slot (componentsVetoed) keeps every
+//     Components sub-part. A chain overlay reads its stages' data and
+//     crosstab payload only, so it vetoes nothing;
+//  5. the closed DisableComponents gate drops every Components sub-part,
 //     veto or not (an overlay that needs them refuses, as before).
 //
 // No `return` and an open gate is FullComputePlan: byte-identical.
-func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, ret *returnplan.Plan) processing.ComputePlan {
+func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, ret *returnplan.Plan, mult *descx.MultiplicityPlan) processing.ComputePlan {
 	full := processing.FullComputePlan()
 	plan := processing.ComputePlanFor(ret)
-	plan.Overlays, plan.Tests, plan.PostTests, plan.Regressions =
-		full.Overlays, full.Tests, full.PostTests, full.Regressions
-	if plan.Overlays && requestOverlaysReadComponents(req) {
+	plan.Tests, plan.PostTests, plan.Regressions = full.Tests, full.PostTests, full.Regressions
+	if !plan.Overlays && req != nil && len(req.Overlays) > 0 {
+		if mult == nil {
+			mult = slotMultiplicity(ctx)
+		}
+		var claimed []descx.ResolvedMultiplicity
+		if mult != nil {
+			claimed = mult.Overlays
+		}
+		plan = plan.WithOverlayLayers(multiplicityVetoes(claimed, len(req.Overlays)))
+	}
+	if requestOverlaysReadComponents(req, plan) {
 		plan.Crosstab = true
 	}
 	if componentsVetoed(ctx) {
@@ -163,5 +245,5 @@ func (s *Service) computePlanFor(ctx context.Context, req *types.Request) proces
 	if plan, ok := ctx.Value(computePlanKey{}).(processing.ComputePlan); ok {
 		return plan
 	}
-	return s.resolveComputePlan(ctx, req, nil)
+	return s.resolveComputePlan(ctx, req, nil, nil)
 }

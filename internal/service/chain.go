@@ -174,7 +174,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 
 		// The stage's own compute plan: what its `return` excludes is
 		// never built. Its data — the next stage's input — has no skip.
-		stageCtx := withComputePlan(ctx, s.resolveComputePlan(ctx, stage, rets[i]))
+		stageCtx := withComputePlan(ctx, s.resolveComputePlan(ctx, stage, rets[i], plans[i]))
 		resp, err := s.runChainStage(stageCtx, s.zoned(stage, zones), plans[i], synthSchema, records)
 		if err != nil {
 			return nil, err

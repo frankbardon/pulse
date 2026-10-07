@@ -1657,7 +1657,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// processRecords (Service.Process dispatches them to
 	// processCrosstab), so the SERIES hook never collides with the
 	// MATRIX hook in internal/processing/crosstab.go.
-	if err := applyOverlaysSeriesToResponse(req, resp, p.exts); err != nil {
+	if err := applyOverlaysSeriesToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
 

@@ -75,6 +75,15 @@ request `return` never re-opens it, so components are not computed and
 the block gains `exclude: ["components"]`. Only an explicit request
 `disable_components: false` turns them back on.
 
+## Excluded parts are not computed
+
+An excluded part is skipped at execution, not only on the wire: the
+run does less work, and a kept figure never changes. An excluded
+overlay layer runs no handler and so raises none of its refusals or
+warnings; `Predict` still validates it. A layer that belongs to a
+`multiplicity` family is computed anyway, so every kept `p_adjusted`
+matches the full run.
+
 ## Surfaces
 
 - `Process`: shapes the one response.

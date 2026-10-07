@@ -1047,7 +1047,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//     FusedCrosstabState.Finalize returns, so an overlay-carrying
 	//     crosstab no longer forces the buffered path and both paths
 	//     emit identical Response.Overlays / Response.Warnings.
-	if err := applyOverlaysToResponse(req, resp, p.exts); err != nil {
+	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
 
@@ -1087,8 +1087,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // On unknown overlay kind, applyOverlays returns a CodedError whose own
 // Code is the canonical errors.PULSE_OVERLAY_KIND_UNKNOWN — every overlay
 // fault carries its real code so `pulse errors lookup` resolves it.
-func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry) error {
-	if req == nil || len(req.Overlays) == 0 {
+//
+// compute is the run's ComputePlan: a layer it skips (ComputesOverlay)
+// runs no handler and raises no refusal — the slab-partition gate
+// included — and no layer computed is the overlay-free exit.
+func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry, compute ComputePlan) error {
+	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
 	}
 	// Distinct-key slab partition gate — the RUNTIME twin of the predict
@@ -1100,7 +1104,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	// funnel through here. It runs BEFORE the MATRIX-payload guard below
 	// so a shape=long host refuses identically to the way predict does —
 	// the refusal is a property of the request, not of the payload.
-	if err := checkPairwiseSlabPartition(req, exts); err != nil {
+	if err := checkPairwiseSlabPartition(req, exts, compute.overlayKeep()); err != nil {
 		return err
 	}
 	if resp == nil || resp.Crosstab == nil || resp.Crosstab.Matrix == nil {
@@ -1134,7 +1138,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	// builtins, etc.) are reachable from OVERLAY_FORMULA expressions.
 	// Non-FORMULA kinds ignore the registry — their handlers continue
 	// to use the (spec, host) signature unchanged.
-	layers, warnings, err := ApplyOverlaysWithExtensions(req.Overlays, host, exts)
+	layers, warnings, err := applyOverlaysPlanned(req.Overlays, host, exts, compute.overlayKeep())
 	if err != nil {
 		return err
 	}
@@ -1171,11 +1175,16 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 // internal/descriptor.ExtensionsSnapshot instead — different route, one
 // resolution order, because both call
 // types.CheckPairwiseSlabPartitionWith.
-func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry) error {
+//
+// keep (nil: every spec) limits the gate to the layers the run folds.
+func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry, keep func(int) bool) error {
 	if req == nil || req.Crosstab == nil {
 		return nil
 	}
 	for i := range req.Overlays {
+		if keep != nil && !keep(i) {
+			continue
+		}
 		spec := &req.Overlays[i]
 		if !types.IsPairwiseOverlayKind(exts.overlayRoute(spec.Kind)) {
 			continue

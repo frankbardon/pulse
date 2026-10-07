@@ -354,6 +354,15 @@ func applyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.O
 // behaviour is preserved when the caller does not have a registry on
 // hand (tests, isolated handler exercises).
 func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostView, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	return applyOverlaysPlanned(specs, host, exts, nil)
+}
+
+// applyOverlaysPlanned is ApplyOverlaysWithExtensions folding only the
+// specs keep marks (nil keeps every one — the ComputePlan's
+// overlayKeep). A skipped spec runs no handler and raises no refusal or
+// warning; its position holds a zero layer so the result stays
+// index-aligned with specs.
+func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -364,6 +373,11 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 	layers := make([]types.OverlayLayer, 0, len(specs))
 	var warnings []types.OverlayWarning
 	for i := range specs {
+		if keep != nil && !keep(i) {
+			layers = append(layers, types.OverlayLayer{})
+			continue
+		}
+		workOverlayLayerRuns.Add(1)
 		spec := &specs[i]
 		// Every kind-keyed decision below takes the route: a kind the
 		// instance feature set hides routes as never registered.

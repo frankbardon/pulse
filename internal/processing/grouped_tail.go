@@ -236,7 +236,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	// the parallel arms (CanMergeRequest does not look at overlays) fold
 	// it here, which is equivalent because the hook reads only the
 	// materialised response (pinned by the shard parity suite).
-	if err := applyOverlaysSeriesToResponse(req, resp, t.Extensions); err != nil {
+	if err := applyOverlaysSeriesToResponse(req, resp, t.Extensions, t.Compute); err != nil {
 		return nil, err
 	}
 	return resp, nil
