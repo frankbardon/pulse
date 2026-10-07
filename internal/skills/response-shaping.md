@@ -9,7 +9,7 @@ covers: [return, presets, include, exclude, precision, returned]
 
 # Response shaping (`return`)
 
-`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict resolves and validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, precision?, identity, digest}`).
+`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict resolves and validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, precision?, identity, digest}`) plus `sizes` — per top-level section `{section, full_bytes, shaped_bytes, basis}` (`exact` / `upper_bound` / `heuristic`; excluded = 0; omitted when the size depends on data) — and `unresolved_includes`.
 
 ```json
 {"return": {"preset": "standard", "exclude": ["warnings"], "precision": 4}}
@@ -33,7 +33,7 @@ Paths use the Response JSON names at any depth: `.` between keys, `[*]` into eve
 
 - `PULSE_RETURN_INVALID` — unknown preset, precision outside 1–17, malformed path, naming `returned`, or a non-overlay path in a Compose-level block.
 - `PULSE_RETURN_PATH_UNKNOWN` — a path this instance's Response does not carry (a hidden feature's path counts).
-- `PULSE_RETURN_PATH_UNMATCHED` — WARNING, buffered runs only: an include through an open map matched nothing in the executed response. Never raised on streams.
+- `PULSE_RETURN_PATH_UNMATCHED` — WARNING, buffered runs only: an include through an open map matched nothing in the executed response. Never raised on streams; predict lists the includes that may go unmatched as `unresolved_includes`.
 
 ## Precision
 

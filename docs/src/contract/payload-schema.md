@@ -376,8 +376,12 @@ crosstab, test `details` and operator component maps accept any key); an
 unknown preset, a precision out of range or a malformed path is
 `PULSE_RETURN_INVALID`. Predict echoes the resolved plan as
 `data.return` (`{preset, include, exclude, keep, precision?, identity,
-digest}`, a predict result field, not part of this schema); equivalent
-spellings share a `digest`.
+digest, sizes?, unresolved_includes?}`, a predict result field, not part
+of this schema); equivalent spellings share a `digest`. `sizes` estimates
+each top-level section as `{section, full_bytes, shaped_bytes, basis}`
+(`shaped_bytes` 0 when excluded; a section whose size depends on the
+data is omitted) and `unresolved_includes` lists the open-path includes
+predict cannot resolve without data — guidance only.
 
 At runtime the plan is applied to the finished `Response`: an excluded
 slot is **absent** on the wire — never `null`, required keys such as

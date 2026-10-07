@@ -265,6 +265,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if data, ok := sniffArchive(fileData); ok {
 		return predictArchive(data, req, opts)
 	}
+	return predictSingle(fileData, req, opts, nil)
+}
+
+// predictSingle is Predict over one header + schema. records is the
+// cohort's record count when the caller knows it (an archive's
+// per-shard sum); nil derives it from a single file's length. It only
+// bounds the return size estimates (ReturnPlan.Sizes) — RecordCount
+// stays the archive-only figure it documents.
+func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -286,6 +295,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
 		result.Valid = false
 		return env
+	}
+
+	// The record count bounds the return size estimates; derived from
+	// the file length (never a record), as Inspect derives it.
+	sizeIn := returnSizeInputs{components: !opts.componentsDisabled(req)}
+	if records != nil {
+		sizeIn.records, sizeIn.recordsKnown = *records, true
+	} else if n, _, ok := deriveSingleFileRecordCount(fileData, schema); ok {
+		sizeIn.records, sizeIn.recordsKnown = n, true
 	}
 
 	result.SchemaInfo = &descriptor.PredictSchemaInfo{
@@ -393,6 +411,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 
 	predictVectors(env, result, req, schema)
 	predictMatrices(result, req, schema, opts.Instance)
+
+	// `return` size estimates and the Open includes predict cannot
+	// resolve — on the defaults-resolved request over the schema it
+	// executes over, once the plan is reported.
+	if result.Return != nil {
+		sizeIn.req, sizeIn.schema, sizeIn.inst, sizeIn.matrices = req, schema, opts.Instance, result.Matrices
+		result.Return.Sizes = returnSizes(returnPlan, sizeIn)
+		result.Return.UnresolvedIncludes = unresolvedIncludes(returnPlan, req, schema, opts.Instance)
+	}
 
 	// Weight resolution — the same single pass the runtime runs right
 	// after the field-reference rule (ResolveWeights). A refusal is a
@@ -753,7 +780,27 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 		return env
 	}
 
-	env := Predict(bytes.NewReader(canonical), req, opts)
+	// The cumulative record count bounds the return size estimates;
+	// unknown when a shard header cannot be peeked (reported below).
+	var records *int64
+	var total int64
+	known := true
+	for _, entry := range arch.Entries() {
+		if entry.Name == encx.ReservedSchemaName {
+			continue
+		}
+		count, perr := arch.PeekShardRecordCount(entry.Name)
+		if perr != nil {
+			known = false
+			break
+		}
+		total += count
+	}
+	if known {
+		records = &total
+	}
+
+	env := predictSingle(bytes.NewReader(canonical), req, opts, records)
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return env

@@ -1506,9 +1506,16 @@ pulse/descriptor: type ReturnPlan field Include []string "json:\"include\""
 pulse/descriptor: type ReturnPlan field Keep []string "json:\"keep\""
 pulse/descriptor: type ReturnPlan field Precision int "json:\"precision,omitempty\""
 pulse/descriptor: type ReturnPlan field Preset string "json:\"preset\""
+pulse/descriptor: type ReturnPlan field Sizes []pulse/descriptor.ReturnSectionSize "json:\"sizes,omitempty\""
+pulse/descriptor: type ReturnPlan field UnresolvedIncludes []string "json:\"unresolved_includes,omitempty\""
 pulse/descriptor: type ReturnPresetMeta struct
 pulse/descriptor: type ReturnPresetMeta field Name string "json:\"name\""
 pulse/descriptor: type ReturnPresetMeta field Paths []string "json:\"paths\""
+pulse/descriptor: type ReturnSectionSize struct
+pulse/descriptor: type ReturnSectionSize field Basis string "json:\"basis\""
+pulse/descriptor: type ReturnSectionSize field FullBytes int64 "json:\"full_bytes\""
+pulse/descriptor: type ReturnSectionSize field Section string "json:\"section\""
+pulse/descriptor: type ReturnSectionSize field ShapedBytes int64 "json:\"shaped_bytes\""
 pulse/descriptor: type Role struct
 pulse/descriptor: type Role field Kinds []pulse/descriptor.FieldKind "json:\"kinds\""
 pulse/descriptor: type Role field Max int "json:\"max\""
@@ -4196,4 +4203,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6c252112aa10de2c9b09edc95aee1acb0359e366de952bf75aa4cce9167f420c
+// golden-hash: a47e9ad0dacdcb482699da0dd983db8cbdd93fa047e7f407b5006967e3bc8bfe
