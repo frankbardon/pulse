@@ -116,5 +116,6 @@ Shipped on `response-shaping-execution` (no release tag cut by the unit). Epics 
 - Facet overlays are untouched (no compute plan there).
 - ~~No Compose integration test for the compose-family test veto.~~ Resolved: `TestReturnComposeFamilyTestVeto` (serial and parallel; contrast without the family).
 - ~~No integration test for the ComposeParallel `PerRequestTimeout` path keeping the Compose-overlay components veto.~~ Resolved: `TestReturnComposeParallelTimeoutKeepsComponentsVeto` (fused and buffered).
+- Found while writing it: a Compose host-floor overlay (e.g. `OVERLAY_PROP_Z_CELL`) handed a probability-weighted slot without Components silently folded unweighted p-values. Hardened on `u18-followups`: `Service.composeOverlayFloorsPresent` re-checks the hidden-floor rule against the returned slots at fold time and fails `PROCESSING_INTERNAL` (`TestComposeOverlayFloorsPresent`; reintroducing the timeout bug now fails loudly).
 - The `pulse mcp` startup line does not show the effective preset.
 - The `standard` preset keeps about +10% residual cost, unattributed (likely the shaping apply pass).
