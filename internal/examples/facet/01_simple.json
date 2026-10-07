@@ -21,6 +21,6 @@
     "data_dir": ".data"
   },
   "fields": [
-    "category"
+    "region"
   ]
 }
