@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/returnplan"
@@ -33,6 +34,9 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, error) {
 	if req == nil || len(req.Stages) == 0 {
 		return nil, errors.NewCodedError(errors.PULSE_CHAIN_EMPTY, "chain request must carry at least one stage")
+	}
+	if err := limits.CheckChainStages(s.Limits(), len(req.Stages)); err != nil {
+		return nil, err
 	}
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "chain request requires Cohort for stage 0")
@@ -162,6 +166,9 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 			return nil, err
 		}
 		if err := s.checkFieldRefs(stage, synthSchema); err != nil {
+			return nil, locate(err, "stage", i)
+		}
+		if err := s.limitsPreflight(stage, synthSchema); err != nil {
 			return nil, locate(err, "stage", i)
 		}
 

@@ -1255,6 +1255,14 @@ pulse/descriptor: type Level string
 pulse/descriptor: const LevelAdvanced pulse/descriptor.Level = "advanced"
 pulse/descriptor: const LevelBasic pulse/descriptor.Level = "basic"
 pulse/descriptor: const LevelIntermediate pulse/descriptor.Level = "intermediate"
+pulse/descriptor: type LimitFinding struct
+pulse/descriptor: type LimitFinding field Configured int64 "json:\"configured\""
+pulse/descriptor: type LimitFinding field Estimated int64 "json:\"estimated\""
+pulse/descriptor: type LimitFinding field Grade pulse/descriptor.LimitGrade "json:\"grade\""
+pulse/descriptor: type LimitFinding field Limit string "json:\"limit\""
+pulse/descriptor: type LimitGrade string
+pulse/descriptor: const LimitGradeCertain pulse/descriptor.LimitGrade = "certain"
+pulse/descriptor: const LimitGradePossible pulse/descriptor.LimitGrade = "possible"
 pulse/descriptor: type LookupTableMeta struct
 pulse/descriptor: type LookupTableMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type LookupTableMeta field HasRowsData bool "json:\"has_rows_data\""
@@ -1448,6 +1456,7 @@ pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:
 pulse/descriptor: type PredictResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
 pulse/descriptor: type PredictResult field Filterers []pulse/descriptor.FiltererPredict "json:\"filterers\""
 pulse/descriptor: type PredictResult field Groups []pulse/descriptor.GroupPredict "json:\"groups\""
+pulse/descriptor: type PredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse/descriptor: type PredictResult field Matrices []pulse/descriptor.MatrixPredict "json:\"matrices,omitempty\""
 pulse/descriptor: type PredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse/descriptor: type PredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
@@ -4228,4 +4237,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 05299765e3f4dd01dd40aae34a814aef355074afa202be44bdc5585acdba959b
+// golden-hash: 52ae14229c6c9947a740a410f2d6783605f4724debc7b830e96e5ba2281998ad

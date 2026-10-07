@@ -41,6 +41,9 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
 		return nil, err
 	}
+	if err := s.limitsPreflight(&clone, joinedSchema); err != nil {
+		return nil, err
+	}
 
 	proc := s.newProcessor(ctx, joinedSchema, req)
 	resp, err := proc.Process(ctx, s.zoned(&clone, zones), join)

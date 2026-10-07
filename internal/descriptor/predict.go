@@ -412,6 +412,10 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 
 	predictVectors(env, result, req, schema)
 	predictMatrices(result, req, schema, opts.Instance)
+	// Instance resource limits — the rule the process pre-flight
+	// refuses with (LimitRefusal), on the defaults-resolved request over
+	// the schema it executes over. A certain finding is a predict error.
+	predictLimits(env, result, req, schema, opts.Instance)
 
 	// Response size estimates — on every request, on the
 	// defaults-resolved request over the schema it executes over. With

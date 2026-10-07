@@ -87,6 +87,9 @@ func (s *Service) composeParallel(
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"composed request must contain at least one request")
 	}
+	if err := s.composeSlotsPreflight(composed); err != nil {
+		return nil, err
+	}
 	// Hidden slots are refused before the worker pool starts, exactly
 	// as on the serial path.
 	if err := s.slotRefusal(composed); err != nil {

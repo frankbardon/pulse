@@ -54,6 +54,9 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
 		return nil, err
 	}
+	if err := s.limitsPreflight(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
 
 	// Validate / inject label bindings exactly as Process does so a
 	// labelled crosstab matches a labelled plain Process request.
@@ -182,6 +185,9 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 		return nil, err
 	}
 	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
+		return nil, err
+	}
+	if err := s.limitsPreflight(&clone, joinedSchema); err != nil {
 		return nil, err
 	}
 	s.applyAutoLabels(&clone.Labels, joinedSchema, collectOutputLabels(&clone), nil)

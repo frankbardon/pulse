@@ -673,6 +673,9 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
 		return nil, err
 	}
+	if err := s.limitsPreflight(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
 
 	// Inject configured default label bindings (schema-filtered) before
 	// validation so registered tables render display strings without the
@@ -1056,6 +1059,9 @@ func (s *Service) ComposeResolved(ctx context.Context, composed *types.ComposedR
 func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, slots *[]*types.Request) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
+	}
+	if err := s.composeSlotsPreflight(composed); err != nil {
+		return nil, err
 	}
 	// Hidden slots — the composed root's own, then every slot's — are
 	// refused before any slot runs (details.request locates a slot's).

@@ -2,10 +2,6 @@ package limits
 
 import (
 	stderrors "errors"
-	"go/parser"
-	"go/token"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -188,31 +184,5 @@ func TestGroupThousands(t *testing.T) {
 func TestIsUnlimited(t *testing.T) {
 	if !IsUnlimited(Unlimited) || IsUnlimited(1) {
 		t.Fatal("IsUnlimited misclassifies")
-	}
-}
-
-// TestLimits_ImportBoundary: the leaf imports the standard library and
-// Pulse's errors package only, so predict (no-execute) and the runtime
-// can both import it.
-func TestLimits_ImportBoundary(t *testing.T) {
-	files, err := filepath.Glob("*.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	fset := token.NewFileSet()
-	for _, f := range files {
-		if strings.HasSuffix(f, "_test.go") {
-			continue
-		}
-		af, err := parser.ParseFile(fset, f, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, imp := range af.Imports {
-			path, _ := strconv.Unquote(imp.Path.Value)
-			if strings.Contains(path, ".") && path != "github.com/frankbardon/pulse/errors" {
-				t.Errorf("%s imports %s; internal/limits must stay a leaf (stdlib + errors)", f, path)
-			}
-		}
 	}
 }

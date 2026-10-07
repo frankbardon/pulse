@@ -236,6 +236,15 @@ type PredictResult struct {
 	// figure.
 	Sizes []ResponseSectionSize `json:"sizes,omitempty"`
 
+	// LimitFindings lists every instance resource limit (pulse.Limits)
+	// the request's predictable figures exceed, in limit-declaration
+	// order. A Certain finding is an exact figure the runtime will see —
+	// predict adds the PULSE_LIMIT_EXCEEDED error the process pre-flight
+	// raises and Valid is false. A Possible finding is an upper bound: a
+	// warning only, Valid is untouched. Omitted when nothing exceeds a
+	// limit.
+	LimitFindings []LimitFinding `json:"limit_findings,omitempty"`
+
 	// Return is the resolved `return` plan — the expanded selection the
 	// runtime will apply, computed by the same resolver it calls.
 	// Omitted when the request carries no `return` block or the block is
@@ -788,4 +797,28 @@ type DefaultApplied struct {
 	Type     string   `json:"type"`
 	Category string   `json:"category"`
 	Reason   string   `json:"reason"`
+}
+
+// LimitGrade is how sure a LimitFinding is that the run would breach
+// the limit.
+type LimitGrade string
+
+const (
+	// LimitGradeCertain: the estimate is the exact figure the runtime
+	// sees; the request is refused (Valid false, PULSE_LIMIT_EXCEEDED).
+	LimitGradeCertain LimitGrade = "certain"
+	// LimitGradePossible: the estimate is an upper bound; the request
+	// may still run.
+	LimitGradePossible LimitGrade = "possible"
+)
+
+// LimitFinding is one instance resource limit a request's predicted
+// figure exceeds. Limit is the snake_case limit name (the `limit` detail
+// of PULSE_LIMIT_EXCEEDED), Configured the instance's effective value
+// and Estimated predict's figure in the same unit.
+type LimitFinding struct {
+	Limit      string     `json:"limit"`
+	Configured int64      `json:"configured"`
+	Estimated  int64      `json:"estimated"`
+	Grade      LimitGrade `json:"grade"`
 }
