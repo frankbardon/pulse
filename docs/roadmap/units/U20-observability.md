@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U02, U02b]
 soft_depends_on: [U01]
 blocks: [U32]
-todo_items: [118, 119, 120, 121, 122, 123]
+todo_items: [118, 119, 120, 121, 122, 123, 222, 223]
 branch: observability
 ---
 
@@ -86,3 +86,8 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(observability/E<n
 ## Human inputs & decisions
 
 - None.
+
+## Inherited from U18
+
+- **`pulse mcp` doesn't show the effective `return` preset** (#222). U18 made MCP tool calls default to `standard`, overridable by `pulse mcp --return`, `gosdk.Config.DefaultReturn` / `mcpserve.Options.DefaultReturn` and the feature profile's `return`. The startup line and `ServeInfo` were left unchanged, so an operator can't see which preset agents get. Add it alongside the other `pulse mcp` observability output.
+- **`standard` preset's residual cost is unattributed** (#223). U18's `BenchmarkProcessDefaultReturn` (root `return_default_bench_test.go`) on darwin/arm64: unset 88.8 µs, `full` 89.6 µs, `standard` 97.7 µs; the cached plan resolution is 240 ns (~0.27%), so ~+9% comes from elsewhere — most likely the `returnshape.Apply` pruning pass. The operation hooks' phase timings should name a shaping phase so this is measurable in production, and a sub-benchmark should isolate Apply; optimise only if it dominates.
