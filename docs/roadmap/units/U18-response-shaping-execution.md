@@ -114,6 +114,7 @@ Shipped on `response-shaping-execution` (no release tag cut by the unit). Epics 
 - Layer-local multiplicity families veto conservatively.
 - Compose-host overlays are skipped all-or-nothing.
 - Facet overlays are untouched (no compute plan there).
-- No Compose integration test for the compose-family test veto.
+- ~~No Compose integration test for the compose-family test veto.~~ Resolved: `TestReturnComposeFamilyTestVeto` (serial and parallel; contrast without the family).
+- ~~No integration test for the ComposeParallel `PerRequestTimeout` path keeping the Compose-overlay components veto.~~ Resolved: `TestReturnComposeParallelTimeoutKeepsComponentsVeto` (fused and buffered).
 - The `pulse mcp` startup line does not show the effective preset.
 - The `standard` preset keeps about +10% residual cost, unattributed (likely the shaping apply pass).
