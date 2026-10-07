@@ -122,7 +122,7 @@ func ResolveReturn(req *types.Request, inst *InstanceSnapshot) (*returnplan.Plan
 	if ret == nil {
 		return nil, nil
 	}
-	plan, err := resolveReturnBlock(ret, returnRoot, inst)
+	plan, err := resolveResponseReturn(ret, inst)
 	if err != nil {
 		return nil, err
 	}

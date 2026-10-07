@@ -97,6 +97,12 @@ type InstanceSnapshot struct {
 	// shapes responses, never the feature set.
 	defaultReturn *types.Return
 
+	// returnPlans memoizes Response-rooted `return` resolutions
+	// (return_plan_cache.go). Allocated by buildOntology; shared by
+	// WithDefaultReturn copies, whose visibility — the only instance
+	// input to a resolution — is identical.
+	returnPlans *returnPlanCache
+
 	// ontology is the instance graph (base + extension nodes, pruned to
 	// the feature set) and discovery the skill / example view walking
 	// it — both built eagerly by the constructors (ontology_instance.go).
@@ -134,6 +140,7 @@ func NewInstanceSnapshot(ext *ExtensionsSnapshot, set FeatureSet) *InstanceSnaps
 // buildOntology installs the instance graph and the discovery view
 // walking it. Called once, by the constructors.
 func (s *InstanceSnapshot) buildOntology() {
+	s.returnPlans = newReturnPlanCache()
 	s.ontology = instanceOntology(s.ext, s)
 	s.discovery = fullDiscovery
 	if s.Scoped() && len(s.hidden) > 0 || s.ext != nil && len(s.ext.Skills)+len(s.ext.Examples) > 0 {
