@@ -56,6 +56,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#213** `Response.overlays` joins the feature gate (`gatedSlots`, `internal/descriptor/request_slots.go`): hiding the overlay features leaves `overlays` paths in the instance payload schema and in the presets · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#214** A joined slot or stage derives its `return` precision-exact set from the defaults-resolved request, as an unjoined one does (today the join path applies defaults to a service-internal clone, so `Plan.Exact` reads the un-defaulted request; `Process` included) · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#215** `finalizeMergedPartial`'s empty-partial path emits the zero-n aggregation entries the serial path emits (ungrouped and grouped); today a merged run with an empty partial carries no `Aggregations` block · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#221** The Compose components veto (`composeSlotVetoes`) takes the weight-basis rule the request veto took in U18: a slot named by a Compose overlay that reads host floors only on a weighted slot (χ²-vs-ref, prop-z cell/panel, index) keeps `Components` only when that slot's crosstab cell is weighted (`descx.CrosstabCellWeightBasis`), and only the `crosstab` sub-part, not every sub-part. Pure compute saving; kept numbers unchanged · [U35](units/U35-predict-runtime-parity.md)
 
 #### Cohort facade
 - [x] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)

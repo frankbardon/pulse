@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 200, 201, 207, 213, 214, 215]
+todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221]
 branch: predict-runtime-parity
 ---
 
@@ -116,3 +116,7 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 - **`Response.overlays` is not feature-gated** (#213). `internal/descriptor/request_slots.go` (`gatedSlots`) has no entry for it, so an instance hiding the overlay features still lists `overlays` paths in its payload schema and in the `return` presets (`standard` / `minimal` expand them). Gate it like `matrices`, and let `TestReturnPathsMatchSchema` / `TestReturnPresetsFor_Instance` cover a profile without overlays.
 - **Joined slot / stage `Plan.Exact`** (#214). A join gives the slot or stage defaults on a service-internal clone, so the `return` precision-exact set derives from the un-defaulted request (`Process` included). A count column that exists only after defaults would round. Resolve the plan from the defaults-resolved request on that path. The Compose-level (`overlays` root) plan likewise has no `Exact` set of its own: give it one if an overlay payload ever carries a float count.
 - **`finalizeMergedPartial` empty partial** (#215). A merged (parallel decode / shard) run whose partial is empty emits no `Aggregations` block while the serial path emits zero-n entries, ungrouped and grouped. Pre-existing; found by E1's per-group parity gates.
+
+## Inherited from U18
+
+- **Compose components veto is not weight-basis aware** (#221). U18 follow-up PR #320 made the request-overlay veto precise: `descx.OverlayReadsHostComponents(kind, cellBasis)` keeps `components.crosstab` for χ² / Fisher layers only on a weighted host (frequency reads `sum_weights`, probability also `n_eff`); pairwise kinds always. The Compose veto (`composeSlotVetoes` / `composeSlotContext`, `internal/service/compute_plan.go`) still keeps EVERY `Components` sub-part of every slot a Compose overlay names, whatever the kind or weighting. Apply the same rule per slot: resolve each named slot's crosstab-cell basis with `descx.CrosstabCellWeightBasis(req, defaultWeight, inst)`, keep only `components.crosstab`, and only when the overlay kind reads floors on that basis — first verify per Compose kind (`internal/processing/overlay_compose_handlers.go`) which ones read `CellComponents` triples on an UNWEIGHTED slot (the mean kinds' Welford-triple path does — `extractCellComponentsTriple`), since those must keep vetoing. Compute saving only; the fold-time invariant `Service.composeOverlayFloorsPresent` (PROCESSING_INTERNAL) backstops a wrong rule for the floor kinds. Gates to extend: `TestReturnSkipsComputation_Compose`, root `TestReturnKeptNumberInvariant`, `TestReturnComposeParallelTimeoutKeepsComponentsVeto`.
