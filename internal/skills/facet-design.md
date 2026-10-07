@@ -30,7 +30,7 @@ Two entry points. `pulse.Facet(ctx, path, field)` returns distinct values. `puls
 
 ## Discrete vs numeric dispatch
 
-Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"true"`/`"false"`). All numeric / date / decimal ⇒ numeric. `numeric_percentiles` on a non-numeric field is a no-op (predict warning). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range.
+Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"true"`/`"false"`). All numeric / date / decimal ⇒ numeric. `numeric_percentiles` on a non-numeric field is a no-op (predict warning). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range. A field's distinct values past `max_groups` refuse `PULSE_LIMIT_EXCEEDED`.
 
 ## TopK, percentiles, histograms
 

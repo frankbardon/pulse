@@ -28,6 +28,8 @@ Read the intent first (`pulse_skills_get intents`): `compare_groups`, `compositi
 
 Each grouper's `Purpose.NotFor` names the sibling to use when the choice is wrong.
 
+**High cardinality.** Each distinct key is a bucket; past the instance `max_groups` limit the run is refused `PULSE_LIMIT_EXCEEDED`. `pulse_predict` flags a dictionary over it as a `possible` `limit_findings` entry.
+
 ## Composition (key product)
 
 With N entries (N ≥ 2), the engine forms the cartesian **key product**: each row receives a composite key `(g0, ..., gN-1)`. Empty `groups` collapses to one global bucket.

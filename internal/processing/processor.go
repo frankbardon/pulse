@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
@@ -61,6 +62,20 @@ type Processor struct {
 	// both set through SetWeighting.
 	defaultWeight *types.WeightSpec
 	strictWeights bool
+
+	// limits is the instance's effective resource limits, set through
+	// SetLimits. The zero value enforces none (every field reads as
+	// Unlimited), so a processor built without the call never trips.
+	limits limits.Limits
+}
+
+// SetLimits installs the instance's effective resource limits. The
+// grouped paths count distinct group buckets against MaxGroups at the
+// bucket mint (O(1) per new key, never per row) and raise
+// PULSE_LIMIT_EXCEEDED with no partial result. The service sets it
+// from Service.Limits on every processor it builds (newProcessor).
+func (p *Processor) SetLimits(l limits.Limits) {
+	p.limits = l
 }
 
 // SetWeighting installs the instance default weight (nil = none) that
@@ -869,7 +884,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
 	// matrices).
-	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts, p.compute)
+	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits)
 	if err != nil {
 		return nil, err
 	}
@@ -950,6 +965,11 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		for _, key := range rowKeys {
 			b, exists := buckets[key]
 			if !exists {
+				// MaxGroups, counted at the mint: one check per new
+				// key, never per row.
+				if err := limits.Check(p.limits, limits.MaxGroups, int64(len(buckets))+1); err != nil {
+					return nil, err
+				}
 				online := make([]OnlineAggregator, len(specs))
 				for i, s := range specs {
 					inst, err := s.factory(s.agg, p.schema)
@@ -1449,7 +1469,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 
 	recordRows := false
 	if len(req.Groups) > 0 {
-		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute); err != nil {
+		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits); err != nil {
 			return nil, err
 		}
 		data, grpComponents, bucketAggComponents, groupKeys, err = p.processGrouped(req, filtered, groupedMatrices)
@@ -1843,6 +1863,12 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 
 	groups, err := grouper.Group(records, grp.Field)
 	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	// MaxGroups on the buffered path: the grouper partitions the
+	// already-materialized records in one call, so the bucket count is
+	// checked once, before any bucket is aggregated.
+	if err := limits.Check(p.limits, limits.MaxGroups, int64(len(groups))); err != nil {
 		return nil, nil, nil, nil, err
 	}
 

@@ -163,7 +163,7 @@ func (s *Service) reduceParallelBuffered(
 			}
 		}
 
-		out := newShardPartial(req, specs)
+		out := newShardPartial(req, specs, s.Limits())
 		if buildErr == nil {
 			buildErr = out.buildMatrices(req, schema, s.extensions, grouperInst != nil, compute)
 		}

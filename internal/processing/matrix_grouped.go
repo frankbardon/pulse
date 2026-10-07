@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
@@ -33,13 +34,17 @@ type GroupedMatrices struct {
 	set     *matrixPlanSet
 	header  types.AxisHeader
 	buckets map[string][]*matrixSlot
+	// limits bounds the bucket count (MaxGroups) at the mint.
+	limits limits.Limits
 }
 
 // BuildGroupedMatrices returns empty per-bucket matrix state for a
 // grouped req (nil when req carries no matrices or no groups). req
 // must be the STAMPED request and compute the run's plan, as for
-// BuildMatrixSlots (nil when compute accumulates no matrix).
-func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan) (*GroupedMatrices, error) {
+// BuildMatrixSlots (nil when compute accumulates no matrix). l is the
+// run's effective limits: minting a bucket past MaxGroups raises
+// PULSE_LIMIT_EXCEEDED.
+func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan, l limits.Limits) (*GroupedMatrices, error) {
 	if req == nil || len(req.Groups) == 0 || req.Groups[0] == nil {
 		return nil, nil
 	}
@@ -52,14 +57,20 @@ func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *Ext
 		set:     set,
 		header:  types.AxisHeader{Fields: []string{grp.Field}, Types: []string{string(grp.Type)}},
 		buckets: make(map[string][]*matrixSlot),
+		limits:  l,
 	}, nil
 }
 
-// bucket returns key's slots, minting zero-state ones on first sight.
+// bucket returns key's slots, minting zero-state ones on first sight —
+// refused with PULSE_LIMIT_EXCEEDED once the mint would exceed
+// MaxGroups.
 func (g *GroupedMatrices) bucket(key string) ([]*matrixSlot, error) {
 	slots, ok := g.buckets[key]
 	if ok {
 		return slots, nil
+	}
+	if err := limits.Check(g.limits, limits.MaxGroups, int64(len(g.buckets))+1); err != nil {
+		return nil, err
 	}
 	slots, err := g.set.fresh()
 	if err != nil {
