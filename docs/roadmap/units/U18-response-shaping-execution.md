@@ -110,7 +110,7 @@ Shipped on `response-shaping-execution` (no release tag cut by the unit). Epics 
 ## Open follow-ups (owner decisions)
 
 - ~~Predict `sizes` appear only when an effective `return` block exists (FR-30 placement); a request without one reports none.~~ Resolved on `u18-followups`: `PredictResult.Sizes` (`descriptor.ResponseSectionSize`) is reported on every request; `shaped_bytes == full_bytes` without a `return` block.
-- The chi-square / Fisher component veto is over-cautious when the run is unweighted.
+- ~~The chi-square / Fisher component veto is over-cautious when the run is unweighted.~~ Resolved on `u18-followups`: `descx.OverlayReadsHostComponents(kind, basis)` keeps `components.crosstab` for the χ² / prop-z / Fisher kinds only over a weighted crosstab cell (frequency stamps `sum_weights` into their summary, probability also scales by `n_eff`), resolved by `descx.CrosstabCellWeightBasis` incl. `Options.DefaultWeight`; pairwise kinds still always veto (`TestReturnSkipsComponents_UnweightedFloorOverlays`, `TestReturnKeepsComponents_WeightedFloorOverlays`, `TestReturnSkipsComponents_FisherProbabilityHostStillRefuses`).
 - Layer-local multiplicity families veto conservatively.
 - Compose-host overlays are skipped all-or-nothing.
 - Facet overlays are untouched (no compute plan there).

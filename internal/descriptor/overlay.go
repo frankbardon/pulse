@@ -1271,20 +1271,29 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 	return 0, 0, "rows", "columns"
 }
 
-// OverlayReadsHostComponents reports whether a Request.Overlays kind
-// reads its crosstab host's Response.Components.Crosstab — the rule the
-// service's compute plan vetoes a `return` skip with (U18), beside its
-// refusal half validateOverlayHiddenFloor. The OVERLAY_PAIRWISE_* family
+// OverlayReadsHostComponents reports whether a Request.Overlays kind,
+// over a crosstab host whose cell is weighted under cellBasis
+// (CrosstabCellWeightBasis), reads that host's
+// Response.Components.Crosstab — the rule the service's compute plan
+// vetoes a `return` skip with (U18), beside its refusal half
+// validateOverlayHiddenFloor. The OVERLAY_PAIRWISE_* family always
 // reads per-cell floors, Welford triples, margin and slab counts
-// (PULSE_OVERLAY_COMPONENTS_REQUIRED without them); the
+// (PULSE_OVERLAY_COMPONENTS_REQUIRED without them). The
 // weighting.ScalesByHostFloor kinds and OVERLAY_FISHER_EXACT_CELL read
-// the cells' weighted floors (Kish n_eff, the stamped sum_weights) on a
-// weighted host. Every other host kind reads the MatrixPayload only.
-// Components.Crosstab is the only Components sub-part any overlay
+// the cells' weighted floors only on a WEIGHTED host — the stamped
+// sum_weights their summary Parameters carry (frequency), plus the Kish
+// n_eff the χ² table is scaled by (probability); on an unweighted host
+// CellFloor reads nothing and their layer is the MatrixPayload's alone.
+// Their host basis comes from the stamped cell weight, never from the
+// floor keys, so a skip cannot hide a weighted host from Fisher's
+// frequency-only refusal. Every other host kind reads the MatrixPayload
+// only. Components.Crosstab is the only Components sub-part any overlay
 // reads.
-func OverlayReadsHostComponents(kind types.OverlayKind) bool {
-	return types.IsPairwiseOverlayKind(kind) || weighting.ScalesByHostFloor(kind) ||
-		kind == types.OverlayKindFisherExactCell
+func OverlayReadsHostComponents(kind types.OverlayKind, cellBasis weighting.Basis) bool {
+	if types.IsPairwiseOverlayKind(kind) {
+		return true
+	}
+	return (weighting.ScalesByHostFloor(kind) || kind == types.OverlayKindFisherExactCell) && cellBasis.Weighted()
 }
 
 // validateOverlaySpec applies the per-kind ruleset to one OverlaySpec.
@@ -1301,8 +1310,9 @@ func OverlayReadsHostComponents(kind types.OverlayKind) bool {
 // weighting-inferential E3-S3): a kind that scales the host's Σw by the
 // n_eff on its floor, over a crosstab cell weighted under kind
 // probability whose components are disabled (the request's
-// disable_components, else Options.DisableComponents). Its kinds are a
-// subset of OverlayReadsHostComponents, the rule a `return` skip obeys.
+// disable_components, else Options.DisableComponents). Every case it
+// refuses is one OverlayReadsHostComponents flags (a floor kind over a
+// weighted cell), so a `return` skip never manufactures the refusal.
 func validateOverlayHiddenFloor(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if !weighting.ScalesByHostFloor(spec.Kind) || !opts.componentsDisabled(req) ||
 		crosstabCellWeightBasis(req, opts) != weighting.Probability {

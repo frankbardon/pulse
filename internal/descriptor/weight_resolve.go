@@ -729,14 +729,25 @@ func inheritedHostWeight(req *types.Request, defaultWeight *types.WeightSpec, in
 // cell resolves none, is not weight-aware, or the request is refused
 // on another slot (that refusal is reported on its own).
 func crosstabCellWeightBasis(req *types.Request, opts *PredictOptions) weighting.Basis {
-	if req == nil || req.Crosstab == nil {
-		return weighting.Unweighted
-	}
 	var def *types.WeightSpec
 	if opts != nil {
 		def = opts.DefaultWeight
 	}
-	rws, err := ResolveWeights(req, nil, def, opts.instance())
+	return CrosstabCellWeightBasis(req, def, opts.instance())
+}
+
+// CrosstabCellWeightBasis is crosstabCellWeightBasis over the engine's
+// own inputs — the instance default weight (pulse.Options.DefaultWeight)
+// and snapshot — for the service's compute plan, which decides with it
+// whether a kept request overlay reads its host's weighted floor
+// (OverlayReadsHostComponents). It resolves the cell exactly as the
+// runtime stamps it (processing.StampWeightsWith), so it names the basis
+// CrosstabHostView.withCellWeight records.
+func CrosstabCellWeightBasis(req *types.Request, defaultWeight *types.WeightSpec, inst *InstanceSnapshot) weighting.Basis {
+	if req == nil || req.Crosstab == nil {
+		return weighting.Unweighted
+	}
+	rws, err := ResolveWeights(req, nil, defaultWeight, inst)
 	if err != nil {
 		return weighting.Unweighted
 	}

@@ -292,13 +292,52 @@ func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 	if got := svc.resolveComputePlan(ctx, payloadOnly, ret, nil); got != minimal {
 		t.Errorf("payload-only overlay: %+v; want no veto", got)
 	}
+	// A pairwise kind always reads its host's components; a χ² / Fisher
+	// kind only over a weighted crosstab cell — the request weight or
+	// the instance default alone (descx.CrosstabCellWeightBasis).
+	overHost := func(kind types.OverlayKind, w *types.WeightSpec) *types.Request {
+		return &types.Request{
+			Weight: w,
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "h"}},
+				Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "x"},
+			},
+			Overlays: []types.OverlaySpec{
+				{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow},
+				{Kind: kind, Scope: types.OverlayScopeRow},
+			},
+		}
+	}
+	freq := &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
+	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	for _, kind := range []types.OverlayKind{types.OverlayKindPairwisePropZ, types.OverlayKindChiSqRow, types.OverlayKindFisherExactCell} {
-		reading := &types.Request{Overlays: []types.OverlaySpec{
-			{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow},
-			{Kind: kind, Scope: types.OverlayScopeRow},
-		}}
-		if got := svc.resolveComputePlan(ctx, reading, ret, nil); got != crosstabKept {
-			t.Errorf("%s: %+v; want components.crosstab kept, aux margins and the rest skipped", kind, got)
+		want := minimal
+		if kind == types.OverlayKindPairwisePropZ {
+			want = crosstabKept
+		}
+		if got := svc.resolveComputePlan(ctx, overHost(kind, nil), ret, nil); got != want {
+			t.Errorf("%s unweighted: %+v; want %+v", kind, got, want)
+		}
+		for _, w := range []*types.WeightSpec{freq, prob} {
+			if kind == types.OverlayKindFisherExactCell && w == prob {
+				continue // the resolver refuses the request (frequency-only overlay slot)
+			}
+			if got := svc.resolveComputePlan(ctx, overHost(kind, w), ret, nil); got != crosstabKept {
+				t.Errorf("%s weighted %s: %+v; want components.crosstab kept, aux margins and the rest skipped", kind, w.Kind, got)
+			}
+		}
+		// A probability weight on the HOST cell alone (Fisher's
+		// PULSE_WEIGHT_UNSUPPORTED dispatch refusal case).
+		slotOnly := overHost(kind, nil)
+		slotOnly.Crosstab.Cell.Weight = types.SlotWeightOf(*prob)
+		if got := svc.resolveComputePlan(ctx, slotOnly, ret, nil); got != crosstabKept {
+			t.Errorf("%s over a probability cell slot weight: %+v; want components.crosstab kept", kind, got)
+		}
+		defaulted := &Service{}
+		defaulted.SetDefaultWeight(freq)
+		if got := defaulted.resolveComputePlan(ctx, overHost(kind, nil), ret, nil); got != crosstabKept {
+			t.Errorf("%s weighted by Options.DefaultWeight alone: %+v; want components.crosstab kept", kind, got)
 		}
 	}
 	if got := svc.resolveComputePlan(withComponentsVeto(ctx), excl, ret, nil); got != vetoed {
