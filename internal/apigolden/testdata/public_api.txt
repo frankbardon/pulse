@@ -1273,6 +1273,11 @@ pulse/descriptor: type LimitFinding field Limit string "json:\"limit\""
 pulse/descriptor: type LimitGrade string
 pulse/descriptor: const LimitGradeCertain pulse/descriptor.LimitGrade = "certain"
 pulse/descriptor: const LimitGradePossible pulse/descriptor.LimitGrade = "possible"
+pulse/descriptor: type LimitMeta struct
+pulse/descriptor: type LimitMeta field Default int64 "json:\"default\""
+pulse/descriptor: type LimitMeta field Name string "json:\"name\""
+pulse/descriptor: type LimitMeta field Unit string "json:\"unit\""
+pulse/descriptor: type LimitMeta field Value int64 "json:\"value\""
 pulse/descriptor: type LookupTableMeta struct
 pulse/descriptor: type LookupTableMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type LookupTableMeta field HasRowsData bool "json:\"has_rows_data\""
@@ -1300,6 +1305,8 @@ pulse/descriptor: type Manifest field FormatVersion string "json:\"format_versio
 pulse/descriptor: type Manifest field Import *pulse/descriptor.ImportCapability "json:\"import,omitempty\""
 pulse/descriptor: type Manifest field Intents []string "json:\"intents\""
 pulse/descriptor: type Manifest field Join *pulse/descriptor.JoinCapability "json:\"join,omitempty\""
+pulse/descriptor: type Manifest field Limits []pulse/descriptor.LimitMeta "json:\"limits\""
+pulse/descriptor: type Manifest field LimitsDigest string "json:\"limits_digest\""
 pulse/descriptor: type Manifest field MCPTools []pulse/descriptor.MCPTool "json:\"mcp_tools\""
 pulse/descriptor: type Manifest field Matrices []pulse/descriptor.MatrixMeta "json:\"matrices\""
 pulse/descriptor: type Manifest field Matrix *pulse/descriptor.MatrixCapability "json:\"matrix,omitempty\""
@@ -4247,4 +4254,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 1a77a70f7a94e2595d25b55a151008d5b654aca7f9e18b09d061360dc25cce58
+// golden-hash: d95da98046874bea46c8be53bb7cb5ca1eecdd906a890a8b39721916e1e229b7

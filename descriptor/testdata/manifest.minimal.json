@@ -5,6 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:83412aeeb1efd5ae9eb4f2dd4f01612514ee69d28a7663364cbdb359fe6b1e34",
+    "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
     "commands": [
       {
         "name": "process",
@@ -1191,9 +1192,59 @@
           "overlays[*].summary"
         ]
       }
+    ],
+    "limits": [
+      {
+        "name": "request_timeout",
+        "value": -1,
+        "default": -1,
+        "unit": "nanoseconds"
+      },
+      {
+        "name": "max_groups",
+        "value": 10000000,
+        "default": 10000000,
+        "unit": "count"
+      },
+      {
+        "name": "max_crosstab_cells",
+        "value": 10000000,
+        "default": 10000000,
+        "unit": "count"
+      },
+      {
+        "name": "max_estimated_memory",
+        "value": -1,
+        "default": -1,
+        "unit": "bytes"
+      },
+      {
+        "name": "max_matrix_dim",
+        "value": 2048,
+        "default": 2048,
+        "unit": "count"
+      },
+      {
+        "name": "max_compose_slots",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
+      },
+      {
+        "name": "max_chain_stages",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
+      },
+      {
+        "name": "max_join_build_rows",
+        "value": 100000000,
+        "default": 100000000,
+        "unit": "count"
+      }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: fd28e1d599af422de06defff9d5ab502cd910632868e90bfe8c3fe4d60f8e81c
+// golden-hash: 5dd960c6331adb818ad65089ea0c7c7e8cad10c125834d72ba95aed16bd02383

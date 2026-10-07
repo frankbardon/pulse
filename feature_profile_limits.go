@@ -51,16 +51,13 @@ type FeatureProfileLimits struct {
 // any value below Unlimited, returning the offending limit name and its
 // value as written; ok is false on a refusal.
 func featureProfileLimitsValue(fl *FeatureProfileLimits) (l limits.Limits, bad limits.Name, value any, ok bool) {
-	switch fl.RequestTimeout {
-	case "", "0":
-	case "-1", "unlimited":
-		l.RequestTimeout = limits.Unlimited
-	default:
-		d, err := time.ParseDuration(fl.RequestTimeout)
+	// The same text grammar as `pulse mcp --limit request_timeout=`.
+	if fl.RequestTimeout != "" {
+		v, err := limits.ParseValue(limits.RequestTimeout, fl.RequestTimeout)
 		if err != nil {
 			return limits.Limits{}, limits.RequestTimeout, fl.RequestTimeout, false
 		}
-		l.RequestTimeout = d
+		l.RequestTimeout = time.Duration(v)
 	}
 	l.MaxGroups = fl.MaxGroups
 	l.MaxCrosstabCells = fl.MaxCrosstabCells

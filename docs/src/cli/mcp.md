@@ -15,7 +15,7 @@ stdio streams, and shuts it down on session close.
 ## Synopsis
 
 ```
-pulse mcp [--data-dir PATH] [--feature-profile FILE] [--return PRESET] [--bind-on-open] [--no-cohort-scan]
+pulse mcp [--data-dir PATH] [--feature-profile FILE] [--return PRESET] [--limit NAME=VALUE]... [--bind-on-open] [--no-cohort-scan]
 ```
 
 The command reads stdin, writes MCP responses on stdout, and writes a
@@ -30,6 +30,7 @@ one-line startup notice (and any subsequent diagnostics) on stderr.
 | `--no-cohort-scan` | bool | false | Skip the startup walk that enumerates `.pulse` files as `pulse://` resources (env: `PULSE_MCP_NO_COHORT_SCAN`) |
 | `--feature-profile` | string | from `PULSE_FEATURE_PROFILE` env var | Feature profile JSON file — an OS path, not resolved under the data dir. An invalid profile fails startup |
 | `--return` | string | unset (instance / profile default, else `standard`) | `return` preset (`full`, `standard`, `minimal`) for a tool request without its own `return` block. An unknown preset fails startup (`PULSE_RETURN_INVALID`) |
+| `--limit` | string, repeatable | unset (profile `limits`, else the built-in defaults) | Instance resource limit as `name=value` (e.g. `max_groups=1000000`, `request_timeout=30s`). An unknown name or bad value fails startup (`CLI_INPUT`) |
 
 `--data-dir` is **required** in one of its two forms (env var or
 flag). The MCP server fails to start otherwise:
@@ -86,6 +87,37 @@ Precedence, highest first:
 An engine that disables components keeps them off under any `return`;
 only a request `disable_components: false` re-opens them. The full contract
 is [Response shaping](../library/response-shaping.md).
+
+## --limit
+
+Sets the served instance's resource limits — the
+`pulse.Options.Limits` layer — one `name=value` per flag, repeatable:
+
+```bash
+pulse mcp --limit max_groups=1000000 --limit request_timeout=30s
+```
+
+Names are the snake_case limit keys the feature profile `limits`
+section and every `PULSE_LIMIT_*` error's `limit` detail use:
+`request_timeout`, `max_groups`, `max_crosstab_cells`,
+`max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
+`max_chain_stages`, `max_join_build_rows`. A value is a positive integer
+(underscores allowed, `10_000_000`), a Go duration for `request_timeout`
+(`30s`, `2m`), `unlimited` (or `-1`) for no limit, or `0` for the
+default. Per key, `--limit` wins over the feature profile's `limits`,
+which wins over the built-in default; a later flag for the same name
+wins. A malformed pair, an unknown name or a bad value aborts startup
+with `CLI_INPUT` (details `{flag, value, limit?}`).
+
+The startup notice echoes the limits that differ from the defaults, in
+the same grammar:
+
+```
+pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: true, limits: request_timeout=30s max_groups=1000000)
+```
+
+Agents read the effective values from the manifest's `limits` block
+(cache key `(pulse_version, feature_set_digest, limits_digest)`).
 
 ## --bind-on-open
 

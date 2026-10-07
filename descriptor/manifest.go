@@ -120,11 +120,17 @@ type Manifest struct {
 	// describes: "fs1:" + sha256hex over the instance's sorted enabled
 	// feature names and its effective behaviour switches. Two manifests
 	// with the same pulse_version and digest describe the same surface,
-	// so it keys caches of self-description output. Every manifest
-	// carries one; a profile-free instance (and the CLI) carries the
-	// full-registry digest.
-	FeatureSetDigest string    `json:"feature_set_digest"`
-	Commands         []Command `json:"commands"`
+	// so, with LimitsDigest, it keys caches of self-description output.
+	// Every manifest carries one; a profile-free instance (and the CLI)
+	// carries the full-registry digest.
+	FeatureSetDigest string `json:"feature_set_digest"`
+	// LimitsDigest identifies the instance's effective resource limits
+	// (Limits): "lim1:" + sha256hex over every limit's name and
+	// effective value. It moves iff an effective limit changes and is
+	// independent of FeatureSetDigest, so a manifest cache keys on
+	// (pulse_version, feature_set_digest, limits_digest).
+	LimitsDigest string    `json:"limits_digest"`
+	Commands     []Command `json:"commands"`
 
 	// Operations enumerates library-only entry points that do not back a
 	// CLI leaf (today: filter_to_file, watch, process_stream). Each entry
@@ -248,6 +254,31 @@ type Manifest struct {
 	// absent. Always present: `return` is a plain request slot, not a
 	// feature.
 	ReturnPresets []ReturnPresetMeta `json:"return_presets"`
+
+	// Limits lists the instance's EFFECTIVE resource limits, one entry
+	// per limit in declaration order (request_timeout, max_groups,
+	// max_crosstab_cells, max_estimated_memory, max_matrix_dim,
+	// max_compose_slots, max_chain_stages, max_join_build_rows). Always
+	// present: an instance without Options.Limits, a profile `limits`
+	// section or `pulse mcp --limit` reports the built-in defaults.
+	// Limits are behaviour, not features — they never enter
+	// feature_set_digest; LimitsDigest identifies them.
+	Limits []LimitMeta `json:"limits"`
+}
+
+// LimitMeta is one effective resource limit as the manifest lists it.
+type LimitMeta struct {
+	// Name is the snake_case limit key — the spelling of the feature
+	// profile `limits` section, `pulse mcp --limit` and every
+	// PULSE_LIMIT_* error's `limit` detail.
+	Name string `json:"name"`
+	// Value is the effective limit in Unit; -1 means no limit.
+	Value int64 `json:"value"`
+	// Default is the built-in default in Unit; -1 means no limit.
+	Default int64 `json:"default"`
+	// Unit is "nanoseconds" (request_timeout), "bytes"
+	// (max_estimated_memory) or "count".
+	Unit string `json:"unit"`
 }
 
 // ReturnPresetMeta is one named `return` preset as the manifest lists

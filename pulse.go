@@ -2147,9 +2147,11 @@ func renderedFieldFor(target template.Target) string {
 // the instance's extensions; with one, hidden operators, capabilities,
 // I/O formats, commands and MCP tools are absent (a hidden capability's
 // block is omitted) and no prose names them. FeatureSetDigest
-// identifies the described set. The manifest is deterministic per
-// instance and does not depend on cohort data or the filesystem;
-// callers cache it keyed by (PulseVersion, FeatureSetDigest).
+// identifies the described set; the always-present Limits block lists
+// the instance's effective resource limits and LimitsDigest identifies
+// them. The manifest is deterministic per instance and does not depend
+// on cohort data or the filesystem; callers cache it keyed by
+// (PulseVersion, FeatureSetDigest, LimitsDigest).
 func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
 	return descx.BuildManifestForInstance(p.svc.InstanceSnapshot())
 }
