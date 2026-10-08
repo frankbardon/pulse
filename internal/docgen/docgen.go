@@ -13,6 +13,13 @@
 //	catalog.md                the catalog's category index
 //	catalog/<category>.md     one page per PurposeSurfaces() category the
 //	                          instance offers an operator of
+//	reading.md                the "Reading your results" index
+//	reading/<family>.md       one Interpretation page per result family
+//	                          (tests, regressions, matrices, overlays,
+//	                          descriptive) the instance has entries for
+//	reading/components.md     the Response.Components floors, weighted
+//	                          floor keys, mergeability and every visible
+//	                          operator's ComponentSchema keys
 //	glossary.md               every glossary term the instance keeps
 //	skills.md                 the skill index (omitted with OmitSkills)
 //	skills/<stem>.md          every visible skill as the instance serves it
@@ -26,6 +33,22 @@
 // kept or dropped by their owning operators (the same keep-function the
 // virtual glossary skill renders with); a kept term's Forms are its
 // spellings and are rendered verbatim, never token-scrubbed.
+//
+// Reading pages. Each Interpretation entry renders its Means, its
+// Bands under the named convention, its Sign and its Caveats, scrubbed
+// like every other prose string; a field whose path names a hidden
+// token (p_adjusted without capability:multiplicity) is dropped whole.
+// A shared rule set (the p-value reading) renders ONCE, at the top of
+// the first page citing it — the Test page whenever the instance offers
+// a test — and every citing field links there. Reading pages never
+// link a skill.
+//
+// Preserved spans. Hand-written prose inside a generated page sits
+// between "<!-- docgen:preserve begin <id> -->" and
+// "<!-- docgen:preserve end <id> -->" lines and is copied verbatim
+// from a file embedded in this package, so regeneration reproduces it
+// byte for byte and an export outside the repository carries it. The
+// Components intro's source of truth is components_intro.md here.
 //
 // Determinism: every listing is sorted, every map is walked in a fixed
 // order, and Render returns the files sorted by path, so two renders of
@@ -67,6 +90,12 @@ func Render(inst *descx.InstanceSnapshot, opts Options) []File {
 	}
 	files["catalog.md"] = renderCatalogIndex(cats)
 	files["glossary.md"] = g.renderGlossary()
+	pages, homes := g.readingPages(cats)
+	for _, p := range pages {
+		files[readingPath(p.fam.key)] = g.renderReadingPage(p, homes)
+	}
+	files[componentsPage] = g.renderComponents()
+	files["reading.md"] = renderReadingIndex(pages)
 	stems := g.visibleSkills()
 	if !opts.OmitSkills {
 		for _, md := range stems {
@@ -75,7 +104,7 @@ func Render(inst *descx.InstanceSnapshot, opts Options) []File {
 		files["skills.md"] = renderSkillIndex(stems)
 	}
 	files["index.md"] = g.renderIndex()
-	files["SUMMARY.md"] = renderSummary(cats, stems, opts.OmitSkills)
+	files["SUMMARY.md"] = renderSummary(cats, pages, stems, opts.OmitSkills)
 
 	out := make([]File, 0, len(files))
 	for p, body := range files {

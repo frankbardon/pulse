@@ -18,6 +18,7 @@ func (g *gen) renderIndex() string {
 	}
 	b.WriteString("\n- [Operator catalog](catalog.md): ")
 	b.WriteString("one page per operator category.\n")
+	b.WriteString("- [Reading your results](reading.md): how to read each output field, and the counts beside every result.\n")
 	b.WriteString("- [Glossary](glossary.md): plain-language definitions of the terms the guidance uses.\n")
 	if !g.opts.OmitSkills {
 		b.WriteString("- [Skills](skills.md): every skill as an agent reads it.\n")
@@ -27,7 +28,7 @@ func (g *gen) renderIndex() string {
 
 // renderSummary renders SUMMARY.md: an mdBook summary fragment listing
 // every page of the tree, paths relative to the export root.
-func renderSummary(cats []category, list []skills.Metadata, omitSkills bool) string {
+func renderSummary(cats []category, pages []readingPage, list []skills.Metadata, omitSkills bool) string {
 	var b strings.Builder
 	b.WriteString("# Summary\n\n")
 	b.WriteString("- [Analysis Guide](index.md)\n")
@@ -39,6 +40,17 @@ func renderSummary(cats []category, list []skills.Metadata, omitSkills bool) str
 		b.WriteString(catalogPath(c.key))
 		b.WriteString(")\n")
 	}
+	b.WriteString("  - [Reading your results](reading.md)\n")
+	for _, p := range pages {
+		b.WriteString("    - [")
+		b.WriteString(p.fam.title)
+		b.WriteString("](")
+		b.WriteString(readingPath(p.fam.key))
+		b.WriteString(")\n")
+	}
+	b.WriteString("    - [Reading the components](")
+	b.WriteString(componentsPage)
+	b.WriteString(")\n")
 	b.WriteString("  - [Glossary](glossary.md)\n")
 	if !omitSkills {
 		b.WriteString("  - [Skills](skills.md)\n")
