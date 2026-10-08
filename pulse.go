@@ -581,7 +581,10 @@ type Pulse struct {
 	logger  *slog.Logger
 	hooks   *observe.Hooks
 	metrics observe.Metrics
-	opSeq   atomic.Uint64
+	// om is the documented metric set pre-resolved from metrics at New;
+	// nil when Metrics is unset.
+	om    *opMetrics
+	opSeq atomic.Uint64
 }
 
 // New creates a new Pulse instance with the given options.
@@ -737,6 +740,9 @@ func New(opts Options) (*Pulse, error) {
 		logger:         opts.Logger,
 		hooks:          opts.Hooks,
 		metrics:        opts.Metrics,
+	}
+	if opts.Metrics != nil {
+		p.om = newOpMetrics(opts.Metrics)
 	}
 	logNew(opts.Logger, start, len(templates.Dirs()))
 	return p, nil

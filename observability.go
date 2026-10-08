@@ -113,6 +113,9 @@ func fansOut(kind observe.OperationKind) bool {
 // execution-facts carrier (arm, counters, phase clock) the service
 // stamps through ctx. Installed only here, on the on path.
 func (p *Pulse) beginOp(ctx context.Context, info observe.OperationInfo) *opRun {
+	if p.om != nil {
+		p.om.begin(info)
+	}
 	run := &opRun{p: p, info: info, start: time.Now()}
 	run.hookCtx = p.hookStart(ctx, info)
 	run.exec = service.NewExecInfo(run.start)
@@ -189,6 +192,9 @@ func (run *opRun) finish(err error, result func() any) {
 			}
 			p.logOperation(run.hookCtx, run.info, res, err, out)
 		}
+	}
+	if p.om != nil {
+		p.om.end(run.info, res, snap.Phases, err)
 	}
 	for _, ph := range snap.Phases {
 		p.hookPhase(run.hookCtx, run.info, ph)
@@ -283,10 +289,13 @@ func (p *Pulse) hookPhase(ctx context.Context, info observe.OperationInfo, ph ob
 
 // recoverHook swallows a hook panic so the operation continues, logging
 // the hook and operation kind — never the panic value, which could carry
-// row data. Must be called directly by defer.
+// row data — and counting it into pulse_hook_panics_total{hook} when
+// Metrics is set. Must be called directly by defer.
 func (p *Pulse) recoverHook(ctx context.Context, hook string, kind observe.OperationKind) {
 	if r := recover(); r != nil {
-		// TODO(observability/E3-S1): count into pulse_hook_panics_total.
+		if p.om != nil {
+			p.om.hookPanic(hook)
+		}
 		if p.logger != nil {
 			p.logger.WarnContext(ctx, "pulse: observability hook panicked",
 				"hook", hook, "op", string(kind))

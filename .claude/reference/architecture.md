@@ -36,6 +36,7 @@ internal/synth/            generator, profile capture, structural rules, fidelit
 internal/template/         request templating (import ceiling: stdlib + types + errors; the stdlib-only internal/returnplan rides in through types)
 internal/returnplan/       `return` path grammar + canonical Plan + Visit + digest (leaf: stdlib only; TestReturnPlan_ImportBoundary) — types carries a *Plan in an unexported Response field; types installs its pruner as the init-time applier (returnplan.SetApplier)
 internal/returnshape/      Apply(resp, plan): the one per-Response shaping pass (prune, attach plan, PULSE_RETURN_PATH_UNMATCHED, Returned marker) the facade runs after the engine returns — never inside Service.Process
+internal/obsprom/          stdlib Prometheus text exporter: Registry implements observe.Metrics, WriteText / Handler render exposition 0.0.4, Listen serves GET /metrics; backs `pulse mcp --metrics-addr` so the core module takes no Prometheus dep (leaf: stdlib + observe; TestObspromImportBoundary)
 internal/temporal/         epoch-day + calendar + zone math (leaf over stdlib + errors; public encoding forwards into it)
                            + Zone (own embedded zoneinfo.zip, TZDataVersion), per-instance zone Cache; gate TestNoZoneMathOutsideTemporal
 internal/mcp/              SDK-free MCP core; internal/mcp/toolmeta/ leaf metadata

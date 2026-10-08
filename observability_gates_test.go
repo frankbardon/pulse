@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/frankbardon/pulse/observe"
@@ -249,10 +250,11 @@ func TestObservabilityNoRowData(t *testing.T) {
 		opts func(h *captureHandler) Options
 	}{
 		{"logger", func(h *captureHandler) Options { return Options{Logger: h.logger()} }},
-		{"logger+hooks+limits", func(h *captureHandler) Options {
+		{"logger+hooks+metrics+limits", func(h *captureHandler) Options {
 			return Options{
-				Logger: h.logger(),
-				Limits: Limits{MaxGroups: 1},
+				Logger:  h.logger(),
+				Metrics: newFakeMetrics(),
+				Limits:  Limits{MaxGroups: 1},
 				Hooks: &observe.Hooks{
 					OnOperationStart: func(ctx context.Context, _ observe.OperationInfo) context.Context { return ctx },
 					OnOperationEnd: func(context.Context, observe.OperationInfo, observe.OperationResult) {
@@ -360,6 +362,32 @@ func TestObservabilityNoRowData(t *testing.T) {
 	}
 }
 
+// countHookCalls wraps every set hook of h to count its invocations
+// into n before running it (n is atomic: ComposeParallel children run
+// concurrently).
+func countHookCalls(h *observe.Hooks, n *atomic.Int64) *observe.Hooks {
+	out := *h
+	if f := h.OnOperationStart; f != nil {
+		out.OnOperationStart = func(ctx context.Context, info observe.OperationInfo) context.Context {
+			n.Add(1)
+			return f(ctx, info)
+		}
+	}
+	if f := h.OnOperationEnd; f != nil {
+		out.OnOperationEnd = func(ctx context.Context, info observe.OperationInfo, res observe.OperationResult) {
+			n.Add(1)
+			f(ctx, info, res)
+		}
+	}
+	if f := h.OnPhase; f != nil {
+		out.OnPhase = func(ctx context.Context, info observe.OperationInfo, ph observe.PhaseTiming) {
+			n.Add(1)
+			f(ctx, info, ph)
+		}
+	}
+	return &out
+}
+
 // panicHooks builds a Hooks whose named field panics with payload and
 // records that it fired. Every func field of observe.Hooks must have a
 // builder here — TestHookPanicRecovered checks it by reflection, so a
@@ -396,7 +424,11 @@ const logMsgHookPanic = "pulse: observability hook panicked"
 // hook fired, exactly one Warn names the hook and the op — never the
 // panic value. With no Logger the panic is still contained.
 //
-// Falsified by removing the defer p.recoverHook in hookEnd.
+// Every recovered panic is counted into pulse_hook_panics_total{hook}
+// when Metrics is set.
+//
+// Falsified by removing the defer p.recoverHook in hookEnd, or the
+// hookPanic count in recoverHook.
 func TestHookPanicRecovered(t *testing.T) {
 	ht := reflect.TypeOf(observe.Hooks{})
 	covered := map[string]bool{}
@@ -427,7 +459,12 @@ func TestHookPanicRecovered(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/logger=%v", hook, withLogger), func(t *testing.T) {
 				fired := false
 				h := &captureHandler{}
-				opts := Options{Hooks: panicHooks[hook].build(sentinelPanicPayload, &fired)}
+				var calls atomic.Int64
+				fm := newFakeMetrics()
+				opts := Options{
+					Hooks:   countHookCalls(panicHooks[hook].build(sentinelPanicPayload, &fired), &calls),
+					Metrics: fm,
+				}
 				if withLogger {
 					opts.Logger = h.logger()
 				}
@@ -468,6 +505,20 @@ func TestHookPanicRecovered(t *testing.T) {
 				}
 				if !firedAny && withLogger {
 					t.Errorf("%s hook never fired — the gate is vacuous", hook)
+				}
+				// Every recovered panic is counted under its own hook
+				// label, logger or not; the other hooks stay at zero.
+				for _, other := range []string{hookStart, hookEnd, hookPh} {
+					want := 0.0
+					if other == hook {
+						want = float64(calls.Load())
+					}
+					if got := fm.get(t, metricHookPanics, "hook="+other).value; got != want {
+						t.Errorf("pulse_hook_panics_total{hook=%s} = %v, want %v", other, got, want)
+					}
+				}
+				if calls.Load() == 0 {
+					t.Errorf("%s hook never called — the panic-counter check is vacuous", hook)
 				}
 			})
 		}
