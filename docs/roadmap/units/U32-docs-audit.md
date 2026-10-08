@@ -5,10 +5,10 @@ title: "Pulse goes live with the most helpful, current and comprehensive documen
 track: API & release
 size: L
 status: not-started
-depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37]
+depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239]
 branch: docs-audit
 ---
 
@@ -16,7 +16,7 @@ branch: docs-audit
 
 **Outcome:** Pulse goes live with the most helpful, current and comprehensive documentation we can produce.
 
-**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
+**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md), [U38](U38-skill-sync.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
 
 ## Summary
 
@@ -38,6 +38,8 @@ A deliberate final pass over every surface a human or agent reads (mdBook, READM
 - [ ] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged
 - [ ] **#166** (11. Documentation audit) Fresh-reader review and agent task evaluation over MCP (~20 tasks, kept as a regression set); every failure fixed
 - [ ] **#167** (11. Documentation audit) Findings log closed (fixed or deferred with reason and issue) and maintainer sign-off recorded
+- [ ] **#238** (7. Guided analysis › Follow-ups from U21) Hidden-capability prose residue the slot-token filter does not reach (matrices-hidden `pulse_examples_search` / `pulse_manifest` sentences, unscrubbed topical and tool skill bodies, weighted aggregator keys on the Components page of a weighting-hidden instance)
+- [ ] **#239** (7. Guided analysis › Follow-ups from U21) The Analysis Guide's search-index size (about 12 MB warning) and whether the PR-time `docs` job becomes a required check
 
 ## Scope
 

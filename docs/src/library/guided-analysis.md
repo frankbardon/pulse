@@ -8,13 +8,15 @@ and a glossary of the statistical terms involved. The metadata is
 **pulled on demand**. It never appears in a default `Response`,
 `PredictResult` or manifest, apart from short intent IDs.
 
-> **Status (v1.0.0 alphas).** Every statistical test (`TEST_*`), overlay
-> kind (`OVERLAY_*`) and regression (`REG_*`) declares guidance and
-> carries `intents` in the manifest, as does the `AGG_AVERAGE` exemplar.
-> Other descriptive operators carry no `intents` yet; a later unit adds
-> them. The full `Purpose` and `Interpretation` prose is declared inside
-> Pulse but is not yet served through a public accessor: later units
-> render it into the skills and docs and serve it over MCP.
+> **Status (v1.0.0 alphas).** Every operator carries a `Purpose`, and
+> every statistical test, overlay and regression an `Interpretation`.
+> Pulse renders them for you: the book's [Analysis Guide](../guide/index.md)
+> (operator catalog, "Reading your results", glossary), the `## Use when`
+> and `## Reading the output` sections of every operator skill, and
+> `p.ExportReference` / `pulse docs export` for your own instance. The
+> prose is still pulled, never pushed: it appears in none of the default
+> `Response`, `PredictResult` or manifest. Recommend, Explain and the
+> MCP guidance tools come in later units.
 
 ## Intents: what kind of question
 

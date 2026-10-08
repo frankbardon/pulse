@@ -22,6 +22,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
 | A `.pulse` file format change (header layout, new field type) | `CLAUDE.md` "Byte-layout invariants" + `skills/type-<kebab>.md` (one atomic skill per `FieldType`) + `skills/cohort-schema-design.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestClaudeMdMentionsFormatVersion`, `TestSkillsCoverAllFieldTypes` |
 | A new non-skippable CI gate | `CLAUDE.md` "Non-Skippable CI Gates" (gate listed by name) | `TestClaudeMdMentionsAllNonSkippableGates` |
+| Purpose / Interpretation / glossary / intent / `ComponentSchema` / skill-body prose (anything `internal/docgen` renders) | `make docs` (regenerates the committed Analysis Guide under `docs/src/guide` and the `docs/src/SUMMARY.md` span; never hand-edit them) | `TestDocsGeneratedCurrent`, `TestSkillPurposeSectionsCurrent` |
 | A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
 | An environment variable | `CLAUDE.md` "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
 | A registered MCP tool (added/removed) | `docs/src/internals/adding-mcp-tool.md` + `internal/mcp/toolmeta/meta.go` (name + description) | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
