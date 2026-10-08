@@ -238,6 +238,16 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#102** Story examples: `_meta.intent` / `question` / `interpretation`, at least one per intent · [U31](units/U31-guidance-guides.md)
 - [ ] **#103** Vector & matrix concept primers: correlation matrix, PCA, distance vs similarity, perceptual maps · [U31](units/U31-guidance-guides.md)
 
+### G5 — Operator additions after the plan ([U39](units/U39-attr-code-in.md))
+- [x] **#240** `ATTR_CODE_IN`: a row-local 0/1 attribute for categorical and unsigned-integer codes, so a top-box share of the whole base is one weighted mean on the fused crosstab path · [U39](units/U39-attr-code-in.md)
+- [x] **#241** Predict `PULSE_ATTR_CODE_NOT_IN_DICTIONARY` (warning, error under `--strict`) and runtime-refusal parity · [U39](units/U39-attr-code-in.md)
+- [x] **#242** Atomic skill `op-attr-code-in`, top-box example, manifest / purpose / feature rows · [U39](units/U39-attr-code-in.md)
+- [x] **#243** End-to-end bit-exact acceptance suite (fused vs buffered vs hand-computed) · [U39](units/U39-attr-code-in.md)
+
+#### Follow-ups from U39
+- [ ] **#244** A general `target` / `predictors` refusal on every non-regression attribute (only `ATTR_CODE_IN` refuses them today) · [U39](units/U39-attr-code-in.md)
+- [ ] **#245** Optional: move the `ATTR_CODE_IN` parse and accept rules into a neutral shared package instead of the predict copy pinned by `TestCodeIn_PredictRefusalsMatchRuntime` · [U39](units/U39-attr-code-in.md)
+
 ---
 
 ## 8. Response shaping ([response-shaping 00](v1.0.0-response-shaping/00-design.md))
