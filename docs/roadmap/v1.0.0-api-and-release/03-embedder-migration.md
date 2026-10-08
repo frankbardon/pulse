@@ -381,6 +381,22 @@ Landed in U19 (no release tag cut by the unit). Defaults are high enough that no
 
 Not shipped, by decision: a `MaxOutputRows` limit (output volume is the embedder's to manage); a `GOMEMLIMIT`-derived default for `MaxEstimatedMemory` (it is opt-in and unlimited, so `MaxEstimatedMemory` never couples to the Go runtime); `MaxGroups` / `MaxCrosstabCells` as `certain` predict findings (they are `possible`: dictionary-size upper bounds); limit findings for Compose and chain validators (`ValidateCompose` / `ValidateChain`).
 
+## Changes from U20 (observability)
+
+Landed in U20 (`v1.0.0-alpha.6`, with the `contrib/otelpulse` and `contrib/prompulse` tags). Everything is additive and silent by default. Guide: [Observability](../../src/library/observability.md).
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| (none) | `Options.Logger *slog.Logger`, `Options.Hooks *observe.Hooks`, `Options.Metrics observe.Metrics` | added | none; nil on all three is the old behaviour, with an allocation-identical off path. Pulse never reads `slog.Default()` | U20 |
+| (none) | public package `github.com/frankbardon/pulse/observe` (`Hooks`, `OperationInfo`, `OperationResult`, `PhaseTiming`, `OperationKind`, `Phase`, `Arm`, `Scope`, `AllOperationKinds`, `Metrics`, `Counter`, `Histogram`, `UpDownCounter`, `Label`); stdlib only | added | import it to write hooks or a metrics adapter; the public-API golden changed | U20 |
+| (none) | separate modules `github.com/frankbardon/pulse/contrib/otelpulse` and `.../contrib/prompulse`, tagged `contrib/<module>/v1.0.0-alpha.6` in lockstep with the root | added | `go get` the one you need at the same version as Pulse; the core `go.mod` gains no OpenTelemetry or Prometheus dependency | U20 |
+| `Synth`, `Profile` and `Manifest` took an unnamed (`_`) context parameter | the parameter is named `ctx` | no-op | none: no signature change, `apidiff` neutral | U20 |
+| `mcpserve.ServeInfo` was `==`-comparable | `ServeInfo.DefaultReturn` and `ServeInfo.Limits` (a slice) added; see the U04 table | breaking only for `==` | compare fields | U20 |
+| the `pulse mcp` startup line (stderr) named the data dir, tools and feature profile | the line is printed after `Register` and also names the effective `return` preset, tuned limits, log level and the bound metrics address | behaviour change | parse the stderr line by key if you scrape it; stdout stays the JSON-RPC stream | U20 |
+| (none) | global CLI flags `--log-level off\|debug\|info\|warn\|error` and `--log-format text\|json` on every leaf (stderr only); `pulse mcp --metrics-addr HOST:PORT` serving unauthenticated `GET /metrics` | added | none; no port opens unless `--metrics-addr` is given | U20 |
+
+Not shipped, by decision: `pulse_cache_hits_total`; a `PULSE_*` environment variable for logging; recovery of a panic raised inside an operation (hook panics are recovered; the rest is [TODO #231](../TODO.md)).
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.
