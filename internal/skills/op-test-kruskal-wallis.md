@@ -35,7 +35,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - Buffered — combined values ranked across all groups under tie correction.
 - Nonparametric alternative to one-way ANOVA for skewed or heavy-tailed data.
-- Global only — no Dunn / Conover post-hoc<!-- feature: TEST_MANN_WHITNEY_U -->; use pairwise `TEST_MANN_WHITNEY_U` with a `multiplicity` block (Holm/Bonferroni)<!-- /feature -->.
+- Global only — no Dunn / Conover post-hoc<!-- feature: TEST_MANN_WHITNEY_U, capability:multiplicity -->; use pairwise `TEST_MANN_WHITNEY_U` with a `multiplicity` block (Holm/Bonferroni)<!-- /feature -->.
 - Groups under ~5 rows: shaky p; only N < 2k is refused (`PULSE_TEST_INSUFFICIENT_N`). ε² unbanded.
 - Tests stochastic equality, not equal medians — differing shapes can reject on shape alone.
 

@@ -27,7 +27,7 @@ Scalar `int64` — total selections seen across rows (weighted: `float64`).
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

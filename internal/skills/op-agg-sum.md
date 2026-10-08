@@ -29,7 +29,7 @@ Scalar `float64` (decimal128 preserved when input is decimal). One row per group
 
 ## Components
 
-Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
+<!-- feature: capability:weighting -->Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. <!-- /feature -->`n`/`n_null` stay raw counts.
 
 Universal floor `{n, n_null}` plus operator-specific:
 

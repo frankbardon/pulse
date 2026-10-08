@@ -29,7 +29,7 @@ Scalar `float64` â€” `sum(num) / sum(den)`. Den sum 0 (incl. all-zero weights) â
 
 ## Components
 
-Floor `{n, n_null}` (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`) plus:
+Floor `{n, n_null}`<!-- feature: capability:weighting --> (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`)<!-- /feature --> plus:
 
 | Key | Type | Notes |
 |---|---|---|

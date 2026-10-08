@@ -33,7 +33,7 @@ Integer/float members; `packed_bool` under `coerce: "binary"`.
 
 ## Components
 
-`components.matrices[i]`: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`; `operator.ddof`.
+`components.matrices[i]`: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->; `operator.ddof`.
 
 ## Gotchas
 

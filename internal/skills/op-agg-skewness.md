@@ -29,7 +29,7 @@ Scalar `float64` — population skewness g1 = `m3 / m2^1.5` (moments divide by `
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

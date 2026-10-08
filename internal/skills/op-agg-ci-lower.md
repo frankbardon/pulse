@@ -34,7 +34,7 @@ Scalar `float64` — lower CI bound. NaN when `n < 2` (weighted: N* ≤ 1; `null
 
 ## Components
 
-Weighted: floor adds `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted: floor adds `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

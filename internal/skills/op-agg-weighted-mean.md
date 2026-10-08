@@ -34,7 +34,7 @@ Scalar `float64` — exact `Σ field·w / Σw` (a few ULP from releases that use
 
 ## Components
 
-Floor `{n, n_null}` plus `n_weight_invalid` (rows excluded for an invalid weight); operator keys (all float64; empty cell all 0):
+Floor `{n, n_null}`<!-- feature: capability:weighting --> plus `n_weight_invalid` (rows excluded for an invalid weight)<!-- /feature -->; operator keys (all float64; empty cell all 0):
 
 | Key | Notes |
 |---|---|

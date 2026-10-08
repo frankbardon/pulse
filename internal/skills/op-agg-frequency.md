@@ -31,7 +31,7 @@ Scalar `float64` — rows equal to `value`, per group.
 
 ## Components
 
-Weighted: floor adds `sum_weights`/`n_eff`/`n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted: floor adds `sum_weights`/`n_eff`/`n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

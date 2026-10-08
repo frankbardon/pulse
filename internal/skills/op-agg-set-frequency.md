@@ -27,7 +27,7 @@ Rich `map[string]int` — label→row count (weighted: `map[string]float64`, Σw
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

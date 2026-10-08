@@ -33,7 +33,7 @@ Scalar `float64`. Per-group when wired under a grouper.
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

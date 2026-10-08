@@ -29,7 +29,7 @@ Scalar `int64`. Per-group when wired under a grouper; otherwise one row across t
 
 ## Components
 
-Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
+<!-- feature: capability:weighting -->Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. <!-- /feature -->`n`/`n_null` stay raw counts.
 
 Floor only — no operator-specific keys. Universal `{n, n_null}` per response-components contract.
 

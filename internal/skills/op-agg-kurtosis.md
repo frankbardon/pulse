@@ -29,7 +29,7 @@ Scalar `float64` — population excess kurtosis g2 = `m4 / m2^2 − 3` (moments 
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 
