@@ -34,7 +34,7 @@ The core module depends on neither OpenTelemetry nor Prometheus. The two adapter
 
 Every operation-bearing `*Pulse` method has an `OperationKind`: `open`, `process`, `process_stream`, `compose`, `compose_parallel`, `process_chain`, `facet`, `facet_schema`, `lookup`, `count_records`, `inspect`, `predict`, `manifest`, `payload_schema`, `import`, `export`, `convert`, `imports_sweep`, `drop`, `sample`, `filter_to_file`, `synth`, `synth_stream`, `profile`, `dedup`, `widen`, the `index_*` and `shard_*` kinds, `template_render` and `template_reload`. `observe.AllOperationKinds()` is the authoritative list.
 
-Pure in-memory getters (`Skills`, `Limits`, `LabelTables`, ...) are not operations, and neither are handles whose real work reaches an instrumented call (`NewCohortBuilder`) or a few filesystem helpers (`CohortArtifacts`, `Imports`, `ResolveImport`, `Watch*`, ...): nothing useful to time, and each extra kind widens metric cardinality.
+Pure in-memory getters (`Skills`, `Limits`, `LabelTables`, ...) are not operations, and neither are handles whose real work reaches an instrumented call (`NewCohortBuilder`) or a few filesystem helpers (`CohortArtifacts`, `Imports`, `ResolveImport`, `Watch*`, `ExportReference`, ...): nothing useful to time, and each extra kind widens metric cardinality.
 
 A Compose slot or ProcessChain stage is a **child** operation (`Scope` child, its parent's `Kind`, `Parent` set, `Index` = slot or stage). A parent's result sums its children's rows and bytes, takes the maximum of workers and shards, and reports an `Arm` only when every child ran the same one.
 

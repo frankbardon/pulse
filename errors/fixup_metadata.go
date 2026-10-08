@@ -3217,4 +3217,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_DOCS_EXPORT_DIR_NOT_EMPTY: {
+		Message: "The reference export refused its output directory: it is not empty and carries no `.pulse-docs-export` marker, so the export cannot tell its own files from yours. Nothing was written. An empty directory, a missing one, or one a previous export wrote (it carries the marker) is overwritten in place, and only the files the marker lists are ever deleted. The directory is under `path`, the marker file name under `marker`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"dir"},
+				Hint:     "Pass an empty or previously exported directory: a new path (it is created), an empty directory, or the directory an earlier export wrote.",
+				Examples: []any{"docs/reference"},
+			},
+		},
+	},
 }

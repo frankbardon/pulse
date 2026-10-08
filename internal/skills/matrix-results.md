@@ -50,7 +50,7 @@ A request with `groups` returns one `MatrixResult` per non-empty bucket and spec
 
 ## 5. Components and cost
 
-`components.matrices[i]` is the floor: `n`, `n_null`, `n_listwise_dropped`, pairwise `min_pair_n` / `max_pair_n`, weighted `sum_weights` / `n_eff` / `n_weight_invalid` (`response-components`).
+`components.matrices[i]` is the floor: `n`, `n_null`, `n_listwise_dropped`, pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->, weighted `sum_weights` / `n_eff` / `n_weight_invalid`<!-- /feature --> (`response-components`).
 
 `pulse predict` returns `matrices[]` before any row is read: `shape`, `axis_keys`, `accumulator_bytes`, `pairwise_psd_risk` (false guarantees no NOT_PSD warning), `streamable`. For a grouped request it adds:
 

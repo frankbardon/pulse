@@ -23,11 +23,11 @@ Filled by the ENGINE, not the operator — every slot carries it, even a floor-o
 | `FiltererComponents` | `n_in`, `n_out`, `n_null_input` |
 | crosstab cell (`CellComponents[r][c]`) | `n`, `n_null` |
 
-Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n_weight_invalid`. An aggregator's `n` counts NON-NULL inputs; a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
+<!-- feature: capability:weighting -->Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n_weight_invalid`. <!-- /feature -->An aggregator's `n` counts NON-NULL inputs; a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
 
 ## Sub-blocks
 
-`ResponseComponents` = `aggregations` · `groupers` · `crosstab` · `filterers` · `run` · `matrices` — every slot `omitempty`.
+`ResponseComponents` = `aggregations` · `groupers` · `crosstab` · `filterers` · `run`<!-- feature: capability:matrices --> · `matrices`<!-- /feature --> — every slot `omitempty`.
 
 | Block | Cardinality · identity | Carries |
 |---|---|---|
@@ -36,7 +36,9 @@ Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n
 | `crosstab` | only when the Request carried `crosstab` | cell / margin / axis-key components (below) |
 | `filterers` | one per `Request.Filterers`, declared order · `label` | floor only |
 | `run` | always on a successful run | `total_records` (pre-filter), `filtered_records`, `null_records`, `shard_count` (0 = single file), `partial_cohort_reason` (a shard failed to open) |
+<!-- feature: capability:matrices -->
 | `matrices` | one per `Response.Matrices` result, same order · `name` | `n` (weight-0 rows count), `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted floor; `operator` |
+<!-- /feature -->
 
 - **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (every filter-passing record, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream carries `groups[]` on its terminal chunk only.
 - A fan-out grouper (one record → several buckets, e.g. each option of a multi-select) has a bucket sum EXCEEDING `total_n` — correct.
@@ -62,7 +64,7 @@ Disabled ⇒ `Response.Components` stays `nil` (wire form byte-identical to the 
 
 ## Manifest declaration
 
-`manifest.components_schemas` holds operator-name-keyed maps — `aggregators`, `groupers`, `filterers`, `matrices`. Each value is a `ComponentSchema`: `keys` (each `{name, type, description}`) in emission order, plus `mergeability`. Aggregators and matrices list their floor; empty `keys` is a valid floor-only operator.
+`manifest.components_schemas` holds operator-name-keyed maps — `aggregators`, `groupers`, `filterers`<!-- feature: capability:matrices -->, `matrices`<!-- /feature -->. Each value is a `ComponentSchema`: `keys` (each `{name, type, description}`) in emission order, plus `mergeability`. Aggregators<!-- feature: capability:matrices --> and matrices<!-- /feature --> list their floor; empty `keys` is a valid floor-only operator.
 
 ## Mergeability
 

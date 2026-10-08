@@ -103,6 +103,28 @@ hidden operators cite. "See also" links to a removed term are dropped
 too. An intent no operator serves, and a term no operator cites, always
 stay.
 
+## Exporting the reference
+
+`p.ExportReference(fs, dir, pulse.ExportReferenceOptions{})` writes
+the instance's whole analysis reference as Markdown under `dir` on an
+`afero.Fs` (a nil `fs` writes through the instance filesystem): the
+operator catalog with each operator's purpose, the "Reading your
+results" pages, the glossary, every skill as the instance serves it,
+and an mdBook `SUMMARY.md` fragment. `OmitSkills: true` leaves the
+skill pages out. The tree is deterministic, so two exports of the same
+instance are byte-identical, and it is scoped like every other
+surface: under a feature profile no page names a hidden operator, MCP
+tool or request slot.
+
+The export writes a `.pulse-docs-export` marker that lists the files
+it wrote. An empty or missing directory, or one carrying the marker,
+is written in place, and the files a previous export listed but this
+one no longer renders are deleted; nothing else is touched. A
+non-empty directory without the marker is refused with
+`PULSE_DOCS_EXPORT_DIR_NOT_EMPTY` before anything is written. A
+filesystem failure is `DATA_FILE`, with the path under
+`details.path`.
+
 ## Guidance on your own operators
 
 Extension registrations accept an optional `Purpose`, and test
