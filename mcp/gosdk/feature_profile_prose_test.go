@@ -203,3 +203,89 @@ func TestRegister_ProseProfileFreeUnchanged(t *testing.T) {
 		t.Errorf("profile-free bootstrap body changed:\n%s", body)
 	}
 }
+
+// descriptionProse collects every string a client reads as prose from
+// a tools/list or prompts JSON document: each "description" value at any
+// depth plus every prompt message text. Schema property KEYS are
+// structure, not prose, so they are not collected.
+func descriptionProse(raw string) []string {
+	var doc any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		return []string{raw}
+	}
+	var out []string
+	var walk func(v any)
+	walk = func(v any) {
+		switch t := v.(type) {
+		case map[string]any:
+			for k, e := range t {
+				if s, ok := e.(string); ok && (k == "description" || k == "text") {
+					out = append(out, s)
+					continue
+				}
+				walk(e)
+			}
+		case []any:
+			for _, e := range t {
+				walk(e)
+			}
+		}
+	}
+	walk(doc)
+	return out
+}
+
+// TestRegister_ProseNamesNoHiddenSlotToken pins that an instance
+// offering everything but capability:multiplicity serves no MCP prose
+// sentence naming `multiplicity`, `p_adjusted` or `significant_adjusted`
+// (tool and schema descriptions, prompts; before and after a re-bind).
+// pulse_lookup's same-spelled duplicate-key `multiplicity` sentence is a
+// different slot and stays: it names `assert_unique`.
+func TestRegister_ProseNamesNoHiddenSlotToken(t *testing.T) {
+	var features []string
+	for _, n := range descx.FeatureNames() {
+		if n != descx.FeatureMultiplicity {
+			features = append(features, n)
+		}
+	}
+	fs := afero.NewMemMapFs()
+	writeRichCohort(t, fs, "rich.pulse")
+	p, err := pulse.New(pulse.Options{FS: fs, FeatureProfile: &pulse.FeatureProfile{Features: features}})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	srv := newServer()
+	if err := gosdk.Register(srv, p, gosdk.Config{Version: "9.9.9", BindOnInspect: true, DisableCohortScan: true}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	c, cancel := connect(t, srv)
+	defer cancel()
+	tokens := map[string]bool{"multiplicity": true, "p_adjusted": true, "significant_adjusted": true}
+	check := func(phase string) {
+		lookupKept := false
+		for surface, raw := range mcpProse(t, c) {
+			for _, text := range descriptionProse(raw) {
+				for _, line := range strings.Split(text, "\n") {
+					for _, sentence := range strings.Split(line, ". ") {
+						if len(leakedTokens(sentence, tokens)) == 0 {
+							continue
+						}
+						if strings.Contains(sentence, "assert_unique") {
+							lookupKept = true
+							continue
+						}
+						t.Errorf("%s %s names hidden multiplicity token: %q", phase, surface, sentence)
+					}
+				}
+			}
+		}
+		if !lookupKept {
+			t.Errorf("%s: pulse_lookup's duplicate-key multiplicity sentence was over-dropped", phase)
+		}
+	}
+	check("registered")
+	if _, err := c.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: toolmeta.ToolInspect, Arguments: map[string]any{"path": "rich.pulse"}}); err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	check("rebound")
+}

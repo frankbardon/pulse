@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -237,5 +239,96 @@ func TestProfileHiddenNameSweep(t *testing.T) {
 				check("predict "+rname, errorsJSON(t, env), authoredTokens(t, req))
 			}
 		})
+	}
+}
+
+// multiplicitySlotTokens are capability:multiplicity's wire tokens,
+// spelled here independently of the scrub's table so dropping them
+// from hiddenProseNames fails TestProfileHiddenSlotTokenSweep.
+var multiplicitySlotTokens = map[string]bool{"multiplicity": true, "p_adjusted": true, "significant_adjusted": true}
+
+// slotTokenLeaks returns each sentence (split at ". " and newlines) of
+// text naming a token, skipping a sentence about pulse_lookup's
+// same-spelled duplicate-key mode (it names `assert_unique`).
+func slotTokenLeaks(text string, tokens map[string]bool) []string {
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		for _, sentence := range strings.Split(line, ". ") {
+			if namesHiddenToken(sentence, tokens) != "" && namesHiddenToken(sentence, map[string]bool{"assert_unique": true}) == "" {
+				out = append(out, sentence)
+			}
+		}
+	}
+	return out
+}
+
+// TestProfileHiddenSlotTokenSweep: an instance offering everything but
+// capability:multiplicity serves no prose naming `multiplicity`,
+// `p_adjusted` or `significant_adjusted` — not in the manifest (outside
+// the skills and examples sections), the skill metadata, the generated
+// Use when / Reading the output sections, nor the Purpose /
+// Interpretation prose of any operator it offers (and the shared
+// p-value rule set) once its scrub runs, as docgen serves it. The
+// unscrubbed guidance names them (non-vacuous).
+func TestProfileHiddenSlotTokenSweep(t *testing.T) {
+	var features []string
+	for _, n := range descx.FeatureNames() {
+		if n != descx.FeatureMultiplicity {
+			features = append(features, n)
+		}
+	}
+	p, err := New(Options{FS: parityFS(t), FeatureProfile: &FeatureProfile{Features: features}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	inst := p.svc.InstanceSnapshot()
+	scrub := descx.NewProseScrub(inst)
+	keep := func(use string) bool { return inst.Enabled(use) }
+
+	var sections, guidance, raw strings.Builder
+	addProse := func(v any) {
+		for _, s := range descx.CollectProse(v) {
+			raw.WriteString(s + "\n")
+			guidance.WriteString(scrub.Text(s) + "\n")
+		}
+	}
+	for _, op := range features {
+		if strings.Contains(op, ":") {
+			continue
+		}
+		for _, sec := range []string{skills.SectionUseWhen, skills.SectionReadingTheOutput} {
+			sections.WriteString(descx.RenderGuidanceSection(op, sec, nil, keep, scrub) + "\n")
+		}
+		if pu, ok := descx.PurposeOf(op); ok {
+			addProse(pu)
+		}
+		if ins, ok := descx.InterpretationsOf(op); ok {
+			addProse(ins)
+		}
+	}
+	if pv, ok := descx.SharedInterpretation(descx.SharedPValue); ok {
+		addProse(pv)
+	}
+	if len(slotTokenLeaks(raw.String(), multiplicitySlotTokens)) == 0 {
+		t.Fatal("unscrubbed guidance names no multiplicity token: the sweep is vacuous")
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal([]byte(errorsJSON(t, p.Manifest(context.Background()))), &m); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"skills", "examples_count", "example_categories", "example_tags"} {
+		delete(m, k)
+	}
+	surfaces := map[string]string{
+		"manifest":          errorsJSON(t, m),
+		"skill metadata":    errorsJSON(t, p.Skills()),
+		"guidance sections": sections.String(),
+		"guidance prose":    guidance.String(),
+	}
+	for name, text := range surfaces {
+		for _, s := range slotTokenLeaks(text, multiplicitySlotTokens) {
+			t.Errorf("%s names a hidden multiplicity token: %q", name, s)
+		}
 	}
 }

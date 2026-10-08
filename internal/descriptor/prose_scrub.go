@@ -20,8 +20,9 @@ type ProseScrub struct {
 }
 
 // NewProseScrub captures inst's hidden-token set: every hidden operator
-// name plus every MCP tool whose owning feature the instance does not
-// offer.
+// name, every MCP tool whose owning feature the instance does not
+// offer, and the wire tokens of every hidden slot-owning capability
+// (slotTokens in features.go).
 func NewProseScrub(inst *InstanceSnapshot) ProseScrub {
 	return ProseScrub{hidden: hiddenProseNames(inst)}
 }

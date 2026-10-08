@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -366,6 +367,89 @@ var requestSlotCapabilities = map[string]bool{
 	featCrosstab:  true,
 	featWeighting: true,
 	featMatrices:  true,
+}
+
+// slotTokenSet is the prose vocabulary one slot-owning capability owns:
+// the wire tokens that name its request / response slots, and the topic
+// a guidance sentence naming one of them must be about.
+type slotTokenSet struct {
+	// tokens are whole [A-Za-z0-9_] runs. hiddenProseNames adds them
+	// when the capability is hidden, so the prose scrub drops every
+	// sentence naming one.
+	tokens []string
+	// topic matches a sentence that is ABOUT the slot once the tokens
+	// are cut out of it (the SLOT-TOKEN guidance lint): a sentence that
+	// names a token without being about the slot would be over-dropped
+	// on an instance hiding the capability. nil only when tokens is
+	// empty.
+	topic *regexp.Regexp
+}
+
+// slotTokens maps every capability that owns a request slot (a
+// gatedSlots key whose visibility it decides) to the wire tokens the
+// prose scrub removes when the capability is hidden. An entry may be
+// empty; a missing one fails TestSlotTokens_EveryRequestSlotCapability.
+// Tokens are wire-specific: a slot key that is also an everyday English
+// word ("joins", "weight", "crosstab" as a noun several hosts share) is
+// left out, since dropping every sentence using the word would
+// over-drop. Request.Return and the other ungated slots have no owning
+// capability, so no entry.
+var slotTokens = map[string]slotTokenSet{
+	featMultiplicity: {
+		tokens: []string{"multiplicity", "p_adjusted", "significant_adjusted"},
+		topic:  regexp.MustCompile(`(?i)\b(?:adjust\w*|correct\w*|multiple\s+comparisons?|family|family-wise|false\s+discovery|bonferroni|holm)\b`),
+	},
+	featWeighting: {
+		// `weight` itself is English (body weight, AGG_WEIGHTED_MEAN's
+		// weight_field); sum_weights / n_eff are AGG_WEIGHTED_MEAN's own
+		// component keys too, so they stay visible without the slot.
+		tokens: []string{"n_weight_invalid", "weight_aware"},
+		topic:  regexp.MustCompile(`(?i)weight`),
+	},
+	featMatrices: {
+		tokens: []string{"vectors", "matrices", "n_listwise_dropped", "min_pair_n", "max_pair_n"},
+		topic:  regexp.MustCompile(`(?i)\b(?:matri\w*|vectors?|MAT_[A-Z_]+|correlation|covariance)\b`),
+	},
+	featCrosstab: {
+		// `crosstab` names the MATRIX host other capabilities' overlays
+		// describe too (OVERLAY_SHARE_OF_TOTAL runs on a series host).
+		tokens: []string{"margin_aggregations"},
+		topic:  regexp.MustCompile(`(?i)\b(?:margins?|crosstab)\b`),
+	},
+	// `joins` is an English verb ("joins the family").
+	featJoins: {},
+	// The overlay hosts' slot is `overlays`, shared by all four hosts;
+	// the overlay kinds a hidden host runs are operator names the scrub
+	// already removes.
+	featCompose:      {},
+	featProcessChain: {},
+	featFacet:        {},
+}
+
+// slotTokenHomonyms lists, per slot token, the tokens that mark a
+// sentence as naming a DIFFERENT slot spelled the same way: such a
+// sentence is never a hit for that token. LookupRequest.multiplicity is
+// pulse_lookup's duplicate-key mode, not a correction block.
+var slotTokenHomonyms = map[string][]string{
+	"multiplicity": {"assert_unique", "LookupMultiplicity", "PULSE_LOOKUP_AMBIGUOUS"},
+}
+
+// SlotTokenCapabilities returns the capabilities with a slot-token
+// entry, sorted.
+func SlotTokenCapabilities() []string {
+	out := make([]string, 0, len(slotTokens))
+	for c := range slotTokens {
+		out = append(out, c)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// SlotTokensOf returns the wire tokens capability owns (a fresh slice,
+// possibly empty) and whether it has an entry.
+func SlotTokensOf(capability string) ([]string, bool) {
+	s, ok := slotTokens[capability]
+	return append([]string(nil), s.tokens...), ok
 }
 
 // overlayHostKinds lists, per host capability, the overlay kinds that
