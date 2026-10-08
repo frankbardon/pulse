@@ -19,6 +19,7 @@ import "github.com/frankbardon/pulse/descriptor"
 // a missing input reads 0 (50 for the T-score), never null, and
 // ATTR_PERCENTILE gives tied values distinct ranks.
 var attributePurposes = map[string]descriptor.Purpose{
+	"ATTR_CODE_IN":      purposeAttrCodeIn,
 	"ATTR_DATE_PART":    purposeAttrDatePart,
 	"ATTR_FORMULA":      purposeAttrFormula,
 	"ATTR_NORMALIZED":   purposeAttrNormalized,
@@ -91,6 +92,30 @@ var (
 			"It cannot read another attribute's column from the same request.",
 		},
 		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"missing-value"},
+	}
+
+	purposeAttrCodeIn = descriptor.Purpose{
+		Plain:   "Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base.",
+		Intents: []string{IntentPrepare},
+		Questions: []string{
+			"What share of all respondents gave a top-two-box answer (codes 4 or 5)?",
+			"Which orders carry one of the priority status codes, as a column to average by region?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey: "Top-box flag to average as a share of the whole weighted base: non-answers stay in the denominator unless FILTER_NULL drops them first.",
+			descriptor.DomainOps:    "Flag for orders whose status code is in a chosen group.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want to keep only the rows with those codes", Use: "FILTER_INCLUDE"},
+			{When: "you want how often a single value occurs", Use: "AGG_FREQUENCY"},
+			{When: "the field is a multi-select", Use: "ATTR_SET_HAS"},
+		},
+		Assumptions: []string{
+			"On a categorical field a code is a dictionary label; one absent from the dictionary matches nothing.",
+			"A row with a missing value reads 0, the same as a row with another code.",
+		},
+		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value"},
 	}
 

@@ -384,6 +384,7 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 				{Name: "y", Type: encoding.FieldTypeF64},
 				{Name: "p1", Type: encoding.FieldTypeF64},
 				{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: setDict},
+				{Name: "code", Type: encoding.FieldTypeU8},
 			},
 		}
 		switch attrType {
@@ -399,6 +400,9 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 		case types.ATTR_SET_HAS:
 			spec.Field = "tags"
 			spec.Params = []byte(`{"label":"VISA"}`)
+		case types.ATTR_CODE_IN:
+			spec.Field = "code"
+			spec.Params = []byte(`{"codes":[1]}`)
 		}
 		instance, err := factory(spec, schema)
 		if err != nil {

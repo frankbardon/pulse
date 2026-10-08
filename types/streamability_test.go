@@ -173,6 +173,7 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 
 		ATTR_SET_POPCOUNT: true,
 		ATTR_SET_HAS:      true,
+		ATTR_CODE_IN:      true,
 	}
 	for _, a := range AllAttributeTypes() {
 		want, ok := expected[a]

@@ -395,6 +395,17 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Params: json.RawMessage(`{"label":"m0"}`),
 		}, s, emitsSetRecords(t, s))
 	},
+	string(types.ATTR_CODE_IN): func(t *testing.T) emitted {
+		s := &encoding.Schema{Fields: []encoding.Field{{Name: "code", Type: encoding.FieldTypeU8, Nullable: true}}}
+		return attrEmitted(t, &types.Attribute{
+			Type: types.ATTR_CODE_IN, Field: "code", Label: "out",
+			Params: json.RawMessage(`{"codes":[2, 255]}`),
+		}, s, []*Record{
+			NewRecord(s, map[string]float64{"code": 255}),
+			NewRecord(s, map[string]float64{"code": 7}),
+			NewRecordWithNulls(s, map[string]float64{"code": 2}, map[string]bool{"code": true}),
+		})
+	},
 
 	// --- window operators -------------------------------------------
 	string(types.WIN_LAG): func(t *testing.T) emitted {

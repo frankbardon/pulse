@@ -6,6 +6,20 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 )
 
+// codeInFieldTypes is what ATTR_CODE_IN accepts: the categorical
+// widths (codes are dictionary labels) and the unsigned integers (codes
+// are whole numbers). Sorted byte order like every AcceptsTypes list.
+var codeInFieldTypes = []string{
+	"categorical_u16",
+	"categorical_u32",
+	"categorical_u8",
+	"u16",
+	"u32",
+	"u4",
+	"u64",
+	"u8",
+}
+
 // attributeCapabilities returns the metadata for every registered
 // AttributeComputer. TestManifestOperatorsComplete enforces coverage of
 // types.AllAttributeTypes().
@@ -139,6 +153,23 @@ func attributeCapabilities() []descriptor.Operator {
 			AcceptsTypes:  setFieldTypes,
 			EmitsType:     "packed_bool",
 			EmitsTypeNote: "one 0/1 per record",
+			Streamable:    true,
+		},
+		{
+			Name:        string(types.ATTR_CODE_IN),
+			Category:    "attribute",
+			Description: "Per-row 0/1: whether the field's value is one of the listed codes. Every row stays in the base (a null reads 0), so a mean of the output is the share of the whole base; FILTER_INCLUDE on the same codes drops the other rows instead.",
+			Params: []descriptor.Param{
+				{
+					Name:        "codes",
+					Type:        "list",
+					Required:    true,
+					Description: "Non-empty list of codes (JSON strings or integers; duplicates ignored). On a categorical field each is a dictionary label, and one absent from the dictionary matches nothing; on an integer field each must be a whole number within the field's width.",
+				},
+			},
+			AcceptsTypes:  codeInFieldTypes,
+			EmitsType:     "packed_bool",
+			EmitsTypeNote: "one 0/1 per record (0 when the value is null)",
 			Streamable:    true,
 		},
 	}

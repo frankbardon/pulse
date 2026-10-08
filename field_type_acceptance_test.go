@@ -167,6 +167,7 @@ var acceptanceTemplates = map[string]string{
 	"ATTR_REG_LEVERAGE": `{"attributes":[{"type":"ATTR_REG_LEVERAGE","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_SET_POPCOUNT": `{"attributes":[{"type":"ATTR_SET_POPCOUNT","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_SET_HAS":      `{"attributes":[{"type":"ATTR_SET_HAS","field":"$F","label":"o","params":{"label":"a"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_CODE_IN":      `{"attributes":[{"type":"ATTR_CODE_IN","field":"$F","label":"o","params":{"codes":["$V"]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 
 	// Features.
 	"FEAT_LOG":              `{"features":[{"type":"FEAT_LOG","field":"$F"}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
@@ -355,6 +356,9 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 		return "the runtime cannot parse a dictionary label as a range bound; predict accepts it"
 	case cat && in("ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE"):
 		return "the runtime refuses a categorical predictor; predict has no type check"
+	case op == "ATTR_CODE_IN" && !cat && ft != encoding.FieldTypeU4 && ft != encoding.FieldTypeU8 &&
+		ft != encoding.FieldTypeU16 && ft != encoding.FieldTypeU32 && ft != encoding.FieldTypeU64:
+		return "the runtime refuses a non-categorical, non-unsigned-integer field; predict has no ATTR_CODE_IN type check yet"
 	case cat && op == "TEST_Z_TWO_SAMPLE":
 		return "the runtime refuses a categorical field (PULSE_TEST_FIELD_NOT_NUMERIC); predict has no check"
 

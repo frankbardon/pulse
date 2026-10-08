@@ -216,6 +216,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("AGG_SET_CARDINALITY_AVG"),
 	op("AGG_SET_DISTINCT_VALUES"),
 	// Attributes — types.AllAttributeTypes().
+	op("ATTR_CODE_IN"),
 	op("ATTR_DATE_PART"),
 	op("ATTR_FORMULA"),
 	op("ATTR_NORMALIZED"),

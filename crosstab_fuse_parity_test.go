@@ -147,6 +147,12 @@ func fusionParityCorpus() []fusionCase {
 		types.ATTR_REG_FITTED, types.ATTR_DATE_PART, types.ATTR_SET_POPCOUNT} {
 		add("attr/"+string(at), with(func(r *types.Request) { r.Attributes = []*types.Attribute{{Type: at, Field: "score", Label: "a"}} }))
 	}
+	add("attr/ATTR_CODE_IN", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_CODE_IN, Field: "region", Label: "a", Params: json.RawMessage(`{"codes":["north","west"]}`)}}
+	}))
+	add("attr/ATTR_CODE_IN_u32", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_CODE_IN, Field: "qty", Label: "a", Params: json.RawMessage(`{"codes":[1, 2]}`)}}
+	}))
 	add("formula_expression", with(func(r *types.Request) {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "f"}}
 	}))

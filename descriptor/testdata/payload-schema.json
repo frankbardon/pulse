@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:21e79fbd70c85f9aef52604656cd6b2ba31b4e5a589bc79d5bcebfbb540f7704",
+  "$comment": "feature_set_digest: fs1:4bfe9c1fbc91dda362da9bab9a4268f09d159166068c4312352dc1ff3a19d1e8",
   "$defs": {
     "Aggregation": {
       "additionalProperties": false,
@@ -241,6 +241,7 @@
     },
     "AttributeType": {
       "enum": [
+        "ATTR_CODE_IN",
         "ATTR_DATE_PART",
         "ATTR_FORMULA",
         "ATTR_NORMALIZED",
@@ -3369,4 +3370,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 352dce85781838353ee595de37b54854dbd851e09fd6b40c2fad4a78112259df
+// golden-hash: 787f4109d55e6ecd5ada8baac375cc11b4e709f43145a361462cf577e60f79ce
