@@ -16,7 +16,8 @@ import (
 )
 
 // fakeMetrics is a recording observe.Metrics. Factory calls after
-// freeze are recorded as late — the hot path must never make one.
+// freeze are recorded as late — only lazy operations_total{code≠ok}
+// resolutions may make one, once per tuple.
 type fakeMetrics struct {
 	mu     sync.Mutex
 	frozen bool
@@ -104,7 +105,7 @@ func (m *fakeMetrics) get(t *testing.T, name string, kv ...string) *fakeInst {
 	in := m.inst[metricKey(name, kv...)]
 	m.mu.Unlock()
 	if in == nil {
-		t.Fatalf("instrument %s not pre-resolved", metricKey(name, kv...))
+		t.Fatalf("instrument %s never resolved", metricKey(name, kv...))
 	}
 	return in
 }
@@ -143,16 +144,20 @@ func metricsFixture(t *testing.T, opts Options) (*Pulse, *fakeMetrics) {
 }
 
 // TestObservabilityMetricsResolvedAtNew (FR-19): New resolves every
-// instrument of the documented set over the enumerated label
-// combinations, and no operation — any kind, success or failure — ever
-// calls the factory again.
+// instrument of the documented set whose label space is small — all of
+// them except operations_total for an error code, which is keyed by the
+// ~280-entry code list and resolved lazily. Operations then call the
+// factory only for operations_total{code≠ok}, at most once per (op,
+// scope, code) tuple; re-running every operation calls it never again.
 //
-// Falsified by resolving an instrument inside opMetrics.end.
+// Falsified by resolving an instrument inside opMetrics.end, or by
+// dropping the cell Store in resolveOpsCounter (every failure re-calls
+// the factory).
 func TestObservabilityMetricsResolvedAtNew(t *testing.T) {
 	p, fm := metricsFixture(t, Options{})
 	e := metricEnumSet()
 	nOps := len(observe.AllOperationKinds())
-	want := nOps*2*(len(errors.AllCodes())+2) + // operations_total
+	want := nOps*2 + // operations_total{code="ok"}
 		nOps*2 + // operation_duration_seconds
 		nOps*len(observe.AllPhases()) + // phase_duration_seconds
 		3*nOps + // rows, bytes, in-flight
@@ -177,14 +182,102 @@ func TestObservabilityMetricsResolvedAtNew(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	for _, c := range obsCalls() {
-		_ = c.call(ctx, p)
+	runAll := func() {
+		for _, c := range obsCalls() {
+			_ = c.call(ctx, p)
+		}
+		for _, c := range sentinelCalls() {
+			_ = c.call(ctx, p)
+		}
 	}
-	for _, c := range sentinelCalls() {
-		_ = c.call(ctx, p)
+	runAll()
+	fm.mu.Lock()
+	late := append([]string(nil), fm.late...)
+	fm.mu.Unlock()
+	if len(late) == 0 {
+		t.Fatal("no operation failed with an error code; the lazy path went unexercised")
 	}
-	if len(fm.late) > 0 {
-		t.Errorf("the hot path called the Metrics factory %d times: %v", len(fm.late), fm.late[:min(5, len(fm.late))])
+	seen := map[string]bool{}
+	for _, k := range late {
+		if !strings.HasPrefix(k, metricOperations+"{") || strings.Contains(k, "code="+observe.CodeOK+",") {
+			t.Errorf("the hot path resolved %s; only operations_total for an error code is lazy", k)
+		}
+		if seen[k] {
+			t.Errorf("the factory was called twice for %s", k)
+		}
+		seen[k] = true
+	}
+	runAll()
+	fm.mu.Lock()
+	again := len(fm.late) - len(late)
+	fm.mu.Unlock()
+	if again != 0 {
+		t.Errorf("re-running every operation called the factory %d more times, want 0", again)
+	}
+}
+
+// TestObservabilityMetricsLazyConcurrent: concurrent first uses of the
+// same lazy tuple call the factory exactly once and every writer lands
+// in that one instrument.
+//
+// Falsified by calling the factory before taking lazyMu (or dropping the
+// re-check under it) in resolveOpsCounter.
+func TestObservabilityMetricsLazyConcurrent(t *testing.T) {
+	fm := newFakeMetrics()
+	om := newOpMetrics(fm)
+	fm.freeze()
+	e := metricEnumSet()
+	c := e.codeIdx[string(errors.PULSE_LIMIT_EXCEEDED)]
+	const workers = 32
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Go(func() { om.opsCounter(1, scopeSlotChild, c).Add(1) })
+	}
+	wg.Wait()
+	if len(fm.late) != 1 {
+		t.Fatalf("factory called %d times for one tuple, want 1: %v", len(fm.late), fm.late)
+	}
+	in := fm.get(t, metricOperations, "op="+string(e.ops[1]), "code=PULSE_LIMIT_EXCEEDED", "scope=child")
+	if in.value != workers {
+		t.Errorf("counter %v, want %d", in.value, workers)
+	}
+}
+
+// newMetricsAllocCeiling bounds the allocations metrics add to one New
+// beyond a plain New. Eager resolution of operations_total over every
+// error code made ~22.4k factory calls and ~620k allocations per New; the
+// split resolution makes ~600 calls (≈ 6 fake-backend allocations each)
+// plus the lazy table. The ceiling leaves headroom for growth in the op,
+// phase and limit enums but is an order of magnitude under eager.
+const newMetricsAllocCeiling = 10_000
+
+// TestObservabilityMetricsNewCost: building an instance with Metrics set
+// costs a bounded number of allocations over a plain New — a host may
+// call New per tenant or per request.
+//
+// Falsified by pre-resolving operations_total over every code in
+// newOpMetrics (the pre-fix eager design).
+func TestObservabilityMetricsNewCost(t *testing.T) {
+	if raceEnabled {
+		t.Skip("allocation counts are a plain-build figure")
+	}
+	dir := t.TempDir()
+	plain := testing.AllocsPerRun(5, func() {
+		if _, err := New(Options{DataDir: dir}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	withMetrics := testing.AllocsPerRun(5, func() {
+		if _, err := New(Options{DataDir: dir, Metrics: newFakeMetrics()}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Logf("New allocations: %v plain, %v with Metrics", plain, withMetrics)
+	if extra := withMetrics - plain; extra > newMetricsAllocCeiling {
+		t.Fatalf(`New with Metrics allocated %v per run vs %v plain (+%v, ceiling +%d).
+Resolve only small-label-space instruments at New; operations_total for an
+error code must stay lazy (opMetrics.opsCounter), or every New pays ~22k
+factory calls.`, withMetrics, plain, extra, newMetricsAllocCeiling)
 	}
 }
 

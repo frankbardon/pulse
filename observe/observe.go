@@ -257,10 +257,15 @@ type Label struct {
 	Value string
 }
 
-// Metrics creates metric instruments. Pulse calls it only while building
-// an instance, once per name and label combination, and caches what it
-// returns; the hot path never calls the factory. Bucket boundaries for
-// a Histogram are the adapter's choice.
+// Metrics creates metric instruments. Pulse calls the factory at most
+// once per name and label combination and caches what it returns.
+// Instruments with a small label space are resolved while building the
+// instance; the rest (pulse_operations_total for an error code) are
+// resolved lazily, on the first operation that needs that combination,
+// so the factory may be called after New, from any goroutine, and must
+// be safe for concurrent use. Once a combination is resolved its hot
+// path never calls the factory again. Bucket boundaries for a Histogram
+// are the adapter's choice.
 type Metrics interface {
 	Counter(name string, labels ...Label) Counter
 	Histogram(name string, labels ...Label) Histogram

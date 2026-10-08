@@ -283,3 +283,45 @@ func TestServer(t *testing.T) {
 		t.Error("Listen on a busy address must fail synchronously")
 	}
 }
+
+// TestLazySeriesStorage: resolving an instrument allocates no bucket
+// storage — an unwritten histogram costs only its series header and
+// prints nothing — and concurrent first Observes all land in one
+// storage block. A host builds hundreds of instruments per pulse.New.
+//
+// Falsified by allocating histData in Registry.series, or by storing
+// (not CompareAndSwap-ing) it in series.histData.
+func TestLazySeriesStorage(t *testing.T) {
+	r := New()
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = r.Histogram("h_seconds", observe.Label{Key: "op", Value: "process"})
+	})
+	if allocs > 2 {
+		t.Errorf("re-resolving a histogram allocated %v per run, want ≤ 2 (the label slice and its rendered key)", allocs)
+	}
+	h := r.Histogram("lazy_seconds", observe.Label{Key: "op", Value: "x"})
+	if s := r.fams["lazy_seconds"].series[`op="x"`]; s.hist.Load() != nil {
+		t.Fatal("histogram bucket storage allocated before the first Observe")
+	}
+	var buf bytes.Buffer
+	_ = r.WriteText(&buf)
+	if strings.Contains(buf.String(), "lazy_seconds_count") {
+		t.Errorf("an unwritten histogram printed a series:\n%s", buf.String())
+	}
+	const workers = 64
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for range workers {
+		wg.Go(func() {
+			<-start
+			h.Observe(0.01)
+		})
+	}
+	close(start)
+	wg.Wait()
+	buf.Reset()
+	_ = r.WriteText(&buf)
+	if want := `lazy_seconds_count{op="x"} 64`; !strings.Contains(buf.String(), want) {
+		t.Errorf("missing %q after concurrent first Observes:\n%s", want, buf.String())
+	}
+}

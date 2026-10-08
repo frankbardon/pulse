@@ -10,10 +10,11 @@
 //     even before it has a sample, so a scrape always shows the whole
 //     documented set.
 //   - A series prints once its instrument has been written at least
-//     once (Add or Observe). Pulse pre-resolves one instrument per label
-//     combination — for pulse_operations_total that is every operation
-//     kind × scope × error code — and printing them all at zero would
-//     bloat every scrape with series that never move.
+//     once (Add or Observe). Pulse resolves many instruments up front
+//     (every operation kind × scope × phase, and more) and printing them
+//     all at zero would bloat every scrape with series that never move.
+//   - Resolving an instrument is cheap: a histogram's bucket storage is
+//     allocated on its first Observe, not when it is created.
 //   - Families sort by name and series by their rendered label set, so
 //     output is deterministic.
 //
@@ -114,13 +115,30 @@ type series struct {
 	labels  string // rendered, without braces; "" when unlabeled
 	touched atomic.Bool
 	val     atomicFloat // counter / gauge value
-	hist    *histData
+	// upper is the histogram bucket bounds (nil for other kinds); hist is
+	// allocated on the first Observe so an unwritten series costs only
+	// this struct.
+	upper []float64
+	hist  atomic.Pointer[histData]
 }
 
 type histData struct {
-	upper  []float64
 	counts []atomic.Uint64 // per bucket, non-cumulative; last is +Inf
 	sum    atomicFloat
+}
+
+// histData returns the series' histogram storage, allocating it on first
+// use. Concurrent first Observes race on a CompareAndSwap; the loser's
+// allocation is dropped and every writer lands in the winner's storage.
+func (s *series) histData() *histData {
+	if d := s.hist.Load(); d != nil {
+		return d
+	}
+	d := &histData{counts: make([]atomic.Uint64, len(s.upper)+1)}
+	if s.hist.CompareAndSwap(nil, d) {
+		return d
+	}
+	return s.hist.Load()
 }
 
 // atomicFloat is a float64 updated with compare-and-swap.
@@ -191,7 +209,7 @@ func (r *Registry) series(name, kind string, labels []observe.Label) *series {
 	}
 	s := &series{labels: key}
 	if kind == kindHistogram {
-		s.hist = &histData{upper: r.buckets, counts: make([]atomic.Uint64, len(r.buckets)+1)}
+		s.upper = r.buckets
 	}
 	fam.series[key] = s
 	return s
@@ -219,12 +237,12 @@ func (g gauge) Add(delta float64) {
 type histogram struct{ s *series }
 
 func (h histogram) Observe(v float64) {
-	d := h.s.hist
+	d := h.s.histData()
 	// First bucket whose upper bound is >= v (le semantics); NaN lands
 	// in +Inf only.
-	i := len(d.upper)
+	i := len(h.s.upper)
 	if !math.IsNaN(v) {
-		i = sort.SearchFloat64s(d.upper, v)
+		i = sort.SearchFloat64s(h.s.upper, v)
 	}
 	d.counts[i].Add(1)
 	d.sum.add(v)
@@ -273,13 +291,16 @@ func (r *Registry) WriteText(w io.Writer) error {
 				writeSample(&b, f.name, s.labels, "", s.val.load())
 				continue
 			}
-			d := s.hist
+			d := s.hist.Load()
+			if d == nil {
+				continue // touched is set only after the first Observe stored d
+			}
 			var cum uint64
-			for i, ub := range d.upper {
+			for i, ub := range s.upper {
 				cum += d.counts[i].Load()
 				writeSample(&b, f.name+"_bucket", s.labels, `le="`+formatFloat(ub)+`"`, float64(cum))
 			}
-			cum += d.counts[len(d.upper)].Load()
+			cum += d.counts[len(s.upper)].Load()
 			writeSample(&b, f.name+"_bucket", s.labels, `le="+Inf"`, float64(cum))
 			writeSample(&b, f.name+"_sum", s.labels, "", d.sum.load())
 			writeSample(&b, f.name+"_count", s.labels, "", float64(cum))
@@ -340,16 +361,26 @@ func renderLabels(labels []observe.Label) string {
 	return b.String()
 }
 
+// Escapers are built once: strings.NewReplacer is costly, and label
+// rendering runs on every instrument resolution.
+var (
+	labelValueEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
+	helpEscaper       = strings.NewReplacer(`\`, `\\`, "\n", `\n`)
+)
+
 // escapeLabelValue escapes backslash, double quote and line feed, as the
 // text format requires inside a label value.
 func escapeLabelValue(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`).Replace(s)
+	if !strings.ContainsAny(s, "\\\"\n") {
+		return s
+	}
+	return labelValueEscaper.Replace(s)
 }
 
 // escapeHelp escapes backslash and line feed, as the text format
 // requires in a HELP docstring.
 func escapeHelp(s string) string {
-	return strings.NewReplacer(`\`, `\\`, "\n", `\n`).Replace(s)
+	return helpEscaper.Replace(s)
 }
 
 func formatFloat(v float64) string {

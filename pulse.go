@@ -545,7 +545,9 @@ type Options struct {
 	Hooks *observe.Hooks
 
 	// Metrics is the instrument factory the instance records its
-	// operation metrics through. Nil (the default) records nothing.
+	// operation metrics through. Nil (the default) records nothing. The
+	// factory may be called lazily after New, at most once per label
+	// combination, and must be safe for concurrent use.
 	Metrics observe.Metrics
 }
 
@@ -581,8 +583,9 @@ type Pulse struct {
 	logger  *slog.Logger
 	hooks   *observe.Hooks
 	metrics observe.Metrics
-	// om is the documented metric set pre-resolved from metrics at New;
-	// nil when Metrics is unset.
+	// om is the documented metric set resolved from metrics (small
+	// label spaces at New, error-coded operations_total lazily); nil
+	// when Metrics is unset.
 	om    *opMetrics
 	opSeq atomic.Uint64
 }

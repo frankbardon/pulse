@@ -3,6 +3,7 @@ package pulse
 import (
 	stderrors "errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
@@ -41,8 +42,8 @@ const (
 )
 
 // metricEnums are the closed label-value sets the instruments are
-// pre-resolved over, plus index maps so the hot path turns a value into
-// a slot with a map lookup (no allocation). Built once per process.
+// resolved over, plus index maps so the hot path turns a value into a
+// slot with a map lookup (no allocation). Built once per process.
 type metricEnums struct {
 	ops    []observe.OperationKind
 	opIdx  map[observe.OperationKind]int
@@ -94,8 +95,19 @@ const (
 var scopeBySlot = [scopeSlots]observe.Scope{observe.ScopeTop, observe.ScopeChild}
 
 // opMetrics holds every instrument of the documented set, resolved from
-// Options.Metrics once at New over the enumerated label combinations.
-// The hot path indexes these tables and never calls the factory.
+// Options.Metrics.
+//
+// Resolution is split by label-space size. Every instrument whose labels
+// are small enums — operation_duration_seconds, phase_duration_seconds,
+// rows, bytes, in-flight, limit trips, hook panics, and
+// operations_total{code="ok"} — is resolved once at New (a few hundred
+// factory calls). operations_total for an error code is keyed by the
+// ~280-entry error-code list, so pre-resolving it would cost ~22k
+// factory calls per New; those are resolved lazily on first use of each
+// (op, scope, code) tuple into an index-addressed table of atomic
+// pointers. The factory is called at most once per tuple, and once a
+// tuple is resolved its hot path is two atomic loads — no map, no lock,
+// no allocation.
 //
 // Attribution: operations_total and operation_duration_seconds count
 // every operation, top-level and child, split by scope. The remaining
@@ -103,9 +115,16 @@ var scopeBySlot = [scopeSlots]observe.Scope{observe.ScopeTop, observe.ScopeChild
 // top-level operations only: a parent's counters already aggregate its
 // children, so counting both would double-count.
 type opMetrics struct {
+	m     observe.Metrics
 	enums *metricEnums
-	// ops[op][scope][code]
-	ops      [][scopeSlots][]observe.Counter
+	// ok[op][scope] is operations_total{code="ok"}, resolved at New.
+	ok [][scopeSlots]observe.Counter
+	// codeRows[op*scopeSlots+scope] holds operations_total for every
+	// other code, indexed by enums.codeIdx; rows and cells fill lazily.
+	codeRows []atomic.Pointer[codeRow]
+	// lazyMu serializes lazy resolution so the factory runs at most once
+	// per tuple. The resolved fast path never takes it.
+	lazyMu   sync.Mutex
 	duration [][scopeSlots]observe.Histogram
 	// phases[op][phase]
 	phases   [][]observe.Histogram
@@ -116,12 +135,25 @@ type opMetrics struct {
 	panics   map[string]observe.Counter
 }
 
-// newOpMetrics resolves every instrument from m. Called only by New.
+// codeRow is one (op, scope) row of lazily resolved operations_total
+// counters, one cell per entry of metricEnums.codes.
+type codeRow struct {
+	cells []atomic.Pointer[counterCell]
+}
+
+// counterCell boxes a resolved Counter so it can sit behind an
+// atomic.Pointer.
+type counterCell struct{ c observe.Counter }
+
+// newOpMetrics resolves the small-label-space instruments from m and
+// sets up the lazy operations_total table. Called only by New.
 func newOpMetrics(m observe.Metrics) *opMetrics {
 	e := metricEnumSet()
 	om := &opMetrics{
+		m:        m,
 		enums:    e,
-		ops:      make([][scopeSlots][]observe.Counter, len(e.ops)),
+		ok:       make([][scopeSlots]observe.Counter, len(e.ops)),
+		codeRows: make([]atomic.Pointer[codeRow], len(e.ops)*scopeSlots),
 		duration: make([][scopeSlots]observe.Histogram, len(e.ops)),
 		phases:   make([][]observe.Histogram, len(e.ops)),
 		rows:     make([]observe.Counter, len(e.ops)),
@@ -130,14 +162,12 @@ func newOpMetrics(m observe.Metrics) *opMetrics {
 		limits:   make(map[string]observe.Counter, len(e.limits)),
 		panics:   make(map[string]observe.Counter, len(e.hooks)),
 	}
+	okLabel := observe.Label{Key: labelCode, Value: observe.CodeOK}
 	for i, k := range e.ops {
 		op := observe.Label{Key: labelOp, Value: string(k)}
 		for s, scope := range scopeBySlot {
 			sc := observe.Label{Key: labelScope, Value: string(scope)}
-			om.ops[i][s] = make([]observe.Counter, len(e.codes))
-			for c, code := range e.codes {
-				om.ops[i][s][c] = m.Counter(metricOperations, op, observe.Label{Key: labelCode, Value: code}, sc)
-			}
+			om.ok[i][s] = m.Counter(metricOperations, op, okLabel, sc)
 			om.duration[i][s] = m.Histogram(metricOpDuration, op, sc)
 		}
 		om.phases[i] = make([]observe.Histogram, len(e.phases))
@@ -155,6 +185,39 @@ func newOpMetrics(m observe.Metrics) *opMetrics {
 		om.panics[h] = m.Counter(metricHookPanics, observe.Label{Key: labelHook, Value: h})
 	}
 	return om
+}
+
+// opsCounter returns operations_total for op index i, scope slot s and
+// code index c (into enums.codes).
+func (om *opMetrics) opsCounter(i, s, c int) observe.Counter {
+	if row := om.codeRows[i*scopeSlots+s].Load(); row != nil {
+		if cell := row.cells[c].Load(); cell != nil {
+			return cell.c
+		}
+	}
+	return om.resolveOpsCounter(i, s, c)
+}
+
+// resolveOpsCounter is opsCounter's slow path: it calls the factory for
+// the tuple exactly once, under lazyMu, and publishes the result.
+func (om *opMetrics) resolveOpsCounter(i, s, c int) observe.Counter {
+	om.lazyMu.Lock()
+	defer om.lazyMu.Unlock()
+	slot := &om.codeRows[i*scopeSlots+s]
+	row := slot.Load()
+	if row == nil {
+		row = &codeRow{cells: make([]atomic.Pointer[counterCell], len(om.enums.codes))}
+		slot.Store(row)
+	}
+	if cell := row.cells[c].Load(); cell != nil {
+		return cell.c
+	}
+	ctr := om.m.Counter(metricOperations,
+		observe.Label{Key: labelOp, Value: string(om.enums.ops[i])},
+		observe.Label{Key: labelCode, Value: om.enums.codes[c]},
+		observe.Label{Key: labelScope, Value: string(scopeBySlot[s])})
+	row.cells[c].Store(&counterCell{c: ctr})
+	return ctr
 }
 
 // begin marks a top-level operation in flight.
@@ -178,11 +241,15 @@ func (om *opMetrics) end(info observe.OperationInfo, res observe.OperationResult
 	if info.Scope == observe.ScopeChild {
 		s = scopeSlotChild
 	}
-	c, ok := om.enums.codeIdx[res.Code]
-	if !ok {
-		c = om.enums.codeIdx[observe.CodeUncoded]
+	if res.Code == observe.CodeOK {
+		om.ok[i][s].Add(1)
+	} else {
+		c, ok := om.enums.codeIdx[res.Code]
+		if !ok {
+			c = om.enums.codeIdx[observe.CodeUncoded]
+		}
+		om.opsCounter(i, s, c).Add(1)
 	}
-	om.ops[i][s][c].Add(1)
 	om.duration[i][s].Observe(res.Duration.Seconds())
 	if s != scopeSlotTop {
 		return
