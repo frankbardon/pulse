@@ -51,7 +51,7 @@ func shardCreateCmd() *cli.Command {
 				return cliError(cmd, jsonOut, "CLI_INPUT", "pulse shard create requires at least one --include shard")
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -109,7 +109,7 @@ func shardAddCmd() *cli.Command {
 			archive := args.Get(0)
 			shard := args.Get(1)
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -167,7 +167,7 @@ func shardRemoveCmd() *cli.Command {
 			archive := args.Get(0)
 			basename := args.Get(1)
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -207,7 +207,7 @@ func shardListCmd() *cli.Command {
 			}
 			archive := args.First()
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -253,7 +253,7 @@ func shardCompactCmd() *cli.Command {
 			}
 			archive := args.First()
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -292,7 +292,7 @@ func shardVerifyCmd() *cli.Command {
 			}
 			archive := args.First()
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -353,7 +353,7 @@ func shardExtractCmd() *cli.Command {
 			archive := args.Get(0)
 			basename := args.Get(1)
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return err
 			}

@@ -15,11 +15,13 @@ stdio streams, and shuts it down on session close.
 ## Synopsis
 
 ```
-pulse mcp [--data-dir PATH] [--feature-profile FILE] [--return PRESET] [--limit NAME=VALUE]... [--bind-on-open] [--no-cohort-scan]
+pulse mcp [--data-dir PATH] [--feature-profile FILE] [--return PRESET] [--limit NAME=VALUE]... [--bind-on-open] [--no-cohort-scan] [--metrics-addr HOST:PORT] [--log-level LEVEL] [--log-format text|json]
 ```
 
 The command reads stdin, writes MCP responses on stdout, and writes a
-one-line startup notice (and any subsequent diagnostics) on stderr.
+one-line startup notice (and any subsequent diagnostics, including
+`--log-level` records) on stderr. Nothing but JSON-RPC is ever written
+to stdout.
 
 ## Flags
 
@@ -31,6 +33,8 @@ one-line startup notice (and any subsequent diagnostics) on stderr.
 | `--feature-profile` | string | from `PULSE_FEATURE_PROFILE` env var | Feature profile JSON file — an OS path, not resolved under the data dir. An invalid profile fails startup |
 | `--return` | string | unset (instance / profile default, else `standard`) | `return` preset (`full`, `standard`, `minimal`) for a tool request without its own `return` block. An unknown preset fails startup (`PULSE_RETURN_INVALID`) |
 | `--limit` | string, repeatable | unset (profile `limits`, else the built-in defaults) | Instance resource limit as `name=value` (e.g. `max_groups=1000000`, `request_timeout=30s`). An unknown name or bad value fails startup (`CLI_INPUT`) |
+| `--metrics-addr` | string | unset (no port opened) | Serve Prometheus text-format metrics on `GET /metrics` at `host:port` (`:0` picks a free port). A bad or busy address fails startup (`CLI_INPUT`) |
+| `--log-level` / `--log-format` | string | `off` / `text` | Root persistent flags ([Global flags](flags.md#global-flags)): structured logs on stderr |
 
 `--data-dir` is **required** in one of its two forms (env var or
 flag). The MCP server fails to start otherwise:
@@ -60,12 +64,13 @@ flag, and a loaded profile is named by its `profile` label
 (`(unnamed)` when it has none):
 
 ```
-pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: false, feature-profile: self-serve)
+pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: false, return: standard, feature-profile: self-serve)
 ```
 
 Embedders get the same effective view from
 `mcpserve.Describe(p, opts)`, which returns a `mcpserve.ServeInfo`
-(`CohortScan`, `FeatureProfileLoaded`, `FeatureProfile`). The library
+(`CohortScan`, `FeatureProfileLoaded`, `FeatureProfile`, `DefaultReturn`,
+`Limits`). The library
 contract is [Feature Profiles](../library/feature-profiles.md).
 
 ## --return
@@ -84,6 +89,9 @@ Precedence, highest first:
 4. the built-in `standard`.
 
 `--return full` restores the unshaped (pre-default) output byte for byte.
+The startup notice always names the effective preset (`return: standard`;
+`(custom)` when the instance default is a preset-less include/exclude
+selection), and `ServeInfo.DefaultReturn` carries the same value.
 An engine that disables components keeps them off under any `return`;
 only a request `disable_components: false` re-opens them. The full contract
 is [Response shaping](../library/response-shaping.md).
@@ -113,11 +121,31 @@ The startup notice echoes the limits that differ from the defaults, in
 the same grammar:
 
 ```
-pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: true, limits: request_timeout=30s max_groups=1000000)
+pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: true, return: standard, limits: request_timeout=30s max_groups=1000000)
 ```
 
 Agents read the effective values from the manifest's `limits` block
-(cache key `(pulse_version, feature_set_digest, limits_digest)`).
+(cache key `(pulse_version, feature_set_digest, limits_digest)`);
+embedders read the same block from `ServeInfo.Limits`.
+
+## --metrics-addr
+
+Opt-in Prometheus exporter. Unset (the default), `pulse mcp` opens no
+port and records no metrics. Set, it binds `host:port` after the tool
+surface registers — a bad or busy address fails startup with
+`CLI_INPUT` — and serves the Prometheus text format on `GET /metrics`
+(every other path is 404) until the server exits. The startup notice
+names the bound address, so `:0` reveals the port it picked:
+
+```
+pulse mcp --log-level info --log-format json --metrics-addr 127.0.0.1:9090
+# Stderr: pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: true, return: standard, log-level: info, metrics: 127.0.0.1:9090)
+```
+
+Bind a loopback or otherwise private address: the endpoint carries no
+authentication. Metric labels are operation kinds, scopes, phases,
+error codes, limit names and hook names — never cohort paths or
+data.
 
 ## --bind-on-open
 
@@ -220,7 +248,7 @@ serving, an MCP client controls the lifecycle.
 
 ```bash
 PULSE_DATA_DIR=/tmp/pulse-data ./bin/pulse mcp
-# Stderr: pulse mcp: serving over stdio (data dir: /tmp/pulse-data, bind-on-open: true, cohort-scan: true)
+# Stderr: pulse mcp: serving over stdio (data dir: /tmp/pulse-data, bind-on-open: true, cohort-scan: true, return: standard)
 ```
 
 ### Disable schema binding
@@ -233,7 +261,7 @@ PULSE_DATA_DIR=/tmp/pulse-data ./bin/pulse mcp --bind-on-open=false
 
 ```bash
 PULSE_DATA_DIR=/mnt/cohorts ./bin/pulse mcp --no-cohort-scan
-# Stderr: pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: false)
+# Stderr: pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: false, return: standard)
 ```
 
 Or from an MCP client config, which sets `env` rather than `args`:

@@ -70,7 +70,7 @@ func DedupCommand() *cli.Command {
 					"pulse dedup needs at least one --group, --elide-constants or --suggest-groups")
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}

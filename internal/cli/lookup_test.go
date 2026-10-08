@@ -302,7 +302,7 @@ func TestAPILookupCLI_ShardArchiveRejected(t *testing.T) {
 	writeIndexTestCohort(t, shard2)
 
 	archive := filepath.Join(dir, "archive.pulse")
-	p, err := newPulse()
+	p, err := newPulse(t.Context())
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}

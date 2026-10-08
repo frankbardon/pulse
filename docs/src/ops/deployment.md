@@ -82,7 +82,11 @@ Embedding](../library/overview.md) for the full surface.
 - **Stdio plumbing.** MCP transports stderr too. Pulse writes a
   one-line startup notice (`pulse mcp: serving over stdio...`) on
   stderr and never logs request/response payloads, so MCP clients can
-  surface stderr without leaking data.
+  surface stderr without leaking data. `--log-level` records also go
+  to stderr only and carry no row data; stdout stays pure JSON-RPC.
+- **Metrics port.** `--metrics-addr host:port` is the only way
+  `pulse mcp` opens a port; the `/metrics` endpoint is unauthenticated,
+  so bind loopback or a private interface.
 - **Resource limits.** Streaming aggregations stay memory-bounded;
   buffered request shapes (window operators, median/percentile,
   decimal/geo paths) can materialise large intermediate row sets.

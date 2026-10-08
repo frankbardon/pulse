@@ -163,7 +163,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 		// Route through the pulse facade so the resolver is built
 		// from the Service's registered LabelTables (the env-var
 		// loader runs at newPulse).
-		p, perr := newPulse()
+		p, perr := newPulse(ctx)
 		if perr != nil {
 			if jsonOut {
 				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", perr)

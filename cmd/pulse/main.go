@@ -27,10 +27,13 @@ func buildApp() *cli.Command {
 		Name:    "pulse",
 		Usage:   "High-performance tabular data processing engine",
 		Version: pulse.Version(),
-		Flags: []cli.Flag{
+		Flags: append([]cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "Output self-describing manifest as JSON"},
 			&cli.BoolFlag{Name: "slim", Usage: "Drop prose descriptions from the manifest payload (smaller for size-sensitive clients)"},
-		},
+		}, pcli.LogFlags()...),
+		// --log-level / --log-format are persistent: every leaf accepts
+		// them, and Before hands the stderr logger to the leaf via ctx.
+		Before: pcli.LogBefore,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Bool("json") {
 				manifest := descx.BuildManifest()

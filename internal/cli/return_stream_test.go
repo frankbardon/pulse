@@ -17,7 +17,7 @@ import (
 // each buffered row through encodeFinite (compose: {"index","row"}).
 func legacyStreamLines(t *testing.T, path string, compose bool) []string {
 	t.Helper()
-	p, err := newPulseOpts(pulse.Options{})
+	p, err := newPulseOpts(t.Context(), pulse.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

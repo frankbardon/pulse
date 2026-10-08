@@ -2742,8 +2742,10 @@ pulse/mcpserve: type Options field Version string
 pulse/mcpserve: func Serve(ctx context.Context, p *pulse.Pulse, opts pulse/mcpserve.Options, in io.Reader, out io.Writer) error
 pulse/mcpserve: type ServeInfo struct
 pulse/mcpserve: type ServeInfo field CohortScan bool
+pulse/mcpserve: type ServeInfo field DefaultReturn pulse/types.ReturnPreset
 pulse/mcpserve: type ServeInfo field FeatureProfile string
 pulse/mcpserve: type ServeInfo field FeatureProfileLoaded bool
+pulse/mcpserve: type ServeInfo field Limits []pulse/descriptor.LimitMeta
 pulse/mcpserve: func ServeStdio(p *pulse.Pulse, opts pulse/mcpserve.Options) error
 pulse/observe: package observe
 pulse/observe: func AllArms() []pulse/observe.Arm
@@ -4362,4 +4364,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b53668ba0285cb749b3f84adce9f854d7900c555e69b891a24d9443a0016c956
+// golden-hash: 740560ee28b1420a169f5d3a551512e3f9a627090f65bb403c6351ba2d5383cd

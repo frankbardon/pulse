@@ -74,7 +74,7 @@ func indexBuildCmd() *cli.Command {
 					"pulse index build requires --key with at least one column")
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -146,7 +146,7 @@ func indexListCmd() *cli.Command {
 					"usage: pulse index list COHORT (or --input COHORT)")
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -231,7 +231,7 @@ func indexVerifyCmd() *cli.Command {
 					"pulse index verify requires --key with at least one column")
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -313,7 +313,7 @@ func indexDropCmd() *cli.Command {
 					"pulse index drop requires --key with at least one column")
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}

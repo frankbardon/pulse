@@ -57,7 +57,7 @@ func WidenCommand() *cli.Command {
 					"pulse widen requires --to naming the target set type (e.g. set_u128)")
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}

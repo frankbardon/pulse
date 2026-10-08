@@ -41,7 +41,7 @@ func cohortInspectCmd() *cli.Command {
 			jsonOut := cmd.Bool("json")
 			fullDict := cmd.Bool("full-dict")
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "INSPECT_ERROR", err)
@@ -187,7 +187,7 @@ func cohortFilterCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)

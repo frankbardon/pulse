@@ -21,7 +21,7 @@ func SchemaCommand() *cli.Command {
 		Name:  "schema",
 		Usage: "Output the JSON Schema for Pulse request/response payloads",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return err
 			}
