@@ -273,3 +273,57 @@ func TestLogImportsSweep(t *testing.T) {
 		t.Fatalf("want one Info imports_sweep removed=0 explicit=true, got %+v", recs)
 	}
 }
+
+// TestLogPlanDecisionDebug (FR-14 Debug): an operation that reaches an
+// execution arm logs one Debug plan record — arm, workers, shard
+// fan-out, projected field count, beside the stable op attrs — and its
+// rows_scanned rides the per-operation records. An operation that never
+// picks an arm (inspect) logs none; a Logger above Debug gets none.
+//
+// Falsified by removing the p.logPlan call in observeOn.
+func TestLogPlanDecisionDebug(t *testing.T) {
+	ctx := context.Background()
+	h := &captureHandler{}
+	p, _ := obsFixture(t, Options{Logger: h.logger()})
+	h.take() // pulse.New's lifecycle record
+	if _, err := p.Process(ctx, obsRequest()); err != nil {
+		t.Fatal(err)
+	}
+	plans := only(h.take(), logMsgPlan)
+	if len(plans) != 1 {
+		t.Fatalf("want 1 plan record, got %d", len(plans))
+	}
+	r := plans[0]
+	if r.level != slog.LevelDebug || r.attrs[logKeyOp] != "process" || r.attrs[logKeyCohort] != obsCohort ||
+		r.attrs[logKeyRequestHash] != obsRequest().Hash() {
+		t.Errorf("plan record = %+v, want Debug with the stable op attrs", r)
+	}
+	if r.attrs[logKeyArm] != string(observe.ArmStreaming) || r.attrs[logKeyWorkers] != int64(1) ||
+		r.attrs[logKeyShards] != int64(0) || r.attrs[logKeyProjectedFields] != int64(1) {
+		t.Errorf("plan record attrs = %+v, want arm=streaming workers=1 shards=0 projected_fields=1", r.attrs)
+	}
+
+	if _, err := p.Inspect(ctx, obsCohort); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(only(h.take(), logMsgPlan)); n != 0 {
+		t.Errorf("inspect logged %d plan records, want 0", n)
+	}
+
+	info := &captureHandler{}
+	pi, _ := obsFixture(t, Options{Logger: slog.New(levelGate{info, slog.LevelInfo})})
+	if _, err := pi.Process(ctx, obsRequest()); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(only(info.take(), logMsgPlan)); n != 0 {
+		t.Errorf("an Info logger got %d plan records, want 0", n)
+	}
+}
+
+// levelGate is a handler enabled only at min and above.
+type levelGate struct {
+	*captureHandler
+	min slog.Level
+}
+
+func (g levelGate) Enabled(_ context.Context, l slog.Level) bool { return l >= g.min }

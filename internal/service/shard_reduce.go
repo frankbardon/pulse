@@ -13,6 +13,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -100,6 +101,10 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
+	}
+	if ei := execInfoFrom(ctx); ei != nil {
+		ei.setPlan(observe.ArmShardParallel, workers, len(shards), 0)
+		ei.addBytes(int64(len(data)))
 	}
 
 	partials := make([]*shardPartial, len(shards))

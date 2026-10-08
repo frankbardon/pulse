@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -48,6 +49,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
+	countReads(ctx, cohort)
 
 	s.applyDefaults(req, cohort.Schema())
 	zones, err := s.resolveZones(req, cohort.Schema())
@@ -98,7 +100,10 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// independent of opts.ProjectBufferedFields because the crosstab
 	// path has no streamable alternative — the savings are load-bearing
 	// on cohorts beyond ~50 fields.
-	s.applyCrosstabProjection(iter, req, cohort.Schema())
+	projected := s.applyCrosstabProjection(iter, req, cohort.Schema())
+	// The buffered crosstab arm; a decode that fans out below restamps
+	// it as parallel decode.
+	execInfoFrom(ctx).setPlan(observe.ArmBuffered, 1, len(cohort.Shards()), projected)
 
 	// Decode dispatch: when the cohort is single-file (not a shard
 	// archive — those parallelise via ShardWorkers), the iterator's
@@ -198,6 +203,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 		return nil, err
 	}
 	defer leftIter.Close()
+	execInfoFrom(ctx).setPlan(observe.ArmJoin, 1, 0, 0)
 
 	s.applyAutoLabels(&clone.Labels, joinedSchema, collectOutputLabels(&clone), nil)
 	if err := s.validateProcessLabels(&clone, joinedSchema); err != nil {
@@ -291,6 +297,8 @@ func (s *Service) crosstabDecodeReduceMergeable(
 			_ = cleanup()
 		}
 	}()
+
+	stampParallelDecode(ctx, pctx, workers, si.projectSize)
 
 	resp, err := s.reduceParallelBuffered(ctx, req, cohort.Schema(), pctx, workers)
 	if err != nil {
@@ -420,6 +428,7 @@ func (s *Service) crosstabDecodeRecords(
 		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
 
+	stampParallelDecode(ctx, pctx, workers, si.projectSize)
 	return materializeRecordsParallel(ctx, pctx, workers)
 }
 
@@ -435,4 +444,16 @@ func (s *Service) crosstabDecodeRecordsSerial(ctx context.Context, iter scanIter
 		return nil, iter.Err()
 	}
 	return records, nil
+}
+
+// stampParallelDecode records a parallel segment decode that fanned out
+// over workers, and the mapped region it reads (no-op off). projected
+// is the iterator's retained-field count (0: full decode).
+func stampParallelDecode(ctx context.Context, pctx *parallelDecodeContext, workers, projected int) {
+	ei := execInfoFrom(ctx)
+	if ei == nil {
+		return
+	}
+	ei.setPlan(observe.ArmParallelDecode, workers, 0, projected)
+	ei.addBytes(int64(len(pctx.mmapBytes)))
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,7 +36,8 @@ func (s *Service) processCrosstabFused(ctx context.Context, cohort *Cohort, path
 	// (extended for crosstab Rows/Columns/Cell + label fields); the
 	// fused path's per-record decode budget depends on this projection
 	// to deliver the win on wide cohorts.
-	s.applyCrosstabProjection(iter, req, cohort.Schema())
+	projected := s.applyCrosstabProjection(iter, req, cohort.Schema())
+	execInfoFrom(ctx).setPlan(observe.ArmFusedCrosstab, 1, len(cohort.Shards()), projected)
 
 	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.RunCrosstabFused(ctx, req, iter)

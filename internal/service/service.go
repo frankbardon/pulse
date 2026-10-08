@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -639,6 +640,9 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err != nil {
 		return nil, err
 	}
+	// Observability row counters (no-op off): read off Metadata, which
+	// every arm builds, so they never depend on Components.
+	execInfoFrom(ctx).addRows(resp)
 	// The multiplicity post-hook: every arm's response — crosstab,
 	// join, shard-parallel, parallel decode, serial (streaming or
 	// buffered orchestration) — is corrected here, once, after the arm
@@ -668,6 +672,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
+	countReads(ctx, cohort)
 
 	// Smart-defaults resolution: fill in operator types that the caller
 	// omitted, based on each named field's schema type. Caller can opt
@@ -765,13 +770,14 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
-	s.applyProjection(iter, req, cohort.Schema())
+	projected := s.applyProjection(iter, req, cohort.Schema())
 
 	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {
 		return nil, err
 	}
+	execInfoFrom(ctx).setPlan(pathArm(proc.LastPath() == processing.PathStreaming), 1, len(cohort.Shards()), projected)
 	if iter.Err() != nil {
 		return nil, iter.Err()
 	}
@@ -940,6 +946,14 @@ func (s *Service) processSingleFileParallelMaybe(
 			_ = cleanup()
 		}
 	}()
+	if ei := execInfoFrom(ctx); ei != nil {
+		projected := 0
+		if keep != nil {
+			projected = projectMapHint
+		}
+		ei.setPlan(observe.ArmParallelDecode, resolvedWorkers, 0, projected)
+		ei.addBytes(int64(len(pctx.mmapBytes)))
+	}
 
 	resp, err := s.reduceParallelBuffered(ctx, req, schema, pctx, resolvedWorkers)
 	if err != nil {
@@ -999,11 +1013,11 @@ func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
 // wide set (extraction couldn't introspect) leaves the iterator on
 // the full-decode path. Works uniformly for single-file and multi-
 // shard iterators via the scanIterator interface.
-func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) {
+func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
 	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
-		return
+		return 0
 	}
-	s.installProjection(iter, req, schema)
+	return s.installProjection(iter, req, schema)
 }
 
 // applyCrosstabProjection is the crosstab-specific variant of
@@ -1014,28 +1028,30 @@ func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema 
 // crosstab path even when the cohort-wide flag is off. Falls back to
 // full decode silently when the needed-field set widens (extension
 // operator without FieldInputs, malformed expression, etc.).
-func (s *Service) applyCrosstabProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) {
+func (s *Service) applyCrosstabProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
 	if iter == nil || req == nil || schema == nil {
-		return
+		return 0
 	}
-	s.installProjection(iter, req, schema)
+	return s.installProjection(iter, req, schema)
 }
 
 // installProjection is the shared mechanics behind applyProjection
 // and applyCrosstabProjection. The two callers diverge only on the
-// gate that decides whether projection is attempted at all.
-func (s *Service) installProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) {
+// gate that decides whether projection is attempted at all. It returns
+// the retained-field count it installed, 0 when it left full decode.
+func (s *Service) installProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
 	needed := s.neededFields(req, schema)
 	if needed.IsWide() {
-		return
+		return 0
 	}
 	size := needed.Len()
 	if size == 0 || size >= len(schema.Fields) {
-		return
+		return 0
 	}
 	iter.SetProjection(func(name string) bool {
 		return needed.Has(name)
 	}, size)
+	return size
 }
 
 // Compose executes multiple requests, returning a response for each.

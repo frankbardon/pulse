@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/service"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -75,15 +76,29 @@ func (p *Pulse) observeOn(ctx context.Context, op opSpec, fn func(context.Contex
 	}
 	start := time.Now()
 	ctx = p.hookStart(ctx, info)
-	err := fn(ctx)
+	// The execution-facts carrier the service stamps at its decision
+	// points (arm, projection, workers, shards) and counts rows and
+	// bytes into. Installed only here, on the on path.
+	exec := &service.ExecInfo{}
+	err := fn(service.WithExecInfo(ctx, exec))
 	// TODO(observability/E2-S2): streaming operations (ProcessStream,
 	// ProcessStreamResult, SynthStream) end here, at call return; E2-S2
 	// moves their end to drain / Close / ctx cancel.
+	snap := exec.Snapshot()
 	res := observe.OperationResult{
-		Duration: time.Since(start),
-		Code:     operationCode(err),
+		Duration:    time.Since(start),
+		Code:        operationCode(err),
+		RowsScanned: snap.RowsScanned,
+		RowsMatched: snap.RowsMatched,
+		RowsOut:     snap.RowsOut,
+		BytesRead:   snap.BytesRead,
+		Shards:      snap.Shards,
+		Workers:     snap.Workers,
+		Arm:         snap.Arm,
+		Projected:   snap.ProjectedFields > 0,
 	}
 	if p.logger != nil {
+		p.logPlan(ctx, info, snap)
 		var out any
 		if err == nil && result != nil {
 			out = result()

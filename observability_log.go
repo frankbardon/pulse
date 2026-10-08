@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/service"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -22,6 +23,7 @@ const (
 	logMsgWarning   = "pulse: operation warning"
 	logMsgLifecycle = "pulse: operation completed"
 	logMsgNew       = "pulse: instance ready"
+	logMsgPlan      = "pulse: execution plan"
 )
 
 // Stable log attribute keys (FR-15).
@@ -69,6 +71,42 @@ func opAttrs(info observe.OperationInfo, res observe.OperationResult) []slog.Att
 		attrs = append(attrs, slog.Int64(logKeyRowsScanned, res.RowsScanned))
 	}
 	return attrs
+}
+
+// Debug plan-decision attribute keys (FR-15: arm, workers and shards at
+// Debug).
+const (
+	logKeyArm             = "arm"
+	logKeyWorkers         = "workers"
+	logKeyShards          = "shards"
+	logKeyProjectedFields = "projected_fields"
+)
+
+// logPlan writes the Debug plan-decision record for an operation that
+// reached an execution arm: the arm, its worker count, the shard
+// fan-out and the projected field count (0: full decode). Enums and
+// counts only. Operations that never choose an arm (inspect, predict,
+// lookup, …) write none.
+func (p *Pulse) logPlan(ctx context.Context, info observe.OperationInfo, snap service.ExecSnapshot) {
+	lg := p.logger
+	if snap.Arm == "" || !lg.Enabled(ctx, slog.LevelDebug) {
+		return
+	}
+	attrs := make([]slog.Attr, 0, 8)
+	attrs = append(attrs, slog.String(logKeyOp, string(info.Kind)))
+	if info.Cohort != "" {
+		attrs = append(attrs, slog.String(logKeyCohort, info.Cohort))
+	}
+	if info.RequestHash != "" {
+		attrs = append(attrs, slog.String(logKeyRequestHash, info.RequestHash))
+	}
+	attrs = append(attrs,
+		slog.String(logKeyArm, string(snap.Arm)),
+		slog.Int(logKeyWorkers, snap.Workers),
+		slog.Int(logKeyShards, snap.Shards),
+		slog.Int(logKeyProjectedFields, snap.ProjectedFields),
+	)
+	lg.LogAttrs(ctx, slog.LevelDebug, logMsgPlan, attrs...)
 }
 
 // logOperation writes the per-operation records for one finished

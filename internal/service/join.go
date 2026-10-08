@@ -10,6 +10,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -49,6 +50,7 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 	defer leftIter.Close()
+	execInfoFrom(ctx).setPlan(observe.ArmJoin, 1, 0, 0)
 
 	proc := s.newProcessor(ctx, joinedSchema, req)
 	resp, err := proc.Process(ctx, s.zoned(&clone, zones), join)
@@ -100,6 +102,8 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
+	countReads(ctx, leftCohort)
+	countReads(ctx, rightCohort)
 	// Kind and OnPairs, before the right side is decoded: the one
 	// join-key rule predict and the validators call
 	// (internal/encoding.JoinKeysRefusals). A located refusal, like the
