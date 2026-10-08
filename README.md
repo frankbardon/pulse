@@ -503,6 +503,7 @@ make lint     # staticcheck (auto-installed via go run)
 make cover    # Coverage report
 make docs     # Build mdBook
 make dist     # 6-platform release archives + checksums.txt in ./dist (VERSION=v1.2.3)
+make contrib  # vet + staticcheck + tidy check + test the contrib/ adapter modules
 make clean    # Remove artifacts
 ```
 

@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke cover fmt vet lint bench tzdata reference docs docs-serve docs-clean
+.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt vet lint bench tzdata reference docs docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -44,6 +44,30 @@ test:
 # hand-run `go mod tidy` in the nested module.
 smoke:
 	cd internal/embeddersmoke && GOFLAGS=-mod=mod $(GO) vet ./... && GOFLAGS=-mod=mod $(GO) test -count=1 ./...
+
+# contrib vets, lints (staticcheck), checks tidiness of and tests every
+# nested adapter module under contrib/ (otelpulse, prompulse): separate Go
+# modules with their own go.mod + go.sum, `require pulse` at the matching
+# root version and `replace => ../..` for in-repo development. Unlike
+# `make smoke` these are PUBLISHED modules, so there is no -mod=mod: a
+# stale go.mod/go.sum fails here (and in CI) instead of reaching a tag or
+# an IDE. A root dependency bump therefore needs `make contrib-tidy` in
+# the same PR. Lockstep release tags: scripts/release-contrib.sh.
+CONTRIB_MODULES=$(patsubst %/go.mod,%,$(wildcard contrib/*/go.mod))
+STATICCHECK=honnef.co/go/tools/cmd/staticcheck@latest
+
+contrib:
+	@set -e; for m in $(CONTRIB_MODULES); do \
+		echo "contrib: $$m"; \
+		(cd $$m && $(GO) mod tidy -diff && $(GO) vet ./... && $(GO) run $(STATICCHECK) ./... && $(GO) test -count=1 ./...); \
+	done
+
+# contrib-tidy re-tidies every contrib module (after a root dependency
+# bump, or a contrib pin change).
+contrib-tidy:
+	@set -e; for m in $(CONTRIB_MODULES); do \
+		echo "contrib-tidy: $$m"; (cd $$m && $(GO) mod tidy); \
+	done
 
 cover:
 	$(GO) test -coverprofile=coverage.out ./...
