@@ -51,7 +51,7 @@ Numbering note: appended as U39 after U38, not renumbered. This unit was not in 
 ## Deviations
 
 - **Derived-column refusal surfaced by predict.** `Field` must be a cohort schema field; a column derived by an earlier attribute or feature is refused (`PROCESSING_CONFIG` "unknown field"). The predict-parity story (E1-S3) exposed it; it is documented as a skill gotcha, not changed.
-- **Manifest golden regenerated twice.** The root manifest golden needed a second regeneration after the skill landed (E1-G1 fix), because the skill body moves the per-fixture manifest.
+- **Manifest golden regenerated twice.** The root manifest golden needed a second regeneration after the skill landed (E1-G1 fix), because E1-S1 regenerated it before E1-S2 added the skill and example, both of which the manifest lists.
 
 ## Follow-ups
 
