@@ -89,6 +89,15 @@
         }
       },
       {
+        "name": "docs export",
+        "description": "Write the instance's analysis reference as a deterministic Markdown tree with an mdBook SUMMARY.md fragment",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "version",
         "description": "Print the Pulse build version (--json adds Go version, commit and envelope format_version)",
         "annotations": {
@@ -731,4 +740,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e892494784b31144723a1d9b0ddf3703c1a309e867a931784d1227400ac14fd8
+// golden-hash: 3e22a360abe325245245714f8b4a57428a5bbe931ffdd4bbc0a7744b48c804ae

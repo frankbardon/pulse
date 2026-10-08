@@ -125,6 +125,13 @@ non-empty directory without the marker is refused with
 filesystem failure is `DATA_FILE`, with the path under
 `details.path`.
 
+From the command line, `pulse docs export --out DIR` does the same for
+a default instance built over an in-memory filesystem, so it needs no
+`PULSE_DATA_DIR`. `--feature-profile PATH` scopes the export to the
+feature profile at that host OS path, `--no-skills` sets `OmitSkills`,
+and `--json` wraps the result in the standard envelope, where a refusal
+keeps its own code (`errors[0].code`).
+
 ## Guidance on your own operators
 
 Extension registrations accept an optional `Purpose`, and test

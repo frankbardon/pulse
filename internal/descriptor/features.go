@@ -748,6 +748,9 @@ var commandBindings = []CommandBinding{
 	{Command: "features check", Ungated: true},
 	{Command: "features diff", Ungated: true},
 	{Command: "features show", Ungated: true},
+	// The reference export builds its own in-memory instance (scoped by
+	// --feature-profile), so it describes the binary, not this instance.
+	{Command: "docs export", Ungated: true},
 	{Command: "version", Ungated: true},
 	// Manifest.Operations.
 	{Command: "filter_to_file", Feature: featFilterToFile},
