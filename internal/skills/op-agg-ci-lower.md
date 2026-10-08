@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -27,6 +29,8 @@ Bound = mean ∓ z·√(s²/n), z = `qnorm(1 − α/2)`. Weight (both kinds; `"w
 ## Output
 
 Scalar `float64` — lower CI bound. NaN when `n < 2` (weighted: N* ≤ 1; `null` in JSON).
+
+<!-- generated: reading-the-output -->
 
 ## Components
 

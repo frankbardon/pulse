@@ -11,6 +11,8 @@ examples_tags: [feature-engineering, polynomial, pre-filter, streaming-friendly]
 
 Feature operators emit derived columns; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `degree` — int, required. `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream.
@@ -22,6 +24,8 @@ Feature operators emit derived columns; no `Response.Components`.
 ## Output
 
 `Degree - 1` columns `<prefix>_<k>` for `k = 2..Degree`, `prefix` default `<field>_poly` (override via `Label`). Each holds `x^k` by iterative multiplication (`power *= v`). The ORIGINAL column is untouched, so a linear regression over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

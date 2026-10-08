@@ -110,6 +110,8 @@ An atomic skill may carry the marker LINES `<!-- generated: use-when -->` (after
 
 `TestAtomicSkillHasRequiredSections` keys off the `category:` frontmatter field; stem prefix is the fallback.
 
+**Built-in-only generated sections (U21).** Beyond the table, EVERY shipped `op-*` skill carries `<!-- generated: use-when -->` alone on a line between the lead sentence and `## Params`, and `<!-- generated: reading-the-output -->` at the END of the `## Output` section (just before the next `##` heading) in exactly those whose frontmatter `operator:` has `Interpretation` entries (`InterpretationsOf`). `TestSkillPurposeSectionsCurrent` (`internal/descriptor`) enforces the rule — marker present per the predicate and absent otherwise, the served `skills.Get` body carrying the rendered heading, non-empty and within `UseWhenSectionCap` / `ReadingSectionCap` — so a new op skill needs the marker(s) in the same PR. The two regression modifier skills (`op-reg-mod-resample`, `op-reg-mod-selection`) document spec fields with no registered Purpose: they carry the use-when marker but it renders nothing. The requirement is NOT in `families.go` `RequiredSections` (shared with embedder validation): an embedder op skill without markers still loads.
+
 ## Token budget
 
 Heuristic: `chars / 4 ≈ tokens`. Budgets are byte counts of the post-frontmatter body as `skills.Get` serves it (feature-fence markers stripped).
@@ -121,7 +123,7 @@ Heuristic: `chars / 4 ≈ tokens`. Budgets are byte counts of the post-frontmatt
 | `type-*` | ≤2000 | ≤500 | soft |
 | `kind: design` (topical) | ≤6000 | ≤1500 | **hard** |
 
-`TestSkillTokenBudget` enforces these. The topical budget is **HARD** (since U10 E4-S3): one byte over fails, with no slack — a topic that outgrows it splits into an entry skill (a question → skill routing table plus the always-needed contract) and focused children, as `synthetic-data`, `cohort-schema-design`, `spss-cohorts` and `session-bootstrap` did. The atomic budgets are still SOFT and transitional: an overrun is logged (`t.Logf`) and fails only past 1000% over, so reviewers see the live state of legacy bodies without a red gate; a follow-up tightens them once the over-budget `op-overlay-*` / `op-reg-*` / `op-synth-*` / `op-feat-*` bodies and `tool-import` / `tool-lookup` are trimmed (run the test with `-v` for the live list).
+`TestSkillTokenBudget` enforces these, measuring the HAND-WRITTEN body only: generated-section markers (and anything rendered from them) are excluded, so the soft `op-*` figure never charges the Use when / Reading the output text. Those sections have their own HARD caps instead — 450 B and 600 B, heading included — enforced by construction (overflow truncates, never fails) and pinned by `TestSkillSections_BuiltinsWithinCapsAndLint` / `TestSkillPurposeSectionsCurrent`. The topical budget is **HARD** (since U10 E4-S3): one byte over fails, with no slack — a topic that outgrows it splits into an entry skill (a question → skill routing table plus the always-needed contract) and focused children, as `synthetic-data`, `cohort-schema-design`, `spss-cohorts` and `session-bootstrap` did. The atomic budgets are still SOFT and transitional: an overrun is logged (`t.Logf`) and fails only past 1000% over, so reviewers see the live state of legacy bodies without a red gate; a follow-up tightens them once the over-budget `op-overlay-*` / `op-reg-*` / `op-synth-*` / `op-feat-*` bodies and `tool-import` / `tool-lookup` are trimmed (run the test with `-v` for the live list).
 
 ## List source of truth
 

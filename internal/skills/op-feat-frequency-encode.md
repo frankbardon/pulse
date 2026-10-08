@@ -11,6 +11,8 @@ examples_tags: [feature-engineering, cardinality-analysis, pre-filter]
 
 Feature operators emit derived columns; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. `Field` (required, categorical) — `params` block is unused.
@@ -22,6 +24,8 @@ None. `Field` (required, categorical) — `params` block is unused.
 ## Output
 
 One `f64` column written to `Label` (default `FREQ_<field>`). Value per row = `count[category] / total_non_null` over the FULL cohort (pre-filter). Range `(0, 1]` for non-null inputs.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

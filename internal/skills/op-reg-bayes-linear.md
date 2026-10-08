@@ -11,6 +11,8 @@ examples_tags: [regression, bayesian, streaming-friendly]
 
 Regression operators emit coefficient + diagnostics; no `Response.Components`. Fit summaries ride `Response.Regressions[i]`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -31,6 +33,8 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 ## Output
 
 `RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as OLS; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cardinality-analysis, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 `distinct_by` (string, required) — field holding the distinct key. Absent or empty: `PROCESSING_CONFIG`, never defaulted to `Field`; unknown: `SERVICE_VALIDATION`.

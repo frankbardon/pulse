@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, paired, parametric, before-after, 
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -28,6 +30,8 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 ## Output
 
 `Statistic` = t; `DF` = n − 1; `PValue` two-sided via Student-t. `Details`: `mean_diff`, `variance` (of d), `n`, `ci_low`, `ci_high`. Effect size Cohen's d_z (unbanded).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, parametric, correlation-analysis, 
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -26,6 +28,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Output
 
 `Statistic` = r (Pearson correlation, `[-1, 1]`); `DF` = n − 2; `PValue` two-sided via the t-statistic `r·√((n−2)/(1−r²))`. `Details.n` and `Details.r²` carry the sample size and coefficient of determination.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

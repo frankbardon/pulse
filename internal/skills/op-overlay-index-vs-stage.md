@@ -11,6 +11,8 @@ examples_tags: [overlay, comparison]
 
 Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decorates `ChainResponse.Overlays`; per-stage overlays untouched. Overlays emit no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` required, echoed verbatim — the capability declares `total` (there is no `chain` scope). `ChainOverlaySpec` has no `Level` / `Within`. `Ref` (a `StageRef`) required — `{Index: N}` or `{Name: "stage-id"}`. `Target` — `{Index}` or `{Name}`, default the latest stage.

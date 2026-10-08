@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cardinality-analysis, cross-tabulation]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 Weight-aware (`"weight": null` opts out): the value with the largest Σw; `count` becomes that Σw (a float). Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).

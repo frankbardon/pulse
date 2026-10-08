@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, homogeneity-test, parametric, k-sa
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -29,6 +31,8 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 
 ## Output
 
 `Statistic` = F (ANOVA on absolute deviations from per-group medians); `DF` = k-1 (`df_within` = N-k in Details); `PValue` via F-distribution survival. Flat `Details`: `groups`, `n`, `group_medians`, `abs_dev_means`, `ss_between`, `ss_within`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

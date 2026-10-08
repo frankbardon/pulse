@@ -11,6 +11,8 @@ examples_tags: [synth, data-quality]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `value` — any, required. Per-row payload. Interpreted by the declared field type at write time.

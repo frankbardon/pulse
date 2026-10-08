@@ -11,6 +11,8 @@ examples_tags: [time-series, window-operator, buffered-pipeline]
 
 Row-level output; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `periods` (int, default `1`) — lookback distance (≥ 1). Slots: `field` (required, numeric), `order_by` (≥1, numeric / `date`), `partition_by`, `frame` (forbidden).
@@ -22,6 +24,8 @@ Row-level output; no `Response.Components`.
 ## Output
 
 One `float64` per row on `Label` (default `WIN_DELTA_<field>`). `cur - prev` at `periods` back — the field's OWN units (points), never a ratio. Rows `i < periods` are `null`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

@@ -11,6 +11,8 @@ examples_tags: [overlay, time-series, window-operator]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `group`. `Ref.RollingMean` empty marker tags the ref family; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.window` required, positive width `W`. `Level` / `Within` must be `0`.

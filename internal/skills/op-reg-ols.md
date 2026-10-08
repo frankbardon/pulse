@@ -11,6 +11,8 @@ examples_tags: [regression, ols, streaming-friendly]
 
 Regression operators emit coefficient + diagnostics; no `Response.Components`. Fit summaries ride `Response.Regressions[i]`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -32,6 +34,8 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 ## Output
 
 `RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (raw rows); weighted adds `SumWeights` (+ `NEff`, probability). Penalized shrunk-to-zero βs drop from `StdErrors`. Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

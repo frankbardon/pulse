@@ -9,6 +9,8 @@ applies_to: inspect, predict, manifest
 examples_tags: [synth, cohort-analysis]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `values` — list of numbers, required, non-empty, **strictly ascending**.

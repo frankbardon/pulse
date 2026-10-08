@@ -11,6 +11,8 @@ examples_tags: [overlay, compose, comparison]
 
 Compose-only dual-shape. Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` required — `cell` (matrix host) or `group` (series host). `Reference` / `Targets` required slot labels (one or more targets). `params.scale` (float, default `100`) — set `1` for a raw ratio.

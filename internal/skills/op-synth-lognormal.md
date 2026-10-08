@@ -11,6 +11,8 @@ examples_tags: [synth, distribution-shape, financial]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `mu` — float, default `0.0`. Log-space mean (mean of `ln(X)`).

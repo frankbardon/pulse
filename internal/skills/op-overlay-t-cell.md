@@ -11,6 +11,8 @@ examples_tags: [overlay, compose, hypothesis-test, welch, byte-equal-test]
 
 Compose-only parity overlay. Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` required, must be `cell`. `Reference` / `Targets` required slot labels. Optional overrides `params.variance_target/_ref` (float, `1.0`), `params.sample_size_target/_ref` (int, `2`). Without `AGG_WELFORD` these ONE values per side apply to EVERY cell, so the p-values describe the supplied values (and the measure's units), not each cell's spread.
@@ -26,6 +28,8 @@ COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mea
 ## Output
 
 MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target; `Baseline` unset.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

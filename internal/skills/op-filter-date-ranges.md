@@ -9,6 +9,8 @@ applies_to: process, compose, predict, facet, sample
 examples_tags: [cohort-analysis, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 One source in `Params` (not `Values`) — `ranges` XOR `table`:

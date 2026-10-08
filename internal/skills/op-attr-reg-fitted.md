@@ -11,6 +11,8 @@ examples_tags: [regression, ols, buffered-pipeline]
 
 Attributes emit row-level scalars; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Description |
@@ -32,6 +34,8 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 ## Output
 
 One `float64` per record — the model's prediction ŷᵢ. NaN-free over the filter-passing rows used to fit.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

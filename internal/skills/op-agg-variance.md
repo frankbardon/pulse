@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [distribution-shape, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is the population m2_w / Σw. Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
@@ -22,6 +24,8 @@ Weight: honours a resolved row weight (`weight` on the request or slot, or `Opti
 ## Output
 
 Scalar `float64` — population variance (n-denominator); `decimal128` input yields a decimal-scaled result (scale doubled). Per-group when wired under a grouper.
+
+<!-- generated: reading-the-output -->
 
 ## Components
 

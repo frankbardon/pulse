@@ -11,6 +11,8 @@ examples_tags: [cohort-analysis, distribution-shape, buffered-pipeline]
 
 Attributes emit row-level scalars; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 None.
@@ -25,6 +27,8 @@ None.
 ## Output
 
 One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-passing value set (smallest = `100/n`). Null source → `0` (not null).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

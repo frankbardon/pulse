@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cardinality-analysis, cross-tabulation]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. Weight-aware (`"weight": null` opts out): Σw per member — map values become floats.

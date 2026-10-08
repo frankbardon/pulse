@@ -333,3 +333,89 @@ func TestSkillSections_HiddenCapabilityTarget(t *testing.T) {
 		t.Errorf("hidden capability target rendered:\n%s", hidden)
 	}
 }
+
+// modifierSkills are the op skills with no registered Purpose.
+var modifierSkills = map[string]bool{"op-reg-mod-resample": true, "op-reg-mod-selection": true}
+
+// TestSkillPurposeSectionsCurrent pins the generated-section markers of
+// every built-in op skill (FR-20): `<!-- generated: use-when -->` in
+// each one, `<!-- generated: reading-the-output -->` in exactly those
+// whose operator declares Interpretation entries; and the served body
+// carries the matching rendered heading, non-empty and within its hard
+// cap, on the default instance. The requirement is built-in only —
+// families.go RequiredSections is shared with embedder validation, so
+// an embedder op skill without markers still loads.
+func TestSkillPurposeSectionsCurrent(t *testing.T) {
+	ops := 0
+	for _, stem := range skills.Names() {
+		if !strings.HasPrefix(stem, "op-") {
+			continue
+		}
+		ops++
+		raw, ok := skills.Raw(stem)
+		if !ok {
+			t.Errorf("%s: no raw body", stem)
+			continue
+		}
+		op := skills.ParseFrontmatter(raw)["operator"]
+		if op == "" {
+			t.Errorf("%s: no operator in frontmatter", stem)
+			continue
+		}
+		has := map[string]bool{}
+		for _, line := range strings.Split(raw, "\n") {
+			if sec, ok := skills.MarkerSection(line); ok {
+				if has[sec] {
+					t.Errorf("%s: marker %q appears twice", stem, sec)
+				}
+				has[sec] = true
+			}
+		}
+		ins, _ := InterpretationsOf(op)
+		wantReading := len(ins) > 0
+		if !has[skills.SectionUseWhen] {
+			t.Errorf("%s: missing %s", stem, skills.GeneratedMarker(skills.SectionUseWhen))
+		}
+		if has[skills.SectionReadingTheOutput] != wantReading {
+			t.Errorf("%s: reading-the-output marker present=%v, but %s has Interpretation=%v",
+				stem, has[skills.SectionReadingTheOutput], op, wantReading)
+		}
+
+		// The two regression modifier skills document a spec field, not a
+		// registered operator: they carry the marker (every op skill does)
+		// but have no Purpose, so it renders nothing.
+		if _, hasPurpose := PurposeOf(op); !hasPurpose {
+			if !modifierSkills[stem] {
+				t.Errorf("%s: operator %s declares no Purpose", stem, op)
+			}
+			continue
+		}
+
+		served, _ := skills.Get(stem)
+		for _, c := range []struct {
+			sec, heading string
+			limit        int
+			want         bool
+		}{
+			{skills.SectionUseWhen, "## Use when", UseWhenSectionCap, true},
+			{skills.SectionReadingTheOutput, "## Reading the output", ReadingSectionCap, wantReading},
+		} {
+			if got := skills.HasHeading(served, c.heading); got != c.want {
+				t.Errorf("%s: served body has %q = %v, want %v", stem, c.heading, got, c.want)
+			}
+			if !c.want {
+				continue
+			}
+			r := RenderGuidanceSection(op, c.sec, nil, nil, ProseScrub{})
+			if r == "" || len(r) > c.limit {
+				t.Errorf("%s: %s renders %d bytes (want 1..%d)", stem, c.sec, len(r), c.limit)
+			}
+			if !strings.Contains(served, r) {
+				t.Errorf("%s: served body does not carry the rendered %s", stem, c.sec)
+			}
+		}
+	}
+	if ops == 0 {
+		t.Fatal("no op skills found")
+	}
+}

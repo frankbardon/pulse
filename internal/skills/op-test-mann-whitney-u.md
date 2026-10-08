@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, nonparametric, two-sample, compari
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -26,6 +28,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Output
 
 `Statistic` = U_min; `PValue` two-sided normal approx, tie-corrected. `Details`: `groups` (sorted), `n`, `u_a`, `u_b`, `u_min`, `r_a`, `r_b`, `mu_u`, `var_u`, `z`; `effect_size.rank_biserial` = (U_A − U_B)/(n_A·n_B) — > 0 ⇒ `groups[0]` tends larger (sign of `z`).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

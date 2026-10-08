@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [streaming-friendly, data-quality]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is Σw·x / Σw. Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.

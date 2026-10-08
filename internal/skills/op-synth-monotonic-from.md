@@ -11,6 +11,8 @@ examples_tags: [synth, cohort-analysis]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `start` — int, default `0`. First emitted value.

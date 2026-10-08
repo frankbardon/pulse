@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, nonparametric, paired, before-afte
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -29,6 +31,8 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 ## Output
 
 `Statistic` = min(W⁺, W⁻); `PValue` two-sided normal approx, tie-corrected. `Details`: `n` (non-zero pairs), `w_plus`, `w_minus`, `mu_w`, `var_w`, `z`, `zero_diffs`; `effect_size.rank_biserial` = (W⁺ − W⁻)/(W⁺ + W⁻) — > 0 ⇒ Field tends to exceed Field2 (sign of `z`).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

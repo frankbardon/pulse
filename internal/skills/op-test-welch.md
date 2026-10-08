@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, t-test, tier-1-test, parametric, two-sample, we
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -28,6 +30,8 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 ## Output
 
 `Statistic` = t; `DF` = Welch-Satterthwaite; `PValue` two-sided Student-t. `Details.per_group` = `{n, mean, variance}` per arm; effect size = mean diff / pooled SE.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

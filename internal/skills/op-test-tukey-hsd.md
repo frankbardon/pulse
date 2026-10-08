@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-2-test, post-hoc, k-sample, parametric, co
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, family-wise, in `(0, 1)`.
@@ -25,6 +27,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Output
 
 `Statistic` = q (studentized range, worst pair); `PValue` via studentized-range CDF. `Details.pairs` = per-pair `{label_a, label_b, mean_diff, q, p_value, reject}`; α family-wise.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

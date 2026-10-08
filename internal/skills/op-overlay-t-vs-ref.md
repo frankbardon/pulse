@@ -11,6 +11,8 @@ examples_tags: [overlay, compose, hypothesis-test, welch, byte-equal-test]
 
 Compose-only parity overlay. Series-shape sibling of the cell t overlay. Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` required, must be `group`. `Reference` / `Targets` required slot labels. Optional `params.variance_target/_ref` (float, `1.0`), `params.sample_size_target/_ref` (int, `2`). Without `AGG_WELFORD` these apply to EVERY group: p-values then describe the supplied values, not each group.
@@ -26,6 +28,8 @@ COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `
 ## Output
 
 SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary.Statistic`. One layer per target; `Baseline` unset.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

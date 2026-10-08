@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, cross-tabulation, proportion-analy
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -29,6 +31,8 @@ Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Fi
 ## Output
 
 `Statistic` = χ² (no Yates); `DF` = `(rows−1)(cols−1)`; `PValue` via χ² survival. `Details`: `contingency`, `row_labels`/`col_labels`, `row_totals`/`col_totals`, `n`, `expected_min`. `effect_size.cramers_v` = √(χ²/(n·(min(r,c)−1))); `effect_size.phi` = √(χ²/n), 2×2 only.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

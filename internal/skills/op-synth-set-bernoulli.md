@@ -11,6 +11,8 @@ examples_tags: [synth, distribution-shape]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `options` — list[string], required. Dictionary entries in bit order (bit `i` ↔ `options[i]`). Pre-registers the field's dictionary at schema-build time — never lazily by first touch, so bit assignment is deterministic.

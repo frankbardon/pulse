@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, t-test, tier-1-test, parametric, two-sample, on
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -27,6 +29,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Output
 
 `Statistic` = t; `DF`; `PValue` two-sided. One-sample `Details`: `mu`, `n`, `mean`, `variance`, `ci_low`/`ci_high`, `effect_size.cohens_d` = (mean − mu)/sd. Two-sample: per-group `n`/`mean`/`variance`, `diff`, CI, pooled-SD `cohens_d`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

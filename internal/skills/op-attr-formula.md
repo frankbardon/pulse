@@ -11,6 +11,8 @@ examples_tags: [feature-engineering, streaming-friendly]
 
 Row-level scalars; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |

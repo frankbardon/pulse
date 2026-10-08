@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [distribution-shape, comparison]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 None.
@@ -22,6 +24,8 @@ None.
 ## Output
 
 Scalar `float64` — the MEAN of the group's row z-scores, `0` by construction. The usable figures are the components; `zscore` there is the LAST row's `(target_value - pop_mean) / pop_stddev`. Per-group when wired under a grouper.
+
+<!-- generated: reading-the-output -->
 
 ## Components
 

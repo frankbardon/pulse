@@ -11,6 +11,8 @@ examples_tags: [time-series, feature-engineering, streaming-friendly]
 
 Attributes emit row-level scalars; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `part` — enum, required: `day`, `hour`, `month`, `month_day`, `year`, `year_month`, `year_month_day`.

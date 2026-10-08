@@ -11,6 +11,8 @@ examples_tags: [synth, cardinality-analysis]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `lambda` — float, default `1.0`. Rate parameter; equals both the mean and the variance. Must be `> 0`.

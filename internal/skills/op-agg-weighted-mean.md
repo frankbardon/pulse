@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [streaming-friendly, comparison]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -27,6 +29,8 @@ The weighted mean of the core family: same figure and engine, own type name and 
 ## Output
 
 Scalar `float64` — exact `Σ field·w / Σw` (a few ULP from releases that used the running mean).
+
+<!-- generated: reading-the-output -->
 
 ## Components
 

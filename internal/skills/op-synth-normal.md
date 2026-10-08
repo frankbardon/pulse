@@ -11,6 +11,8 @@ examples_tags: [synth, distribution-shape]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `mean` — float, default `0.0`.

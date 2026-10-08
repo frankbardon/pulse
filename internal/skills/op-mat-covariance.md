@@ -11,6 +11,8 @@ examples_tags: [matrix, covariance]
 
 Slot: `matrices[i]` `{type, vector | fields, params, weight, encoding}`; members: `vectors[]` or inline `fields`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |

@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, nonparametric, k-sample, compariso
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -26,6 +28,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Output
 
 `Statistic` = tie-corrected H; `DF` = k − 1; `PValue` via χ² survival. `Details`: `groups`, `n`, `rank_sums`, `n_total`, `tie_factor`; `effect_size.epsilon_squared` = H·(n+1)/(n²−1), omitted when every value ties.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

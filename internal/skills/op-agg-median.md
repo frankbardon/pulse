@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [distribution-shape, buffered-pipeline]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 Weight-aware (`"weight": null` opts out): Hmisc `wtd.quantile` — sort by value; h = 0.5·(Σw−1); x(k) = first value with cumulative Σw ≥ k+1 (snapped to an integer within 1e-9); interpolate x(⌊h⌋)..x(⌈h⌉). `probability` weights first rescaled to Σw = n (rows used) — scale-invariant; `frequency` weights stay raw = type 7 on duplicated rows. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).

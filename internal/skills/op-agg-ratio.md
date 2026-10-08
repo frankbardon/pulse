@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [proportion-analysis, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 `numerator_field`, `denominator_field` — required field names, any type, read through the numeric channel (a categorical contributes its dictionary code). An unknown name is `SERVICE_VALIDATION`, predict and runtime alike.
@@ -22,6 +24,8 @@ Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. A `decimal128` nu
 ## Output
 
 Scalar `float64` — `sum(num) / sum(den)`. Den sum 0 (incl. all-zero weights) → NaN in Go, `null` in JSON; not an error.
+
+<!-- generated: reading-the-output -->
 
 ## Components
 

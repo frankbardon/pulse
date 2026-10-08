@@ -11,6 +11,8 @@ examples_tags: [overlay, time-series, comparison, trend-detection]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `group`. `Ref.YoY` (empty marker) — tags ref family. `params.frequency` (string, conditional) — `annual`/`quarterly`/`monthly`/`weekly`/`daily`/`hourly`.

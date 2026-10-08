@@ -11,6 +11,8 @@ examples_tags: [overlay, time-series, trend-detection, streaming-friendly]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `group`. `Ref.Prior` (object, empty) — implicit-default — empty `Ref` also accepted. `Level`/`Within` must be `0`.

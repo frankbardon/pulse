@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, parametric, two-sample, z, proport
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -28,6 +30,8 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 ## Output
 
 `Statistic` = z (= Welch t numerator over the same pooled SE); `PValue` two-sided via standard normal Φ; no `DF`. `Details.per_group` = `{n, mean, variance}` per arm.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

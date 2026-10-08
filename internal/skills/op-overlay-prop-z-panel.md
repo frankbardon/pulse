@@ -11,6 +11,8 @@ examples_tags: [overlay, compose, hypothesis-test, proportion-analysis]
 
 Compose-only multi-reference. Buffered.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` = `cell`. `Reference` = panel 0, `Targets` = 1..N. `MaxPanelTargets` (`OverlayOptions`, default 16) caps `len(Targets)` and refuses FIRST (`PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`) — an `Options` knob, never a param.
@@ -45,6 +47,8 @@ COMPOSE — MATRIX crosstab per slot, order `{Reference, Targets…}`. `cell_n_u
 ## Output
 
 MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-major, no diagonal), length `M(M-1)/2`, `M = N+1`. Pair index `i*(2*M-i-1)/2 + (j-i-1)`. `Baseline` unset.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

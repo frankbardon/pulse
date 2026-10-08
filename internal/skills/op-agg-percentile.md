@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [distribution-shape, buffered-pipeline]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -26,6 +28,8 @@ Weight-aware (`"weight": null` opts out): Hmisc `wtd.quantile` — sort by value
 ## Output
 
 Scalar `float64`. Per-group when wired under a grouper.
+
+<!-- generated: reading-the-output -->
 
 ## Components
 

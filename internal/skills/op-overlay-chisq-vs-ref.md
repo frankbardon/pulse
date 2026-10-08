@@ -11,6 +11,8 @@ examples_tags: [overlay, compose, cross-tabulation, hypothesis-test]
 
 Compose-only. Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one target slot label.
@@ -26,6 +28,8 @@ COMPOSE — MATRIX crosstab on reference + target. Schema-match + key-alignment 
 ## Output
 
 SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; χ² is on `Summary.Statistic`, plus `Parameters["df"]`. One layer per target.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

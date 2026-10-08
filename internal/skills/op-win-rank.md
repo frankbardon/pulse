@@ -11,6 +11,8 @@ examples_tags: [cohort-analysis, top-n, window-operator, buffered-pipeline]
 
 Window operators emit row-level values; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date` — tie comparison reads these keys), `frame` (forbidden), `field` (forbidden — no value read).
@@ -24,6 +26,8 @@ None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date` — t
 ## Output
 
 One `int64` per row written to `Label` (default `WIN_RANK`). Ties (rows equal on every `order_by` key) share a rank; next distinct row advances by the tie count — `(1, 2, 2, 4, 5)`. Rank resets per partition.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

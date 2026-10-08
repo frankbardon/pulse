@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [time-series, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `component`: enum, default `month`: `hour`, `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.

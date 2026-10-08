@@ -11,6 +11,8 @@ examples_tags: [synth, cohort-analysis, cardinality-analysis]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `values` — list[string], required. Dictionary entries to draw from; non-empty.

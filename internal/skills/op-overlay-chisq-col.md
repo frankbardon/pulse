@@ -11,6 +11,8 @@ examples_tags: [overlay, cross-tabulation, hypothesis-test]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` (enum, required) — must be `column`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
@@ -26,6 +28,8 @@ MATRIX crosstab (`Response.Crosstab.Matrix`). Compatible with any crosstab regar
 ## Output
 
 SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per column key carrying `Summary.Statistic` (χ² value), `Summary.PValue`, `Summary.Parameters["df"]` = `rows - 1`. Layer `Baseline` unset (inferential).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

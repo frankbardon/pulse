@@ -43,6 +43,17 @@ func TestSkillTokenBudget(t *testing.T) {
 			t.Errorf("%s: not loadable via Get", stem)
 			continue
 		}
+		// The budget covers the HAND-WRITTEN body: generated sections
+		// (Use when / Reading the output) are rendered from the guidance
+		// registries and carry their own hard caps (TestSkillPurposeSectionsCurrent
+		// in internal/descriptor), so any marker or already-rendered
+		// section is measured out. Marker lines are removed here whether
+		// or not a renderer is registered in this test binary.
+		if src, rawOK := Raw(stem); rawOK {
+			if fenced, err := RenderFences(src, nil); err == nil {
+				raw = RenderGenerated(fenced, nil)
+			}
+		}
 		bodyLen := len(StripFrontmatter(raw))
 		kind := strings.TrimSpace(ParseFrontmatter(raw)["kind"])
 		budget, covered := BodyBudget(stem, kind)

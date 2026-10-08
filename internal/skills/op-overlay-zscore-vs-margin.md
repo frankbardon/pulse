@@ -11,6 +11,8 @@ examples_tags: [overlay, cross-tabulation, outlier-detection]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` must be `0`.
@@ -22,6 +24,8 @@ MATRIX crosstab. First non-ratio overlay — output is unitless deviation, not r
 ## Output
 
 MATRIX — `Cells[r][c].Value = (cell - margin) / sd`. Mirrors host RowKeys / ColumnKeys. Absent cells stay absent. Layer `Baseline = 0` (z-score centerpoint).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

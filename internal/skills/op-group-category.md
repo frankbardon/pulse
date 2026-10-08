@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cohort-analysis, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. `Group.Label` overrides the output column name; `Group.Include []string` allow-lists bucket keys (label strings) and sets emission order.

@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, nonparametric, correlation-analysi
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -29,6 +31,8 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 ## Output
 
 `Statistic` = τ_b (Kendall tau-b, `[-1, 1]`); `PValue` two-sided via normal approximation with tie-variance adjustment. `Details.concordant`, `Details.discordant`, `Details.ties_x`, `Details.ties_y`, `Details.s`, `Details.var_s`, `Details.z`, `Details.n`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, exact-test, cross-tabulation, prop
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -26,6 +28,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Output
 
 `Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed). `Details.contingency` = `[[a, b], [c, d]]` in first-seen order (`row_labels` / `col_labels`); `odds_ratio` = ad/bc, no Haldane fix: zero b or c -> +Inf, zero a or d -> 0.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 
