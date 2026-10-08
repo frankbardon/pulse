@@ -8127,6 +8127,10 @@
         "description": "Standardized z-score aggregate — mean-centered, stddev-scaled summary."
       },
       {
+        "name": "op-attr-code-in",
+        "description": "Per-row 0/1 — whether a field's value is one of a list of codes; its mean is the share of the whole base."
+      },
+      {
         "name": "op-attr-date-part",
         "description": "Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field."
       },
@@ -9035,7 +9039,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 179,
+    "examples_count": 180,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -12359,4 +12363,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c997b5fc2ac94ceb69699a156cb5d6b0f662439525e6a3411e9f1e2df0792b08
+// golden-hash: 1af3c8e122939368eb6f4e676ee910092a90b0399e0caf2149c1cdf382e1b00a
