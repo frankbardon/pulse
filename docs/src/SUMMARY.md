@@ -49,6 +49,7 @@
 - [Time Zones](library/time-zones.md)
 - [Feature Profiles](library/feature-profiles.md)
 - [Tuning Limits](library/tuning-limits.md)
+- [Observability](library/observability.md)
 - [Guided-Analysis Vocabulary](library/guided-analysis.md)
 - [Linear Algebra (linalg)](library/linalg.md)
 - [Vectors and Matrices](library/matrices.md)

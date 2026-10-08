@@ -35,7 +35,7 @@ Logs never reach stdout, so `--json` output and the `pulse mcp`
 JSON-RPC transport stay byte-identical with or without them. Records
 carry identifiers, counts, timings, enums and error codes only — never
 row data, filter values or error messages. An unknown value is
-`CLI_INPUT`. There are no environment-variable forms.
+`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
 
 ## Environment variables
 
