@@ -12,6 +12,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/service"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -138,20 +139,26 @@ const streamBuffer = 4
 // delivers Status: StreamErrored carrying that coded error (never
 // StreamCancelled, which stays the caller's own cancel or deadline).
 func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamResult[Row], error) {
+	return observed(p, ctx, requestOp(observe.OpProcessStream, req), func(ctx context.Context) (StreamResult[Row], error) {
+		return p.processStreamResult(ctx, req)
+	})
+}
+
+func (p *Pulse) processStreamResult(ctx context.Context, req *Request) (StreamResult[Row], error) {
 	if req == nil {
 		return StreamResult[Row]{}, errors.New("pulse: nil request")
 	}
 	ctx, release := p.svc.BoundRequest(ctx)
 	estimated := int64(-1)
 	if req.Cohort != nil && req.Cohort.Filename != "" {
-		if n, err := p.CountRecords(ctx, req.Cohort.Filename); err == nil {
+		if n, err := p.countRecords(ctx, req.Cohort.Filename); err == nil {
 			if n <= uint64(1<<62) {
 				estimated = int64(n)
 			}
 		}
 	}
 	// Through the facade, so a `return` block shapes every chunk.
-	iter, err := p.ProcessStream(ctx, req)
+	iter, err := p.processStream(ctx, req)
 	if err != nil {
 		release()
 		return StreamResult[Row]{}, service.MapRequestTimeout(ctx, err)
@@ -273,6 +280,12 @@ func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamRe
 // expose true row-at-a-time generation yet but is API-stable so callers
 // can adopt the streaming shape today.
 func (p *Pulse) SynthStream(ctx context.Context, spec *SynthSpec, opts SynthOptions) (StreamResult[Row], error) {
+	return observed(p, ctx, opSpec{kind: observe.OpSynthStream, req: synthHasher(spec)}, func(ctx context.Context) (StreamResult[Row], error) {
+		return p.synthStream(ctx, spec, opts)
+	})
+}
+
+func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOptions) (StreamResult[Row], error) {
 	if spec == nil {
 		return StreamResult[Row]{}, errors.New("pulse: nil synth spec")
 	}

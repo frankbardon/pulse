@@ -13,6 +13,7 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -80,6 +81,12 @@ type FilterToFileResult struct {
 //     so independent consumers reach the same expected path without
 //     coordination.
 func (p *Pulse) FilterToFileWithRequest(ctx context.Context, req *FilterToFileRequest) (*FilterToFileResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpFilterToFile, path: filterToFileSource(req)}, func(ctx context.Context) (*FilterToFileResult, error) {
+		return p.filterToFileWithRequest(ctx, req)
+	})
+}
+
+func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRequest) (*FilterToFileResult, error) {
 	if req == nil {
 		return nil, errors.New("filter_to_file: nil request")
 	}
@@ -329,7 +336,7 @@ func (p *Pulse) tryReuseOutput(outPath string) (*FilterToFileResult, bool) {
 		return nil, false
 	}
 	rows := int64(-1)
-	if n, err := p.CountRecords(context.Background(), outPath); err == nil {
+	if n, err := p.countRecords(context.Background(), outPath); err == nil {
 		if n <= 1<<62 {
 			rows = int64(n)
 		}

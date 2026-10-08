@@ -9,8 +9,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -29,6 +31,7 @@ import (
 	"github.com/frankbardon/pulse/internal/template"
 	"github.com/frankbardon/pulse/internal/temporal"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -528,6 +531,22 @@ type Options struct {
 	// overrides via the managed-import Spec still take precedence over
 	// this default.
 	SetInferenceMinPct int
+
+	// Logger receives the instance's structured log records (lifecycle,
+	// plan decisions, warnings and failures by error code — never row
+	// data or error messages). Nil (the default) logs nothing and does
+	// no handler work.
+	Logger *slog.Logger
+
+	// Hooks are optional callbacks fired around every operation (and
+	// its phases). Nil (the default) fires nothing; each field of a
+	// non-nil Hooks is independently optional. Hooks run synchronously
+	// and must be fast; a panicking hook is recovered.
+	Hooks *observe.Hooks
+
+	// Metrics is the instrument factory the instance records its
+	// operation metrics through. Nil (the default) records nothing.
+	Metrics observe.Metrics
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -555,6 +574,14 @@ type Pulse struct {
 	// at New; its feature list is resolved into the service's
 	// InstanceSnapshot. Read it through FeatureProfile (a copy).
 	featureProfile *FeatureProfile
+
+	// Observability surfaces from Options; all nil-safe. opSeq numbers
+	// operations for observe.OperationInfo.ID (advanced only when
+	// observability is on).
+	logger  *slog.Logger
+	hooks   *observe.Hooks
+	metrics observe.Metrics
+	opSeq   atomic.Uint64
 }
 
 // New creates a new Pulse instance with the given options.
@@ -704,6 +731,9 @@ func New(opts Options) (*Pulse, error) {
 		zones:          zones,
 		defaultZone:    defaultZone,
 		featureProfile: featureProfile,
+		logger:         opts.Logger,
+		hooks:          opts.Hooks,
+		metrics:        opts.Metrics,
 	}, nil
 }
 
@@ -777,6 +807,12 @@ func autoLabelPtrs(bindings []LabelBinding) []*types.LabelBinding {
 // other facade methods (Process, Sample, Facet, ...) that receive an
 // anchored Cohort path resolve consistently.
 func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpOpen, path: path}, func(ctx context.Context) (*Cohort, error) {
+		return p.open(ctx, path)
+	})
+}
+
+func (p *Pulse) open(ctx context.Context, path string) (*Cohort, error) {
 	inner, err := p.svc.Open(ctx, path)
 	if err != nil {
 		return nil, err
@@ -794,6 +830,12 @@ func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
 // layer (or one resolving to the full response) returns the response
 // untouched.
 func (p *Pulse) Process(ctx context.Context, req *Request) (*Response, error) {
+	return observed(p, ctx, requestOp(observe.OpProcess, req), func(ctx context.Context) (*Response, error) {
+		return p.process(ctx, req)
+	})
+}
+
+func (p *Pulse) process(ctx context.Context, req *Request) (*Response, error) {
 	resp, err := p.svc.Process(ctx, req)
 	if err == nil && req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
@@ -843,6 +885,12 @@ type RowIter = service.RowIter
 // (the `pulse api process --stream` NDJSON writer uses it). With no
 // effective block the service iterator is returned untouched.
 func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error) {
+	return observed(p, ctx, requestOp(observe.OpProcessStream, req), func(ctx context.Context) (RowIter, error) {
+		return p.processStream(ctx, req)
+	})
+}
+
+func (p *Pulse) processStream(ctx context.Context, req *Request) (RowIter, error) {
 	iter, err := p.svc.ProcessStream(ctx, req)
 	if err != nil {
 		return nil, err
@@ -882,6 +930,12 @@ func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error
 // only) and stamps ComposedResponse.Returned. Both apply after the
 // overlay fold, so every layer is computed from the unshaped slots.
 func (p *Pulse) Compose(ctx context.Context, req *ComposedRequest) (*ComposedResponse, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpCompose, req: composedHasher(req)}, func(ctx context.Context) (*ComposedResponse, error) {
+		return p.compose(ctx, req)
+	})
+}
+
+func (p *Pulse) compose(ctx context.Context, req *ComposedRequest) (*ComposedResponse, error) {
 	out, slots, err := p.svc.ComposeResolved(ctx, req)
 	if err != nil {
 		return nil, err
@@ -928,6 +982,12 @@ func (p *Pulse) shapeComposed(req *ComposedRequest, slots []*Request, out *Compo
 // decision (sample injection, smaller-side hash join, batch
 // sizing) without paying the per-row decode cost of a full Process.
 func (p *Pulse) CountRecords(ctx context.Context, path string) (uint64, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpCountRecords, path: path}, func(ctx context.Context) (uint64, error) {
+		return p.countRecords(ctx, path)
+	})
+}
+
+func (p *Pulse) countRecords(ctx context.Context, path string) (uint64, error) {
 	count, err := p.svc.CountRecords(ctx, path)
 	if err == nil {
 		p.touchManaged(ctx, path)
@@ -965,6 +1025,12 @@ type ChainResponse = types.ChainResponse
 // stage that excludes `data` still feeds the next stage its rows.
 // Final follows the last stage's return; there is no chain-level knob.
 func (p *Pulse) ProcessChain(ctx context.Context, req *ChainRequest) (*ChainResponse, error) {
+	return observed(p, ctx, chainOp(observe.OpProcessChain, req), func(ctx context.Context) (*ChainResponse, error) {
+		return p.processChain(ctx, req)
+	})
+}
+
+func (p *Pulse) processChain(ctx context.Context, req *ChainRequest) (*ChainResponse, error) {
 	resp, err := p.svc.ProcessChain(ctx, req)
 	if err != nil {
 		return resp, err
@@ -1017,6 +1083,12 @@ type ComposeOptions = service.ComposeOptions
 // Shaping is Compose's, applied after every slot settled and the
 // overlay fold ran.
 func (p *Pulse) ComposeParallel(ctx context.Context, req *ComposedRequest, opts ComposeOptions) (*ComposedResponse, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpComposeParallel, req: composedHasher(req)}, func(ctx context.Context) (*ComposedResponse, error) {
+		return p.composeParallel(ctx, req, opts)
+	})
+}
+
+func (p *Pulse) composeParallel(ctx context.Context, req *ComposedRequest, opts ComposeOptions) (*ComposedResponse, error) {
 	out, slots, err := p.svc.ComposeParallelResolved(ctx, req, opts)
 	if err != nil {
 		return nil, err
@@ -1030,6 +1102,12 @@ func (p *Pulse) ComposeParallel(ctx context.Context, req *ComposedRequest, opts 
 // Import converts tabular source data into a .pulse file.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
 func (p *Pulse) Import(ctx context.Context, job *pio.ImportJob) (*pio.ImportReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpImport, path: importTarget(job)}, func(ctx context.Context) (*pio.ImportReport, error) {
+		return p.importJob(ctx, job)
+	})
+}
+
+func (p *Pulse) importJob(ctx context.Context, job *pio.ImportJob) (*pio.ImportReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1044,6 +1122,12 @@ func (p *Pulse) Import(ctx context.Context, job *pio.ImportJob) (*pio.ImportRepo
 // to job.LabelResolver before Run. The resolver applies replace /
 // augment translation to categorical column values during export.
 func (p *Pulse) Export(ctx context.Context, job *pio.ExportJob) (*pio.ExportReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpExport, path: exportSource(job)}, func(ctx context.Context) (*pio.ExportReport, error) {
+		return p.exportJob(ctx, job)
+	})
+}
+
+func (p *Pulse) exportJob(ctx context.Context, job *pio.ExportJob) (*pio.ExportReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1067,6 +1151,12 @@ func (p *Pulse) Export(ctx context.Context, job *pio.ExportJob) (*pio.ExportRepo
 // rest. Works for single-file cohorts (0x01 and 0x02) and whole shard
 // archives alike, streaming in bounded memory.
 func (p *Pulse) ExportTransfer(ctx context.Context, job *pio.TransferExportJob) (*pio.TransferReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpExport, path: transferExportSource(job)}, func(ctx context.Context) (*pio.TransferReport, error) {
+		return p.exportTransfer(ctx, job)
+	})
+}
+
+func (p *Pulse) exportTransfer(ctx context.Context, job *pio.TransferExportJob) (*pio.TransferReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1079,6 +1169,12 @@ func (p *Pulse) ExportTransfer(ctx context.Context, job *pio.TransferExportJob) 
 // FS field is set to the Pulse instance's filesystem if not already set.
 // The returned report's SHA256 matches the sender's.
 func (p *Pulse) ImportTransfer(ctx context.Context, job *pio.TransferImportJob) (*pio.TransferReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpImport, path: transferImportOutput(job)}, func(ctx context.Context) (*pio.TransferReport, error) {
+		return p.importTransfer(ctx, job)
+	})
+}
+
+func (p *Pulse) importTransfer(ctx context.Context, job *pio.TransferImportJob) (*pio.TransferReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1090,6 +1186,12 @@ func (p *Pulse) ImportTransfer(ctx context.Context, job *pio.TransferImportJob) 
 //
 // Labels apply to the export half only — see Export.
 func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpConvert}, func(ctx context.Context) (*pio.ConvertReport, error) {
+		return p.convert(ctx, job)
+	})
+}
+
+func (p *Pulse) convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertReport, error) {
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1121,12 +1223,24 @@ type (
 // subsequent Inspect / Predict / Process / Sample / Facet against
 // the handle bumps the expiry forward.
 func (p *Pulse) ImportFile(ctx context.Context, spec ImportSpec) (*ImportResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpImport}, func(ctx context.Context) (*ImportResult, error) {
+		return p.importFile(ctx, spec)
+	})
+}
+
+func (p *Pulse) importFile(ctx context.Context, spec ImportSpec) (*ImportResult, error) {
 	return p.imports.Open(ctx, spec)
 }
 
 // Drop removes a managed import handle (and its sidecar) from the pool.
 // Returns PULSE_IMPORT_SOURCE_MISSING when the handle is unknown.
 func (p *Pulse) Drop(ctx context.Context, handle string) error {
+	return p.observe(ctx, opSpec{kind: observe.OpDrop}, func(ctx context.Context) error {
+		return p.drop(ctx, handle)
+	})
+}
+
+func (p *Pulse) drop(ctx context.Context, handle string) error {
 	return p.imports.Drop(ctx, handle)
 }
 
@@ -1142,6 +1256,12 @@ func (p *Pulse) Imports(ctx context.Context) ([]ImportEntry, error) {
 // and exposed here for callers that want explicit control (CLI
 // maintenance, periodic ticker, etc.).
 func (p *Pulse) SweepImports(ctx context.Context) ([]string, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpImportsSweep}, func(ctx context.Context) ([]string, error) {
+		return p.sweepImports(ctx)
+	})
+}
+
+func (p *Pulse) sweepImports(ctx context.Context) ([]string, error) {
 	return p.imports.Sweep(ctx)
 }
 
@@ -1170,7 +1290,13 @@ func (p *Pulse) touchManaged(ctx context.Context, path string) {
 // raises one) or dictionary options want InspectEnvelope — this
 // wrapper keeps the result and discards the rest of the envelope.
 func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectResult, error) {
-	env, err := p.InspectEnvelope(ctx, path, nil)
+	return observed(p, ctx, opSpec{kind: observe.OpInspect, path: path}, func(ctx context.Context) (*descriptor.InspectResult, error) {
+		return p.inspect(ctx, path)
+	})
+}
+
+func (p *Pulse) inspect(ctx context.Context, path string) (*descriptor.InspectResult, error) {
+	env, err := p.inspectEnvelope(ctx, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1207,6 +1333,12 @@ func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectRe
 // comes back as a non-nil envelope carrying env.Errors, so a --json
 // caller can emit the coded envelope verbatim.
 func (p *Pulse) InspectEnvelope(ctx context.Context, path string, opts *descriptor.InspectOptions) (*descriptor.Envelope, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpInspect, path: path}, func(ctx context.Context) (*descriptor.Envelope, error) {
+		return p.inspectEnvelope(ctx, path, opts)
+	})
+}
+
+func (p *Pulse) inspectEnvelope(ctx context.Context, path string, opts *descriptor.InspectOptions) (*descriptor.Envelope, error) {
 	readPath := path
 	anchorEntry := ""
 	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
@@ -1248,6 +1380,12 @@ func (p *Pulse) InspectEnvelope(ctx context.Context, path string, opts *descript
 // Predict validates a request against a .pulse file without executing it.
 // It reads only the header and schema, never record data.
 func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictResult, error) {
+	return observed(p, ctx, requestOp(observe.OpPredict, req), func(ctx context.Context) (*descriptor.PredictResult, error) {
+		return p.predict(ctx, req)
+	})
+}
+
+func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictResult, error) {
 	if req.Cohort == nil {
 		return nil, fmt.Errorf("pulse: predict requires a cohort")
 	}
@@ -1325,6 +1463,12 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 // every fault in the bytes themselves comes back as env.Errors so a
 // --json caller can emit the coded envelope verbatim.
 func (p *Pulse) InspectBytes(ctx context.Context, data []byte, opts *descriptor.InspectOptions) (*descriptor.Envelope, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpInspect}, func(ctx context.Context) (*descriptor.Envelope, error) {
+		return p.inspectBytes(ctx, data, opts)
+	})
+}
+
+func (p *Pulse) inspectBytes(ctx context.Context, data []byte, opts *descriptor.InspectOptions) (*descriptor.Envelope, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -1345,6 +1489,12 @@ func (p *Pulse) InspectBytes(ctx context.Context, data []byte, opts *descriptor.
 // A returned error is a nil req or a cancelled ctx; every validation
 // fault comes back as env.Errors with PredictResult.Valid false.
 func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*descriptor.Envelope, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpPredict, req: requestHasher(req)}, func(ctx context.Context) (*descriptor.Envelope, error) {
+		return p.predictBytes(ctx, data, req)
+	})
+}
+
+func (p *Pulse) predictBytes(ctx context.Context, data []byte, req *Request) (*descriptor.Envelope, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -1398,6 +1548,12 @@ func (p *Pulse) predictRecordCounter(ctx context.Context) func(string) (int64, e
 
 // Sample returns up to n rows from the cohort as maps of field name to value.
 func (p *Pulse) Sample(ctx context.Context, path string, n int) ([]Record, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpSample, path: path}, func(ctx context.Context) ([]Record, error) {
+		return p.sample(ctx, path, n)
+	})
+}
+
+func (p *Pulse) sample(ctx context.Context, path string, n int) ([]Record, error) {
 	rows, err := p.svc.Sample(ctx, path, n)
 	if err == nil {
 		p.touchManaged(ctx, path)
@@ -1432,6 +1588,12 @@ type SampleWarning struct {
 // Sample, returning a SampleResult with no Warnings and no
 // transformation applied to the rows.
 func (p *Pulse) SampleWithRequest(ctx context.Context, req *SampleRequest) (*SampleResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpSample, cohort: sampleCohort(req)}, func(ctx context.Context) (*SampleResult, error) {
+		return p.sampleWithRequest(ctx, req)
+	})
+}
+
+func (p *Pulse) sampleWithRequest(ctx context.Context, req *SampleRequest) (*SampleResult, error) {
 	if req == nil {
 		return nil, fmt.Errorf("pulse: sample request is required")
 	}
@@ -1479,6 +1641,12 @@ func (p *Pulse) SampleWithRequest(ctx context.Context, req *SampleRequest) (*Sam
 // Returns the number of records written to dst (sum across shards for
 // archive inputs).
 func (p *Pulse) FilterToFile(ctx context.Context, src, dst, filterExpr string) (int64, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpFilterToFile, path: src}, func(ctx context.Context) (int64, error) {
+		return p.filterToFile(ctx, src, dst, filterExpr)
+	})
+}
+
+func (p *Pulse) filterToFile(ctx context.Context, src, dst, filterExpr string) (int64, error) {
 	n, err := p.svc.FilterToFile(ctx, src, dst, filterExpr)
 	if err == nil {
 		p.touchManaged(ctx, src)
@@ -1514,6 +1682,12 @@ func (p *Pulse) ResolveCanonicalSchema(ctx context.Context, src string) (*encodi
 // Returns the number of records written to dst (sum across shards for
 // archive inputs).
 func (p *Pulse) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includeField string, set MemberSet, filterExpr string) (int64, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpFilterToFile, path: src}, func(ctx context.Context) (int64, error) {
+		return p.filterToFileBySetAndExpr(ctx, src, dst, includeField, set, filterExpr)
+	})
+}
+
+func (p *Pulse) filterToFileBySetAndExpr(ctx context.Context, src, dst, includeField string, set MemberSet, filterExpr string) (int64, error) {
 	n, err := p.svc.FilterToFileBySetAndExpr(ctx, src, dst, includeField, set, filterExpr)
 	if err == nil {
 		p.touchManaged(ctx, src)
@@ -1552,7 +1726,13 @@ func (p *Pulse) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includeF
 // warning) beside the pairwise deltas they qualify, across all three
 // pair kinds. Ignored when SourceCohort is empty — the plain synthesis
 // path has no _synthetic partition to compare against.
-func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
+func (p *Pulse) Synth(ctx context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpSynth, req: synthHasher(spec)}, func(ctx context.Context) (*SynthResult, error) {
+		return p.synthFile(ctx, spec, output, opts)
+	})
+}
+
+func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
 	res, err := synth.Synth(p.fsys, spec, output, opts)
 	if err != nil {
 		return nil, err
@@ -1574,7 +1754,13 @@ func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts Sy
 // Profile reads a .pulse file at path and returns a statistical summary
 // suitable for from-profile synthesis. The profile retains no individual
 // rows from the source data.
-func (p *Pulse) Profile(_ context.Context, path string, opts ProfileOptions) (*Profile, error) {
+func (p *Pulse) Profile(ctx context.Context, path string, opts ProfileOptions) (*Profile, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpProfile, path: path}, func(ctx context.Context) (*Profile, error) {
+		return p.profile(ctx, path, opts)
+	})
+}
+
+func (p *Pulse) profile(ctx context.Context, path string, opts ProfileOptions) (*Profile, error) {
 	return synth.ProfileFile(p.fsys, path, opts)
 }
 
@@ -1584,6 +1770,12 @@ func (p *Pulse) Profile(_ context.Context, path string, opts ProfileOptions) (*P
 // summaries (counts, null tallies, statistics, histograms, additive
 // contributions) call FacetSchema instead.
 func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpFacet, path: path}, func(ctx context.Context) ([]string, error) {
+		return p.facet(ctx, path, field)
+	})
+}
+
+func (p *Pulse) facet(ctx context.Context, path string, field string) ([]string, error) {
 	values, err := p.svc.Facet(ctx, path, field)
 	if err == nil {
 		p.touchManaged(ctx, path)
@@ -1602,6 +1794,12 @@ func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string,
 // pass; requests with percentiles buffer the requested numeric fields'
 // non-null values and sort once before percentile interpolation.
 func (p *Pulse) FacetSchema(ctx context.Context, req *FacetRequest) (*FacetResult, error) {
+	return observed(p, ctx, facetOp(observe.OpFacetSchema, req), func(ctx context.Context) (*FacetResult, error) {
+		return p.facetSchema(ctx, req)
+	})
+}
+
+func (p *Pulse) facetSchema(ctx context.Context, req *FacetRequest) (*FacetResult, error) {
 	if req == nil {
 		return nil, fmt.Errorf("pulse: facet schema requires a request")
 	}
@@ -1652,6 +1850,12 @@ const (
 // defaults to) LookupMultiplicityAssertUnique. See internal/service.Service.Lookup
 // for the full algorithm.
 func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
+	return observed(p, ctx, lookupOp(observe.OpLookup, req), func(ctx context.Context) (*LookupResult, error) {
+		return p.lookup(ctx, req)
+	})
+}
+
+func (p *Pulse) lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
 	if req == nil {
 		return nil, fmt.Errorf("pulse: lookup requires a request")
 	}
@@ -1700,6 +1904,12 @@ type CohortFingerprint = encx.Fingerprint
 // PULSE_INDEX_UNSUPPORTED_SHARDED shard-archive rejection, and the
 // PROCESSING_CONFIG disallowed-key-type rejection.
 func (p *Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*BuildIndexResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpIndexBuild, path: path}, func(ctx context.Context) (*BuildIndexResult, error) {
+		return p.buildIndex(ctx, path, keyFields)
+	})
+}
+
+func (p *Pulse) buildIndex(ctx context.Context, path string, keyFields []string) (*BuildIndexResult, error) {
 	res, err := p.svc.BuildIndex(ctx, path, keyFields)
 	if err == nil {
 		p.touchManaged(ctx, path)
@@ -1724,6 +1934,12 @@ type IndexFreshnessReason = service.IndexFreshnessReason
 // PULSE_INDEX_MISSING when no sidecar exists for keyFields and
 // PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
 func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpIndexVerify, path: path}, func(ctx context.Context) (*VerifyIndexResult, error) {
+		return p.verifyIndex(ctx, path, keyFields)
+	})
+}
+
+func (p *Pulse) verifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
 	res, err := p.svc.VerifyIndex(ctx, path, keyFields)
 	if err == nil {
 		p.touchManaged(ctx, path)
@@ -1743,6 +1959,12 @@ type IndexInfo = service.IndexInfo
 // when no sidecar indexes have been built yet. Returns
 // PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
 func (p *Pulse) ListIndexes(ctx context.Context, path string) ([]IndexInfo, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpIndexList, path: path}, func(ctx context.Context) ([]IndexInfo, error) {
+		return p.listIndexes(ctx, path)
+	})
+}
+
+func (p *Pulse) listIndexes(ctx context.Context, path string) ([]IndexInfo, error) {
 	res, err := p.svc.ListIndexes(ctx, path)
 	if err == nil {
 		p.touchManaged(ctx, path)
@@ -1757,6 +1979,12 @@ func (p *Pulse) ListIndexes(ctx context.Context, path string) ([]IndexInfo, erro
 // no sidecar exists at the derived path and
 // PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
 func (p *Pulse) DropIndex(ctx context.Context, path string, keyFields []string) error {
+	return p.observe(ctx, opSpec{kind: observe.OpIndexDrop, path: path}, func(ctx context.Context) error {
+		return p.dropIndex(ctx, path, keyFields)
+	})
+}
+
+func (p *Pulse) dropIndex(ctx context.Context, path string, keyFields []string) error {
 	err := p.svc.DropIndex(ctx, path, keyFields)
 	if err == nil {
 		p.touchManaged(ctx, path)
@@ -1797,6 +2025,12 @@ type WidenReport = encoding.WidenReport
 // point-lookup index and the SPSS metadata sidecar invalidate
 // themselves through their own fingerprints on the next read.
 func (p *Pulse) WidenSetField(ctx context.Context, path, field, targetType string) (*WidenReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpWiden, path: path}, func(ctx context.Context) (*WidenReport, error) {
+		return p.widenSetField(ctx, path, field, targetType)
+	})
+}
+
+func (p *Pulse) widenSetField(ctx context.Context, path, field, targetType string) (*WidenReport, error) {
 	target, ok := encoding.ParseFieldType(targetType)
 	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
@@ -2011,6 +2245,12 @@ func (p *Pulse) ListTemplates() []TemplateSummary {
 // An engine with no template directories configured has nothing to rescan
 // and returns nil.
 func (p *Pulse) ReloadTemplates() error {
+	return p.observe(context.Background(), opSpec{kind: observe.OpTemplateReload}, func(context.Context) error {
+		return p.reloadTemplates()
+	})
+}
+
+func (p *Pulse) reloadTemplates() error {
 	return p.templates.Reload()
 }
 
@@ -2073,6 +2313,12 @@ func (p *Pulse) GetTemplate(name string) (*Template, error) {
 // operator name is not a slot: a hidden operator renders and fails at
 // execution, exactly as a never-registered one does.
 func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*RenderedTemplate, error) {
+	return observed(p, context.Background(), opSpec{kind: observe.OpTemplateRender}, func(context.Context) (*RenderedTemplate, error) {
+		return p.renderTemplate(name, vars)
+	})
+}
+
+func (p *Pulse) renderTemplate(name string, vars map[string]any) (*RenderedTemplate, error) {
 	tmpl, err := p.templates.Get(name)
 	if err != nil {
 		return nil, err
@@ -2096,7 +2342,13 @@ func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*RenderedTempl
 // both the target the template actually declares and RenderTemplate as the
 // method that handles it. Every other fault is RenderTemplate's, unchanged.
 func (p *Pulse) RenderTemplateRequest(name string, vars map[string]any) (*Request, error) {
-	rendered, err := p.RenderTemplate(name, vars)
+	return observed(p, context.Background(), opSpec{kind: observe.OpTemplateRender}, func(context.Context) (*Request, error) {
+		return p.renderTemplateRequest(name, vars)
+	})
+}
+
+func (p *Pulse) renderTemplateRequest(name string, vars map[string]any) (*Request, error) {
+	rendered, err := p.renderTemplate(name, vars)
 	if err != nil {
 		return nil, err
 	}
@@ -2152,7 +2404,14 @@ func renderedFieldFor(target template.Target) string {
 // them. The manifest is deterministic per instance and does not depend
 // on cohort data or the filesystem; callers cache it keyed by
 // (PulseVersion, FeatureSetDigest, LimitsDigest).
-func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
+func (p *Pulse) Manifest(ctx context.Context) *descriptor.Manifest {
+	out, _ := observed(p, ctx, opSpec{kind: observe.OpManifest}, func(ctx context.Context) (*descriptor.Manifest, error) {
+		return p.manifest(ctx), nil
+	})
+	return out
+}
+
+func (p *Pulse) manifest(ctx context.Context) *descriptor.Manifest {
 	return descx.BuildManifestForInstance(p.svc.InstanceSnapshot())
 }
 
@@ -2169,6 +2428,12 @@ func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
 // cache under one key. Without a feature profile the output is the
 // published full-registry schema.
 func (p *Pulse) PayloadSchema() ([]byte, error) {
+	return observed(p, context.Background(), opSpec{kind: observe.OpPayloadSchema}, func(context.Context) ([]byte, error) {
+		return p.payloadSchema()
+	})
+}
+
+func (p *Pulse) payloadSchema() ([]byte, error) {
 	return descx.PayloadSchemaForInstance(p.svc.InstanceSnapshot())
 }
 
@@ -2204,6 +2469,12 @@ func (p *Pulse) Fs() afero.Fs {
 // reported as a mandatory PULSE_SHARD_GROUPS_REWRITTEN warning plus a
 // GroupReconciliation on Regrouped — the same rule AddShard applies.
 func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*CreateShardArchiveResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardCreate, path: archivePath}, func(ctx context.Context) (*CreateShardArchiveResult, error) {
+		return p.createShardArchive(ctx, archivePath, shardPaths)
+	})
+}
+
+func (p *Pulse) createShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*CreateShardArchiveResult, error) {
 	return p.svc.CreateShardArchive(ctx, archivePath, shardPaths)
 }
 
@@ -2241,6 +2512,12 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 // (PULSE_GROUP_MEMBER_NOT_CONSTANT). Layout changes are reported as a
 // mandatory PULSE_SHARD_GROUPS_REWRITTEN warning and on Regrouped.
 func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardAdd, path: archivePath}, func(ctx context.Context) (*AddShardResult, error) {
+		return p.addShard(ctx, archivePath, shardPath)
+	})
+}
+
+func (p *Pulse) addShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
 	return p.svc.AddShard(ctx, archivePath, shardPath)
 }
 
@@ -2275,6 +2552,12 @@ type CohesionWarning = encx.CohesionWarning
 // shrunk). Returns PULSE_SHARD_MISSING when the named shard is not in
 // the archive.
 func (p *Pulse) RemoveShard(ctx context.Context, archivePath, shardBasename string) error {
+	return p.observe(ctx, opSpec{kind: observe.OpShardRemove, path: archivePath}, func(ctx context.Context) error {
+		return p.removeShard(ctx, archivePath, shardBasename)
+	})
+}
+
+func (p *Pulse) removeShard(ctx context.Context, archivePath, shardBasename string) error {
 	return p.svc.RemoveShard(ctx, archivePath, shardBasename)
 }
 
@@ -2282,6 +2565,12 @@ func (p *Pulse) RemoveShard(ctx context.Context, archivePath, shardBasename stri
 // directory order (which equals shard insertion order). Single-file
 // cohorts return an empty slice.
 func (p *Pulse) ListShards(ctx context.Context, archivePath string) ([]ShardEntry, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardList, path: archivePath}, func(ctx context.Context) ([]ShardEntry, error) {
+		return p.listShards(ctx, archivePath)
+	})
+}
+
+func (p *Pulse) listShards(ctx context.Context, archivePath string) ([]ShardEntry, error) {
 	return p.svc.ListShards(ctx, archivePath)
 }
 
@@ -2289,6 +2578,12 @@ func (p *Pulse) ListShards(ctx context.Context, archivePath string) ([]ShardEntr
 // standalone single-file `.pulse` bytes. Suitable for piping to
 // `pulse inspect -` or writing back to disk.
 func (p *Pulse) ExtractShard(ctx context.Context, archivePath, shardBasename string) (io.ReadCloser, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardExtract, path: archivePath}, func(ctx context.Context) (io.ReadCloser, error) {
+		return p.extractShard(ctx, archivePath, shardBasename)
+	})
+}
+
+func (p *Pulse) extractShard(ctx context.Context, archivePath, shardBasename string) (io.ReadCloser, error) {
 	return p.svc.ExtractShard(ctx, archivePath, shardBasename)
 }
 
@@ -2300,6 +2595,12 @@ func (p *Pulse) ExtractShard(ctx context.Context, archivePath, shardBasename str
 // if the archive was edited outside Pulse. The whole-archive rewrite
 // pattern is the explicit reclaim path per the design contract §7.1.
 func (p *Pulse) CompactShardArchive(ctx context.Context, archivePath string) error {
+	return p.observe(ctx, opSpec{kind: observe.OpShardCompact, path: archivePath}, func(ctx context.Context) error {
+		return p.compactShardArchive(ctx, archivePath)
+	})
+}
+
+func (p *Pulse) compactShardArchive(ctx context.Context, archivePath string) error {
 	return p.svc.CompactShardArchive(ctx, archivePath)
 }
 
@@ -2315,6 +2616,12 @@ func (p *Pulse) CompactShardArchive(ctx context.Context, archivePath string) err
 // are reported through the result struct so the caller can render the
 // full diagnosis.
 func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*VerifyResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardVerify, path: archivePath}, func(ctx context.Context) (*VerifyResult, error) {
+		return p.verifyShardArchive(ctx, archivePath)
+	})
+}
+
+func (p *Pulse) verifyShardArchive(ctx context.Context, archivePath string) (*VerifyResult, error) {
 	return p.svc.VerifyShardArchive(ctx, archivePath)
 }
 

@@ -19,6 +19,7 @@ mcp/gosdk/          the ONLY go-sdk importer: Register, Config, URI/prompt const
 mcpserve/           Serve, ServeStdio, Options, NewPulse (feature-profile flag/env read), Describe
 extend/             extension-authoring contract: Record, Rows, operator factories + instance interfaces (leaf; TestExtendImportBoundary)
 linalg/             linear-algebra core: Pulse-owned Matrix/Sym/Vec + FMA-free reference kernels (Cholesky, CholeskyRidge, SolveSPD, InverseSPD, CoMoment Add/Merge, MergeTree, MergeBlockSize), RankTolerance; gonum backs the no-bit-contract SymEigen / SVD / QR / Rank / ConditionNumber (fixed order + sign policy) and the FactorSPD / SPDFactor / Mul path regression uses, but never appears on the surface (leaf: stdlib + gonum + errors; TestLinalgImportBoundary, TestLinalgSurfaceNamesNoGonum). Contract: `.claude/reference/matrix-and-vectors.md`
+observe/            observability vocabulary: Hooks, OperationInfo/OperationResult/PhaseTiming, the OperationKind/Phase/Arm/Scope enums and the Metrics/Counter/Histogram/UpDownCounter/Label instrument interfaces that pulse.Options.Hooks / Options.Metrics take (leaf: stdlib only; TestObserveImportBoundary). Facade instrumentation: every operation-bearing *Pulse method runs through the private observe helper (observability.go) — never through Service.BoundRequest, which nests
 
 INTERNAL
 cmd/pulse/                 the only binary; buildApp() defines the CLI leaf tree

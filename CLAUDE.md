@@ -45,7 +45,7 @@ Between them the rows carry every word `TestUpdateDemandTableCovers` checks; kee
 
 ## Architecture
 
-**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free reference kernels + gonum-backed decompositions). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
+**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free reference kernels + gonum-backed decompositions), `observe` (stdlib-only hooks + metrics vocabulary for `Options.Hooks` / `Metrics`). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
 
 Docs: <https://frankbardon.github.io/pulse/>.
 
