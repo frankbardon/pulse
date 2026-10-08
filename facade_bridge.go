@@ -1,6 +1,8 @@
 package pulse
 
 import (
+	"log/slog"
+
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/facadebridge"
 )
@@ -22,6 +24,13 @@ func init() {
 			return nil
 		}
 		return p.svc.InstanceSnapshot()
+	}
+	facadebridge.Logger = func(v any) *slog.Logger {
+		p, ok := v.(*Pulse)
+		if !ok || p == nil {
+			return nil
+		}
+		return p.logger
 	}
 	facadebridge.CohortScanDisabled = func(v any) bool {
 		p, ok := v.(*Pulse)

@@ -59,10 +59,13 @@ func (p *Pulse) observe(ctx context.Context, op opSpec, fn func(context.Context)
 	if !p.observing() {
 		return fn(ctx)
 	}
-	return p.observeOn(ctx, op, fn)
+	return p.observeOn(ctx, op, fn, nil)
 }
 
-func (p *Pulse) observeOn(ctx context.Context, op opSpec, fn func(context.Context) error) error {
+// observeOn is the on path of observe. result, when non-nil, returns the
+// operation's result value after fn ran, so the logger can report the
+// warning codes it carries.
+func (p *Pulse) observeOn(ctx context.Context, op opSpec, fn func(context.Context) error, result func() any) error {
 	info := observe.OperationInfo{
 		Kind:        op.kind,
 		Scope:       observe.ScopeTop,
@@ -76,21 +79,33 @@ func (p *Pulse) observeOn(ctx context.Context, op opSpec, fn func(context.Contex
 	// TODO(observability/E2-S2): streaming operations (ProcessStream,
 	// ProcessStreamResult, SynthStream) end here, at call return; E2-S2
 	// moves their end to drain / Close / ctx cancel.
-	p.hookEnd(ctx, info, observe.OperationResult{
+	res := observe.OperationResult{
 		Duration: time.Since(start),
 		Code:     operationCode(err),
-	})
+	}
+	if p.logger != nil {
+		var out any
+		if err == nil && result != nil {
+			out = result()
+		}
+		p.logOperation(ctx, info, res, err, out)
+	}
+	p.hookEnd(ctx, info, res)
 	return err
 }
 
-// observed adapts observe to a method returning (T, error).
+// observed adapts observe to a method returning (T, error). Off, it is
+// fn(ctx) and nothing else.
 func observed[T any](p *Pulse, ctx context.Context, op opSpec, fn func(context.Context) (T, error)) (T, error) {
+	if !p.observing() {
+		return fn(ctx)
+	}
 	var out T
-	err := p.observe(ctx, op, func(ctx context.Context) error {
+	err := p.observeOn(ctx, op, func(ctx context.Context) error {
 		var err error
 		out, err = fn(ctx)
 		return err
-	})
+	}, func() any { return out })
 	return out, err
 }
 

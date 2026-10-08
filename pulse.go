@@ -586,6 +586,7 @@ type Pulse struct {
 
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
+	start := time.Now()
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		return nil, err
 	}
@@ -718,12 +719,14 @@ func New(opts Options) (*Pulse, error) {
 		SourceFS:                  opts.ImportSourceFS,
 		SourceJailRoot:            opts.ImportSourceJailRoot,
 		DefaultSetInferenceMinPct: opts.SetInferenceMinPct,
+		Logger:                    opts.Logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("pulse: configuring imports manager: %w", err)
 	}
+	templates.SetLogger(opts.Logger)
 
-	return &Pulse{
+	p := &Pulse{
 		svc:            svc,
 		fsys:           fsCfg.Fs(),
 		imports:        importsMgr,
@@ -734,7 +737,9 @@ func New(opts Options) (*Pulse, error) {
 		logger:         opts.Logger,
 		hooks:          opts.Hooks,
 		metrics:        opts.Metrics,
-	}, nil
+	}
+	logNew(opts.Logger, start, len(templates.Dirs()))
+	return p, nil
 }
 
 // zone resolves a zone name through this instance's cache. It returns a

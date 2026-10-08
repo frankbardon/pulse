@@ -5,7 +5,11 @@
 // the root, so there is no cycle.
 package facadebridge
 
-import descx "github.com/frankbardon/pulse/internal/descriptor"
+import (
+	"log/slog"
+
+	descx "github.com/frankbardon/pulse/internal/descriptor"
+)
 
 // ExtensionsSnapshot returns the read-only extension projection a
 // *pulse.Pulse was built with. The argument is typed any because this
@@ -27,3 +31,9 @@ var CohortScanDisabled func(p any) bool
 // *pulse.Pulse returns nil, which is also unscoped. Installed by the
 // root package's init.
 var InstanceSnapshot func(p any) *descx.InstanceSnapshot
+
+// Logger returns the *slog.Logger a *pulse.Pulse was built with
+// (Options.Logger), or nil. The MCP adapter logs its startup cohort scan
+// through it. Anything other than a *pulse.Pulse returns nil. Installed
+// by the root package's init.
+var Logger func(p any) *slog.Logger
