@@ -54,6 +54,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-weighted-mean`](skills/op-agg-weighted-mean.md): Weighted arithmetic mean — sum(field * weight) / sum(weight).
 - [`op-agg-welford`](skills/op-agg-welford.md): Streaming Welford-Pébaÿ moment triple — running mean, sample variance (n-1), and observed count.
 - [`op-agg-zscore`](skills/op-agg-zscore.md): Standardized z-score aggregate — mean-centered, stddev-scaled summary.
+- [`op-attr-code-in`](skills/op-attr-code-in.md): Per-row 0/1 — whether a field's value is one of a list of codes; its mean is the share of the whole base.
 - [`op-attr-date-part`](skills/op-attr-date-part.md): Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field.
 - [`op-attr-formula`](skills/op-attr-formula.md): Per-row expression evaluation against the record's fields via expr-lang.
 - [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1].
