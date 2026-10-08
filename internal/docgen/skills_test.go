@@ -46,8 +46,14 @@ func TestFenceFrontmatter(t *testing.T) {
 // TestRenderSkill_ServedBody: a skill page is the instance's served
 // body with only the frontmatter fenced and stems linked — removing
 // both book-only changes gives the served body back byte for byte.
+// Render then applies one more book-only transform, escaping bare
+// `<word>` placeholders outside code; nothing else changes.
 func TestRenderSkill_ServedBody(t *testing.T) {
 	g := newGen(nil, Options{})
+	rendered := map[string]string{}
+	for _, f := range Render(nil, Options{}) {
+		rendered[f.Path] = string(f.Body)
+	}
 	linked := 0
 	for _, md := range g.visibleSkills() {
 		served, _ := g.disc.Skill(md.Name)
@@ -64,6 +70,9 @@ func TestRenderSkill_ServedBody(t *testing.T) {
 		}
 		if unlinked != page {
 			linked++
+		}
+		if rendered[skillPath(md.Name)] != escapePlaceholders(page) {
+			t.Fatalf("%s: rendered file is not the escaped page", md.Name)
 		}
 	}
 	if linked == 0 {

@@ -81,6 +81,8 @@ type File struct {
 
 // Render renders inst's reference tree. A nil inst renders the
 // unscoped, extension-free instance. The files are sorted by Path.
+// Every file passes through escapePlaceholders, so a bare `<word>`
+// placeholder in prose renders as text rather than as an HTML tag.
 func Render(inst *descx.InstanceSnapshot, opts Options) []File {
 	g := newGen(inst, opts)
 	files := map[string]string{}
@@ -108,7 +110,7 @@ func Render(inst *descx.InstanceSnapshot, opts Options) []File {
 
 	out := make([]File, 0, len(files))
 	for p, body := range files {
-		out = append(out, File{Path: p, Body: []byte(body)})
+		out = append(out, File{Path: p, Body: []byte(escapePlaceholders(body))})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out

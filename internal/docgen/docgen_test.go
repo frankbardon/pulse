@@ -466,3 +466,37 @@ func TestRender_GlossaryMatchesVirtualSkill(t *testing.T) {
 		t.Fatal("no instance drops a glossary term: vacuous")
 	}
 }
+
+// bareTag is a tag-shaped `<word>` token with no attributes; `<br>` is
+// the one such tag docgen emits as real HTML.
+var bareTag = regexp.MustCompile(`<([A-Za-z_][A-Za-z0-9_-]*)>`)
+
+// inlineCode is a single- or double-backtick inline code span.
+var inlineCode = regexp.MustCompile("``[^`].*?``|`[^`\n]+`")
+
+// TestRender_NoBarePlaceholderTags: outside code fences and inline code,
+// no rendered page carries a bare `<word>` placeholder — mdBook would
+// swallow it as an unclosed HTML tag and drop the text.
+func TestRender_NoBarePlaceholderTags(t *testing.T) {
+	for key, inst := range instances(t) {
+		for _, f := range docgen.Render(inst, docgen.Options{}) {
+			inFence := false
+			for n, line := range strings.Split(string(f.Body), "\n") {
+				trim := strings.TrimSpace(line)
+				if strings.HasPrefix(trim, "```") || strings.HasPrefix(trim, "~~~") {
+					inFence = !inFence
+					continue
+				}
+				if inFence {
+					continue
+				}
+				for _, m := range bareTag.FindAllStringSubmatch(inlineCode.ReplaceAllString(line, ""), -1) {
+					if strings.EqualFold(m[1], "br") {
+						continue
+					}
+					t.Errorf("%s: %s:%d: bare placeholder %s outside code: %q", key, f.Path, n+1, m[0], line)
+				}
+			}
+		}
+	}
+}

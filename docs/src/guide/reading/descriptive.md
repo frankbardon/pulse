@@ -533,7 +533,7 @@ Adds columns holding the value squared, cubed and so on up to a chosen power, so
 
 #### `value.*`
 
-One column per power k from 2 up to the degree, named <prefix>_<k> (prefix is the label, by default <field>_poly), each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 column; the original field is it.
+One column per power k from 2 up to the degree, named &lt;prefix&gt;_&lt;k&gt; (prefix is the label, by default &lt;field&gt;_poly), each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 column; the original field is it.
 
 **Caveats:**
 
