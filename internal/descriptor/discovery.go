@@ -66,6 +66,10 @@ type Discovery struct {
 	// (Extensions.Skills; extension_skills.go), keyed by name; a pruned
 	// one sits in hiddenSkills like a pruned built-in.
 	ext map[string]ExtensionSkill
+	// extSnap is the instance's extension registrations: the Purpose /
+	// Interpretation source of an embedder skill's generated sections
+	// (skill_sections.go). Nil when the instance registers none.
+	extSnap *ExtensionsSnapshot
 	// passBuiltins: the instance hides nothing (a Discovery built only
 	// to serve embedder skills), so built-in skills pass through to
 	// skills.List / skills.Get byte-identically.
@@ -102,6 +106,7 @@ func buildDiscovery(inst *InstanceSnapshot, g *OntologyGraph) *Discovery {
 		topical:        map[string]struct{}{},
 		scrub:          NewProseScrub(inst),
 		graph:          g,
+		extSnap:        inst.Extensions(),
 	}
 	for _, md := range skills.List() {
 		if md.Kind == "design" {

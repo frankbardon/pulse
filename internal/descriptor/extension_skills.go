@@ -45,7 +45,8 @@ import (
 //     registered extension operator (requires);
 //  6. sections — the family's required `##` headings
 //     (skills.RequiredSections);
-//  7. budget — skills.BodyBudget, HARD (one byte over fails);
+//  7. budget — skills.BodyBudget, HARD (one byte over fails), measured
+//     with generated-section markers removed (they render from metadata);
 //  8. fence — skills.ParseFences + every name a node of the graph;
 //  9. fence_coverage — every feature name (built-in operator,
 //     `<kind>:<name>` feature, feature-owned `pulse_*` tool, registered
@@ -277,7 +278,7 @@ func checkExtensionSkillBody(s ExtensionSkill, g *OntologyGraph, list map[string
 		return skillInvalid(md.Name, SkillReasonSections, "missing required section(s) "+strings.Join(missing, ", "), map[string]any{"missing": missing})
 	}
 	if budget, ok := skills.BodyBudget(md.Name, md.Kind); ok {
-		if n := len(skills.StripFrontmatter(full)); n > budget {
+		if n := len(skills.StripFrontmatter(skills.RenderGenerated(full, nil))); n > budget {
 			return skillInvalid(md.Name, SkillReasonBudget, fmt.Sprintf("body is %d bytes, over the %d-byte budget", n, budget), map[string]any{"bytes": n, "budget": budget})
 		}
 	}
