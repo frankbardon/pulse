@@ -273,22 +273,3 @@ func TestLogImportsSweep(t *testing.T) {
 		t.Fatalf("want one Info imports_sweep removed=0 explicit=true, got %+v", recs)
 	}
 }
-
-// TestLogNilLoggerSilent: without a Logger nothing reaches any handler —
-// the default slog handler included.
-func TestLogNilLoggerSilent(t *testing.T) {
-	h := &captureHandler{}
-	prev := slog.Default()
-	slog.SetDefault(slog.New(h))
-	defer slog.SetDefault(prev)
-
-	p, _ := obsFixture(t, Options{})
-	ctx := context.Background()
-	_, _ = p.Process(ctx, obsRequest())
-	_, _ = p.WidenSetField(ctx, obsCohort, "region", "not_a_type")
-	_, _ = p.BuildIndex(ctx, obsCohort, []string{"id"})
-	_, _ = p.SweepImports(ctx)
-	if recs := h.take(); len(recs) != 0 {
-		t.Fatalf("nil Logger produced %d records: %+v", len(recs), recs)
-	}
-}

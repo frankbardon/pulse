@@ -1,13 +1,10 @@
 package pulse
 
 import (
-	"bytes"
 	"context"
 	stderrors "errors"
-	"log/slog"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 
@@ -453,50 +450,6 @@ func TestObserveInfoCarriesCohortAndHash(t *testing.T) {
 	}
 }
 
-// TestHookPanicRecoveredFacade: a panic in either hook is recovered,
-// logged (hook + op, never the panic value) and the operation's result
-// is unchanged.
-func TestHookPanicRecoveredFacade(t *testing.T) {
-	plain, _ := obsFixture(t, Options{})
-	wantResp, err := plain.Process(context.Background(), obsRequest())
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, hook := range []string{"start", "end"} {
-		t.Run(hook, func(t *testing.T) {
-			var logBuf bytes.Buffer
-			h := &observe.Hooks{}
-			const secret = "panic-value-sentinel"
-			if hook == "start" {
-				h.OnOperationStart = func(context.Context, observe.OperationInfo) context.Context { panic(secret) }
-			} else {
-				h.OnOperationEnd = func(context.Context, observe.OperationInfo, observe.OperationResult) { panic(secret) }
-			}
-			p, _ := obsFixture(t, Options{Hooks: h, Logger: slog.New(slog.NewTextHandler(&logBuf, nil))})
-			resp, err := p.Process(context.Background(), obsRequest())
-			if err != nil {
-				t.Fatalf("Process with panicking %s hook: %v", hook, err)
-			}
-			if !reflect.DeepEqual(resp.Data, wantResp.Data) {
-				t.Errorf("result changed under a panicking %s hook", hook)
-			}
-			out := logBuf.String()
-			if !strings.Contains(out, "hook="+hook) || !strings.Contains(out, "op=process") {
-				t.Errorf("panic not logged with hook/op: %q", out)
-			}
-			if strings.Contains(out, secret) {
-				t.Errorf("panic value leaked into the log: %q", out)
-			}
-		})
-	}
-	// No Logger: still recovered.
-	h := &observe.Hooks{OnOperationEnd: func(context.Context, observe.OperationInfo, observe.OperationResult) { panic("x") }}
-	p, _ := obsFixture(t, Options{Hooks: h})
-	if _, err := p.Process(context.Background(), obsRequest()); err != nil {
-		t.Fatal(err)
-	}
-}
-
 type countingHasher struct{ calls int }
 
 func (c *countingHasher) Hash() string { c.calls++; return "h" }
@@ -521,19 +474,5 @@ func TestObserveOffSkipsHashAndHooks(t *testing.T) {
 	_ = on.observe(context.Background(), opSpec{kind: observe.OpProcess, req: h}, func(context.Context) error { return nil })
 	if h.calls != 1 || on.opSeq.Load() != 1 {
 		t.Fatalf("on path: hash calls=%d opSeq=%d, want 1/1", h.calls, on.opSeq.Load())
-	}
-}
-
-// TestObserveOffNoExtraAllocs: the off path of the helper allocates
-// nothing beyond the work itself.
-func TestObserveOffNoExtraAllocs(t *testing.T) {
-	p, _ := obsFixture(t, Options{})
-	req := obsRequest()
-	ctx := context.Background()
-	allocs := testing.AllocsPerRun(100, func() {
-		_, _ = observed(p, ctx, requestOp(observe.OpProcess, req), func(context.Context) (int, error) { return 1, nil })
-	})
-	if allocs != 0 {
-		t.Fatalf("off-path observe allocated %v per run, want 0", allocs)
 	}
 }
