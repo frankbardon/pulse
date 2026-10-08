@@ -11,6 +11,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/temporal"
@@ -38,6 +39,15 @@ type Service struct {
 	// execution. The reducer caps spawn count at the shard count
 	// regardless of this knob.
 	shardWorkers int
+
+	// limits is the instance's effective resource limits, installed by
+	// pulse.New through SetLimits. Nil: the built-in defaults.
+	limits *limits.Limits
+
+	// entryHook, when set (tests only), runs inside BoundRequest with
+	// the ctx every RequestTimeout entry hands its run — bounded or not
+	// — so a test can wait out a tiny deadline deterministically.
+	entryHook func(ctx context.Context)
 
 	// decodeWorkers caps the per-cohort parallel decode worker pool
 	// the buffered Process path spawns when the cohort exceeds
@@ -205,6 +215,22 @@ func (s *Service) Extensions() *processing.ExtensionRegistry {
 // API boundary.
 func (s *Service) SetShardWorkers(n int) {
 	s.shardWorkers = n
+}
+
+// SetLimits installs the instance's effective (resolved, validated)
+// resource limits. pulse.New resolves and validates them; this setter
+// stores them as given.
+func (s *Service) SetLimits(l limits.Limits) {
+	s.limits = &l
+}
+
+// Limits returns the effective resource limits — the built-in defaults
+// when SetLimits was never called. The result is a copy.
+func (s *Service) Limits() limits.Limits {
+	if s.limits == nil {
+		return limits.Defaults()
+	}
+	return *s.limits
 }
 
 // ShardWorkers returns the configured cap. Exposed for tests and the
@@ -557,8 +583,10 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 // Records are streamed from disk — the full file is never held in memory as raw bytes
 // alongside the decoded records.
 func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Response, error) {
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	resp, err := s.process(ctx, req)
-	return resp, s.scopeRefusal(err)
+	return resp, s.scopeRefusal(MapRequestTimeout(ctx, err))
 }
 
 func (s *Service) process(ctx context.Context, req *types.Request) (*types.Response, error) {
@@ -650,6 +678,13 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
+	lin, err := s.limitInputs(ctx, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.limitsPreflight(req, cohort.Schema(), lin); err != nil {
 		return nil, err
 	}
 
@@ -1024,10 +1059,14 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 // defaults-resolved request for its precision exemptions) and shapes
 // the finished, overlay-folded response; the service never shapes.
 func (s *Service) ComposeResolved(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, []*types.Request, error) {
+	// RequestTimeout bounds the whole Compose call; every slot's
+	// Process runs under the same deadline (BoundRequest nests).
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	var slots []*types.Request
 	resp, err := s.compose(ctx, composed, &slots)
 	if err != nil {
-		return nil, nil, s.scopeRefusal(err)
+		return nil, nil, s.scopeRefusal(MapRequestTimeout(ctx, err))
 	}
 	return resp, slots, nil
 }
@@ -1035,6 +1074,9 @@ func (s *Service) ComposeResolved(ctx context.Context, composed *types.ComposedR
 func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, slots *[]*types.Request) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
+	}
+	if err := s.composeSlotsPreflight(composed); err != nil {
+		return nil, err
 	}
 	// Hidden slots — the composed root's own, then every slot's — are
 	// refused before any slot runs (details.request locates a slot's).

@@ -81,9 +81,13 @@ for i, resp := range resps {
 With `FailFast = true` (the default):
 
 - The first request to return an error cancels the shared context.
-- In-flight siblings observe cancellation via `ctx.Err()` and return
-  early.
-- `ComposeParallel` returns `(nil, theFirstError)`.
+- In-flight siblings observe cancellation via `ctx.Err()` (every
+  serial per-record loop polls it every 4,096 rows) and return early
+  with `context.Canceled`.
+- `ComposeParallel` returns `(nil, err)` where `err` is the
+  lowest-index failure that is not such a sibling cancellation, so the
+  error that tripped FailFast is the one reported. When the caller's
+  own ctx is done, the lowest-index failure is reported as is.
 
 With `FailFast = false`:
 
@@ -91,8 +95,27 @@ With `FailFast = false`:
 - Errors are aggregated into a single `SERVICE_INTERNAL` error whose
   `details` map carries `failed_indices` (a list of slot indices
   that errored).
-- Successful slots populate the returned response array; failed
-  slots are `nil` at their index.
+- The call returns `(nil, err)`: no partial response array is
+  returned, so the successful slots' results are discarded along with
+  the failed ones. The error is `SERVICE_INTERNAL`
+  (`compose parallel: N/M requests failed`); `details.first_error` holds
+  the lowest-index failure's text. A caller that needs the slots that
+  succeeded must call `Process` per request.
+
+A ctx that is already done before every slot launched returns the
+ctx error (with no slot error to report), never a response with
+unrun `nil` slots.
+
+## Timeouts
+
+`PerRequestTimeout` bounds each slot; a slot that runs out returns
+`context.DeadlineExceeded`, unchanged. The instance-wide
+`Options.Limits.RequestTimeout`, when set, bounds the whole
+`ComposeParallel` (or `Compose`) call instead: when it fires, the call
+returns `PULSE_LIMIT_EXCEEDED` with
+`{limit: "request_timeout", configured, observed}` (nanoseconds) and no
+partial result. A deadline or cancel on the caller's own ctx always
+passes through as `context.DeadlineExceeded` / `context.Canceled`.
 
 ## CLI parity
 

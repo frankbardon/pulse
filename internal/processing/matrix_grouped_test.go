@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
@@ -23,7 +24,7 @@ func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
 		Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"x", "y"}}},
 	}
 	build := func() *GroupedMatrices {
-		g, err := BuildGroupedMatrices(req, schema, nil, FullComputePlan())
+		g, err := BuildGroupedMatrices(req, schema, nil, FullComputePlan(), limits.Limits{})
 		if err != nil || g == nil {
 			t.Fatalf("BuildGroupedMatrices = %v, %v", g, err)
 		}
@@ -66,7 +67,7 @@ func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
 		t.Fatalf("finalize: %d results, components %+v; want 2 with n 3 and 1", len(res), comps)
 	}
 
-	if g, err := BuildGroupedMatrices(&types.Request{Matrices: req.Matrices}, schema, nil, FullComputePlan()); g != nil || err != nil {
+	if g, err := BuildGroupedMatrices(&types.Request{Matrices: req.Matrices}, schema, nil, FullComputePlan(), limits.Limits{}); g != nil || err != nil {
 		t.Errorf("ungrouped request built grouped matrix state %v, %v", g, err)
 	}
 }

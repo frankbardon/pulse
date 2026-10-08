@@ -5,6 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:83412aeeb1efd5ae9eb4f2dd4f01612514ee69d28a7663364cbdb359fe6b1e34",
+    "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
     "commands": [
       {
         "name": "process",
@@ -352,7 +353,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 78,
+    "error_codes_count": 80,
     "error_domains": [
       "CLI",
       "DATA",
@@ -424,6 +425,8 @@
       "PULSE_LABEL_FIELD_UNKNOWN",
       "PULSE_LABEL_LOOKUP_MISS",
       "PULSE_LABEL_TABLE_UNKNOWN",
+      "PULSE_LIMIT_EXCEEDED",
+      "PULSE_LIMIT_INVALID",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
       "PULSE_OVERLAY_KIND_UNKNOWN",
@@ -1189,9 +1192,59 @@
           "overlays[*].summary"
         ]
       }
+    ],
+    "limits": [
+      {
+        "name": "request_timeout",
+        "value": -1,
+        "default": -1,
+        "unit": "nanoseconds"
+      },
+      {
+        "name": "max_groups",
+        "value": 10000000,
+        "default": 10000000,
+        "unit": "count"
+      },
+      {
+        "name": "max_crosstab_cells",
+        "value": 10000000,
+        "default": 10000000,
+        "unit": "count"
+      },
+      {
+        "name": "max_estimated_memory",
+        "value": -1,
+        "default": -1,
+        "unit": "bytes"
+      },
+      {
+        "name": "max_matrix_dim",
+        "value": 2048,
+        "default": 2048,
+        "unit": "count"
+      },
+      {
+        "name": "max_compose_slots",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
+      },
+      {
+        "name": "max_chain_stages",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
+      },
+      {
+        "name": "max_join_build_rows",
+        "value": 100000000,
+        "default": 100000000,
+        "unit": "count"
+      }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: c9ee3b7a5d4d9bd103e6311a639f7d789cc8d076d1ea64dec80db71a548e2989
+// golden-hash: 5dd960c6331adb818ad65089ea0c7c7e8cad10c125834d72ba95aed16bd02383

@@ -174,6 +174,14 @@ pulse: type DedupResult field DedupReport.Target string "json:\"target\""
 pulse: type DedupResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type DedupResult field SidecarWarnings []*pulse/errors.CodedError "json:\"sidecar_warnings,omitempty\""
 pulse: type DedupResult method (*DedupResult) Warnings() []*pulse/errors.CodedError
+pulse: const DefaultMaxChainStages int64 = 1000
+pulse: const DefaultMaxComposeSlots int64 = 1000
+pulse: const DefaultMaxCrosstabCells int64 = 10000000
+pulse: const DefaultMaxEstimatedMemory int64 = -1
+pulse: const DefaultMaxGroups int64 = 10000000
+pulse: const DefaultMaxJoinBuildRows int64 = 100000000
+pulse: const DefaultMaxMatrixDim int64 = 2048
+pulse: const DefaultRequestTimeout time.Duration = -1
 pulse: func DescribeFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDescription, error)
 pulse: func DiffFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDiff, error)
 pulse: type DistributionRegistration struct
@@ -301,6 +309,7 @@ pulse: type FeatureDescription field Unknown *pulse.FeatureProfileUnknownName "j
 pulse: type FeatureProfile struct
 pulse: type FeatureProfile field Behaviour *pulse.FeatureProfileBehaviour "json:\"behaviour,omitempty\""
 pulse: type FeatureProfile field Features []string "json:\"features\""
+pulse: type FeatureProfile field Limits *pulse.FeatureProfileLimits "json:\"limits,omitempty\""
 pulse: type FeatureProfile field Profile string "json:\"profile,omitempty\""
 pulse: type FeatureProfile field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type FeatureProfile field WrittenWith string "json:\"written_with,omitempty\""
@@ -331,6 +340,15 @@ pulse: type FeatureProfileDiff field Profile string "json:\"profile,omitempty\""
 pulse: type FeatureProfileDiff field Unknown []pulse.FeatureProfileUnknownName "json:\"unknown\""
 pulse: type FeatureProfileDiff field Version string "json:\"version\""
 pulse: type FeatureProfileDiff field WrittenWith string "json:\"written_with,omitempty\""
+pulse: type FeatureProfileLimits struct
+pulse: type FeatureProfileLimits field MaxChainStages int64 "json:\"max_chain_stages,omitempty\""
+pulse: type FeatureProfileLimits field MaxComposeSlots int64 "json:\"max_compose_slots,omitempty\""
+pulse: type FeatureProfileLimits field MaxCrosstabCells int64 "json:\"max_crosstab_cells,omitempty\""
+pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_estimated_memory,omitempty\""
+pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
+pulse: type FeatureProfileLimits field MaxJoinBuildRows int64 "json:\"max_join_build_rows,omitempty\""
+pulse: type FeatureProfileLimits field MaxMatrixDim int64 "json:\"max_matrix_dim,omitempty\""
+pulse: type FeatureProfileLimits field RequestTimeout string "json:\"request_timeout,omitempty\""
 pulse: type FeatureProfileMissing struct
 pulse: type FeatureProfileMissing field Category string "json:\"category,omitempty\""
 pulse: type FeatureProfileMissing field Kind string "json:\"kind\""
@@ -502,6 +520,16 @@ pulse: type LabelTableInfo struct
 pulse: type LabelTableInfo field Enumerable bool "json:\"enumerable\""
 pulse: type LabelTableInfo field Name string "json:\"name\""
 pulse: type LabelTableInfo field RowCount int "json:\"row_count\""
+pulse: type Limits = pulse/internal/limits.Limits
+pulse: type Limits underlying struct
+pulse: type Limits field MaxChainStages int64
+pulse: type Limits field MaxComposeSlots int64
+pulse: type Limits field MaxCrosstabCells int64
+pulse: type Limits field MaxEstimatedMemory int64
+pulse: type Limits field MaxGroups int64
+pulse: type Limits field MaxJoinBuildRows int64
+pulse: type Limits field MaxMatrixDim int64
+pulse: type Limits field RequestTimeout time.Duration
 pulse: func LoadMemberSetFromReader(r io.Reader, schema *pulse/encoding.Schema, fieldName string) (pulse.LoadMemberSetResult, error)
 pulse: type LoadMemberSetResult struct
 pulse: type LoadMemberSetResult field Invalid int
@@ -561,6 +589,7 @@ pulse: type Options field ImportSourceJailRoot string
 pulse: type Options field ImportTTL time.Duration
 pulse: type Options field ImportsDir string
 pulse: type Options field LabelTablesDir string
+pulse: type Options field Limits pulse.Limits
 pulse: type Options field ProjectBufferedFields bool
 pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
@@ -642,6 +671,7 @@ pulse: type Pulse method (*Pulse) InspectBytes(ctx context.Context, data []byte,
 pulse: type Pulse method (*Pulse) InspectEnvelope(ctx context.Context, path string, opts *pulse/descriptor.InspectOptions) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) InvalidatedSidecars(ctx context.Context, cohortPath string) ([]pulse.StaleSidecar, error)
 pulse: type Pulse method (*Pulse) LabelTables() []pulse.LabelTableInfo
+pulse: type Pulse method (*Pulse) Limits() pulse.Limits
 pulse: type Pulse method (*Pulse) ListIndexes(ctx context.Context, path string) ([]pulse.IndexInfo, error)
 pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath string) ([]pulse.ShardEntry, error)
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
@@ -955,6 +985,7 @@ pulse: type TestRegistration field WeightAware bool
 pulse: type TestTier string
 pulse: const TestTierPost pulse.TestTier = "tier2"
 pulse: const TestTierRow pulse.TestTier = "tier1"
+pulse: const Unlimited untyped int = -1
 pulse: type VerifyIndexResult = pulse/internal/service.VerifyIndexResult
 pulse: type VerifyIndexResult underlying struct
 pulse: type VerifyIndexResult field FastPath bool
@@ -1234,6 +1265,19 @@ pulse/descriptor: type Level string
 pulse/descriptor: const LevelAdvanced pulse/descriptor.Level = "advanced"
 pulse/descriptor: const LevelBasic pulse/descriptor.Level = "basic"
 pulse/descriptor: const LevelIntermediate pulse/descriptor.Level = "intermediate"
+pulse/descriptor: type LimitFinding struct
+pulse/descriptor: type LimitFinding field Configured int64 "json:\"configured\""
+pulse/descriptor: type LimitFinding field Estimated int64 "json:\"estimated\""
+pulse/descriptor: type LimitFinding field Grade pulse/descriptor.LimitGrade "json:\"grade\""
+pulse/descriptor: type LimitFinding field Limit string "json:\"limit\""
+pulse/descriptor: type LimitGrade string
+pulse/descriptor: const LimitGradeCertain pulse/descriptor.LimitGrade = "certain"
+pulse/descriptor: const LimitGradePossible pulse/descriptor.LimitGrade = "possible"
+pulse/descriptor: type LimitMeta struct
+pulse/descriptor: type LimitMeta field Default int64 "json:\"default\""
+pulse/descriptor: type LimitMeta field Name string "json:\"name\""
+pulse/descriptor: type LimitMeta field Unit string "json:\"unit\""
+pulse/descriptor: type LimitMeta field Value int64 "json:\"value\""
 pulse/descriptor: type LookupTableMeta struct
 pulse/descriptor: type LookupTableMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type LookupTableMeta field HasRowsData bool "json:\"has_rows_data\""
@@ -1261,6 +1305,8 @@ pulse/descriptor: type Manifest field FormatVersion string "json:\"format_versio
 pulse/descriptor: type Manifest field Import *pulse/descriptor.ImportCapability "json:\"import,omitempty\""
 pulse/descriptor: type Manifest field Intents []string "json:\"intents\""
 pulse/descriptor: type Manifest field Join *pulse/descriptor.JoinCapability "json:\"join,omitempty\""
+pulse/descriptor: type Manifest field Limits []pulse/descriptor.LimitMeta "json:\"limits\""
+pulse/descriptor: type Manifest field LimitsDigest string "json:\"limits_digest\""
 pulse/descriptor: type Manifest field MCPTools []pulse/descriptor.MCPTool "json:\"mcp_tools\""
 pulse/descriptor: type Manifest field Matrices []pulse/descriptor.MatrixMeta "json:\"matrices\""
 pulse/descriptor: type Manifest field Matrix *pulse/descriptor.MatrixCapability "json:\"matrix,omitempty\""
@@ -1427,6 +1473,7 @@ pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:
 pulse/descriptor: type PredictResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
 pulse/descriptor: type PredictResult field Filterers []pulse/descriptor.FiltererPredict "json:\"filterers\""
 pulse/descriptor: type PredictResult field Groups []pulse/descriptor.GroupPredict "json:\"groups\""
+pulse/descriptor: type PredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse/descriptor: type PredictResult field Matrices []pulse/descriptor.MatrixPredict "json:\"matrices,omitempty\""
 pulse/descriptor: type PredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse/descriptor: type PredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
@@ -1965,6 +2012,8 @@ pulse/errors: const PULSE_LABEL_FIELD_UNKNOWN pulse/errors.Code = "PULSE_LABEL_F
 pulse/errors: const PULSE_LABEL_LOOKUP_MISS pulse/errors.Code = "PULSE_LABEL_LOOKUP_MISS"
 pulse/errors: const PULSE_LABEL_TABLE_NOT_ENUMERABLE pulse/errors.Code = "PULSE_LABEL_TABLE_NOT_ENUMERABLE"
 pulse/errors: const PULSE_LABEL_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LABEL_TABLE_UNKNOWN"
+pulse/errors: const PULSE_LIMIT_EXCEEDED pulse/errors.Code = "PULSE_LIMIT_EXCEEDED"
+pulse/errors: const PULSE_LIMIT_INVALID pulse/errors.Code = "PULSE_LIMIT_INVALID"
 pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMBIGUOUS"
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
@@ -4205,4 +4254,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d4786e775de7f562bbabd9ac00de0e67e63d7f63bff7ef35bbe200a1fc28026c
+// golden-hash: d95da98046874bea46c8be53bb7cb5ca1eecdd906a890a8b39721916e1e229b7

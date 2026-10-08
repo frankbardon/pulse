@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -69,10 +70,14 @@ func (s *Service) ComposeParallelResolved(
 	composed *types.ComposedRequest,
 	opts ComposeOptions,
 ) (*types.ComposedResponse, []*types.Request, error) {
+	// RequestTimeout bounds the whole call; PerRequestTimeout stays the
+	// per-slot knob, and its raw DeadlineExceeded passes through.
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	var slots []*types.Request
 	resp, err := s.composeParallel(ctx, composed, opts, &slots)
 	if err != nil {
-		return nil, nil, s.scopeRefusal(err)
+		return nil, nil, s.scopeRefusal(MapRequestTimeout(ctx, err))
 	}
 	return resp, slots, nil
 }
@@ -86,6 +91,9 @@ func (s *Service) composeParallel(
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"composed request must contain at least one request")
+	}
+	if err := s.composeSlotsPreflight(composed); err != nil {
+		return nil, err
 	}
 	// Hidden slots are refused before the worker pool starts, exactly
 	// as on the serial path.
@@ -143,11 +151,13 @@ func (s *Service) composeParallel(
 	sem := make(chan struct{}, o.MaxWorkers)
 	var wg sync.WaitGroup
 
+	launched := 0
 	for i, req := range requests {
 		// Bail before launching when ctx is already cancelled.
 		if runCtx.Err() != nil {
 			break
 		}
+		launched++
 		i, req := i, req
 		wg.Add(1)
 		sem <- struct{}{}
@@ -173,9 +183,10 @@ func (s *Service) composeParallel(
 	}
 	wg.Wait()
 
-	// Aggregate errors if any. FailFast surfaces the first observed error
-	// (lowest-index winner); non-FailFast wraps every error with its slot
-	// index so callers see the full picture.
+	// Aggregate errors if any. FailFast surfaces the lowest-index error
+	// that is not a sibling cancellation (failFastWinner); non-FailFast
+	// wraps every error with its slot index so callers see the full
+	// picture.
 	var firstErr error
 	var failed []int
 	for i, e := range errs {
@@ -186,15 +197,22 @@ func (s *Service) composeParallel(
 			}
 		}
 	}
+	// A done ctx that stopped the launch loop before every slot ran,
+	// with no slot error to report, is the ctx's own error — never a
+	// "successful" response with unrun (nil) slots.
+	if firstErr == nil && launched < n {
+		return nil, runCtx.Err()
+	}
 	if firstErr != nil {
 		if o.FailFast {
 			// FailFast=true + any-slot-failed: SKIP the overlay
 			// barrier entirely. When ComposeOptions.FailFast is true
 			// and any slot fails, overlays are skipped — no
 			// applyComposeOverlays call, no partial emission. The
-			// failing call returns immediately with the first
-			// observed error.
-			return nil, fmt.Errorf("compose parallel: request %d: %w", failed[0], locate(firstErr, "request", failed[0]))
+			// failing call returns immediately with the error that
+			// tripped FailFast.
+			w := failFastWinner(ctx, errs, failed)
+			return nil, fmt.Errorf("compose parallel: request %d: %w", w, locate(errs[w], "request", w))
 		}
 		details := map[string]any{"failed_indices": failed, "first_error": firstErr.Error()}
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_INTERNAL,
@@ -246,4 +264,22 @@ func (s *Service) composeParallel(
 	}
 
 	return out, nil
+}
+
+// failFastWinner picks the slot whose error a FailFast Compose reports:
+// the lowest-index failure that is not a sibling cancellation. A slot
+// that was still running when another slot's error cancelled runCtx
+// stops with context.Canceled (the serial loops poll ctx); reporting
+// that would hide the real failure behind its own side effect. When
+// the CALLER's ctx is done every cancellation is genuine, so the
+// lowest-index failure wins as before. failed is non-empty.
+func failFastWinner(ctx context.Context, errs []error, failed []int) int {
+	if ctx.Err() == nil {
+		for _, i := range failed {
+			if !stderrors.Is(errs[i], context.Canceled) {
+				return i
+			}
+		}
+	}
+	return failed[0]
 }

@@ -150,7 +150,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 ### Manifest payload
 
-`internal/descriptor.BuildManifest()` returns the deterministic LLM-bootstrap blob — one fetch per session, client-cached, reachable as `pulse manifest --json` and `pulse_manifest`. Top level: `format_version`, `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, `intents`, `return_presets`, `feature_set_digest`, plus the capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Export`, `Import` (pointers, omitted when hidden) and `Overlays`. Sort-stable; golden at `descriptor/testdata/manifest.json`. Declarations live in `internal/descriptor/capabilities_*.go`; MCP tool metadata in `internal/mcp/toolmeta/meta.go`.
+`internal/descriptor.BuildManifest()` returns the deterministic LLM-bootstrap blob — one fetch per session, client-cached, reachable as `pulse manifest --json` and `pulse_manifest`. Top level: `format_version`, `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, `intents`, `return_presets`, `limits` + `limits_digest` (effective limits; cache key `(pulse_version, feature_set_digest, limits_digest)`), `feature_set_digest`, plus the capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Export`, `Import` (pointers, omitted when hidden) and `Overlays`. Sort-stable; golden at `descriptor/testdata/manifest.json`. Declarations live in `internal/descriptor/capabilities_*.go`; MCP tool metadata in `internal/mcp/toolmeta/meta.go`.
 
 ### Predict / Inspect contracts
 
@@ -194,7 +194,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 Both table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
-**Knobs.** `pulse.Options` concurrency `ShardWorkers` / `DecodeWorkers` (default `0` ⇒ `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs `DictPrefixFast` / `MaxPanelTargets`: `.claude/reference/execution-modes.md` (Parallel shards, Parallel buffered Process, Overlays).
+**Knobs.** `pulse.Options` concurrency `ShardWorkers` / `DecodeWorkers` (default `0` ⇒ `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs `DictPrefixFast` / `MaxPanelTargets`: `.claude/reference/execution-modes.md` (Parallel shards, Parallel buffered Process, Overlays). Resource limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), guide `docs/src/library/tuning-limits.md`.
 
 Hermetic testing: `fs.NewMemMap()` (`internal/fs`) returns an `afero.NewMemMapFs()`-backed `Config`; no disk I/O.
 

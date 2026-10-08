@@ -59,10 +59,13 @@ func (s *Service) neededFields(req *types.Request, schema *encoding.Schema) proc
 // (computePlanFor: the plan Service.process resolved onto ctx), and the
 // weighting knobs (Options.DefaultWeight, which the
 // processor folds into each run through processing.StampWeights, and
-// strict mode, which turns PULSE_WEIGHT_INVALID_ROWS into an error).
+// strict mode, which turns PULSE_WEIGHT_INVALID_ROWS into an error),
+// and the instance's effective resource limits (Service.Limits — the
+// parallel reducers bypass this and take them through newShardPartial).
 func (s *Service) newProcessor(ctx context.Context, schema *encoding.Schema, req *types.Request) *processing.Processor {
 	proc := processing.NewProcessorWithExtensions(schema, s.extensions)
 	proc.SetComputePlan(s.computePlanFor(ctx, req))
 	proc.SetWeighting(s.defaultWeight, s.strict)
+	proc.SetLimits(s.Limits())
 	return proc
 }

@@ -78,6 +78,27 @@ absent for a request without a crosstab. Output is identical on either
 arm. An engine built with `Options.DisableCrosstabFusion` answers
 `false` with that reason.
 
+`limit_findings` lists every instance resource limit
+(`Options.Limits`) a predicted figure exceeds, as
+`{limit, configured, estimated, grade}`; it is absent when nothing
+exceeds a limit. A `certain` finding is an exact figure — the request
+is refused with `PULSE_LIMIT_EXCEEDED` (`valid: false`), exactly as
+`process` would refuse it before reading a record. A `possible` finding
+is an upper bound and only a warning. Today predict reports
+`max_groups` (`possible`: the group buckets the first grouper can
+create — a categorical's dictionary size, a boolean's two values, an
+`include` list, a quantile's bins, or a date-ranges grouper's ranges
+plus its unmatched bucket — capped by the record count; groupers whose
+keys depend on the data report nothing), `max_crosstab_cells`
+(`possible`: the crosstab grid, rows × columns, from the same per-grouper
+key counts; nothing when an axis grouper's keys depend on the data),
+`max_matrix_dim` (a matrix's
+member count) and `max_join_build_rows` (a join's right-side record
+count, read from the right cohort's header without reading a record).
+A run that does create more groups than `max_groups`, or a larger
+crosstab grid than `max_crosstab_cells`, is refused
+`PULSE_LIMIT_EXCEEDED` mid-scan, with no partial result.
+
 When the request emits inferential p-values, `p_values` reports
 `{total, uncorrected, basis, threshold}`: how many it emits and how many
 no `multiplicity` block corrects. An `uncorrected` count at or above

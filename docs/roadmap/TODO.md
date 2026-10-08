@@ -196,7 +196,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#79** `Request.Matrices` / `Response.Matrices`, `MatrixResult`, and the symmetric/upper-triangle `MatrixPayload` encoding · [U16](units/U16-matrix-result.md)
 - [x] **#80** Matrix components floor; manifest `Matrix` capability block; predict shape and cost · [U16](units/U16-matrix-result.md)
 - [x] **#81** Payload-schema golden regenerated; `.claude/reference/matrix-and-vectors.md` · [U16](units/U16-matrix-result.md)
-- [x] **#82** `MaxMatrixDim`, `precision` and `top_pairs` controls · [U16](units/U16-matrix-result.md) (`top_pairs` only; `precision` → [U17](units/U17-response-shaping-core.md), landed there; `MaxMatrixDim` → [U19](units/U19-resource-limits.md))
+- [x] **#82** `MaxMatrixDim`, `precision` and `top_pairs` controls · [U16](units/U16-matrix-result.md) (`top_pairs` only; `precision` → [U17](units/U17-response-shaping-core.md), landed there; `MaxMatrixDim` → [U19](units/U19-resource-limits.md), landed there)
 - [x] **#83** `MAT_COVARIANCE` · [U16](units/U16-matrix-result.md)
 - [x] **#84** `MAT_CORRELATION` (Pearson), with parity against `TEST_PEARSON_R` · [U16](units/U16-matrix-result.md)
 
@@ -253,12 +253,21 @@ Theme documents: see the [roadmap index](README.md).
 ## 9. Embedder operations
 
 ### Resource limits ([embedder-operations 01](v1.0.0-embedder-operations/01-resource-limits.md))
-- [ ] **#112** `Options.Limits` with high defaults; validation at `pulse.New` · [U19](units/U19-resource-limits.md)
-- [ ] **#113** Predict-time checks + `PredictResult.LimitFindings` · [U19](units/U19-resource-limits.md)
-- [ ] **#114** Runtime checks (groups, crosstab cells, join build, matrix dim, compose / chain fan-out, memory estimate, timeout) · [U19](units/U19-resource-limits.md)
-- [ ] **#115** `PULSE_LIMIT_EXCEEDED` with tuning fixups · [U19](units/U19-resource-limits.md)
-- [ ] **#116** Profile-file `limits` section; manifest `limits` block; `pulse mcp --limit` · [U19](units/U19-resource-limits.md)
-- [ ] **#117** Defaults-never-trip, predict/runtime parity and memory-release gates; "Tuning limits" docs page · [U19](units/U19-resource-limits.md)
+- [x] **#112** `Options.Limits` with high defaults; validation at `pulse.New` · [U19](units/U19-resource-limits.md)
+- [x] **#113** Predict-time checks + `PredictResult.LimitFindings` · [U19](units/U19-resource-limits.md)
+- [x] **#114** Runtime checks (groups, crosstab cells, join build, matrix dim, compose / chain fan-out, memory estimate, timeout) · [U19](units/U19-resource-limits.md)
+- [x] **#115** `PULSE_LIMIT_EXCEEDED` with tuning fixups · [U19](units/U19-resource-limits.md)
+- [x] **#116** Profile-file `limits` section; manifest `limits` block; `pulse mcp --limit` · [U19](units/U19-resource-limits.md)
+- [x] **#117** Defaults-never-trip, predict/runtime parity and memory-release gates; "Tuning limits" docs page · [U19](units/U19-resource-limits.md)
+
+#### Follow-ups from U19
+- [ ] **#224** `ComposeOptions.FailFast=false` returns `(nil, SERVICE_INTERNAL)` and discards the slots that succeeded; decide whether partial slots are returned before the freeze (the doc now states today's behaviour) · [U33](units/U33-v1-release.md)
+- [ ] **#225** The simple `pulse.Facet(path, field)` facade runs no limits pre-flight (only `FacetSchema` / the rich facet is guarded); give it the same `MaxEstimatedMemory` pre-flight · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#226** Predict reports no limit findings for Compose, ProcessChain or Facet requests (no facade predict surface); slot/stage counts and facet group counts are treated as unknowable at predict · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#227** `mcpserve.Describe` / `ServeInfo` report the effective limits (the manifest `limits` block and the `pulse mcp` startup line already do) · [U20](units/U20-observability.md)
+- [ ] **#228** `Pulse.ProcessStream` (RowIter) bounds only the run with `RequestTimeout`; draining with `Next(ctx)` runs under the caller's ctx (`ProcessStreamResult` bounds both). Keep and document, or bound the drain too · [U33](units/U33-v1-release.md)
+- [ ] **#229** Tighten the memory estimate: it ignores field projection (up to ~4.9x over on projected buffered runs) and assumes at most one right match per left row (a 1:N fan-out join can exceed it) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#230** Extension aggregators declare a state-size hint so the memory estimate can bound extensions with unbounded state (today they are outside the model) · [U34](units/U34-extension-validation.md)
 
 ### Observability ([embedder-operations 02](v1.0.0-embedder-operations/02-observability.md))
 - [ ] **#118** `Options.Logger` (`slog`, nil = silent); context-aware; no row data · [U20](units/U20-observability.md)

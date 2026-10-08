@@ -447,6 +447,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_RETURN_INVALID:        shared,
 	errors.PULSE_RETURN_PATH_UNKNOWN:   shared,
 	errors.PULSE_RETURN_PATH_UNMATCHED: shared,
+	errors.PULSE_LIMIT_INVALID:         shared,
+	errors.PULSE_LIMIT_EXCEEDED:        shared,
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

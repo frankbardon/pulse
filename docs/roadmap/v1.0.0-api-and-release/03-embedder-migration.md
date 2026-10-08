@@ -359,6 +359,27 @@ Landed in U18 (no release tag cut by the unit). The library default is unchanged
 | an excluded overlay, test, post-test or regression slot still ran and could refuse or warn | an excluded part is not computed, so it raises no refusal or warning (`PULSE_OVERLAY_COMPONENTS_REQUIRED`, `PULSE_TEST_*`, `PROCESSING_REGRESSION_*`, `PULSE_WEIGHT_LOW_NEFF`); `Predict` stays the validator. Chain stages still refuse tests / regressions (`PULSE_CHAIN_NOT_MERGEABLE`); a partly skipped Go `tests` / `post_tests` slice holds nil at skipped positions | behaviour change — **only for requests with an excluding `return`** | run `Predict` to validate a request before shaping it; keep a part in `return` to have it validated and computed | U18 |
 | no per-section size figure | `PredictResult.Sizes` (`descriptor.ResponseSectionSize`, on every request) and `PredictResult.Return.UnresolvedIncludes` | added | none | U18 |
 
+## Changes from U19 (resource limits)
+
+Landed in U19 (no release tag cut by the unit). Defaults are high enough that no embedded example or golden request trips them (`TestLimitsDefaultsNeverTripGoldens`). Guide: [Tuning Limits](../../src/library/tuning-limits.md).
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| no instance resource limits | `pulse.Limits` (alias of the internal struct; fields `RequestTimeout`, `MaxGroups`, `MaxCrosstabCells`, `MaxEstimatedMemory`, `MaxMatrixDim`, `MaxComposeSlots`, `MaxChainStages`, `MaxJoinBuildRows`), `pulse.Unlimited` (`-1`), `pulse.Default*` constants, `Options.Limits`, `(*Pulse).Limits()` | added | none unless you want to tighten. `0` = default, `-1` = unlimited, other negatives fail `pulse.New` with `PULSE_LIMIT_INVALID`; precedence per field: `Options.Limits`, then the profile `limits`, then the default | U19 |
+| feature profile refused a `limits` key | `pulse.FeatureProfileLimits` (snake_case JSON; `request_timeout` is a duration string) on `FeatureProfile.Limits`; a bad value is `PULSE_FEATURE_PROFILE_INVALID` reason `invalid_limits` | added | a profile that used no `limits` key is unaffected | U19 |
+| (none) | `descriptor.PredictResult.LimitFindings` (`[]descriptor.LimitFinding {limit, configured, estimated, grade}`), `descriptor.LimitGradeCertain` / `LimitGradePossible` | added (`omitempty`) | a `certain` finding also makes `Valid` false with `PULSE_LIMIT_EXCEEDED`; a `possible` one is informational | U19 |
+| (none) | `descriptor.LimitMeta`, `Manifest.Limits` (`[{name, value, default, unit}]`), `Manifest.LimitsDigest` (`lim1:` + SHA-256); `pulse mcp --limit name=value` (repeatable) | added | agents read `manifest.limits` and re-fetch when `limits_digest` moves; `feature_set_digest` does not change with limits | U19 |
+| (none) | error codes `PULSE_LIMIT_INVALID`, `PULSE_LIMIT_EXCEEDED` (details `{limit, configured, observed, option}`) | added | resolve with `pulse errors lookup CODE`; the manifest golden changed (error list, limits block) | U19 |
+| serial per-record loops ignored the caller ctx | serial streaming, buffered materialize, fused and buffered crosstab, join build and facet loops poll ctx on the first row and every 4,096 rows | behaviour change | a cancelled or timed-out ctx now stops a run it used to ignore, with the ctx error unchanged (`context.Canceled` / `DeadlineExceeded`) | U19 |
+| `ComposeParallel` with `FailFast` reported the lowest-index failure, siblings' `context.Canceled` included | reports the lowest-index failure that is NOT a sibling cancellation (the error that tripped FailFast); a done caller ctx keeps the lowest-index rule | behaviour change | none unless you matched on the old, sometimes `context.Canceled`, winner | U19 |
+| `ComposeParallel` with a ctx done before every slot launched returned a "successful" `ComposedResponse` with nil slots | returns the ctx error | behaviour change (bug fix) | handle the error | U19 |
+| join `Process` / joined crosstab decoded the right side before refusing a bad request | defaults, zones, field refs and the limits pre-flight run BEFORE the right side decodes; an unknown field is refused without decoding either side | behaviour change | none; error codes unchanged, refusals are earlier | U19 |
+| matrix `PredictResult.Matrices[*].EstimatedBytes` for grouped requests was buckets x accumulator | blocks x buckets x accumulator, per shard (the real merge-block state) | value change (in place) | re-baseline any threshold you derived from it; it is larger | U19 |
+| crosstab return-size model left a `GROUP_DATE_RANGES` axis unsized | `PredictResult.Sizes` sizes that axis through the shared estimator | value change | none | U19 |
+| `Options.Limits.RequestTimeout` absent | an inner deadline on each top-level call; a trip is `PULSE_LIMIT_EXCEEDED` `{limit: "request_timeout"}`, the caller's own deadline stays `context.DeadlineExceeded` | added (opt-in) | none | U19 |
+
+Not shipped, by decision: a `MaxOutputRows` limit (output volume is the embedder's to manage); a `GOMEMLIMIT`-derived default for `MaxEstimatedMemory` (it is opt-in and unlimited, so `MaxEstimatedMemory` never couples to the Go runtime); `MaxGroups` / `MaxCrosstabCells` as `certain` predict findings (they are `possible`: dictionary-size upper bounds); limit findings for Compose and chain validators (`ValidateCompose` / `ValidateChain`).
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

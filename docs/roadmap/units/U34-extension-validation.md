@@ -108,3 +108,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 ## Inherited from U17
 
 - **Extension count semantics** (#216). `return.precision` writes a built-in count aggregation's `data` column and count crosstab cells exact (`countSemanticAggregations`, `internal/descriptor/return_precision.go`), but an extension aggregator is never count-semantic: its figures round like measures. Add an optional declaration on the aggregator registration (and its `extend` factory), probe-validated at `pulse.New` like the other declared flags, and have `countSemanticAggregations` read it. Companions: `docs/src/internals/extension-points.md`, `.claude/reference/update-demand.md` (`Request.Return` row).
+
+## Inherited from U19
+
+- **Extension aggregator state in the memory model** (#230). U19's `MaxEstimatedMemory` estimate prices built-in aggregator state per arm; an `extend` aggregator with unbounded state (distinct sets, sketches) is not modelled, so an opted-in ceiling can under-estimate it. Add an optional per-registration state-size declaration (probe-validated at `pulse.New` like the other declared flags) and have the estimator read it. Companions: `docs/src/internals/extension-points.md`, the Tuning limits page.

@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -245,6 +246,11 @@ type shardPartial struct {
 	// processing.MergeableGrouper, so the merged instance's Components()
 	// describes the whole cohort exactly as the serial instance does.
 	grouper processing.Grouper
+	// limits is the run's effective resource limits (Service.Limits),
+	// handed in by newShardPartial because the parallel reducers bypass
+	// newProcessor. MaxGroups bounds groups (and groupedMats) here and
+	// the merged key count in mergeShardPartials.
+	limits limits.Limits
 	// keyer is the partition grouper's resolved key dispatch.
 	keyer *processing.GroupKeyer
 	// assignments counts (record, bucket) routings — one per key a
@@ -327,7 +333,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	// counter (see primaryNullFieldFor).
 	primaryNullField := primaryNullFieldFor(req)
 
-	out := newShardPartial(req, specs)
+	out := newShardPartial(req, specs, s.Limits())
 	if err := out.buildMatrices(req, schema, s.extensions, grouper != nil, s.computePlanFor(ctx, req)); err != nil {
 		return nil, err
 	}
@@ -439,8 +445,11 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 
 // newShardPartial returns an empty partial for req's slots: the
 // universal floor, the weighted floor and invalid-row tallies, and the
-// filter counters. Shared by both parallel reducers.
-func newShardPartial(req *types.Request, specs []aggSpec) *shardPartial {
+// filter counters. Shared by both parallel reducers, which bypass
+// newProcessor — so the run's effective limits l are handed in here
+// explicitly and bound this partition's bucket mints (foldGroupedRow,
+// the grouped matrices) and, on the seed partial, the merged count.
+func newShardPartial(req *types.Request, specs []aggSpec, l limits.Limits) *shardPartial {
 	aggs := make([]*types.Aggregation, len(specs))
 	for i, sp := range specs {
 		aggs[i] = sp.agg
@@ -449,6 +458,7 @@ func newShardPartial(req *types.Request, specs []aggSpec) *shardPartial {
 		aggFloor:       processing.NewSlotFloors(aggs),
 		weights:        processing.NewWeightRowTally(req),
 		filterCounters: processing.NewFilterPassCounters(req.Filterers),
+		limits:         l,
 	}
 }
 
@@ -461,7 +471,7 @@ func newShardPartial(req *types.Request, specs []aggSpec) *shardPartial {
 func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool, compute processing.ComputePlan) error {
 	var err error
 	if grouped {
-		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts, compute)
+		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts, compute, sp.limits)
 		return err
 	}
 	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts, compute)
@@ -494,6 +504,12 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, spe
 	for _, key := range keys {
 		bucket, exists := sp.groups[key]
 		if !exists {
+			// MaxGroups on this partition's count: a partition never
+			// holds more keys than the whole run, so a local breach is
+			// a global one. Checked once per new key, never per row.
+			if err := limits.Check(sp.limits, limits.MaxGroups, int64(len(sp.groups))+1); err != nil {
+				return err
+			}
 			bucket = make([]processing.OnlineAggregator, len(specs))
 			for i, spec := range specs {
 				inst, err := spec.factory(spec.agg, schema)
@@ -700,6 +716,12 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 				bucket := p.groups[key]
 				existing, exists := merged.groups[key]
 				if !exists {
+					// MaxGroups on the MERGED count: every partition
+					// can sit under the limit while their union does
+					// not.
+					if err := limits.Check(merged.limits, limits.MaxGroups, int64(len(merged.groups))+1); err != nil {
+						return nil, err
+					}
 					merged.groups[key] = bucket
 					merged.keyOrder = append(merged.keyOrder, key)
 					if merged.groupFloors != nil {

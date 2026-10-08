@@ -29,41 +29,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers"}
-	for _, name := range cohorts {
-		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
-		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
-		outPath := filepath.Join(tmp, name+".pulse")
-
-		schema, err := loadFixtureSchema(schemaPath)
-		if err != nil {
-			t.Fatalf("loadFixtureSchema(%s): %v", schemaPath, err)
-		}
-
-		job := &pio.ImportJob{
-			Source:     csv.NewReader(fs, csvPath),
-			Target:     outPath,
-			Schema:     schema,
-			SampleRows: 50,
-			FS:         fs,
-		}
-		report, err := p.Import(context.Background(), job)
-		if err != nil {
-			t.Fatalf("import %s: %v", name, err)
-		}
-		if report.RowsImported == 0 {
-			t.Fatalf("import %s: zero rows imported", name)
-		}
-	}
-
-	// Build a shard archive from transactions.pulse so anchor-syntax
-	// examples (cohort.filename = `transactions_sharded.pulse#wave1.pulse`)
-	// resolve at runtime. The two shards split records evenly; each is a
-	// complete standalone single-file .pulse so the anchor view reads
-	// like any other cohort.
-	if err := buildShardedTransactionsFixture(p, fs, tmp); err != nil {
-		t.Fatalf("build sharded transactions fixture: %v", err)
-	}
+	buildExampleFixtures(t, p, fs, tmp)
 
 	categories := []struct {
 		name    string
@@ -106,6 +72,48 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+// buildExampleFixtures imports every shared example fixture cohort into
+// tmp as <name>.pulse and builds the transactions_sharded.pulse archive
+// the anchor-syntax example reads.
+func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string) {
+	t.Helper()
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers"}
+	for _, name := range cohorts {
+		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
+		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
+		outPath := filepath.Join(tmp, name+".pulse")
+
+		schema, err := loadFixtureSchema(schemaPath)
+		if err != nil {
+			t.Fatalf("loadFixtureSchema(%s): %v", schemaPath, err)
+		}
+
+		job := &pio.ImportJob{
+			Source:     csv.NewReader(fs, csvPath),
+			Target:     outPath,
+			Schema:     schema,
+			SampleRows: 50,
+			FS:         fs,
+		}
+		report, err := p.Import(context.Background(), job)
+		if err != nil {
+			t.Fatalf("import %s: %v", name, err)
+		}
+		if report.RowsImported == 0 {
+			t.Fatalf("import %s: zero rows imported", name)
+		}
+	}
+
+	// Build a shard archive from transactions.pulse so anchor-syntax
+	// examples (cohort.filename = `transactions_sharded.pulse#wave1.pulse`)
+	// resolve at runtime. The two shards split records evenly; each is a
+	// complete standalone single-file .pulse so the anchor view reads
+	// like any other cohort.
+	if err := buildShardedTransactionsFixture(p, fs, tmp); err != nil {
+		t.Fatalf("build sharded transactions fixture: %v", err)
 	}
 }
 

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "facet",
-    "description": "Multi-field FacetSchema with additive_fields. The base filter narrows category=A; the additive accumulator on category strips that clause so the response shows what each category value would yield if added to the filter.",
+    "description": "Multi-field FacetSchema with additive_fields. The base filter narrows region=north; the additive accumulator on region strips that clause so the response shows what each region value would yield if added to the filter.",
     "intents": [
       "composition",
       "segment"
@@ -20,18 +20,18 @@
     "data_dir": ".data"
   },
   "fields": [
-    "category",
-    "country"
+    "region",
+    "city"
   ],
   "filterers": [
     {
       "type": "FILTER_INCLUDE",
-      "field": "category",
-      "values": ["A"]
+      "field": "region",
+      "values": ["north"]
     }
   ],
   "additive_fields": [
-    "category"
+    "region"
   ],
   "discrete_top_k": 25
 }

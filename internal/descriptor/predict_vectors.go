@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -34,7 +35,13 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // call) and the shared per-matrix rules (vectors.Matrix.PSDRisk /
 // AccumulatorBytes, vectors.EstimateBuckets) the engine honours. A refused spec is reported by
 // the field-reference pass, so nothing is echoed then.
-func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) {
+//
+// blocks is the merge-block count the run populates (limits.MergeBlocks
+// over the record count, per shard for an archive; -1 when unknown).
+// EstimatedBytes is the real state, limits.MatrixStateBytes: one
+// CoMoment per populated block per bucket — omitted with the block
+// count unknown.
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, blocks int64) {
 	if req == nil || len(req.Matrices) == 0 {
 		return
 	}
@@ -63,8 +70,11 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 		if known {
 			b := buckets
 			cells := b * int64(p) * int64(p)
-			bytes := b * m.AccumulatorBytes()
-			mp.EstimatedBuckets, mp.EstimatedCells, mp.EstimatedBytes = &b, &cells, &bytes
+			mp.EstimatedBuckets, mp.EstimatedCells = &b, &cells
+			if blocks >= 0 {
+				bytes := limits.MatrixStateBytes(blocks, b, m.AccumulatorBytes())
+				mp.EstimatedBytes = &bytes
+			}
 		}
 		if m.Pairwise {
 			mp.Missing = vectors.MissingPairwise

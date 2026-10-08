@@ -43,7 +43,7 @@ import (
 // allows a non-streamable grouper / non-online cell aggregator to reach
 // here surfaces as PROCESSING_INTERNAL via NewFusedCrosstabState or
 // AssertCanFuse.
-func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
 	if req == nil || req.Crosstab == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"RunCrosstabFused requires a Crosstab spec")
@@ -64,6 +64,7 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 		return nil, err
 	}
 	state.setCompute(p.compute)
+	state.setLimits(p.limits)
 	// Defensive: echo the static gate's exclusions so a stale dispatch
 	// shortcut that drifts past a newly added request slot fails fast
 	// here rather than producing a divergent fused result.
@@ -92,7 +93,11 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 	// (Shard archives: shardIterator, same two arms.) Opting in looks
 	// safe — FusedCrosstabState retains no pointer past Update — but it
 	// is unmeasured; benchmark on peak heap before switching.
+	poll := NewCtxPoller(ctx)
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		rec := iter.Record()
 		state.AddTotalRow()
 

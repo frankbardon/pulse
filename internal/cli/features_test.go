@@ -146,7 +146,7 @@ func TestFeaturesCheck(t *testing.T) {
 		t.Fatalf("text path err = %v", err)
 	}
 
-	malformed := writeFeaturesFile(t, `{"features": [], "limits": {}}`)
+	malformed := writeFeaturesFile(t, `{"features": [], "limits": {"max_rows": 1}}`)
 	_, err = runFeatures(t, "check", malformed)
 	var ce *perrors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != perrors.PULSE_FEATURE_PROFILE_INVALID || ce.Details["reason"] != "unknown_key" {

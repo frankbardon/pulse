@@ -347,6 +347,17 @@ type Options struct {
 	// falls back to that surface's default there.
 	DefaultMultiplicity *types.Multiplicity
 
+	// Limits are the instance resource limits: request timeout, group
+	// count, crosstab cells, estimated memory, matrix dimension, Compose
+	// slots, chain stages and join build rows. A zero field uses the
+	// built-in default (DefaultMaxGroups, ...), Unlimited (-1) disables
+	// that limit, and any other negative value fails New() with
+	// PULSE_LIMIT_INVALID. Precedence per field: a non-zero value here >
+	// the feature profile's value > the built-in default. Requests can
+	// never override a limit; a breach is PULSE_LIMIT_EXCEEDED.
+	// Pulse.Limits() reports the effective values.
+	Limits Limits
+
 	// DefaultReturn is the instance `return` default: the response
 	// selection a request WITHOUT its own `return` block is shaped by.
 	// A request block replaces it entirely (it never merges). Nil
@@ -626,6 +637,10 @@ func New(opts Options) (*Pulse, error) {
 	if opts.DecodeWorkers < 0 {
 		return nil, fmt.Errorf("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
 	}
+	effectiveLimits, err := resolveLimits(opts, featureProfile)
+	if err != nil {
+		return nil, err
+	}
 
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
@@ -657,7 +672,9 @@ func New(opts Options) (*Pulse, error) {
 	if defaultReturn != nil {
 		snap = snap.WithDefaultReturn(defaultReturn)
 	}
+	snap = snap.WithLimits(effectiveLimits)
 	svc.SetInstanceSnapshot(snap)
+	svc.SetLimits(effectiveLimits)
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)
@@ -1271,6 +1288,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		DisableComponents:     p.svc.DisableComponents(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
+		RecordCounter:         p.predictRecordCounter(ctx),
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 		// Echoed (never applied) when no weight resolves.
 		SuggestedWeightVariable: p.sidecarWeightVariable(path),
@@ -1345,6 +1363,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		DisableDefaults:       p.svc.DefaultsDisabled(),
 		DisableComponents:     p.svc.DisableComponents(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
+		RecordCounter:         p.predictRecordCounter(ctx),
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 	}), nil
 }
@@ -1360,6 +1379,20 @@ func (p *Pulse) predictSchemaLoader(ctx context.Context) func(string) (*encoding
 			return nil, err
 		}
 		return c.Schema(), nil
+	}
+}
+
+// predictRecordCounter counts a cohort's records through the runtime's
+// header-only counter (Service.CountRecords — the count the join build
+// pre-flight reads), so predict grades MaxJoinBuildRows on the figure
+// the runtime refuses with. No record is read.
+func (p *Pulse) predictRecordCounter(ctx context.Context) func(string) (int64, error) {
+	return func(path string) (int64, error) {
+		n, err := p.svc.CountRecords(ctx, path)
+		if err != nil {
+			return 0, err
+		}
+		return int64(n), nil
 	}
 }
 
@@ -2114,9 +2147,11 @@ func renderedFieldFor(target template.Target) string {
 // the instance's extensions; with one, hidden operators, capabilities,
 // I/O formats, commands and MCP tools are absent (a hidden capability's
 // block is omitted) and no prose names them. FeatureSetDigest
-// identifies the described set. The manifest is deterministic per
-// instance and does not depend on cohort data or the filesystem;
-// callers cache it keyed by (PulseVersion, FeatureSetDigest).
+// identifies the described set; the always-present Limits block lists
+// the instance's effective resource limits and LimitsDigest identifies
+// them. The manifest is deterministic per instance and does not depend
+// on cohort data or the filesystem; callers cache it keyed by
+// (PulseVersion, FeatureSetDigest, LimitsDigest).
 func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
 	return descx.BuildManifestForInstance(p.svc.InstanceSnapshot())
 }

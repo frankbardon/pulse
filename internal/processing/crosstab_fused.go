@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -55,6 +56,12 @@ type FusedCrosstabState struct {
 	// selection or the DisableComponents opt-out. Default
 	// FullComputePlan (everything computed).
 	compute ComputePlan
+
+	// limits is the run's effective resource limits, installed by
+	// RunCrosstabFused through setLimits. The interners refuse a new axis
+	// key whose grid would exceed MaxCrosstabCells before growing a dense
+	// slice; the zero value enforces nothing.
+	limits limits.Limits
 
 	// Cell aggregator wiring. cellFactory is the constructor used to
 	// lazily build a per-cell OnlineAggregator the first time a record
@@ -724,9 +731,15 @@ func (s *FusedCrosstabState) AssertCanFuse(req *types.Request) error {
 // internRowKey returns the integer index assigned to rowKey, allocating
 // a new index on first sight and recording the per-grouper tuple for
 // Finalize's MatrixPayload re-emission.
-func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) int {
+func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) (int, error) {
 	if idx, ok := s.rowIndex[rowKey]; ok {
-		return idx
+		return idx, nil
+	}
+	// MaxCrosstabCells: refuse before the grid grows a row. The fused
+	// grid is len(rowKeys) x len(colKeys) dense, the same rows x cols the
+	// buffered arm checks after PartitionByAxis.
+	if err := limits.Check(s.limits, limits.MaxCrosstabCells, int64(len(s.rowKeys)+1)*int64(len(s.colKeys))); err != nil {
+		return -1, err
 	}
 	idx := len(s.rowKeys)
 	s.rowIndex[rowKey] = idx
@@ -775,16 +788,20 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 	if s.auxRowSlot {
 		s.rowMarginAux = append(s.rowMarginAux, make([]auxMarginAccumulator, len(s.auxAggs)))
 	}
-	return idx
+	return idx, nil
 }
 
 // internColKey returns the integer index assigned to colKey, allocating
 // a new index on first sight and extending every existing row's column
 // slice in lockstep so cells[rowIdx][colIdx] is addressable for every
 // interned rowIdx.
-func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) int {
+func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) (int, error) {
 	if idx, ok := s.colIndex[colKey]; ok {
-		return idx
+		return idx, nil
+	}
+	// MaxCrosstabCells: refuse before every row grows a column.
+	if err := limits.Check(s.limits, limits.MaxCrosstabCells, int64(len(s.rowKeys))*int64(len(s.colKeys)+1)); err != nil {
+		return -1, err
 	}
 	idx := len(s.colKeys)
 	s.colIndex[colKey] = idx
@@ -826,7 +843,7 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 	if s.auxColSlot {
 		s.colMarginAux = append(s.colMarginAux, make([]auxMarginAccumulator, len(s.auxAggs)))
 	}
-	return idx
+	return idx, nil
 }
 
 // internPartialRowKey is the partial-depth (normalize_level) sibling of
@@ -986,7 +1003,10 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	if rowKeys.ok {
 		rowTuples := rowKeys.tuples
 		for j, rowKey := range rowKeys.keys() {
-			rowIdx := s.internRowKey(rowKey, rowTuples[j])
+			rowIdx, ierr := s.internRowKey(rowKey, rowTuples[j])
+			if ierr != nil {
+				return ierr
+			}
 			s.rowIdxBuf = append(s.rowIdxBuf, rowIdx)
 			if s.rowMargins == nil {
 				continue
@@ -1049,7 +1069,10 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	if colKeys.ok {
 		colTuples := colKeys.tuples
 		for j, colKey := range colKeys.keys() {
-			colIdx := s.internColKey(colKey, colTuples[j])
+			colIdx, ierr := s.internColKey(colKey, colTuples[j])
+			if ierr != nil {
+				return ierr
+			}
 			s.colIdxBuf = append(s.colIdxBuf, colIdx)
 			if s.colMargins == nil {
 				continue
@@ -1195,6 +1218,10 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	}
 	return nil
 }
+
+// setLimits installs the run's effective resource limits before
+// Update (MaxCrosstabCells at the axis-key interners).
+func (s *FusedCrosstabState) setLimits(l limits.Limits) { s.limits = l }
 
 // setCompute installs the run's ComputePlan before Update. With
 // AuxMargins off it also forgets the declared auxiliaries, exactly as

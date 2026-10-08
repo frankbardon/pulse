@@ -16,7 +16,7 @@ Before storing or executing a hand-authored or generated request. Cheap — read
 
 ## Output
 
-`descriptor.Envelope` wrapping `PredictResult`: `Errors`, `Warnings`, `Streamable` (bool — matches runtime via `processing.CanStreamRequest`), `CrosstabFusable` + `CrosstabFusionReasons` (crosstab requests only: will the grid build on the fused one-pass, `O(cells + margins)` arm — and why not), `DefaultsApplied` (slot-level inference summary), `Normalized` (the engine-canonical request after defaults)<!-- feature: capability:weighting -->, and `suggested_weight` — inspect's SPSS suggestion, echoed as data (never a warning or applied) while no weight resolves<!-- /feature -->.
+`descriptor.Envelope` wrapping `PredictResult`: `Errors`, `Warnings`, `Streamable` (bool — matches runtime via `processing.CanStreamRequest`), `CrosstabFusable` + `CrosstabFusionReasons` (crosstab requests only: will the grid build on the fused one-pass, `O(cells + margins)` arm — and why not), `LimitFindings` (`limit_findings`, omitted when none: each instance resource limit a predicted figure exceeds — `{limit, configured, estimated, grade}`; `certain` = exact, refused with `PULSE_LIMIT_EXCEEDED` and `valid: false`; `possible` = an upper bound, a warning only), `DefaultsApplied` (slot-level inference summary), `Normalized` (the engine-canonical request after defaults)<!-- feature: capability:weighting -->, and `suggested_weight` — inspect's SPSS suggestion, echoed as data (never a warning or applied) while no weight resolves<!-- /feature -->.
 
 ## Gotchas
 

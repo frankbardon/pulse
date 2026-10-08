@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -34,8 +35,10 @@ const maxHistogramBins = 256
 // counts run a parallel discrete accumulator with the additive field's
 // own filter clauses stripped from the base filter.
 func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*types.FacetResult, error) {
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
 	resp, err := s.facetSchema(ctx, req)
-	return resp, s.scopeRefusal(err)
+	return resp, s.scopeRefusal(MapRequestTimeout(ctx, err))
 }
 
 func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*types.FacetResult, error) {
@@ -74,6 +77,15 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err := s.checkFacetFieldRefs(req, schema); err != nil {
 		return nil, err
 	}
+	// Instance resource limits: a set MaxEstimatedMemory refuses before
+	// the scan (the facet's only pre-scan limit).
+	lin, err := s.limitInputs(ctx, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	if lerr := descx.FacetLimitRefusal(req, schema, s.Limits(), lin); lerr != nil {
+		return nil, markLocated(lerr)
+	}
 	// Inject configured default label bindings (schema-filtered) for the
 	// fields being faceted so registered tables render in facet output
 	// without per-call bindings.
@@ -97,13 +109,13 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	}
 
 	// Build accumulators per requested field.
-	fields, err := buildFieldAccumulators(req.Fields, schema, req, bins)
+	fields, err := buildFieldAccumulators(req.Fields, schema, req, bins, s.Limits())
 	if err != nil {
 		return nil, err
 	}
 
 	// Build additive accumulators with the field's own clauses stripped.
-	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema, s.extensions)
+	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema, s.extensions, s.Limits())
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +138,11 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	defer iter.Close()
 
 	var totalRows, filteredRows int64
+	poll := processing.NewCtxPoller(ctx)
 	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, err
+		}
 		totalRows++
 		r := iter.Record()
 
@@ -304,11 +320,11 @@ type additiveEntry struct {
 
 // buildFieldAccumulators chooses discrete vs numeric per-field based on
 // the schema type and instantiates the appropriate accumulator.
-func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types.FacetRequest, bins int) ([]*fieldAcc, error) {
+func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types.FacetRequest, bins int, l limits.Limits) ([]*fieldAcc, error) {
 	out := make([]*fieldAcc, 0, len(fields))
 	for _, name := range fields {
 		f := schema.Field(name)
-		acc, err := newKindAccumulator(f, req, bins)
+		acc, err := newKindAccumulator(f, req, bins, l)
 		if err != nil {
 			return nil, err
 		}
@@ -322,7 +338,7 @@ func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types
 // resolve through exts — the same instance registry the base filters
 // use — so an extension filterer works and a hidden one is refused
 // here exactly as an unregistered one is.
-func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema, exts *processing.ExtensionRegistry) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
+func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema, exts *processing.ExtensionRegistry, l limits.Limits) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
 	if len(req.AdditiveFields) == 0 {
 		return nil, nil, nil
 	}
@@ -330,7 +346,7 @@ func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema,
 	scopes := make(map[string][]processing.FilterFunc, len(req.AdditiveFields))
 	for _, name := range req.AdditiveFields {
 		f := schema.Field(name)
-		acc, err := newKindAccumulator(f, req, 0)
+		acc, err := newKindAccumulator(f, req, 0, l)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -347,13 +363,14 @@ func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema,
 
 // newKindAccumulator constructs the right accumulator for the field's
 // schema type. Numeric types (u*, f*, decimal*, date) are summarised
-// numerically; categorical / boolean types are summarised discretely.
-func newKindAccumulator(f *encoding.Field, req *types.FacetRequest, bins int) (kindAccumulator, error) {
+// numerically; categorical / boolean types are summarised discretely,
+// each faceted field's distinct-value count bounded by l.MaxGroups.
+func newKindAccumulator(f *encoding.Field, req *types.FacetRequest, bins int, l limits.Limits) (kindAccumulator, error) {
 	switch {
 	case f.Type.IsCategorical():
-		return newCategoricalAccumulator(f), nil
+		return newCategoricalAccumulator(f, l), nil
 	case f.Type == encoding.FieldTypePackedBool:
-		return newBoolAccumulator(f), nil
+		return newBoolAccumulator(f, l), nil
 	case isFacetNumericType(f.Type):
 		wantPercentiles := len(req.NumericPercentiles) > 0
 		return newNumericAccumulator(f, wantPercentiles, req.IncludeHistogram, bins, req.HistogramRange), nil
@@ -391,13 +408,14 @@ func allPass(fns []processing.FilterFunc, r *processing.Record) bool {
 
 type categoricalAccumulator struct {
 	field    *encoding.Field
+	limits   limits.Limits
 	counts   map[uint32]int64
 	nulls    int64
 	distinct int64
 }
 
-func newCategoricalAccumulator(f *encoding.Field) *categoricalAccumulator {
-	return &categoricalAccumulator{field: f, counts: make(map[uint32]int64)}
+func newCategoricalAccumulator(f *encoding.Field, l limits.Limits) *categoricalAccumulator {
+	return &categoricalAccumulator{field: f, limits: l, counts: make(map[uint32]int64)}
 }
 
 func (a *categoricalAccumulator) update(r *processing.Record, field string) error {
@@ -408,6 +426,10 @@ func (a *categoricalAccumulator) update(r *processing.Record, field string) erro
 	}
 	id := uint32(v)
 	if _, seen := a.counts[id]; !seen {
+		// MaxGroups per faceted field, once per new value.
+		if err := limits.Check(a.limits, limits.MaxGroups, a.distinct+1); err != nil {
+			return err
+		}
 		a.distinct++
 	}
 	a.counts[id]++
@@ -441,12 +463,24 @@ func (a *categoricalAccumulator) finalize(req *types.FacetRequest) (*types.Facet
 
 type boolAccumulator struct {
 	field    *encoding.Field
+	limits   limits.Limits
 	t, fcnt  int64
 	nulls    int64
 	distinct int64
 }
 
-func newBoolAccumulator(f *encoding.Field) *boolAccumulator { return &boolAccumulator{field: f} }
+func newBoolAccumulator(f *encoding.Field, l limits.Limits) *boolAccumulator {
+	return &boolAccumulator{field: f, limits: l}
+}
+
+// mint counts a newly seen value against MaxGroups.
+func (a *boolAccumulator) mint() error {
+	if err := limits.Check(a.limits, limits.MaxGroups, a.distinct+1); err != nil {
+		return err
+	}
+	a.distinct++
+	return nil
+}
 
 func (a *boolAccumulator) update(r *processing.Record, field string) error {
 	v, ok := r.NumericValue(field)
@@ -456,12 +490,16 @@ func (a *boolAccumulator) update(r *processing.Record, field string) error {
 	}
 	if v != 0 {
 		if a.t == 0 {
-			a.distinct++
+			if err := a.mint(); err != nil {
+				return err
+			}
 		}
 		a.t++
 	} else {
 		if a.fcnt == 0 {
-			a.distinct++
+			if err := a.mint(); err != nil {
+				return err
+			}
 		}
 		a.fcnt++
 	}

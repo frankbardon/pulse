@@ -43,7 +43,8 @@ Within a major version (v1.x.y):
 - Anything under `internal/`.
 - Skill-pack prose, examples, docs wording and guided-analysis text (Explain sentences, glossary wording). These improve continuously. Their *structure* (frontmatter keys, required sections) is covered by the MCP promise.
 - Log messages and log fields.
-- Performance characteristics, memory use, and default resource-limit values, which may be raised.
+- Performance characteristics and memory use.
+- Default resource-limit values may be RAISED in any release; raising a default is compatible, lowering one is breaking (it can refuse a request that ran before) and happens only in a major release.
 - Golden test files.
 - Pre-release tags (`-rc.N`, `-beta.N`).
 

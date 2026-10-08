@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/buildinfo"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/internal/temporal"
 )
@@ -313,6 +314,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		PulseVersion:     buildinfo.Version(),
 		TZDataVersion:    temporal.TZDataVersion,
 		FeatureSetDigest: manifestDigest(inst),
+		LimitsDigest:     limits.Digest(inst.Limits()),
 		Commands:         filterCommands(commands(), on),
 		Operations:       filterCommands(operations(), on),
 		Components: descriptor.Components{
@@ -342,6 +344,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap, mats),
 		Intents:            instanceIntentIDs(inst),
 		ReturnPresets:      ReturnPresetsFor(inst),
+		Limits:             LimitsFor(inst),
 	}
 	if on(featWeighting) {
 		stampWeightKinds(m)

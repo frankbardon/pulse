@@ -2785,7 +2785,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEATURE_PROFILE_INVALID: {
-		Message: "The feature profile is structurally unusable, so pulse.New refused it before checking any feature name. The `reason` detail names the fault: the profile file is missing or unreadable, its body is not well-formed JSON, it carries a key the profile model does not declare (only `profile`, `written_with`, `features`, `behaviour` and `return` exist; `limits` is reserved and refused), `features` is absent, a feature is listed more than once, its `return` section does not resolve against the profile's own feature set (`invalid_return`, checked after names and dependencies: the resolver's code is under `return_code`, its details under `return` — a path only a feature the profile omits has is refused like a nonexistent one), both Options.FeatureProfile and Options.FeatureProfileFile were set, or pulse.ExampleFeatureProfile was given a name that is not a published example (`unknown_example`; the published names are under `examples`).",
+		Message: "The feature profile is structurally unusable, so pulse.New refused it before checking any feature name. The `reason` detail names the fault: the profile file is missing or unreadable, its body is not well-formed JSON, it carries a key the profile model does not declare (only `profile`, `written_with`, `features`, `behaviour`, `return` and `limits` exist, and each section is decoded strictly too), `features` is absent, a feature is listed more than once, a `limits` value is below -1 or its `request_timeout` is not a Go duration (`invalid_limits`; the key is under `limit`, the value as written under `value`), its `return` section does not resolve against the profile's own feature set (`invalid_return`, checked after names and dependencies: the resolver's code is under `return_code`, its details under `return` — a path only a feature the profile omits has is refused like a nonexistent one), both Options.FeatureProfile and Options.FeatureProfileFile were set, or pulse.ExampleFeatureProfile was given a name that is not a published example (`unknown_example`; the published names are under `examples`).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupRemoveParam,
@@ -2796,7 +2796,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"features"},
-				Hint:     "Give the profile a `features` array — it is required, may be empty, and must not repeat a name (every repeated name is listed under `duplicates`). Remove any key other than `profile`, `written_with`, `features`, `behaviour` and `return`; for `invalid_return`, fix the `return` path, preset or precision named under `return`, or enable the feature that owns the path.",
+				Hint:     "Give the profile a `features` array — it is required, may be empty, and must not repeat a name (every repeated name is listed under `duplicates`). Remove any key other than `profile`, `written_with`, `features`, `behaviour`, `return` and `limits`; for `invalid_limits`, set the key named under `limit` to 0 (default), -1 (no limit) or a positive value (`request_timeout` as a duration such as \"30s\"); for `invalid_return`, fix the `return` path, preset or precision named under `return`, or enable the feature that owns the path.",
 				Examples: []any{`{"profile": "self-serve", "features": []}`},
 			},
 			{
@@ -3188,6 +3188,32 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"return", "include"},
 				Hint:   "Check the key against the full response (`return` absent) or the operator's component schema in the manifest, then correct or drop the path.",
+			},
+		},
+	},
+	PULSE_LIMIT_INVALID: {
+		Message: "An instance resource limit in Options.Limits holds a negative value other than -1, so pulse.New refused it before any instance existed. Every limit field uses one encoding: 0 means the built-in default, -1 (pulse.Unlimited) means no limit, and a positive value is the bound (nanoseconds for RequestTimeout). The snake_case limit name is under `limit` and the refused value under `value`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Limits"},
+				Hint:     "Set the field named by `limit` to 0 for the built-in default, -1 (pulse.Unlimited) to disable the limit, or a positive bound.",
+				Examples: []any{0, -1, 10000000},
+			},
+		},
+	},
+	PULSE_LIMIT_EXCEEDED: {
+		Message: "The request breached one of the instance's effective resource limits, so it was refused. The limit is named under `limit` (snake_case), its configured value under `configured`, the value the request reached under `observed` and the Go option under `option`; the message repeats the configured value. A request cannot raise an instance limit — only the host can.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Limits"},
+				Hint:   "Raise the limit on the instance: set Options.Limits.<Field> (named under `option`), the feature profile `limits.<limit>` key, or `pulse mcp --limit <limit>=<value>`; -1 disables it.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"request"},
+				Hint:   "Reduce the request so it stays within the configured value: group on a lower-cardinality field, filter first, narrow the crosstab axes or the matrix fields, split the Compose or chain into smaller calls, or shrink the join's right side.",
 			},
 		},
 	},

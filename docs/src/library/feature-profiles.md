@@ -70,9 +70,10 @@ data profiling (`Pulse.Profile`, `pulse profile create`).
 | `features` | **yes** | The exact feature names the instance offers. May be empty (`[]`), and must not repeat a name |
 | `behaviour` | no | Engine switches the profile turns on (below) |
 | `return` | no | The instance's default response selection — the `return` block a request without its own is shaped by (`{"preset": "standard"}`, `include`, `exclude`, `precision`) |
+| `limits` | no | The instance's resource limits (below) |
 
-Any other key is refused. That includes `limits`, which is reserved for a
-later v1.0.0 unit. Trailing data after the JSON object is refused too.
+Any other key is refused, and so is an unknown key inside `behaviour`,
+`return` or `limits`. Trailing data after the JSON object is refused too.
 
 `return` takes the request block's shape. A request `return` replaces it
 entirely, and `Options.DefaultReturn` wins over it. `pulse.New` checks it
@@ -80,6 +81,32 @@ against the profile's own feature set: a path only a feature the profile
 leaves out has (for example `matrices` without `capability:matrices`), an
 unknown preset or a precision outside 1–17 is refused with
 `PULSE_FEATURE_PROFILE_INVALID`, reason `invalid_return`.
+
+`limits` sets the instance resource limits with the same snake_case
+names `pulse mcp --limit` and every `PULSE_LIMIT_*` error's `limit`
+detail use: `request_timeout`, `max_groups`, `max_crosstab_cells`,
+`max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
+`max_chain_stages`, `max_join_build_rows`.
+
+```json
+{
+  "features": [],
+  "limits": { "max_groups": 1000000, "request_timeout": "30s", "max_matrix_dim": -1 }
+}
+```
+
+The encoding matches `Options.Limits`: an omitted key or `0` keeps the
+built-in default, `-1` means no limit, and any other negative value is
+refused with `PULSE_FEATURE_PROFILE_INVALID`, reason `invalid_limits`
+(`details.limit` names the key, `details.value` echoes it). Counts are
+JSON integers; `request_timeout` is a Go duration string (`"30s"`,
+`"2m"`), with `"-1"` or `"unlimited"` for no timeout. Per limit, a
+non-zero `Options.Limits` field wins over the profile's value, so an
+embedder can still tighten or relax one limit on top of a shared
+profile. `p.Limits()` reports the effective values. In Go the section
+is `FeatureProfile.Limits` (`*pulse.FeatureProfileLimits`). Limits are
+behaviour, not features: they never change `feature_set_digest`.
+Full guide: [Tuning Limits](tuning-limits.md).
 
 ## Feature names
 
