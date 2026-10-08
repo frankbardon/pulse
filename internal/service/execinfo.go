@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -27,11 +28,21 @@ import (
 // Off (no carrier in ctx) every stamp is a nil-receiver no-op: the only
 // off-path cost is a ctx.Value lookup, which never allocates.
 //
-// Concurrency: Compose slots (ComposeParallel) share one carrier, and
-// shard / decode workers read through one counting file system, so the
-// counters are atomics and the plan fields sit behind a mutex. Several
-// slots stamping one carrier sum their counters; the plan fields keep
-// the last slot's decision.
+// Phases: the carrier also keeps the operation's phase clock. Phases
+// are contiguous laps — Lap(ph) attributes the time since the previous
+// boundary (the carrier's creation, a Lap or a Mark) to ph — so a
+// boundary costs one clock read and nothing runs per row. A phase that
+// runs in several pieces (plan before and after the cohort open) sums.
+//
+// Child operations: a Compose slot or a ProcessChain stage runs under
+// its OWN carrier (startChild), so each child reports its own arm and
+// counters; the facade folds every finished child into its parent with
+// Absorb.
+//
+// Concurrency: shard / decode workers read through one counting file
+// system and ComposeParallel children absorb into the parent from
+// their goroutines, so the counters are atomics and the plan fields
+// and the phase clock sit behind a mutex.
 type ExecInfo struct {
 	mu        sync.Mutex
 	arm       observe.Arm
@@ -39,10 +50,138 @@ type ExecInfo struct {
 	shards    int
 	projected int
 
+	// children counts absorbed child operations; armMixed is set when
+	// two of them ran different arms.
+	children int
+	armMixed bool
+
+	// mark is the last phase boundary; phases the summed lap time per
+	// phase (phaseIndex order) and ran the phases that lapped.
+	mark   time.Time
+	phases [phaseCount]time.Duration
+	ran    uint8
+
+	child ChildStart
+
 	rowsScanned atomic.Int64
 	rowsMatched atomic.Int64
 	rowsOut     atomic.Int64
 	bytesRead   atomic.Int64
+}
+
+// ChildStart starts a child operation — slot index of a Compose, stage
+// index of a ProcessChain — running req under the parent carrier's
+// context. It returns the context the child runs under (carrying the
+// child's own carrier) and the function that ends it with the child's
+// error. The facade supplies it (SetChildStart) for operations that
+// fan out; the service calls it through startChild.
+type ChildStart func(ctx context.Context, index int, req *types.Request) (context.Context, func(error))
+
+// NewExecInfo returns a carrier whose phase clock starts at start (the
+// operation's start).
+func NewExecInfo(start time.Time) *ExecInfo {
+	return &ExecInfo{mark: start}
+}
+
+// SetChildStart installs the child-operation starter.
+func (e *ExecInfo) SetChildStart(f ChildStart) {
+	if e == nil {
+		return
+	}
+	e.child = f
+}
+
+// endNoChild is the end function of a child that was not started (no
+// carrier, or no starter installed). A package-level value, so the off
+// path allocates nothing.
+var endNoChild = func(error) {}
+
+// startChild starts child operation index for req when ctx carries a
+// carrier with a starter, else returns ctx and a no-op end.
+func startChild(ctx context.Context, index int, req *types.Request) (context.Context, func(error)) {
+	ei := execInfoFrom(ctx)
+	if ei == nil || ei.child == nil {
+		return ctx, endNoChild
+	}
+	return ei.child(ctx, index, req)
+}
+
+// phaseCount is the number of observe phases.
+const phaseCount = 8
+
+// phaseOrder lists the phases in execution order — the order a
+// snapshot reports them in (observe.AllPhases, without its allocation).
+var phaseOrder = [phaseCount]observe.Phase{
+	observe.PhasePlan, observe.PhaseOpen, observe.PhaseDecode, observe.PhaseScan,
+	observe.PhaseReduce, observe.PhasePost, observe.PhaseOverlay, observe.PhaseShape,
+}
+
+func phaseIndex(ph observe.Phase) int {
+	for i, p := range phaseOrder {
+		if p == ph {
+			return i
+		}
+	}
+	return -1
+}
+
+// Lap closes the current phase segment: the time since the previous
+// boundary is added to ph, and the boundary moves to now. Nil-safe — a
+// no-op (and no clock read) when observability is off.
+func (e *ExecInfo) Lap(ph observe.Phase) {
+	if e == nil {
+		return
+	}
+	i := phaseIndex(ph)
+	now := time.Now()
+	e.mu.Lock()
+	if i >= 0 && !e.mark.IsZero() {
+		e.phases[i] += now.Sub(e.mark)
+		e.ran |= 1 << i
+	}
+	e.mark = now
+	e.mu.Unlock()
+}
+
+// Mark moves the phase boundary to now without attributing the elapsed
+// time to any phase — used after a stretch that belongs to child
+// operations (their own carriers time it) or to no phase.
+func (e *ExecInfo) Mark() {
+	if e == nil {
+		return
+	}
+	now := time.Now()
+	e.mu.Lock()
+	e.mark = now
+	e.mu.Unlock()
+}
+
+// Absorb folds a finished child operation's snapshot into this (the
+// parent's) carrier: row and byte counters sum, Workers / Shards /
+// ProjectedFields keep the maximum, and the arm is the children's arm
+// when every absorbed child ran the same one, else empty. Phases are
+// not absorbed — each child reports its own.
+func (e *ExecInfo) Absorb(c ExecSnapshot) {
+	if e == nil {
+		return
+	}
+	e.rowsScanned.Add(c.RowsScanned)
+	e.rowsMatched.Add(c.RowsMatched)
+	e.rowsOut.Add(c.RowsOut)
+	e.bytesRead.Add(c.BytesRead)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.workers = max(e.workers, c.Workers)
+	e.shards = max(e.shards, c.Shards)
+	e.projected = max(e.projected, c.ProjectedFields)
+	e.children++
+	switch {
+	case e.armMixed:
+	case e.children == 1:
+		e.arm = c.Arm
+	case e.arm != c.Arm:
+		e.arm, e.armMixed = "", true
+	}
 }
 
 // ExecSnapshot is a point-in-time copy of an ExecInfo.
@@ -61,6 +200,10 @@ type ExecSnapshot struct {
 	RowsMatched int64
 	RowsOut     int64
 	BytesRead   int64
+
+	// Phases are the phases that ran, in execution order, each with its
+	// summed lap time.
+	Phases []observe.PhaseTiming
 }
 
 type execInfoKey struct{}
@@ -70,6 +213,10 @@ type execInfoKey struct{}
 func WithExecInfo(ctx context.Context, ei *ExecInfo) context.Context {
 	return context.WithValue(ctx, execInfoKey{}, ei)
 }
+
+// ExecInfoFrom returns the carrier in ctx, or nil when observability is
+// off. The facade reads it to time its own shape phase.
+func ExecInfoFrom(ctx context.Context) *ExecInfo { return execInfoFrom(ctx) }
 
 // execInfoFrom returns the carrier in ctx, or nil when observability is
 // off. Every ExecInfo method is nil-safe.
@@ -92,6 +239,14 @@ func (e *ExecInfo) Snapshot() ExecSnapshot {
 		Workers:         e.workers,
 		Shards:          e.shards,
 		ProjectedFields: e.projected,
+	}
+	if e.ran != 0 {
+		snap.Phases = make([]observe.PhaseTiming, 0, phaseCount)
+		for i, ph := range phaseOrder {
+			if e.ran&(1<<i) != 0 {
+				snap.Phases = append(snap.Phases, observe.PhaseTiming{Phase: ph, Duration: e.phases[i]})
+			}
+		}
 	}
 	e.mu.Unlock()
 	snap.RowsScanned = e.rowsScanned.Load()

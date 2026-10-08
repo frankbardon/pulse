@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -67,6 +68,31 @@ type Processor struct {
 	// SetLimits. The zero value enforces none (every field reads as
 	// Unlimited), so a processor built without the call never trips.
 	limits limits.Limits
+
+	// laps receives the coarse phase boundaries (observability); nil —
+	// the default — skips every boundary without a clock read.
+	laps PhaseLapper
+}
+
+// PhaseLapper receives a processor's phase boundaries: Lap(ph) closes
+// the segment since the previous boundary as phase ph. Boundaries sit
+// between stages, never per row. The service installs its
+// per-operation observability carrier through SetPhaseLapper only when
+// observability is on.
+type PhaseLapper interface {
+	Lap(ph observe.Phase)
+}
+
+// SetPhaseLapper installs the phase-boundary receiver (nil: none).
+func (p *Processor) SetPhaseLapper(l PhaseLapper) {
+	p.laps = l
+}
+
+// lap closes a phase segment when a lapper is installed.
+func (p *Processor) lap(ph observe.Phase) {
+	if p.laps != nil {
+		p.laps.Lap(ph)
+	}
 }
 
 // SetLimits installs the instance's effective resource limits. The
@@ -174,6 +200,9 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 		if err != nil {
 			return nil, err
 		}
+		// Streaming arms fold decode, filter and aggregate per row: one
+		// coarse scan phase.
+		p.lap(observe.PhaseScan)
 		p.lastPath = PathStreaming
 		return resp, nil
 	}
@@ -188,6 +217,7 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 		}
 		allRecords = append(allRecords, iter.Record())
 	}
+	p.lap(observe.PhaseDecode)
 	resp, err := p.processRecords(ctx, req, allRecords)
 	if err != nil {
 		return nil, err
@@ -1530,6 +1560,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	} else if len(req.Sort) > 0 {
 		window.Sort(data, req.Sort)
 	}
+	p.lap(observe.PhaseScan)
 
 	// Tier-1 row tests fold over the filtered record set. Buffered path
 	// hits the same per-record UpdateRow contract as streaming.
@@ -1698,6 +1729,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// One MatrixComponents entry per Response.Matrices result (nil when
 	// the plan skips them).
 	attachMatrixComponents(resp, matrixComps)
+	p.lap(observe.PhasePost)
 
 	// SERIES-host overlay hook. Wraps the finalized per-group
 	// Response.Data as a SeriesHostView and dispatches each
@@ -1711,6 +1743,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// MATRIX hook in internal/processing/crosstab.go.
 	if err := applyOverlaysSeriesToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
+	}
+	if len(req.Overlays) > 0 {
+		p.lap(observe.PhaseOverlay)
 	}
 
 	// One PULSE_WEIGHT_INVALID_ROWS warning per weight field over the
@@ -1730,6 +1765,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	if err := applyRegressionLowNEff(resp, req.Regressions, resp.Regressions, p.strictWeights); err != nil {
 		return nil, err
 	}
+	p.lap(observe.PhasePost)
 
 	return resp, nil
 }

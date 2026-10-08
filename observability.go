@@ -3,6 +3,7 @@ package pulse
 import (
 	"context"
 	stderrors "errors"
+	"sync"
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
@@ -67,26 +68,105 @@ func (p *Pulse) observe(ctx context.Context, op opSpec, fn func(context.Context)
 // operation's result value after fn ran, so the logger can report the
 // warning codes it carries.
 func (p *Pulse) observeOn(ctx context.Context, op opSpec, fn func(context.Context) error, result func() any) error {
-	info := observe.OperationInfo{
+	run := p.beginOp(ctx, p.topInfo(op))
+	err := fn(run.work)
+	run.end(err, result)
+	return err
+}
+
+// topInfo builds a top-level operation's OperationInfo. On path only:
+// it issues an ID, resolves the cohort path and hashes the request.
+func (p *Pulse) topInfo(op opSpec) observe.OperationInfo {
+	return observe.OperationInfo{
 		Kind:        op.kind,
 		Scope:       observe.ScopeTop,
 		ID:          p.opSeq.Add(1),
 		Cohort:      op.cohortPath(),
 		RequestHash: op.requestHash(),
 	}
-	start := time.Now()
-	ctx = p.hookStart(ctx, info)
-	// The execution-facts carrier the service stamps at its decision
-	// points (arm, projection, workers, shards) and counts rows and
-	// bytes into. Installed only here, on the on path.
-	exec := &service.ExecInfo{}
-	err := fn(service.WithExecInfo(ctx, exec))
-	// TODO(observability/E2-S2): streaming operations (ProcessStream,
-	// ProcessStreamResult, SynthStream) end here, at call return; E2-S2
-	// moves their end to drain / Close / ctx cancel.
-	snap := exec.Snapshot()
+}
+
+// opRun is one observed operation in flight: built by beginOp, ended by
+// end (or, for a streaming operation, endOnce).
+type opRun struct {
+	p     *Pulse
+	info  observe.OperationInfo
+	start time.Time
+	// hookCtx is the context OnOperationStart returned (the hooks see
+	// it); work is hookCtx carrying the execution-facts carrier (the
+	// operation's work runs under it).
+	hookCtx, work context.Context
+	exec          *service.ExecInfo
+	// parent is the enclosing operation of a child, nil for a top-level
+	// one; a finished child folds its counters into it.
+	parent *opRun
+	once   sync.Once
+}
+
+// fansOut reports the kinds whose slots or stages run as child
+// operations.
+func fansOut(kind observe.OperationKind) bool {
+	return kind == observe.OpCompose || kind == observe.OpComposeParallel || kind == observe.OpProcessChain
+}
+
+// beginOp starts an operation: OnOperationStart, then the
+// execution-facts carrier (arm, counters, phase clock) the service
+// stamps through ctx. Installed only here, on the on path.
+func (p *Pulse) beginOp(ctx context.Context, info observe.OperationInfo) *opRun {
+	run := &opRun{p: p, info: info, start: time.Now()}
+	run.hookCtx = p.hookStart(ctx, info)
+	run.exec = service.NewExecInfo(run.start)
+	if fansOut(info.Kind) {
+		run.exec.SetChildStart(run.startChild)
+	}
+	run.work = service.WithExecInfo(run.hookCtx, run.exec)
+	return run
+}
+
+// startChild is the service.ChildStart of a fanning-out operation: slot
+// (Compose) or stage (ProcessChain) index runs as a child operation of
+// the same kind, scope child, linked to its parent by ID. Each child has
+// its own carrier, so its arm and counters are its own.
+func (run *opRun) startChild(ctx context.Context, index int, req *types.Request) (context.Context, func(error)) {
+	p := run.p
+	info := observe.OperationInfo{
+		Kind:   run.info.Kind,
+		Scope:  observe.ScopeChild,
+		ID:     p.opSeq.Add(1),
+		Parent: run.info.ID,
+		Index:  index,
+	}
+	if req != nil {
+		if req.Cohort != nil {
+			info.Cohort = resolveCohortPath(req.Cohort)
+		}
+		info.RequestHash = req.Hash()
+	}
+	child := p.beginOp(ctx, info)
+	child.parent = run
+	return child.work, func(err error) { child.end(err, nil) }
+}
+
+// end finishes the operation exactly once (later calls are no-ops, so
+// a stream's drain, Close and ctx cancel can all race to end it): it
+// reports the plan at Debug, logs a top-level outcome, fires OnPhase per
+// phase that ran (execution order) and then OnOperationEnd. A child
+// folds its counters into its parent first and leaves the outcome
+// records to the parent, so a failed slot is logged once.
+//
+// The parent's OperationResult aggregates its children: row and byte
+// counters are their sum, Workers / Shards the maximum, Arm the
+// children's arm when they all ran the same one (else empty) and
+// Projected whether any child projected.
+func (run *opRun) end(err error, result func() any) {
+	run.once.Do(func() { run.finish(err, result) })
+}
+
+func (run *opRun) finish(err error, result func() any) {
+	p := run.p
+	snap := run.exec.Snapshot()
 	res := observe.OperationResult{
-		Duration:    time.Since(start),
+		Duration:    time.Since(run.start),
 		Code:        operationCode(err),
 		RowsScanned: snap.RowsScanned,
 		RowsMatched: snap.RowsMatched,
@@ -97,16 +177,23 @@ func (p *Pulse) observeOn(ctx context.Context, op opSpec, fn func(context.Contex
 		Arm:         snap.Arm,
 		Projected:   snap.ProjectedFields > 0,
 	}
-	if p.logger != nil {
-		p.logPlan(ctx, info, snap)
-		var out any
-		if err == nil && result != nil {
-			out = result()
-		}
-		p.logOperation(ctx, info, res, err, out)
+	if run.parent != nil {
+		run.parent.exec.Absorb(snap)
 	}
-	p.hookEnd(ctx, info, res)
-	return err
+	if p.logger != nil {
+		p.logPlan(run.hookCtx, run.info, snap)
+		if run.parent == nil {
+			var out any
+			if err == nil && result != nil {
+				out = result()
+			}
+			p.logOperation(run.hookCtx, run.info, res, err, out)
+		}
+	}
+	for _, ph := range snap.Phases {
+		p.hookPhase(run.hookCtx, run.info, ph)
+	}
+	p.hookEnd(run.hookCtx, run.info, res)
 }
 
 // observed adapts observe to a method returning (T, error). Off, it is
@@ -124,6 +211,25 @@ func observed[T any](p *Pulse, ctx context.Context, op opSpec, fn func(context.C
 	return out, err
 }
 
+// observedStream is observed for a streaming operation, whose work
+// outlives the call: fn receives the end function and arranges for it
+// to run when the stream finishes — drained, closed or cancelled. end
+// runs at most once however many of those race; a call that fails ends
+// the operation at once. Off, fn gets a nil end and nothing else
+// happens. A stream the caller never drains, closes or cancels never
+// ends (a leaked iterator is a caller bug).
+func observedStream[T any](p *Pulse, ctx context.Context, op opSpec, fn func(ctx context.Context, end func(error)) (T, error)) (T, error) {
+	if !p.observing() {
+		return fn(ctx, nil)
+	}
+	run := p.beginOp(ctx, p.topInfo(op))
+	out, err := fn(run.work, func(err error) { run.end(err, nil) })
+	if err != nil {
+		run.end(err, nil)
+	}
+	return out, err
+}
+
 // operationCode maps an operation's error to OperationResult.Code: ok
 // for nil, the Pulse error code for a coded error (found through the
 // wrap chain), else the fixed uncoded placeholder. Never the message.
@@ -138,11 +244,11 @@ func operationCode(err error) string {
 	return observe.CodeUncoded
 }
 
-// Hook names, as reported when a hook panics. (OnPhase joins with
-// phase emission in E2-S2.)
+// Hook names, as reported when a hook panics.
 const (
 	hookStart = "start"
 	hookEnd   = "end"
+	hookPh    = "phase"
 )
 
 // hookStart fires OnOperationStart, returning the context it handed back
@@ -165,6 +271,14 @@ func (p *Pulse) hookEnd(ctx context.Context, info observe.OperationInfo, res obs
 	}
 	defer p.recoverHook(ctx, hookEnd, info.Kind)
 	p.hooks.OnOperationEnd(ctx, info, res)
+}
+
+func (p *Pulse) hookPhase(ctx context.Context, info observe.OperationInfo, ph observe.PhaseTiming) {
+	if p.hooks == nil || p.hooks.OnPhase == nil {
+		return
+	}
+	defer p.recoverHook(ctx, hookPh, info.Kind)
+	p.hooks.OnPhase(ctx, info, ph)
 }
 
 // recoverHook swallows a hook panic so the operation continues, logging

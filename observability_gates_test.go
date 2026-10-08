@@ -397,9 +397,6 @@ const logMsgHookPanic = "pulse: observability hook panicked"
 // panic value. With no Logger the panic is still contained.
 //
 // Falsified by removing the defer p.recoverHook in hookEnd.
-//
-// OnPhase is wired in E2-S2; until then it never fires, so its "logged"
-// assertion engages automatically once it does.
 func TestHookPanicRecovered(t *testing.T) {
 	ht := reflect.TypeOf(observe.Hooks{})
 	covered := map[string]bool{}
@@ -469,7 +466,7 @@ func TestHookPanicRecovered(t *testing.T) {
 				if withLogger && strings.Contains(h.output(), sentinelPanicPayload) {
 					t.Errorf("panic value leaked into the log")
 				}
-				if hook != "phase" && !firedAny && withLogger {
+				if !firedAny && withLogger {
 					t.Errorf("%s hook never fired — the gate is vacuous", hook)
 				}
 			})

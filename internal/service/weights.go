@@ -67,5 +67,8 @@ func (s *Service) newProcessor(ctx context.Context, schema *encoding.Schema, req
 	proc.SetComputePlan(s.computePlanFor(ctx, req))
 	proc.SetWeighting(s.defaultWeight, s.strict)
 	proc.SetLimits(s.Limits())
+	if ei := execInfoFrom(ctx); ei != nil {
+		proc.SetPhaseLapper(ei)
+	}
 	return proc
 }

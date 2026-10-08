@@ -50,6 +50,17 @@ func (r *hookRecorder) hooks() *observe.Hooks {
 	}
 }
 
+// topEvents keeps the top-level operations' events.
+func topEvents(evs []hookEvent) []hookEvent {
+	var out []hookEvent
+	for _, e := range evs {
+		if e.info.Scope == observe.ScopeTop {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 func (r *hookRecorder) take() []hookEvent {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -310,9 +321,11 @@ func TestObservedMethodsCoverSurface(t *testing.T) {
 }
 
 // TestObserveFiresStartEndOncePerOperation calls every instrumented
-// method and asserts exactly one start and one end, with the method's
-// kind, and that the ctx returned by OnOperationStart is the ctx both
-// the end hook and the operation's work saw.
+// method and asserts exactly one top-level start and one top-level end,
+// with the method's kind, and that the ctx returned by OnOperationStart
+// is the ctx both the end hook and the operation's work saw. (Child
+// operations — Compose slots, chain stages — are covered by
+// TestObserveChildOperations.)
 func TestObserveFiresStartEndOncePerOperation(t *testing.T) {
 	rec := &hookRecorder{}
 	p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
@@ -327,7 +340,7 @@ func TestObserveFiresStartEndOncePerOperation(t *testing.T) {
 				}()
 				_ = c.call(context.Background(), p)
 			}()
-			evs := rec.take()
+			evs := topEvents(rec.take())
 			if len(evs) != 2 || !evs[0].start || evs[1].start {
 				t.Fatalf("%s: want exactly [start, end], got %d events %+v", c.method, len(evs), evs)
 			}

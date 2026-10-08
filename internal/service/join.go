@@ -50,7 +50,11 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 	defer leftIter.Close()
-	execInfoFrom(ctx).setPlan(observe.ArmJoin, 1, 0, 0)
+	ei := execInfoFrom(ctx)
+	ei.setPlan(observe.ArmJoin, 1, 0, 0)
+	// Opening both sides and building the right side's hash table; the
+	// processor laps the probe-side scan.
+	ei.Lap(observe.PhaseOpen)
 
 	proc := s.newProcessor(ctx, joinedSchema, req)
 	resp, err := proc.Process(ctx, s.zoned(&clone, zones), join)

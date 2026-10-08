@@ -44,6 +44,8 @@ func (s *Service) processCrosstabFused(ctx context.Context, cohort *Cohort, path
 	if err != nil {
 		return nil, err
 	}
+	// The fused walk decodes, filters and folds per row: one scan.
+	execInfoFrom(ctx).Lap(observe.PhaseScan)
 	if iter.Err() != nil {
 		return nil, iter.Err()
 	}

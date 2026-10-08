@@ -166,7 +166,8 @@ type OperationInfo struct {
 	// Kind is the operation kind.
 	Kind OperationKind
 	// Scope is ScopeTop for a host call, ScopeChild for a slot or stage
-	// Pulse fired inside another operation.
+	// Pulse fired inside another operation. A child carries its
+	// parent's Kind (a Compose slot is a compose child).
 	Scope Scope
 	// ID identifies the operation within its Pulse instance; never 0.
 	ID uint64
@@ -186,6 +187,12 @@ type OperationInfo struct {
 
 // OperationResult describes how an operation ended. Counters an
 // operation does not produce stay zero.
+//
+// A parent operation (Compose, ComposeParallel, ProcessChain)
+// aggregates its children: RowsScanned, RowsMatched, RowsOut and
+// BytesRead are their sum, Shards and Workers the maximum, Arm the
+// children's arm when they all ran the same one (else empty), and
+// Projected whether any child projected.
 type OperationResult struct {
 	// Duration is the wall time from start to end.
 	Duration time.Duration
@@ -210,7 +217,7 @@ type OperationResult struct {
 	Projected bool
 }
 
-// PhaseTiming reports one finished phase.
+// PhaseTiming reports one phase of a finished operation.
 type PhaseTiming struct {
 	// Phase is the phase that finished.
 	Phase Phase
@@ -230,9 +237,17 @@ type Hooks struct {
 	// for the work and for the matching OnPhase and OnOperationEnd
 	// calls — the place to start a span.
 	OnOperationStart func(ctx context.Context, info OperationInfo) context.Context
-	// OnOperationEnd fires exactly once when the operation ends.
+	// OnOperationEnd fires exactly once when the operation ends. A
+	// streaming operation ends when its stream is drained, closed or its
+	// context cancelled, whichever comes first; a stream the caller
+	// leaks never ends.
 	OnOperationEnd func(ctx context.Context, info OperationInfo, result OperationResult)
-	// OnPhase fires when a phase of the operation finishes.
+	// OnPhase reports the operation's phases: once per phase that ran,
+	// in execution order, after the work finished and just before
+	// OnOperationEnd. A phase that ran in several pieces (plan before
+	// and after the cohort open) reports their sum. A streaming
+	// operation's scan runs until the stream ends, so it includes the
+	// time the consumer spends between reads.
 	OnPhase func(ctx context.Context, info OperationInfo, phase PhaseTiming)
 }
 

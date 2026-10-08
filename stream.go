@@ -138,13 +138,35 @@ const streamBuffer = 4
 // PULSE_LIMIT_EXCEEDED error directly; one that fires mid-stream
 // delivers Status: StreamErrored carrying that coded error (never
 // StreamCancelled, which stays the caller's own cancel or deadline).
+//
+// Observability: the operation starts at the call and ends exactly once,
+// just before the terminator is delivered — completed, errored or
+// cancelled. Its scan phase runs from the first row read to that end,
+// so it includes the time the producer waits on a slow consumer (the
+// Chunks buffer is small, so backpressure reaches it quickly). A
+// stream whose Chunks are never drained and whose ctx is never
+// cancelled never ends the operation (a caller bug).
 func (p *Pulse) ProcessStreamResult(ctx context.Context, req *Request) (StreamResult[Row], error) {
-	return observed(p, ctx, requestOp(observe.OpProcessStream, req), func(ctx context.Context) (StreamResult[Row], error) {
-		return p.processStreamResult(ctx, req)
+	return observedStream(p, ctx, requestOp(observe.OpProcessStream, req), func(ctx context.Context, end func(error)) (StreamResult[Row], error) {
+		return p.processStreamResult(ctx, req, end)
 	})
 }
 
-func (p *Pulse) processStreamResult(ctx context.Context, req *Request) (StreamResult[Row], error) {
+// streamEnd builds a stream goroutine's observability end: it closes
+// the scan phase (opened by Mark when the goroutine started reading)
+// and ends the operation. Nil when the stream is unobserved.
+func streamEnd(ctx context.Context, end func(error)) func(error) {
+	if end == nil {
+		return nil
+	}
+	ei := service.ExecInfoFrom(ctx)
+	return func(err error) {
+		ei.Lap(observe.PhaseScan)
+		end(err)
+	}
+}
+
+func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(error)) (StreamResult[Row], error) {
 	if req == nil {
 		return StreamResult[Row]{}, errors.New("pulse: nil request")
 	}
@@ -177,6 +199,7 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request) (StreamRe
 	aggMerge := aggMergeabilityVector(req)
 	grpMerge := grpMergeabilityVector(req)
 
+	finish := streamEnd(ctx, end)
 	go func() {
 		defer release()
 		defer close(chunks)
@@ -187,7 +210,13 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request) (StreamRe
 			pending     Row
 			pendingHave bool
 		)
+		if finish != nil {
+			service.ExecInfoFrom(ctx).Mark()
+		}
 		emitTerminator := func(status StreamStatus, err error) {
+			if finish != nil {
+				finish(err)
+			}
 			done <- StreamTerminator{
 				CompletedAt: time.Now(),
 				TotalRows:   rows,
@@ -279,13 +308,17 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request) (StreamRe
 // the scenes and yields rows from the materialized result; it does not
 // expose true row-at-a-time generation yet but is API-stable so callers
 // can adopt the streaming shape today.
+//
+// Observability is ProcessStreamResult's: the operation ends exactly
+// once, just before the terminator is delivered, and its scan phase
+// (generation and emission) includes any backpressure wait.
 func (p *Pulse) SynthStream(ctx context.Context, spec *SynthSpec, opts SynthOptions) (StreamResult[Row], error) {
-	return observed(p, ctx, opSpec{kind: observe.OpSynthStream, req: synthHasher(spec)}, func(ctx context.Context) (StreamResult[Row], error) {
-		return p.synthStream(ctx, spec, opts)
+	return observedStream(p, ctx, opSpec{kind: observe.OpSynthStream, req: synthHasher(spec)}, func(ctx context.Context, end func(error)) (StreamResult[Row], error) {
+		return p.synthStream(ctx, spec, opts, end)
 	})
 }
 
-func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOptions) (StreamResult[Row], error) {
+func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOptions, end func(error)) (StreamResult[Row], error) {
 	if spec == nil {
 		return StreamResult[Row]{}, errors.New("pulse: nil synth spec")
 	}
@@ -295,9 +328,16 @@ func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOpti
 	started := time.Now()
 	estimated := int64(spec.RowCount)
 
+	finish := streamEnd(ctx, end)
 	go func() {
 		defer close(chunks)
+		if finish != nil {
+			service.ExecInfoFrom(ctx).Mark()
+		}
 		emit := func(status StreamStatus, err error, rows int64) {
+			if finish != nil {
+				finish(err)
+			}
 			done <- StreamTerminator{
 				CompletedAt: time.Now(),
 				TotalRows:   rows,

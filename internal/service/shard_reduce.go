@@ -102,10 +102,13 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
-	if ei := execInfoFrom(ctx); ei != nil {
+	ei := execInfoFrom(ctx)
+	if ei != nil {
 		ei.setPlan(observe.ArmShardParallel, workers, len(shards), 0)
 		ei.addBytes(int64(len(data)))
 	}
+	// Reading the archive into memory is its open.
+	ei.Lap(observe.PhaseOpen)
 
 	partials := make([]*shardPartial, len(shards))
 	jobs := make(chan int, len(shards))
@@ -144,6 +147,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if firstErr != nil {
 		return nil, firstErr
 	}
+	ei.Lap(observe.PhaseScan)
 
 	// Merge partials in shard insertion order. The order matters for
 	// Welford-mean ULP determinism; for purely associative+commutative
@@ -159,6 +163,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err := merged.weights.Apply(resp, s.strict); err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhaseReduce)
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = path
 	}

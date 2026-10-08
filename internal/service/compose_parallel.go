@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -148,6 +149,12 @@ func (s *Service) composeParallel(
 		}
 	}
 
+	// Observability (no-ops off): the batch's planning is its plan
+	// phase; each slot is a child operation timed under its own
+	// carrier, so the parent's clock skips the pool (Mark).
+	ei := execInfoFrom(ctx)
+	ei.Lap(observe.PhasePlan)
+
 	sem := make(chan struct{}, o.MaxWorkers)
 	var wg sync.WaitGroup
 
@@ -172,7 +179,9 @@ func (s *Service) composeParallel(
 				defer reqCancel()
 			}
 
+			reqCtx, end := startChild(reqCtx, i, req)
 			resp, err := s.Process(reqCtx, req)
+			end(err)
 			if err != nil {
 				errs[i] = err
 				triggerFailFast()
@@ -182,6 +191,7 @@ func (s *Service) composeParallel(
 		}()
 	}
 	wg.Wait()
+	ei.Mark()
 
 	// Aggregate errors if any. FailFast surfaces the lowest-index error
 	// that is not a sibling cancellation (failFastWinner); non-FailFast
@@ -240,6 +250,7 @@ func (s *Service) composeParallel(
 		if err != nil {
 			return nil, err
 		}
+		ei.Lap(observe.PhaseOverlay)
 	}
 
 	// Build the ComposedResponse wrapper. Overlay-free composes leave

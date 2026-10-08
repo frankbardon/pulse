@@ -20,18 +20,38 @@ import (
 // decision points through the per-request carrier, independent of
 // Response.Components.
 
-// execRecorder captures the OperationResult of every finished operation.
+// execRecorder captures the OperationResult of every finished
+// operation and, in call order, every phase and end hook call.
 type execRecorder struct {
 	mu   sync.Mutex
 	ends []observe.OperationResult
+	// log is "<phase>" per OnPhase and "end" per OnOperationEnd.
+	log []string
 }
 
 func (r *execRecorder) hooks() *observe.Hooks {
-	return &observe.Hooks{OnOperationEnd: func(_ context.Context, _ observe.OperationInfo, res observe.OperationResult) {
-		r.mu.Lock()
-		r.ends = append(r.ends, res)
-		r.mu.Unlock()
-	}}
+	return &observe.Hooks{
+		OnOperationEnd: func(_ context.Context, _ observe.OperationInfo, res observe.OperationResult) {
+			r.mu.Lock()
+			r.ends = append(r.ends, res)
+			r.log = append(r.log, "end")
+			r.mu.Unlock()
+		},
+		OnPhase: func(_ context.Context, _ observe.OperationInfo, ph observe.PhaseTiming) {
+			r.mu.Lock()
+			r.log = append(r.log, string(ph.Phase))
+			r.mu.Unlock()
+		},
+	}
+}
+
+// takeLog returns and clears the phase / end call log.
+func (r *execRecorder) takeLog() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := r.log
+	r.log = nil
+	return out
 }
 
 // last returns the single result recorded since the previous call.
@@ -108,18 +128,24 @@ func assertRowsMatchRun(t *testing.T, res observe.OperationResult, resp *types.R
 //
 // Falsified per arm by deleting that arm's setPlan stamp (the arm comes
 // back empty or as another arm's).
-func TestObservabilityExecArms(t *testing.T) {
+// armCase is one execution arm's fixture: an instance wired to rec and
+// a request that rides the arm.
+type armCase struct {
+	name      string
+	open      func(t *testing.T, rec *execRecorder) (*pulse.Pulse, *types.Request)
+	arm       observe.Arm
+	workers   int
+	shards    int
+	projected bool
+}
+
+// execArmCases returns one case per execution arm (plus the crosstab
+// variants), shared by the arm and phase tests.
+func execArmCases(t *testing.T) []armCase {
+	t.Helper()
 	ctx := context.Background()
 	large := parityLargeCohort(t.TempDir())
 
-	type armCase struct {
-		name      string
-		open      func(t *testing.T, rec *execRecorder) (*pulse.Pulse, *types.Request)
-		arm       observe.Arm
-		workers   int
-		shards    int
-		projected bool
-	}
 	crosstabReq := func(joins []*types.JoinSpec) *types.Request {
 		return &types.Request{
 			Cohort: &types.Cohort{Filename: execCohort},
@@ -132,7 +158,7 @@ func TestObservabilityExecArms(t *testing.T) {
 		}
 	}
 	selfJoin := []*types.JoinSpec{{Right: execCohort, As: "r_", On: []types.OnPair{{LeftField: "qty", RightField: "qty"}}}}
-	cases := []armCase{
+	return []armCase{
 		{"streaming", func(t *testing.T, rec *execRecorder) (*pulse.Pulse, *types.Request) {
 			return execNew(t, pulse.Options{FS: execSmallFS(t)}, rec), execSumReq(execCohort)
 		}, observe.ArmStreaming, 1, 0, true},
@@ -181,6 +207,12 @@ func TestObservabilityExecArms(t *testing.T) {
 			return execNew(t, pulse.Options{DataDir: large(t), DecodeWorkers: 4}, rec), execSumReq("large.pulse")
 		}, observe.ArmParallelDecode, 4, 0, true},
 	}
+
+}
+
+func TestObservabilityExecArms(t *testing.T) {
+	ctx := context.Background()
+	cases := execArmCases(t)
 
 	seen := map[observe.Arm]bool{}
 	for _, c := range cases {

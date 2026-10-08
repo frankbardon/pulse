@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -272,6 +273,9 @@ func (s *Service) reduceParallelBuffered(
 	if err := parallelDecodeMmap(ctx, pctx, workers, factory); err != nil {
 		return nil, err
 	}
+	// The workers decoded, filtered and folded their segments: scan.
+	// The partial merge below is the reduce phase (lapped by the caller).
+	execInfoFrom(ctx).Lap(observe.PhaseScan)
 
 	// Single-worker fast path: when workers == 1 the orchestrator
 	// already produced a single partial; skip the merge fold.

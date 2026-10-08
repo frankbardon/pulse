@@ -658,6 +658,11 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 // its execution arm: crosstab, join, shard-parallel, parallel decode,
 // or the serial scan. process wraps it with the multiplicity fold.
 func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*types.Response, error) {
+	// Observability phase clock (no-ops off): everything since the
+	// operation started — refusals, multiplicity, return / ComputePlan —
+	// is plan; each arm laps its own open, plan tail and scan.
+	ei := execInfoFrom(ctx)
+	ei.Lap(observe.PhasePlan)
 	if req.Crosstab != nil {
 		return s.processCrosstab(ctx, req)
 	}
@@ -672,6 +677,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhaseOpen)
 	countReads(ctx, cohort)
 
 	// Smart-defaults resolution: fill in operator types that the caller
@@ -727,6 +733,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	// rides on its slot (a copy — req itself stays as the caller sees
 	// it). Zone-free and UTC requests run req unchanged.
 	req = s.zoned(req, zones)
+	ei.Lap(observe.PhasePlan)
 
 	// Per-shard parallel fast path: when the cohort is archive-backed,
 	// the request is mergeable, and ShardWorkers != 1, fan out across
@@ -953,12 +960,15 @@ func (s *Service) processSingleFileParallelMaybe(
 		}
 		ei.setPlan(observe.ArmParallelDecode, resolvedWorkers, 0, projected)
 		ei.addBytes(int64(len(pctx.mmapBytes)))
+		// Mapping the cohort for the workers is its open.
+		ei.Lap(observe.PhaseOpen)
 	}
 
 	resp, err := s.reduceParallelBuffered(ctx, req, schema, pctx, resolvedWorkers)
 	if err != nil {
 		return nil, false, err
 	}
+	execInfoFrom(ctx).Lap(observe.PhaseReduce)
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = path
 	}
@@ -1128,14 +1138,22 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		vetoes = composeSlotVetoes(composed.Overlays, requests)
 	}
 
+	// Observability (no-ops off): the batch's planning is its plan
+	// phase; each slot is a child operation timed under its own
+	// carrier, so the parent's clock skips the slots (Mark).
+	ei := execInfoFrom(ctx)
+	ei.Lap(observe.PhasePlan)
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		resp, err := s.Process(composeSlotContext(ctx, vetoes, multPlan, i), req)
+		slotCtx, end := startChild(composeSlotContext(ctx, vetoes, multPlan, i), i, req)
+		resp, err := s.Process(slotCtx, req)
+		end(err)
 		if err != nil {
 			return nil, fmt.Errorf("request %d: %w", i, locate(err, "request", i))
 		}
 		responses[i] = resp
 	}
+	ei.Mark()
 
 	// Compose-only overlay barrier. Runs AFTER every slot has
 	// produced a finalised *Response and BEFORE the response is
@@ -1153,6 +1171,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		if err != nil {
 			return nil, err
 		}
+		ei.Lap(observe.PhaseOverlay)
 	}
 
 	// Build the ComposedResponse wrapper. Overlay-free composes leave

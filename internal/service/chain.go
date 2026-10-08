@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/returnplan"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -86,11 +87,17 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	stage0 := req.Stages[0].Request
 	stage0.Cohort = req.Cohort
 
+	// Observability (no-ops off): the chain's own planning and cohort
+	// open are its plan and open phases; each stage is a child operation
+	// timed under its own carrier, so the parent's clock skips them.
+	ei := execInfoFrom(ctx)
+	ei.Lap(observe.PhasePlan)
 	path := resolveCohortPath(req.Cohort)
 	cohort, err := s.Open(ctx, path)
 	if err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhaseOpen)
 
 	s.applyDefaults(stage0, cohort.Schema())
 	// Zones resolve before the chain gate on every stage. A joined
@@ -122,7 +129,10 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// A chain overlay reads its stages' data and crosstab payload only
 	// (never skipped), so it vetoes no stage's `return` skip; stage 0
 	// resolves its own compute plan inside Process.
-	firstResp, err := s.Process(ctx, stage0)
+	ei.Lap(observe.PhasePlan)
+	stageCtx, end := startChild(ctx, 0, stage0)
+	firstResp, err := s.Process(stageCtx, stage0)
+	end(err)
 	if err != nil {
 		return nil, locate(err, "stage", 0)
 	}
@@ -139,57 +149,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	for i := 1; i < len(req.Stages); i++ {
 		stage := req.Stages[i].Request
 		stage.Cohort = nil // chain stages >= 1 do not name a cohort
-		// Only stage 0 may join: a later stage reads the previous
-		// stage's rows, so its Joins are refused, not dropped.
-		if err := mergegate.StageJoinRefusal(stage, i, req.Stages[i].Name); err != nil {
-			return nil, err
-		}
-		// Likewise only stage 0 may carry matrices: a later stage's rows
-		// are the previous stage's output, not the cohort.
-		if err := mergegate.StageMatrixRefusal(stage, i, req.Stages[i].Name); err != nil {
-			return nil, err
-		}
-
-		synthSchema, err := processing.ChainOutputSchema(priorReq)
-		if err != nil {
-			return nil, err
-		}
-		records, err := processing.RecordsFromChainRows(priorResp.Data, synthSchema)
-		if err != nil {
-			return nil, err
-		}
-
-		s.applyDefaults(stage, synthSchema)
-		zones, err := s.resolveZones(stage, synthSchema)
-		if err != nil {
-			return nil, locate(err, "stage", i)
-		}
-		if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
-			return nil, err
-		}
-		if err := s.checkFieldRefs(stage, synthSchema); err != nil {
-			return nil, locate(err, "stage", i)
-		}
-		if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{
-			Records:        int64(len(records)),
-			JoinRightRows:  -1,
-			Extensions:     s.ExtensionsSnapshot(),
-			FusionDisabled: s.disableCrosstabFusion,
-		}); err != nil {
-			return nil, locate(err, "stage", i)
-		}
-
-		if s.echoRequest {
-			normStages = append(normStages, &types.ChainStage{
-				Name:    req.Stages[i].Name,
-				Request: snapshotRequest(stage),
-			})
-		}
-
-		// The stage's own compute plan: what its `return` excludes is
-		// never built. Its data — the next stage's input — has no skip.
-		stageCtx := withComputePlan(ctx, s.resolveComputePlan(ctx, stage, rets[i], plans[i]))
-		resp, err := s.runChainStage(stageCtx, s.zoned(stage, zones), plans[i], synthSchema, records)
+		resp, err := s.runChainStageChild(ctx, req, i, stage, priorReq, priorResp, plans[i], rets[i], &normStages)
 		if err != nil {
 			return nil, err
 		}
@@ -197,6 +157,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		priorReq = stage
 		priorResp = resp
 	}
+	ei.Mark()
 
 	if len(out.Stages) > 0 {
 		out.Final = out.Stages[len(out.Stages)-1]
@@ -219,7 +180,77 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	if err := s.applyChainOverlays(req, out); err != nil {
 		return nil, err
 	}
+	if len(req.Overlays) > 0 {
+		ei.Lap(observe.PhaseOverlay)
+	}
 	return out, nil
+}
+
+// runChainStageChild runs chain stage i (i >= 1) over the previous
+// stage's rows as a child operation: startChild gives it its own
+// observability carrier, which it stamps with the serial arm the stage
+// ran and the stage's row counters (no-ops off).
+func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainRequest, i int, stage, priorReq *types.Request, priorResp *types.Response, plan *descx.MultiplicityPlan, ret *returnplan.Plan, normStages *[]*types.ChainStage) (resp *types.Response, err error) {
+	ctx, end := startChild(ctx, i, stage)
+	defer func() { end(err) }()
+	// Only stage 0 may join: a later stage reads the previous
+	// stage's rows, so its Joins are refused, not dropped.
+	if err := mergegate.StageJoinRefusal(stage, i, req.Stages[i].Name); err != nil {
+		return nil, err
+	}
+	// Likewise only stage 0 may carry matrices: a later stage's rows
+	// are the previous stage's output, not the cohort.
+	if err := mergegate.StageMatrixRefusal(stage, i, req.Stages[i].Name); err != nil {
+		return nil, err
+	}
+
+	synthSchema, err := processing.ChainOutputSchema(priorReq)
+	if err != nil {
+		return nil, err
+	}
+	records, err := processing.RecordsFromChainRows(priorResp.Data, synthSchema)
+	if err != nil {
+		return nil, err
+	}
+
+	s.applyDefaults(stage, synthSchema)
+	zones, err := s.resolveZones(stage, synthSchema)
+	if err != nil {
+		return nil, locate(err, "stage", i)
+	}
+	if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
+		return nil, err
+	}
+	if err := s.checkFieldRefs(stage, synthSchema); err != nil {
+		return nil, locate(err, "stage", i)
+	}
+	if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{
+		Records:        int64(len(records)),
+		JoinRightRows:  -1,
+		Extensions:     s.ExtensionsSnapshot(),
+		FusionDisabled: s.disableCrosstabFusion,
+	}); err != nil {
+		return nil, locate(err, "stage", i)
+	}
+
+	if s.echoRequest {
+		*normStages = append(*normStages, &types.ChainStage{
+			Name:    req.Stages[i].Name,
+			Request: snapshotRequest(stage),
+		})
+	}
+
+	// The stage's own compute plan: what its `return` excludes is
+	// never built. Its data — the next stage's input — has no skip.
+	ei := execInfoFrom(ctx)
+	ei.Lap(observe.PhasePlan)
+	stageCtx := withComputePlan(ctx, s.resolveComputePlan(ctx, stage, ret, plan))
+	resp, err = s.runChainStage(stageCtx, s.zoned(stage, zones), plan, synthSchema, records)
+	if err != nil {
+		return nil, err
+	}
+	ei.addRows(resp)
+	return resp, nil
 }
 
 // applyChainOverlays is the post-stage-loop barrier hook. Invokes
@@ -348,6 +379,7 @@ func (s *Service) runChainStage(ctx context.Context, req *types.Request, plan *d
 	if err != nil {
 		return nil, err
 	}
+	execInfoFrom(ctx).setPlan(pathArm(proc.LastPath() == processing.PathStreaming), 1, 0, 0)
 	if err := foldRequestMultiplicity(plan, resp); err != nil {
 		return nil, err
 	}

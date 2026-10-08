@@ -853,7 +853,12 @@ func (p *Pulse) process(ctx context.Context, req *Request) (*Response, error) {
 			return nil, rerr
 		}
 		if plan != nil {
+			// The shape phase (no-ops off): Mark skips the time since
+			// the service returned, so shape is Apply alone.
+			ei := service.ExecInfoFrom(ctx)
+			ei.Mark()
 			returnshape.Apply(resp, plan)
+			ei.Lap(observe.PhaseShape)
 		}
 	}
 	return resp, err
@@ -889,9 +894,20 @@ type RowIter = service.RowIter
 // `MarshalRow(Row) ([]byte, error)` writes one at the plan's precision
 // (the `pulse api process --stream` NDJSON writer uses it). With no
 // effective block the service iterator is returned untouched.
+//
+// Observability: the operation starts at the call and ends exactly once
+// — when the iterator is drained (or fails), closed, or ctx is
+// cancelled, whichever comes first. Its scan phase runs from the first
+// Next to that end, so it includes the caller's own time between Next
+// calls. An iterator that is never drained, closed or cancelled never
+// ends the operation (a leaked iterator is a caller bug).
 func (p *Pulse) ProcessStream(ctx context.Context, req *Request) (RowIter, error) {
-	return observed(p, ctx, requestOp(observe.OpProcessStream, req), func(ctx context.Context) (RowIter, error) {
-		return p.processStream(ctx, req)
+	return observedStream(p, ctx, requestOp(observe.OpProcessStream, req), func(ctx context.Context, end func(error)) (RowIter, error) {
+		iter, err := p.processStream(ctx, req)
+		if err != nil || end == nil {
+			return iter, err
+		}
+		return newObservedRowIter(ctx, iter, end), nil
 	})
 }
 
@@ -945,7 +961,7 @@ func (p *Pulse) compose(ctx context.Context, req *ComposedRequest) (*ComposedRes
 	if err != nil {
 		return nil, err
 	}
-	if err := p.shapeComposed(req, slots, out); err != nil {
+	if err := p.shapeComposed(ctx, req, slots, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -954,7 +970,7 @@ func (p *Pulse) compose(ctx context.Context, req *ComposedRequest) (*ComposedRes
 // shapeComposed resolves every slot's `return` plan from the
 // defaults-resolved slot requests the service ran, plus the
 // Compose-level plan, and applies them to the finished response.
-func (p *Pulse) shapeComposed(req *ComposedRequest, slots []*Request, out *ComposedResponse) error {
+func (p *Pulse) shapeComposed(ctx context.Context, req *ComposedRequest, slots []*Request, out *ComposedResponse) error {
 	inst := p.svc.InstanceSnapshot()
 	top, err := descx.ResolveComposeReturn(req, inst)
 	if err != nil {
@@ -971,7 +987,15 @@ func (p *Pulse) shapeComposed(req *ComposedRequest, slots []*Request, out *Compo
 		}
 		plans[i] = plan
 	}
+	// The shape phase (no-ops off), only when some layer carries a
+	// block — as on Process.
+	var ei *service.ExecInfo
+	if top != nil || anyPlan(plans) {
+		ei = service.ExecInfoFrom(ctx)
+	}
+	ei.Mark()
 	returnshape.ApplyComposed(out, plans, top)
+	ei.Lap(observe.PhaseShape)
 	return nil
 }
 
@@ -1054,8 +1078,26 @@ func (p *Pulse) processChain(ctx context.Context, req *ChainRequest) (*ChainResp
 		}
 		plans[i] = plan
 	}
+	// The shape phase (no-ops off), only when some stage carries a
+	// block — as on Process.
+	var ei *service.ExecInfo
+	if anyPlan(plans) {
+		ei = service.ExecInfoFrom(ctx)
+	}
+	ei.Mark()
 	returnshape.ApplyChain(resp, plans)
+	ei.Lap(observe.PhaseShape)
 	return resp, nil
+}
+
+// anyPlan reports whether any resolved `return` plan is set.
+func anyPlan(plans []*returnplan.Plan) bool {
+	for _, plan := range plans {
+		if plan != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // ComposeOptions controls parallel execution. See internal/service.ComposeOptions.
@@ -1098,7 +1140,7 @@ func (p *Pulse) composeParallel(ctx context.Context, req *ComposedRequest, opts 
 	if err != nil {
 		return nil, err
 	}
-	if err := p.shapeComposed(req, slots, out); err != nil {
+	if err := p.shapeComposed(ctx, req, slots, out); err != nil {
 		return nil, err
 	}
 	return out, nil
