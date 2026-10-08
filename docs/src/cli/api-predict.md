@@ -181,6 +181,7 @@ pulse api predict --request req.json --json | \
 |---|---|
 | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | Use `AGG_COUNT` / `AGG_MODE_COUNT` instead of `AGG_SUM` / `AGG_AVG` on categoricals |
 | `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`     | Decimal-typed field; switch to a decimal-aware aggregator |
+| `PULSE_ATTR_CODE_NOT_IN_DICTIONARY`        | An `ATTR_CODE_IN` code is not a label of the categorical field's dictionary (it matches no row); fix or drop each entry in `details.missing_codes` |
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
 | `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | Every `FEAT_TARGET_ENCODE` averages all rows' targets (a prior split does not help); compute train-only means in a separate request |
 

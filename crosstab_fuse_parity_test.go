@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -386,6 +387,13 @@ func TestPredict_CrosstabFusableMatchesRuntime(t *testing.T) {
 					if *got.CrosstabFusable != rtOK || !reflect.DeepEqual(got.CrosstabFusionReasons, rtReasons) {
 						t.Errorf("%s/%s: predict=(%v, %q) runtime=(%v, %q)",
 							c.name, arm, *got.CrosstabFusable, got.CrosstabFusionReasons, rtOK, rtReasons)
+					}
+				}
+				// ATTR_CODE_IN is row-local and reads only Field: both
+				// arms must answer fused on an instance that allows it.
+				if strings.HasPrefix(c.name, "attr/ATTR_CODE_IN") && !inst.disable && req.Crosstab != nil && !refused {
+					if !rtOK || res.CrosstabFusable == nil || !*res.CrosstabFusable {
+						t.Errorf("%s: runtime fused=%v, predict CrosstabFusable=%v; want both true", c.name, rtOK, res.CrosstabFusable)
 					}
 				}
 				if req.Crosstab != nil && !refused {

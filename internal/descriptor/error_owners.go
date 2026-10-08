@@ -158,6 +158,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_DECIMAL_PRECISION_LOSS:         shared,
 	errors.PULSE_DECIMAL_DIVIDE_BY_ZERO:         shared,
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: shared,
+	// Predict only: an ATTR_CODE_IN code absent from a categorical dictionary.
+	errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY: own("ATTR_CODE_IN"),
 
 	// Synth (data-profile capture included).
 	errors.PULSE_SYNTH_DISTRIBUTION_UNKNOWN:    own(featSynth),

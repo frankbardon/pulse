@@ -6383,7 +6383,7 @@
         ]
       }
     ],
-    "error_codes_count": 285,
+    "error_codes_count": 286,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6422,6 +6422,7 @@
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
+      "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
       "PULSE_CHAIN_STAGE_JOIN",
@@ -12363,4 +12364,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1af3c8e122939368eb6f4e676ee910092a90b0399e0caf2149c1cdf382e1b00a
+// golden-hash: 3f7b08f7d9482cc83e1b78302bf0dc054957f8953ace24834bd0c6098dcd2a4e

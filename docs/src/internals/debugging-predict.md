@@ -31,6 +31,7 @@ The most common issues:
 | Field-name typo | `SERVICE_VALIDATION` |
 | Numeric aggregation on a categorical field | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` |
 | Description below the quality threshold | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` |
+| `ATTR_CODE_IN` code absent from a categorical dictionary | `PULSE_ATTR_CODE_NOT_IN_DICTIONARY` |
 | Operator's `AcceptsTypes` excludes the field | `SERVICE_VALIDATION` |
 | `Filterer` referenced from `Aggregation` not declared | `SERVICE_VALIDATION` |
 

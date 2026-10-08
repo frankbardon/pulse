@@ -334,6 +334,14 @@ const (
 	// aggregators are exempt.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 
+	// PULSE_ATTR_CODE_NOT_IN_DICTIONARY is a predict warning (an error
+	// under Strict) emitted once per ATTR_CODE_IN slot on a categorical
+	// field when one or more params.codes are absent from the field's
+	// dictionary. The runtime does not refuse: an absent code matches no
+	// row, so the share silently counts it as zero. Never raised for an
+	// unsigned-integer field.
+	PULSE_ATTR_CODE_NOT_IN_DICTIONARY Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
+
 	// PULSE_SYNTH_DISTRIBUTION_UNKNOWN indicates a synth spec referenced
 	// a distribution kind not registered in the synth package.
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
@@ -2935,6 +2943,7 @@ var allCodes = []Code{
 	PULSE_DECIMAL_PRECISION_LOSS,
 	PULSE_DECIMAL_DIVIDE_BY_ZERO,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
+	PULSE_ATTR_CODE_NOT_IN_DICTIONARY,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE,
 	PULSE_SYNTH_SOURCE_REQUIRED,
