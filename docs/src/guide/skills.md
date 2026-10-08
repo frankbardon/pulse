@@ -1,0 +1,283 @@
+# Skills
+
+Every skill this instance serves, as an agent reads it, sorted by name.
+
+- [`aggregation-design`](skills/aggregation-design.md): Aggregation + filterer slot semantics — what `aggregations` does, how it composes with `filterers`, when smart defaults fire, when to use `attributes` instead. Topical design; per-AGG / per-FILTER detail lives in atomic op-* skills.
+- [`attribute-composition`](skills/attribute-composition.md): Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills.
+- [`cohort-null-states`](skills/cohort-null-states.md): How a .pulse cohort stores absence — the per-record null bitmap, no in-band sentinels, out-of-sample null promotion on inferred imports, and the null / empty / selected states of set and categorical cells across every import and export format.
+- [`cohort-parent-groups`](skills/cohort-parent-groups.md): Parent groups in format 0x02 cohorts — storing a repeated parent block once, when a group pays for itself, declaring one at import with a key check, suggesting and gating groups, converting an existing cohort with dedup, and opt-in global-constant elision.
+- [`cohort-schema-design`](skills/cohort-schema-design.md): Entry point for .pulse cohort schemas — the 20-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
+- [`cohort-sharding`](skills/cohort-sharding.md): Shard archives in depth — strict structural cohesion, dictionary union-merge, set-rung auto-widen on create and add, grouped shards, the anchor syntax, union-wide memory for materializing operations, single-writer concurrency, and transport-only compression for moving a cohort.
+- [`cohort-sidecar-index`](skills/cohort-sidecar-index.md): The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints.
+- [`cohort-width-overflow`](skills/cohort-width-overflow.md): What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it.
+- [`compose-requests`](skills/compose-requests.md): ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components.
+- [`crosstab-guide`](skills/crosstab-guide.md): Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics.
+- [`crosstab-margin-aggregations`](skills/crosstab-margin-aggregations.md): Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate
+- [`expression-language`](skills/expression-language.md): The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating.
+- [`facet-design`](skills/facet-design.md): FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics.
+- [`feature-engineering`](skills/feature-engineering.md): Feature slot semantics — choosing a transform, pre-filter ordering (features run before filters), per-row vs global-pass cost, target-leakage trap, train/test split. Topical design; per-feature detail lives in atomic op-feat-* skills.
+- [`financial-cohorts`](skills/financial-cohorts.md): decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO.
+- [`glossary`](skills/glossary.md): Plain-language glossary of the statistical terms Pulse guidance uses. Use when a result, purpose or skill names a term you need explained.
+- [`grouper-design`](skills/grouper-design.md): Grouper slot semantics — multi-grouper composition (key product), fused crosstab eligibility, Group.Include inclusion-list, smart defaults per field type. Topical design; per-GROUP detail lives in atomic op-group-* skills.
+- [`intents`](skills/intents.md): The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID.
+- [`join-design`](skills/join-design.md): Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validating a join before running it.
+- [`label-display`](skills/label-display.md): Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values.
+- [`matrix-results`](skills/matrix-results.md): Vectors and matrices on a Request — naming a battery of numeric fields once, getting a covariance or correlation matrix back, the encodings, missing-data modes, warnings, per-group matrices, predict's cost estimate and what is refused.
+- [`multiplicity-correction`](skills/multiplicity-correction.md): Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected.
+- [`op-agg-average`](skills/op-agg-average.md): Arithmetic mean of a numeric field across the input set.
+- [`op-agg-ci-lower`](skills/op-agg-ci-lower.md): Lower bound of the confidence interval for the mean.
+- [`op-agg-ci-upper`](skills/op-agg-ci-upper.md): Upper bound of the confidence interval for the mean.
+- [`op-agg-count`](skills/op-agg-count.md): Count records that pass the active filter, optionally per group.
+- [`op-agg-distinct-count`](skills/op-agg-distinct-count.md): Count distinct non-null values across the input set.
+- [`op-agg-distinct-sum`](skills/op-agg-distinct-sum.md): Sum a value field once per distinct key.
+- [`op-agg-frequency`](skills/op-agg-frequency.md): Value count — how many non-null rows hold one chosen value (params.value); one float64 per output row.
+- [`op-agg-kurtosis`](skills/op-agg-kurtosis.md): Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.
+- [`op-agg-max`](skills/op-agg-max.md): Largest non-null value of the field.
+- [`op-agg-median`](skills/op-agg-median.md): 50th percentile of the field; requires sorting the full value set.
+- [`op-agg-min`](skills/op-agg-min.md): Smallest non-null value of the field.
+- [`op-agg-mode`](skills/op-agg-mode.md): Most-frequent value of the field (ties broken by the smallest value).
+- [`op-agg-mode-count`](skills/op-agg-mode-count.md): Modal count — how many rows hold the field's most common value; one float64 per output row.
+- [`op-agg-null-count`](skills/op-agg-null-count.md): Count records where the field is null. The inverse of a non-null count.
+- [`op-agg-percentile`](skills/op-agg-percentile.md): Configurable percentile of the field; requires sorting the full value set.
+- [`op-agg-range`](skills/op-agg-range.md): Spread (max minus min) of the field across the input set.
+- [`op-agg-ratio`](skills/op-agg-ratio.md): Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored.
+- [`op-agg-set-cardinality-avg`](skills/op-agg-set-cardinality-avg.md): Average popcount per contributing row — typical number of selections.
+- [`op-agg-set-cardinality-sum`](skills/op-agg-set-cardinality-sum.md): Sum of popcounts across contributing rows — total label selections seen.
+- [`op-agg-set-distinct-values`](skills/op-agg-set-distinct-values.md): Count of distinct exact mask values seen; each combination is atomic.
+- [`op-agg-set-frequency`](skills/op-agg-set-frequency.md): Per-bit row count — how many rows had each set label selected.
+- [`op-agg-set-intersection`](skills/op-agg-set-intersection.md): Bitwise-AND a set field across rows; returns labels for every bit set in every contributing row.
+- [`op-agg-set-union`](skills/op-agg-set-union.md): Bitwise-OR a set field across rows; returns labels for every bit set in any contributing row.
+- [`op-agg-skewness`](skills/op-agg-skewness.md): Population skewness g1 (m3 / m2^1.5, dividing by n) via online moments.
+- [`op-agg-stddev`](skills/op-agg-stddev.md): Population standard deviation via Welford's online algorithm.
+- [`op-agg-sum`](skills/op-agg-sum.md): Sum the numeric values of a field across the input set.
+- [`op-agg-variance`](skills/op-agg-variance.md): Population variance via Welford's online algorithm.
+- [`op-agg-weighted-mean`](skills/op-agg-weighted-mean.md): Weighted arithmetic mean — sum(field * weight) / sum(weight).
+- [`op-agg-welford`](skills/op-agg-welford.md): Streaming Welford-Pébaÿ moment triple — running mean, sample variance (n-1), and observed count.
+- [`op-agg-zscore`](skills/op-agg-zscore.md): Standardized z-score aggregate — mean-centered, stddev-scaled summary.
+- [`op-attr-date-part`](skills/op-attr-date-part.md): Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field.
+- [`op-attr-formula`](skills/op-attr-formula.md): Per-row expression evaluation against the record's fields via expr-lang.
+- [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1].
+- [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank column against the post-filter value set; requires sorting.
+- [`op-attr-reg-fitted`](skills/op-attr-reg-fitted.md): Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass.
+- [`op-attr-reg-leverage`](skills/op-attr-reg-leverage.md): Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic.
+- [`op-attr-reg-residual`](skills/op-attr-reg-residual.md): Per-row residual yᵢ − ŷᵢ from an OLS refit during the attribute prepass.
+- [`op-attr-set-has`](skills/op-attr-set-has.md): Per-row 0/1 — whether the configured label's bit is set on a set field.
+- [`op-attr-set-popcount`](skills/op-attr-set-popcount.md): Per-row popcount of a set field — number of selected labels.
+- [`op-attr-tscore`](skills/op-attr-tscore.md): Per-row T-score column — z-score rescaled to mean 50, stddev 10.
+- [`op-attr-zscore`](skills/op-attr-zscore.md): Per-row standardized z-score column — (value − mean) / stddev via two-pass Welford.
+- [`op-feat-bucketize`](skills/op-feat-bucketize.md): Bin a numeric column into ordered buckets — explicit boundaries or N equal-population quantiles.
+- [`op-feat-date-features`](skills/op-feat-date-features.md): Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns.
+- [`op-feat-frequency-encode`](skills/op-feat-frequency-encode.md): Replace each categorical value with its observed relative frequency in the cohort.
+- [`op-feat-log`](skills/op-feat-log.md): Per-row log1p(x) of a numeric field; emits one f64 column. Standard skew-tamer.
+- [`op-feat-one-hot`](skills/op-feat-one-hot.md): One-hot encode a categorical field as one f64 column per dictionary entry.
+- [`op-feat-poly`](skills/op-feat-poly.md): Per-row polynomial expansion x^2..x^Degree of a numeric field — the basis for a polynomial regression.
+- [`op-feat-sqrt`](skills/op-feat-sqrt.md): Per-row sqrt(x) of a numeric field; emits one f64 column.
+- [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric Target field for that category. Leakage trap — see Gotchas.
+- [`op-feat-train-test-split`](skills/op-feat-train-test-split.md): Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows.
+- [`op-filter-date-ranges`](skills/op-filter-date-ranges.md): Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges.
+- [`op-filter-exclude`](skills/op-filter-exclude.md): Drop records whose field value appears in the supplied Values list.
+- [`op-filter-expression`](skills/op-filter-expression.md): Keep records for which an expr-lang expression evaluates truthy against record fields.
+- [`op-filter-false`](skills/op-filter-false.md): Keep records where Field is logically false. Strict packed_bool by default; opt into JS falsiness.
+- [`op-filter-include`](skills/op-filter-include.md): Keep records whose field value appears in the supplied Values list.
+- [`op-filter-null`](skills/op-filter-null.md): Keep or drop records based on null state of a field.
+- [`op-filter-range`](skills/op-filter-range.md): Keep records whose numeric field value falls within [low, high] inclusive.
+- [`op-filter-set-contains-all`](skills/op-filter-set-contains-all.md): Keep records whose set field has every bit in the supplied label mask set.
+- [`op-filter-set-contains-any`](skills/op-filter-set-contains-any.md): Keep records whose set field shares at least one bit with the supplied label mask.
+- [`op-filter-set-contains-none`](skills/op-filter-set-contains-none.md): Keep records whose set field shares no bits with the supplied label mask.
+- [`op-filter-set-equals`](skills/op-filter-set-equals.md): Keep records whose set field mask exactly equals the supplied label mask.
+- [`op-filter-true`](skills/op-filter-true.md): Keep records where Field is logically true. Strict packed_bool by default; opt into JS truthiness.
+- [`op-group-category`](skills/op-group-category.md): Partition records by exact field value; ideal for categorical fields.
+- [`op-group-date`](skills/op-group-date.md): Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter.
+- [`op-group-date-ranges`](skills/op-group-date-ranges.md): Bucket date records by inline labeled date ranges; the range label becomes the bucket key.
+- [`op-group-quantile`](skills/op-group-quantile.md): Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).
+- [`op-group-range`](skills/op-group-range.md): Partition numeric records into half-open ranges [a, b); Interval controls bucket width.
+- [`op-group-rounded`](skills/op-group-rounded.md): Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar.
+- [`op-group-set-per-element`](skills/op-group-set-per-element.md): Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount.
+- [`op-group-set-value`](skills/op-group-set-value.md): Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with "|".
+- [`op-mat-correlation`](skills/op-mat-correlation.md): Pearson correlation matrix of a vector's numeric members (listwise or pairwise), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped), no p-values.
+- [`op-mat-covariance`](skills/op-mat-covariance.md): Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped).
+- [`op-overlay-chisq-col`](skills/op-overlay-chisq-col.md): Per-column χ² goodness-of-fit test across the host crosstab's contingency table.
+- [`op-overlay-chisq-matrix`](skills/op-overlay-chisq-matrix.md): Whole-matrix χ² independence test across the host crosstab's row × column contingency table.
+- [`op-overlay-chisq-row`](skills/op-overlay-chisq-row.md): Per-row χ² goodness-of-fit test across the host crosstab's contingency table.
+- [`op-overlay-chisq-vs-pop`](skills/op-overlay-chisq-vs-pop.md): χ² goodness-of-fit comparing host Facet subset distribution against the resolved population distribution.
+- [`op-overlay-chisq-vs-ref`](skills/op-overlay-chisq-vs-ref.md): Compose-host whole-matrix χ² comparing target slot's matrix against the reference slot's matrix (rescaled to target N).
+- [`op-overlay-delta-vs-baseline`](skills/op-overlay-delta-vs-baseline.md): Per-point additive delta against a fixed positional baseline of an ordered SERIES host.
+- [`op-overlay-delta-vs-margin`](skills/op-overlay-delta-vs-margin.md): Per-cell additive delta against the matching axis margin (cell − margin).
+- [`op-overlay-delta-vs-prior`](skills/op-overlay-delta-vs-prior.md): Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host.
+- [`op-overlay-delta-vs-ref`](skills/op-overlay-delta-vs-ref.md): Compose-host additive delta of target slot value against the matching reference slot value (matrix or series).
+- [`op-overlay-delta-vs-sibling`](skills/op-overlay-delta-vs-sibling.md): Per-group additive delta against a sibling group named by (Field, Value) on the SERIES host.
+- [`op-overlay-delta-vs-stage`](skills/op-overlay-delta-vs-stage.md): Whole-chain additive delta of target stage's result against the reference stage's result.
+- [`op-overlay-fisher-exact-cell`](skills/op-overlay-fisher-exact-cell.md): Per-cell Fisher's exact two-sided p-value over a 2×2 contingency formed from each host crosstab cell + its margins.
+- [`op-overlay-formula`](skills/op-overlay-formula.md): Expression-driven projection computed via expr-lang against a per-host-shape variable namespace.
+- [`op-overlay-index-vs-baseline`](skills/op-overlay-index-vs-baseline.md): Per-point ratio index against a fixed positional baseline of an ordered SERIES host (×100).
+- [`op-overlay-index-vs-margin`](skills/op-overlay-index-vs-margin.md): Per-cell index against the matching axis margin (100 × cell / margin).
+- [`op-overlay-index-vs-pop`](skills/op-overlay-index-vs-pop.md): Per-value population-comparison index for a Facet host (subset_freq / pop_freq × 100).
+- [`op-overlay-index-vs-prior`](skills/op-overlay-index-vs-prior.md): Per-point streamable windowed index against the immediately preceding point of an ordered SERIES host (×100).
+- [`op-overlay-index-vs-ref`](skills/op-overlay-index-vs-ref.md): Compose-host ratio index of target slot value against the matching reference slot value (matrix or series).
+- [`op-overlay-index-vs-rolling-mean`](skills/op-overlay-index-vs-rolling-mean.md): Per-point windowed index against the arithmetic mean of the W preceding points of an ordered SERIES host.
+- [`op-overlay-index-vs-sibling`](skills/op-overlay-index-vs-sibling.md): Per-group ratio index against a sibling group named by (Field, Value) on the SERIES host (×100).
+- [`op-overlay-index-vs-stage`](skills/op-overlay-index-vs-stage.md): Whole-chain ratio index of target stage's result against the reference stage's result (×100).
+- [`op-overlay-index-vs-total`](skills/op-overlay-index-vs-total.md): Per-group streamable ratio index against the SERIES host's grand total (×100).
+- [`op-overlay-ks-vs-pop`](skills/op-overlay-ks-vs-pop.md): Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population.
+- [`op-overlay-pairwise-probit-t`](skills/op-overlay-pairwise-probit-t.md): Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail).
+- [`op-overlay-pairwise-prop-z`](skills/op-overlay-pairwise-prop-z.md): Intra-matrix axis-pairwise pooled-SE two-proportion z-test (row-vs-row or col-vs-col within one crosstab).
+- [`op-overlay-pairwise-two-means-z`](skills/op-overlay-pairwise-two-means-z.md): Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df).
+- [`op-overlay-pairwise-weighted-two-means-z`](skills/op-overlay-pairwise-weighted-two-means-z.md): Intra-matrix axis-pairwise two-means z-test on weighted-mean cells under a required n_basis (weights | kish).
+- [`op-overlay-pairwise-welch-t`](skills/op-overlay-pairwise-welch-t.md): Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells.
+- [`op-overlay-panel-index-vs-ref`](skills/op-overlay-panel-index-vs-ref.md): Compose-host multi-reference index — indexes every target slot against a shared reference; emits one layer per target.
+- [`op-overlay-prop-z-cell`](skills/op-overlay-prop-z-cell.md): Compose-host per-cell two-proportion z-test against the reference slot's matching cell.
+- [`op-overlay-prop-z-panel`](skills/op-overlay-prop-z-panel.md): Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots.
+- [`op-overlay-rank`](skills/op-overlay-rank.md): Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix).
+- [`op-overlay-share-of-col`](skills/op-overlay-share-of-col.md): Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column.
+- [`op-overlay-share-of-row`](skills/op-overlay-share-of-row.md): Per-cell share-of-row ratio (cell / row_margin) — raw share, sums to 1.0 per row.
+- [`op-overlay-share-of-total`](skills/op-overlay-share-of-total.md): Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0.
+- [`op-overlay-t-cell`](skills/op-overlay-t-cell.md): Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents.
+- [`op-overlay-t-vs-ref`](skills/op-overlay-t-vs-ref.md): Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
+- [`op-overlay-yoy`](skills/op-overlay-yoy.md): Per-point year-over-year ratio against the same period one year prior; requires GROUP_DATE host.
+- [`op-overlay-z-cell`](skills/op-overlay-z-cell.md): Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; parity overlay reading from CellComponents.
+- [`op-overlay-z-vs-ref`](skills/op-overlay-z-vs-ref.md): Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
+- [`op-overlay-zscore-vs-margin`](skills/op-overlay-zscore-vs-margin.md): Per-cell standardized-margin z-score — (cell − margin) / sd where sd is the population SD within the same margin slice.
+- [`op-overlay-zscore-vs-pop`](skills/op-overlay-zscore-vs-pop.md): Per-value population-comparison z-score for a Facet host — (subset_freq − pop_freq) / sd_pop.
+- [`op-overlay-zscore-vs-rolling`](skills/op-overlay-zscore-vs-rolling.md): Per-point windowed z-score against the rolling-window mean + SAMPLE SD of the W preceding points.
+- [`op-overlay-zscore-vs-total`](skills/op-overlay-zscore-vs-total.md): Per-group streamable z-score against the SERIES host's grand-total distribution (population SD).
+- [`op-reg-bayes-linear`](skills/op-reg-bayes-linear.md): Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as an OLS fit.
+- [`op-reg-glm`](skills/op-reg-glm.md): Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-specific link functions. Always buffered.
+- [`op-reg-mod-resample`](skills/op-reg-mod-resample.md): Spec-level resampling modifier (jackknife / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
+- [`op-reg-mod-selection`](skills/op-reg-mod-selection.md): Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path.
+- [`op-reg-ols`](skills/op-reg-ols.md): Ordinary least squares with optional l1/l2/elasticnet penalty; covers simple, multiple, ridge, lasso, and elastic-net regression over streaming sufficient statistics.
+- [`op-synth-bernoulli`](skills/op-synth-bernoulli.md): Bernoulli samples emitting 0 or 1 with probability p; pairs with packed_bool or unsigned int fields.
+- [`op-synth-constant`](skills/op-synth-constant.md): Emit a constant value on every row; useful for unit testing, sentinel columns, and placeholder fields.
+- [`op-synth-discrete`](skills/op-synth-discrete.md): Exact per-level histogram for an integer column; what a profile reconstructs every u4/u8/u16/u32/u64 field from.
+- [`op-synth-exponential`](skills/op-synth-exponential.md): Exponential samples with rate parameter lambda; mean is 1/lambda.
+- [`op-synth-lognormal`](skills/op-synth-lognormal.md): Log-normal samples parameterised by log-space mu and sigma; output strictly positive.
+- [`op-synth-mixture`](skills/op-synth-mixture.md): Mixture-of-normals samples — per-row component draw by weight, then a Gaussian from that component; reproduces bimodal/multimodal shapes.
+- [`op-synth-monotonic-from`](skills/op-synth-monotonic-from.md): Strictly increasing or decreasing integer counter; deterministic per row, ignores RNG. Synthetic primary keys.
+- [`op-synth-normal`](skills/op-synth-normal.md): Gaussian samples with optional [min, max] clamp; default mean=0, std=1.
+- [`op-synth-pareto`](skills/op-synth-pareto.md): Heavy-tailed Pareto samples; xm is the scale (minimum), alpha the shape (tail weight).
+- [`op-synth-poisson`](skills/op-synth-poisson.md): Poisson-distributed non-negative integer counts with mean lambda; Knuth multiplicative below 30, normal-approximation above.
+- [`op-synth-regex`](skills/op-synth-regex.md): String samples generated from a Perl/RE2 regex pattern; walks regexp/syntax AST with bounded repetition.
+- [`op-synth-set-bernoulli`](skills/op-synth-set-bernoulli.md): Multi-select set_* bitmask generation — independent per-option Bernoulli draws, or a joint-structure resample when a paired field is declared.
+- [`op-synth-uniform`](skills/op-synth-uniform.md): Uniform real-valued samples in [min, max); default [0, 1).
+- [`op-synth-uniform-date`](skills/op-synth-uniform-date.md): Uniform calendar-date samples in [start, end] inclusive; days-since-epoch internally.
+- [`op-synth-weighted-categorical`](skills/op-synth-weighted-categorical.md): Discrete categorical draws from a values list with optional weights; uniform when weights absent.
+- [`op-test-anova-f`](skills/op-test-anova-f.md): One-way ANOVA F-test comparing the means of a numeric Field across k groups defined by SplitBy.
+- [`op-test-anova-rm`](skills/op-test-anova-rm.md): Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition.
+- [`op-test-anova-welch`](skills/op-test-anova-welch.md): Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction; streamable per-group Welford.
+- [`op-test-brown-forsythe`](skills/op-test-brown-forsythe.md): Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians.
+- [`op-test-chisq`](skills/op-test-chisq.md): Chi-square independence test on a 2D Rows × Cols contingency table.
+- [`op-test-fisher-exact`](skills/op-test-fisher-exact.md): Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative.
+- [`op-test-kendall-tau`](skills/op-test-kendall-tau.md): Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction.
+- [`op-test-kruskal-wallis`](skills/op-test-kruskal-wallis.md): Nonparametric k-group location test; ANOVA-like rank sums under tie correction.
+- [`op-test-ks`](skills/op-test-ks.md): Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy.
+- [`op-test-mann-whitney-u`](skills/op-test-mann-whitney-u.md): Nonparametric two-sample location test; buffered tie-corrected rank sum (Mann-Whitney U).
+- [`op-test-paired-t`](skills/op-test-paired-t.md): Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d.
+- [`op-test-pearson-r`](skills/op-test-pearson-r.md): Parametric Pearson correlation test between two numeric fields; streamable via online cross-product.
+- [`op-test-prop-z`](skills/op-test-prop-z.md): Two-proportion z-test on the success rate of Field across two SplitBy groups; streamable via success / total counts.
+- [`op-test-shapiro-wilk`](skills/op-test-shapiro-wilk.md): Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set; p advisory outside 5..5000.
+- [`op-test-spearman-r`](skills/op-test-spearman-r.md): Rank-based correlation between Field and Field2 (monotonic association); buffered mid-ranks then Pearson.
+- [`op-test-t`](skills/op-test-t.md): One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant.
+- [`op-test-trend`](skills/op-test-trend.md): Mann-Kendall trend test over an ordered numeric series; tier-2 over windowed result rows.
+- [`op-test-tukey-hsd`](skills/op-test-tukey-hsd.md): Tier-2 post-hoc pairwise comparison of group means using Tukey's Honestly Significant Difference (Tukey-Kramer).
+- [`op-test-welch`](skills/op-test-welch.md): Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition.
+- [`op-test-wilcoxon-sr`](skills/op-test-wilcoxon-sr.md): Wilcoxon signed-rank test on per-row difference d = Field − Field2; buffered tie-corrected sign-rank.
+- [`op-test-z-two-sample`](skills/op-test-z-two-sample.md): Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ.
+- [`op-win-delta`](skills/op-win-delta.md): Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of a percent change.
+- [`op-win-dense-rank`](skills/op-win-dense-rank.md): Dense rank with no gaps after ties (1, 2, 2, 3, ...) within the ordered partition.
+- [`op-win-ewma`](skills/op-win-ewma.md): Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}.
+- [`op-win-lag`](skills/op-win-lag.md): Per-row value of Field from N rows earlier in the ordered partition.
+- [`op-win-lead`](skills/op-win-lead.md): Per-row value of Field from N rows later in the ordered partition.
+- [`op-win-moving-avg`](skills/op-win-moving-avg.md): Moving average of Field over a bounded Frame; both ends must be set.
+- [`op-win-pct-change`](skills/op-win-pct-change.md): Fractional change (0.05 = 5%) against the row `periods` positions earlier in the ordered partition.
+- [`op-win-rank`](skills/op-win-rank.md): Sparse rank with gaps after ties (1, 2, 2, 4, ...) within the ordered partition.
+- [`op-win-row-number`](skills/op-win-row-number.md): 1-based row index within the ordered partition; never ties.
+- [`op-win-running-avg`](skills/op-win-running-avg.md): Running average of Field over the configured Frame within the ordered partition.
+- [`op-win-running-sum`](skills/op-win-running-sum.md): Running total of Field over the configured Frame within the ordered partition.
+- [`overlay-system`](skills/overlay-system.md): Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics.
+- [`pairwise-n-sources`](skills/pairwise-n-sources.md): The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
+- [`process-chain`](skills/process-chain.md): ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning.
+- [`regression-modeling`](skills/regression-modeling.md): Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills.
+- [`request-envelope`](skills/request-envelope.md): Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request.
+- [`request-templating`](skills/request-templating.md): Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang.
+- [`response-components`](skills/response-components.md): How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell
+- [`response-shaping`](skills/response-shaping.md): The request `return` block — choose which parts of a response come back (presets, include / exclude paths) and how many significant digits floats carry on the wire; what is projected, what stays exact, and how it composes with streaming and instance defaults.
+- [`session-bootstrap`](skills/session-bootstrap.md): Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session.
+- [`session-format-flags`](skills/session-format-flags.md): Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults.
+- [`session-skill-routing`](skills/session-skill-routing.md): Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight.
+- [`session-synth-flags`](skills/session-synth-flags.md): The profile-capture and synth-generation CLI flags an agent must know — the five additive profile create sections, emitting the generating spec, supplying and suggesting structural rules — and why a model coefficient is a latent-scale quantity.
+- [`spss-cohorts`](skills/spss-cohorts.md): Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived columns, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav.
+- [`spss-export`](skills/spss-export.md): Writing .sav — the dictionary + data-section writer, bytecode compression, the four write flags, why the writer takes the whole cohort rather than rendered rows, how a .sav-to-.sav convert carries the source through, and asking export predict first.
+- [`spss-export-fidelity`](skills/spss-export-fidelity.md): How far the .sav round-trip claim is proven — what CI gates, what was checked only locally against independent readers, what nothing corroborates — and the write-side charset rules (source charset kept, no replacement characters, no silent truncation, encode-measure-segment).
+- [`spss-export-values`](skills/spss-export-values.md): What a .sav export writes for each value — the variable-name policy and --sanitize-names, set_* masks at every width, the missing state each null takes, original codes versus dictionary positions, byte order, and labels that live only on user-missing codes.
+- [`spss-import-schema`](skills/spss-import-schema.md): How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a column unexpectedly or refuses a file.
+- [`spss-metadata-sidecar`](skills/spss-metadata-sidecar.md): The cohort.pulse.spss.json sidecar an SPSS import writes — what it records that the .pulse format cannot, the code-label-dictionary-ID triple labels come from, its fingerprint, and the absent / stale / invalid / ignored read verdicts.
+- [`spss-missing-values`](skills/spss-missing-values.md): How SPSS user-missing and system-missing values land in a cohort — the numeric <var>_missing sibling versus the flagged categorical code, why the two arms deliberately differ, --spss-missing, and filtering on the code rather than the label.
+- [`spss-response-sets`](skills/spss-response-sets.md): SPSS multiple-response sets and the columns an import synthesises — the derived set_* mask beside a multiple-dichotomy set's constituents, why multiple-category sets derive nothing, and the closed derived registry the export folds by. Read this when a cohort has more columns than its .sav had variables.
+- [`statistical-testing`](skills/statistical-testing.md): Tier-1 (`tests`) vs tier-2 (`post_tests`) pairing, assumption gates, ANOVA + post-hoc composition, p-value conventions. Topical design; per-TEST detail in atomic op-test-* skills.
+- [`streaming-and-watching`](skills/streaming-and-watching.md): Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy.
+- [`synth-conflicts`](skills/synth-conflicts.md): Synth conditional relationship conflicts — the shared claim space, the fixed priority order `resolveConflicts` applies once per spec, how rule / model / shape pre-claims compose, and where the dropped-relationship warnings surface.
+- [`synth-correlations`](skills/synth-correlations.md): Synth spec `correlations` — the Gaussian-copula construction, which marginals and field types may participate, how rank and Pearson correlation survive, and how unmeasured matrix entries are completed and reported.
+- [`synth-determinism`](skills/synth-determinism.md): The synth determinism contract — byte-identical `.pulse` output per spec and seed, byte-identical profile documents per input and seed, and the two non-RNG threats to capture (map iteration order, float fusion).
+- [`synth-fidelity-report`](skills/synth-fidelity-report.md): The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — marginals, pairs, set fields — scored only over relationships generation actually applied.
+- [`synth-marginals`](skills/synth-marginals.md): Why a profiled `packed_bool` reconstructs as `bernoulli` and a small integer as `discrete` rather than a clamped normal — the three writers each arm covers, probit and ordered-probit model draws, and what that does to recovery and correlation.
+- [`synth-model-draw`](skills/synth-model-draw.md): How synth generates a modelled numeric — the composed latent draw, firing terms and the "other" catch-all, the single clamp, draw ordering, and why a coefficient is latent-scale and non-linear in value space.
+- [`synth-model-recovery`](skills/synth-model-recovery.md): The synth fidelity report's `models` section — refitting each applied model on the generated rows, comparing on the latent scale (or a calibrated probit score for step targets), flagging bands, and how to read a flag on a quantized target.
+- [`synth-model-selection`](skills/synth-model-selection.md): How synth `--fit-models` chooses predictors — the top-K collapse, the variance-explained floor, marginal scoring and refit-on-rank-deficiency, main effects only, zero-predictor models — and how thin levels are shrunk by ridge rather than dropped.
+- [`synth-models`](skills/synth-models.md): Entry point for synth `--fit-models` — per-numeric linear model capture and its wire shape, the latent-scale reading of a coefficient, what a model retires, and which focused skill covers selection, the draw, residual correlations and recovery.
+- [`synth-profile-capture`](skills/synth-profile-capture.md): What `pulse profile create` captures per field and per pair (conditional pairs, thin-pair warning, run-continuation, shape fitting), how `SpecFromProfile` reconstructs each field, and how categorical joint structure is generated.
+- [`synth-residual-correlations`](skills/synth-residual-correlations.md): Synth `--residual-correlations` — capturing the correlation among fitted model residuals (full submatrix, measured vs unmeasured), the correlated residual draw that lets a numeric be both conditioned and correlated, and its zero-predictor boundary.
+- [`synth-residual-recovery`](skills/synth-residual-recovery.md): The synth fidelity report's `model_residual_correlations` section — captured vs recovered residual correlation per applied pair, why it is not `pairwise`, its bounded worst-first listing, and why step-target endpoints stay unmeasured.
+- [`synth-rule-claims`](skills/synth-rule-claims.md): Which synth rules pre-claim a field ahead of its linear model, conditional pairs and residual correlations, the four exclusions that are silent if got backwards, and why the fidelity report is the reason.
+- [`synth-rule-detectors`](skills/synth-rule-detectors.md): The `--suggest-rules` detector rules that are silent if got backwards — rounded gates, co-missingness, near and always-null blocks, the narrow dependency search and discovered band edges — and why emitted candidate order is applied order.
+- [`synth-rule-expressions`](skills/synth-rule-expressions.md): Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
+- [`synth-rule-nulls`](skills/synth-rule-nulls.md): Synth rule null handling — `null_together` as one null decision per question block (first field wins), and `owns_nulls` making a gate the field's only source of absence, with the divergence warnings each emits.
+- [`synth-rule-validation`](skills/synth-rule-validation.md): Synth rule validation and diagnostics — the eight eager `PULSE_SYNTH_RULE_*` refusals, the non-nullable-target refusal, and the never-fired warning with its three cause arms.
+- [`synth-rules-from-profile`](skills/synth-rules-from-profile.md): Reaching synth rules from the profile path — `--rules` (replace semantics, load-time validation) and `--emit-spec` (the spec that generated) — and `profile create --suggest-rules`: proposed candidates, inert evidence, fixed thresholds and the three detectors.
+- [`synth-set-fields`](skills/synth-set-fields.md): How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair, read safely on the wide rungs, and generated deterministically with a pre-registered dictionary.
+- [`synth-shape-fit`](skills/synth-shape-fit.md): Synth `--fit-shape` — the two-component mixture capture and its keep rule, and how a shape-fitted numeric still accepts model conditioning through its mixture quantile, with a fixed-count bisection for determinism.
+- [`synth-structural-rules`](skills/synth-structural-rules.md): Entry point for synth spec `rules[]` and `constraints[]` — the five rule slots, declaration order and last-write-wins, why the rule pass runs last, and which focused skill covers expressions, null handling, validation, claims and profile-derived rules.
+- [`synthetic-data`](skills/synthetic-data.md): Entry point for synthetic data — `pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), the spec shape, the distribution registry, the determinism rule, and which focused synth skill answers each question.
+- [`time-zones`](skills/time-zones.md): Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design.
+- [`tool-compose`](skills/tool-compose.md): Execute a batch of processing requests in one round-trip.
+- [`tool-dedup`](skills/tool-dedup.md): Deduplicate an existing cohort's repeated parent blocks into parent groups (format 0x02), or suggest groups read-only.
+- [`tool-drop`](skills/tool-drop.md): Remove a managed-import handle — delete its .pulse file and sidecar.
+- [`tool-errors-lookup`](skills/tool-errors-lookup.md): Look up Pulse error code metadata — message and fixup hints.
+- [`tool-examples-get`](skills/tool-examples-get.md): Fetch one runnable request example from the embedded library by name.
+- [`tool-examples-search`](skills/tool-examples-search.md): Search the runnable request-example library for templates matching a question.
+- [`tool-facet`](skills/tool-facet.md): Return distinct values for one field in a cohort.
+- [`tool-facet-schema`](skills/tool-facet-schema.md): Multi-field rich facet — counts, nulls, percentiles, histograms, additive contributions.
+- [`tool-import`](skills/tool-import.md): Import a tabular source file (or pass through .pulse) into a managed handle.
+- [`tool-imports-list`](skills/tool-imports-list.md): Enumerate every managed-import handle with sidecar metadata.
+- [`tool-inspect`](skills/tool-inspect.md): Read header + schema of a .pulse file without touching record data.
+- [`tool-label-resolve`](skills/tool-label-resolve.md): Reverse-resolve a human-readable name (typo-tolerant) to raw categorical key(s).
+- [`tool-label-tables`](skills/tool-label-tables.md): List registered label tables — ID→display-name dictionaries for categorical fields.
+- [`tool-lookup`](skills/tool-lookup.md): Resolve a point lookup against a cohort's prebuilt sidecar index.
+- [`tool-manifest`](skills/tool-manifest.md): Bootstrap blob — call once per session for the operator + capability catalog.
+- [`tool-predict`](skills/tool-predict.md): Validate a request against a cohort schema without executing.
+- [`tool-process`](skills/tool-process.md): Execute one pre-built processing request against a cohort.
+- [`tool-process-chain`](skills/tool-process-chain.md): Linear chain of stages; stage N+1 consumes stage N's output rows.
+- [`tool-range-tables`](skills/tool-range-tables.md): List registered range tables — named, reusable sets of labeled date ranges.
+- [`tool-sample`](skills/tool-sample.md): Return up to N rows from a cohort for eyeball / preview.
+- [`tool-skills-get`](skills/tool-skills-get.md): Fetch the markdown body of one named skill.
+- [`tool-skills-list`](skills/tool-skills-list.md): List the skill pack — domain guides and atomic operator/type/tool refs, deployment-added skills included.
+- [`type-categorical-u16`](skills/type-categorical-u16.md): 2-byte categorical with inline dictionary up to 65,536 labels.
+- [`type-categorical-u32`](skills/type-categorical-u32.md): 4-byte categorical with inline dictionary up to ~4.29B labels.
+- [`type-categorical-u8`](skills/type-categorical-u8.md): 1-byte categorical with inline dictionary up to 256 labels.
+- [`type-date`](skills/type-date.md): Day-granularity date stored as epoch days (signed since 1970-01-01).
+- [`type-datetime`](skills/type-datetime.md): Second-granularity instant stored as signed epoch seconds (int64, negative = pre-1970), naive UTC.
+- [`type-decimal128`](skills/type-decimal128.md): 128-bit fixed-point decimal with per-field (precision, scale); exact base-10 arithmetic.
+- [`type-f32`](skills/type-f32.md): IEEE-754 single-precision float; ~7 significant digits.
+- [`type-f64`](skills/type-f64.md): IEEE-754 double-precision float; ~15 significant digits.
+- [`type-packed-bool`](skills/type-packed-bool.md): 1-bit boolean; bit-packed with adjacent packed_bool / u4 fields.
+- [`type-set-u128`](skills/type-set-u128.md): 16-byte multi-select bitmask over an inline dictionary of up to 128 labels.
+- [`type-set-u16`](skills/type-set-u16.md): 2-byte multi-select bitmask over an inline dictionary of up to 16 labels.
+- [`type-set-u256`](skills/type-set-u256.md): 32-byte multi-select bitmask over an inline dictionary of up to 256 labels — the widest set rung.
+- [`type-set-u32`](skills/type-set-u32.md): 4-byte multi-select bitmask over an inline dictionary of up to 32 labels.
+- [`type-set-u64`](skills/type-set-u64.md): 8-byte multi-select bitmask over an inline dictionary of up to 64 labels.
+- [`type-set-u8`](skills/type-set-u8.md): 1-byte multi-select bitmask over an inline dictionary of up to 8 labels.
+- [`type-u16`](skills/type-u16.md): 2-byte unsigned integer; fits cardinals through 65,535.
+- [`type-u32`](skills/type-u32.md): 4-byte unsigned integer; the common wide-cardinal default.
+- [`type-u4`](skills/type-u4.md): 4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields.
+- [`type-u64`](skills/type-u64.md): 8-byte unsigned integer; for sub-day timestamps and very wide cardinals.
+- [`type-u8`](skills/type-u8.md): 1-byte unsigned integer; fits cardinals through 255.
+- [`weighting`](skills/weighting.md): Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, weighted inference on the effective sample size, the unweighted-base recipe and the weighted floor keys.
+- [`window-design`](skills/window-design.md): Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills.

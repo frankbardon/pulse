@@ -1,0 +1,79 @@
+```yaml
+name: facet-design
+description: FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics.
+type: guide
+kind: design
+applies_to: facet
+covers: [FacetRequest, FacetSchema, OVERLAY_INDEX_VS_POP, OVERLAY_ZSCORE_VS_POP, OVERLAY_CHISQ_VS_POP, OVERLAY_KS_VS_POP]
+requires: [capability:facet]
+```
+
+# Facet design
+
+Two entry points. `pulse.Facet(ctx, path, field)` returns distinct values. `pulse.FacetSchema(ctx, *FacetRequest)` is the rich multi-field endpoint — counts, null tallies, streaming numeric stats, optional percentiles, fixed-width histograms, additive contribution counts, FACET-host overlays.
+
+```jsonc
+{
+  "cohort":              {"filename": "cohort.pulse"},
+  "fields":              ["region", "age", "is_active"],
+  "filterers":           [{"type":"<value filter>","field":"country","values":["US"]}],
+  "additive_fields":     ["region"],
+  "discrete_top_k":      50,
+  "numeric_percentiles": [0.5, 0.95, 0.99],
+  "include_histogram":   true,
+  "histogram_bins":      20,
+  "histogram_range":     [0.0, 100.0]
+}
+```
+
+`FacetResult.Fields[i]` is one `FacetField` per `fields` entry; `FacetResult.Additive[F]` is one per `AdditiveFields` entry. Each `FacetField` has `Kind ∈ {discrete, numeric}`, source field type, description, null count, and either `Discrete` (sorted desc by count, ties asc by value-string) or `Numeric` (count/sum/min/max/mean/stddev via Welford; percentiles + histogram only when requested).
+
+## Discrete vs numeric dispatch
+
+Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"true"`/`"false"`). All numeric / date / decimal ⇒ numeric. `numeric_percentiles` on a non-numeric field is a no-op (predict warning). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range. A field's distinct values past `max_groups` refuse `PULSE_LIMIT_EXCEEDED`.
+
+## TopK, percentiles, histograms
+
+`discrete_top_k > 0` keeps top K by count (desc, ties asc), sets `Discrete.TruncatedAt = distinct - K`, emits a warning. `numeric_percentiles` ∈ `(0,1)` force the buffered path on requested fields (full sort + linear interp). Keys serialise as `p<int>` or `p%g`. Values match the percentile aggregator to float64. Histograms stream into fixed-width buckets; bin width `(max-min)/bins`; values outside `[min,max]` drop from the histogram (still feed mean/stddev/count). `histogram_bins` defaults to 20, caps at 256.
+
+## Additive contribution counts
+
+For each `AdditiveFields` entry F, the engine builds a scope filter = base `Filterers` minus every clause targeting F, then runs a parallel discrete accumulator. Result at `FacetResult.Additive[F]`. Answers "if I added V to my filter on F, how many records survive?" per V. When no base clause names F, the scope filter equals the base filter.
+
+Expression-filter restriction: the scope-stripper cannot remove a clause hidden inside an expression body, so a request naming an additive field inside an expression filter is rejected with `SERVICE_VALIDATION`. Filter that field with a discrete include / exclude value filter instead.
+
+## Streamability
+
+Single-pass when: no `numeric_percentiles`; AND `include_histogram=false` OR `histogram_range` supplied; AND every filterer is row-local. Buffered otherwise. Manifest: `manifest.facet.streamable_conditions`.
+
+A filterer naming an unknown field — or, outside an expression filter, none — is refused by `FacetSchema` and predict alike with `Process`'s rule: `SERVICE_VALIDATION` `filter references unknown field: <f>`.
+
+## FACET-host overlays
+
+`FacetRequest.Overlays` decorates with population-comparison statistics. Each `OverlaySpec` produces one `OverlayLayer` in `FacetResult.Overlays` in slot order. The legal kinds are manifest `facet.supported_overlay_kinds`, all against a `Ref.Population` reference cohort:
+
+| Kind | Shape | Stream | Host arm | Computes |
+|---|---|---|---|---|
+| `OVERLAY_INDEX_VS_POP` | per-value series | yes | discrete or numeric | `(subset_freq / pop_freq) * 100` per value/bin |
+| `OVERLAY_ZSCORE_VS_POP` | per-value series | yes | discrete or numeric | `(subset_freq - pop_mean) / pop_sd` |
+| `OVERLAY_CHISQ_VS_POP` | scalar | buffered | discrete only | χ² goodness-of-fit + df + p-value |
+| `OVERLAY_KS_VS_POP` | scalar | buffered | numeric only | KS D-statistic + asymptotic p-value |
+
+Common contract: `Ref.Population` REQUIRED (`Cohort` names the comparison `.pulse`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Scope = group` only; `Level = 0`, `Within = 0` (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). Host-field via `OverlaySpec.Params["field"]`; omit only when FacetRequest has one Field. Unknown field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE` with `{field, available_fields}`. A discrete-only kind on a numeric field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`; a numeric-only kind on a categorical field ⇒ `_SCOPE_UNSUPPORTED`. Runtime recurses `FacetSchema` against the population, forwarding `NumericPercentiles`/`IncludeHistogram`.
+
+Mixing streamable + buffered kinds forces the orchestrator buffered; descriptive math stays byte-equivalent. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per entry for the series kinds; once per layer for a degenerate population on the scalar tests), `PULSE_OVERLAY_EXPECTED_LOW` (the χ² kind when any expected cell is `< 5`).
+
+## Multiplicity
+
+Facet overlay specs take `multiplicity` (family `layer`); each layer is corrected alone ([`multiplicity-correction`](multiplicity-correction.md)).
+
+## Picking FacetSchema vs Process
+
+- Distinct values of one field, no counts ⇒ `pulse.Facet`.
+- Per-value counts or a numeric summary of N fields, each on its own ⇒ `FacetSchema`.
+- "How many would survive if I added value V to my filter?" ⇒ `FacetSchema` with `additive_fields`.
+- Counts or statistics split by a COMBINATION of keys ⇒ `Process` with `groups` + `aggregations` ([`grouper-design`](grouper-design.md)). FacetSchema is not a grouper — cross-tabs belong in `Process`.
+
+## See
+
+[`overlay-system`](overlay-system.md) (overlay framework) · [`aggregation-design`](aggregation-design.md) (percentile semantics) · [`statistical-testing`](statistical-testing.md) (row-level χ² / KS) · [`label-display`](label-display.md) (labels on `FacetField` values).

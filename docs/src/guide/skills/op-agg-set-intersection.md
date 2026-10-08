@@ -1,0 +1,61 @@
+```yaml
+name: op-agg-set-intersection
+description: Bitwise-AND a set field across rows; returns labels for every bit set in every contributing row.
+kind: operator
+category: AGG
+operator: AGG_SET_INTERSECTION
+type: reference
+applies_to: process, compose, predict
+examples_tags: [cardinality-analysis, cohort-analysis]
+```
+
+## Use when
+
+For a multi-select field, the options chosen by every row, over all rows or per group.
+
+Questions it answers:
+
+- Which brands did every respondent in this segment recognise?
+- Which features does every customer on a plan use?
+
+Use something else:
+
+- `AGG_SET_UNION` when you want every option chosen by anyone.
+- `AGG_SET_FREQUENCY` when you want how many rows chose each option.
+
+## Params
+
+None.
+
+## Inputs
+
+| Param | Accepted field types |
+|---|---|
+| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256` |
+
+## Output
+
+Rich `[]string` — resolved dictionary labels. Scalar fallback = popcount of the intersection mask.
+
+## Components
+
+Universal floor `{n, n_null}` plus operator-specific:
+
+| Key | Type | Notes |
+|---|---|---|
+| `mask_intersection` | `[]uint64` | Bitwise AND across contributing rows; 4 little-endian words, `words[0]` = bits 0-63 |
+| `popcount` | int | Bits set in `mask_intersection` |
+| `labels` | `[]string` | Resolved dictionary labels |
+
+- Mergeability: `Mergeable` per-chunk
+- Margin reducibility: NOT margin-reducible — crosstab margins recompute from raw rows
+
+## Gotchas
+
+- AND across all rows ≠ AND across cells; do NOT pool margins.
+- One row with all-zero bits → empty intersection for the group.
+
+## See
+
+- `pulse_examples_search tags=[cardinality-analysis]`
+- Skills: [`aggregation-design`](aggregation-design.md), [`cohort-schema-design`](cohort-schema-design.md), [`response-components`](response-components.md)

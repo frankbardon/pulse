@@ -1,0 +1,62 @@
+```yaml
+name: op-test-kendall-tau
+description: Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction.
+kind: operator
+category: TEST
+operator: TEST_KENDALL_TAU
+type: reference
+applies_to: process, compose, predict
+examples_tags: [hypothesis-test, tier-1-test, nonparametric, correlation-analysis, small-sample, buffered-pipeline]
+```
+
+Tests emit statistic / p-value / effect size; no `Response.Components`.
+
+## Use when
+
+Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties.
+
+Questions it answers:
+
+- In a small panel, do judges who score one entry higher also score the other higher?
+- Do two coarse rating scales tend to agree?
+
+Use something else:
+
+- `TEST_SPEARMAN_R` when the data are large; its cost grows with the square of the row count.
+
+## Params
+
+- `alpha` — float, default `0.05`, in `(0, 1)`.
+- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): a row pair counts w_i·w_j times — equals τ-b on the expanded pairs. `Details` add `sum_weights` beside `n` (raw rows); pair counts become Σ w_i·w_j.
+
+Slot params: `Field` (required, numeric), `Field2` (required, numeric).
+
+- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
+
+## Inputs
+
+`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `Field2` — numeric (same set).
+
+## Output
+
+`Statistic` = τ_b (Kendall tau-b, `[-1, 1]`); `PValue` two-sided via normal approximation with tie-variance adjustment. `Details.concordant`, `Details.discordant`, `Details.ties_x`, `Details.ties_y`, `Details.s`, `Details.var_s`, `Details.z`, `Details.n`.
+
+## Reading the output
+
+- `statistic`: Kendall's tau-b, from -1 to +1: the share of row pairs that are ordered the same way on both fields minus the share ordered the opposite way, adjusted for ties.
+  - Sign: positive means the two fields tend to rise together; negative means one field tends to fall as the other rises.
+  - Caveat: Correlation is not causation: a third factor may drive both fields.
+- `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+
+## Gotchas
+
+- Buffered O(n²) pair enumeration — expensive on large n; filter or pre-sample first.
+- Suits small samples and heavy ties (tau-b corrects for ties in either column).
+- Distribution-free; no normality assumption.
+- Tier-2 variant `TEST_KENDALL_TAU/tau_b_post` runs over result columns.
+- For high-cardinality numeric fields the O(n²) cost dominates.
+
+## See
+
+- `pulse_examples_search tags=[correlation-analysis]`
+- Skills: [`statistical-testing`](statistical-testing.md), [`op-test-spearman-r`](op-test-spearman-r.md), [`op-test-pearson-r`](op-test-pearson-r.md)
