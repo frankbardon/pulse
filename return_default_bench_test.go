@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/returnshape"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -114,6 +115,51 @@ func BenchmarkProcessDefaultReturn(b *testing.B) {
 				if err != nil || plan == nil {
 					b.Fatalf("ResolveReturn: plan=%v err=%v", plan, err)
 				}
+			}
+		})
+	}
+}
+
+// BenchmarkReturnShapeApply attributes the `standard`-vs-`unset` delta
+// of BenchmarkProcessDefaultReturn (#223) to returnshape.Apply — the
+// facade's shape phase. "process" is the unshaped small Process on an
+// instance with no default; "process+apply_<preset>" is the same
+// Process followed by Apply of that preset's resolved plan to its fresh
+// response. The difference is Apply alone (resolution excluded, which
+// resolve_<preset> above measures). PRD FR-29: Apply is optimised only
+// if it is at least half of the standard-vs-unset delta.
+func BenchmarkReturnShapeApply(b *testing.B) {
+	memFs := afero.NewMemMapFs()
+	path := writeBenchDefaultReturnCohort(b, memFs)
+	ctx := context.Background()
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		b.Fatalf("pulse.New: %v", err)
+	}
+	b.Run("process", func(b *testing.B) {
+		req := benchDefaultReturnRequest(path)
+		b.ReportAllocs()
+		for b.Loop() {
+			if _, err := p.Process(ctx, req); err != nil {
+				b.Fatalf("Process: %v", err)
+			}
+		}
+	})
+	for _, preset := range []types.ReturnPreset{types.ReturnPresetFull, types.ReturnPresetStandard} {
+		b.Run("process+apply_"+string(preset), func(b *testing.B) {
+			req := benchDefaultReturnRequest(path)
+			snap := (*descx.InstanceSnapshot)(nil).WithDefaultReturn(&types.Return{Preset: preset})
+			plan, err := descx.ResolveReturn(req, snap)
+			if err != nil || plan == nil {
+				b.Fatalf("ResolveReturn: plan=%v err=%v", plan, err)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				resp, err := p.Process(ctx, req)
+				if err != nil {
+					b.Fatalf("Process: %v", err)
+				}
+				returnshape.Apply(resp, plan)
 			}
 		})
 	}

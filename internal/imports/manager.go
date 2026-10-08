@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -54,6 +55,9 @@ type Manager struct {
 	defaultTTL                time.Duration
 	defaultSetInferenceMinPct int
 	now                       func() time.Time
+	// logger receives the Info record for each TTL sweep; nil logs
+	// nothing.
+	logger *slog.Logger
 }
 
 // Options configure Manager construction. Zero values are valid: the
@@ -90,6 +94,12 @@ type Options struct {
 
 	// Now is the clock; injected for testing. Defaults to time.Now.
 	Now func() time.Time
+
+	// Logger receives an Info record per TTL sweep: every explicit
+	// Sweep, and each opportunistic sweep that removed at least one
+	// handle. It carries counts and timings only, never handle names.
+	// Nil logs nothing.
+	Logger *slog.Logger
 }
 
 // New constructs a Manager rooted at the given afero.Fs. The Manager
@@ -172,6 +182,7 @@ func New(afs afero.Fs, opts Options) (*Manager, error) {
 		defaultTTL:                ttl,
 		defaultSetInferenceMinPct: opts.DefaultSetInferenceMinPct,
 		now:                       now,
+		logger:                    opts.Logger,
 	}, nil
 }
 
@@ -306,7 +317,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		}
 		// Best-effort sweep on every Open keeps the pool tidy even
 		// when callers never hit a convertible-format import path.
-		_, _ = m.Sweep(ctx)
+		_, _ = m.sweep(ctx, false)
 		return &Result{
 			Handle:  deriveHandle(spec.Handle, spec.SourcePath),
 			Path:    spec.SourcePath,
@@ -390,7 +401,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		return nil, err
 	}
 
-	_, _ = m.Sweep(ctx)
+	_, _ = m.sweep(ctx, false)
 
 	res := &Result{
 		Handle:          handle,
@@ -476,7 +487,18 @@ func (m *Manager) Touch(_ context.Context, p string) error {
 // alphabetical order) and the first error encountered, if any. A
 // fs.ErrNotExist on the imports dir is not an error; an empty pool
 // returns ([], nil).
-func (m *Manager) Sweep(_ context.Context) ([]string, error) {
+func (m *Manager) Sweep(ctx context.Context) ([]string, error) {
+	return m.sweep(ctx, true)
+}
+
+// sweep is Sweep with the caller's intent: explicit is a caller-asked
+// sweep, logged always; an opportunistic one (after an Open) is logged
+// only when it removed something, so the steady state stays quiet.
+func (m *Manager) sweep(ctx context.Context, explicit bool) ([]string, error) {
+	var start time.Time
+	if m.logger != nil {
+		start = time.Now()
+	}
 	entries, err := m.listSidecars()
 	if err != nil {
 		return nil, err
@@ -495,6 +517,14 @@ func (m *Manager) Sweep(_ context.Context) ([]string, error) {
 		swept = append(swept, sc.Handle)
 	}
 	sort.Strings(swept)
+	if m.logger != nil && (explicit || len(swept) > 0) {
+		m.logger.LogAttrs(ctx, slog.LevelInfo, "pulse: imports swept",
+			slog.String("op", "imports_sweep"),
+			slog.Int("removed", len(swept)),
+			slog.Bool("explicit", explicit),
+			slog.Float64("duration_ms", float64(time.Since(start))/float64(time.Millisecond)),
+		)
+	}
 	return swept, nil
 }
 
@@ -707,7 +737,7 @@ func (m *Manager) openPulseAbsoluteCopy(ctx context.Context, spec Spec) (*Result
 		return nil, err
 	}
 
-	_, _ = m.Sweep(ctx)
+	_, _ = m.sweep(ctx, false)
 
 	res := &Result{
 		Handle:     handle,

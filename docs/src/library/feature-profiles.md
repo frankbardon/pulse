@@ -479,7 +479,7 @@ loaded profile's label. The `pulse mcp` startup line prints the same
 thing:
 
 ```
-pulse mcp: serving over stdio (data dir: /var/data/pulse, bind-on-open: true, cohort-scan: false, feature-profile: survey-self-serve)
+pulse mcp: serving over stdio (data dir: /var/data/pulse, bind-on-open: true, cohort-scan: false, return: standard, feature-profile: survey-self-serve)
 ```
 
 `gosdk.RegisteredTools()` and `gosdk.RegisteredPrompts()` are global:

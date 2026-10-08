@@ -46,3 +46,31 @@ jobs:
           case "$TAG" in
             *-*) gh release edit "$TAG" --prerelease --repo "$GITHUB_REPOSITORY" ;;
           esac
+
+  # Lockstep contrib tags: contrib/<module>/<root tag> for every nested
+  # module under contrib/, cut only after the root release succeeded.
+  # The script commits each contrib `require pulse <tag>` bump on a
+  # detached release commit (never pushed to a branch), verifies every
+  # module resolves the published root tag without its replace, then
+  # pushes the contrib tags atomically. The contrib tags do not match
+  # this workflow's `v*.*.*` trigger, and get no GitHub Release of their
+  # own, so the root release (pre-release flag, Latest) is untouched.
+  contrib:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: Cut lockstep contrib tags
+        env:
+          TAG: ${{ github.ref_name }}
+        run: ./scripts/release-contrib.sh "$TAG" --push

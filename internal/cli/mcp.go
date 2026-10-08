@@ -3,12 +3,14 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
+	"time"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/obsprom"
 	"github.com/frankbardon/pulse/mcp/gosdk"
 	"github.com/frankbardon/pulse/mcpserve"
 	"github.com/frankbardon/pulse/types"
@@ -61,6 +63,11 @@ func MCPCommand(version string) *cli.Command {
 					"Values: a positive integer, a Go duration for request_timeout (30s), unlimited (or -1), or 0 for the default. " +
 					"Overrides the feature profile's limits section per key; an unknown name or bad value fails startup with CLI_INPUT.",
 			},
+			&cli.StringFlag{
+				Name: "metrics-addr",
+				Usage: "Serve Prometheus text-format metrics on GET /metrics at this host:port (e.g. 127.0.0.1:9090; :0 picks a free port). " +
+					"Unset opens no port.",
+			},
 			&cli.BoolFlag{
 				Name:  "bind-on-open",
 				Usage: "Register session-scoped schema-bound tool variants on successful pulse_inspect (default true). Disable for clients that bind tool schemas themselves.",
@@ -77,6 +84,15 @@ func MCPCommand(version string) *cli.Command {
 			if err != nil {
 				return err
 			}
+			// Logs go to stderr only (stdout is the JSON-RPC transport);
+			// metrics are recorded only when an exporter is asked for.
+			opts.Logger = loggerFrom(ctx)
+			metricsAddr := cmd.String("metrics-addr")
+			var reg *obsprom.Registry
+			if metricsAddr != "" {
+				reg = obsprom.New()
+				opts.Metrics = reg
+			}
 
 			// mcpserve.NewPulse owns the profile resolution: the flag, else
 			// PULSE_FEATURE_PROFILE, read as an OS path and parsed strictly.
@@ -88,10 +104,7 @@ func MCPCommand(version string) *cli.Command {
 
 			bindOnOpen := cmd.Bool("bind-on-open")
 			noCohortScan := cmd.Bool("no-cohort-scan")
-			// The effective settings come from the library: a feature
-			// profile can turn the cohort scan off behind the flag's back.
-			info := mcpserve.Describe(p, mcpserve.Options{BindOnOpen: bindOnOpen, DisableCohortScan: noCohortScan})
-			fmt.Fprintln(os.Stderr, mcpStartupLine(dataDir, bindOnOpen, info, p.Limits()))
+			defaultReturn := types.ReturnPreset(cmd.String("return"))
 
 			// Construct a bare go-sdk server and mount the full Pulse surface
 			// through the single registration path (the gosdk adapter), then
@@ -105,10 +118,37 @@ func MCPCommand(version string) *cli.Command {
 				Version:           version,
 				BindOnInspect:     bindOnOpen,
 				DisableCohortScan: noCohortScan,
-				DefaultReturn:     types.ReturnPreset(cmd.String("return")),
+				DefaultReturn:     defaultReturn,
 			}); err != nil {
 				return fmt.Errorf("registering mcp surface: %w", err)
 			}
+
+			// The exporter binds only after the surface registered, so a
+			// refused configuration never opens a port; it stops with the
+			// server.
+			msrv, err := startMetrics(metricsAddr, reg)
+			if err != nil {
+				return err
+			}
+			if msrv != nil {
+				defer func() {
+					sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+					defer cancel()
+					_ = msrv.Shutdown(sctx)
+				}()
+				metricsAddr = msrv.Addr()
+			}
+
+			// The effective settings come from the library: a feature
+			// profile can turn the cohort scan off behind the flag's back.
+			info := mcpserve.Describe(p, mcpserve.Options{
+				BindOnOpen: bindOnOpen, DisableCohortScan: noCohortScan, DefaultReturn: defaultReturn,
+			})
+			fmt.Fprintln(cmd.Root().ErrWriter, mcpStartupLine(dataDir, bindOnOpen, info, mcpObsSettings{
+				LogLevel:    activeLogLevel(cmd.String(flagLogLevel)),
+				MetricsAddr: metricsAddr,
+			}))
+
 			if err := srv.Run(ctx, &mcpsdk.StdioTransport{}); err != nil {
 				return fmt.Errorf("mcp server: %w", err)
 			}
@@ -117,11 +157,25 @@ func MCPCommand(version string) *cli.Command {
 	}
 }
 
+// mcpObsSettings is the observability half of the startup notice: the
+// active --log-level (empty when off) and the bound --metrics-addr
+// (empty when no exporter runs).
+type mcpObsSettings struct {
+	LogLevel    string
+	MetricsAddr string
+}
+
 // mcpStartupLine formats the one-line stderr startup notice from the
 // effective serving settings. Formatting only: the values are decided by
-// mcpserve.Describe.
-func mcpStartupLine(dataDir string, bindOnOpen bool, info mcpserve.ServeInfo, effective pulse.Limits) string {
+// mcpserve.Describe. It names settings only — never a cohort, a request
+// or a record.
+func mcpStartupLine(dataDir string, bindOnOpen bool, info mcpserve.ServeInfo, obs mcpObsSettings) string {
 	line := fmt.Sprintf("pulse mcp: serving over stdio (data dir: %s, bind-on-open: %v, cohort-scan: %v", dataDir, bindOnOpen, info.CohortScan)
+	ret := string(info.DefaultReturn)
+	if ret == "" {
+		ret = "(custom)"
+	}
+	line += ", return: " + ret
 	if info.FeatureProfileLoaded {
 		name := info.FeatureProfile
 		if name == "" {
@@ -129,8 +183,14 @@ func mcpStartupLine(dataDir string, bindOnOpen bool, info mcpserve.ServeInfo, ef
 		}
 		line += fmt.Sprintf(", feature-profile: %s", name)
 	}
-	if tuned := tunedLimits(effective); tuned != "" {
+	if tuned := tunedLimits(info.Limits); tuned != "" {
 		line += ", limits: " + tuned
+	}
+	if obs.LogLevel != "" {
+		line += ", log-level: " + obs.LogLevel
+	}
+	if obs.MetricsAddr != "" {
+		line += ", metrics: " + obs.MetricsAddr
 	}
 	return line + ")"
 }
@@ -138,11 +198,11 @@ func mcpStartupLine(dataDir string, bindOnOpen bool, info mcpserve.ServeInfo, ef
 // tunedLimits spells the effective limits that differ from the built-in
 // defaults as space-separated name=value pairs, in the --limit grammar;
 // empty when every limit is at its default.
-func tunedLimits(effective pulse.Limits) string {
+func tunedLimits(effective []descriptor.LimitMeta) string {
 	var parts []string
-	for _, n := range limits.Names() {
-		if v := limits.Value(effective, n); v != limits.Default(n) {
-			parts = append(parts, string(n)+"="+limits.Spell(n, v))
+	for _, m := range effective {
+		if m.Value != m.Default {
+			parts = append(parts, m.Name+"="+limits.Spell(limits.Name(m.Name), m.Value))
 		}
 	}
 	return strings.Join(parts, " ")

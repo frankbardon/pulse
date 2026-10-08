@@ -4,11 +4,11 @@ slug: observability
 title: "Hosts can see what Pulse is doing, whether or not they are a server"
 track: Embedder operations
 size: M
-status: not-started
+status: done
 depends_on: [U02, U02b]
 soft_depends_on: [U01]
 blocks: [U32]
-todo_items: [118, 119, 120, 121, 122, 123, 222, 223]
+todo_items: [118, 119, 120, 121, 122, 123, 222, 223, 227]
 branch: observability
 ---
 
@@ -29,12 +29,12 @@ branch: observability
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#118** (9. Embedder operations › Observability) `Options.Logger` (`slog`, nil = silent); context-aware; no row data
-- [ ] **#119** (9. Embedder operations › Observability) `Options.Hooks`: operation start/end (context-returning), phase timings; panic-safe
-- [ ] **#120** (9. Embedder operations › Observability) `Options.Metrics` interface (opt-in) with bounded labels
-- [ ] **#121** (9. Embedder operations › Observability) `contrib/otelpulse` and `contrib/prompulse` as separate modules
-- [ ] **#122** (9. Embedder operations › Observability) `pulse mcp` / CLI `--log-level`, `--log-format`, opt-in `--metrics-addr`
-- [ ] **#123** (9. Embedder operations › Observability) Silence, no-row-data, dependency and panic gates; "Observability" docs page
+- [x] **#118** (9. Embedder operations › Observability) `Options.Logger` (`slog`, nil = silent); context-aware; no row data
+- [x] **#119** (9. Embedder operations › Observability) `Options.Hooks`: operation start/end (context-returning), phase timings; panic-safe
+- [x] **#120** (9. Embedder operations › Observability) `Options.Metrics` interface (opt-in) with bounded labels
+- [x] **#121** (9. Embedder operations › Observability) `contrib/otelpulse` and `contrib/prompulse` as separate modules
+- [x] **#122** (9. Embedder operations › Observability) `pulse mcp` / CLI `--log-level`, `--log-format`, opt-in `--metrics-addr`
+- [x] **#123** (9. Embedder operations › Observability) Silence, no-row-data, dependency and panic gates; "Observability" docs page
 
 ## Scope
 
@@ -63,11 +63,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(observability/E<n
 
 ## Acceptance criteria
 
-- [ ] Default `Options` produce no output and call no hook
-- [ ] No log attribute ever contains a record value (capturing-handler test at Debug)
-- [ ] The core `go.mod` has no OTel/Prometheus dependency
-- [ ] An OTel-instrumented sample host shows Pulse spans nested under its request span
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] Default `Options` produce no output and call no hook
+- [x] No log attribute ever contains a record value (capturing-handler test at Debug)
+- [x] The core `go.mod` has no OTel/Prometheus dependency
+- [x] An OTel-instrumented sample host shows Pulse spans nested under its request span
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -95,3 +95,24 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(observability/E<n
 ## Inherited from U19
 
 - **`ServeInfo` omits effective limits** (#227). U19 added the manifest `limits` block + `limits_digest` and echoes tuned limits in the `pulse mcp` startup line (read from `p.Limits()`), but `mcpserve.Describe` / `ServeInfo` don't carry them. Add alongside #222.
+
+## Landed
+
+Shipped on `observability`, released as `v1.0.0-alpha.6` together with the two contrib module tags. Epics ran E1 logger and hooks, E2 plan/phase detail and child operations, E3 metrics and the `pulse mcp` / CLI flags, E4 vendor adapters, E5 docs. Guide: [Observability](../../src/library/observability.md); contract `.claude/reference/observability.md`; embedder rows in [03-embedder-migration](../v1.0.0-api-and-release/03-embedder-migration.md).
+
+- **Surface (#118-#120).** `Options.Logger` (`*slog.Logger`, nil = silent, never `slog.Default()`), `Options.Hooks` (`*observe.Hooks`), `Options.Metrics` (`observe.Metrics`); all nil = zero cost with an allocation-identical off path (alloc-pin gate). New public package `observe` (stdlib-only vocabulary: `OperationKind`, `Phase`, `Arm`, `Scope` enums, instrument interfaces). No `PULSE_*` environment variable.
+- **Deviations from the theme document.** The phase set is `plan, open, decode, scan, reduce, post, overlay, shape` (not `open | predict | decode | filter | aggregate | overlay | serialize`), reported as a per-operation summary just before `OnOperationEnd`, not in real time. Compose slots and ProcessChain stages are **child** operations (`scope=child`, parent's kind, `Parent`, `Index`). A `shape` phase exists (#223). Streaming operations end on drain, close, error or ctx cancel. `pulse_cache_hits_total` was dropped (no cache to count); added `pulse_phase_duration_seconds`, `pulse_hook_panics_total`, `pulse_operations_in_flight`. The Prometheus text exporter behind `--metrics-addr` is a stdlib implementation (`internal/obsprom`), so the core takes no Prometheus dependency; `prompulse` uses `client_golang` in its own module.
+- **Metrics factory contract.** Instruments resolve lazily after `New` (only `code="ok"` and the small label spaces are eager), so a custom `observe.Metrics` factory must be concurrency-safe. `New` with metrics: about 0.33 ms, 0.40 MB.
+- **Hosts (#121, #122).** `contrib/otelpulse` and `contrib/prompulse` are separate modules, tagged in lockstep with the root (`contrib/<m>/vX`); `make contrib` / `make contrib-tidy`; `release.yml` gained a `contrib` job. CLI `--log-level` / `--log-format` on every leaf (stderr only), `pulse mcp --metrics-addr`. `ServeInfo` gained `DefaultReturn` and `Limits` and the startup line moved to stderr after `Register`, which closes #222 and #227.
+- **Gates (#123).** `TestObservabilityDefaultsSilent`, `TestObservabilityNoRowData`, `TestCoreModuleNoObservabilityDeps`, `TestHookPanicRecovered`, plus the allocation pin, `TestObservabilityDocCoversEnums` and `TestObservedMethodsCoverSurface`.
+- **#223 outcome.** `BenchmarkReturnShapeApply` isolates the pruning pass: `Apply(standard)` costs about 4.2 µs (17 allocs) of the roughly 10.3 µs standard-versus-unset delta (about 11% of a 94.7 µs `Process`), ~40% and under the 50% bar, so it was NOT optimised. Cached plan resolution is 0.25 µs.
+- **Left uninstrumented, by decision.** `CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars`, `Watch*` carry no `OperationKind` (listed in `uninstrumentedMethods`).
+
+## Open follow-ups
+
+Handed on; tracked in [TODO](../TODO.md) "Follow-ups from U20".
+
+- #231 → [U34](U34-extension-validation.md): recover panics raised inside an operation into a coded error
+- #232 → [U33](U33-v1-release.md): rehearse the lockstep contrib release on `rc.1`; keep `make contrib-tidy` green on root dependency bumps
+- #233 → [U33](U33-v1-release.md): freeze decision on `mcpserve.ServeInfo.Limits` (non-comparable struct)
+- #234 → [U33](U33-v1-release.md): confirm the deliberately uninstrumented `*Pulse` methods before the `observe` enum freezes

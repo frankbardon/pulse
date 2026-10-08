@@ -157,11 +157,14 @@ func MarshalRow(resp *types.Response, row map[string]any) ([]byte, error) {
 	return b, err
 }
 
-// MarshalStreamRow writes a row drawn from iter: through the shaped
-// iterator's MarshalRow when iter is one, else exactly
-// types.MarshalFinite(row) — so an unshaped stream is byte-identical.
+// MarshalStreamRow writes a row drawn from iter: through iter's
+// MarshalRow when it has one (the shaped iterator, or a wrapper that
+// forwards to it), else exactly types.MarshalFinite(row) — so an
+// unshaped stream is byte-identical.
 func MarshalStreamRow(iter any, row map[string]any) ([]byte, error) {
-	if s, ok := iter.(*RowIter); ok {
+	if s, ok := iter.(interface {
+		MarshalRow(map[string]any) ([]byte, error)
+	}); ok {
 		return s.MarshalRow(row)
 	}
 	return types.MarshalFinite(row)

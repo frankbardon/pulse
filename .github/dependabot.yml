@@ -19,6 +19,19 @@ updates:
     labels:
       - dependencies
 
+  # Published contrib adapter modules (OpenTelemetry, Prometheus). Each
+  # replaces the root module locally; `make contrib` fails on an untidy
+  # go.mod/go.sum, so a ROOT bump needs `make contrib-tidy` in its PR.
+  - package-ecosystem: gomod
+    directories:
+      - /contrib/otelpulse
+      - /contrib/prompulse
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

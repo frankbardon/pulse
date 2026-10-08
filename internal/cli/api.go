@@ -64,7 +64,7 @@ func apiProcessCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, DisableProjection: noProject, Strict: strict, EchoRequest: echoRequest})
+			p, err := newPulseOpts(ctx, pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, DisableProjection: noProject, Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -169,7 +169,7 @@ func apiProcessChainCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, EchoRequest: echoRequest})
+			p, err := newPulseOpts(ctx, pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -229,7 +229,7 @@ func apiComposeCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, EchoRequest: echoRequest})
+			p, err := newPulseOpts(ctx, pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -313,7 +313,7 @@ func apiSampleCmd() *cli.Command {
 			labelArgs := cmd.StringSlice("labels")
 			echoRequest := cmd.Bool("echo-request")
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -410,7 +410,7 @@ func apiFacetCmd() *cli.Command {
 
 			rich := reqPath != "" || len(fields) > 1 || topK > 0 || len(pcts) > 0 || includeHist || len(additive) > 0 || len(labelArgs) > 0
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -583,7 +583,7 @@ func apiPredictCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulseOpts(pulse.Options{Strict: strict, EchoRequest: echoRequest})
+			p, err := newPulseOpts(ctx, pulse.Options{Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
@@ -673,7 +673,7 @@ func apiLookupCmd() *cli.Command {
 				return cliErrorFrom(cmd, jsonOut, "CLI_INPUT", err)
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}

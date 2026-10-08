@@ -1,10 +1,13 @@
 package mcpserve_test
 
 import (
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/mcpserve"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -41,9 +44,71 @@ func TestDescribe_FoldsTheFeatureProfile(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := mcpserve.Describe(tc.p, tc.opts); got != tc.want {
+			got := mcpserve.Describe(tc.p, tc.opts)
+			if got.CohortScan != tc.want.CohortScan || got.FeatureProfileLoaded != tc.want.FeatureProfileLoaded ||
+				got.FeatureProfile != tc.want.FeatureProfile {
 				t.Errorf("Describe = %+v, want %+v", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestDescribe_DefaultReturnPrecedence pins ServeInfo.DefaultReturn to
+// the MCP return-default order: the serving option, then the instance
+// default (pulse.Options.DefaultReturn over the feature profile's
+// `return`), then the built-in standard preset.
+func TestDescribe_DefaultReturnPrecedence(t *testing.T) {
+	build := func(o pulse.Options) *pulse.Pulse {
+		t.Helper()
+		o.FS = afero.NewMemMapFs()
+		p, err := pulse.New(o)
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		return p
+	}
+	minimalProfile := &pulse.FeatureProfile{
+		Features: []string{"mcp_extra:cohort_resources"},
+		Return:   &types.Return{Preset: types.ReturnPresetMinimal},
+	}
+	cases := []struct {
+		name string
+		p    *pulse.Pulse
+		opt  types.ReturnPreset
+		want types.ReturnPreset
+	}{
+		{"built-in", build(pulse.Options{}), "", types.ReturnPresetStandard},
+		{"feature profile", build(pulse.Options{FeatureProfile: minimalProfile}), "", types.ReturnPresetMinimal},
+		{"instance option beats profile",
+			build(pulse.Options{FeatureProfile: minimalProfile, DefaultReturn: &types.Return{Preset: types.ReturnPresetFull}}),
+			"", types.ReturnPresetFull},
+		{"serving option beats instance",
+			build(pulse.Options{FeatureProfile: minimalProfile, DefaultReturn: &types.Return{Preset: types.ReturnPresetFull}}),
+			types.ReturnPresetStandard, types.ReturnPresetStandard},
+		{"serving option, no instance default", build(pulse.Options{}), types.ReturnPresetFull, types.ReturnPresetFull},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := mcpserve.Describe(tc.p, mcpserve.Options{DefaultReturn: tc.opt}).DefaultReturn; got != tc.want {
+				t.Errorf("DefaultReturn = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDescribe_LimitsMatchManifest: ServeInfo.Limits is the manifest's
+// `limits` block for the same instance — the effective values, tuned
+// keys included, in the same order and shape.
+func TestDescribe_LimitsMatchManifest(t *testing.T) {
+	for _, lim := range []pulse.Limits{{}, {MaxGroups: 7, RequestTimeout: 3 * time.Second, MaxMatrixDim: pulse.Unlimited}} {
+		p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Limits: lim})
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		got := mcpserve.Describe(p, mcpserve.Options{}).Limits
+		want := p.Manifest(t.Context()).Limits
+		if len(got) == 0 || !reflect.DeepEqual(got, want) {
+			t.Errorf("Limits(%+v)\n got  %+v\n want %+v", lim, got, want)
+		}
 	}
 }

@@ -19,6 +19,7 @@ mcp/gosdk/          the ONLY go-sdk importer: Register, Config, URI/prompt const
 mcpserve/           Serve, ServeStdio, Options, NewPulse (feature-profile flag/env read), Describe
 extend/             extension-authoring contract: Record, Rows, operator factories + instance interfaces (leaf; TestExtendImportBoundary)
 linalg/             linear-algebra core: Pulse-owned Matrix/Sym/Vec + FMA-free reference kernels (Cholesky, CholeskyRidge, SolveSPD, InverseSPD, CoMoment Add/Merge, MergeTree, MergeBlockSize), RankTolerance; gonum backs the no-bit-contract SymEigen / SVD / QR / Rank / ConditionNumber (fixed order + sign policy) and the FactorSPD / SPDFactor / Mul path regression uses, but never appears on the surface (leaf: stdlib + gonum + errors; TestLinalgImportBoundary, TestLinalgSurfaceNamesNoGonum). Contract: `.claude/reference/matrix-and-vectors.md`
+observe/            observability vocabulary: Hooks, OperationInfo/OperationResult/PhaseTiming, the OperationKind/Phase/Arm/Scope enums and the Metrics/Counter/Histogram/UpDownCounter/Label instrument interfaces that pulse.Options.Hooks / Options.Metrics take (leaf: stdlib only; TestObserveImportBoundary). Facade instrumentation: every operation-bearing *Pulse method runs through the private observe helper (observability.go) — never through Service.BoundRequest, which nests
 
 INTERNAL
 cmd/pulse/                 the only binary; buildApp() defines the CLI leaf tree
@@ -35,6 +36,8 @@ internal/synth/            generator, profile capture, structural rules, fidelit
 internal/template/         request templating (import ceiling: stdlib + types + errors; the stdlib-only internal/returnplan rides in through types)
 internal/returnplan/       `return` path grammar + canonical Plan + Visit + digest (leaf: stdlib only; TestReturnPlan_ImportBoundary) — types carries a *Plan in an unexported Response field; types installs its pruner as the init-time applier (returnplan.SetApplier)
 internal/returnshape/      Apply(resp, plan): the one per-Response shaping pass (prune, attach plan, PULSE_RETURN_PATH_UNMATCHED, Returned marker) the facade runs after the engine returns — never inside Service.Process
+internal/obsprom/          stdlib Prometheus text exporter: Registry implements observe.Metrics, WriteText / Handler render exposition 0.0.4, Listen serves GET /metrics; backs `pulse mcp --metrics-addr` so the core module takes no Prometheus dep (leaf: stdlib + observe; TestObspromImportBoundary)
+contrib/otelpulse/, contrib/prompulse/  NESTED MODULES (own go.mod, no go.work): OpenTelemetry / Prometheus adapters implementing observe.Hooks / observe.Metrics. The core module never depends on them or on any OTel/Prometheus module (TestCoreModuleNoObservabilityDeps). main keeps `require pulse v0.0.0` + `replace => ../..`; lockstep tags contrib/<m>/vX.Y.Z sit on a detached commit that bumps the require (scripts/release-contrib.sh); `make contrib` / `make contrib-tidy`. Contract: observability.md
 internal/temporal/         epoch-day + calendar + zone math (leaf over stdlib + errors; public encoding forwards into it)
                            + Zone (own embedded zoneinfo.zip, TZDataVersion), per-instance zone Cache; gate TestNoZoneMathOutsideTemporal
 internal/mcp/              SDK-free MCP core; internal/mcp/toolmeta/ leaf metadata

@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/internal/facadebridge"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
@@ -127,11 +130,28 @@ func registerCohortResources(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
 
 // cohortNames is the discovery list registerCohortResources enumerates: the
 // scanned .pulse files, or nothing at all when the scan is disabled.
+//
+// With a Logger on p the scan logs one Info record — the count found and
+// the walk's duration, never the names.
 func cohortNames(p *pulse.Pulse, cfg Config) []string {
 	if cfg.DisableCohortScan {
 		return nil
 	}
-	return scanPulseFiles(p.Fs())
+	var lg *slog.Logger
+	if facadebridge.Logger != nil {
+		lg = facadebridge.Logger(p)
+	}
+	if lg == nil {
+		return scanPulseFiles(p.Fs())
+	}
+	start := time.Now()
+	names := scanPulseFiles(p.Fs())
+	lg.LogAttrs(context.Background(), slog.LevelInfo, "pulse: mcp cohort scan",
+		slog.String("op", "mcp_cohort_scan"),
+		slog.Int("cohorts", len(names)),
+		slog.Float64("duration_ms", float64(time.Since(start))/float64(time.Millisecond)),
+	)
+	return names
 }
 
 func scanPulseFiles(fsys afero.Fs) []string {

@@ -80,6 +80,24 @@ make smoke                               # builds internal/embeddersmoke as an e
 - The `apidiff` job (`.github/workflows/api-compat.yml`) runs on PRs only.
   See [Pull Request Process](pr-process.md#public-api-changes).
 
+## Contrib modules
+
+`contrib/otelpulse` and `contrib/prompulse` are separately published Go
+modules (own `go.mod` + `go.sum`, `replace => ../..` for development).
+The core module never depends on them, nor on any OpenTelemetry or
+Prometheus module (`TestCoreModuleNoObservabilityDeps`).
+
+```bash
+make contrib        # per module: go mod tidy -diff, vet, staticcheck, test
+make contrib-tidy   # re-tidy every contrib module
+```
+
+`make contrib` runs without `-mod=mod`, so a stale contrib `go.mod` or
+`go.sum` fails locally and in CI. A root dependency bump therefore needs
+`make contrib-tidy` in the same PR. Contrib modules are released in
+lockstep with the root tag by `scripts/release-contrib.sh` (called by
+`release.yml`); run it without `--push` for a dry-run tag plan.
+
 ## CLAUDE.md hygiene gates
 
 `CLAUDE.md` is itself a tested artefact. Every `PULSE_*` env var

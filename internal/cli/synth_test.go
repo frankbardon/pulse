@@ -67,7 +67,7 @@ func runProfileCLIStreams(t *testing.T, out, errOut *bytes.Buffer, args ...strin
 // DataDir, so fixtures land on real disk under t.TempDir().
 func synthLibraryCohort(t *testing.T, path string, fields []synth.FieldSpec, rows int, seed int64) {
 	t.Helper()
-	p, err := newPulse()
+	p, err := newPulse(t.Context())
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestSynthFromProfileCLI_SourceAndRowsFlagsProduceTaggedTopUp(t *testing.T) 
 		t.Fatalf("output cohort not written at --output path %q: %v", output, err)
 	}
 
-	p, err := newPulse()
+	p, err := newPulse(t.Context())
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}
@@ -960,7 +960,7 @@ func gatedCohortFields() []synth.FieldSpec {
 
 func writeGatedCohort(t *testing.T, path string, rows int, seed int64) {
 	t.Helper()
-	p, err := newPulse()
+	p, err := newPulse(t.Context())
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}
@@ -1201,7 +1201,7 @@ func TestProfileCreateCLI_SuggestBlocksRoundTripsThroughFromProfile(t *testing.T
 func TestProfileCreateCLI_AlwaysNullColumnReachesTheTerminal(t *testing.T) {
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
-	p, err := newPulse()
+	p, err := newPulse(t.Context())
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}
@@ -1267,7 +1267,7 @@ func derivedCohortFields() []synth.FieldSpec {
 func TestProfileCreateCLI_SuggestDependenciesRoundTripsThroughFromProfile(t *testing.T) {
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
-	p, err := newPulse()
+	p, err := newPulse(t.Context())
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}

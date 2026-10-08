@@ -66,7 +66,7 @@ func synthFromSchemaCmd() *cli.Command {
 				spec.RowCount = rows
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -152,7 +152,7 @@ func synthFromProfileCmd() *cli.Command {
 				}
 			}
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
@@ -312,7 +312,7 @@ func profileCreateCmd() *cli.Command {
 			seed := cmd.Int("seed")
 			jsonOut := cmd.Bool("json")
 
-			p, err := newPulse()
+			p, err := newPulse(ctx)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/observe"
 )
 
 // DedupOptions configures Pulse.Dedup. It carries the same parent-group
@@ -89,6 +90,12 @@ func (r *DedupResult) Warnings() []*errors.CodedError {
 // Output is transparent: every request returns the same Response
 // against the converted cohort as against the original.
 func (p *Pulse) Dedup(ctx context.Context, path string, opts DedupOptions) (*DedupResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpDedup, path: path}, func(ctx context.Context) (*DedupResult, error) {
+		return p.dedup(ctx, path, opts)
+	})
+}
+
+func (p *Pulse) dedup(ctx context.Context, path string, opts DedupOptions) (*DedupResult, error) {
 	if err := p.svc.DedupPreflight(ctx, path); err != nil {
 		return nil, err
 	}

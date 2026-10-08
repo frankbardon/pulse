@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
+	"github.com/frankbardon/pulse/internal/obsprom"
 	"github.com/frankbardon/pulse/internal/skills"
 )
 
@@ -65,6 +66,13 @@ func TestMCPToolMentionsAreRegistered(t *testing.T) {
 		}
 		for _, m := range span.FindAllStringSubmatch(string(raw), -1) {
 			checked++
+			// Pulse's documented metric names (pulse_operations_total,
+			// …) are wire names, not tools. obsprom.Help is the HELP
+			// table pinned to the root metric set, so this exemption
+			// covers exactly the documented metrics and cannot drift.
+			if _, isMetric := obsprom.Help(m[1]); isMetric {
+				continue
+			}
 			if !registered[m[1]] && !notTools[m[1]] {
 				t.Errorf("%s: names MCP tool %q, which is not registered (toolmeta.Names)", path, m[1])
 			}

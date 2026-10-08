@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U02b]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [194, 195, 196, 197, 216]
+todo_items: [194, 195, 196, 197, 216, 231]
 branch: extension-validation
 ---
 
@@ -112,3 +112,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 ## Inherited from U19
 
 - **Extension aggregator state in the memory model** (#230). U19's `MaxEstimatedMemory` estimate prices built-in aggregator state per arm; an `extend` aggregator with unbounded state (distinct sets, sketches) is not modelled, so an opted-in ceiling can under-estimate it. Add an optional per-registration state-size declaration (probe-validated at `pulse.New` like the other declared flags) and have the estimator read it. Companions: `docs/src/internals/extension-points.md`, the Tuning limits page.
+
+## Inherited from U20
+
+- **Operation panic recovery** (#231). U20's hooks are panic-safe (a panicking hook is recovered and counted in `pulse_hook_panics_total`), but a panic raised INSIDE an operation, most plausibly a faulty `extend` operator or expr function, still unwinds through the facade and crashes the host. Recover at the instrumented facade boundary (`observeOn`), turn it into a coded error (a new `PROCESSING_*` or `SERVICE_*` code with `codeMetadata` + owner), end the observed operation with that code so logs, hooks and metrics report it, and keep the off path allocation-identical. Decide first whether the engine's own panics (not just extensions') are recovered or left to crash. Companions: `.claude/reference/observability.md`, `docs/src/library/observability.md`, `docs/src/internals/extension-points.md`, the error-code row in the Update Demand table.

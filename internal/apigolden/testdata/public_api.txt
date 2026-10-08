@@ -584,12 +584,15 @@ pulse: type Options field Extensions pulse.Extensions
 pulse: type Options field FS github.com/spf13/afero.Fs
 pulse: type Options field FeatureProfile *pulse.FeatureProfile
 pulse: type Options field FeatureProfileFile string
+pulse: type Options field Hooks *pulse/observe.Hooks
 pulse: type Options field ImportSourceFS github.com/spf13/afero.Fs
 pulse: type Options field ImportSourceJailRoot string
 pulse: type Options field ImportTTL time.Duration
 pulse: type Options field ImportsDir string
 pulse: type Options field LabelTablesDir string
 pulse: type Options field Limits pulse.Limits
+pulse: type Options field Logger *log/slog.Logger
+pulse: type Options field Metrics pulse/observe.Metrics
 pulse: type Options field ProjectBufferedFields bool
 pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
@@ -676,7 +679,7 @@ pulse: type Pulse method (*Pulse) ListIndexes(ctx context.Context, path string) 
 pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath string) ([]pulse.ShardEntry, error)
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
-pulse: type Pulse method (*Pulse) Manifest(_ context.Context) *pulse/descriptor.Manifest
+pulse: type Pulse method (*Pulse) Manifest(ctx context.Context) *pulse/descriptor.Manifest
 pulse: type Pulse method (*Pulse) NewCohortBuilder(ctx context.Context, target string, schema pulse/encoding.Schema, opts pulse.CohortBuilderOptions) (*pulse.CohortBuilder, error)
 pulse: type Pulse method (*Pulse) Ontology() pulse/descriptor.Ontology
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
@@ -687,7 +690,7 @@ pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Reques
 pulse: type Pulse method (*Pulse) ProcessChain(ctx context.Context, req *pulse.ChainRequest) (*pulse.ChainResponse, error)
 pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.Request) (pulse.RowIter, error)
 pulse: type Pulse method (*Pulse) ProcessStreamResult(ctx context.Context, req *pulse.Request) (pulse.StreamResult[pulse.Row], error)
-pulse: type Pulse method (*Pulse) Profile(_ context.Context, path string, opts pulse.ProfileOptions) (*pulse.Profile, error)
+pulse: type Pulse method (*Pulse) Profile(ctx context.Context, path string, opts pulse.ProfileOptions) (*pulse.Profile, error)
 pulse: type Pulse method (*Pulse) RangeTables() []pulse.RangeTableInfo
 pulse: type Pulse method (*Pulse) ReloadTemplates() error
 pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) error
@@ -701,7 +704,7 @@ pulse: type Pulse method (*Pulse) SampleWithRequest(ctx context.Context, req *pu
 pulse: type Pulse method (*Pulse) Skill(name string) (string, bool)
 pulse: type Pulse method (*Pulse) Skills() []pulse.SkillMetadata
 pulse: type Pulse method (*Pulse) SweepImports(ctx context.Context) ([]string, error)
-pulse: type Pulse method (*Pulse) Synth(_ context.Context, spec *pulse.SynthSpec, output string, opts pulse.SynthOptions) (*pulse.SynthResult, error)
+pulse: type Pulse method (*Pulse) Synth(ctx context.Context, spec *pulse.SynthSpec, output string, opts pulse.SynthOptions) (*pulse.SynthResult, error)
 pulse: type Pulse method (*Pulse) SynthStream(ctx context.Context, spec *pulse.SynthSpec, opts pulse.SynthOptions) (pulse.StreamResult[pulse.Row], error)
 pulse: type Pulse method (*Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string) (*pulse.VerifyIndexResult, error)
 pulse: type Pulse method (*Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*pulse.VerifyResult, error)
@@ -2739,9 +2742,116 @@ pulse/mcpserve: type Options field Version string
 pulse/mcpserve: func Serve(ctx context.Context, p *pulse.Pulse, opts pulse/mcpserve.Options, in io.Reader, out io.Writer) error
 pulse/mcpserve: type ServeInfo struct
 pulse/mcpserve: type ServeInfo field CohortScan bool
+pulse/mcpserve: type ServeInfo field DefaultReturn pulse/types.ReturnPreset
 pulse/mcpserve: type ServeInfo field FeatureProfile string
 pulse/mcpserve: type ServeInfo field FeatureProfileLoaded bool
+pulse/mcpserve: type ServeInfo field Limits []pulse/descriptor.LimitMeta
 pulse/mcpserve: func ServeStdio(p *pulse.Pulse, opts pulse/mcpserve.Options) error
+pulse/observe: package observe
+pulse/observe: func AllArms() []pulse/observe.Arm
+pulse/observe: func AllOperationKinds() []pulse/observe.OperationKind
+pulse/observe: func AllPhases() []pulse/observe.Phase
+pulse/observe: func AllScopes() []pulse/observe.Scope
+pulse/observe: type Arm string
+pulse/observe: const ArmBuffered pulse/observe.Arm = "buffered"
+pulse/observe: const ArmFusedCrosstab pulse/observe.Arm = "fused_crosstab"
+pulse/observe: const ArmJoin pulse/observe.Arm = "join"
+pulse/observe: const ArmParallelDecode pulse/observe.Arm = "parallel_decode"
+pulse/observe: const ArmShardParallel pulse/observe.Arm = "shard_parallel"
+pulse/observe: const ArmStreaming pulse/observe.Arm = "streaming"
+pulse/observe: const CodeOK untyped string = "ok"
+pulse/observe: const CodeUncoded untyped string = "uncoded"
+pulse/observe: type Counter interface
+pulse/observe: type Counter imethod Add(delta float64)
+pulse/observe: type Histogram interface
+pulse/observe: type Histogram imethod Observe(value float64)
+pulse/observe: type Hooks struct
+pulse/observe: type Hooks field OnOperationEnd func(ctx context.Context, info pulse/observe.OperationInfo, result pulse/observe.OperationResult)
+pulse/observe: type Hooks field OnOperationStart func(ctx context.Context, info pulse/observe.OperationInfo) context.Context
+pulse/observe: type Hooks field OnPhase func(ctx context.Context, info pulse/observe.OperationInfo, phase pulse/observe.PhaseTiming)
+pulse/observe: type Label struct
+pulse/observe: type Label field Key string
+pulse/observe: type Label field Value string
+pulse/observe: type Metrics interface
+pulse/observe: type Metrics imethod Counter(name string, labels ...pulse/observe.Label) pulse/observe.Counter
+pulse/observe: type Metrics imethod Histogram(name string, labels ...pulse/observe.Label) pulse/observe.Histogram
+pulse/observe: type Metrics imethod UpDownCounter(name string, labels ...pulse/observe.Label) pulse/observe.UpDownCounter
+pulse/observe: const OpCompose pulse/observe.OperationKind = "compose"
+pulse/observe: const OpComposeParallel pulse/observe.OperationKind = "compose_parallel"
+pulse/observe: const OpConvert pulse/observe.OperationKind = "convert"
+pulse/observe: const OpCountRecords pulse/observe.OperationKind = "count_records"
+pulse/observe: const OpDedup pulse/observe.OperationKind = "dedup"
+pulse/observe: const OpDrop pulse/observe.OperationKind = "drop"
+pulse/observe: const OpExport pulse/observe.OperationKind = "export"
+pulse/observe: const OpFacet pulse/observe.OperationKind = "facet"
+pulse/observe: const OpFacetSchema pulse/observe.OperationKind = "facet_schema"
+pulse/observe: const OpFilterToFile pulse/observe.OperationKind = "filter_to_file"
+pulse/observe: const OpImport pulse/observe.OperationKind = "import"
+pulse/observe: const OpImportsSweep pulse/observe.OperationKind = "imports_sweep"
+pulse/observe: const OpIndexBuild pulse/observe.OperationKind = "index_build"
+pulse/observe: const OpIndexDrop pulse/observe.OperationKind = "index_drop"
+pulse/observe: const OpIndexList pulse/observe.OperationKind = "index_list"
+pulse/observe: const OpIndexVerify pulse/observe.OperationKind = "index_verify"
+pulse/observe: const OpInspect pulse/observe.OperationKind = "inspect"
+pulse/observe: const OpLookup pulse/observe.OperationKind = "lookup"
+pulse/observe: const OpManifest pulse/observe.OperationKind = "manifest"
+pulse/observe: const OpOpen pulse/observe.OperationKind = "open"
+pulse/observe: const OpPayloadSchema pulse/observe.OperationKind = "payload_schema"
+pulse/observe: const OpPredict pulse/observe.OperationKind = "predict"
+pulse/observe: const OpProcess pulse/observe.OperationKind = "process"
+pulse/observe: const OpProcessChain pulse/observe.OperationKind = "process_chain"
+pulse/observe: const OpProcessStream pulse/observe.OperationKind = "process_stream"
+pulse/observe: const OpProfile pulse/observe.OperationKind = "profile"
+pulse/observe: const OpSample pulse/observe.OperationKind = "sample"
+pulse/observe: const OpShardAdd pulse/observe.OperationKind = "shard_add"
+pulse/observe: const OpShardCompact pulse/observe.OperationKind = "shard_compact"
+pulse/observe: const OpShardCreate pulse/observe.OperationKind = "shard_create"
+pulse/observe: const OpShardExtract pulse/observe.OperationKind = "shard_extract"
+pulse/observe: const OpShardList pulse/observe.OperationKind = "shard_list"
+pulse/observe: const OpShardRemove pulse/observe.OperationKind = "shard_remove"
+pulse/observe: const OpShardVerify pulse/observe.OperationKind = "shard_verify"
+pulse/observe: const OpSynth pulse/observe.OperationKind = "synth"
+pulse/observe: const OpSynthStream pulse/observe.OperationKind = "synth_stream"
+pulse/observe: const OpTemplateReload pulse/observe.OperationKind = "template_reload"
+pulse/observe: const OpTemplateRender pulse/observe.OperationKind = "template_render"
+pulse/observe: const OpWiden pulse/observe.OperationKind = "widen"
+pulse/observe: type OperationInfo struct
+pulse/observe: type OperationInfo field Cohort string
+pulse/observe: type OperationInfo field ID uint64
+pulse/observe: type OperationInfo field Index int
+pulse/observe: type OperationInfo field Kind pulse/observe.OperationKind
+pulse/observe: type OperationInfo field Parent uint64
+pulse/observe: type OperationInfo field RequestHash string
+pulse/observe: type OperationInfo field Scope pulse/observe.Scope
+pulse/observe: type OperationKind string
+pulse/observe: type OperationResult struct
+pulse/observe: type OperationResult field Arm pulse/observe.Arm
+pulse/observe: type OperationResult field BytesRead int64
+pulse/observe: type OperationResult field Code string
+pulse/observe: type OperationResult field Duration time.Duration
+pulse/observe: type OperationResult field Projected bool
+pulse/observe: type OperationResult field RowsMatched int64
+pulse/observe: type OperationResult field RowsOut int64
+pulse/observe: type OperationResult field RowsScanned int64
+pulse/observe: type OperationResult field Shards int
+pulse/observe: type OperationResult field Workers int
+pulse/observe: type Phase string
+pulse/observe: const PhaseDecode pulse/observe.Phase = "decode"
+pulse/observe: const PhaseOpen pulse/observe.Phase = "open"
+pulse/observe: const PhaseOverlay pulse/observe.Phase = "overlay"
+pulse/observe: const PhasePlan pulse/observe.Phase = "plan"
+pulse/observe: const PhasePost pulse/observe.Phase = "post"
+pulse/observe: const PhaseReduce pulse/observe.Phase = "reduce"
+pulse/observe: const PhaseScan pulse/observe.Phase = "scan"
+pulse/observe: const PhaseShape pulse/observe.Phase = "shape"
+pulse/observe: type PhaseTiming struct
+pulse/observe: type PhaseTiming field Duration time.Duration
+pulse/observe: type PhaseTiming field Phase pulse/observe.Phase
+pulse/observe: type Scope string
+pulse/observe: const ScopeChild pulse/observe.Scope = "child"
+pulse/observe: const ScopeTop pulse/observe.Scope = "top"
+pulse/observe: type UpDownCounter interface
+pulse/observe: type UpDownCounter imethod Add(delta float64)
 pulse/synth: package synth
 pulse/synth: type CategoricalNumericCategoryFidelity = pulse/internal/synth.CategoricalNumericCategoryFidelity
 pulse/synth: type CategoricalNumericCategoryFidelity underlying struct
@@ -4254,4 +4364,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d95da98046874bea46c8be53bb7cb5ca1eecdd906a890a8b39721916e1e229b7
+// golden-hash: 740560ee28b1420a169f5d3a551512e3f9a627090f65bb403c6351ba2d5383cd

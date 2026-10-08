@@ -1,6 +1,7 @@
 package facadebridge_test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -88,5 +89,29 @@ func TestInstanceSnapshotHookInstalled(t *testing.T) {
 	}
 	if facadebridge.InstanceSnapshot("not a pulse") != nil {
 		t.Error("InstanceSnapshot(non-Pulse) should return nil")
+	}
+}
+
+func TestLoggerHookInstalled(t *testing.T) {
+	if facadebridge.Logger == nil {
+		t.Fatal("root package did not install the Logger hook")
+	}
+	bare, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if facadebridge.Logger(bare) != nil {
+		t.Fatal("Logger of a logger-free Pulse should be nil")
+	}
+	lg := slog.New(slog.DiscardHandler)
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Logger: lg})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if facadebridge.Logger(p) != lg {
+		t.Fatal("Logger(*Pulse) should return Options.Logger")
+	}
+	if facadebridge.Logger("not a pulse") != nil {
+		t.Fatal("Logger(non-Pulse) should return nil")
 	}
 }

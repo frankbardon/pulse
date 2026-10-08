@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -48,6 +49,9 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
+	ei := execInfoFrom(ctx)
+	ei.Lap(observe.PhaseOpen)
+	countReads(ctx, cohort)
 
 	s.applyDefaults(req, cohort.Schema())
 	zones, err := s.resolveZones(req, cohort.Schema())
@@ -75,6 +79,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// Both crosstab arms (and the fusion gate's construct probe) build
 	// their axes from the zoned request.
 	req = s.zoned(req, zones)
+	ei.Lap(observe.PhasePlan)
 
 	// Dispatch to the fused streaming path when the gate accepts.
 	// The gate is the load-bearing exclusion check — features, tier-1
@@ -98,7 +103,10 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// independent of opts.ProjectBufferedFields because the crosstab
 	// path has no streamable alternative — the savings are load-bearing
 	// on cohorts beyond ~50 fields.
-	s.applyCrosstabProjection(iter, req, cohort.Schema())
+	projected := s.applyCrosstabProjection(iter, req, cohort.Schema())
+	// The buffered crosstab arm; a decode that fans out below restamps
+	// it as parallel decode.
+	execInfoFrom(ctx).setPlan(observe.ArmBuffered, 1, len(cohort.Shards()), projected)
 
 	// Decode dispatch: when the cohort is single-file (not a shard
 	// archive — those parallelise via ShardWorkers), the iterator's
@@ -127,6 +135,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 			return nil, err
 		}
 		if mergedOK {
+			ei.Lap(observe.PhaseScan)
 			if mergedResp.Metadata != nil {
 				mergedResp.Metadata.CohortFile = path
 			}
@@ -144,12 +153,14 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhaseDecode)
 
 	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.RunCrosstab(ctx, req, records)
 	if err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhaseScan)
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = path
 	}
@@ -198,11 +209,16 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 		return nil, err
 	}
 	defer leftIter.Close()
+	ei := execInfoFrom(ctx)
+	ei.setPlan(observe.ArmJoin, 1, 0, 0)
+	// Opening both sides and building the right side's hash table.
+	ei.Lap(observe.PhaseOpen)
 
 	s.applyAutoLabels(&clone.Labels, joinedSchema, collectOutputLabels(&clone), nil)
 	if err := s.validateProcessLabels(&clone, joinedSchema); err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhasePlan)
 
 	// HashJoinIterator.Record builds a fresh record per call, so the
 	// slice survives the left iterator's buffer reuse.
@@ -213,12 +229,14 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	if err := leftIter.Err(); err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhaseDecode)
 
 	proc := s.newProcessor(ctx, joinedSchema, req)
 	resp, err := proc.RunCrosstab(ctx, s.zoned(&clone, zones), records)
 	if err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhaseScan)
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = leftPath
 	}
@@ -291,6 +309,8 @@ func (s *Service) crosstabDecodeReduceMergeable(
 			_ = cleanup()
 		}
 	}()
+
+	stampParallelDecode(ctx, pctx, workers, si.projectSize)
 
 	resp, err := s.reduceParallelBuffered(ctx, req, cohort.Schema(), pctx, workers)
 	if err != nil {
@@ -420,6 +440,7 @@ func (s *Service) crosstabDecodeRecords(
 		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
 
+	stampParallelDecode(ctx, pctx, workers, si.projectSize)
 	return materializeRecordsParallel(ctx, pctx, workers)
 }
 
@@ -435,4 +456,16 @@ func (s *Service) crosstabDecodeRecordsSerial(ctx context.Context, iter scanIter
 		return nil, iter.Err()
 	}
 	return records, nil
+}
+
+// stampParallelDecode records a parallel segment decode that fanned out
+// over workers, and the mapped region it reads (no-op off). projected
+// is the iterator's retained-field count (0: full decode).
+func stampParallelDecode(ctx context.Context, pctx *parallelDecodeContext, workers, projected int) {
+	ei := execInfoFrom(ctx)
+	if ei == nil {
+		return
+	}
+	ei.setPlan(observe.ArmParallelDecode, workers, 0, projected)
+	ei.addBytes(int64(len(pctx.mmapBytes)))
 }

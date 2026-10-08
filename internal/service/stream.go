@@ -127,6 +127,7 @@ func (it *streamingIterator) initFromFile() error {
 		if data, cleanup, err := mmapFileBytes(realPath); err == nil {
 			it.mmapBytes = data
 			it.mmapCleanup = cleanup
+			noteMapped(it.fs, len(data))
 			it.initFromReader(bytes.NewReader(data))
 			return nil
 		}

@@ -79,9 +79,24 @@ type Metrics interface {
 
 ## Deliverables
 
-- [ ] `Options.Logger` (`slog`, nil = silent); context-aware logging at documented levels; no row data
-- [ ] `Options.Hooks`: operation start/end (context-returning start), phase timings; panic-safe
-- [ ] `Options.Metrics` interface (opt-in) with the documented metric set and bounded labels
-- [ ] `contrib/otelpulse` and `contrib/prompulse` as separate modules
-- [ ] `pulse mcp` / CLI flags `--log-level`, `--log-format`, `--metrics-addr` (opt-in)
-- [ ] Silence, no-row-data, dependency and panic gates; embedder docs page "Observability"
+- [x] `Options.Logger` (`slog`, nil = silent); context-aware logging at documented levels; no row data
+- [x] `Options.Hooks`: operation start/end (context-returning start), phase timings; panic-safe
+- [x] `Options.Metrics` interface (opt-in) with the documented metric set and bounded labels
+- [x] `contrib/otelpulse` and `contrib/prompulse` as separate modules
+- [x] `pulse mcp` / CLI flags `--log-level`, `--log-format`, `--metrics-addr` (opt-in)
+- [x] Silence, no-row-data, dependency and panic gates; embedder docs page "Observability"
+
+## As landed (U20)
+
+The deviations from the proposal above, all deliberate:
+
+- **Phases.** The set is `plan`, `open`, `decode`, `scan`, `reduce`, `post`, `overlay`, `shape`, not `open | predict | decode | filter | aggregate | overlay | serialize`, because those are the stages the engine actually runs. They are delivered as a summary immediately before `OnOperationEnd`, one `OnPhase` per phase that ran, not live. `shape` exists so the cost of `return` shaping is visible (#223).
+- **Package.** The hook and metric vocabulary lives in a new public package `observe` (stdlib only), not on the root `pulse` package. `Hooks` is a pointer (`Options.Hooks *observe.Hooks`).
+- **Child operations.** A Compose slot or ProcessChain stage is a separate operation with `Scope` child, its parent's kind, `Parent` and `Index` set. The parent aggregates rows, bytes, workers, shards and arm from its children.
+- **Operation kinds.** About forty kinds, including the shard, index, template and import-sweep operations; a few filesystem helpers are deliberately uninstrumented (see U20 "Landed").
+- **Metrics.** `pulse_cache_hits_total` was dropped (nothing to count). Added `pulse_phase_duration_seconds`, `pulse_hook_panics_total` and `pulse_operations_in_flight` (an up-down counter), and a `scope` label on operations. The factory is called lazily, so it must be concurrency-safe.
+- **Exporter.** `--metrics-addr` is served by a standard-library Prometheus text exporter (`internal/obsprom`); the core module takes no Prometheus dependency. The endpoint has no authentication.
+- **No environment variables.** Logging is configured by flags and `Options` only; Pulse never reads `slog.Default()`.
+- **Contrib release.** The adapters are tagged `contrib/<module>/vX` in lockstep with the root tag by a `contrib` job in `release.yml`; they carry no GitHub Release. The main branch keeps `require github.com/frankbardon/pulse v0.0.0` with a `replace`; only the detached tagged commit carries the real version.
+- **Gates.** Beyond the four named above: an allocation pin on the off path, `TestObservabilityDocCoversEnums` and `TestObservedMethodsCoverSurface`.
+- **Panic recovery.** Only hook panics are recovered. Recovering a panic inside an operation is U34 (#231).

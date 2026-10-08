@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234]
 branch: v1-release
 ---
 
@@ -138,3 +138,9 @@ U12 made the significance tests, regressions, CI bounds, scores, quantile bucket
 
 - **`FailFast=false` discards successful slots** (#224). `ComposeParallel` with `FailFast=false` returns `(nil, SERVICE_INTERNAL)` with `failed_indices` / `first_error` details, dropping every slot that succeeded. U19 corrected `docs/src/library/parallel-compose.md`, which claimed the successful slots populate the response. Decide before the freeze whether to return the partial `ComposedResponse` (a behaviour change for `STABILITY.md` and the migration doc) or keep the all-or-nothing contract and say so in `STABILITY.md`.
 - **`RequestTimeout` and the RowIter drain** (#228). U19 bounds `ProcessStreamResult` across run and drain (a stalled consumer trips it), but `Pulse.ProcessStream` returns a `RowIter` whose `Next(ctx)` drain runs under the caller's ctx only. Decide the frozen contract: keep (document it in `STABILITY.md` and the Tuning limits page) or carry the inner deadline into the iterator.
+
+## Inherited from U20
+
+- **Lockstep contrib release rehearsal** (#232). `v1.0.0-alpha.6` is the first release to tag `contrib/otelpulse` and `contrib/prompulse` beside the root (`scripts/release-contrib.sh`, the `contrib` job in `release.yml`). Run it again on `v1.0.0-rc.1` and keep the procedure in the release runbook. Dependabot root bumps fail `make contrib` until `make contrib-tidy` is run in that PR; decide whether CI should do it.
+- **`ServeInfo` comparability** (#233). `mcpserve.ServeInfo` gained `Limits []descriptor.LimitMeta`, so it is no longer `==`-comparable (an apidiff advisory). Keep the slice or switch to `pulse.Limits` before the freeze; record the choice in the migration doc and `STABILITY.md`.
+- **Uninstrumented methods** (#234). `CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars` and `Watch*` have no `OperationKind` (`uninstrumentedMethods` in `observability_test.go`). Confirm the list before the `observe` enums freeze.

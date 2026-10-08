@@ -2,8 +2,10 @@ package template
 
 import (
 	"cmp"
+	"context"
 	stderrors "errors"
 	"io/fs"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -196,6 +198,25 @@ type Store struct {
 	// from timing.
 	scans  uint64
 	parses uint64
+
+	// logger receives the rescan lifecycle records; nil logs nothing.
+	// Set once by SetLogger before the store is shared.
+	logger *slog.Logger
+}
+
+// SetLogger installs the logger the store reports rescans to: an Info
+// record per forced reload and per automatic rescan that changed
+// something, a Warn per template file newly broken, and a Warn for a
+// swallowed whole-walk fault. Records carry paths, names, counts,
+// timings and error codes — never an error message or document bytes.
+// Nil-safe on both sides; call it before the store is shared.
+func (s *Store) SetLogger(l *slog.Logger) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.logger = l
+	s.mu.Unlock()
 }
 
 // fileEntry is one discovered template file: the parsed document plus the
@@ -503,7 +524,17 @@ func (s *Store) Reload() error {
 // index is still a complete, valid answer. Per-file document faults never
 // reach here at all: the scan records them and carries on.
 func (s *Store) refreshQuietly() {
-	_ = s.refresh(false)
+	if err := s.refresh(false); err != nil {
+		s.mu.RLock()
+		lg := s.logger
+		s.mu.RUnlock()
+		if lg != nil {
+			lg.LogAttrs(context.Background(), slog.LevelWarn, "pulse: template rescan failed",
+				slog.String("op", logOp),
+				slog.String("code", errorCode(err)),
+			)
+		}
+	}
 }
 
 // refresh re-walks the configured roots and swaps in the resulting index.
@@ -530,8 +561,13 @@ func (s *Store) refresh(force bool) error {
 	s.lastScan = now
 	dirs := slices.Clone(s.dirs)
 	prev := s.snapshotLocked()
+	lg := s.logger
 	s.mu.Unlock()
 
+	var start time.Time
+	if lg != nil {
+		start = time.Now()
+	}
 	// Not strict: past construction a broken document degrades to a
 	// recorded fault rather than aborting the walk.
 	res, err := scanDirs(dirs, prev, false)
@@ -545,7 +581,64 @@ func (s *Store) refresh(force bool) error {
 	s.scans++
 	s.parses += res.parsed
 	s.mu.Unlock()
+	if lg != nil {
+		logRescan(lg, prev, res, force, time.Since(start))
+	}
 	return nil
+}
+
+// logOp is the op attribute every store record carries.
+const logOp = "template_reload"
+
+// logRescan reports one completed walk: a Warn per template file broken
+// by this walk (not already broken in the previous snapshot), then an
+// Info outcome — always for a forced reload, and for an automatic rescan
+// only when it changed something, so the steady-state lookup path stays
+// quiet.
+func logRescan(lg *slog.Logger, prev *prevSnapshot, res scanResult, forced bool, took time.Duration) {
+	ctx := context.Background()
+	templates, broken, newlyBroken := 0, 0, 0
+	for _, entries := range res.byName {
+		templates += len(entries)
+	}
+	for _, faults := range res.faults {
+		for _, f := range faults {
+			broken++
+			if prev.faultFor(f.path) != nil {
+				continue
+			}
+			newlyBroken++
+			lg.LogAttrs(ctx, slog.LevelWarn, "pulse: template file broken",
+				slog.String("op", logOp),
+				slog.String("template", f.name),
+				slog.String("path", f.path),
+				slog.String("code", errorCode(f.err)),
+			)
+		}
+	}
+	changed := res.parsed > 0 || templates != len(prev.entries) || broken != len(prev.faults)
+	if !forced && !changed {
+		return
+	}
+	lg.LogAttrs(ctx, slog.LevelInfo, "pulse: templates reloaded",
+		slog.String("op", logOp),
+		slog.Bool("forced", forced),
+		slog.Int("templates", templates),
+		slog.Int("broken", broken),
+		slog.Int("newly_broken", newlyBroken),
+		slog.Int("parsed", int(res.parsed)),
+		slog.Float64("duration_ms", float64(took)/float64(time.Millisecond)),
+	)
+}
+
+// errorCode is the Pulse error code of err, or "uncoded". Never the
+// message, which names paths and can quote document bytes.
+func errorCode(err error) string {
+	var coded *errors.CodedError
+	if stderrors.As(err, &coded) && coded != nil && coded.Code != "" {
+		return string(coded.Code)
+	}
+	return "uncoded"
 }
 
 // isFresh reports whether the cached snapshot is still inside the rescan

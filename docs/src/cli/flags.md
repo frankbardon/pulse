@@ -24,6 +24,19 @@ Available on the bare `pulse` invocation:
 Both default to off. `pulse --json` is the discovery entry point — it
 emits the manifest documented at [`pulse manifest`](manifest.md).
 
+Persistent on **every** leaf (accepted before or after the leaf name):
+
+| Flag | Effect |
+|---|---|
+| `--log-level off\|debug\|info\|warn\|error` | Structured log records on **stderr** at or above the level (default `off`: nothing). `debug` adds the per-operation plan record (execution arm, workers, shards, projection) |
+| `--log-format text\|json` | Log record encoding (default `text`); ignored while `--log-level` is `off` |
+
+Logs never reach stdout, so `--json` output and the `pulse mcp`
+JSON-RPC transport stay byte-identical with or without them. Records
+carry identifiers, counts, timings, enums and error codes only — never
+row data, filter values or error messages. An unknown value is
+`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
+
 ## Environment variables
 
 | Variable | Used by | Required | Purpose |
@@ -532,7 +545,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse index drop` | Remove a cohort's sidecar index (destructive, no prompt) | [index](index.md) |
 | `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
 | `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
-| `pulse mcp` | Run the MCP server over stdio; `--return PRESET` sets the response preset for a tool request without its own `return` (default `standard`); repeatable `--limit NAME=VALUE` sets an instance resource limit (`unlimited` / Go duration for `request_timeout`; a bad key or value is `CLI_INPUT`) | [mcp](mcp.md) |
+| `pulse mcp` | Run the MCP server over stdio; `--metrics-addr HOST:PORT` serves Prometheus metrics on `GET /metrics` (unset opens no port); `--return PRESET` sets the response preset for a tool request without its own `return` (default `standard`); repeatable `--limit NAME=VALUE` sets an instance resource limit (`unlimited` / Go duration for `request_timeout`; a bad key or value is `CLI_INPUT`) | [mcp](mcp.md) |
 | `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review, and `--run-continuation`, which measures per-field run-continuation (the run-skip decode's hit rate) to show whether the cohort still has the sort order that makes scans fast. Profiles a single-file cohort or a whole shard archive | [profile create](profile-create.md) |
 | `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
 | `pulse shard add` | Append a shard to an existing archive | `--help` |

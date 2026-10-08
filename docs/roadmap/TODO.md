@@ -57,8 +57,8 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#214** A joined slot or stage derives its `return` precision-exact set from the defaults-resolved request, as an unjoined one does (today the join path applies defaults to a service-internal clone, so `Plan.Exact` reads the un-defaulted request; `Process` included) · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#215** `finalizeMergedPartial`'s empty-partial path emits the zero-n aggregation entries the serial path emits (ungrouped and grouped); today a merged run with an empty partial carries no `Aggregations` block · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#221** The Compose components veto (`composeSlotVetoes`) takes the weight-basis rule the request veto took in U18: a slot named by a Compose overlay that reads host floors only on a weighted slot (χ²-vs-ref, prop-z cell/panel, index) keeps `Components` only when that slot's crosstab cell is weighted (`descx.CrosstabCellWeightBasis`), and only the `crosstab` sub-part, not every sub-part. Pure compute saving; kept numbers unchanged · [U35](units/U35-predict-runtime-parity.md)
-- [ ] **#222** `pulse mcp` reports the effective default `return` preset (request-less default after `--return` / `mcpserve.Options.DefaultReturn` / feature profile / built-in `standard`) in its startup line and `ServeInfo` · [U20](units/U20-observability.md)
-- [ ] **#223** Attribute the `standard` preset's ~+10% cost over an unshaped `Process` (U18 `BenchmarkProcessDefaultReturn`; cached plan resolution is only ~0.27%): expose a shaping/apply phase in the operation hooks' phase timings and benchmark it; optimise if the apply pass dominates · [U20](units/U20-observability.md)
+- [x] **#222** `pulse mcp` reports the effective default `return` preset (request-less default after `--return` / `mcpserve.Options.DefaultReturn` / feature profile / built-in `standard`) in its startup line and `ServeInfo` · [U20](units/U20-observability.md)
+- [x] **#223** Attribute the `standard` preset's ~+10% cost over an unshaped `Process` (U18 `BenchmarkProcessDefaultReturn`; cached plan resolution is only ~0.27%): expose a shaping/apply phase in the operation hooks' phase timings and benchmark it; optimise if the apply pass dominates (U20: `shape` phase added; `Apply(standard)` ≈ 4.2 µs of the ≈ 10.3 µs standard-vs-unset delta, ~40%, under the 50% bar, so not optimised) · [U20](units/U20-observability.md)
 
 #### Cohort facade
 - [x] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
@@ -264,18 +264,24 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#224** `ComposeOptions.FailFast=false` returns `(nil, SERVICE_INTERNAL)` and discards the slots that succeeded; decide whether partial slots are returned before the freeze (the doc now states today's behaviour) · [U33](units/U33-v1-release.md)
 - [ ] **#225** The simple `pulse.Facet(path, field)` facade runs no limits pre-flight (only `FacetSchema` / the rich facet is guarded); give it the same `MaxEstimatedMemory` pre-flight · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#226** Predict reports no limit findings for Compose, ProcessChain or Facet requests (no facade predict surface); slot/stage counts and facet group counts are treated as unknowable at predict · [U35](units/U35-predict-runtime-parity.md)
-- [ ] **#227** `mcpserve.Describe` / `ServeInfo` report the effective limits (the manifest `limits` block and the `pulse mcp` startup line already do) · [U20](units/U20-observability.md)
+- [x] **#227** `mcpserve.Describe` / `ServeInfo` report the effective limits (the manifest `limits` block and the `pulse mcp` startup line already do) · [U20](units/U20-observability.md)
 - [ ] **#228** `Pulse.ProcessStream` (RowIter) bounds only the run with `RequestTimeout`; draining with `Next(ctx)` runs under the caller's ctx (`ProcessStreamResult` bounds both). Keep and document, or bound the drain too · [U33](units/U33-v1-release.md)
 - [ ] **#229** Tighten the memory estimate: it ignores field projection (up to ~4.9x over on projected buffered runs) and assumes at most one right match per left row (a 1:N fan-out join can exceed it) · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#230** Extension aggregators declare a state-size hint so the memory estimate can bound extensions with unbounded state (today they are outside the model) · [U34](units/U34-extension-validation.md)
 
 ### Observability ([embedder-operations 02](v1.0.0-embedder-operations/02-observability.md))
-- [ ] **#118** `Options.Logger` (`slog`, nil = silent); context-aware; no row data · [U20](units/U20-observability.md)
-- [ ] **#119** `Options.Hooks`: operation start/end (context-returning), phase timings; panic-safe · [U20](units/U20-observability.md)
-- [ ] **#120** `Options.Metrics` interface (opt-in) with bounded labels · [U20](units/U20-observability.md)
-- [ ] **#121** `contrib/otelpulse` and `contrib/prompulse` as separate modules · [U20](units/U20-observability.md)
-- [ ] **#122** `pulse mcp` / CLI `--log-level`, `--log-format`, opt-in `--metrics-addr` · [U20](units/U20-observability.md)
-- [ ] **#123** Silence, no-row-data, dependency and panic gates; "Observability" docs page · [U20](units/U20-observability.md)
+- [x] **#118** `Options.Logger` (`slog`, nil = silent); context-aware; no row data · [U20](units/U20-observability.md)
+- [x] **#119** `Options.Hooks`: operation start/end (context-returning), phase timings; panic-safe · [U20](units/U20-observability.md)
+- [x] **#120** `Options.Metrics` interface (opt-in) with bounded labels · [U20](units/U20-observability.md)
+- [x] **#121** `contrib/otelpulse` and `contrib/prompulse` as separate modules · [U20](units/U20-observability.md)
+- [x] **#122** `pulse mcp` / CLI `--log-level`, `--log-format`, opt-in `--metrics-addr` · [U20](units/U20-observability.md)
+- [x] **#123** Silence, no-row-data, dependency and panic gates; "Observability" docs page · [U20](units/U20-observability.md)
+
+#### Follow-ups from U20
+- [ ] **#231** Recover a panic raised inside an operation (a faulty extension operator or expr function, an engine bug) into a coded error at the facade instead of crashing the host; only hook panics are recovered today · [U34](units/U34-extension-validation.md)
+- [ ] **#232** Release rehearsal: exercise the lockstep contrib tag procedure (`scripts/release-contrib.sh`, `contrib` job in `release.yml`) on `v1.0.0-rc.1`, and decide how a root dependency bump keeps `make contrib-tidy` green (Dependabot root bumps fail `make contrib` until it is run in the PR) · [U33](units/U33-v1-release.md)
+- [ ] **#233** Decide the frozen shape of `mcpserve.ServeInfo`: U20 added `Limits []descriptor.LimitMeta`, which makes the struct non-comparable with `==`; keep, or carry `pulse.Limits` instead, before the API freeze · [U33](units/U33-v1-release.md)
+- [ ] **#234** Decide whether the `*Pulse` methods deliberately left without an `OperationKind` (`CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars`, `Watch*`) stay uninstrumented in the frozen `observe` enum; adding a kind later is additive but widens metric cardinality · [U33](units/U33-v1-release.md)
 
 ---
 

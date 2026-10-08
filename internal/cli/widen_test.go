@@ -251,7 +251,7 @@ func TestWidenCLI_RefusesShardArchiveWithoutTouchingIt(t *testing.T) {
 	writeWidenCliCohort(t, shardA)
 	writeWidenCliCohort(t, shardB)
 
-	p, err := newPulse()
+	p, err := newPulse(t.Context())
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}
