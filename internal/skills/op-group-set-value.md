@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cardinality-analysis, cohort-analysis]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. `Group.Label` overrides the output column name; `Group.Include []string` allow-lists composite keys (pipe-joined sorted labels, `"AMEX|VISA"`) and sets emission order.

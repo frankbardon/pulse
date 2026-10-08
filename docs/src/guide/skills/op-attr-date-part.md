@@ -1,0 +1,49 @@
+```yaml
+name: op-attr-date-part
+description: Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field.
+kind: operator
+category: ATTR
+operator: ATTR_DATE_PART
+type: reference
+applies_to: process, compose, predict
+examples_tags: [time-series, feature-engineering, streaming-friendly]
+```
+
+Attributes emit row-level scalars; they do not produce `Response.Components`.
+
+## Use when
+
+Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour.
+
+Questions it answers:
+
+- Which month of the year does each order fall in, so seasons can be compared across years?
+- What year-month label should each response carry for a monthly breakdown?
+
+Use something else:
+
+- `GROUP_DATE` when you only want rows grouped by day, week, month or year.
+
+## Params
+
+- `part` — enum, required: `day`, `hour`, `month`, `month_day`, `year`, `year_month`, `year_month_day`.
+
+## Inputs
+
+`Field` — `date` or `datetime` (a schema field). `Label` — required, new column name.
+
+## Output
+
+One `f64` integer per record: `year` = YYYY, `month` = 1..12, `day` = 1..31, `year_month` = YYYYMM, `year_month_day` = YYYYMMDD, `month_day` = MMDD, `hour` = 0..23. Null source → `0` (not null).
+
+## Gotchas
+
+- Row-local one-pass — streams cleanly.
+- Useful as a grouping key (e.g. `month_day` for seasonality) or as a `FEAT` substitute when post-filter visibility is needed.
+- Unknown `part`, non-date-family field, `hour` on a `date` → `PROCESSING_CONFIG`.
+- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` → `time_zone` → default → UTC). A `date` ignores zones: explicit `tz` refused, inherited not applied.
+
+## See
+
+- `pulse_examples_search tags=[time-series]`
+- Skills: [`attribute-composition`](attribute-composition.md), [`op-attr-formula`](op-attr-formula.md), [`request-envelope`](request-envelope.md) (Time zones)

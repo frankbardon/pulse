@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cardinality-analysis, cross-tabulation]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. Weight-aware (`"weight": null` opts out): Σw per member — map values become floats.
@@ -25,7 +27,7 @@ Rich `map[string]int` — label→row count (weighted: `map[string]float64`, Σw
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

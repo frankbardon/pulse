@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, nonparametric, two-sample, distrib
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`. Always two-sided; there is no one-sided form.
@@ -29,6 +31,8 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 ## Output
 
 `Statistic` = D (sup |F₁(x) − F₂(x)|); `PValue` two-sided via Smirnov asymptotic distribution. `Details.groups` + per-arm `Details.n`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

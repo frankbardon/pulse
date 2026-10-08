@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [distribution-shape, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 Weight-aware (`"weight": null` opts out): weighted population moments, Σw in place of n. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
@@ -23,9 +25,11 @@ Weight-aware (`"weight": null` opts out): weighted population moments, Σw in pl
 
 Scalar `float64` — population skewness g1 = `m3 / m2^1.5` (moments divide by `n`), NOT the adjusted G1 of Excel `SKEW` / SPSS. Per-group when wired under a grouper.
 
+<!-- generated: reading-the-output -->
+
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

@@ -37,7 +37,7 @@ Paths use the Response JSON names at any depth: `.` between keys, `[*]` into eve
 
 ## Precision
 
-`precision` is significant digits, wire-only: Go values stay full float64, JSON floats are written at N digits (Go `g` format, so tiny or huge values use exponent form). Untouched: integers, `decimal128` decimal strings, NaN (still `null`), and exact counts — count-aggregation columns, count crosstab cells and margins, `matrices[*].auxiliary.n`. Extension aggregators are never count-exempt.
+`precision` is significant digits, wire-only: Go values stay full float64, JSON floats are written at N digits (Go `g` format, so tiny or huge values use exponent form). Untouched: integers, `decimal128` decimal strings, NaN (still `null`), and exact counts — count-aggregation columns, count crosstab cells and margins<!-- feature: capability:matrices -->, `matrices[*].auxiliary.n`<!-- /feature -->. Extension aggregators are never count-exempt.
 
 ## Absent, not null
 
@@ -53,7 +53,7 @@ MCP tools default to `standard`: request `return` > host `pulse mcp --return` / 
 
 ## Excluded means not computed
 
-An excluded `components` part (aggregations incl. `groups`, groupers, filterers, run) is never computed — the run does less work, not just the wire. An excluded `matrices` slot is never accumulated (unless `components.matrices` is kept), and an excluded `auxiliary`, `scalars` or `vectors` is never built. An excluded overlay layer, test or post-test is never computed, unless a multiplicity family claims it; excluded regressions are never fitted. **Not computed means not validated:** an excluded part raises no refusal or warning (`PULSE_OVERLAY_COMPONENTS_REQUIRED`, `PULSE_TEST_*`, `PROCESSING_REGRESSION_*`) — predict stays the validator, so predict first. A kept overlay that reads components keeps them computed, still pruned from the wire. Kept figures never change, and the execution path is chosen from the full request.
+An excluded `components` part (aggregations incl. `groups`, groupers, filterers, run) is never computed — the run does less work, not just the wire. <!-- feature: capability:matrices -->An excluded `matrices` slot is never accumulated (unless `components.matrices` is kept), and an excluded `auxiliary`, `scalars` or `vectors` is never built. <!-- /feature -->An excluded overlay layer, test or post-test is never computed<!-- feature: capability:multiplicity -->, unless a multiplicity family claims it<!-- /feature -->; excluded regressions are never fitted. **Not computed means not validated:** an excluded part raises no refusal or warning (`PULSE_OVERLAY_COMPONENTS_REQUIRED`, `PULSE_TEST_*`, `PROCESSING_REGRESSION_*`) — predict stays the validator, so predict first. A kept overlay that reads components keeps them computed, still pruned from the wire. Kept figures never change, and the execution path is chosen from the full request.
 
 ## Surfaces
 

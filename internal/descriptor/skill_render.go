@@ -26,6 +26,11 @@ import (
 //     carries all its tags, and a line every span of which was cut is
 //     dropped.
 //
+// Between the two, every generated-section marker
+// (`<!-- generated: use-when -->` / `<!-- generated: reading-the-output -->`)
+// is replaced with its section rendered from the operator's guidance
+// metadata for the instance (skill_sections.go).
+//
 // A profile-free instance never reaches this file (the pass-through
 // Discovery serves skills.Get — the full render, markers stripped).
 
@@ -71,6 +76,7 @@ func (d *Discovery) renderBody(name, raw string) string {
 	if err != nil {
 		return raw
 	}
+	out = d.renderGenerated(out)
 	if _, topical := d.topical[name]; topical {
 		return d.renderCovers(out)
 	}

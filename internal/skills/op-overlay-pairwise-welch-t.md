@@ -11,6 +11,8 @@ examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise, welford-tr
 
 Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope pairs row indices per column, `column` pairs column indices per row. Overlays decorate the host; no `Response.Components` (this family READS them).
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis.
@@ -28,6 +30,8 @@ MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Component
 ## Output
 
 MATRIX — pair × opposite-axis grid of two-sided p-values<!-- feature: OVERLAY_PAIRWISE_PROP_Z --> (layout as `op-overlay-pairwise-prop-z`)<!-- /feature -->. Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))` (Welch–Satterthwaite), two-sided via the `studentTTwoSidedP` helper the t-tests use.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

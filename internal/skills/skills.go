@@ -84,8 +84,10 @@ func List() []Metadata {
 
 // Get returns the FULL-INSTANCE render of the named skill — an embedded
 // file with every feature fence kept and every fence marker stripped
-// (RenderFences with keep == nil; fence.go), or a registered virtual
-// skill's rendered body. Raw serves the embedded bytes verbatim. A body
+// (RenderFences with keep == nil; fence.go) and every generated-section
+// marker rendered from the full guidance registries (RenderFull;
+// generated.go), or a registered virtual skill's rendered body. Raw
+// serves the embedded bytes verbatim. A body
 // whose fences do not parse is returned raw — unreachable for the
 // embedded pack, which TestSkillFences_EmbeddedPackParses keeps well
 // formed. The name should not include the .md extension.
@@ -95,10 +97,7 @@ func Get(name string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	if out, err := RenderFences(raw, nil); err == nil {
-		return out, true
-	}
-	return raw, true
+	return RenderFull(raw), true
 }
 
 // Names returns the sorted list of skill names.

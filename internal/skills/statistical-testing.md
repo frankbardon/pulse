@@ -65,7 +65,7 @@ The F test rejects the global null but says nothing about *which pairs* differ. 
 1. Tier-1 one-way ANOVA; read `ms_within` / `df_within` from its `Details`.
 2. Tier-2 Tukey HSD with those two values as `params` — Tukey-Kramer studentized-range p, family-wise α controlled.
 
-After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tests with a `multiplicity` block (`holm`).
+After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tests<!-- feature: capability:multiplicity --> with a `multiplicity` block (`holm`)<!-- /feature -->.
 
 ## P-value conventions
 

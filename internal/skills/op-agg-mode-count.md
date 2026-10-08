@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cross-tabulation, cardinality-analysis]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 Weight-aware (`"weight": null` opts out): the largest per-value Σw (a float), its value the weighted mode. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
@@ -25,7 +27,7 @@ Scalar `float64` — the modal count, NOT a per-value map. Per group under a gro
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

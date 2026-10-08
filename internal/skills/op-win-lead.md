@@ -11,6 +11,8 @@ examples_tags: [time-series, window-operator, buffered-pipeline]
 
 Window operators emit row-level values; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |

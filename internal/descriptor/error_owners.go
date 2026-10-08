@@ -449,6 +449,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_RETURN_PATH_UNMATCHED: shared,
 	errors.PULSE_LIMIT_INVALID:         shared,
 	errors.PULSE_LIMIT_EXCEEDED:        shared,
+
+	// The reference export (Pulse.ExportReference, `pulse docs
+	// export`) is an ungated core surface every instance offers.
+	errors.PULSE_DOCS_EXPORT_DIR_NOT_EMPTY: shared,
 }
 
 // errorCodeVisible reports whether the instance whose offer predicate is

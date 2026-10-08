@@ -11,6 +11,8 @@ examples_tags: [overlay, cross-tabulation, hypothesis-test]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` (enum, required) — must be `row`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
@@ -26,6 +28,8 @@ MATRIX crosstab (`Response.Crosstab.Matrix`). Family: implicit-margin χ² (no `
 ## Output
 
 SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per row key carrying `Summary.Statistic` (row χ²), `Summary.PValue`, `Summary.Parameters["df"]` = `cols - 1`. Entries align element-for-element with host `RowKeys`. Layer `Baseline` unset.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

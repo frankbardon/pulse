@@ -11,6 +11,8 @@ examples_tags: [regression, ols, outlier-detection, buffered-pipeline]
 
 Attributes emit row-level scalars; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -29,6 +31,8 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 ## Output
 
 One `float64` per record in `[0, 1]` — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x)`. Sum across the fit set equals `p + 1` (predictors + intercept).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

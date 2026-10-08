@@ -11,6 +11,8 @@ examples_tags: [overlay, cross-tabulation, hypothesis-test, exact-test, small-sa
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `cell`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
@@ -26,6 +28,8 @@ MATRIX crosstab. Implicit-margin family (no `Ref`). Canonical low-count χ² bac
 ## Output
 
 MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors host RowKeys / ColumnKeys. Absent host cells stay absent on the overlay. Layer `Baseline` unset (inferential).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

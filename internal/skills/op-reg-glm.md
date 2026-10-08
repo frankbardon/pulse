@@ -11,6 +11,8 @@ examples_tags: [regression, glm, logistic, buffered-pipeline]
 
 Regression operators emit coefficient + diagnostics; no `Response.Components`. Fit summaries ride `Response.Regressions[i]`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -31,6 +33,8 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 ## Output
 
 `RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` echoed; `ConvergedIters` = IRLS steps; `NObs` raw rows, weighted adds `SumWeights` (+ `NEff`, probability). Always buffered — IRLS needs multiple passes.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

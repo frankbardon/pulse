@@ -11,6 +11,8 @@ examples_tags: [feature-engineering, feature-pipeline, leakage-risk, pre-filter]
 
 Feature operators emit derived columns; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `target` — string, required. Numeric field whose grouped mean replaces the category.
@@ -29,6 +31,8 @@ encoded = (count_cat * mean_cat + smoothing * mean_global) / (count_cat + smooth
 ## Output
 
 One `f64` column at `Label` (default `TARGET_<field>`): the (smoothed) mean of `target` over rows sharing the categorical value.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

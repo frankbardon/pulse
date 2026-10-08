@@ -11,6 +11,8 @@ examples_tags: [feature-engineering, distribution-shape, pre-filter, streaming-f
 
 Feature operators emit derived columns; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. `Field` (required, numeric) — `params` block is unused.
@@ -24,6 +26,8 @@ None. `Field` (required, numeric) — `params` block is unused.
 ## Output
 
 One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) = ln(1 + x)` — the +1 shift keeps `x=0 -> 0` instead of `-inf`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

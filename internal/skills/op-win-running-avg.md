@@ -11,6 +11,8 @@ examples_tags: [time-series, window-operator, buffered-pipeline]
 
 Window operators emit row-level values; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 None operator-level. `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (REQUIRED — mode `"rows"`; typical `{preceding: null, following: 0}` for cumulative-to-current-row). `field` (required, numeric).
@@ -24,6 +26,8 @@ None operator-level. `partition_by` (carve), `order_by` (≥1, required, numeric
 ## Output
 
 One `float64` per row written to `Label` (default `WIN_RUNNING_AVG_<field>`). Arithmetic mean of non-null values inside the resolved frame. Empty slice → `null`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

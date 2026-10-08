@@ -278,6 +278,15 @@
         }
       },
       {
+        "name": "docs export",
+        "description": "Write the instance's analysis reference as a deterministic Markdown tree with an mdBook SUMMARY.md fragment",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "version",
         "description": "Print the Pulse build version (--json adds Go version, commit and envelope format_version)",
         "annotations": {
@@ -6342,7 +6351,7 @@
         ]
       }
     ],
-    "error_codes_count": 284,
+    "error_codes_count": 285,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6406,6 +6415,7 @@
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
       "PULSE_DEDUP_LOW_RATIO",
+      "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY",
       "PULSE_EXPORT_FIELD_UNKNOWN",
       "PULSE_EXPORT_ROW_ERROR",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
@@ -12309,4 +12319,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 589bebb86e628d156869270563b5b00a1bbb497392d70bdf025c5784ac978139
+// golden-hash: 09c3dbe19b03fea77b1dfef94e0b0b358f22f2e1e82e82549e98c40c39debf3c

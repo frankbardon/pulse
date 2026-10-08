@@ -133,8 +133,9 @@ func TestDiscovery_RendersSeeByEdge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fenced = skills.RenderGenerated(fenced, nil)
 	head := func(s string) string { return s[:strings.Index(s, "## See")] }
-	if head(got) != head(fenced) {
+	if head(skills.RenderGenerated(got, nil)) != head(fenced) {
 		t.Error("rendering changed text outside ## See beyond the fences")
 	}
 	if strings.Contains(head(got), "REG_GLM") {

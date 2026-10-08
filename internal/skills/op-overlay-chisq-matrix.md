@@ -11,6 +11,8 @@ examples_tags: [overlay, cross-tabulation, hypothesis-test]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` (enum, required) — must be `matrix`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
@@ -26,6 +28,8 @@ MATRIX crosstab (`Response.Crosstab.Matrix`). SCALAR-payload pattern shared by s
 ## Output
 
 SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Parameters["df"]}` where `df = (rows-1)*(cols-1)`. Layer `Baseline` unset (inferential — no ratio centerpoint).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

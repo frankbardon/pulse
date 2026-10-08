@@ -11,6 +11,8 @@ examples_tags: [feature-engineering, feature-pipeline, pre-filter]
 
 Feature operators emit derived columns; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |

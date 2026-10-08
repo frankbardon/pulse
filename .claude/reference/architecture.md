@@ -42,6 +42,7 @@ internal/temporal/         epoch-day + calendar + zone math (leaf over stdlib + 
                            + Zone (own embedded zoneinfo.zip, TZDataVersion), per-instance zone Cache; gate TestNoZoneMathOutsideTemporal
 internal/mcp/              SDK-free MCP core; internal/mcp/toolmeta/ leaf metadata
 internal/skills/           embedded skill pack (//go:embed *.md)
+internal/docgen/           NO-EXECUTE reference renderer (U21): InstanceSnapshot → deterministic Markdown tree (SUMMARY.md, index, catalog/<category>.md, reading/<family>.md + reading/components.md, glossary, skills/<stem>.md) written through afero; preserved hand-written spans come from embedded files (components_intro.md); imports stdlib + afero + descriptor + internal/descriptor + internal/skills only (TestDocgenImportBoundary)
 internal/examples/         embedded runnable requests
 internal/fs/               afero config (fs.Default, fs.NewMemMap)
 internal/imports/          managed-imports manager (TTL, sidecars)

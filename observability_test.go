@@ -283,6 +283,7 @@ var uninstrumentedMethods = map[string]bool{
 	"CohortArtifacts": true, "NewCohortBuilder": true, "Imports": true, "ResolveImport": true,
 	"ResolveCanonicalSchema": true, "ApplySeriesOverlays": true, "InvalidatedSidecars": true,
 	"Watch": true, "WatchWithOptions": true, "WatchDir": true, "WatchDirWithOptions": true,
+	"ExportReference": true,
 }
 
 // TestObservedMethodsCoverSurface guards against a missed method: every

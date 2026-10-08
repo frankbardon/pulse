@@ -220,6 +220,8 @@ pulse: type ExampleSummary field Description string "json:\"description\""
 pulse: type ExampleSummary field Name string "json:\"name\""
 pulse: type ExampleSummary field Operators []string "json:\"operators\""
 pulse: type ExampleSummary field Tags []string "json:\"tags\""
+pulse: type ExportReferenceOptions struct
+pulse: type ExportReferenceOptions field OmitSkills bool
 pulse: type ExprFunction struct
 pulse: type ExprFunction field Description string
 pulse: type ExprFunction field Fn any
@@ -654,6 +656,7 @@ pulse: type Pulse method (*Pulse) ErrorsSearch(query string) []pulse.ErrorMetada
 pulse: type Pulse method (*Pulse) ExampleGet(name string) (*pulse.Example, bool)
 pulse: type Pulse method (*Pulse) ExamplesSearch(query string, tags []string, category string) []pulse.ExampleSummary
 pulse: type Pulse method (*Pulse) Export(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.ExportReport, error)
+pulse: type Pulse method (*Pulse) ExportReference(fsys github.com/spf13/afero.Fs, dir string, opts pulse.ExportReferenceOptions) error
 pulse: type Pulse method (*Pulse) ExportTransfer(ctx context.Context, job *pulse/io.TransferExportJob) (*pulse/io.TransferReport, error)
 pulse: type Pulse method (*Pulse) ExtractShard(ctx context.Context, archivePath string, shardBasename string) (io.ReadCloser, error)
 pulse: type Pulse method (*Pulse) Facet(ctx context.Context, path string, field string) ([]string, error)
@@ -1947,6 +1950,7 @@ pulse/errors: const PULSE_DECIMAL_DIVIDE_BY_ZERO pulse/errors.Code = "PULSE_DECI
 pulse/errors: const PULSE_DECIMAL_OVERFLOW pulse/errors.Code = "PULSE_DECIMAL_OVERFLOW"
 pulse/errors: const PULSE_DECIMAL_PRECISION_LOSS pulse/errors.Code = "PULSE_DECIMAL_PRECISION_LOSS"
 pulse/errors: const PULSE_DEDUP_LOW_RATIO pulse/errors.Code = "PULSE_DEDUP_LOW_RATIO"
+pulse/errors: const PULSE_DOCS_EXPORT_DIR_NOT_EMPTY pulse/errors.Code = "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY"
 pulse/errors: const PULSE_EXPORT_FIELD_UNKNOWN pulse/errors.Code = "PULSE_EXPORT_FIELD_UNKNOWN"
 pulse/errors: const PULSE_EXPORT_ROW_ERROR pulse/errors.Code = "PULSE_EXPORT_ROW_ERROR"
 pulse/errors: const PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH"
@@ -4364,4 +4368,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 740560ee28b1420a169f5d3a551512e3f9a627090f65bb403c6351ba2d5383cd
+// golden-hash: 00eb33ee24ea25c1f5c513554b43fd0e1c7958cfc0af76f0ae43fc1643d4751d

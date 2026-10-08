@@ -8,13 +8,15 @@ and a glossary of the statistical terms involved. The metadata is
 **pulled on demand**. It never appears in a default `Response`,
 `PredictResult` or manifest, apart from short intent IDs.
 
-> **Status (v1.0.0 alphas).** Every statistical test (`TEST_*`), overlay
-> kind (`OVERLAY_*`) and regression (`REG_*`) declares guidance and
-> carries `intents` in the manifest, as does the `AGG_AVERAGE` exemplar.
-> Other descriptive operators carry no `intents` yet; a later unit adds
-> them. The full `Purpose` and `Interpretation` prose is declared inside
-> Pulse but is not yet served through a public accessor: later units
-> render it into the skills and docs and serve it over MCP.
+> **Status (v1.0.0 alphas).** Every operator carries a `Purpose`, and
+> every statistical test, overlay and regression an `Interpretation`.
+> Pulse renders them for you: the book's [Analysis Guide](../guide/index.md)
+> (operator catalog, "Reading your results", glossary), the `## Use when`
+> and `## Reading the output` sections of every operator skill, and
+> `p.ExportReference` / `pulse docs export` for your own instance. The
+> prose is still pulled, never pushed: it appears in none of the default
+> `Response`, `PredictResult` or manifest. Recommend, Explain and the
+> MCP guidance tools come in later units.
 
 ## Intents: what kind of question
 
@@ -102,6 +104,35 @@ intent that only hidden operators serve, and a glossary term that only
 hidden operators cite. "See also" links to a removed term are dropped
 too. An intent no operator serves, and a term no operator cites, always
 stay.
+
+## Exporting the reference
+
+`p.ExportReference(fs, dir, pulse.ExportReferenceOptions{})` writes
+the instance's whole analysis reference as Markdown under `dir` on an
+`afero.Fs` (a nil `fs` writes through the instance filesystem): the
+operator catalog with each operator's purpose, the "Reading your
+results" pages, the glossary, every skill as the instance serves it,
+and an mdBook `SUMMARY.md` fragment. `OmitSkills: true` leaves the
+skill pages out. The tree is deterministic, so two exports of the same
+instance are byte-identical, and it is scoped like every other
+surface: under a feature profile no page names a hidden operator, MCP
+tool or request slot.
+
+The export writes a `.pulse-docs-export` marker that lists the files
+it wrote. An empty or missing directory, or one carrying the marker,
+is written in place, and the files a previous export listed but this
+one no longer renders are deleted; nothing else is touched. A
+non-empty directory without the marker is refused with
+`PULSE_DOCS_EXPORT_DIR_NOT_EMPTY` before anything is written. A
+filesystem failure is `DATA_FILE`, with the path under
+`details.path`.
+
+From the command line, `pulse docs export --out DIR` does the same for
+a default instance built over an in-memory filesystem, so it needs no
+`PULSE_DATA_DIR`. `--feature-profile PATH` scopes the export to the
+feature profile at that host OS path, `--no-skills` sets `OmitSkills`,
+and `--json` wraps the result in the standard envelope, where a refusal
+keeps its own code (`errors[0].code`).
 
 ## Guidance on your own operators
 

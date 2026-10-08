@@ -16,7 +16,7 @@ Survey and sampled cohorts carry a per-row weight column. Name it once and every
 | Where | Shape | Notes |
 |---|---|---|
 | Request `weight` | `{"field": "wt", "kind": "probability"}` | `kind` ∈ `probability` (default) \| `frequency` |
-| per-slot `weight` | `"wt"`, `{field, kind}` or `null` | aggregations (crosstab `cell`, `margin_aggregations[i]`), `tests`, `post_tests`, regressions, attributes, overlays, `groups`, crosstab axes. Windows have none |
+| per-slot `weight` | `"wt"`, `{field, kind}` or `null` | aggregations<!-- feature: capability:crosstab --> (crosstab `cell`, `margin_aggregations[i]`)<!-- /feature -->, `tests`, `post_tests`, regressions, attributes, overlays, `groups`<!-- feature: capability:crosstab -->, crosstab axes<!-- /feature -->. Windows have none |
 | `pulse.Options.DefaultWeight` | `*types.WeightSpec` | instance default; never reaches facets |
 
 **`null` ≠ absent.** Absent inherits; `"weight": null` opts that ONE slot out. Compose and chain have no top-level weight. The field must be `u4`…`u64`, `f32` or `f64`; else `PROCESSING_CONFIG` (unknown name `SERVICE_VALIDATION`).

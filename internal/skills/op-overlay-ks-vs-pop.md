@@ -11,6 +11,8 @@ examples_tags: [overlay, facet, hypothesis-test, distribution-shape]
 
 Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `group`. `Ref.Population.Cohort` required — the comparison-population cohort; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0`.
@@ -26,6 +28,8 @@ FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTE
 ## Output
 
 SCALAR — `Payload.Scalar` carries KS `D`; `OverlaySummary{Statistic, PValue, Parameters{"n_subset", "n_pop"}}`. Layer `Baseline` unset (inferential).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

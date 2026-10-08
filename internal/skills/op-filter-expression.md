@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cohort-analysis, feature-engineering, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |

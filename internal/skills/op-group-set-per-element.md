@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [cardinality-analysis, cohort-analysis]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. `Group.Label` renames the output column; `Group.Include` allow-lists fan-out labels and fixes emission order.

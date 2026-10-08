@@ -11,6 +11,8 @@ examples_tags: [synth, proportion-analysis]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `p` — float, default `0.5`, probability of emitting `1`; must lie in `[0, 1]`.

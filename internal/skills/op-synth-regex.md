@@ -11,6 +11,8 @@ examples_tags: [synth, data-quality]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `pattern` — string, required, non-empty. Perl/RE2 source via `regexp/syntax.Parse`.

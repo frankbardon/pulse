@@ -2639,6 +2639,15 @@ const (
 	// carry "limit" (snake_case name), "configured", "observed" and
 	// "option" (the Go spelling, Options.Limits.<Field>).
 	PULSE_LIMIT_EXCEEDED Code = "PULSE_LIMIT_EXCEEDED"
+
+	// PULSE_DOCS_EXPORT_DIR_NOT_EMPTY indicates a reference export
+	// (Pulse.ExportReference, `pulse docs export`) was pointed at a
+	// directory that is not empty and carries no .pulse-docs-export
+	// marker from a previous export. The export refuses before writing
+	// anything, so it can never overwrite or delete a file it did not
+	// write. Details carry "path" (the directory) and "marker" (the
+	// marker file name).
+	PULSE_DOCS_EXPORT_DIR_NOT_EMPTY Code = "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -3146,6 +3155,7 @@ var allCodes = []Code{
 	PULSE_RETURN_PATH_UNMATCHED,
 	PULSE_LIMIT_INVALID,
 	PULSE_LIMIT_EXCEEDED,
+	PULSE_DOCS_EXPORT_DIR_NOT_EMPTY,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

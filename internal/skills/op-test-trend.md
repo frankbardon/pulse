@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-2-test, nonparametric, trend-detection, ti
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -29,6 +31,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Output
 
 `Statistic` = Mann-Kendall Z (S over its SE, continuity-corrected); `PValue` two-sided normal approx. `Details`: `s`, `tau`, `var_s` (tie-adjusted), `n`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

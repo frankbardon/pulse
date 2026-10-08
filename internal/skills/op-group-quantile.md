@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [distribution-shape, buffered-pipeline]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |

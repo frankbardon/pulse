@@ -11,6 +11,8 @@ examples_tags: [synth, distribution-shape, outlier-detection]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `xm` — float, default `1.0`. Scale (minimum emitted value); must be `> 0`.

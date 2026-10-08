@@ -115,9 +115,9 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(skill-ontology/E<
 | `ComposeOptions.FailFast` / `pulse.ComposeParallel` doc comments say the default is true while the zero value is false | U36 |
 | `ValidateCompose` / `ValidateChain` have no public, CLI or MCP caller | new: compose / chain predict (roadmap) |
 | `pulse_skills_list` has no intent filter, though the PRD routed through `pulse_skills_list {intent}` | U22 / U23 (search by intent) |
-| About fifty atomic skill bodies are over the still-soft atomic budget (`go test ./internal/skills -run TestSkillTokenBudget -v`); embedder skills are hard | new: atomic budget trim, then flip to hard |
-| `op-synth-*` `## See` `tags=[synth]` matches no example (the synth fixtures lack `_meta`) | new: tag the synth examples or drop the See lines |
-| toolmeta `DescExamplesSearch` / `DescExamplesGet` say "embedded library"; CLI `pulse examples` / `pulse skills` list only the embedded library, not embedder additions | U21 (instance-scoped export) / new |
+| About fifty atomic skill bodies are over the still-soft atomic budget (`go test ./internal/skills -run TestSkillTokenBudget -v`); embedder skills are hard | [U38](U38-skill-sync.md) |
+| `op-synth-*` `## See` `tags=[synth]` matches no example (the synth fixtures lack `_meta`) | [U38](U38-skill-sync.md) |
+| toolmeta `DescExamplesSearch` / `DescExamplesGet` say "embedded library"; CLI `pulse examples` / `pulse skills` list only the embedded library, not embedder additions | [U38](U38-skill-sync.md) (U21 delivered the instance-scoped export, which covers `Extensions.Skills`; the CLI listing and toolmeta wording remain) |
 | `follow_up` edge and `Purpose.FollowUps` | U22 |
 
 ## Inherited from U05

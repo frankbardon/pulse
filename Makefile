@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt vet lint bench tzdata reference docs docs-serve docs-clean
+.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt vet lint bench tzdata reference docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -124,8 +124,21 @@ reference:
 		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \
 	done
 
-docs:
+# docs regenerates the committed Analysis Guide (docs/src/guide/**, the
+# instance-wide reference rendered from the guidance registries), splices
+# its SUMMARY.md entries into docs/src/SUMMARY.md between the
+# docgen:summary lines, then builds the book. The export runs with the
+# table/template directory env vars cleared so a developer's .env cannot
+# perturb the committed tree; TestDocsGeneratedCurrent fails CI when the
+# tree is stale. Recipe: docs/src/internals/regenerating-goldens.md.
+DOCS_GUIDE_ENV=env -u PULSE_LABEL_TABLES_DIR -u PULSE_RANGE_TABLES_DIR -u PULSE_TEMPLATES_DIR -u PULSE_FEATURE_PROFILE
+
+docs: docs-generate
 	mdbook build docs
+
+docs-generate:
+	$(DOCS_GUIDE_ENV) $(GO) run ./cmd/pulse docs export --out docs/src/guide
+	$(GO) run ./internal/tools/docsummary -book docs/src/SUMMARY.md -fragment docs/src/guide/SUMMARY.md -prefix guide/
 
 docs-serve:
 	mdbook serve docs --open

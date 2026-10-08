@@ -1,0 +1,56 @@
+```yaml
+name: op-overlay-chisq-col
+kind: operator
+category: OVERLAY
+operator: OVERLAY_CHISQ_COL
+description: Per-column χ² goodness-of-fit test across the host crosstab's contingency table.
+type: reference
+applies_to: process, compose
+examples_tags: [overlay, cross-tabulation, hypothesis-test]
+```
+
+Overlays decorate the host; no `Response.Components`.
+
+## Use when
+
+Chi-square test per crosstab column: checks whether each column's spread across the rows departs from the table's overall row mix.
+
+Questions it answers:
+
+- Which banner columns have an answer mix unlike the total?
+- Which months have a spread of order types unlike the whole year?
+
+Use something else:
+
+- `OVERLAY_CHISQ_ROW` when the groups are the rows rather than the columns.
+
+## Params
+
+`Scope` (enum, required) — must be `column`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+
+- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
+
+## Host shape
+
+MATRIX crosstab (`Response.Crosstab.Matrix`). Compatible with any crosstab regardless of cell aggregator; reads observed × expected from row/column margins recomputed by the buffered orchestrator.
+
+## Output
+
+SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per column key carrying `Summary.Statistic` (χ² value), `Summary.PValue`, `Summary.Parameters["df"]` = `rows - 1`. Layer `Baseline` unset (inferential).
+
+## Reading the output
+
+- `summary.statistic`: In each series entry (one per crosstab column): chi-square for that column's counts against the counts its column total would give at the table's overall row shares. 0 means the column's mix matches the overall mix; read the entry's p_value rather than the raw value.
+- `summary.p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+
+## Gotchas
+
+- Weighted host (both kinds, any source): cells are Σw; under probability each column is scaled to its margin's Kish `n_eff` (expected-low on the scaled column) — first-order Kish, not Rao-Scott. Each entry's `Parameters` adds that column's `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
+- Reuses `chiSquareSurvival` — p-values byte-equal to every χ² test and overlay on the same contingency.
+- Any `expected < 5` in a column emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending column.
+- Absent host cell treated as observed count of 0.
+- Buffered (inherent — host crosstab path always recomputes margins from raw rows).
+
+## See
+
+- Skills: [`overlay-system`](overlay-system.md), [`crosstab-guide`](crosstab-guide.md), [`op-overlay-chisq-row`](op-overlay-chisq-row.md), [`op-test-chisq`](op-test-chisq.md).

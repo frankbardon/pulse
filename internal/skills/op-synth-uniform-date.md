@@ -11,6 +11,8 @@ examples_tags: [synth, time-series]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `start` / `end` — string, both required, ISO-8601 `YYYY-MM-DD`. `end` must not precede `start`; equal is legal. Each parses via `time.Parse("2006-01-02", …)` into days-since-1970-01-01.

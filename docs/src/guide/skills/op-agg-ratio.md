@@ -1,0 +1,65 @@
+```yaml
+name: op-agg-ratio
+description: Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored.
+kind: operator
+category: AGG
+operator: AGG_RATIO
+type: reference
+applies_to: process, compose, predict
+examples_tags: [proportion-analysis, streaming-friendly]
+```
+
+## Use when
+
+Total of one field divided by the total of another, over all rows or per group, such as revenue per order.
+
+Questions it answers:
+
+- What is revenue per visit in each channel?
+- What share of budgeted hours were actually worked per team?
+
+Use something else:
+
+- `ATTR_FORMULA` when you want the average of each row's own ratio: compute it per row (guarding a 0 denominator), then average it.
+
+## Params
+
+`numerator_field`, `denominator_field` — required field names, any type, read through the numeric channel (a categorical contributes its dictionary code). An unknown name is `SERVICE_VALIDATION`, predict and runtime alike.
+
+Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. A `decimal128` num/den under a weight → `PULSE_WEIGHT_UNSUPPORTED`.
+
+## Inputs
+
+`Field` is IGNORED (manifest `ignores_field`) but still required on the wire; `accepts_types` refuses no type there.
+
+## Output
+
+Scalar `float64` — `sum(num) / sum(den)`. Den sum 0 (incl. all-zero weights) → NaN in Go, `null` in JSON; not an error.
+
+## Reading the output
+
+- `value`: The total of the numerator field divided by the total of the denominator field over the group's rows (a ratio of totals), such as revenue per order. Its units are the numerator's per unit of the denominator's.
+  - Caveat: It is not the average of each row's own ratio: rows with larger denominators count for more, which is usually what a rate should do.
+  - Caveat: A row missing either field is left out of BOTH totals.
+  - Caveat: Empty (NaN) when the denominator total is 0.
+
+## Components
+
+Floor `{n, n_null}` (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`) plus:
+
+| Key | Type | Notes |
+|---|---|---|
+| `numerator` | float64 | Running num sum |
+| `denominator` | float64 | Running den sum |
+| `ratio` | float64 | Resolved ratio (`null` if den==0) |
+
+`Mergeable` (two independent sums); streams per chunk.
+
+## Gotchas
+
+- `n` counts contributing rows, not den-non-zero rows.
+
+## See
+
+- `pulse_examples_search tags=[proportion-analysis]`
+- Skills: [`aggregation-design`](aggregation-design.md), [`response-components`](response-components.md)

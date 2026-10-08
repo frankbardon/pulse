@@ -11,6 +11,8 @@ examples_tags: [overlay, comparison, streaming-friendly]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `group`. `Ref` (object, empty) — implicit-grand-total — leave empty. `Level`/`Within` must be `0`.

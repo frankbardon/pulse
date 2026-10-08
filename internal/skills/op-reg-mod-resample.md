@@ -11,6 +11,8 @@ examples_tags: [regression, resampling, jackknife, buffered-pipeline]
 
 Regression operators emit coefficient + diagnostics; no `Response.Components`. This modifier overwrites `StdErrors` / `PValues` in `Response.Regressions[i]`; the point estimate stays the full-data fit.
 
+<!-- generated: use-when -->
+
 ## Params
 
 Top-level `resample` on `RegressionSpec` plus two bootstrap knobs. A **wrapper, not a fit**: the host fit runs once per replicate (jackknife = `n` refits; bootstrap = `bootstrap_iters`) and β samples are aggregated.

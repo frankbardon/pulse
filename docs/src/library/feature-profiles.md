@@ -398,7 +398,13 @@ registration and after a re-bind), prompt descriptions and prompt
 bodies drop each sentence that names a hidden operator or a tool the
 profile does not mount; a numbered step dropped from a prompt
 renumbers the rest of its list. A sentence about an enabled operator
-that also names a hidden one goes too. The text a caller supplies to
+that also names a hidden one goes too. The same goes for the wire
+names of a hidden request slot: without `capability:multiplicity` no
+sentence naming `multiplicity`, `p_adjusted` or `significant_adjusted`
+is served (the `pulse_lookup` duplicate-key `multiplicity` setting is a
+different slot and stays), without `capability:matrices` none naming
+`vectors` or `matrices`, and likewise for the weighting and crosstab
+slots' own keys. The text a caller supplies to
 `pulse-author-request` is never touched.
 
 Skills and examples follow the profile as well. The reference skill for

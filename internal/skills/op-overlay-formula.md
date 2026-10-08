@@ -11,6 +11,8 @@ examples_tags: [overlay, feature-engineering]
 
 Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` required — `cell` (MATRIX) / `group` (SERIES) / `total` (SCALAR). `params.formula` required — an `expr-lang/expr` expression. `params.baseline_position` (int, optional) — SERIES only, opts in the `baseline` variable.

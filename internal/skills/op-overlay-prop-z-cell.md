@@ -11,6 +11,8 @@ examples_tags: [overlay, compose, hypothesis-test, proportion-analysis]
 
 Compose-only. Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `cell`. `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels.
@@ -26,6 +28,8 @@ COMPOSE — MATRIX crosstab on both reference + target slot. Cell value = succes
 ## Output
 
 MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors reference matrix's RowKeys / ColumnKeys. One layer per target. Layer `Baseline` unset (inferential).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

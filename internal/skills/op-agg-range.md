@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [distribution-shape, streaming-friendly]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 None.

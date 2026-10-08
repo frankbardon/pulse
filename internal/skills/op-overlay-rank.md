@@ -11,6 +11,8 @@ examples_tags: [overlay, compose, top-n]
 
 Compose-only. Overlays decorate the host; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 `Scope` must be `cell`. `Reference` required — anchor for resolution + key-set gates only. `Targets` required slot labels. `params.population` (string, default `matrix`) — `row` / `column` / `matrix`.

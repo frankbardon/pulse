@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [time-series, cohort-analysis]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 One source — `ranges` XOR `table`:

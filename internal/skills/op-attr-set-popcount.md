@@ -11,6 +11,8 @@ examples_tags: [feature-engineering, cardinality-analysis, streaming-friendly]
 
 Attributes emit row-level scalars; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 None.

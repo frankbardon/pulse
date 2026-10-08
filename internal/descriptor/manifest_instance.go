@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -26,7 +27,9 @@ import (
 //     format lists inside a present block are filtered;
 //   - synth_distributions is empty when capability:synth is hidden;
 //   - every remaining prose string (descriptions, hints, rule lists) is
-//     scrubbed of sentences naming a hidden operator or MCP tool.
+//     scrubbed of sentences naming a hidden operator, MCP tool or slot
+//     token (slotTokens, e.g. p_adjusted without
+//     capability:multiplicity).
 //
 // skills and the examples count / categories / tags follow the
 // instance's Discovery prune (a skill or example for a hidden surface is
@@ -133,8 +136,12 @@ func filterMCPTools(in []descriptor.MCPTool, on func(string) bool) []descriptor.
 
 // hiddenProseNames is the token set the prose scrub removes: every
 // hidden operator name (kind-prefixed capability / io_format / mcp_extra
-// spellings never appear in prose as such) plus every MCP tool whose
-// owning feature is not enabled. Empty on a nil / unscoped instance.
+// spellings never appear in prose as such), every MCP tool whose owning
+// feature is not enabled, and the wire tokens (slotTokens) of every
+// slot-owning capability the instance does not enable — so a sentence
+// naming `multiplicity` or `p_adjusted` is dropped wherever the scrub
+// runs once capability:multiplicity is hidden. Empty on a nil /
+// unscoped instance.
 func hiddenProseNames(inst *InstanceSnapshot) map[string]struct{} {
 	if !inst.Scoped() {
 		return nil
@@ -148,6 +155,13 @@ func hiddenProseNames(inst *InstanceSnapshot) map[string]struct{} {
 	for _, b := range mcpToolBindings {
 		if b.Feature != "" && !inst.Enabled(b.Feature) {
 			out[b.Tool] = struct{}{}
+		}
+	}
+	for c, set := range slotTokens {
+		if !inst.Enabled(c) {
+			for _, tok := range set.tokens {
+				out[tok] = struct{}{}
+			}
 		}
 	}
 	return out
@@ -173,7 +187,9 @@ var manifestScrubSkip = map[string]bool{
 // scrubManifest returns a deep copy of m in which no string outside the
 // skipped fields names a hidden token: a []string element (or map key)
 // that IS a hidden name is dropped, and every other string loses the
-// sentences that mention one (an element left empty is dropped too).
+// sentences that mention one, line by line as ProseScrub.Text does (so
+// a paragraph break never glues a kept sentence to a dropped one; an
+// element left empty is dropped too).
 // m itself — which shares backing arrays with the capability tables —
 // is never written.
 func scrubManifest(m *descriptor.Manifest, hidden map[string]struct{}) *descriptor.Manifest {
@@ -221,7 +237,7 @@ func scrubValue(v reflect.Value, hidden map[string]struct{}) reflect.Value {
 				if _, h := hidden[s]; h {
 					continue
 				}
-				r := redactProse(s, hidden)
+				r := ProseScrub{hidden: hidden}.Text(s)
 				if r == "" && s != "" {
 					continue
 				}
@@ -251,7 +267,7 @@ func scrubValue(v reflect.Value, hidden map[string]struct{}) reflect.Value {
 		return out
 	case reflect.String:
 		out := reflect.New(v.Type()).Elem()
-		out.SetString(redactProse(v.String(), hidden))
+		out.SetString(ProseScrub{hidden: hidden}.Text(v.String()))
 		return out
 	default:
 		return v
@@ -293,7 +309,20 @@ func splitSentences(s string) []string {
 	return out
 }
 
+// mentionsHidden reports whether s names a hidden token. A slot token
+// with homonyms (slotTokenHomonyms) is not a hit inside a sentence that
+// also names one of the homonym's marker tokens: that sentence is about
+// the other, same-spelled slot.
 func mentionsHidden(s string, hidden map[string]struct{}) bool {
+	return anyToken(s, func(tok string, start, end int) bool {
+		_, h := hidden[tok]
+		return h && !homonymSentence(s, start, end)
+	})
+}
+
+// anyToken calls hit on every maximal [A-Za-z0-9_] run of s, in order,
+// and reports whether any call returned true (it stops at the first).
+func anyToken(s string, hit func(tok string, start, end int) bool) bool {
 	start := -1
 	for i := 0; i <= len(s); i++ {
 		word := i < len(s) && isTokenByte(s[i])
@@ -301,13 +330,40 @@ func mentionsHidden(s string, hidden map[string]struct{}) bool {
 		case word && start < 0:
 			start = i
 		case !word && start >= 0:
-			if _, h := hidden[s[start:i]]; h {
+			if hit(s[start:i], start, i) {
 				return true
 			}
 			start = -1
 		}
 	}
 	return false
+}
+
+// homonymSentence reports whether the token s[start:end] has homonyms
+// and the sentence around it (bounded by ". " or a newline, as the
+// scrub splits) names one of their marker tokens.
+func homonymSentence(s string, start, end int) bool {
+	markers := slotTokenHomonyms[s[start:end]]
+	if len(markers) == 0 {
+		return false
+	}
+	from := 0
+	if i := strings.LastIndex(s[:start], ". "); i >= 0 {
+		from = i + 2
+	}
+	if i := strings.LastIndexByte(s[:start], '\n'); i >= 0 && i+1 > from {
+		from = i + 1
+	}
+	to := len(s)
+	if i := strings.Index(s[end:], ". "); i >= 0 {
+		to = end + i
+	}
+	if i := strings.IndexByte(s[end:], '\n'); i >= 0 && end+i < to {
+		to = end + i
+	}
+	return anyToken(s[from:to], func(tok string, _, _ int) bool {
+		return slices.Contains(markers, tok)
+	})
 }
 
 func isTokenByte(c byte) bool {

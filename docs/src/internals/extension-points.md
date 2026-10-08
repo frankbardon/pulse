@@ -1219,7 +1219,7 @@ The first failure is `PULSE_EXTENSION_SKILL_INVALID` (details carry
 | `frontmatter` / `name` / `description` | a `---` block; `name` equals the stem; a description |
 | `kind` / `operator` / `category` / `requires` | atomic: `kind: operator`, a registered extension operator, its prefix as `category`; topical: `kind: design`; each `requires:` entry a feature (`capability:crosstab`) or registered operator |
 | `sections` | the family's required `##` headings |
-| `budget` | body (frontmatter and fence markers stripped) ≤ 1200 bytes for `op-*`, ≤ 6000 for `ext-*` — hard, unlike the built-in atomic budget |
+| `budget` | body (frontmatter, fence markers and generated-section markers stripped) ≤ 1200 bytes for `op-*`, ≤ 6000 for `ext-*` — hard, unlike the built-in atomic budget |
 | `fence` | every `<!-- feature: … -->` fence closes and names a feature or registered operator |
 | `fence_coverage` | every operator, `<kind>:<name>` feature or feature-owned `pulse_*` tool the body names — your own other operators included — sits in a fence naming it, unless the skill goes whenever it is hidden (its own operator and that operator's `DependsOn`, transitively; a topical skill's `requires:`). The description may name none |
 | `see` | every backticked stem in `## See` is a skill the instance carries (built-in, virtual or yours) |
@@ -1236,6 +1236,19 @@ existed on every surface. A visible skill's fences render against the
 instance (a span naming a hidden feature is cut), so mention a feature
 the profile may hide only inside a fence. Registering skills never
 changes a built-in skill's listing or body.
+
+### Generated sections (opt-in)
+
+An atomic skill may carry the marker lines
+`<!-- generated: use-when -->` (after the lead sentence, before
+`## Params`) and `<!-- generated: reading-the-output -->` (after
+`## Output`). Every read replaces them with `## Use when`, rendered
+from the operator's registration `Purpose` (plain line, up to two
+questions, the not-for alternatives the instance can see), and
+`## Reading the output`, rendered from a test registration's
+`Interpretation`. A marker whose operator declares no such metadata is
+removed silently; a skill without markers is served unchanged; markers
+never cause a `pulse.New` failure and never count toward the budget.
 
 ## Embedder examples (`Extensions.Examples`)
 

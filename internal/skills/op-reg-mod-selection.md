@@ -11,6 +11,8 @@ examples_tags: [regression, selection, stepwise, buffered-pipeline]
 
 Regression operators emit coefficient + diagnostics; no `Response.Components`. This modifier shrinks the active predictor set in `Response.Regressions[i].SelectedFeatures` and drops non-selected entries from `Coefficients` / `StdErrors`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 Top-level `selection` on `RegressionSpec` plus its required `criterion` companion. A **wrapper, not a fit**: the engine refits the host model against candidate subsets and keeps the lowest-criterion winner.

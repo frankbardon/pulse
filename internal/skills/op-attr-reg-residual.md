@@ -11,6 +11,8 @@ examples_tags: [regression, ols, outlier-detection, buffered-pipeline]
 
 Attributes emit row-level scalars; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Description |
@@ -32,6 +34,8 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 ## Output
 
 One `float64` per record — `yᵢ − ŷᵢ`. With an intercept (always present for OLS) Σ residuals ≈ 0 across the fit set.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

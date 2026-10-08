@@ -1,0 +1,49 @@
+```yaml
+name: op-overlay-share-of-col
+kind: operator
+category: OVERLAY
+operator: OVERLAY_SHARE_OF_COL
+description: Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column.
+type: reference
+applies_to: process, compose
+examples_tags: [overlay, cross-tabulation, proportion-analysis]
+```
+
+Overlays decorate the host; no `Response.Components`.
+
+## Use when
+
+Each crosstab cell as a share of its column margin (0 to 1): the mix of rows within each column, as a 100% stacked column shows it.
+
+Questions it answers:
+
+- Within each channel, what share of orders comes from each region?
+- In each banner column, how are answers split across the options?
+
+Use something else:
+
+- `OVERLAY_SHARE_OF_ROW` when you want the mix within each row.
+
+## Params
+
+`Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — must be `column`. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+
+## Host shape
+
+MATRIX crosstab (`Response.Crosstab.Matrix`). Structural twin of the row and grand-total shares. Compatible with any cell aggregator.
+
+## Output
+
+MATRIX — `Cells[r][c].Value = cell / col_margin` (raw ratio, no ×100). Cells along a single column sum to 1.0 in the absence of missing cells. Renderers present as 100%-stacked vertical projection. Layer `Baseline = 1` (raw-share centerpoint).
+
+## Gotchas
+
+- A share, not an index (×100): the kind names are kept distinct so `share` is never read as `index/100`.
+- `col_margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected column.
+- Absent host cells stay absent on the overlay.
+- Buffered (host crosstab always recomputes margins from raw rows).
+- Weighted host → weighted figure (reads the host payload).
+
+## See
+
+- Skills: [`overlay-system`](overlay-system.md), [`crosstab-guide`](crosstab-guide.md), [`op-overlay-share-of-row`](op-overlay-share-of-row.md), [`op-overlay-share-of-total`](op-overlay-share-of-total.md).

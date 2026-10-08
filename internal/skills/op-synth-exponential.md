@@ -11,6 +11,8 @@ examples_tags: [synth, time-series, distribution-shape]
 
 Synth distributions emit per-row values; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |

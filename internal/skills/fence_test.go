@@ -159,7 +159,9 @@ func TestSkillFences_EmbeddedPackParses(t *testing.T) {
 		if fenceMarker.MatchString(got) {
 			t.Errorf("Get(%s) still carries a fence marker", name)
 		}
-		want, _ := RenderFences(raw, nil)
+		// RenderFull: fences kept and stripped, then any generated-section
+		// marker substituted (removed here — no renderer in this binary).
+		want := RenderFull(raw)
 		if got != want {
 			t.Errorf("Get(%s) is not the full-instance render", name)
 		}

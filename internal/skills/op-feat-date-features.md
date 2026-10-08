@@ -11,6 +11,8 @@ examples_tags: [feature-engineering, time-series, pre-filter]
 
 Feature operators emit derived columns; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. `Field` (required) — `params` block is unused.

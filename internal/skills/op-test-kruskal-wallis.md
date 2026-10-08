@@ -11,6 +11,8 @@ examples_tags: [hypothesis-test, tier-1-test, nonparametric, k-sample, compariso
 
 Tests emit statistic / p-value / effect size; no `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
@@ -27,11 +29,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 `Statistic` = tie-corrected H; `DF` = k − 1; `PValue` via χ² survival. `Details`: `groups`, `n`, `rank_sums`, `n_total`, `tie_factor`; `effect_size.epsilon_squared` = H·(n+1)/(n²−1), omitted when every value ties.
 
+<!-- generated: reading-the-output -->
+
 ## Gotchas
 
 - Buffered — combined values ranked across all groups under tie correction.
 - Nonparametric alternative to one-way ANOVA for skewed or heavy-tailed data.
-- Global only — no Dunn / Conover post-hoc<!-- feature: TEST_MANN_WHITNEY_U -->; use pairwise `TEST_MANN_WHITNEY_U` with a `multiplicity` block (Holm/Bonferroni)<!-- /feature -->.
+- Global only — no Dunn / Conover post-hoc<!-- feature: TEST_MANN_WHITNEY_U, capability:multiplicity -->; use pairwise `TEST_MANN_WHITNEY_U` with a `multiplicity` block (Holm/Bonferroni)<!-- /feature -->.
 - Groups under ~5 rows: shaky p; only N < 2k is refused (`PULSE_TEST_INSUFFICIENT_N`). ε² unbanded.
 - Tests stochastic equality, not equal medians — differing shapes can reject on shape alone.
 

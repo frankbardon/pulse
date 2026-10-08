@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [distribution-shape, buffered-pipeline]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -27,9 +29,11 @@ Weight-aware (`"weight": null` opts out): Hmisc `wtd.quantile` — sort by value
 
 Scalar `float64`. Per-group when wired under a grouper.
 
+<!-- generated: reading-the-output -->
+
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
 
 Universal floor `{n, n_null}` plus operator-specific:
 

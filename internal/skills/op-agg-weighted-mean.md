@@ -9,6 +9,8 @@ applies_to: process, compose, predict
 examples_tags: [streaming-friendly, comparison]
 ---
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -28,9 +30,11 @@ The weighted mean of the core family: same figure and engine, own type name and 
 
 Scalar `float64` — exact `Σ field·w / Σw` (a few ULP from releases that used the running mean).
 
+<!-- generated: reading-the-output -->
+
 ## Components
 
-Floor `{n, n_null}` plus `n_weight_invalid` (rows excluded for an invalid weight); operator keys (all float64; empty cell all 0):
+Floor `{n, n_null}`<!-- feature: capability:weighting --> plus `n_weight_invalid` (rows excluded for an invalid weight)<!-- /feature -->; operator keys (all float64; empty cell all 0):
 
 | Key | Notes |
 |---|---|

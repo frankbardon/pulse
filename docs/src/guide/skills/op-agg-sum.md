@@ -1,0 +1,66 @@
+```yaml
+name: op-agg-sum
+description: Sum the numeric values of a field across the input set.
+kind: operator
+category: AGG
+operator: AGG_SUM
+type: reference
+applies_to: process, compose, predict
+examples_tags: [financial, streaming-friendly]
+```
+
+## Use when
+
+Total of a numeric field, over all rows or per group.
+
+Questions it answers:
+
+- What is total revenue by region?
+- How many units did each product line sell in total?
+
+Use something else:
+
+- `AGG_AVERAGE` when you want the typical value per row rather than the total.
+- `AGG_WEIGHTED_MEAN` when rows carry weights and you want a weighted average.
+- `WIN_RUNNING_SUM` when you want the total so far, row by row.
+
+## Params
+
+Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is Σw·x. Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
+
+## Inputs
+
+| Param | Accepted field types |
+|---|---|
+| `Field` | numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, `u4` |
+
+Decimal128 sums stay in decimal (banker-rounded precision propagation); all other numerics emit float64.
+
+## Output
+
+Scalar `float64` (decimal128 preserved when input is decimal). One row per group when wired under a grouper.
+
+## Components
+
+Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
+
+Universal floor `{n, n_null}` plus operator-specific:
+
+| Key | Type | Notes |
+|---|---|---|
+| `sum` | float64 | Running sum of non-null values |
+
+- Mergeability: `Mergeable`
+- Streaming: per-chunk; orchestrator sums
+
+## Gotchas
+
+- Smart default for numeric fields when `Type` omitted.
+- Set-typed fields (`set_*`) NOT supported.
+- Overflow on huge u64 sums silently promotes through float64.
+- `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
+
+## See
+
+- `pulse_examples_search tags=[financial]`
+- Skills: [`aggregation-design`](aggregation-design.md), [`response-components`](response-components.md)

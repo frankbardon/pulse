@@ -11,6 +11,8 @@ examples_tags: [distribution-shape, buffered-pipeline]
 
 Attributes emit row-level scalars; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean and population sd √(Σw(x − μ)²/Σw); a zero / invalid-weight row adds no mass but is still scored.
@@ -25,6 +27,8 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 ## Output
 
 One `float64` per record — `50 + 10 * zscore`. Null source → `50` (not null).
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 

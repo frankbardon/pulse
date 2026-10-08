@@ -113,7 +113,7 @@ Theme documents: see the [roadmap index](README.md).
 ### FP7 — Embedder tooling & export
 - [x] **#32** Feature-profile tooling `init`, `check`, `diff` and `show` (leaf naming open: `pulse profile` is taken by synth data profiling) · [U06](units/U06-profiles-mcp-tooling.md)
 - [x] **#33** Example feature profile files in `examples/profiles/` · [U06](units/U06-profiles-mcp-tooling.md)
-- [ ] **#34** `pulse docs export` / `p.ExportReference` (shares the G3 generator) · [U21](units/U21-guidance-generated-docs.md)
+- [x] **#34** `pulse docs export` / `p.ExportReference` (shares the G3 generator) · [U21](units/U21-guidance-generated-docs.md)
 - [x] **#35** Embedder docs at `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md` (both started in U04; U06 completes them for enforcement and tooling) · [U06](units/U06-profiles-mcp-tooling.md)
 
 ---
@@ -205,11 +205,18 @@ Theme documents: see the [roadmap index](README.md).
 ## 7. Guided analysis — docs, API & MCP
 
 ### G3 — Generated docs & skill sections
-- [ ] **#85** `internal/docgen`, `make docs` integration, `TestDocsGeneratedCurrent` · [U21](units/U21-guidance-generated-docs.md)
-- [ ] **#86** Generated operator catalog pages · [U21](units/U21-guidance-generated-docs.md)
-- [ ] **#87** Generated glossary page · [U21](units/U21-guidance-generated-docs.md)
-- [ ] **#88** "Reading your results" pages (tests, regressions, matrices, overlays, components) · [U21](units/U21-guidance-generated-docs.md)
-- [ ] **#89** Rendered skill sections `## Use when` / `## Reading the output`; `skill-pack.md` updated, plus `TestSkillPurposeSectionsCurrent` · [U21](units/U21-guidance-generated-docs.md)
+- [x] **#85** `internal/docgen`, `make docs` integration, `TestDocsGeneratedCurrent` · [U21](units/U21-guidance-generated-docs.md)
+- [x] **#86** Generated operator catalog pages · [U21](units/U21-guidance-generated-docs.md)
+- [x] **#87** Generated glossary page · [U21](units/U21-guidance-generated-docs.md)
+- [x] **#88** "Reading your results" pages (tests, regressions, matrices, overlays, components) · [U21](units/U21-guidance-generated-docs.md)
+- [x] **#89** Rendered skill sections `## Use when` / `## Reading the output`; `skill-pack.md` updated, plus `TestSkillPurposeSectionsCurrent` · [U21](units/U21-guidance-generated-docs.md)
+
+#### Follow-ups from U21
+- [ ] **#235** Correct the stale hand-written skill claims against the engine: `op-agg-ci-*` `t_critical` wording, `ATTR_REG_LEVERAGE` range, `op-win-*` `order_by` types, `WIN_LAG` offset, `WIN_LAG` / `WIN_LEAD` float64 output, `GROUP_RANGE` / `ROUNDED` `interval` default · [U38](units/U38-skill-sync.md)
+- [ ] **#236** Trim the `op-*` bodies over the 1,200-character budget (about 111), then flip `TestSkillTokenBudget` for `op-*` from soft to hard · [U38](units/U38-skill-sync.md)
+- [ ] **#237** `pulse skills` / `pulse examples` and the toolmeta "embedded library" wording vs embedder additions; synth examples lack `_meta` for the `op-synth-*` `## See` tags · [U38](units/U38-skill-sync.md)
+- [ ] **#238** Hidden-capability prose residue the slot-token filter does not reach: the matrices-hidden `pulse_examples_search` Filters sentence and `pulse_manifest` Carries-per-operator sentence are over-dropped (splitting them moves the default manifest golden), topical and tool skill bodies are not slot-token scrubbed by `Discovery` (12 sentences fenced in 6 topical skills, one reworded), and a weighting-hidden instance still lists the weighted aggregator keys on the Components page · [U32](units/U32-docs-audit.md)
+- [ ] **#239** The Analysis Guide adds 303 pages: the mdBook search index warns at about 12 MB, and the `docs` CI job (PR-time `mdbook build`) is not a required check. Decide whether to trim the search index and whether to require the job · [U32](units/U32-docs-audit.md)
 
 ### G4 — Recommend, Explain, advisories
 - [ ] **#90** `pulse.Recommend` with bound (cohort) and unbound (cohort-free) modes; `pulse recommend`; `pulse_recommend`; `tool-recommend.md` · [U22](units/U22-recommend-explain.md)

@@ -11,6 +11,8 @@ examples_tags: [time-series, window-operator, buffered-pipeline]
 
 Window operators emit row-level values; they do not produce `Response.Components`.
 
+<!-- generated: use-when -->
+
 ## Params
 
 | Name | Type | Default | Description |
@@ -28,6 +30,8 @@ Window operators emit row-level values; they do not produce `Response.Components
 ## Output
 
 One `float64` per row written to `Label` (default `WIN_PCT_CHANGE_<field>`). `(cur - prev) / prev`, `prev` being `periods` rows back: a FRACTION (0.05 = 5%), never ×100. Rows `i < periods` within the partition emit `null`.
+
+<!-- generated: reading-the-output -->
 
 ## Gotchas
 
