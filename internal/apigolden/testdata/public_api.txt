@@ -2842,7 +2842,7 @@ pulse/mcp/gosdk: type Config field BindOnInspect bool
 pulse/mcp/gosdk: type Config field DefaultReturn pulse/types.ReturnPreset
 pulse/mcp/gosdk: type Config field DisableCohortScan bool
 pulse/mcp/gosdk: type Config field Version string
-pulse/mcp/gosdk: const DescPromptAuthorRequest untyped string = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
+pulse/mcp/gosdk: const DescPromptAuthorRequest untyped string = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. First classifies the question by intent and hands it to the matching per-intent prompt or tool this server mounts; otherwise produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
 pulse/mcp/gosdk: const DescPromptBootstrap untyped string = "Inject the Pulse session-bootstrap instructions into the conversation. Tells the assistant which tools to call (and in what order) before authoring any request, and where the authoritative request-shape references live. Useful when starting a fresh session against a Pulse MCP server."
 pulse/mcp/gosdk: const PromptAuthorRequest untyped string = "pulse-author-request"
 pulse/mcp/gosdk: const PromptBootstrap untyped string = "pulse-bootstrap"
@@ -4487,4 +4487,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8eb3b9a8be59b1ec391056df64d15e34c8eb17e2b78a97771fe0c4e95ed622cb
+// golden-hash: 596d10ab7e645f1b2c27d18537d9a07a9f82d5288b3252e1c3fbda0597354f02
