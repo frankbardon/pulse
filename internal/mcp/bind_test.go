@@ -388,9 +388,10 @@ func TestMCPSchemaBinding_LabelsOmittedWhenNoTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
-	body := string(bound[toolmeta.ToolProcess])
-	if strings.Contains(body, "\"labels\"") {
-		t.Fatalf("labels slot should be omitted when no tables registered:\n%s", body)
+	// vectors[].labels is a different key (display labels): check the
+	// root slot itself.
+	if schemaAt(decodeBoundRequest(t, bound[toolmeta.ToolProcess]), "properties.labels") != nil {
+		t.Fatalf("labels slot should be omitted when no tables registered:\n%s", bound[toolmeta.ToolProcess])
 	}
 }
 

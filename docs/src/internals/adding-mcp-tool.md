@@ -57,6 +57,9 @@ Schema-binding parity is enforced by:
 - `TestMCPSchemaBinding_SampleAndFacetFieldEnum`
 - `TestMCPSchemaBinding_DedupAndSort`
 - `TestMCPSchemaBinding_NilSchema`
+- `TestBindForInstance_PayloadSchemaParity` — every payload-schema key under
+  a bound request root is in the bound schema (allowlisted omissions carry a
+  reason), and no bound key is absent from the instance's payload schema
 
 The transport caveat: bind-on-inspect works on the single stdio session
 (post-serve `AddTool`/`RemoveTools` auto-emits `list_changed`); there is

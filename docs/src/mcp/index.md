@@ -193,7 +193,14 @@ What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compos
 | `tests[].field`, `tests[].field2` | Numeric fields only |
 | `tests[].split_by` / `rows` / `cols` / `subject_field` | All cohort field names |
 | `tests[].type` | Full test catalogue (`TEST_*`) |
+| `attributes[].target`, `attributes[].predictors[]` | Numeric fields only (regression attributes) |
+| `regressions[].target`, `regressions[].predictors[]` | Numeric fields only |
+| `regressions[].type` | Full regression catalogue (`REG_*`) |
+| `matrices[].type` | Full matrix catalogue (`MAT_*`) |
+| `joins[].on[].left_field` | All cohort field names (the right cohort is not bound) |
 | `pulse_facet` `field` arg | All cohort field names |
+
+Beyond the enums, a bound schema carries every key the payload schema declares on the request roots it describes (`Request`, `ComposedRequest`, `ChainRequest`, `FacetRequest`, and `pulse_predict`'s alternative roots), nested slot objects included, and no key the instance's payload schema lacks. The only deliberate omissions are a test's `multiplicity.alpha` (the engine refuses it: a test reads its own `alpha`), a facet overlay's `weight` (facets are never weighted) and the `labels` slot on an instance offering no label table. `TestBindForInstance_PayloadSchemaParity` holds the two in step, profile-free and under feature profiles.
 
 **Trigger and lifecycle.** Binding fires on a successful `pulse_inspect`. The go-sdk server auto-fires `notifications/tools/list_changed` on the post-serve `AddTool` / `RemoveTools` swap; the host refreshes its tool list and picks up the bound schemas on the next list. Bound tools share names with the global tools — the session-scoped variants override globals for that session.
 
