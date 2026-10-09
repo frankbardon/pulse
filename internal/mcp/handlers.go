@@ -61,14 +61,47 @@ func HandleInspect(ctx context.Context, p *pulse.Pulse, in InspectIn) (InspectOu
 	return InspectOut{InspectResult: *res, Warnings: env.Warnings}, nil
 }
 
-// HandlePredict runs pulse_predict: no-execute request validation.
+// HandlePredict runs pulse_predict: no-execute validation of a bare
+// request, or of the one alternative root (composed / facet / chain)
+// the decode accepted. An alternative root's verdict rides under its
+// own key beside the envelope's coded errors and warnings; a returned
+// error is the facade's own (a nil request or cohort, an unreadable
+// cohort), passed through verbatim so its code survives.
 func HandlePredict(ctx context.Context, p *pulse.Pulse, in PredictIn) (PredictOut, error) {
-	req := in
-	res, err := p.Predict(ctx, &req)
+	var (
+		env *descriptor.Envelope
+		err error
+	)
+	switch {
+	case in.Composed != nil:
+		env, err = p.PredictCompose(ctx, in.Composed)
+	case in.Facet != nil:
+		env, err = p.PredictFacet(ctx, in.Facet)
+	case in.Chain != nil:
+		env, err = p.PredictChain(ctx, in.Chain)
+	default:
+		req := in.Request
+		res, perr := p.Predict(ctx, &req)
+		if perr != nil {
+			return PredictOut{}, perr
+		}
+		return PredictOut{PredictResult: res}, nil
+	}
 	if err != nil {
 		return PredictOut{}, err
 	}
-	return *res, nil
+	out := PredictOut{Errors: env.Errors, Warnings: env.Warnings}
+	switch d := env.Data.(type) {
+	case *pulse.ComposePredictResult:
+		out.Composed = d
+	case *pulse.FacetPredictResult:
+		out.Facet = d
+	case *pulse.ChainPredictResult:
+		out.Chain = d
+	default:
+		return PredictOut{}, errors.New("pulse: predict returned unexpected type")
+	}
+	return out, nil
 }
 
 // HandleProcess runs pulse_process: the buffered aggregation pipeline.

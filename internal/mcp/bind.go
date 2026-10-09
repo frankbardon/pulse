@@ -138,7 +138,6 @@ func BindForInstance(schema *encoding.Schema, inst *descx.InstanceSnapshot) (map
 		return nil, err
 	}
 	out[toolmeta.ToolProcess] = reqBody
-	out[toolmeta.ToolPredict] = reqBody
 
 	composeBody, err := buildComposeSchemaWithExtensions(c, inst)
 	if err != nil {
@@ -170,7 +169,53 @@ func BindForInstance(schema *encoding.Schema, inst *descx.InstanceSnapshot) (map
 	}
 	out[toolmeta.ToolProcessChain] = chainBody
 
+	predictBody, err := buildPredictSchema(reqBody, map[string]json.RawMessage{
+		"composed": composeBody,
+		"facet":    facetSchemaBody,
+		"chain":    chainBody,
+	}, inst)
+	if err != nil {
+		return nil, err
+	}
+	out[toolmeta.ToolPredict] = predictBody
+
 	return out, nil
+}
+
+// buildPredictSchema describes pulse_predict: the bound request schema
+// (a bare request at the root, as pulse_process takes it) plus one
+// property per alternative root the instance offers, each carrying its
+// own execution tool's bound body. No root key is required — an
+// alternative stands alone, without a root cohort.
+func buildPredictSchema(reqBody json.RawMessage, roots map[string]json.RawMessage, inst *descx.InstanceSnapshot) (json.RawMessage, error) {
+	var schema map[string]any
+	if err := json.Unmarshal(reqBody, &schema); err != nil {
+		return nil, err
+	}
+	props, _ := schema["properties"].(map[string]any)
+	if props == nil {
+		props = map[string]any{}
+		schema["properties"] = props
+	}
+	for _, r := range predictRoots {
+		if inst.Hidden(r.feature) {
+			continue
+		}
+		var body map[string]any
+		if err := json.Unmarshal(roots[r.key], &body); err != nil {
+			return nil, err
+		}
+		body["description"] = "Predict this request shape instead of a bare request; alone at the root, never beside another key. " + stringOr(body["description"])
+		props[r.key] = body
+	}
+	delete(schema, "required")
+	return json.Marshal(schema)
+}
+
+// stringOr returns v as a string, or "" when it is not one.
+func stringOr(v any) string {
+	s, _ := v.(string)
+	return s
 }
 
 // buildProcessChainSchemaWithExtensions describes the pulse_process_chain

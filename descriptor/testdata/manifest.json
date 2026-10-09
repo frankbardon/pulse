@@ -80,6 +80,33 @@
         }
       },
       {
+        "name": "predict-compose",
+        "description": "Validate a Compose batch without executing: each slot over its own cohort, then the batch overlays",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "predict-facet",
+        "description": "Validate a facet request against its cohort without executing",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "predict-chain",
+        "description": "Validate a process-chain request without executing: each stage over the schema the one before produces",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "manifest",
         "description": "Output the root manifest",
         "annotations": {
@@ -6772,7 +6799,7 @@
       },
       {
         "name": "pulse_predict",
-        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Cheap: it reads only the cohort header + schema."
+        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Cheap: it reads only the cohort header + schema. To predict another request shape, send exactly one alternative root alone; its verdict comes back under the same key beside `errors` / `warnings`, and a root beside any other key is SERVICE_VALIDATION. `composed` takes a pulse_compose body. `facet` takes a pulse_facet_schema body. `chain` takes a pulse_process_chain body."
       },
       {
         "name": "pulse_process",
@@ -12409,4 +12436,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 19881a4d8b6f8e0c8574a18e145bca29bd7ef55f65504ee3f3b2164c5340fa46
+// golden-hash: 7e44c42b24bc0ef5695e7cdea42308be7b3f222e5bbe71224f6dfa7cc0ff5b10

@@ -753,6 +753,12 @@ var commandBindings = []CommandBinding{
 	{Command: "lookup", Feature: featLookup},
 	{Command: "inspect", Core: CoreInspect},
 	{Command: "predict", Core: CorePredict},
+	// The non-Request predict leaves follow the capability owning the
+	// request shape they validate (pulse_predict's alternative roots
+	// are gated the same way).
+	{Command: "predict-compose", Feature: featCompose},
+	{Command: "predict-facet", Feature: featFacet},
+	{Command: "predict-chain", Feature: featProcessChain},
 	{Command: "manifest", Core: CoreManifest},
 	{Command: "schema", Core: CorePayloadSchema},
 	{Command: "mcp", Ungated: true},

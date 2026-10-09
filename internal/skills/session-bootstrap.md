@@ -9,16 +9,16 @@ covers: [pulse_manifest, pulse_examples_search, pulse_examples_get, pulse_skills
 
 # Session bootstrap
 
-Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-enter from step 3 per user question.
+Canonical MCP call order. Steps 1–2 once, cached; re-enter from step 3 per user question.
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` (`intent` scopes it to one question kind, ~10× smaller) | once per session | operator catalogs (each entry's `intents` = the question kinds it answers), field types, error codes, MCP tool list, skills index, extensions, capability blocks. Deterministic per binary version |
+| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs (each entry's `intents` = the question kinds it answers), field types, error codes, MCP tool list, skills index, extensions, capability blocks. Deterministic per binary version |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict`<!-- feature: capability:process --> / `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet`<!-- /feature -->, constraining them to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category`<!-- feature: capability:recommend -->; or `pulse_recommend` by `intents` ID<!-- /feature --> |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
 | 5 | `pulse_skills_get` | on demand | shape, gotchas, contract; pick via `session-skill-routing`. Runnable JSON comes from examples, NOT skills |
-| 6 | `pulse_predict` | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
+| 6 | `pulse_predict` (bare request<!-- feature: capability:compose -->, or `composed`<!-- /feature --><!-- feature: capability:facet -->, or `facet`<!-- /feature --><!-- feature: capability:process_chain -->, or `chain`<!-- /feature -->) | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
 | 7 | the execute tool the manifest's `mcp_tools` lists for the operation —<!-- feature: capability:process --> `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:process_chain --> / `pulse_process_chain`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet` / `pulse_facet_schema`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:lookup --> / `pulse_lookup`<!-- /feature --> | execute | `{format_version, data, errors, warnings}` + additive `data.components`; `format_version` is `"1.1"`<!-- feature: capability:explain -->; read via `pulse_explain`<!-- /feature --> |
 | 8 | `pulse_errors_lookup` | per unique `code` | canonical `message` + structured `fixups[]`. Authoritative — never paraphrase from memory |
 

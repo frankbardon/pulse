@@ -98,6 +98,28 @@ func init() {
 	register(toolmeta.ToolRangeTables, d(toolmeta.ToolRangeTables), reflect.TypeFor[RangeTablesIn](), reflect.TypeFor[RangeTablesOut]())
 	register(toolmeta.ToolRecommend, d(toolmeta.ToolRecommend), reflect.TypeFor[RecommendIn](), reflect.TypeFor[RecommendOut]())
 	register(toolmeta.ToolExplain, d(toolmeta.ToolExplain), reflect.TypeFor[ExplainIn](), reflect.TypeFor[ExplainOut]())
+
+	// pulse_predict answers a bare request with the PredictResult keys at
+	// the root and an alternative root under its own key, so no root key
+	// is required of every answer.
+	ts := registry[toolmeta.ToolPredict]
+	ts.OutputSchema = withoutRootRequired(ts.OutputSchema)
+	registry[toolmeta.ToolPredict] = ts
+}
+
+// withoutRootRequired drops the root `required` list of a reflected
+// object schema; any other body is returned unchanged.
+func withoutRootRequired(schema json.RawMessage) json.RawMessage {
+	var m map[string]any
+	if json.Unmarshal(schema, &m) != nil {
+		return schema
+	}
+	delete(m, "required")
+	body, err := json.Marshal(m)
+	if err != nil {
+		return schema
+	}
+	return body
 }
 
 // Schemas returns the reflected descriptor for every registered tool in stable

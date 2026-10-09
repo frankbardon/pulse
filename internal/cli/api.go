@@ -27,6 +27,9 @@ func APICommand() *cli.Command {
 			apiSampleCmd(),
 			apiFacetCmd(),
 			apiPredictCmd(),
+			apiPredictComposeCmd(),
+			apiPredictFacetCmd(),
+			apiPredictChainCmd(),
 			apiLookupCmd(),
 		},
 	}

@@ -238,7 +238,7 @@
       },
       {
         "name": "pulse_predict",
-        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Cheap: it reads only the cohort header + schema."
+        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Cheap: it reads only the cohort header + schema. To predict another request shape, send exactly one alternative root alone; its verdict comes back under the same key beside `errors` / `warnings`, and a root beside any other key is SERVICE_VALIDATION."
       },
       {
         "name": "pulse_skills_get",
@@ -746,4 +746,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fa286ed582bc6b1f8fce0e726539876a83417dfb0fa08806561bf8b278c3c493
+// golden-hash: b0043f0419aa6f4e1f5fcb4d5cff1cd7f9fddef5fc454c4fdc1c7e9a3c9c814b

@@ -90,7 +90,7 @@ func TestLimits_MatrixDim_PredictCertainAndProcessRefuses(t *testing.T) {
 		t.Fatalf("Predict LimitFindings = %+v, want %+v", res.LimitFindings, want)
 	}
 
-	out, err := mcp.HandlePredict(ctx, p, *matrix3(cohort))
+	out, err := mcp.HandlePredict(ctx, p, mcp.PredictIn{Request: *matrix3(cohort)})
 	if err != nil {
 		t.Fatal(err)
 	}

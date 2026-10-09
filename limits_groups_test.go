@@ -41,7 +41,7 @@ func TestLimits_MaxGroups_PredictPossibleAndProcessTrips(t *testing.T) {
 	if !reflect.DeepEqual(res.LimitFindings, want) {
 		t.Fatalf("Predict LimitFindings = %+v, want %+v", res.LimitFindings, want)
 	}
-	out, err := mcp.HandlePredict(ctx, p, *groupByCat(cohort))
+	out, err := mcp.HandlePredict(ctx, p, mcp.PredictIn{Request: *groupByCat(cohort)})
 	if err != nil {
 		t.Fatal(err)
 	}

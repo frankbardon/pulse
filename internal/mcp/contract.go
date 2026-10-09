@@ -182,8 +182,17 @@ type LabelResolveIn struct {
 // ProcessIn is the input contract for pulse_process.
 type ProcessIn = types.Request
 
-// PredictIn is the input contract for pulse_predict.
-type PredictIn = types.Request
+// PredictIn is the input contract for pulse_predict: a bare
+// types.Request at the root (the original contract, unchanged), or
+// exactly ONE alternative root naming a different request shape. A root
+// key beside an alternative, or two alternatives, is SERVICE_VALIDATION;
+// an alternative whose capability the instance hides is an unknown key.
+type PredictIn struct {
+	types.Request
+	Composed *types.ComposedRequest `json:"composed,omitempty" jsonschema:"A pulse_compose request to predict instead of a bare request: each slot over its own cohort, then the batch overlays. Alone at the root."`
+	Facet    *types.FacetRequest    `json:"facet,omitempty" jsonschema:"A pulse_facet_schema request to predict instead of a bare request. Alone at the root."`
+	Chain    *types.ChainRequest    `json:"chain,omitempty" jsonschema:"A pulse_process_chain request to predict instead of a bare request: stage 0 over the cohort, each later stage over the schema the one before produces. Alone at the root."`
+}
 
 // ComposeIn is the input contract for pulse_compose.
 type ComposeIn = types.ComposedRequest
@@ -224,8 +233,19 @@ type InspectOut struct {
 	Warnings []*descriptor.EnvelopeEntry `json:"warnings,omitempty" jsonschema:"Diagnostics from the header read — coded {code, message, details} entries. A truncated payload tail raises ENCODING_INVALID and record_count is the floor. Absent when the read was clean."`
 }
 
-// PredictOut is the output contract for pulse_predict.
-type PredictOut = descriptor.PredictResult
+// PredictOut is the output contract for pulse_predict. A bare request
+// answers with the PredictResult EMBEDDED, so its keys sit at the root
+// byte-identically to the original contract. An alternative root
+// answers under the same key it was sent under, beside the coded
+// errors / warnings that explain a `valid: false` verdict.
+type PredictOut struct {
+	*descriptor.PredictResult
+	Composed *pulse.ComposePredictResult `json:"composed,omitempty" jsonschema:"The verdict on a composed root: valid, the echoed request, rejected overlay pairs, overlay cost, p-value count and each slot's advisories."`
+	Facet    *pulse.FacetPredictResult   `json:"facet,omitempty" jsonschema:"The verdict on a facet root: valid, the echoed request, schema info and the accepted overlays."`
+	Chain    *pulse.ChainPredictResult   `json:"chain,omitempty" jsonschema:"The verdict on a chain root: valid, the echoed request, the source schema and each stage's inferred output columns."`
+	Errors   []*descriptor.EnvelopeEntry `json:"errors,omitempty" jsonschema:"Alternative roots only: every coded refusal behind valid false — {code, message, details}. Absent when there is none."`
+	Warnings []*descriptor.EnvelopeEntry `json:"warnings,omitempty" jsonschema:"Alternative roots only: coded warnings. Absent when there is none."`
+}
 
 // ProcessOut is the output contract for pulse_process.
 type ProcessOut = types.Response

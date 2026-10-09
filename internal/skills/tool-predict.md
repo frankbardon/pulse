@@ -13,11 +13,21 @@ Cheap — reads only the cohort header + schema, never records. Returns the shap
 
 ## Input
 
-`request` (string): JSON-encoded `types.Request`. The same request body execution takes.
+A bare `types.Request` at the root, as execution takes it; or ONE alternative root alone (any key beside it is `SERVICE_VALIDATION`):
+
+<!-- feature: capability:compose -->
+- `composed` — a Compose batch: each slot over its cohort, then the batch overlays.
+<!-- /feature -->
+<!-- feature: capability:facet -->
+- `facet` — a rich facet request.
+<!-- /feature -->
+<!-- feature: capability:process_chain -->
+- `chain` — a chain: each stage over the schema the one before produces.
+<!-- /feature -->
 
 ## Output
 
-`descriptor.Envelope` wrapping `PredictResult`: `Errors`, `Warnings`, `Streamable` (bool — matches runtime via `processing.CanStreamRequest`), `CrosstabFusable` + `CrosstabFusionReasons` (crosstab requests only: will the grid build on the fused one-pass, `O(cells + margins)` arm — and why not), `LimitFindings` (`limit_findings`, omitted when none: each instance resource limit a predicted figure exceeds — `{limit, configured, estimated, grade}`; `certain` = exact, refused with `PULSE_LIMIT_EXCEEDED` and `valid: false`; `possible` = an upper bound, a warning only), `DefaultsApplied` (slot-level inference summary), `Normalized` (the engine-canonical request after defaults)<!-- feature: capability:weighting -->, and `suggested_weight` — inspect's SPSS suggestion, echoed as data (never a warning or applied) while no weight resolves<!-- /feature -->, and `advisories` (omitted when none) — coded `{code, message, details}` notes that the analysis may not fit the data; never warnings, never escalated by `--strict` (`predict-advisories`).
+An alternative root answers under its own key (`valid`, the echoed `request`, its per-shape verdict) beside `errors` / `warnings`. A bare request answers with `PredictResult` at the root: `Streamable` (bool — matches runtime via `processing.CanStreamRequest`), `CrosstabFusable` + `CrosstabFusionReasons` (crosstab requests only: will the grid build on the fused one-pass, `O(cells + margins)` arm — and why not), `LimitFindings` (`limit_findings`, omitted when none: each instance resource limit a predicted figure exceeds — `{limit, configured, estimated, grade}`; `certain` = exact, refused with `PULSE_LIMIT_EXCEEDED` and `valid: false`; `possible` = an upper bound, a warning only), `DefaultsApplied` (slot-level inference summary), `Normalized` (the engine-canonical request after defaults)<!-- feature: capability:weighting -->, and `suggested_weight` — inspect's SPSS suggestion, echoed as data (never a warning or applied) while no weight resolves<!-- /feature -->, and `advisories` (omitted when none) — coded `{code, message, details}` notes that the analysis may not fit the data; never warnings, never escalated by `--strict` (`predict-advisories`).
 
 ## Gotchas
 

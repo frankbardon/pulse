@@ -162,7 +162,7 @@ func TestLimits_JoinBuildRows_PredictCertainAndProcessRefuses(t *testing.T) {
 			if res.Valid || !reflect.DeepEqual(res.LimitFindings, want) {
 				t.Fatalf("Predict valid=%v findings=%+v, want false %+v", res.Valid, res.LimitFindings, want)
 			}
-			out, err := mcp.HandlePredict(ctx, p, *req(left, right))
+			out, err := mcp.HandlePredict(ctx, p, mcp.PredictIn{Request: *req(left, right)})
 			if err != nil {
 				t.Fatal(err)
 			}
