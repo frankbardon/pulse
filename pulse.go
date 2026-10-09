@@ -170,6 +170,9 @@ type (
 	// ExampleSummary is the lightweight projection returned by
 	// ExamplesSearch.
 	ExampleSummary = examples.ExampleSummary
+	// ExamplesQuery is ExamplesSearchWith's filter set — query, tags,
+	// category and intent, every one optional and all ANDed.
+	ExamplesQuery = examples.Query
 	// SkillMetadata is one skill-pack entry as Skills lists it — name,
 	// description, kind and the frontmatter cross-references.
 	SkillMetadata = skills.Metadata
@@ -2130,17 +2133,46 @@ func (p *Pulse) widenSetField(ctx context.Context, path, field, targetType strin
 	return rep, nil
 }
 
-// ExamplesSearch returns summaries from the embedded request-example
-// library matching the given filters. An empty filter is treated as
-// "no constraint" for that dimension. Query is case-insensitive
-// substring search across name, description, and operators; tags is
-// ANDed; category is an exact match. Always returns a non-nil slice
-// (possibly empty) for safe JSON marshaling. Under a feature profile an
-// example that uses an operator the instance hides is not returned.
-// Embedder examples (Extensions.Examples) are searched with the
-// built-ins, ranked by the same rules.
+// ExamplesSearch returns summaries from the request-example library
+// matching the given filters; it is ExamplesSearchWith without an
+// intent, so it never fails. An empty filter is treated as "no
+// constraint" for that dimension; tags is ANDed; category is an exact
+// match. A one-word query keeps its substring match across name,
+// description and operators; ExamplesSearchWith documents the full
+// matching rules. Always returns a non-nil slice (possibly empty) for
+// safe JSON marshaling. Under a feature profile an example that uses an
+// operator the instance hides is not returned. Embedder examples
+// (Extensions.Examples) are searched with the built-ins, ranked by the
+// same rules.
 func (p *Pulse) ExamplesSearch(query string, tags []string, category string) []ExampleSummary {
-	return p.svc.InstanceSnapshot().Discovery().ExamplesSearch(query, tags, category)
+	out, _ := p.ExamplesSearchWith(ExamplesQuery{Query: query, Tags: tags, Category: category})
+	return out
+}
+
+// ExamplesSearchWith searches the request-example library. Every
+// filter of q is optional and all are ANDed: Tags (every tag), Category
+// (exact directory), Intent (an intent-taxonomy ID, see Intents, the
+// example's intents must carry) and Query.
+//
+// Query matching runs as ordered tiers, the first with any hit
+// answering. Exact: a one-word query (letters and digits only) is a
+// case-insensitive substring of the name, description or an operator,
+// as ExamplesSearch always matched; any other query is tokenized
+// (lower-case, split on non-alphanumerics, no stemming, stop words
+// dropped) and every token must be an exact token of the name,
+// description, operators, intents or tags. Synonym: a query phrase that
+// is an operator's Purpose.KnownAs alias ("anova", "chisq.test") or
+// sits inside an intent's Sounds ("move together") expands the query to
+// that operator or intent. Score = distinct matched fields; ties break
+// alphabetically by name; no query lists alphabetically.
+//
+// An unknown intent, or one the instance's feature profile hides, is
+// PULSE_RECOMMEND_INTENT_UNKNOWN (details.valid lists the instance's
+// intents). Under a feature profile a hidden operator's aliases and a
+// hidden intent's Sounds never expand a query, and hidden examples are
+// absent. Never nil on success.
+func (p *Pulse) ExamplesSearchWith(q ExamplesQuery) ([]ExampleSummary, error) {
+	return p.svc.InstanceSnapshot().ExamplesSearch(q)
 }
 
 // ExampleGet returns the example whose _meta.name matches name. The

@@ -208,6 +208,7 @@ pulse: type Example underlying struct
 pulse: type Example field Body encoding/json.RawMessage "json:\"body\""
 pulse: type Example field Category string "json:\"category\""
 pulse: type Example field Description string "json:\"description\""
+pulse: type Example field Intents []string "json:\"intents,omitempty\""
 pulse: type Example field Name string "json:\"name\""
 pulse: type Example field Operators []string "json:\"operators\""
 pulse: type Example field Tags []string "json:\"tags\""
@@ -217,9 +218,16 @@ pulse: type ExampleSummary = pulse/internal/examples.ExampleSummary
 pulse: type ExampleSummary underlying struct
 pulse: type ExampleSummary field Category string "json:\"category\""
 pulse: type ExampleSummary field Description string "json:\"description\""
+pulse: type ExampleSummary field Intents []string "json:\"intents,omitempty\""
 pulse: type ExampleSummary field Name string "json:\"name\""
 pulse: type ExampleSummary field Operators []string "json:\"operators\""
 pulse: type ExampleSummary field Tags []string "json:\"tags\""
+pulse: type ExamplesQuery = pulse/internal/examples.Query
+pulse: type ExamplesQuery underlying struct
+pulse: type ExamplesQuery field Category string "json:\"category,omitempty\""
+pulse: type ExamplesQuery field Intent string "json:\"intent,omitempty\""
+pulse: type ExamplesQuery field Query string "json:\"query,omitempty\""
+pulse: type ExamplesQuery field Tags []string "json:\"tags,omitempty\""
 pulse: type ExportReferenceOptions struct
 pulse: type ExportReferenceOptions field OmitSkills bool
 pulse: type ExprFunction struct
@@ -656,6 +664,7 @@ pulse: type Pulse method (*Pulse) ErrorsByDomain(domain string) []pulse.ErrorMet
 pulse: type Pulse method (*Pulse) ErrorsSearch(query string) []pulse.ErrorMetadata
 pulse: type Pulse method (*Pulse) ExampleGet(name string) (*pulse.Example, bool)
 pulse: type Pulse method (*Pulse) ExamplesSearch(query string, tags []string, category string) []pulse.ExampleSummary
+pulse: type Pulse method (*Pulse) ExamplesSearchWith(q pulse.ExamplesQuery) ([]pulse.ExampleSummary, error)
 pulse: type Pulse method (*Pulse) Explain(ctx context.Context, req pulse/descriptor.ExplainRequest) (*pulse/descriptor.ExplainResult, error)
 pulse: type Pulse method (*Pulse) Export(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.ExportReport, error)
 pulse: type Pulse method (*Pulse) ExportReference(fsys github.com/spf13/afero.Fs, dir string, opts pulse.ExportReferenceOptions) error
@@ -4488,4 +4497,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9b0fcf2f2bec7e4032ba147e0f8b656dfb978d3fbe9620204b6abd34dbb900be
+// golden-hash: 68f43caad411f9c7f978e7dfe8cbac8b03baeea2f6808f0b372822104610fe87

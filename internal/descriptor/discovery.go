@@ -312,20 +312,22 @@ func (d *Discovery) Skill(name string) (string, bool) {
 // order of the survivors are unchanged. Visible embedder examples are
 // searched with them, ranked by the same rules. Never nil.
 func (d *Discovery) ExamplesSearch(query string, tags []string, category string) []examples.ExampleSummary {
+	return d.SearchExamples(examples.Query{Query: query, Tags: tags, Category: category}, examples.Options{})
+}
+
+// SearchExamples is examples.SearchQuery over the instance's visible
+// library (the embedded examples minus the pruned ones, plus the
+// visible embedder examples). A pruned example is dropped before any
+// match tier runs, so it never decides which tier answers. opts carries
+// the synonym tables; its KeepExample is set here. Never nil.
+func (d *Discovery) SearchExamples(q examples.Query, opts examples.Options) []examples.ExampleSummary {
 	if d.exampleLib != nil {
-		return examples.SearchIn(d.exampleLib, query, tags, category)
+		return examples.SearchQuery(d.exampleLib, q, opts)
 	}
-	hits := examples.Search(query, tags, category)
-	if len(d.hiddenExamples) == 0 {
-		return hits
+	if len(d.hiddenExamples) > 0 {
+		opts.KeepExample = d.ExampleVisible
 	}
-	out := make([]examples.ExampleSummary, 0, len(hits))
-	for _, h := range hits {
-		if d.ExampleVisible(h.Name) {
-			out = append(out, h)
-		}
-	}
-	return out
+	return examples.SearchLibrary(q, opts)
 }
 
 // Example returns a visible example; a pruned name answers exactly as a

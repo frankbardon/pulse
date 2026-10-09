@@ -192,10 +192,16 @@ func HandleSkillsGet(_ context.Context, p *pulse.Pulse, in SkillsGetIn) (SkillsG
 	return SkillsGetOut{Body: body}, nil
 }
 
-// HandleExamplesSearch runs pulse_examples_search. All three filters are
-// optional and ANDed.
+// HandleExamplesSearch runs pulse_examples_search. All four filters are
+// optional and ANDed; an unknown or hidden intent is the coded
+// PULSE_RECOMMEND_INTENT_UNKNOWN.
 func HandleExamplesSearch(_ context.Context, p *pulse.Pulse, in ExamplesSearchIn) (ExamplesSearchOut, error) {
-	results := p.ExamplesSearch(in.Query, in.Tags, in.Category)
+	results, err := p.ExamplesSearchWith(pulse.ExamplesQuery{
+		Query: in.Query, Tags: in.Tags, Category: in.Category, Intent: in.Intent,
+	})
+	if err != nil {
+		return ExamplesSearchOut{}, err
+	}
 	if results == nil {
 		results = []pulse.ExampleSummary{}
 	}

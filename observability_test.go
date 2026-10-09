@@ -277,7 +277,7 @@ func obsCalls() []obsCall {
 var uninstrumentedMethods = map[string]bool{
 	"Ontology": true, "Skills": true, "Skill": true, "ListTemplates": true, "GetTemplate": true,
 	"Limits": true, "LabelTables": true, "RangeTables": true, "ErrorLookup": true,
-	"ErrorsByDomain": true, "ErrorsSearch": true, "ExamplesSearch": true, "ExampleGet": true,
+	"ErrorsByDomain": true, "ErrorsSearch": true, "ExamplesSearch": true, "ExamplesSearchWith": true, "ExampleGet": true,
 	"FeatureProfile": true, "FeatureSetDigest": true, "Fs": true, "ResolveLabel": true,
 
 	"CohortArtifacts": true, "NewCohortBuilder": true, "Imports": true, "ResolveImport": true,

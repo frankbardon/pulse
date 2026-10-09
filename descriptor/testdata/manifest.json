@@ -6724,11 +6724,11 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process."
+        "description": "Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process."
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `matrices`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `matrices`, `overlays`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_explain",
@@ -12409,4 +12409,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7d95d3d8aa7f1ff2bcbf2d5a5c520eef7270102e457f2e0ac5e4065a72d67636
+// golden-hash: 436908f52bb0d0a46d570ad2a3f244860411e141db91bb6206be2e04c1965684

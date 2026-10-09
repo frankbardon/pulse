@@ -97,18 +97,24 @@ type ExampleSummary struct {
 	Tags        []string `json:"tags"`
 	Operators   []string `json:"operators"`
 	Description string   `json:"description"`
+	// Intents is the example's _meta.intents (intent-taxonomy IDs);
+	// absent on the wire when the example declares none.
+	Intents []string `json:"intents,omitempty"`
 }
 
 // Example is the full record returned by Get. Body carries the request
 // JSON with the _meta block stripped, so it can be handed verbatim to
 // pulse_process / pulse_predict.
 type Example struct {
-	Name        string          `json:"name"`
-	Category    string          `json:"category"`
-	Tags        []string        `json:"tags"`
-	Operators   []string        `json:"operators"`
-	Description string          `json:"description"`
-	Body        json.RawMessage `json:"body"`
+	Name        string   `json:"name"`
+	Category    string   `json:"category"`
+	Tags        []string `json:"tags"`
+	Operators   []string `json:"operators"`
+	Description string   `json:"description"`
+	// Intents is the example's _meta.intents (intent-taxonomy IDs);
+	// absent on the wire when the example declares none.
+	Intents []string        `json:"intents,omitempty"`
+	Body    json.RawMessage `json:"body"`
 }
 
 // Meta mirrors the _meta block every example JSON carries — built-in
@@ -246,6 +252,7 @@ func Parse(data []byte, strict bool) (*Example, Meta, error) {
 		Tags:        append([]string(nil), m.Tags...),
 		Operators:   append([]string(nil), m.Operators...),
 		Description: m.Description,
+		Intents:     slices.Clone(m.Intents),
 		Body:        body,
 	}, m, nil
 }
@@ -290,6 +297,7 @@ func Get(name string) (*Example, bool) {
 	out := *ex
 	out.Tags = append([]string(nil), ex.Tags...)
 	out.Operators = append([]string(nil), ex.Operators...)
+	out.Intents = slices.Clone(ex.Intents)
 	out.Body = append(json.RawMessage(nil), ex.Body...)
 	return &out, true
 }
@@ -306,73 +314,18 @@ func All() []*Example {
 }
 
 // Search returns summaries matching all three filters. An empty filter
-// is treated as "no constraint" for that dimension.
-//
-//   - query (case-insensitive substring) matches against name, description,
-//     and every operator. Score = number of distinct matches across the
-//     three fields; ties break alphabetically by name.
-//   - tags is ANDed: an example must carry every requested tag.
-//   - category is an exact directory match.
-//
-// Returns a non-nil empty slice when nothing matches.
+// is treated as "no constraint" for that dimension. It is SearchQuery
+// over the embedded library with no synonym tables; SearchQuery
+// documents the matching rules. Never nil.
 func Search(query string, tags []string, category string) []ExampleSummary {
-	idx := loadIndex()
-	lib := make([]*Example, 0, len(idx.all))
-	for _, n := range idx.all {
-		lib = append(lib, idx.byName[n])
-	}
-	return SearchIn(lib, query, tags, category)
+	return SearchLibrary(Query{Query: query, Tags: tags, Category: category}, Options{})
 }
 
 // SearchIn is Search over lib, which must be sorted by name (the
 // no-query order and the score tie-break). An instance serving embedder
 // examples searches the merged library through it.
 func SearchIn(lib []*Example, query string, tags []string, category string) []ExampleSummary {
-	q := strings.ToLower(strings.TrimSpace(query))
-
-	type scored struct {
-		ex    *Example
-		score int
-	}
-	var hits []scored
-
-	for _, ex := range lib {
-		if category != "" && ex.Category != category {
-			continue
-		}
-		if !exampleHasAllTags(ex, tags) {
-			continue
-		}
-		score := 0
-		if q != "" {
-			score = scoreExample(ex, q)
-			if score == 0 {
-				continue
-			}
-		}
-		hits = append(hits, scored{ex: ex, score: score})
-	}
-
-	if q != "" {
-		sort.SliceStable(hits, func(i, j int) bool {
-			if hits[i].score != hits[j].score {
-				return hits[i].score > hits[j].score
-			}
-			return hits[i].ex.Name < hits[j].ex.Name
-		})
-	}
-
-	out := make([]ExampleSummary, 0, len(hits))
-	for _, h := range hits {
-		out = append(out, ExampleSummary{
-			Name:        h.ex.Name,
-			Category:    h.ex.Category,
-			Tags:        append([]string(nil), h.ex.Tags...),
-			Operators:   append([]string(nil), h.ex.Operators...),
-			Description: h.ex.Description,
-		})
-	}
-	return out
+	return SearchQuery(lib, Query{Query: query, Tags: tags, Category: category}, Options{})
 }
 
 // exampleHasAllTags returns true when ex carries every tag in want.
@@ -391,25 +344,6 @@ func exampleHasAllTags(ex *Example, want []string) bool {
 		}
 	}
 	return true
-}
-
-// scoreExample tallies how many of the (name, description, operators)
-// fields contain q. Higher = better.
-func scoreExample(ex *Example, q string) int {
-	score := 0
-	if strings.Contains(strings.ToLower(ex.Name), q) {
-		score++
-	}
-	if strings.Contains(strings.ToLower(ex.Description), q) {
-		score++
-	}
-	for _, op := range ex.Operators {
-		if strings.Contains(strings.ToLower(op), q) {
-			score++
-			break
-		}
-	}
-	return score
 }
 
 // CanonicalTags is the curated taxonomy every annotated example must

@@ -121,7 +121,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 82,
+    "error_codes_count": 83,
     "error_domains": [
       "CLI",
       "DATA",
@@ -199,6 +199,7 @@
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
       "PULSE_OVERLAY_KIND_UNKNOWN",
+      "PULSE_RECOMMEND_INTENT_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
@@ -221,11 +222,11 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped."
+        "description": "Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped."
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_inspect",
@@ -745,4 +746,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ae0789e2c8fa64ac1bba07b16533336afd792720470d70410e87b3da59977a81
+// golden-hash: 77eed0be0a339878e4b94614ee5c3cd9879133dbc9023f71e4a0c07ae5a9f35c

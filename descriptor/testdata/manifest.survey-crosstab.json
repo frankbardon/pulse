@@ -739,7 +739,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 161,
+    "error_codes_count": 162,
     "error_domains": [
       "CLI",
       "DATA",
@@ -846,6 +846,7 @@
       "PULSE_OVERLAY_REF_ZERO",
       "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
       "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT",
+      "PULSE_RECOMMEND_INTENT_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
@@ -918,11 +919,11 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process."
+        "description": "Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process."
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_facet",
@@ -2203,4 +2204,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3d3ad66053a40aeead52956080ff8bbf13dc8f14b1224394d08c89f48f1ab9d8
+// golden-hash: 4318a50bd142da64d8e9d853902aa2f6e2c9dcef4f2ab62456845d25f3c25792
