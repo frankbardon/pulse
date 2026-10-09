@@ -215,6 +215,7 @@ var (
 var (
 	purposeWinMovingAvg = descriptor.Purpose{
 		Plain:   "Adds a moving average: the mean of a field over a fixed number of neighbouring rows, smoothing short-term swings in a series.",
+		KnownAs: []string{"rolling mean", "simple moving average"},
 		Intents: []string{IntentChangeOverTime},
 		Questions: []string{
 			"What is the trailing seven-day average of daily orders?",
@@ -269,6 +270,7 @@ var (
 
 	purposeWinEWMA = descriptor.Purpose{
 		Plain:   "Adds a smoothed series: each new value counts for a fixed share w, the previous smoothed level for 1 - w, so older values fade.",
+		KnownAs: []string{"exponential smoothing", "exponentially weighted moving average"},
 		Intents: []string{IntentChangeOverTime},
 		Questions: []string{
 			"What is the underlying level of daily demand once day-to-day noise is damped?",

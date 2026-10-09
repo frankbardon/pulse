@@ -39,6 +39,7 @@ const (
 var (
 	purposeRegOLS = descriptor.Purpose{
 		Plain:   "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares.",
+		KnownAs: []string{"linear regression", "ordinary least squares", "lm"},
 		Intents: []string{IntentDrivers, IntentRelationship},
 		Questions: []string{
 			"Which of price, discount and season are associated with weekly sales, holding the others fixed?",
@@ -82,6 +83,7 @@ var (
 
 	purposeRegGLM = descriptor.Purpose{
 		Plain:   "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts.",
+		KnownAs: []string{"generalized linear model", "logistic regression", "poisson regression", "glm"},
 		Intents: []string{IntentDrivers, IntentRelationship},
 		Questions: []string{
 			"Which customer traits are associated with the chance of churning, holding the others fixed?",
@@ -123,6 +125,7 @@ var (
 
 	purposeRegBayesLinear = descriptor.Purpose{
 		Plain:   "Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval.",
+		KnownAs: []string{"bayesian linear regression"},
 		Intents: []string{IntentDrivers, IntentRelationship},
 		Questions: []string{
 			"Given the data and our prior belief, what range of values is plausible for the price coefficient?",

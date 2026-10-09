@@ -400,6 +400,8 @@ Adds to every row its z-score: how many standard deviations the row's value sits
 
 **Level:** intermediate
 
+**Also known as:** `standard score`, `standardized score`
+
 **Questions it answers:**
 
 - Which orders are unusually large compared with all orders?

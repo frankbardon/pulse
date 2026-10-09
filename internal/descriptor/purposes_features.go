@@ -127,6 +127,7 @@ var (
 var (
 	purposeFeatOneHot = descriptor.Purpose{
 		Plain:   "Turns a category field into one 0/1 column per category, so a model or a sum can treat each category as its own yes/no.",
+		KnownAs: []string{"dummy coding", "dummy variables"},
 		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"How do I feed region into a regression as separate yes/no predictors?",

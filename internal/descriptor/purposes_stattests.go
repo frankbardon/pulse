@@ -42,6 +42,7 @@ var statTestPurposes = map[string]descriptor.Purpose{
 var (
 	purposeTestT = descriptor.Purpose{
 		Plain:   "Checks whether a numeric field's average differs from a target value, or between two groups (Welch's version).",
+		KnownAs: []string{"t test", "one-sample t test"},
 		Intents: []string{IntentCompareGroups, IntentBenchmark},
 		Questions: []string{
 			"Is the average order value different from our target of 50?",
@@ -75,6 +76,7 @@ var (
 
 	purposeTestWelch = descriptor.Purpose{
 		Plain:   "Checks whether the average of a numeric field differs between two groups, without assuming they have equal spread.",
+		KnownAs: []string{"welch's t test", "unequal variances t test"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"Do customers in the two pricing arms spend different amounts on average?",
@@ -107,6 +109,7 @@ var (
 
 	purposeTestZTwoSample = descriptor.Purpose{
 		Plain:   "Large-sample check of whether two groups differ in average, with the p-value read from the normal distribution.",
+		KnownAs: []string{"two-sample z test"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"In a large survey, do the two regions differ in average score?",
@@ -137,6 +140,7 @@ var (
 
 	purposeTestPairedT = descriptor.Purpose{
 		Plain:   "Checks whether the average change between two measurements of the same rows, such as before and after, differs from zero.",
+		KnownAs: []string{"paired t test", "paired-samples t test", "dependent t test"},
 		Intents: []string{IntentCompareGroups, IntentChangeOverTime},
 		Questions: []string{
 			"On average, did customers' spend differ between the period before and after the loyalty programme started?",
@@ -167,6 +171,7 @@ var (
 
 	purposeTestAnovaF = descriptor.Purpose{
 		Plain:   "Checks whether the average of a numeric measure differs across three or more groups.",
+		KnownAs: []string{"anova", "one-way anova", "aov"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"Does average spend differ across regions?",
@@ -204,6 +209,7 @@ var (
 
 	purposeTestAnovaWelch = descriptor.Purpose{
 		Plain:   "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread.",
+		KnownAs: []string{"welch's anova", "oneway.test"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"Does average response time differ across regions whose variability is very different?",
@@ -239,6 +245,7 @@ var (
 
 	purposeTestAnovaRM = descriptor.Purpose{
 		Plain:   "Checks whether the average differs across conditions when every subject is measured under each condition.",
+		KnownAs: []string{"repeated measures anova", "within-subjects anova"},
 		Intents: []string{IntentCompareGroups, IntentChangeOverTime},
 		Questions: []string{
 			"Do the same panel members rate the three ad concepts differently on average?",
@@ -268,6 +275,7 @@ var (
 
 	purposeTestTukeyHSD = descriptor.Purpose{
 		Plain:   "After an ANOVA, compares every pair of group averages to find which ones differ, keeping the overall false-alarm rate in check.",
+		KnownAs: []string{"tukey hsd", "tukey's honest significant difference"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"Which regions differ from each other in average spend?",
@@ -298,6 +306,7 @@ var (
 
 	purposeTestBrownForsythe = descriptor.Purpose{
 		Plain:   "Checks whether the spread of a numeric field differs across groups: a robust test of equal variances.",
+		KnownAs: []string{"levene's test", "median-centred levene test"},
 		Intents: []string{IntentCompareGroups, IntentDistributionShape},
 		Questions: []string{
 			"Is delivery time more variable at some warehouses than at others?",
@@ -334,6 +343,7 @@ var (
 var (
 	purposeTestMannWhitneyU = descriptor.Purpose{
 		Plain:   "Rank-based check of whether values in one of two groups tend to be larger than in the other.",
+		KnownAs: []string{"mann-whitney", "wilcoxon rank-sum test"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"Do customers on the new plan tend to rate the service higher?",
@@ -364,6 +374,7 @@ var (
 
 	purposeTestWilcoxonSR = descriptor.Purpose{
 		Plain:   "Rank-based check of whether paired before/after values tend to shift in one direction, without assuming a bell curve.",
+		KnownAs: []string{"wilcoxon signed-rank test", "signed-rank test"},
 		Intents: []string{IntentCompareGroups, IntentChangeOverTime},
 		Questions: []string{
 			"Did each customer's rating tend to go up after the redesign?",
@@ -393,6 +404,7 @@ var (
 
 	purposeTestKruskalWallis = descriptor.Purpose{
 		Plain:   "Rank-based check of whether values tend to be larger in some groups than in others, across two or more groups.",
+		KnownAs: []string{"kruskal-wallis h test", "kruskal.test"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"Do satisfaction ratings tend to differ across the four regions?",
@@ -430,6 +442,7 @@ var (
 var (
 	purposeTestChiSq = descriptor.Purpose{
 		Plain:   "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated.",
+		KnownAs: []string{"chi square", "chi-square test", "pearson chi-square", "chisq.test"},
 		Intents: []string{IntentRelationship, IntentCompareGroups},
 		Questions: []string{
 			"Is preferred channel associated with age band?",
@@ -465,6 +478,7 @@ var (
 
 	purposeTestFisherExact = descriptor.Purpose{
 		Plain:   "Exact test of whether two yes/no fields are associated, built for small 2x2 tables.",
+		KnownAs: []string{"fisher's exact test", "fisher.test"},
 		Intents: []string{IntentRelationship, IntentCompareGroups},
 		Questions: []string{
 			"In a small pilot, did the treated group recover more often than the control group?",
@@ -494,6 +508,7 @@ var (
 
 	purposeTestPropZ = descriptor.Purpose{
 		Plain:   "Checks whether the rate of one outcome, such as conversion, differs between two groups.",
+		KnownAs: []string{"two-proportion z test", "prop.test"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"Does the new checkout convert at a different rate from the old one?",
@@ -527,6 +542,7 @@ var (
 var (
 	purposeTestPearsonR = descriptor.Purpose{
 		Plain:   "Measures how strongly two numeric fields rise and fall together along a straight line.",
+		KnownAs: []string{"pearson", "pearson correlation", "pearson's r"},
 		Intents: []string{IntentRelationship},
 		Questions: []string{
 			"Do customers who spend more also visit more often?",
@@ -564,6 +580,7 @@ var (
 
 	purposeTestSpearmanR = descriptor.Purpose{
 		Plain:   "Measures how consistently one numeric field rises (or falls) as the other rises, using ranks, so the link need not be a straight line.",
+		KnownAs: []string{"spearman", "spearman's rho", "spearman rank correlation"},
 		Intents: []string{IntentRelationship},
 		Questions: []string{
 			"Do higher-ranked products also tend to sell more, even if not in proportion?",
@@ -597,6 +614,7 @@ var (
 
 	purposeTestKendallTau = descriptor.Purpose{
 		Plain:   "Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties.",
+		KnownAs: []string{"kendall", "kendall's tau", "tau-b"},
 		Intents: []string{IntentRelationship},
 		Questions: []string{
 			"In a small panel, do judges who score one entry higher also score the other higher?",
@@ -629,6 +647,7 @@ var (
 
 	purposeTestTrend = descriptor.Purpose{
 		Plain:   "Checks whether an ordered series, such as monthly totals, tends to keep rising or keep falling.",
+		KnownAs: []string{"mann-kendall test"},
 		Intents: []string{IntentChangeOverTime},
 		Questions: []string{
 			"Is monthly churn creeping up?",
@@ -663,6 +682,7 @@ var (
 var (
 	purposeTestShapiroWilk = descriptor.Purpose{
 		Plain:   "Checks whether a numeric field looks normally distributed, overall or within each group.",
+		KnownAs: []string{"shapiro test", "shapiro.test"},
 		Intents: []string{IntentDistributionShape},
 		Questions: []string{
 			"Is response time roughly bell-shaped, or clearly skewed or heavy-tailed?",
@@ -697,6 +717,7 @@ var (
 
 	purposeTestKS = descriptor.Purpose{
 		Plain:   "Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape.",
+		KnownAs: []string{"kolmogorov-smirnov test", "ks test", "ks.test"},
 		Intents: []string{IntentDistributionShape, IntentCompareGroups},
 		Questions: []string{
 			"Do order values in the two regions have the same overall distribution?",

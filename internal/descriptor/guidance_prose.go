@@ -92,7 +92,7 @@ var proseSources = []proseSource{
 var proseIdentifierFields = map[string]bool{
 	"ID": true, "Intents": true, "Use": true, "Glossary": true,
 	"SeeAlso": true, "Forms": true, "Field": true, "Shared": true,
-	"Level": true, "Name": true, "Kinds": true,
+	"Level": true, "Name": true, "Kinds": true, "KnownAs": true,
 }
 
 // GuidanceProse returns every declared guidance prose string of at

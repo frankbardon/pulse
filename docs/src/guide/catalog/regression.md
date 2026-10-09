@@ -18,6 +18,8 @@ Fits a straight-line model of a numeric outcome under a prior, reporting each co
 
 **Level:** advanced
 
+**Also known as:** `bayesian linear regression`
+
 **Questions it answers:**
 
 - Given the data and our prior belief, what range of values is plausible for the price coefficient?
@@ -59,6 +61,8 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 
 **Level:** advanced
 
+**Also known as:** `generalized linear model`, `logistic regression`, `poisson regression`, `glm`
+
 **Questions it answers:**
 
 - Which customer traits are associated with the chance of churning, holding the others fixed?
@@ -99,6 +103,8 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares.
 
 **Level:** intermediate
+
+**Also known as:** `linear regression`, `ordinary least squares`, `lm`
 
 **Questions it answers:**
 

@@ -535,3 +535,32 @@ func TestRender_NoBarePlaceholderTags(t *testing.T) {
 		}
 	}
 }
+
+// TestRender_KnownAsListed: an operator's Purpose.KnownAs renders as an
+// "Also known as" line in its detail block, and an operator declaring
+// none renders no such line.
+func TestRender_KnownAsListed(t *testing.T) {
+	pages := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))
+	block := func(page, op string) string {
+		body := pages[page]
+		start := strings.Index(body, `<a id="op-`+strings.ToLower(op)+`"></a>`)
+		if start < 0 {
+			t.Fatalf("%s lacks %s", page, op)
+		}
+		rest := body[start+1:]
+		if end := strings.Index(rest, `<a id="`); end >= 0 {
+			rest = rest[:end]
+		}
+		return rest
+	}
+	if got := block("catalog/test.md", "TEST_ANOVA_F"); !strings.Contains(got, "**Also known as:** `anova`, `one-way anova`, `aov`") {
+		t.Errorf("TEST_ANOVA_F block lacks its aliases:\n%s", got)
+	}
+	const bare = "AGG_MEDIAN"
+	if p, _ := descx.PurposeOf(bare); len(p.KnownAs) != 0 {
+		t.Fatalf("fixture drift: %s now declares KnownAs; pick an alias-free operator", bare)
+	}
+	if got := block("catalog/aggregator.md", bare); strings.Contains(got, "Also known as") {
+		t.Errorf("%s declares no KnownAs but renders the line:\n%s", bare, got)
+	}
+}

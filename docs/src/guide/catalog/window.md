@@ -96,6 +96,8 @@ Adds a smoothed series: each new value counts for a fixed share w, the previous 
 
 **Level:** intermediate
 
+**Also known as:** `exponential smoothing`, `exponentially weighted moving average`
+
 **Questions it answers:**
 
 - What is the underlying level of daily demand once day-to-day noise is damped?
@@ -202,6 +204,8 @@ Adds to every row the value of a field from a set number of rows later in the or
 Adds a moving average: the mean of a field over a fixed number of neighbouring rows, smoothing short-term swings in a series.
 
 **Level:** basic
+
+**Also known as:** `rolling mean`, `simple moving average`
 
 **Questions it answers:**
 

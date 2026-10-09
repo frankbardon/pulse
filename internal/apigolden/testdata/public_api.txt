@@ -1586,6 +1586,7 @@ pulse/descriptor: type Purpose field Assumptions []string "json:\"assumptions,om
 pulse/descriptor: type Purpose field FollowUps []pulse/descriptor.Alternative "json:\"follow_ups,omitempty\""
 pulse/descriptor: type Purpose field Glossary []string "json:\"glossary,omitempty\""
 pulse/descriptor: type Purpose field Intents []string "json:\"intents\""
+pulse/descriptor: type Purpose field KnownAs []string "json:\"known_as,omitempty\""
 pulse/descriptor: type Purpose field Level pulse/descriptor.Level "json:\"level,omitempty\""
 pulse/descriptor: type Purpose field NotFor []pulse/descriptor.Alternative "json:\"not_for,omitempty\""
 pulse/descriptor: type Purpose field Plain string "json:\"plain\""
@@ -4487,4 +4488,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 596d10ab7e645f1b2c27d18537d9a07a9f82d5288b3252e1c3fbda0597354f02
+// golden-hash: 9b0fcf2f2bec7e4032ba147e0f8b656dfb978d3fbe9620204b6abd34dbb900be
