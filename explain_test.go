@@ -146,3 +146,49 @@ func TestExplain_FacadeProfiled(t *testing.T) {
 		t.Errorf("hidden step not flagged: %s", got)
 	}
 }
+
+// TestExplain_FacadeResponseMode: a response Process returned reads
+// into findings — named by operator with its request beside it, by
+// count only with the partial note without — and response mode opens
+// no cohort.
+func TestExplain_FacadeResponseMode(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	wideRecommendCohort(t, fsys, "wide.pulse", 20)
+	p, err := New(Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &types.Request{Cohort: &types.Cohort{Filename: "wide.pulse"}, Groups: []*types.Group{{Field: "c0"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "m0", Label: "total"}}}
+	resp, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	with, err := p.Explain(context.Background(), descriptor.ExplainRequest{Response: resp, Request: req})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if with.Mode != descriptor.ExplainModeResponse || len(with.Findings) != 1 || with.Findings[0].Operator != string(types.AGG_SUM) {
+		t.Fatalf("with request = %+v", with)
+	}
+	if n := with.Findings[0].Numbers["n"]; n == nil || *n != 20 {
+		t.Errorf("components floor n = %v", n)
+	}
+	if !strings.Contains(with.Summary, "from 20 of 20 records") {
+		t.Errorf("summary = %q", with.Summary)
+	}
+	without, err := p.Explain(context.Background(), descriptor.ExplainRequest{Response: resp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if without.Findings[0].Operator != "" || !slices.ContainsFunc(without.Caveats, func(c string) bool { return strings.HasPrefix(c, "Partial reading") }) {
+		t.Errorf("without request = %+v", without)
+	}
+	// Response mode reads no cohort: the file can be gone.
+	if err := fsys.Remove("wide.pulse"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Explain(context.Background(), descriptor.ExplainRequest{Response: resp, Request: req}); err != nil {
+		t.Errorf("response mode touched the cohort: %v", err)
+	}
+}

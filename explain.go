@@ -10,9 +10,19 @@ import (
 )
 
 // Explain says, in plain words, what a request will do — without
-// running it. req names exactly one request root (Request, Composed,
-// Chain, Facet or Sample); none or several, or a Detail other than
+// running it — or what a response found. req names exactly one request
+// root (Request, Composed, Chain, Facet or Sample), or a Response with
+// at most its Request companion; anything else, or a Detail other than
 // terse / full, is SERVICE_VALIDATION.
+//
+// Response mode reads the response into Findings — one per test,
+// regression coefficient and fit, overlay layer, matrix and
+// aggregation — each with a closed verdict read at the result's own
+// alpha (adjusted when a correction ran), a strength band only where
+// the figure's Interpretation names a convention, and the figures it
+// rests on (undefined ones null). Without the companion an aggregation
+// is described by count only and a caveat says the reading is partial.
+// Response mode opens no cohort.
 //
 // The result's Steps describe each slot from its structure and its
 // operator's plain purpose. When the root names a cohort Explain

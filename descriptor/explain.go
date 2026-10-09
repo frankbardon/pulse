@@ -29,8 +29,9 @@ const (
 	ExplainModeResponse ExplainMode = "response"
 )
 
-// ExplainRoot names which request root an Explain result describes.
-// The spellings are the request-template targets.
+// ExplainRoot names which root an Explain result describes. Request
+// mode's spellings are the request-template targets; response mode's
+// name the result type read.
 type ExplainRoot string
 
 const (
@@ -39,23 +40,34 @@ const (
 	ExplainRootChain    ExplainRoot = "chain"
 	ExplainRootFacet    ExplainRoot = "facet"
 	ExplainRootSample   ExplainRoot = "sample"
+	// ExplainRootResponse is response mode over a Process Response.
+	ExplainRootResponse ExplainRoot = "response"
 )
 
-// ExplainRequest asks Explain to describe a request in plain words.
-// Exactly one request root is set — Request, Composed, Chain, Facet or
-// Sample; none, or more than one, is SERVICE_VALIDATION. Detail is
-// terse (the default) or full; any other value is SERVICE_VALIDATION.
+// ExplainRequest asks Explain to describe a request, or read a
+// response, in plain words. Detail is terse (the default) or full; any
+// other value is SERVICE_VALIDATION.
 //
-// Request mode never runs the request. When the root names a cohort,
-// Explain predicts it — header, schema and sidecar only, never a
-// record — to name the operators smart defaults would infer and the
-// advisories the request raises.
+// Request mode: exactly one request root is set — Request, Composed,
+// Chain, Facet or Sample; none, or more than one, is
+// SERVICE_VALIDATION. Request mode never runs the request. When the
+// root names a cohort, Explain predicts it — header, schema and sidecar
+// only, never a record — to name the operators smart defaults would
+// infer and the advisories the request raises.
+//
+// Response mode: Response is set, and Request may ride beside it as
+// the request that produced it (the companion); any other request root
+// beside a response is SERVICE_VALIDATION. A response alone does not
+// say which operator produced an aggregation or which field weighted
+// it, so without the companion those are described by count only and a
+// caveat says the reading is partial. Response mode reads no cohort.
 type ExplainRequest struct {
 	Request  *types.Request         `json:"request,omitempty"`
 	Composed *types.ComposedRequest `json:"composed,omitempty"`
 	Chain    *types.ChainRequest    `json:"chain,omitempty"`
 	Facet    *types.FacetRequest    `json:"facet,omitempty"`
 	Sample   *types.SampleRequest   `json:"sample,omitempty"`
+	Response *types.Response        `json:"response,omitempty"`
 	Detail   ExplainDetail          `json:"detail,omitempty"`
 }
 
@@ -73,6 +85,14 @@ type ExplainRequest struct {
 // (details.slot names a Compose slot). Caveats say what Explain could
 // not check, which codes predict refuses with and, in full detail, the
 // assumptions the request's tests and models make.
+//
+// Response mode: Findings reads each test, post-test, regression,
+// overlay layer, matrix and aggregation the response reports, and
+// Summary counts them with the run's record counts. Valid, Steps,
+// DefaultsApplied, Advisories and Refusals stay empty. Caveats carry
+// what the reading cannot vouch for — uncorrected p-values from more
+// than one test, the alpha a regression or overlay was read at, a
+// partial reading without the request — and stay in terse output.
 //
 // Under a feature profile no hidden operator or capability is named:
 // a step naming one says the instance does not offer it, and every
@@ -136,11 +156,21 @@ func Verdicts() []Verdict {
 
 // ExplainFinding is one result a response reports, read in plain
 // terms. Subject names what was measured; Operator is the operator
-// that produced it. StrengthBand appears only when the figure's
-// Interpretation has bands, and then always with Convention, the
-// banding's source. Numbers carries the figures the verdict rests on;
-// an undefined figure is null. Multiplicity names the correction an
-// adjusted verdict used.
+// that produced it — empty when the response alone cannot say (an
+// aggregation read without its request) or the instance hides it.
+// StrengthBand appears only when the figure's Interpretation has
+// bands, and then always with Convention, the banding's source.
+// Numbers carries the figures the verdict rests on, keyed by their
+// Interpretation path where one exists ("statistic", "p_value",
+// "details.effect_size.cohens_d") and by component key otherwise
+// ("n", "n_null"); an undefined figure is null. Multiplicity names the
+// correction an adjusted verdict used.
+//
+// The verdict reads the operator's own alpha (TestResult.alpha, never
+// an assumed 0.05) and, when a correction ran, significant_adjusted
+// instead of the raw p-value. A regression and an uncorrected overlay
+// carry no alpha of their own: they are read against 0.05 and a caveat
+// says so. A result whose p-value is undefined is not_computable.
 type ExplainFinding struct {
 	Subject      string               `json:"subject"`
 	Operator     string               `json:"operator,omitempty"`

@@ -1165,6 +1165,7 @@ pulse/descriptor: type ExplainRequest field Composed *pulse/types.ComposedReques
 pulse/descriptor: type ExplainRequest field Detail pulse/descriptor.ExplainDetail "json:\"detail,omitempty\""
 pulse/descriptor: type ExplainRequest field Facet *pulse/types.FacetRequest "json:\"facet,omitempty\""
 pulse/descriptor: type ExplainRequest field Request *pulse/types.Request "json:\"request,omitempty\""
+pulse/descriptor: type ExplainRequest field Response *pulse/types.Response "json:\"response,omitempty\""
 pulse/descriptor: type ExplainRequest field Sample *pulse/types.SampleRequest "json:\"sample,omitempty\""
 pulse/descriptor: type ExplainResult struct
 pulse/descriptor: type ExplainResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
@@ -1186,6 +1187,7 @@ pulse/descriptor: const ExplainRootChain pulse/descriptor.ExplainRoot = "chain"
 pulse/descriptor: const ExplainRootComposed pulse/descriptor.ExplainRoot = "composed"
 pulse/descriptor: const ExplainRootFacet pulse/descriptor.ExplainRoot = "facet"
 pulse/descriptor: const ExplainRootRequest pulse/descriptor.ExplainRoot = "request"
+pulse/descriptor: const ExplainRootResponse pulse/descriptor.ExplainRoot = "response"
 pulse/descriptor: const ExplainRootSample pulse/descriptor.ExplainRoot = "sample"
 pulse/descriptor: type ExplainStep struct
 pulse/descriptor: type ExplainStep field Defaulted bool "json:\"defaulted,omitempty\""
@@ -4478,4 +4480,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4778d2f98c7c9033c302236e6f2452cc4609caa0038c1a0bfa46950ccd50f9f6
+// golden-hash: 32a4a08c52180d3c51107267221ad90b73eef4e1d941340bc23f85392e2123e2

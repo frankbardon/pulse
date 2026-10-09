@@ -249,3 +249,34 @@ func mustJSON(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
 }
+
+func TestBandOf(t *testing.T) {
+	d := bandedBy(ConventionCohenD, descriptor.Interpretation{Field: "details.effect_size.cohens_d"})
+	or := bandedBy(ConventionCohenOR, descriptor.Interpretation{Field: "statistic"})
+	eta := bandedBy(ConventionCohenEta2, descriptor.Interpretation{Field: "details.effect_size.eta_squared"})
+	for _, c := range []struct {
+		name string
+		in   descriptor.Interpretation
+		v    float64
+		want string
+		ok   bool
+	}{
+		{"d small", d, 0.3, "small", true},
+		{"d negative reads abs", d, -0.9, "large", true},
+		{"d lower bound inclusive", d, 0.5, "medium", true},
+		{"d very small", d, 0.05, "very small", true},
+		{"or reciprocal", or, 0.1, "large", true},
+		{"or above one", or, 2.0, "small", true},
+		{"or zero", or, 0, "", false},
+		{"eta not abs", eta, -0.2, "very small", true},
+		{"nan", d, math.NaN(), "", false},
+		{"inf", d, math.Inf(1), "", false},
+		{"no bands", descriptor.Interpretation{Field: "statistic"}, 0.5, "", false},
+		{"bands without convention", descriptor.Interpretation{Bands: d.Bands}, 0.5, "", false},
+	} {
+		got, ok := BandOf(c.in, c.v)
+		if got != c.want || ok != c.ok {
+			t.Errorf("%s: BandOf(%v) = %q, %v; want %q, %v", c.name, c.v, got, ok, c.want, c.ok)
+		}
+	}
+}

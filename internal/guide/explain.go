@@ -26,9 +26,36 @@ type Checks struct {
 }
 
 // ValidateExplainRequest checks the parts of req that need no cohort:
-// exactly one request root, and a known detail level. It returns the
-// root and the effective detail.
+// exactly one request root (request mode) or a response with at most
+// its request companion (response mode), and a known detail level. It
+// returns the root and the effective detail.
 func ValidateExplainRequest(req descriptor.ExplainRequest) (descriptor.ExplainRoot, descriptor.ExplainDetail, error) {
+	detail, err := explainDetail(req.Detail)
+	if err != nil {
+		return "", "", err
+	}
+	if req.Response != nil {
+		var extra []string
+		for _, r := range []struct {
+			set  bool
+			name descriptor.ExplainRoot
+		}{
+			{req.Composed != nil, descriptor.ExplainRootComposed},
+			{req.Chain != nil, descriptor.ExplainRootChain},
+			{req.Facet != nil, descriptor.ExplainRootFacet},
+			{req.Sample != nil, descriptor.ExplainRootSample},
+		} {
+			if r.set {
+				extra = append(extra, string(r.name))
+			}
+		}
+		if len(extra) > 0 {
+			return "", "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"explain: a response takes only the request that produced it as its companion",
+				map[string]any{"field": "request", "roots": extra, "valid": []string{string(descriptor.ExplainRootRequest)}})
+		}
+		return descriptor.ExplainRootResponse, detail, nil
+	}
 	var roots []string
 	root := descriptor.ExplainRoot("")
 	for _, r := range []struct {
@@ -52,21 +79,24 @@ func ValidateExplainRequest(req descriptor.ExplainRequest) (descriptor.ExplainRo
 	}
 	if len(roots) != 1 {
 		return "", "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"explain: set exactly one request root (request, composed, chain, facet or sample)",
+			"explain: set exactly one request root (request, composed, chain, facet or sample), or a response",
 			map[string]any{"field": "request", "roots": roots, "valid": valid})
 	}
-	detail := req.Detail
-	switch detail {
-	case "":
-		detail = descriptor.ExplainTerse
-	case descriptor.ExplainTerse, descriptor.ExplainFull:
-	default:
-		return "", "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"explain: detail must be terse or full",
-			map[string]any{"field": "detail", "detail": string(req.Detail),
-				"valid": []string{string(descriptor.ExplainTerse), string(descriptor.ExplainFull)}})
-	}
 	return root, detail, nil
+}
+
+// explainDetail resolves the detail level: empty is terse.
+func explainDetail(d descriptor.ExplainDetail) (descriptor.ExplainDetail, error) {
+	switch d {
+	case "":
+		return descriptor.ExplainTerse, nil
+	case descriptor.ExplainTerse, descriptor.ExplainFull:
+		return d, nil
+	}
+	return "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+		"explain: detail must be terse or full",
+		map[string]any{"field": "detail", "detail": string(d),
+			"valid": []string{string(descriptor.ExplainTerse), string(descriptor.ExplainFull)}})
 }
 
 // Explain describes what the request root in req will do (request
@@ -96,6 +126,9 @@ func Explain(inst *descx.InstanceSnapshot, req descriptor.ExplainRequest, checks
 		},
 	}
 	switch root {
+	case descriptor.ExplainRootResponse:
+		e.res.Mode = descriptor.ExplainModeResponse
+		e.explainResponse(req.Response, req.Request)
 	case descriptor.ExplainRootRequest:
 		err = e.explainRequest(req.Request)
 	case descriptor.ExplainRootComposed:
@@ -157,6 +190,7 @@ type explainer struct {
 	ops        []string // operators named, first seen first
 	seenOp     map[string]bool
 	inferOps   []string // operators named in an inferential role
+	notes      []string // response mode: full-detail sentences beyond the summary
 	caveats    []string
 	seenCv     map[string]bool
 	uncheckedN int // request roots that name no cohort
@@ -824,6 +858,11 @@ func (e *explainer) finish() {
 		for _, a := range e.res.Advisories {
 			if a.Message != "" {
 				e.res.Sentences = append(e.res.Sentences, a.Message)
+			}
+		}
+		for _, n := range e.notes {
+			if n = sc(n); n != "" {
+				e.res.Sentences = append(e.res.Sentences, n)
 			}
 		}
 	}
