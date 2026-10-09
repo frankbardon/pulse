@@ -600,6 +600,7 @@ pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
 pulse: type Options field ShardWorkers int
 pulse: type Options field Strict bool
+pulse: type Options field SuppressAdvisories []string
 pulse: type Options field TemplateDirs []string
 pulse: type ParamMeta struct
 pulse: type ParamMeta field Default any "json:\"default,omitempty\""
@@ -1030,6 +1031,10 @@ pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
 pulse: type WindowRegistration field Purpose *pulse/descriptor.Purpose
 pulse/descriptor: package descriptor
+pulse/descriptor: type Advisory struct
+pulse/descriptor: type Advisory field Code string "json:\"code\""
+pulse/descriptor: type Advisory field Details map[string]any "json:\"details,omitempty\""
+pulse/descriptor: type Advisory field Message string "json:\"message\""
 pulse/descriptor: type AggregationPredict struct
 pulse/descriptor: type AggregationPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type AggregationPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
@@ -1473,6 +1478,7 @@ pulse/descriptor: type Param field Required bool "json:\"required\""
 pulse/descriptor: type Param field Type string "json:\"type\""
 pulse/descriptor: const Partial pulse/types.ComponentsMergeability = "partial"
 pulse/descriptor: type PredictResult struct
+pulse/descriptor: type PredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse/descriptor: type PredictResult field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
 pulse/descriptor: type PredictResult field CrosstabFusable *bool "json:\"crosstab_fusable,omitempty\""
 pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:\"crosstab_fusion_reasons,omitempty\""
@@ -1921,6 +1927,8 @@ pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PR
 pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
 pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
 pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
+pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
+pulse/errors: const PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS pulse/errors.Code = "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS"
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_CORRUPT"
@@ -2123,6 +2131,7 @@ pulse/errors: const PULSE_SPSS_VERY_LONG_STRING_INVALID pulse/errors.Code = "PUL
 pulse/errors: const PULSE_SPSS_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SPSS_WIDTH_OVERFLOW"
 pulse/errors: const PULSE_SPSS_ZSAV_BLOCK_CORRUPT pulse/errors.Code = "PULSE_SPSS_ZSAV_BLOCK_CORRUPT"
 pulse/errors: const PULSE_SPSS_ZSAV_INVALID pulse/errors.Code = "PULSE_SPSS_ZSAV_INVALID"
+pulse/errors: const PULSE_SUPPRESS_ADVISORY_UNKNOWN pulse/errors.Code = "PULSE_SUPPRESS_ADVISORY_UNKNOWN"
 pulse/errors: const PULSE_SYNTH_ALREADY_TAGGED pulse/errors.Code = "PULSE_SYNTH_ALREADY_TAGGED"
 pulse/errors: const PULSE_SYNTH_CONSTRAINT_INFEASIBLE pulse/errors.Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 pulse/errors: const PULSE_SYNTH_DISTRIBUTION_UNKNOWN pulse/errors.Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
@@ -4370,4 +4379,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0209f0b168c1588a6c4ed6ad8f3681ffa918bfab6ce8bf4f666f647d6977c4e8
+// golden-hash: 4595c267e7f238dd9ad4ef14e2617bb93144de70143426fb2e4a7a913b82d632

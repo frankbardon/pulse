@@ -58,7 +58,7 @@ Refused `PULSE_MULTIPLICITY_INVALID`: `row` / `column` on a non-matrix kind, `co
 
 - `TEST_TUKEY_HSD` is already family-wise: an explicit non-`none` block on it is refused, an inherited one skipped, and it never joins a family.
 - Regression coefficient p-values are out of scope.
-- A p-value outside any family (no block resolved) stays raw, and predict's `p_values {total, uncorrected, basis, threshold}` counts those: `uncorrected` at or above `threshold` (10) is the cue to add a block. `basis` is `exact`, `dictionary` (assumes every dictionary entry becomes a bucket, so it may over- or under-count) or `lower_bound`.
+- A p-value outside any family (no block resolved) stays raw, and predict's `p_values {total, uncorrected, basis, threshold}` counts those: `uncorrected` at or above `threshold` (10) with no block anywhere raises the `PULSE_ADVISORY_MANY_TESTS` advisory ([`predict-advisories`](predict-advisories.md)). `basis` is `exact`, `dictionary` (assumes every dictionary entry becomes a bucket, so it may over- or under-count) or `lower_bound`.
 
 ## Choosing
 
@@ -66,4 +66,4 @@ Few planned tests, any false positive costly: `holm`. Screening many cells, tole
 
 ## See
 
-[`statistical-testing`](statistical-testing.md) · [`overlay-system`](overlay-system.md) · [`compose-requests`](compose-requests.md) · [`process-chain`](process-chain.md) · [`facet-design`](facet-design.md) · [`request-envelope`](request-envelope.md) · [`response-components`](response-components.md) · `pulse_skills_get glossary` (family-wise-error, false-discovery-rate) · `pulse_errors_lookup` for `PULSE_MULTIPLICITY_*`.
+[`statistical-testing`](statistical-testing.md) · [`predict-advisories`](predict-advisories.md) · [`overlay-system`](overlay-system.md) · [`compose-requests`](compose-requests.md) · [`process-chain`](process-chain.md) · [`facet-design`](facet-design.md) · [`request-envelope`](request-envelope.md) · [`response-components`](response-components.md) · `pulse_skills_get glossary` (family-wise-error, false-discovery-rate) · `pulse_errors_lookup` for `PULSE_MULTIPLICITY_*`.

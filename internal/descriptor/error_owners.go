@@ -160,6 +160,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: shared,
 	// Predict only: an ATTR_CODE_IN code absent from a categorical dictionary.
 	errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY: own("ATTR_CODE_IN"),
+	// Predict advisories: the two-group rule fires only on the two
+	// two-sample tests; the many-tests rule needs the p-value count,
+	// which a hidden capability:multiplicity withholds. The suppression
+	// refusal is raised by pulse.New on every instance.
+	errors.PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: own("TEST_T", "TEST_WELCH"),
+	errors.PULSE_ADVISORY_MANY_TESTS:                 own(featMultiplicity),
+	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:           shared,
 
 	// Synth (data-profile capture included).
 	errors.PULSE_SYNTH_DISTRIBUTION_UNKNOWN:    own(featSynth),

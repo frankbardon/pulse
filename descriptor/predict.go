@@ -200,12 +200,20 @@ type PredictResult struct {
 	// one per test and post-test (the Tukey HSD post-test excluded: its
 	// p-values are already corrected) plus every p-value an inferential
 	// overlay layer carries — and how many of them no multiple-comparison
-	// correction reaches. It is trigger data for suggesting a
-	// `multiplicity` block, never an advisory: compare Uncorrected with
+	// correction reaches. It is the trigger data for the
+	// PULSE_ADVISORY_MANY_TESTS advisory: compare Uncorrected with
 	// Threshold. Omitted when the request emits no p-value, when its
 	// multiplicity blocks are refused, or when the instance hides the
 	// multiple-comparison capability.
 	PValues *PValueCount `json:"p_values,omitempty"`
+
+	// Advisories lists coded, non-blocking notes that the chosen
+	// analysis may not fit the data (PULSE_ADVISORY_* codes), in rule
+	// order. Separate from the envelope's warnings: strict mode never
+	// escalates one, and none changes execution. Computed from the
+	// request, the schema and its dictionaries only. Omitted when no
+	// rule fires or every firing code is in Options.SuppressAdvisories.
+	Advisories []Advisory `json:"advisories,omitempty"`
 
 	// ResolvedVectors maps each Request.Vectors name to its resolved
 	// member list in axis order — literal `fields` entries in the

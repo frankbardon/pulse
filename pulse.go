@@ -350,6 +350,17 @@ type Options struct {
 	// falls back to that surface's default there.
 	DefaultMultiplicity *types.Multiplicity
 
+	// SuppressAdvisories lists PULSE_ADVISORY_* codes this instance's
+	// predict never reports in PredictResult.Advisories — for an
+	// embedder whose product handles that analysis-fit question itself.
+	// Advisories are coded, non-blocking notes (never warnings, never
+	// escalated by Strict, never a change to execution); suppressing one
+	// changes nothing else. Engine-level only: there is no per-request
+	// or CLI knob. New() refuses a code that is not a registered
+	// advisory code (PULSE_SUPPRESS_ADVISORY_UNKNOWN). Nil or empty
+	// suppresses nothing.
+	SuppressAdvisories []string
+
 	// Limits are the instance resource limits: request timeout, group
 	// count, crosstab cells, estimated memory, matrix dimension, Compose
 	// slots, chain stages and join build rows. A zero field uses the
@@ -628,6 +639,9 @@ func New(opts Options) (*Pulse, error) {
 	if err := descx.ValidateMultiplicitySpec(opts.DefaultMultiplicity, "Options.DefaultMultiplicity"); err != nil {
 		return nil, err
 	}
+	if err := descx.ValidateSuppressAdvisories(opts.SuppressAdvisories); err != nil {
+		return nil, err
+	}
 
 	var fsCfg *fs.Config
 
@@ -707,6 +721,9 @@ func New(opts Options) (*Pulse, error) {
 		snap = snap.WithDefaultReturn(defaultReturn)
 	}
 	snap = snap.WithLimits(effectiveLimits)
+	if len(opts.SuppressAdvisories) > 0 {
+		snap = snap.WithSuppressedAdvisories(opts.SuppressAdvisories)
+	}
 	svc.SetInstanceSnapshot(snap)
 	svc.SetLimits(effectiveLimits)
 	svc.SetShardWorkers(opts.ShardWorkers)

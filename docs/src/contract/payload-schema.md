@@ -63,6 +63,9 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   `LookupRequest` (point lookup).
 - **Results** — `#/$defs/Response`, `ComposedResponse`, `ChainResponse`,
   `FacetResult`, `LookupResult`.
+- **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
+  `advisories` (`{code, message, details}`): a coded, non-blocking note
+  that the analysis may not fit the data. Never a warning.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect

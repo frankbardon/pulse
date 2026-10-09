@@ -655,6 +655,36 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: {
+		Message: "A two-sample test splits its field by a grouping with more than two groups, but it compares exactly two; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Tests", "*", "Type"},
+				Hint:   "Use the many-group comparison named in details.suggested, or filter split_by down to the two groups you mean to compare.",
+			},
+		},
+	},
+	PULSE_ADVISORY_MANY_TESTS: {
+		Message: "The request emits many uncorrected p-values and names no multiplicity block, so some may fall below alpha by chance alone; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Multiplicity"},
+				Hint:     "Merge details.suggested into the request — a multiplicity block such as {\"method\": \"holm\"} — to add adjusted p-values beside the raw ones.",
+				Examples: []any{map[string]any{"multiplicity": map[string]any{"method": "holm"}}},
+			},
+		},
+	},
+	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
+		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Hint:   "Drop the code or correct its spelling; details.valid lists every advisory code this build registers.",
+			},
+		},
+	},
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN: {
 		Message: "A synth spec referenced a distribution kind not registered in the synth package.",
 		Fixups: []Fixup{

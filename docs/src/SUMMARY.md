@@ -227,6 +227,7 @@
     - [op-win-running-sum](guide/skills/op-win-running-sum.md)
     - [overlay-system](guide/skills/overlay-system.md)
     - [pairwise-n-sources](guide/skills/pairwise-n-sources.md)
+    - [predict-advisories](guide/skills/predict-advisories.md)
     - [process-chain](guide/skills/process-chain.md)
     - [regression-modeling](guide/skills/regression-modeling.md)
     - [request-envelope](guide/skills/request-envelope.md)

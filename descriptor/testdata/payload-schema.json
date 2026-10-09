@@ -1,6 +1,26 @@
 {
   "$comment": "feature_set_digest: fs1:4bfe9c1fbc91dda362da9bab9a4268f09d159166068c4312352dc1ff3a19d1e8",
   "$defs": {
+    "Advisory": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
     "Aggregation": {
       "additionalProperties": false,
       "properties": {
@@ -3332,6 +3352,9 @@
   "description": "JSON Schema for every public Pulse payload. Validate a request against #/$defs/Request (or ComposedRequest / ChainRequest / FacetRequest / SampleRequest); all --json output is #/$defs/Envelope. format_version 1.1.",
   "oneOf": [
     {
+      "$ref": "#/$defs/Advisory"
+    },
+    {
       "$ref": "#/$defs/ChainRequest"
     },
     {
@@ -3370,4 +3393,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 787f4109d55e6ecd5ada8baac375cc11b4e709f43145a361462cf577e60f79ce
+// golden-hash: dbdf9dcaf95ea496ebfbfe22d20bfa3eeb322d454e419cf39576352628e3c3a2

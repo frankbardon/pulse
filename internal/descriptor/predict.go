@@ -583,6 +583,12 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// runs unconditionally after every other validator.
 	result.Suggestions = computeSuggestions(req, schema, result.Streamable, opts.Extensions, opts.Instance)
 
+	// Fit-for-purpose advisories (PULSE_ADVISORY_*): coded, non-blocking,
+	// never warnings — Strict cannot escalate one — and never a change to
+	// what executes. On the defaults-resolved request over the schema it
+	// executes over; the instance drops suppressed codes.
+	result.Advisories = computeAdvisories(req, schema, multPlan, result.PValues, opts.Instance)
+
 	// If any errors were added, mark invalid.
 	if len(env.Errors) > 0 {
 		result.Valid = false

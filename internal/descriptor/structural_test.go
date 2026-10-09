@@ -22,6 +22,7 @@ func TestPredictNoExecutionImports(t *testing.T) {
 		"predict_window.go",
 		"predict_feature.go",
 		"predict_suggestions.go",
+		"predict_advisories.go",
 		"defaults.go",
 		publicDir + "predict.go",
 	}

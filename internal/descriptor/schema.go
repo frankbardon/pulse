@@ -88,6 +88,7 @@ func payloadEntries() []payloadEntry {
 		{reflect.TypeFor[types.ChainResponse](), "process-chain result", featProcessChain},
 		{reflect.TypeFor[types.FacetResult](), "facet result", featFacet},
 		{reflect.TypeFor[types.LookupResult](), "point-lookup result", featLookup},
+		{reflect.TypeFor[descriptor.Advisory](), "predict advisory (one entry of a predict result's advisories)", ""},
 		{reflect.TypeFor[descriptor.Envelope](), "universal --json output envelope (data wraps the operation result)", ""},
 	}
 }
