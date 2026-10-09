@@ -264,3 +264,20 @@ Heavy detail lives in `.claude/reference/execution-modes.md` and the named skill
 ## Labeled date ranges
 
 Relocated verbatim from CLAUDE.md (Smart defaults). `GROUP_DATE_RANGES` (explicit-only) and `FILTER_DATE_RANGES` share one compiled `{label, start, end}` model (`daterange.Compile`): inline `ranges` XOR a named `table:` (`RangeTable`). Structured ranges ride the additive `omitempty` `types.Filterer.Params` slot — `format_version` stays `"1.1"`. **Zones:** range literals are LOCAL calendar days in the slot's resolved zone (Time zones); over a `datetime` the record side is floored to its local day by `temporal.LocalDay` and matched on day numbers, so the compiled model is zone-free. A `RangeTable` is calendar-only — no table-level `tz` — and follows the referencing slot's zone exactly like inline `ranges`. Proven by `TestTimeZone_DateRangeBoundsAreLocalDays` + `TestTimeZone_DateRangesLocalDayEveryArm`. Skills: `skills/op-group-date-ranges.md`, `skills/op-filter-date-ranges.md`.
+
+## Smart defaults
+
+(Relocated from CLAUDE.md at recommend-explain E1-S1.)
+
+When a request slot names a field but omits `Type`, engine infers from schema type. Table in `internal/descriptor/defaults.go` (`defaultRules`).
+
+| Field type | Default aggregation | Default grouper |
+|---|---|---|
+| numeric (u4/u8/u16/u32/u64, f32/f64, decimal128) | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
+| categorical_* | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
+| `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
+| `datetime` | (explicit only) | `GROUP_DATE` (`"day"`) |
+| `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
+
+`Field.Nullable` never changes the inferred operator. Defaults apply only when `Field` is set and `Type` empty; never override `Type`, cross categories, or default tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
+
