@@ -4,7 +4,7 @@ slug: recommend-explain
 title: "Developers and agents can go from a question to a valid request, and from a result to plain language"
 track: Guided analysis
 size: L
-status: not-started
+status: done
 depends_on: [U09, U11, U13]
 soft_depends_on: [U18]
 blocks: [U23]
@@ -29,11 +29,11 @@ branch: recommend-explain
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#90** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) `pulse.Recommend` with bound (cohort) and unbound (cohort-free) modes; `pulse recommend`; `pulse_recommend`; `tool-recommend.md`
-- [ ] **#91** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) `pulse.Explain` request mode; terse by default, `detail: "full"` on request
-- [ ] **#92** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) `pulse.Explain` response mode; `pulse explain`; `pulse_explain`; `tool-explain.md`
-- [ ] **#93** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) Predict `advisories`, with codes and fixups
-- [ ] **#94** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) Explain goldens per operator family; Recommend goldens per intent
+- [x] **#90** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) `pulse.Recommend` with bound (cohort) and unbound (cohort-free) modes; `pulse recommend`; `pulse_recommend`; `tool-recommend.md`
+- [x] **#91** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) `pulse.Explain` request mode; terse by default, `detail: "full"` on request
+- [x] **#92** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) `pulse.Explain` response mode; `pulse explain`; `pulse_explain`; `tool-explain.md`
+- [x] **#93** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) Predict `advisories`, with codes and fixups
+- [x] **#94** (7. Guided analysis — docs, API & MCP › G4 — Recommend, Explain, advisories) Explain goldens per operator family; Recommend goldens per intent
 
 ## Scope
 
@@ -45,6 +45,7 @@ branch: recommend-explain
 
 **Out of scope**
 - Opt-in `Response.Interpretation` (stretch)
+- `PULSE_ADVISORY_COSINE_ON_SCALE`: it needs `kind: scale` vectors, which [U27](U27-vector-metrics-aggregates.md) introduces (#142); U27 owns the advisory, U29 inherits it for native vector fields
 
 ## Epics & stories
 
@@ -61,7 +62,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(recommend-explain
 - S3: CLI/MCP/skill; goldens per family
 
 ### E3 — Predict warns about poor fit
-- S1: advisories (two-group-many-groups, many-tests, categorical-as-numeric, ordinal-parametric, cosine-on-scale, weight-unused) + fixups
+- S1: advisories (two-group-many-groups, many-tests, categorical-as-numeric, ordinal-parametric, weight-unused) + fixups; cosine-on-scale moved to [U27](U27-vector-metrics-aggregates.md) (it needs `kind: scale` vectors)
 
 ## Acceptance criteria
 
@@ -98,3 +99,31 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(recommend-explain
 ## Human inputs & decisions
 
 - None.
+
+## Landed
+
+Merged without a release (rolls into v1.0.0); `format_version` stays `"1.1"`. The epics ran E1 predict advisories, E2 Recommend, E3 Explain (the planned epic order above was reshuffled at organize time). Guide: [Guided analysis](../../src/library/guided-analysis.md); contracts `.claude/reference/guided-analysis.md` (Recommend, Explain), `predict-inspect.md` (Advisories), `update-demand.md`.
+
+- **Advisories (#93).** Predict `advisories[]` with `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS`, `_MANY_TESTS`, `_CATEGORICAL_AS_NUMERIC`, `_ORDINAL_PARAMETRIC` and `_WEIGHT_AVAILABLE_UNUSED`, each with a fixup; `Options.SuppressAdvisories` (`PULSE_SUPPRESS_ADVISORY_UNKNOWN`); Facet and Compose predict carry them. Skill `predict-advisories`.
+- **Recommend (#90).** `pulse.Recommend`, `pulse recommend`, `pulse_recommend` (`capability:recommend`); `Purpose.FollowUps` and the `follow_up` ontology edge; the no-execute `internal/guide/` package (`TestGuideNoExecutionImports`). Skill `tool-recommend`.
+- **Explain (#91, #92).** `pulse.Explain`, `pulse explain`, `pulse_explain` (`capability:explain`) in request and response modes over every request and result root; verdict enum, bands naming their convention, `internal/jsonfinite` null-preserving decode, the binding `TestExplainProseLint`. Skill `tool-explain`.
+- **Goldens (#94).** `TestRecommendGolden` per intent and `TestExplainGolden` per operator family.
+
+### Decisions
+
+- Regressions and overlays with no multiplicity correction are read against alpha 0.05, and the result carries a caveat saying so.
+- Recommend ranking puts fully bound drafts above needs-drafts (the acceptance criterion and FR-13 over the literal FR-15 key order).
+- `PULSE_ADVISORY_COSINE_ON_SCALE` moved to U27 (needs `kind: scale` vectors); the theme table in [03 MCP & API](../v1.0.0-guided-analysis/03-mcp-and-api.md) is annotated.
+- Advisories ride their own slot and never enter `env.Warnings` / `env.Errors`.
+
+## Handed on
+
+| Item | Owner |
+|---|---|
+| Facet predict can only fire `MANY_TESTS` (`FacetRequest` has no test slot); the two-group advisory is proven through a Compose slot | none, by design |
+| Compose and Facet predict have no direct facade, CLI or MCP entry; their advisories are reachable through Explain and bound Recommend only | [U23](U23-guidance-mcp.md) |
+| Bound Recommend reads a shard archive whole (the archive path of `descx.Predict` does `io.ReadAll`) | [U35](U35-predict-runtime-parity.md) |
+| Serving operators never drafted by Recommend: `AGG_RATIO`, `AGG_WEIGHTED_MEAN`, `ATTR_REG_*`, `FEAT_BUCKETIZE` (predict / manifest gaps for their required params) | [U35](U35-predict-runtime-parity.md) |
+| The MCP core reflector renders `json.RawMessage` (operator params, `recommendations[].request`) as a byte array; output schemas stay unmounted and the payload schema is the fixed contract | [U23](U23-guidance-mcp.md) |
+| `PULSE_ADVISORY_COSINE_ON_SCALE` | [U27](U27-vector-metrics-aggregates.md) (U29 for native vector fields) |
+| Skill budgets at the ceiling: `weighting.md` and `session-bootstrap.md` sit at 6000 bytes, so the next addition must displace text | [U38](U38-skill-sync.md) |
