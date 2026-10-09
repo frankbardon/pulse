@@ -3,7 +3,7 @@ module github.com/frankbardon/pulse/contrib/prompulse
 go 1.26.1
 
 require (
-	github.com/frankbardon/pulse v0.0.0
+	github.com/frankbardon/pulse v1.0.0-alpha.8
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/spf13/afero v1.15.0
