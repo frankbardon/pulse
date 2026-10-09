@@ -115,7 +115,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
 | capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
-| MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request` |
+| MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
 `pulse manifest --json` lists every operator name the running build
 registers.
@@ -151,6 +151,9 @@ one name in every group must be enabled:
   host and facet overlays alike.
 - `capability:stream`, `capability:watch` and `capability:filter_to_file`
   need `capability:process`.
+- An intent prompt (`mcp_extra:prompt_<intent>`) needs every tool its
+  script calls: `capability:recommend`, `capability:explain` and
+  `capability:process` (all three; `pulse_inspect` is always mounted).
 - An overlay kind needs a host that can run it: `capability:crosstab`
   for crosstab overlays, `capability:compose` for compose and series
   overlays, `capability:process_chain` for stage overlays,
@@ -377,7 +380,8 @@ listed; the discovery tools (`pulse_inspect`, `pulse_predict`,
 `pulse_manifest`, the skills, examples and errors lookups) are always
 there. Calling a tool the profile hides fails exactly like calling one
 that does not exist. Each prompt needs its own `mcp_extra:prompt_*`
-feature. Without `mcp_extra:cohort_resources` the server skips the
+feature. A `pulse-<intent>` prompt also disappears, feature or not, when
+the profile hides every operator that answers its intent. Without `mcp_extra:cohort_resources` the server skips the
 startup walk and does not list cohorts under `resources/list`, as if
 `--no-cohort-scan` were set; every cohort stays readable by its
 `pulse://` URI.

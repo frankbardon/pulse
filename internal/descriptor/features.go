@@ -187,6 +187,20 @@ var builtinFeatures = withDependencies([]Feature{
 	mcpExtra("cohort_resources"),
 	mcpExtra("prompt_bootstrap"),
 	mcpExtra("prompt_author_request"),
+	// One prompt per analytic intent (intentRegistry order; see
+	// MCPIntentPrompts). Each depends on the tools its script calls.
+	mcpExtra("prompt_describe"),
+	mcpExtra("prompt_compare_groups"),
+	mcpExtra("prompt_relationship"),
+	mcpExtra("prompt_drivers"),
+	mcpExtra("prompt_change_over_time"),
+	mcpExtra("prompt_composition"),
+	mcpExtra("prompt_benchmark"),
+	mcpExtra("prompt_distribution_shape"),
+	mcpExtra("prompt_segment"),
+	mcpExtra("prompt_measure_construct"),
+	mcpExtra("prompt_flows"),
+	mcpExtra("prompt_data_quality"),
 
 	// Aggregators — types.AllAggregationTypes().
 	op("AGG_COUNT"),
@@ -605,6 +619,8 @@ func OverlayHostCapabilities(kind string) []string {
 //   - Process-only modes depend on Process;
 //   - overlay kinds depend on any-of the hosts whose handler map lists
 //     them;
+//   - an intent prompt depends on each feature-bound tool its script
+//     calls (intentPromptDependencies);
 //   - then a hard edge appends its any-of group.
 func withDependencies(rows []Feature) []Feature {
 	for i := range rows {
@@ -619,6 +635,8 @@ func withDependencies(rows []Feature) []Feature {
 			groups = append(groups, append([]string(nil), requestHosts...))
 		case processOnly[f.Name]:
 			groups = append(groups, []string{featProcess})
+		case isIntentPromptFeature(f.Name):
+			groups = append(groups, cloneGroups(intentPromptDependencies)...)
 		}
 		if anyOf := hardEdges[f.Name]; len(anyOf) > 0 {
 			groups = append(groups, append([]string(nil), anyOf...))
@@ -789,10 +807,75 @@ func CommandBindingOf(command string) (CommandBinding, bool) {
 }
 
 // mcpPromptFeatures binds every registered MCP prompt
-// (gosdk.RegisteredPrompts()) to its mcp_extra feature.
-var mcpPromptFeatures = map[string]string{
-	"pulse-bootstrap":      FeatureName(FeatureKindMCPExtra, "prompt_bootstrap"),
-	"pulse-author-request": FeatureName(FeatureKindMCPExtra, "prompt_author_request"),
+// (gosdk.RegisteredPrompts()) to its mcp_extra feature: the two
+// hand-written prompts plus one generated prompt per analytic intent.
+var mcpPromptFeatures = buildMCPPromptFeatures()
+
+func buildMCPPromptFeatures() map[string]string {
+	out := map[string]string{
+		"pulse-bootstrap":      FeatureName(FeatureKindMCPExtra, "prompt_bootstrap"),
+		"pulse-author-request": FeatureName(FeatureKindMCPExtra, "prompt_author_request"),
+	}
+	for _, ip := range MCPIntentPrompts() {
+		out[ip.Prompt] = ip.Feature
+	}
+	return out
+}
+
+// intentPromptDependencies is the dependency expression of every
+// intent prompt: the script calls pulse_recommend, pulse_explain and
+// pulse_process, so each owning feature is its own AND group. The
+// script's pulse_inspect and pulse_errors_lookup steps are core
+// surfaces, always mounted, so they need no edge.
+var intentPromptDependencies = [][]string{{featRecommend}, {featExplain}, {featProcess}}
+
+// MCPIntentPrompt is one generated per-intent MCP prompt: its prompt
+// name, the analytic intent it scripts, and its mcp_extra feature.
+type MCPIntentPrompt struct {
+	Prompt  string
+	Intent  string
+	Feature string
+}
+
+// IntentPromptName spells the MCP prompt of an intent:
+// `pulse-<intent-kebab>` (compare_groups → pulse-compare-groups).
+func IntentPromptName(intentID string) string {
+	return "pulse-" + strings.ReplaceAll(intentID, "_", "-")
+}
+
+// MCPIntentPrompts returns one generated prompt per ANALYTIC intent, in
+// intent-registry order. The tooling intents (prepare, simulate,
+// lookup) route to tools, never to a prompt. A prompt mounts iff its
+// feature is enabled AND its intent node survives the instance's
+// ontology prune (mcp/gosdk scope.go).
+func MCPIntentPrompts() []MCPIntentPrompt {
+	var out []MCPIntentPrompt
+	for _, in := range intentRegistry {
+		if !in.Analytic {
+			continue
+		}
+		out = append(out, MCPIntentPrompt{
+			Prompt:  IntentPromptName(in.ID),
+			Intent:  in.ID,
+			Feature: FeatureName(FeatureKindMCPExtra, "prompt_"+in.ID),
+		})
+	}
+	return out
+}
+
+// isIntentPromptFeature reports whether name is a generated intent
+// prompt's mcp_extra feature.
+func isIntentPromptFeature(name string) bool {
+	bare, ok := strings.CutPrefix(name, string(FeatureKindMCPExtra)+":prompt_")
+	if !ok {
+		return false
+	}
+	for _, in := range intentRegistry {
+		if in.Analytic && in.ID == bare {
+			return true
+		}
+	}
+	return false
 }
 
 var (

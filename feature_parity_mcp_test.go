@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
@@ -207,7 +208,16 @@ func invisibilityProfiles(t *testing.T) (map[string][]string, []string) {
 	// prompt-only profile (no request host) hides pulse_process, which
 	// both prompt bodies name.
 	inline["mcp-prompts"] = []string{"mcp_extra:prompt_bootstrap", "mcp_extra:prompt_author_request", "capability:facet"}
-	names = append(names, "mcp-hosts", "mcp-prompts")
+	// Every intent prompt enabled over the minimal operators: some
+	// intents survive the ontology prune (their prompts mount, bodies
+	// scrubbed), the rest lose every serving operator and their
+	// prompts unmount although the feature is on.
+	intentPrompts := append(append([]string(nil), minimal.Features...), "capability:recommend", "capability:explain")
+	for _, ip := range descx.MCPIntentPrompts() {
+		intentPrompts = append(intentPrompts, ip.Feature)
+	}
+	inline["mcp-intent-prompts"] = intentPrompts
+	names = append(names, "mcp-hosts", "mcp-prompts", "mcp-intent-prompts")
 	sort.Strings(names)
 	return inline, names
 }
@@ -223,7 +233,7 @@ func TestProfileInvisibilityParity(t *testing.T) {
 		// whose vacuity the harness allows by name): surfaces only.
 		var hosts []string
 		for _, n := range names {
-			if n != "mcp-prompts" {
+			if n != "mcp-prompts" && n != "mcp-intent-prompts" {
 				hosts = append(hosts, n)
 			}
 		}
@@ -250,6 +260,10 @@ type mcpHiddenNames struct {
 	tokens  map[string]bool // operators + tools: whole [A-Za-z0-9_] runs
 	prompts []string        // prompt names carry '-': matched as substrings
 	tools   []string
+	// unmounted are intent prompts whose feature is enabled but whose
+	// intent the ontology prune removed: absent from prompts/list and
+	// read like a never-registered prompt, yet not a hidden NAME.
+	unmounted []string
 }
 
 func hiddenMCPNames(t *testing.T, p *Pulse) mcpHiddenNames {
@@ -272,8 +286,18 @@ func hiddenMCPNames(t *testing.T, p *Pulse) mcpHiddenNames {
 			out.prompts = append(out.prompts, prompt)
 		}
 	}
+	g := inst.Ontology()
+	for _, ip := range descx.MCPIntentPrompts() {
+		if inst.Hidden(ip.Feature) {
+			continue
+		}
+		if _, ok := g.Node(descx.OntologyID(descriptor.OntologyNodeIntent, ip.Intent)); !ok {
+			out.unmounted = append(out.unmounted, ip.Prompt)
+		}
+	}
 	sort.Strings(out.tools)
 	sort.Strings(out.prompts)
+	sort.Strings(out.unmounted)
 	if len(out.tokens) == 0 {
 		t.Fatal("profile hides nothing: the sweep would be vacuous")
 	}
@@ -472,13 +496,15 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 		const never = "pulse_never_registered"
 		substParity(t, "tools/call", tool, never, sess.CallTool(tool, map[string]any{}), sess.CallTool(never, map[string]any{}))
 	}
-	for _, pr := range hidden.prompts {
+	for _, pr := range append(append([]string(nil), hidden.prompts...), hidden.unmounted...) {
 		const never = "pulse-never-registered"
 		substParity(t, "prompts/get", pr, never, sess.GetPrompt(pr), sess.GetPrompt(never))
 	}
 	_, fullPrompts := full.ListPrompts()
-	if got := minus(fullPrompts, prompts); strings.Join(got, ",") != strings.Join(hidden.prompts, ",") {
-		t.Errorf("prompts/list hides %v, the feature table hides %v", got, hidden.prompts)
+	wantHidden := append(append([]string(nil), hidden.prompts...), hidden.unmounted...)
+	sort.Strings(wantHidden)
+	if got := minus(fullPrompts, prompts); strings.Join(got, ",") != strings.Join(wantHidden, ",") {
+		t.Errorf("prompts/list hides %v, the feature table and ontology prune hide %v", got, wantHidden)
 	}
 
 	prunedSkills := minus(listedSkills(t, full), skillNames)

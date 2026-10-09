@@ -125,6 +125,20 @@ Resources are registered once at server start. Files added afterwards do not app
 |---|---|---|
 | `pulse-bootstrap` | none | A short instructions block telling the assistant what to call (and in what order) before authoring any request, and where the authoritative references live. Inject at session start. |
 | `pulse-author-request` | `question` | A guided tool-call sequence for translating an analytical question into a Pulse request: manifest → examples search → inspect → predict → process. |
+| `pulse-describe` | `cohort`, `measure` | The guided intent workflow for `describe` (below). |
+| `pulse-compare-groups` | `cohort`, `outcome`, `group` | The guided intent workflow for `compare_groups` (below). |
+| `pulse-relationship` | `cohort`, `measures`, `categories` | The guided intent workflow for `relationship` (below). |
+| `pulse-drivers` | `cohort`, `outcome`, `predictors` | The guided intent workflow for `drivers` (below). |
+| `pulse-change-over-time` | `cohort`, `time`, `measure` | The guided intent workflow for `change_over_time` (below). |
+| `pulse-composition` | `cohort`, `category`, `by` | The guided intent workflow for `composition` (below). |
+| `pulse-benchmark` | `cohort`, `measure`, `group` | The guided intent workflow for `benchmark` (below). |
+| `pulse-distribution-shape` | `cohort`, `measure` | The guided intent workflow for `distribution_shape` (below). |
+| `pulse-segment` | `cohort`, `measures` | The guided intent workflow for `segment` (below). |
+| `pulse-measure-construct` | `cohort`, `items` | The guided intent workflow for `measure_construct` (below). |
+| `pulse-flows` | `cohort`, `from`, `to` | The guided intent workflow for `flows` (below). |
+| `pulse-data-quality` | `cohort`, `fields` | The guided intent workflow for `data_quality` (below). |
+
+**Intent prompts.** One `pulse-<intent>` prompt per analytic intent (the twelve above; the tooling intents `prepare`, `simulate` and `lookup` route to tools and get none), generated from the intent registry. Every argument is optional: `cohort` plus one field hint per role of the intent's shapes, comma-separated field names. All share one script: `pulse_inspect` the cohort → `pulse_recommend {intent, fields}` (the role arguments become `fields` hints) → `pulse_explain` the draft request and confirm it with the user → `pulse_process` → `pulse_explain` the response. Under a feature profile each prompt is its own `mcp_extra:prompt_<intent>` feature (it needs `capability:recommend`, `capability:explain` and `capability:process`), and it is not mounted when every operator serving its intent is hidden.
 
 Hosts that surface prompts as slash commands let users trigger these directly.
 

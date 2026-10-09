@@ -13,11 +13,11 @@ Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` | once per session | operator catalogs (each entry's `intents` = the question kinds it answers), field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version (the top-level version field; CLI `pulse version --json`) |
+| 1 | `pulse_manifest` | once per session | operator catalogs (each entry's `intents` = the question kinds it answers), field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict`<!-- feature: capability:process --> / `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet`<!-- /feature -->, constraining them to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category`<!-- feature: capability:recommend -->; or `pulse_recommend` by `intents` ID<!-- /feature --> |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
-| 5 | `pulse_skills_get` | on demand | shape, gotchas, contract. Runnable JSON comes from examples, NOT skills. Cold start ⇒ `docs/src/getting-started/`, else derive via `session-skill-routing` |
+| 5 | `pulse_skills_get` | on demand | shape, gotchas, contract; pick via `session-skill-routing`. Runnable JSON comes from examples, NOT skills |
 | 6 | `pulse_predict` | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
 | 7 | the execute tool the manifest's `mcp_tools` lists for the operation —<!-- feature: capability:process --> `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:process_chain --> / `pulse_process_chain`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet` / `pulse_facet_schema`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:lookup --> / `pulse_lookup`<!-- /feature --> | execute | `{format_version, data, errors, warnings}` + additive `data.components`; `format_version` is `"1.1"`<!-- feature: capability:explain -->; read via `pulse_explain`<!-- /feature --> |
 | 8 | `pulse_errors_lookup` | per unique `code` | canonical `message` + structured `fixups[]`. Authoritative — never paraphrase from memory |
@@ -38,7 +38,11 @@ Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-
 
 ## Authoring layers
 
-Manifest = the contract (operator names, parameter shapes, streamable hints, error codes). `pulse_inspect` = field names + values. `pulse_examples_*` = runnable JSON. Skills = gotchas, slot-key naming, rationale. `pulse_errors_lookup` = per-code prose.
+Manifest = the contract. `pulse_inspect` = field names + values. `pulse_examples_*` = runnable JSON. Skills = gotchas, slot-key naming, rationale. `pulse_errors_lookup` = per-code prose. Prompts:
+
+- <!-- feature: mcp_extra:prompt_bootstrap -->`pulse-bootstrap`: this order.<!-- /feature -->
+- <!-- feature: mcp_extra:prompt_author_request -->`pulse-author-request`: question → request.<!-- /feature -->
+- <!-- feature: capability:recommend, capability:explain, capability:process -->`pulse-<intent>` (per analytic intent): inspect, recommend, confirm, process, explain.<!-- /feature -->
 
 ## On failure
 

@@ -44,14 +44,16 @@ func TestSkillsCoverAllCrossReferences(t *testing.T) {
 // listed here, so admitting a new non-skill token is a deliberate one-line act
 // rather than a silent hole.
 var nonSkillKebabTokens = map[string]string{
-	"n-1":                 "statistics: the sample-variance denominator",
-	"1e-6":                "float tolerance literal",
-	"expr-lang":           "the github.com/expr-lang/expr dependency",
-	"windows-1252":        "a charset name (SPSS charset folding)",
-	"time-series":         "an examples/ taxonomy tag",
-	"tier-1-test":         "an examples/ taxonomy tag",
-	"experiment-analysis": "an examples/ taxonomy tag",
-	"from-schema":         "a CLI subcommand leaf (`pulse synth from-schema`)",
+	"n-1":                  "statistics: the sample-variance denominator",
+	"1e-6":                 "float tolerance literal",
+	"expr-lang":            "the github.com/expr-lang/expr dependency",
+	"windows-1252":         "a charset name (SPSS charset folding)",
+	"time-series":          "an examples/ taxonomy tag",
+	"tier-1-test":          "an examples/ taxonomy tag",
+	"experiment-analysis":  "an examples/ taxonomy tag",
+	"from-schema":          "a CLI subcommand leaf (`pulse synth from-schema`)",
+	"pulse-bootstrap":      "an MCP prompt name (mcp/gosdk RegisteredPrompts)",
+	"pulse-author-request": "an MCP prompt name (mcp/gosdk RegisteredPrompts)",
 }
 
 var (
