@@ -676,6 +676,36 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC: {
+		Message: "A mean-family aggregator or parametric test treats a field as a quantity, but the cohort's SPSS metadata records it as nominal, so its codes are labels; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Hint:   "Count the codes instead — use the operator named in details.suggested, or group by the field — unless the codes really are quantities and the SPSS measure level is out of date.",
+			},
+		},
+	},
+	PULSE_ADVISORY_ORDINAL_PARAMETRIC: {
+		Message: "A parametric test treats a field as evenly spaced, but the cohort's SPSS metadata records it as ordinal, so its levels are ordered without a known spacing; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Tests", "*", "Type"},
+				Hint:   "Use the rank-based test named in details.suggested, which reads only the order of the levels.",
+			},
+		},
+	},
+	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: {
+		Message: "The cohort's SPSS metadata records a weighting variable, but no slot resolves a weight, so every row counts once; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Weight"},
+				Hint:     "Merge details.suggested into the request — a weight block naming the SPSS weighting variable — to weight every weight-aware slot; leave it out when unweighted figures are what you want.",
+				Examples: []any{map[string]any{"weight": map[string]any{"field": "WT"}}},
+			},
+		},
+	},
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
 		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
 		Fixups: []Fixup{

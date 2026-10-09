@@ -357,6 +357,24 @@ const (
 	// is the request patch {"multiplicity":{"method":"holm"}}.
 	PULSE_ADVISORY_MANY_TESTS Code = "PULSE_ADVISORY_MANY_TESTS"
 
+	// PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC is a predict advisory: a
+	// numeric field the cohort's SPSS metadata sidecar records at the
+	// nominal measure level feeds a mean-family aggregator or a
+	// parametric test, which treat its codes as quantities.
+	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
+
+	// PULSE_ADVISORY_ORDINAL_PARAMETRIC is a predict advisory: a
+	// parametric test runs on a field the cohort's SPSS metadata sidecar
+	// records at the ordinal measure level. details.suggested names a
+	// rank-based alternative from the test's Purpose.NotFor.
+	PULSE_ADVISORY_ORDINAL_PARAMETRIC Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
+
+	// PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED is a predict advisory: the
+	// cohort's SPSS metadata sidecar records a weighting variable
+	// (PredictResult.SuggestedWeight) and no slot resolves a weight.
+	// details.suggested is the request patch {"weight":{"field":...}}.
+	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED Code = "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -2966,6 +2984,9 @@ var allCodes = []Code{
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY,
 	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS,
 	PULSE_ADVISORY_MANY_TESTS,
+	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC,
+	PULSE_ADVISORY_ORDINAL_PARAMETRIC,
+	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE,

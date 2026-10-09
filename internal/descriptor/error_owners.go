@@ -166,7 +166,14 @@ var errorOwners = map[errors.Code][]string{
 	// refusal is raised by pulse.New on every instance.
 	errors.PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: own("TEST_T", "TEST_WELCH"),
 	errors.PULSE_ADVISORY_MANY_TESTS:                 own(featMultiplicity),
-	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:           shared,
+	// The SPSS-sidecar measure-level rules fire only on the operators
+	// that treat a field as a quantity (mean-family aggregators,
+	// parametric tests); the weight rule wraps suggested_weight, which a
+	// hidden capability:weighting withholds.
+	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC:  own(advisoryQuantityOperators()...),
+	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
+	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
+	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:        shared,
 
 	// Synth (data-profile capture included).
 	errors.PULSE_SYNTH_DISTRIBUTION_UNKNOWN:    own(featSynth),

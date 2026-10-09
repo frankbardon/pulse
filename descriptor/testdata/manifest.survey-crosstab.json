@@ -739,7 +739,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 159,
+    "error_codes_count": 161,
     "error_domains": [
       "CLI",
       "DATA",
@@ -767,6 +767,8 @@
       "PROCESSING_INTERNAL",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
+      "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
+      "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
@@ -1393,7 +1395,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "regression-modeling",
@@ -2201,4 +2203,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5f80eb31fc218453fa4d0d304ca7b4e44df83d26db7df6a94105a65f5ba4cd13
+// golden-hash: 3d3ad66053a40aeead52956080ff8bbf13dc8f14b1224394d08c89f48f1ab9d8

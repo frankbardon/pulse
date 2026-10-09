@@ -22,7 +22,7 @@ Document `{format_version, kind, fingerprint, payload}`; `payload` flat and self
 
 ### Reading it back — and why absent and stale are not the same answer
 
-`LoadSidecar(fs, cohort, opts)` (`internal/io/spss`) — read path and the write side's first act (`pulse export spss` reaches it for you; no leaf reads the sidecar alone). Inspect and predict read it too, only for `payload.weight` → `suggested_weight` (`tool-inspect`): every refusal below is SILENT there — no suggestion, no warning. Returns a `SidecarResolution`; `resolution.Synthesise()` is the single question — *must I build a default dictionary from the `.pulse` schema alone?*
+`LoadSidecar(fs, cohort, opts)` (`internal/io/spss`) — read path and the write side's first act (`pulse export spss` reaches it for you; no leaf reads the sidecar alone). Inspect and predict read it too, only for `payload.weight` → `suggested_weight` (`tool-inspect`) and, in predict, the measure levels behind the `predict-advisories` sidecar codes: every refusal below is SILENT there — no suggestion, no advisory, no warning. Returns a `SidecarResolution`; `resolution.Synthesise()` is the single question — *must I build a default dictionary from the `.pulse` schema alone?*
 
 | State | Verdict | Code | Then |
 |---|---|---|---|

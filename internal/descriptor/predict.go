@@ -186,6 +186,12 @@ type PredictOptions struct {
 	// resolves a weight — it is never applied.
 	SuggestedWeightVariable string
 
+	// SidecarMeasureLevels maps a field name to the SPSS measure level
+	// ("nominal", "ordinal", "scale", "unset") the cohort's SPSS metadata
+	// sidecar records; the facade reads it (nil when there is no usable
+	// sidecar). It feeds the measure-level advisories and nothing else.
+	SidecarMeasureLevels map[string]string
+
 	// DisableCrosstabFusion is pulse.Options.DisableCrosstabFusion. When
 	// set, PredictResult.CrosstabFusable answers false with
 	// CrosstabFusionDisabledReason for every crosstab request, as the
@@ -587,7 +593,16 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// never warnings — Strict cannot escalate one — and never a change to
 	// what executes. On the defaults-resolved request over the schema it
 	// executes over; the instance drops suppressed codes.
-	result.Advisories = computeAdvisories(req, schema, multPlan, result.PValues, opts.Instance)
+	result.Advisories = computeAdvisories(advisoryInput{
+		req:             req,
+		schema:          schema,
+		cohortSchema:    cohortSchema,
+		plan:            multPlan,
+		pv:              result.PValues,
+		suggestedWeight: result.SuggestedWeight,
+		measures:        opts.SidecarMeasureLevels,
+		inst:            opts.Instance,
+	})
 
 	// If any errors were added, mark invalid.
 	if len(env.Errors) > 0 {

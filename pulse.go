@@ -1489,6 +1489,7 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		data = shardBytes
 	}
 
+	sidecar := p.sidecarFacts(path)
 	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
 		Extensions:            p.svc.ExtensionsSnapshot(),
 		Instance:              p.svc.InstanceSnapshot(),
@@ -1501,8 +1502,10 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		SchemaLoader:          p.predictSchemaLoader(ctx),
 		RecordCounter:         p.predictRecordCounter(ctx),
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
-		// Echoed (never applied) when no weight resolves.
-		SuggestedWeightVariable: p.sidecarWeightVariable(path),
+		// Echoed (never applied) when no weight resolves; measure levels
+		// feed the measure-level advisories only.
+		SuggestedWeightVariable: sidecar.weightVariable,
+		SidecarMeasureLevels:    sidecar.measures,
 	})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.

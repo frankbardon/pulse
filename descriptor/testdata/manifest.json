@@ -6383,7 +6383,7 @@
         ]
       }
     ],
-    "error_codes_count": 289,
+    "error_codes_count": 292,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6418,8 +6418,11 @@
       "PROCESSING_REGRESSION_SINGULAR_GRAM",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
+      "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
       "PULSE_ADVISORY_MANY_TESTS",
+      "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS",
+      "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
@@ -8696,7 +8699,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "process-chain",
@@ -12371,4 +12374,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d918d1375aaabcacab84e0cb2671eb062d51b1c40fdb442dcd4f6d8861c9bc22
+// golden-hash: 82b7817267521506dd2974723a255eb2f9fec7e06efd57ee92160d24545b5568

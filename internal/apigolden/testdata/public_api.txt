@@ -1927,8 +1927,11 @@ pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PR
 pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
 pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
 pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
+pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
+pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
 pulse/errors: const PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS pulse/errors.Code = "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS"
+pulse/errors: const PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED pulse/errors.Code = "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED"
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_CORRUPT"
@@ -4379,4 +4382,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4595c267e7f238dd9ad4ef14e2617bb93144de70143426fb2e4a7a913b82d632
+// golden-hash: 024f6c670f6816a42f75a90637988918efff5644726200df2d3aa211b0b0de00
