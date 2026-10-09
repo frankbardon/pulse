@@ -48,6 +48,21 @@ pulse: type BuildIndexResult underlying struct
 pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
 pulse: type BuildIndexResult field IndexPath string
 pulse: type BuildIndexResult field ManifestPath string
+pulse: type ChainOverlaySchemaDivergence = pulse/internal/descriptor.ChainOverlaySchemaDivergence
+pulse: type ChainOverlaySchemaDivergence underlying struct
+pulse: type ChainOverlaySchemaDivergence field Index int "json:\"index\""
+pulse: type ChainOverlaySchemaDivergence field Kind pulse/types.OverlayKind "json:\"kind\""
+pulse: type ChainOverlaySchemaDivergence field RefIndex int "json:\"ref_index\""
+pulse: type ChainOverlaySchemaDivergence field RefShape pulse/types.OverlayShape "json:\"ref_shape\""
+pulse: type ChainOverlaySchemaDivergence field TargetIndex int "json:\"target_index\""
+pulse: type ChainOverlaySchemaDivergence field TargetShape pulse/types.OverlayShape "json:\"target_shape\""
+pulse: type ChainPredictResult = pulse/internal/descriptor.ChainValidationResult
+pulse: type ChainPredictResult underlying struct
+pulse: type ChainPredictResult field OverlaysSchemaDivergence []pulse/internal/descriptor.ChainOverlaySchemaDivergence "json:\"overlays_schema_divergence,omitempty\""
+pulse: type ChainPredictResult field Request *pulse/types.ChainRequest "json:\"request\""
+pulse: type ChainPredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
+pulse: type ChainPredictResult field StageSchemas [][]string "json:\"stage_schemas,omitempty\""
+pulse: type ChainPredictResult field Valid bool "json:\"valid\""
 pulse: type ChainRequest = pulse/types.ChainRequest
 pulse: type ChainRequest underlying struct
 pulse: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\""
@@ -123,6 +138,14 @@ pulse: type ComposeOptions underlying struct
 pulse: type ComposeOptions field FailFast bool
 pulse: type ComposeOptions field MaxWorkers int
 pulse: type ComposeOptions field PerRequestTimeout time.Duration
+pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationResult
+pulse: type ComposePredictResult underlying struct
+pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
+pulse: type ComposePredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
+pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
+pulse: type ComposePredictResult field Request *pulse/types.ComposedRequest "json:\"request\""
+pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
@@ -280,6 +303,15 @@ pulse: type FacetNumeric field Min float64 "json:\"min\""
 pulse: type FacetNumeric field Percentiles map[string]float64 "json:\"percentiles,omitempty\""
 pulse: type FacetNumeric field StdDev float64 "json:\"stddev\""
 pulse: type FacetNumeric field Sum float64 "json:\"sum\""
+pulse: type FacetPredictResult = pulse/internal/descriptor.FacetValidationResult
+pulse: type FacetPredictResult underlying struct
+pulse: type FacetPredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type FacetPredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
+pulse: type FacetPredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
+pulse: type FacetPredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
+pulse: type FacetPredictResult field Request *pulse/types.FacetRequest "json:\"request\""
+pulse: type FacetPredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
+pulse: type FacetPredictResult field Valid bool "json:\"valid\""
 pulse: type FacetRequest = pulse/types.FacetRequest
 pulse: type FacetRequest underlying struct
 pulse: type FacetRequest field AdditiveFields []string "json:\"additive_fields,omitempty\""
@@ -701,6 +733,9 @@ pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse
 pulse: type Pulse method (*Pulse) PayloadSchema() ([]byte, error)
 pulse: type Pulse method (*Pulse) Predict(ctx context.Context, req *pulse.Request) (*pulse/descriptor.PredictResult, error)
 pulse: type Pulse method (*Pulse) PredictBytes(ctx context.Context, data []byte, req *pulse.Request) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictChain(ctx context.Context, req *pulse.ChainRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictCompose(ctx context.Context, req *pulse.ComposedRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictFacet(ctx context.Context, req *pulse.FacetRequest) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Request) (*pulse.Response, error)
 pulse: type Pulse method (*Pulse) ProcessChain(ctx context.Context, req *pulse.ChainRequest) (*pulse.ChainResponse, error)
 pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.Request) (pulse.RowIter, error)
@@ -4505,4 +4540,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e9afe8dea7ccca8d2287908658bfd0305f0540f53fcd460bc5db24e58e1e88c4
+// golden-hash: bd768a506f569a7c0f5c20b1e95f2e156b62b7e288aeb519113c91d485f317b1

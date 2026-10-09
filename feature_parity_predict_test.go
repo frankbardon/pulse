@@ -62,6 +62,87 @@ var predictParityEntryPoints = []parityEntryPoint{
 		env, err := h.p.PredictBytes(context.Background(), data, req)
 		return parityOutcome(env, err), true
 	}},
+	{name: "PredictCompose", neverOK: predictNoErrorChannel, vacuousOK: predictComposeSlotVacuous, run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
+		req, ok := h.request(c, op)
+		if !ok {
+			return nil, false
+		}
+		env, err := h.p.PredictCompose(context.Background(), &ComposedRequest{Requests: []*Request{req}})
+		return parityOutcome(env, err), true
+	}},
+	{name: "PredictChain/stage0", neverOK: predictNoErrorChannel, vacuousOK: chainVacuous, run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
+		req, ok := h.request(c, op)
+		if !ok {
+			return nil, false
+		}
+		env, err := h.p.PredictChain(context.Background(), &ChainRequest{
+			Cohort: &types.Cohort{Filename: h.cohort},
+			Stages: []*types.ChainStage{{Name: "probe", Request: req}},
+		})
+		return parityOutcome(env, err), true
+	}},
+	{name: "PredictFacet", neverOK: predictNoErrorChannel, vacuousOK: predictFacetVacuous, run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
+		if c.facet == nil {
+			return nil, false
+		}
+		req := &types.FacetRequest{Cohort: &types.Cohort{Filename: h.cohort}, Fields: []string{h.fields.num}}
+		c.facet(req, op, h.fields)
+		env, err := h.p.PredictFacet(context.Background(), req)
+		return parityOutcome(env, err), true
+	}},
+	{name: "PredictCompose/overlays", neverOK: predictNoErrorChannel, run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
+		req, ok := composeOverlayRequest(h, c, op)
+		if !ok {
+			return nil, false
+		}
+		env, err := h.p.PredictCompose(context.Background(), req)
+		return parityOutcome(env, err), true
+	}},
+	{name: "PredictChain/overlays", neverOK: predictNoErrorChannel, run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
+		if c.chain == nil || h.chainBase == nil {
+			return nil, false
+		}
+		req := &ChainRequest{
+			Cohort: &types.Cohort{Filename: h.cohort},
+			Stages: []*types.ChainStage{{Name: "base", Request: h.chainBase()}},
+		}
+		c.chain(req, op, h.fields)
+		env, err := h.p.PredictChain(context.Background(), req)
+		return parityOutcome(env, err), true
+	}},
+}
+
+// composeSlotUnjudged is why a Compose slot's operator name never
+// reaches PredictCompose: the Compose validator runs each slot's
+// runtime-ENTRY checks (join count, matrix host, return, zones, field
+// references, weights) and judges no slot operator by name, so a
+// visible, hidden and never-registered name predict alike. The batch
+// overlays it does judge are probed by PredictCompose/overlays.
+const composeSlotUnjudged = "the Compose validator judges no slot operator by name, only the slot's runtime-entry checks"
+
+// predictComposeSlotVacuous marks every Request-slot category vacuous
+// at PredictCompose (composeSlotUnjudged).
+var predictComposeSlotVacuous = map[string]string{
+	"aggregator": composeSlotUnjudged, "grouper": composeSlotUnjudged, "filterer": composeSlotUnjudged,
+	"attribute": composeSlotUnjudged, "window": composeSlotUnjudged, "feature": composeSlotUnjudged,
+	"row_test": composeSlotUnjudged, "post_test": composeSlotUnjudged, "regression": composeSlotUnjudged,
+	"crosstab_axis": composeSlotUnjudged, "crosstab_cell": composeSlotUnjudged,
+	"overlay_crosstab": composeSlotUnjudged, "overlay_formula": composeSlotUnjudged, "overlay_series": composeSlotUnjudged,
+	// TestHiddenOperatorMalformedParity's categories.
+	"param_fields_wrong_type": composeSlotUnjudged, "crosstab_formula_attribute": composeSlotUnjudged,
+	"crosstab_expression_filter": composeSlotUnjudged, "strict_numeric_on_categorical": composeSlotUnjudged,
+	"strict_numeric_cell_on_categorical": composeSlotUnjudged, "decimal_aggregator": composeSlotUnjudged,
+	"decimal_cell": composeSlotUnjudged,
+	// TestHiddenNamedTableParity's categories.
+	"label_table": composeSlotUnjudged, "range_table_grouper": composeSlotUnjudged, "range_table_filter": composeSlotUnjudged,
+}
+
+// predictFacetVacuous: the facet validator reads a filterer's type only
+// for the FILTER_EXPRESSION additive-fields rule, so any other filterer
+// name predicts alike visible, hidden or never-registered.
+var predictFacetVacuous = map[string]string{
+	"filterer":           "the facet validator judges a filterer by name only for the FILTER_EXPRESSION additive-fields rule",
+	"range_table_filter": "predict does not resolve a range table name",
 }
 
 // TestHiddenOperatorSharedRuleParity: the rules predict and the runtime

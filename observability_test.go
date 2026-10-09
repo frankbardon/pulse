@@ -161,6 +161,19 @@ func obsCalls() []obsCall {
 			_, err := p.PredictBytes(ctx, []byte("x"), obsRequest())
 			return err
 		}},
+		{"PredictCompose", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			_, err := p.PredictCompose(ctx, &ComposedRequest{Requests: []*Request{obsRequest()}})
+			return err
+		}},
+		{"PredictFacet", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			_, err := p.PredictFacet(ctx, &FacetRequest{Cohort: &types.Cohort{Filename: obsCohort}, Fields: []string{"region"}})
+			return err
+		}},
+		{"PredictChain", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			r := obsRequest()
+			_, err := p.PredictChain(ctx, &ChainRequest{Cohort: r.Cohort, Stages: []*ChainStage{{Request: r}}})
+			return err
+		}},
 		{"Manifest", observe.OpManifest, func(ctx context.Context, p *Pulse) error { p.Manifest(ctx); return nil }},
 		{"ManifestForIntent", observe.OpManifest, func(ctx context.Context, p *Pulse) error {
 			_, err := p.ManifestForIntent(ctx, "compare_groups")
