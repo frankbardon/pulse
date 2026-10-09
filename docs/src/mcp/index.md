@@ -101,6 +101,7 @@ The core tools below are registered at server start (the manifest's `mcp_tools` 
 | `pulse_import` | Convert a tabular source (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed `.pulse` handle under `internal/imports/`, with TTL-tracked sidecar. Pulse-format inputs pass through. |
 | `pulse_dedup` | Deduplicate an existing single-file cohort into parent groups (format 0x02), in place or to `out`; `suggest_groups` alone is read-only candidate detection. |
 | `pulse_recommend` | Turn a question kind (an intent ID) into ranked draft requests: `<placeholder>` skeletons without `cohort`, drafts bound to the cohort's fields and predict-validated with it. Non-analytic intents return `routes_to` instead. |
+| `pulse_explain` | Say in plain words what a request will do (never run; predict-checked when it names a cohort) or what a result found: `findings` with closed verdicts read at the result's own alpha, strength bands with their convention, and `caveats`. Pass a result exactly as returned, with its request beside it. |
 | `pulse_drop` | Delete a managed-import handle and its sidecar. |
 | `pulse_imports_list` | Enumerate managed handles with sidecar metadata (source, format, imported_at, expires_at, ttl, expired flag, pinned flag). |
 | `pulse_examples_search` | Search the embedded request-example library by query, taxonomy tags (ANDed), or category. |

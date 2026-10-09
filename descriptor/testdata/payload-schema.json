@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:88bdb5525267b1a4d2a2266e7c20e3f8da36a6cab57754feff6c6b43482e7de1",
+  "$comment": "feature_set_digest: fs1:926cec271192eeaa99d00f7135f66d69d2dc81054b771a0f2983002311b8691e",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -780,6 +780,40 @@
       ],
       "type": "object"
     },
+    "DefaultApplied": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "field",
+        "path",
+        "reason",
+        "type"
+      ],
+      "type": "object"
+    },
     "Envelope": {
       "additionalProperties": false,
       "properties": {
@@ -832,6 +866,271 @@
       "required": [
         "code",
         "message"
+      ],
+      "type": "object"
+    },
+    "ExplainDetail": {
+      "enum": [
+        "full",
+        "terse"
+      ],
+      "type": "string"
+    },
+    "ExplainFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "convention": {
+          "type": "string"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/ExplainMultiplicity"
+        },
+        "numbers": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "slot": {
+          "type": "string"
+        },
+        "strength_band": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        }
+      },
+      "required": [
+        "numbers",
+        "subject",
+        "verdict"
+      ],
+      "type": "object"
+    },
+    "ExplainMode": {
+      "enum": [
+        "request",
+        "response"
+      ],
+      "type": "string"
+    },
+    "ExplainMultiplicity": {
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "type": "string"
+        },
+        "m": {
+          "type": "integer"
+        },
+        "method": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "family",
+        "m",
+        "method"
+      ],
+      "type": "object"
+    },
+    "ExplainRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "chain": {
+          "$ref": "#/$defs/ChainRequest"
+        },
+        "chain_response": {
+          "$ref": "#/$defs/ChainResponse"
+        },
+        "composed": {
+          "$ref": "#/$defs/ComposedRequest"
+        },
+        "composed_response": {
+          "$ref": "#/$defs/ComposedResponse"
+        },
+        "detail": {
+          "$ref": "#/$defs/ExplainDetail"
+        },
+        "facet": {
+          "$ref": "#/$defs/FacetRequest"
+        },
+        "facet_result": {
+          "$ref": "#/$defs/FacetResult"
+        },
+        "request": {
+          "$ref": "#/$defs/Request"
+        },
+        "response": {
+          "$ref": "#/$defs/Response"
+        },
+        "sample": {
+          "$ref": "#/$defs/SampleRequest"
+        }
+      },
+      "type": "object"
+    },
+    "ExplainResult": {
+      "additionalProperties": false,
+      "properties": {
+        "advisories": {
+          "items": {
+            "$ref": "#/$defs/Advisory"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "caveats": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "defaults_applied": {
+          "items": {
+            "$ref": "#/$defs/DefaultApplied"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "detail": {
+          "$ref": "#/$defs/ExplainDetail"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/ExplainFinding"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "follow_ups": {
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "glossary_refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "mode": {
+          "$ref": "#/$defs/ExplainMode"
+        },
+        "refusals": {
+          "items": {
+            "$ref": "#/$defs/EnvelopeEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "root": {
+          "$ref": "#/$defs/ExplainRoot"
+        },
+        "sentences": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ExplainStep"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "detail",
+        "findings",
+        "mode",
+        "root",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "ExplainRoot": {
+      "enum": [
+        "chain",
+        "chain_response",
+        "composed",
+        "composed_response",
+        "facet",
+        "facet_result",
+        "request",
+        "response",
+        "sample"
+      ],
+      "type": "string"
+    },
+    "ExplainStep": {
+      "additionalProperties": false,
+      "properties": {
+        "defaulted": {
+          "type": "boolean"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "operator": {
+          "type": "string"
+        },
+        "slot": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "slot",
+        "text"
       ],
       "type": "object"
     },
@@ -3511,6 +3810,19 @@
       ],
       "type": "object"
     },
+    "Verdict": {
+      "enum": [
+        "descriptive",
+        "evidence_of_association",
+        "evidence_of_difference",
+        "evidence_of_effect",
+        "no_evidence_of_association",
+        "no_evidence_of_difference",
+        "no_evidence_of_effect",
+        "not_computable"
+      ],
+      "type": "string"
+    },
     "WeightSpec": {
       "additionalProperties": false,
       "properties": {
@@ -3609,6 +3921,12 @@
       "$ref": "#/$defs/Envelope"
     },
     {
+      "$ref": "#/$defs/ExplainRequest"
+    },
+    {
+      "$ref": "#/$defs/ExplainResult"
+    },
+    {
       "$ref": "#/$defs/FacetRequest"
     },
     {
@@ -3638,4 +3956,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 203f783e00c3fcc6986dda0ad9a20d4bf17c98215b501e86110a8d3e12813ff7
+// golden-hash: 7275019e95c614377fb34c3ddff20a1ff592df513798a77135d24ea95490d0c6

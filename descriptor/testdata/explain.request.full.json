@@ -1,0 +1,119 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "request",
+    "root": "request",
+    "detail": "full",
+    "summary": "This request reads `recommend.pulse` and runs 1 grouping, 2 aggregations and 1 test.",
+    "valid": true,
+    "steps": [
+      {
+        "slot": "groups[0]",
+        "operator": "GROUP_CATEGORY",
+        "fields": [
+          "region"
+        ],
+        "defaulted": true,
+        "text": "Grouping 1 runs GROUP_CATEGORY on `region`. GROUP_CATEGORY is inferred for `region` from its type. Splits the rows into one group per distinct value of a field, such as one group per region or per answer option."
+      },
+      {
+        "slot": "aggregations[0]",
+        "operator": "AGG_SUM",
+        "fields": [
+          "revenue"
+        ],
+        "defaulted": true,
+        "text": "Aggregation 1 runs AGG_SUM on `revenue`. AGG_SUM is inferred for `revenue` from its type. Total of a numeric field, over all rows or per group."
+      },
+      {
+        "slot": "aggregations[1]",
+        "operator": "AGG_AVERAGE",
+        "fields": [
+          "score"
+        ],
+        "text": "Aggregation 2 runs AGG_AVERAGE on `score`. Average of a numeric field, over all rows or per group."
+      },
+      {
+        "slot": "tests[0]",
+        "operator": "TEST_T",
+        "fields": [
+          "score",
+          "region"
+        ],
+        "text": "Test 1 runs TEST_T on `score` split by `region`. Checks whether a numeric field's average differs from a target value, or between two groups (Welch's version)."
+      }
+    ],
+    "findings": [],
+    "defaults_applied": [
+      {
+        "path": [
+          "Aggregations",
+          "0",
+          "Type"
+        ],
+        "field": "revenue",
+        "type": "AGG_SUM",
+        "category": "aggregation",
+        "reason": "f64 → AGG_SUM (rule: numeric default)"
+      },
+      {
+        "path": [
+          "Groups",
+          "0",
+          "Type"
+        ],
+        "field": "region",
+        "type": "GROUP_CATEGORY",
+        "category": "grouper",
+        "reason": "categorical_u8 → GROUP_CATEGORY (rule: categorical default)"
+      }
+    ],
+    "advisories": [
+      {
+        "code": "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS",
+        "message": "TEST_T at tests[0] splits score by region, whose dictionary holds 4 groups, but a two-sample test compares exactly two; consider TEST_ANOVA_WELCH, which compares every group at once, or filter split_by down to the two groups you mean to compare.",
+        "details": {
+          "field": "score",
+          "groups": 4,
+          "operator": "TEST_T",
+          "slot": "tests[0]",
+          "split_by": "region",
+          "suggested": "TEST_ANOVA_WELCH"
+        }
+      }
+    ],
+    "sentences": [
+      "This request reads `recommend.pulse` and runs 1 grouping, 2 aggregations and 1 test.",
+      "Grouping 1 runs GROUP_CATEGORY on `region`. GROUP_CATEGORY is inferred for `region` from its type. Splits the rows into one group per distinct value of a field, such as one group per region or per answer option.",
+      "Aggregation 1 runs AGG_SUM on `revenue`. AGG_SUM is inferred for `revenue` from its type. Total of a numeric field, over all rows or per group.",
+      "Aggregation 2 runs AGG_AVERAGE on `score`. Average of a numeric field, over all rows or per group.",
+      "Test 1 runs TEST_T on `score` split by `region`. Checks whether a numeric field's average differs from a target value, or between two groups (Welch's version).",
+      "TEST_T at tests[0] splits score by region, whose dictionary holds 4 groups, but a two-sample test compares exactly two; consider TEST_ANOVA_WELCH, which compares every group at once, or filter split_by down to the two groups you mean to compare."
+    ],
+    "glossary_refs": [
+      "missing-value",
+      "mean",
+      "median",
+      "outlier",
+      "skew",
+      "cohens-d",
+      "confidence-interval",
+      "homogeneity-of-variance",
+      "independence",
+      "normal-distribution",
+      "p-value",
+      "t-statistic",
+      "two-tailed",
+      "variance"
+    ],
+    "caveats": [
+      "TEST_T: Rows are independent of each other, within and across groups.",
+      "TEST_T: The two-group version uses Welch's correction, so the groups need not have equal variances.",
+      "TEST_T: The average is roughly normally distributed: safe for large groups, risky for small skewed ones.",
+      "TEST_T: The p-value is two-sided: it looks for a difference in either direction."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 36816ed802687fe9b7d9479408d03333b6cc3da039be9b67765569df9ff7f646

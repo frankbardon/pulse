@@ -1,0 +1,75 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "composed_response",
+    "detail": "terse",
+    "summary": "This batch reports 2 responses side by side and 1 batch overlay across them; 2 of 3 inferential findings show evidence at their alpha.",
+    "findings": [
+      {
+        "slot": "responses[0].tests[0]",
+        "subject": "`score` split by `plan`",
+        "operator": "TEST_T",
+        "verdict": "no_evidence_of_difference",
+        "strength_band": "very small",
+        "convention": "Cohen (1988)",
+        "numbers": {
+          "alpha": 0.05,
+          "details.effect_size.cohens_d": 0.1,
+          "df": 40,
+          "p_value": 0.3,
+          "statistic": 2.1
+        }
+      },
+      {
+        "slot": "responses[1].tests[0]",
+        "subject": "`score` split by `plan`",
+        "operator": "TEST_T",
+        "verdict": "evidence_of_difference",
+        "strength_band": "medium",
+        "convention": "Cohen (1988)",
+        "numbers": {
+          "alpha": 0.05,
+          "details.effect_size.cohens_d": 0.6,
+          "df": 40,
+          "p_value": 0.01,
+          "statistic": 2.1
+        }
+      },
+      {
+        "slot": "responses[1].aggregations[0]",
+        "subject": "total",
+        "operator": "AGG_SUM",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 9,
+          "n_null": 0,
+          "value": 12
+        }
+      },
+      {
+        "slot": "overlays[0]",
+        "subject": "plan cells",
+        "operator": "OVERLAY_T_CELL",
+        "verdict": "evidence_of_difference",
+        "numbers": {
+          "alpha": 0.05,
+          "below_alpha_adjusted": 1,
+          "tests": 3
+        },
+        "multiplicity": {
+          "method": "holm",
+          "family": "compose",
+          "m": 3
+        }
+      }
+    ],
+    "caveats": [
+      "2 p-values here carry no adjustment for multiple comparisons, so some may fall below alpha by chance alone; this is the concern the PULSE_ADVISORY_MANY_TESTS advisory raises.",
+      "Adding a multiplicity block (for example holm) adjusts them for multiple comparisons; then read p_adjusted beside each raw p-value."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 2eab75127ca26bddd1bea254c731c1d249b50ff7d077caa9a417fc9a19f59cc1

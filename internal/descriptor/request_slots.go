@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -145,6 +146,17 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	},
 	reflect.TypeOf(types.FacetRequest{}): {
 		{key: "overlays", visible: overlayGate(featFacet)},
+	},
+	// Explain carries every other root as a slot: a root whose
+	// capability is hidden is not a slot of it, request and result alike.
+	reflect.TypeOf(descriptor.ExplainRequest{}): {
+		{key: "composed", visible: capabilityGate(featCompose)},
+		{key: "composed_response", visible: capabilityGate(featCompose)},
+		{key: "chain", visible: capabilityGate(featProcessChain)},
+		{key: "chain_response", visible: capabilityGate(featProcessChain)},
+		{key: "facet", visible: capabilityGate(featFacet)},
+		{key: "facet_result", visible: capabilityGate(featFacet)},
+		{key: "sample", visible: capabilityGate(featSample)},
 	},
 }
 

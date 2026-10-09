@@ -47,6 +47,9 @@ Lowercase the operator family prefix and map through this table.
 <!-- feature: capability:recommend -->
 | a question kind known, request not — `pulse_recommend` / `pulse recommend --intent ID [--cohort C --field F …]` returns ranked drafts (bound to the cohort's fields and predict-checked when given one) | `tool-recommend` |
 <!-- /feature -->
+<!-- feature: capability:explain -->
+| what a request will do, or what a result found, in plain words — `pulse_explain` / `pulse explain --request F \| --response F [--request F]` returns findings with verdicts and caveats | `tool-explain` |
+<!-- /feature -->
 | a statistical term in a result or skill | `glossary` (`pulse-skill://glossary`) |
 | `error_codes[i]` | `pulse_errors_lookup` — the tool is the surface, not a skill |
 <!-- feature: capability:joins -->

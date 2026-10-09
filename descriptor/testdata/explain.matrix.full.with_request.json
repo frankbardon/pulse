@@ -1,0 +1,36 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "response",
+    "detail": "full",
+    "summary": "This response reports 1 matrix result from 96 of 100 records.",
+    "findings": [
+      {
+        "slot": "matrices[0]",
+        "subject": "corr",
+        "operator": "MAT_CORRELATION",
+        "verdict": "descriptive",
+        "strength_band": "large",
+        "convention": "Cohen (1988)",
+        "numbers": {
+          "primary.values.strongest": 0.62
+        }
+      }
+    ],
+    "sentences": [
+      "This response reports 1 matrix result from 96 of 100 records.",
+      "Matrix 1 (MAT_CORRELATION) relates 3 fields. Its strongest off-diagonal value is 0.62, large by the convention of Cohen (1988).",
+      "The run read 100 records; 96 passed the filters and 0 were left out for a missing value."
+    ],
+    "glossary_refs": [
+      "correlation",
+      "covariance",
+      "listwise-deletion",
+      "outlier"
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: fe67d40bb08829e5420bd0c62d0102ff6ef23526595c70aa7f09b190ef616f71

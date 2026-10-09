@@ -247,6 +247,7 @@ Restart the host. Pulse tools appear in the tool list.
 | `pulse_import` | Import a tabular source into a managed `.pulse` handle (TTL-tracked, default 7d). |
 | `pulse_dedup` | Deduplicate an existing cohort into parent groups, or suggest groups (read-only). |
 | `pulse_recommend` | Turn a question kind (intent ID) into ranked draft requests, predict-validated when bound to a cohort. |
+| `pulse_explain` | Say in plain words what a request will do, or what a result found (verdicts, strength bands, caveats). |
 | `pulse_drop` | Drop a managed handle. |
 | `pulse_imports_list` | Enumerate managed handles with sidecar metadata. |
 | `pulse_examples_search` | Search the embedded request-example library by query, tags, category. |

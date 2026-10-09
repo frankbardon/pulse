@@ -200,6 +200,7 @@ func invokers(cfg Config) map[string]InvokeFunc {
 		toolmeta.ToolLabelResolve:   makeInvoke(lenientDecode[LabelResolveIn], HandleLabelResolve),
 		toolmeta.ToolRangeTables:    makeInvoke(lenientDecode[RangeTablesIn], HandleRangeTables),
 		toolmeta.ToolRecommend:      makeInvoke(lenientDecode[RecommendIn], HandleRecommend),
+		toolmeta.ToolExplain:        makeInvoke(lenientDecode[ExplainIn], HandleExplain),
 	}
 }
 

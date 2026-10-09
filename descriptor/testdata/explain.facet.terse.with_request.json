@@ -1,0 +1,68 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "facet_result",
+    "detail": "terse",
+    "summary": "This facet result summarises 2 fields from 90 of 100 records, with 2 overlays; 1 of 2 inferential findings show evidence at their alpha.",
+    "findings": [
+      {
+        "slot": "fields.region",
+        "subject": "region",
+        "verdict": "descriptive",
+        "numbers": {
+          "distinct_count": 4,
+          "null_count": 3,
+          "top_count": 40,
+          "truncated_at": 2
+        }
+      },
+      {
+        "slot": "overlays[1]",
+        "subject": "region fit",
+        "operator": "OVERLAY_CHISQ_VS_POP",
+        "verdict": "no_evidence_of_difference",
+        "numbers": {
+          "alpha": 0.05,
+          "summary.p_value": 0.4,
+          "summary.statistic": 3.1
+        }
+      },
+      {
+        "slot": "fields.score",
+        "subject": "score",
+        "verdict": "descriptive",
+        "numbers": {
+          "count": 89,
+          "max": 99,
+          "mean": 50.2,
+          "min": 1,
+          "null_count": 1,
+          "percentiles.p50": 51,
+          "stddev": null,
+          "sum": 4467.8
+        }
+      },
+      {
+        "slot": "overlays[0]",
+        "subject": "score fit",
+        "operator": "OVERLAY_KS_VS_POP",
+        "verdict": "evidence_of_difference",
+        "numbers": {
+          "alpha": 0.05,
+          "summary.p_value": 0.004,
+          "summary.statistic": 0.2
+        }
+      }
+    ],
+    "caveats": [
+      "2 p-values here carry no adjustment for multiple comparisons, so some may fall below alpha by chance alone; this is the concern the PULSE_ADVISORY_MANY_TESTS advisory raises.",
+      "Adding a multiplicity block (for example holm) adjusts them for multiple comparisons; then read p_adjusted beside each raw p-value.",
+      "OVERLAY_CHISQ_VS_POP carries no alpha of its own unless it is adjusted, so its p-values are read here against 0.05.",
+      "OVERLAY_KS_VS_POP carries no alpha of its own unless it is adjusted, so its p-values are read here against 0.05."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 707fb68386ca5eca49b79fb640d3aa4193c66c801ba8cbfb631e3d5c095d48de

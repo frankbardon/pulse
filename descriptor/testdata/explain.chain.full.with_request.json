@@ -1,0 +1,60 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "chain_response",
+    "detail": "full",
+    "summary": "This chain reports 2 stages, each on the rows the stage before it returns; its last stage reports 1 aggregation across 2 groups from 2 of 100 records, with 1 whole-chain overlay.",
+    "findings": [
+      {
+        "slot": "stages[0].aggregations[0]",
+        "subject": "total",
+        "operator": "AGG_SUM",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 90,
+          "n_null": 0
+        }
+      },
+      {
+        "slot": "stages[1].aggregations[0]",
+        "subject": "avg",
+        "operator": "AGG_AVERAGE",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 2,
+          "n_null": 0
+        }
+      },
+      {
+        "slot": "overlays[0]",
+        "subject": "growth",
+        "operator": "OVERLAY_INDEX_VS_STAGE",
+        "verdict": "descriptive",
+        "numbers": {}
+      }
+    ],
+    "sentences": [
+      "This chain reports 2 stages, each on the rows the stage before it returns; its last stage reports 1 aggregation across 2 groups from 2 of 100 records, with 1 whole-chain overlay.",
+      "Stage 1 reports 1 aggregation across 2 groups from 90 of 100 records.",
+      "Stage 1's aggregation 1 `total` runs AGG_SUM on `revenue`. Total of a numeric field, over all rows or per group. It read 90 rows and left out 0 with no value.",
+      "Stage 1's run read 100 records; 90 passed the filters and 0 were left out for a missing value.",
+      "Stage 2 reports 1 aggregation across 2 groups from 2 of 100 records.",
+      "Stage 2's aggregation 1 `avg` runs AGG_AVERAGE on `total`. Average of a numeric field, over all rows or per group. It read 2 rows and left out 0 with no value.",
+      "Stage 2's run read 100 records; 2 passed the filters and 0 were left out for a missing value.",
+      "The chain's overlay 1 (OVERLAY_INDEX_VS_STAGE) `growth` describes the host's values; it carries no p-value."
+    ],
+    "glossary_refs": [
+      "missing-value",
+      "mean",
+      "median",
+      "outlier",
+      "skew",
+      "baseline",
+      "index-value"
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: c24f5f347ae02c033c05709ed352c374274ddb8c5effd10146f1bd777a0cc385

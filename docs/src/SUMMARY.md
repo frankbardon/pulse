@@ -277,6 +277,7 @@
     - [tool-errors-lookup](guide/skills/tool-errors-lookup.md)
     - [tool-examples-get](guide/skills/tool-examples-get.md)
     - [tool-examples-search](guide/skills/tool-examples-search.md)
+    - [tool-explain](guide/skills/tool-explain.md)
     - [tool-facet](guide/skills/tool-facet.md)
     - [tool-facet-schema](guide/skills/tool-facet-schema.md)
     - [tool-import](guide/skills/tool-import.md)

@@ -262,3 +262,67 @@ func TestExplain_FacadeResultRoots(t *testing.T) {
 		t.Errorf("facet = %+v", res)
 	}
 }
+
+// TestExplain_HiddenFeatureSurfaces: an instance hiding
+// capability:explain describes no explain surface — the manifest lists
+// no `explain` command and the payload schema has no ExplainRequest /
+// ExplainResult root — while one enabling it keeps both. The facade
+// itself stays callable (facade methods are not gated). An instance
+// offering explain but hiding compose drops the composed roots from
+// ExplainRequest with the ComposedRequest / ComposedResponse defs.
+func TestExplain_HiddenFeatureSurfaces(t *testing.T) {
+	const feat = "capability:explain"
+	for _, tc := range []struct {
+		name         string
+		features     []string
+		want         bool
+		wantComposed bool
+	}{
+		{"hidden", allFeaturesBut(feat), false, true},
+		{"enabled", allFeaturesBut("capability:synth"), true, true},
+		{"compose hidden", allFeaturesBut("capability:compose"), true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, err := New(Options{FS: afero.NewMemMapFs(), FeatureProfile: &FeatureProfile{Features: tc.features}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := p.Manifest(context.Background())
+			if listed := slices.ContainsFunc(m.Commands, func(c descriptor.Command) bool { return c.Name == "explain" }); listed != tc.want {
+				t.Errorf("manifest lists explain = %v, want %v", listed, tc.want)
+			}
+			raw, err := p.PayloadSchema()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var doc struct {
+				Defs map[string]struct {
+					Properties map[string]json.RawMessage `json:"properties"`
+				} `json:"$defs"`
+			}
+			if err := json.Unmarshal(raw, &doc); err != nil {
+				t.Fatal(err)
+			}
+			for _, root := range []string{"ExplainRequest", "ExplainResult"} {
+				if _, ok := doc.Defs[root]; ok != tc.want {
+					t.Errorf("payload schema has %s = %v, want %v", root, ok, tc.want)
+				}
+			}
+			if !tc.want {
+				if _, err := p.Explain(context.Background(), descriptor.ExplainRequest{Sample: &types.SampleRequest{N: 1}}); err != nil {
+					t.Errorf("facade gated: %v", err)
+				}
+				return
+			}
+			props := doc.Defs["ExplainRequest"].Properties
+			for _, k := range []string{"composed", "composed_response"} {
+				if _, ok := props[k]; ok != tc.wantComposed {
+					t.Errorf("ExplainRequest.%s present = %v, want %v", k, ok, tc.wantComposed)
+				}
+			}
+			if _, ok := doc.Defs["ComposedResponse"]; ok != tc.wantComposed {
+				t.Errorf("ComposedResponse def present = %v, want %v", ok, tc.wantComposed)
+			}
+		})
+	}
+}

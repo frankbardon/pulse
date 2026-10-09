@@ -1,0 +1,41 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "chain_response",
+    "detail": "terse",
+    "summary": "This chain reports 2 stages, each on the rows the stage before it returns; its last stage reports 1 aggregation across 2 groups from 2 of 100 records, with 1 whole-chain overlay.",
+    "findings": [
+      {
+        "slot": "stages[0].aggregations[0]",
+        "subject": "total",
+        "operator": "AGG_SUM",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 90,
+          "n_null": 0
+        }
+      },
+      {
+        "slot": "stages[1].aggregations[0]",
+        "subject": "avg",
+        "operator": "AGG_AVERAGE",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 2,
+          "n_null": 0
+        }
+      },
+      {
+        "slot": "overlays[0]",
+        "subject": "growth",
+        "operator": "OVERLAY_INDEX_VS_STAGE",
+        "verdict": "descriptive",
+        "numbers": {}
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: a1a48fa32ae28969601cca8da8342578160a1e7f6a19aaeb3cdc78651bbb3710

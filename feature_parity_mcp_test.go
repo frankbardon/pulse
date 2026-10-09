@@ -420,6 +420,30 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 		}
 	}
 
+	// pulse_explain, when mounted: a request over the host cohort
+	// (defaults inferred, predict-checked) and a response carrying every
+	// result family, both in full detail, name no hidden operator, tool
+	// or capability — not even the ones the response itself names.
+	if slices.Contains(tools, "pulse_explain") {
+		rendered["pulse_explain request"] = sess.CallTool("pulse_explain", map[string]any{"detail": "full", "request": map[string]any{
+			"cohort":       map[string]any{"filename": h.cohort},
+			"groups":       []any{map[string]any{"field": h.fields.cat}},
+			"aggregations": []any{map[string]any{"field": h.fields.num}},
+		}})
+		rendered["pulse_explain response"] = sess.CallTool("pulse_explain", map[string]any{"detail": "full", "response": map[string]any{
+			"tests": []any{
+				map[string]any{"type": "TEST_T", "statistic": 2.1, "df": 40, "p_value": 0.01, "alpha": 0.05, "reject_null": true},
+				map[string]any{"type": "TEST_CHISQ", "statistic": 1.2, "df": 2, "p_value": 0.4, "alpha": 0.05},
+			},
+			"regressions": []any{map[string]any{"type": "REG_OLS", "target": h.fields.num, "n_obs": 50, "r2": 0.2,
+				"coefficients": map[string]any{"x": 0.8}, "p_values": map[string]any{"x": 0.01}}},
+			"overlays": []any{map[string]any{"name": "cells", "kind": "OVERLAY_T_CELL", "payload": map[string]any{"shape": "matrix",
+				"matrix": map[string]any{"cells": []any{[]any{map[string]any{"value": 0.01, "present": true}}}}}}},
+			"matrices": []any{map[string]any{"name": "corr", "type": "MAT_CORRELATION", "primary": map[string]any{
+				"row_keys": []any{"a", "b"}, "column_keys": []any{"a", "b"}, "values": []any{[]any{1, 0.4}, []any{0.4, 1}}}}},
+		}})
+	}
+
 	// The bind-on-inspect rebind re-adds tools by name: re-render.
 	rendered["pulse_inspect"] = sess.CallTool("pulse_inspect", map[string]any{"path": h.cohort})
 	raw, rebound := sess.ListTools()

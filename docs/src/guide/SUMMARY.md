@@ -265,6 +265,7 @@
     - [tool-errors-lookup](skills/tool-errors-lookup.md)
     - [tool-examples-get](skills/tool-examples-get.md)
     - [tool-examples-search](skills/tool-examples-search.md)
+    - [tool-explain](skills/tool-explain.md)
     - [tool-facet](skills/tool-facet.md)
     - [tool-facet-schema](skills/tool-facet-schema.md)
     - [tool-import](skills/tool-import.md)

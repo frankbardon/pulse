@@ -1,0 +1,86 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "response",
+    "detail": "full",
+    "summary": "This response reports 1 regression from 96 of 100 records; 1 of 1 inferential finding shows evidence at its alpha.",
+    "findings": [
+      {
+        "slot": "regressions[0]",
+        "subject": "predicting `revenue` from `seats` and `score`",
+        "operator": "REG_OLS",
+        "verdict": "descriptive",
+        "strength_band": "large",
+        "convention": "Cohen (1988) f-squared benchmarks converted via R2 = f2/(1+f2)",
+        "numbers": {
+          "adj_r2": 0.29,
+          "n_obs": 96,
+          "r2": 0.31
+        }
+      },
+      {
+        "slot": "regressions[0].coefficients.score",
+        "subject": "predicting `revenue` from `seats` and `score`: `score`",
+        "operator": "REG_OLS",
+        "verdict": "not_computable",
+        "numbers": {
+          "coefficient": 0.05,
+          "p_value": null,
+          "std_error": null
+        }
+      },
+      {
+        "slot": "regressions[0].coefficients.seats",
+        "subject": "predicting `revenue` from `seats` and `score`: `seats`",
+        "operator": "REG_OLS",
+        "verdict": "evidence_of_effect",
+        "numbers": {
+          "alpha": 0.05,
+          "coefficient": 0.8,
+          "p_value": 0.0001,
+          "std_error": 0.1
+        }
+      }
+    ],
+    "sentences": [
+      "This response reports 1 regression from 96 of 100 records; 1 of 1 inferential finding shows evidence at its alpha.",
+      "Regression 1 (REG_OLS) predicting `revenue` from `seats` and `score` is fitted on 96 rows. Its `r2` is 0.31, large by the convention of Cohen (1988) f-squared benchmarks converted via R2 = f2/(1+f2).",
+      "In regression 1 (REG_OLS) predicting `revenue` from `seats` and `score`, the coefficient of `score` has an undefined p-value, so no verdict is read from it.",
+      "In regression 1 (REG_OLS) predicting `revenue` from `seats` and `score`, the coefficient of `seats` is 0.8: evidence that it differs from 0 at alpha 0.05 (raw p = 0.0001).",
+      "The run read 100 records; 96 passed the filters and 0 were left out for a missing value."
+    ],
+    "glossary_refs": [
+      "adjusted-r-squared",
+      "degrees-of-freedom",
+      "heteroscedasticity",
+      "independence",
+      "listwise-deletion",
+      "multicollinearity",
+      "normal-distribution",
+      "null-hypothesis",
+      "outlier",
+      "overfitting",
+      "p-value",
+      "r-squared",
+      "regression-coefficient",
+      "residual",
+      "standard-error"
+    ],
+    "caveats": [
+      "Regression p-values are raw: a regression carries no alpha of its own, so they are read here against 0.05, and no adjustment for multiple comparisons covers them.",
+      "REG_OLS: Rows are independent of each other: repeated rows for the same customer, or values over time, make the reported uncertainty too small.",
+      "REG_OLS: The outcome changes linearly with each predictor; model a curve by adding transformed predictors (FEAT_POLY, FEAT_LOG).",
+      "REG_OLS: Residuals have roughly constant spread: Pulse reports classic standard errors, not heteroscedasticity-robust ones. With few rows the residuals should also be roughly normal for the p-values to hold.",
+      "REG_OLS: Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, on a t distribution with n - p - 1 degrees of freedom (p predictors).",
+      "REG_OLS: A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.",
+      "REG_OLS: Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; Pulse refuses an exactly collinear set.",
+      "REG_OLS: Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 by design, so their p-values lose the usual reading; l1 and elasticnet standard errors are approximate and Pulse warns.",
+      "REG_OLS: Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.",
+      "REG_OLS: Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: b2580cd4fcb90b4ecd264876933fb7c38a9b562ffcce32c81cced926116f141a

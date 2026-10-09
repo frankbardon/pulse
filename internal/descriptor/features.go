@@ -105,6 +105,7 @@ var (
 	featImport       = FeatureName(FeatureKindCapability, "import")
 	featDedup        = FeatureName(FeatureKindCapability, "dedup")
 	featRecommend    = FeatureName(FeatureKindCapability, "recommend")
+	featExplain      = FeatureName(FeatureKindCapability, "explain")
 	featLabels       = FeatureName(FeatureKindCapability, "labels")
 	featRangeTables  = FeatureName(FeatureKindCapability, "range_tables")
 	featCrosstab     = FeatureName(FeatureKindCapability, "crosstab")
@@ -169,6 +170,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("multiplicity"),   // every `multiplicity` slot + Options.DefaultMultiplicity
 	capability("matrices"),       // Request.Vectors + Request.Matrices
 	capability("recommend"),      // pulse_recommend, pulse recommend (the facade stays ungated)
+	capability("explain"),        // pulse_explain, pulse explain (the facade stays ungated)
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -427,6 +429,9 @@ var slotTokens = map[string]slotTokenSet{
 	featCompose:      {},
 	featProcessChain: {},
 	featFacet:        {},
+	// pulse_explain's `sample` root slot: "sample" is everyday English
+	// (a sample of rows, sample size).
+	featSample: {},
 }
 
 // slotTokenHomonyms lists, per slot token, the tokens that mark a
@@ -700,6 +705,7 @@ var mcpToolBindings = []MCPToolBinding{
 	{Tool: "pulse_label_resolve", Feature: featLabels},
 	{Tool: "pulse_range_tables", Feature: featRangeTables},
 	{Tool: "pulse_recommend", Feature: featRecommend},
+	{Tool: "pulse_explain", Feature: featExplain},
 }
 
 // CommandBinding records which feature (or core surface) owns one
@@ -748,6 +754,7 @@ var commandBindings = []CommandBinding{
 	{Command: "widen", Feature: featWiden},
 	{Command: "dedup", Feature: featDedup},
 	{Command: "recommend", Feature: featRecommend},
+	{Command: "explain", Feature: featExplain},
 	// The feature-profile tooling describes the binary, not an instance.
 	{Command: "features init", Ungated: true},
 	{Command: "features check", Ungated: true},

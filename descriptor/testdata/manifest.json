@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:88bdb5525267b1a4d2a2266e7c20e3f8da36a6cab57754feff6c6b43482e7de1",
+    "feature_set_digest": "fs1:926cec271192eeaa99d00f7135f66d69d2dc81054b771a0f2983002311b8691e",
     "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
     "commands": [
       {
@@ -244,6 +244,15 @@
       {
         "name": "recommend",
         "description": "Turn a question kind (an intent ID) into ranked draft requests: placeholder skeletons without a cohort, predict-validated drafts bound to a cohort's fields with one",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "explain",
+        "description": "Say in plain words what a request will do (predict-checked when it names a cohort, never run) or what a response found: per-result findings with closed verdicts, strength bands with their convention, and caveats",
         "annotations": {
           "streamable": false,
           "deterministic": true,
@@ -6722,6 +6731,10 @@
         "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `matrices`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
+        "name": "pulse_explain",
+        "description": "CALL TO SAY IN PLAIN WORDS WHAT A REQUEST WILL DO, OR WHAT A RESULT FOUND — instead of reading p-values yourself. Set exactly ONE root. Request mode: `request` (a pulse_process body), `composed`, `chain`, `facet` or `sample`; nothing runs — a root naming a cohort is predict-checked (header and schema only), so `valid`, `refusals`, `defaults_applied` and `advisories` say what would happen. Response mode: `response` (a pulse_process result), `composed_response`, `chain_response` or `facet_result`, ideally with the request that produced it beside it (`request` / `composed` / `chain` / `facet`) — without it an aggregation is described by count only and a caveat says the reading is partial. Pass results exactly as Pulse returned them: a null figure is undefined and stays undefined. Output: `summary` (one sentence), `findings[]` (per test, regression coefficient and fit, overlay layer, matrix and aggregation: `slot`, `verdict` — evidence_of_difference / no_evidence_of_difference / …_association / …_effect / descriptive / not_computable — read at the result's own alpha, adjusted when a correction ran; `strength_band` only with its `convention`; the `numbers` it rests on), `steps[]` in request mode, and `caveats` — relay them, never drop them. A non-significant result is \"no evidence of\" a difference, never evidence of none. `detail: full` adds narrative `sentences`, glossary refs, follow-ups and the tests' assumptions. Zero or several roots, a companion beside the wrong result, or an unknown detail is SERVICE_VALIDATION; an unreadable cohort is DATA_FILE."
+      },
+      {
         "name": "pulse_facet",
         "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use when you need the unique-value set of one column. For example, run it before authoring a FILTER_INCLUDE. For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
       },
@@ -8910,6 +8923,10 @@
       {
         "name": "tool-examples-search",
         "description": "Search the runnable request-example library for templates matching a question."
+      },
+      {
+        "name": "tool-explain",
+        "description": "Say in plain words what a request will do, or what a result found — closed verdicts, conventional strength bands and caveats."
       },
       {
         "name": "tool-facet",
@@ -12392,4 +12409,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 19cdb48baa04c538bbfdbdfc8dc26a20a01a1309bc5bbb7f5b703a96c6c77248
+// golden-hash: aefbe4a6a164676acf276fa52a0574f82ae3770995b59f32922471da10521e54

@@ -1,0 +1,41 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "response",
+    "detail": "full",
+    "summary": "This response reports aggregated output of 96 rows across 2 groups from 96 of 100 records.",
+    "findings": [
+      {
+        "slot": "aggregations[0]",
+        "subject": "total",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 90,
+          "n_null": 4
+        }
+      },
+      {
+        "slot": "aggregations[1]",
+        "subject": "avg_score",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 88,
+          "n_null": 6
+        }
+      }
+    ],
+    "sentences": [
+      "This response reports aggregated output of 96 rows across 2 groups from 96 of 100 records.",
+      "Aggregation 1 `total` is reported without its request, so its operator is not named. It read 90 rows and left out 4 with no value.",
+      "Aggregation 2 `avg_score` is reported without its request, so its operator is not named. It read 88 rows and left out 6 with no value.",
+      "The run read 100 records; 96 passed the filters and 0 were left out for a missing value."
+    ],
+    "caveats": [
+      "Partial reading: the request is absent, so the aggregations and groupings are described by count only; pass the request beside the response to name their operators and weight."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 73c25028124678d584745d34d3eb5f633df0f98996899db40409b28bc1d48cc2

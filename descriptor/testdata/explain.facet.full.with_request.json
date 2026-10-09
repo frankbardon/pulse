@@ -1,0 +1,100 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "facet_result",
+    "detail": "full",
+    "summary": "This facet result summarises 2 fields from 90 of 100 records, with 2 overlays; 1 of 2 inferential findings show evidence at their alpha.",
+    "findings": [
+      {
+        "slot": "fields.region",
+        "subject": "region",
+        "verdict": "descriptive",
+        "numbers": {
+          "distinct_count": 4,
+          "null_count": 3,
+          "top_count": 40,
+          "truncated_at": 2
+        }
+      },
+      {
+        "slot": "overlays[1]",
+        "subject": "region fit",
+        "operator": "OVERLAY_CHISQ_VS_POP",
+        "verdict": "no_evidence_of_difference",
+        "numbers": {
+          "alpha": 0.05,
+          "summary.p_value": 0.4,
+          "summary.statistic": 3.1
+        }
+      },
+      {
+        "slot": "fields.score",
+        "subject": "score",
+        "verdict": "descriptive",
+        "numbers": {
+          "count": 89,
+          "max": 99,
+          "mean": 50.2,
+          "min": 1,
+          "null_count": 1,
+          "percentiles.p50": 51,
+          "stddev": null,
+          "sum": 4467.8
+        }
+      },
+      {
+        "slot": "overlays[0]",
+        "subject": "score fit",
+        "operator": "OVERLAY_KS_VS_POP",
+        "verdict": "evidence_of_difference",
+        "numbers": {
+          "alpha": 0.05,
+          "summary.p_value": 0.004,
+          "summary.statistic": 0.2
+        }
+      }
+    ],
+    "sentences": [
+      "This facet result summarises 2 fields from 90 of 100 records, with 2 overlays; 1 of 2 inferential findings show evidence at their alpha.",
+      "Field `region` (categorical_u8) has 4 distinct values; the most common is `north` with 40 records, and 3 records have no value. The result lists the 2 most common values and leaves out 2.",
+      "Field `region`'s overlay 2 (OVERLAY_CHISQ_VS_POP) `region fit` finds no evidence of a difference at alpha 0.05 (p = 0.4).",
+      "Field `score` (f64) has 89 values from 1 to 99, with mean 50.2 and standard deviation undefined, and 1 record has no value.",
+      "Field `score`'s overlay 1 (OVERLAY_KS_VS_POP) `score fit` finds evidence of a difference at alpha 0.05 (p = 0.004).",
+      "The facet read 100 records; 90 passed the filters."
+    ],
+    "glossary_refs": [
+      "chi-square",
+      "degrees-of-freedom",
+      "goodness-of-fit",
+      "independence",
+      "index-value",
+      "null-hypothesis",
+      "p-value",
+      "sample-size",
+      "non-parametric",
+      "percentile",
+      "statistical-power",
+      "two-tailed"
+    ],
+    "caveats": [
+      "2 p-values here carry no adjustment for multiple comparisons, so some may fall below alpha by chance alone; this is the concern the PULSE_ADVISORY_MANY_TESTS advisory raises.",
+      "Adding a multiplicity block (for example holm) adjusts them for multiple comparisons; then read p_adjusted beside each raw p-value.",
+      "OVERLAY_CHISQ_VS_POP carries no alpha of its own unless it is adjusted, so its p-values are read here against 0.05.",
+      "OVERLAY_KS_VS_POP carries no alpha of its own unless it is adjusted, so its p-values are read here against 0.05.",
+      "OVERLAY_CHISQ_VS_POP: The subset's figures are counts of independent rows.",
+      "OVERLAY_CHISQ_VS_POP: The null hypothesis is that the subset's mix matches the population's. The population mix is treated as known and fixed; when the subset is a large part of the population the two overlap and the p-value is only approximate.",
+      "OVERLAY_CHISQ_VS_POP: Only categories both sides show are compared, and the population's shares are rescaled over them, so population nulls and categories cut from a top-K listing do not distort the expected counts.",
+      "OVERLAY_CHISQ_VS_POP: With a very large subset even tiny differences in mix give small p-values; read an OVERLAY_INDEX_VS_POP layer on the same facet for how big each category's shift is.",
+      "OVERLAY_CHISQ_VS_POP: Every expected count should be about 5 or more; a warning flags layers where some are lower.",
+      "OVERLAY_KS_VS_POP: The curves are rebuilt from histograms or percentiles, not raw values: request matching histograms (or percentiles) on both arms. With matching histograms, coarse bins understate the gap and make the test conservative. When Pulse falls back to percentiles it interpolates between them, so D can come out too large or too small and the p-value has no guaranteed direction; prefer matching histograms.",
+      "OVERLAY_KS_VS_POP: It treats subset and population as two independent samples. When the subset is part of the population they overlap: D shrinks by the subset's share of the population, so the p-value is too large (conservative), badly so when the subset is a big part of the population. Compare against the rest of the population instead when you can.",
+      "OVERLAY_KS_VS_POP: It compares two observed distributions; it is not a test against a named distribution with parameters estimated from the data, which would need the Lilliefors correction.",
+      "OVERLAY_KS_VS_POP: With few rows it has low power; with very large groups even trivial differences in shape give small p-values.",
+      "OVERLAY_KS_VS_POP: The null hypothesis is that both share one distribution; the p-value is a two-sided large-sample approximation."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 169f1b0ead256d7051f37e7dc6c2ce7630c3c548193403ea6500cecb0079b0c6
