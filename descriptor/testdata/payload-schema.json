@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:4bfe9c1fbc91dda362da9bab9a4268f09d159166068c4312352dc1ff3a19d1e8",
+  "$comment": "feature_set_digest: fs1:88bdb5525267b1a4d2a2266e7c20e3f8da36a6cab57754feff6c6b43482e7de1",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -170,6 +170,22 @@
         "AGG_ZSCORE"
       ],
       "type": "string"
+    },
+    "Alternative": {
+      "additionalProperties": false,
+      "properties": {
+        "use": {
+          "type": "string"
+        },
+        "when": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "use",
+        "when"
+      ],
+      "type": "object"
     },
     "AppliedMultiplicity": {
       "additionalProperties": false,
@@ -2310,6 +2326,181 @@
       "properties": {},
       "type": "object"
     },
+    "RecommendNeed": {
+      "additionalProperties": false,
+      "properties": {
+        "param": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "param",
+        "why"
+      ],
+      "type": "object"
+    },
+    "RecommendRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "cohort": {
+          "$ref": "#/$defs/Cohort"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "intent": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "intent"
+      ],
+      "type": "object"
+    },
+    "RecommendResult": {
+      "additionalProperties": false,
+      "properties": {
+        "bound": {
+          "type": "boolean"
+        },
+        "candidates_considered": {
+          "type": "integer"
+        },
+        "intent": {
+          "type": "string"
+        },
+        "recommendations": {
+          "items": {
+            "$ref": "#/$defs/Recommendation"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "routes_to": {
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "shapes": {
+          "items": {
+            "$ref": "#/$defs/Shape"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bound",
+        "candidates_considered",
+        "intent",
+        "recommendations",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "Recommendation": {
+      "additionalProperties": false,
+      "properties": {
+        "advisories": {
+          "items": {
+            "$ref": "#/$defs/Advisory"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "alternatives": {
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "bound": {
+          "type": "boolean"
+        },
+        "category": {
+          "type": "string"
+        },
+        "follow_ups": {
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "level": {
+          "type": "string"
+        },
+        "needs": {
+          "items": {
+            "$ref": "#/$defs/RecommendNeed"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "operator": {
+          "type": "string"
+        },
+        "placeholders": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "request": {
+          "description": "The draft request as wire JSON (the #/$defs/Request shape). Every value the caller must supply is a \"\u003cplaceholder\u003e\" string named after its wire key, listed in placeholders.",
+          "type": "object"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bound",
+        "category",
+        "operator",
+        "request",
+        "why"
+      ],
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -2962,6 +3153,36 @@
       ],
       "type": "object"
     },
+    "Role": {
+      "additionalProperties": false,
+      "properties": {
+        "kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "max": {
+          "type": "integer"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kinds",
+        "max",
+        "min",
+        "name"
+      ],
+      "type": "object"
+    },
     "RunComponents": {
       "additionalProperties": false,
       "properties": {
@@ -3047,6 +3268,24 @@
       },
       "required": [
         "entries"
+      ],
+      "type": "object"
+    },
+    "Shape": {
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/Role"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "roles"
       ],
       "type": "object"
     },
@@ -3382,6 +3621,12 @@
       "$ref": "#/$defs/LookupResult"
     },
     {
+      "$ref": "#/$defs/RecommendRequest"
+    },
+    {
+      "$ref": "#/$defs/RecommendResult"
+    },
+    {
       "$ref": "#/$defs/Request"
     },
     {
@@ -3393,4 +3638,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: dbdf9dcaf95ea496ebfbfe22d20bfa3eeb322d454e419cf39576352628e3c3a2
+// golden-hash: 203f783e00c3fcc6986dda0ad9a20d4bf17c98215b501e86110a8d3e12813ff7

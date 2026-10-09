@@ -10,6 +10,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/imports"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 )
 
 // This file holds the SDK-free typed tool handlers: one exported
@@ -268,6 +269,28 @@ func HandleDedup(ctx context.Context, p *pulse.Pulse, in DedupIn) (DedupOut, err
 	})
 	if err != nil {
 		return DedupOut{}, err
+	}
+	return *res, nil
+}
+
+// HandleRecommend runs pulse_recommend: an intent becomes ranked draft
+// requests, bound to a cohort's fields when one is given. All behaviour
+// is pulse.Recommend: an empty intent is PULSE_RECOMMEND_INTENT_UNKNOWN,
+// whose details.valid lists every ID — more use to an agent than a bare
+// missing-argument error.
+func HandleRecommend(ctx context.Context, p *pulse.Pulse, in RecommendIn) (RecommendOut, error) {
+	req := descriptor.RecommendRequest{
+		Intent: in.Intent,
+		Fields: in.Fields,
+		Level:  descriptor.Level(in.Level),
+		Limit:  in.Limit,
+	}
+	if in.Cohort != "" {
+		req.Cohort = &types.Cohort{Filename: in.Cohort}
+	}
+	res, err := p.Recommend(ctx, req)
+	if err != nil {
+		return RecommendOut{}, err
 	}
 	return *res, nil
 }

@@ -362,7 +362,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 83,
+    "error_codes_count": 82,
     "error_domains": [
       "CLI",
       "DATA",
@@ -440,7 +440,6 @@
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
       "PULSE_OVERLAY_KIND_UNKNOWN",
-      "PULSE_RECOMMEND_INTENT_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
@@ -1263,4 +1262,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b78ca022ffcd9f1032e4bd56454d4e14e2ca1e63d866d6fba468f01a7ce21af4
+// golden-hash: 1c48a200d853ced010dd0c546fb5d9821c31e391683234e90607810db4e8714d

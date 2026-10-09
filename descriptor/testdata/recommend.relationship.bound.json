@@ -1,0 +1,451 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "relationship",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "measures",
+            "kinds": [
+              "numeric"
+            ],
+            "min": 2,
+            "max": -1
+          }
+        ]
+      },
+      {
+        "roles": [
+          {
+            "name": "categories",
+            "kinds": [
+              "categorical",
+              "bool"
+            ],
+            "min": 2,
+            "max": 2
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "TEST_CHISQ",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses region (categorical_u8, 4 groups) and plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "cols": "plan",
+              "rows": "region",
+              "type": "TEST_CHISQ"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the table is 2x2 and some expected counts are small",
+            "use": "TEST_FISHER_EXACT"
+          },
+          {
+            "when": "you compare a yes/no rate between exactly two groups and want a confidence interval",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "both fields are numeric",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you compare one subgroup's mix with the whole population",
+            "use": "OVERLAY_CHISQ_VS_POP"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the table shows an association and you want to see which cells drive it",
+            "use": "OVERLAY_FISHER_EXACT_CELL"
+          },
+          {
+            "when": "you want to see which rows depart from the overall column mix",
+            "use": "OVERLAY_CHISQ_ROW"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_CHISQ",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses plan (categorical_u8, 2 groups) and region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "cols": "region",
+              "rows": "plan",
+              "type": "TEST_CHISQ"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the table is 2x2 and some expected counts are small",
+            "use": "TEST_FISHER_EXACT"
+          },
+          {
+            "when": "you compare a yes/no rate between exactly two groups and want a confidence interval",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "both fields are numeric",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you compare one subgroup's mix with the whole population",
+            "use": "OVERLAY_CHISQ_VS_POP"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the table shows an association and you want to see which cells drive it",
+            "use": "OVERLAY_FISHER_EXACT_CELL"
+          },
+          {
+            "when": "you want to see which rows depart from the overall column mix",
+            "use": "OVERLAY_CHISQ_ROW"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_FISHER_EXACT",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Exact test of whether two yes/no fields are associated, built for small 2x2 tables. It uses region (categorical_u8, 4 groups) and plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "cols": "plan",
+              "rows": "region",
+              "type": "TEST_FISHER_EXACT"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "either field has more than two categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "counts are large and you want the difference in rates with a confidence interval",
+            "use": "TEST_PROP_Z"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_FISHER_EXACT",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Exact test of whether two yes/no fields are associated, built for small 2x2 tables. It uses plan (categorical_u8, 2 groups) and region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "cols": "region",
+              "rows": "plan",
+              "type": "TEST_FISHER_EXACT"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "either field has more than two categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "counts are large and you want the difference in rates with a confidence interval",
+            "use": "TEST_PROP_Z"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_KENDALL_TAU",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "revenue",
+              "field2": "seats",
+              "type": "TEST_KENDALL_TAU"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the data are large; its cost grows with the square of the row count",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you want the strength of a straight-line link",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the link looks roughly straight and you want to predict one field from the other",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_KENDALL_TAU",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "revenue",
+              "field2": "score",
+              "type": "TEST_KENDALL_TAU"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the data are large; its cost grows with the square of the row count",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you want the strength of a straight-line link",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the link looks roughly straight and you want to predict one field from the other",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_KENDALL_TAU",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties. It uses seats (u16) and revenue (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "seats",
+              "field2": "revenue",
+              "type": "TEST_KENDALL_TAU"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the data are large; its cost grows with the square of the row count",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you want the strength of a straight-line link",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the link looks roughly straight and you want to predict one field from the other",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_PEARSON_R",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how strongly two numeric fields rise and fall together along a straight line. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "revenue",
+              "field2": "seats",
+              "type": "TEST_PEARSON_R"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the link is consistent but curved, or the values are ranks",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "the sample is small or has many tied values",
+            "use": "TEST_KENDALL_TAU"
+          },
+          {
+            "when": "both fields are categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "you want to predict one field from several others",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "you want to predict one field from the other, or add more predictors",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_PEARSON_R",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how strongly two numeric fields rise and fall together along a straight line. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "revenue",
+              "field2": "score",
+              "type": "TEST_PEARSON_R"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the link is consistent but curved, or the values are ranks",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "the sample is small or has many tied values",
+            "use": "TEST_KENDALL_TAU"
+          },
+          {
+            "when": "both fields are categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "you want to predict one field from several others",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "you want to predict one field from the other, or add more predictors",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_PEARSON_R",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how strongly two numeric fields rise and fall together along a straight line. It uses seats (u16) and revenue (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "seats",
+              "field2": "revenue",
+              "type": "TEST_PEARSON_R"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the link is consistent but curved, or the values are ranks",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "the sample is small or has many tied values",
+            "use": "TEST_KENDALL_TAU"
+          },
+          {
+            "when": "both fields are categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "you want to predict one field from several others",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "you want to predict one field from the other, or add more predictors",
+            "use": "REG_OLS"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 27
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 5dbfb7eb0427a5d68f56a4ffc4a63eb4f3c3b92e94aac5b700c04629280b8365

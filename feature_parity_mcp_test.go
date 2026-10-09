@@ -23,6 +23,7 @@ package pulse
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -408,6 +409,15 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 	rendered["pulse_manifest"] = sess.CallTool("pulse_manifest", map[string]any{})
 	for _, domain := range []string{"CLI", "DATA", "ENCODING", "PROCESSING", "PULSE", "SERVICE"} {
 		rendered["pulse_errors_lookup "+domain] = sess.CallTool("pulse_errors_lookup", map[string]any{"domain": domain})
+	}
+
+	// pulse_recommend, when mounted: every intent, unbound and bound to
+	// the host cohort, names no hidden operator, tool or capability.
+	if slices.Contains(tools, "pulse_recommend") {
+		for _, in := range Intents() {
+			rendered["pulse_recommend "+in.ID] = sess.CallTool("pulse_recommend", map[string]any{"intent": in.ID, "limit": 1000})
+			rendered["pulse_recommend "+in.ID+" bound"] = sess.CallTool("pulse_recommend", map[string]any{"intent": in.ID, "cohort": h.cohort, "limit": 1000})
+		}
 	}
 
 	// The bind-on-inspect rebind re-adds tools by name: re-render.

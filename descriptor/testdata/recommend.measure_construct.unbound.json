@@ -1,0 +1,33 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "measure_construct",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "items",
+            "kinds": [
+              "numeric"
+            ],
+            "min": 2,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [],
+    "routes_to": [
+      {
+        "when": "you want to see how the items move together before scoring them",
+        "use": "capability:matrices"
+      }
+    ],
+    "truncated": false,
+    "candidates_considered": 0
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 8a3b8d31293e47188f2b2e2c0d2cce7a493f9d3a787bcaab236006ee8cc3b905

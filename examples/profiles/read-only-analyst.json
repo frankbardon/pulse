@@ -18,6 +18,7 @@
     "capability:weighting",
     "capability:multiplicity",
     "capability:matrices",
+    "capability:recommend",
     "AGG_COUNT",
     "AGG_SUM",
     "AGG_AVERAGE",

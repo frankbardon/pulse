@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:4bfe9c1fbc91dda362da9bab9a4268f09d159166068c4312352dc1ff3a19d1e8",
+    "feature_set_digest": "fs1:88bdb5525267b1a4d2a2266e7c20e3f8da36a6cab57754feff6c6b43482e7de1",
     "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
     "commands": [
       {
@@ -239,6 +239,15 @@
           "streamable": false,
           "deterministic": true,
           "expensive": true
+        }
+      },
+      {
+        "name": "recommend",
+        "description": "Turn a question kind (an intent ID) into ranked draft requests: placeholder skeletons without a cohort, predict-validated drafts bound to a cohort's fields with one",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
         }
       },
       {
@@ -6765,6 +6774,10 @@
         "description": "List the registered range tables (named, reusable sets of labeled date ranges — e.g. fiscal quarters, marketing campaigns, product-launch windows). Returns each table's name, range count, and the ordered {label, start, end} ranges themselves (ISO date literals; empty start/end is an open bound). Use this to discover which named date-range partitions exist before authoring a GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter that references the table by name — the INPUT direction, turning a table name into the usable range set. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
       },
       {
+        "name": "pulse_recommend",
+        "description": "CALL WHEN YOU KNOW THE KIND OF QUESTION BUT NOT THE REQUEST. Turns an intent ID (the `intents` skill lists them: describe, compare_groups, relationship, drivers, change_over_time, …) into ranked draft requests instead of hand-built JSON. Without `cohort` the drafts are UNBOUND skeletons: every value you must supply is a \"\u003cplaceholder\u003e\" string named after its wire key and listed in `placeholders` — useful for planning before data exists. With `cohort` (a .pulse path) the drafts are BOUND to the cohort's own fields and each one has passed pulse_predict; a draft with `bound: false` still `needs` a value only you can choose (a success value, a reference mean, a model family). `fields` pins hint fields to roles (cohort only); `level` (basic / intermediate / advanced) ranks that level first; `limit` caps the list (default 10; `truncated` and `candidates_considered` say what was cut). Each draft carries `why`, the intent's field `shapes`, predict `advisories`, `alternatives` and `follow_ups`. A non-analytic intent (prepare, simulate, lookup) or one nothing serves returns an empty `recommendations` list plus `routes_to` — the tooling that answers it — never an error. An unknown intent is PULSE_RECOMMEND_INTENT_UNKNOWN (details.valid lists every ID); a bad field hint is SERVICE_VALIDATION; an unreadable cohort is DATA_FILE. Reads the cohort header, schema and sidecar only."
+      },
+      {
         "name": "pulse_sample",
         "description": "Return up to N rows from a cohort. Diagnostic / preview tool — use after running a request when you want to eyeball the underlying data."
       },
@@ -8949,6 +8962,10 @@
       {
         "name": "tool-range-tables",
         "description": "List registered range tables — named, reusable sets of labeled date ranges."
+      },
+      {
+        "name": "tool-recommend",
+        "description": "Turn a question kind (an intent ID) into ranked draft requests — placeholder skeletons, or predict-checked drafts bound to a cohort's fields."
       },
       {
         "name": "tool-sample",
@@ -12375,4 +12392,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 910a7e3ce09302766a5f4e4b4c41490adfc29fa9407793dd78bef42b1c9ea92a
+// golden-hash: 19cdb48baa04c538bbfdbdfc8dc26a20a01a1309bc5bbb7f5b703a96c6c77248

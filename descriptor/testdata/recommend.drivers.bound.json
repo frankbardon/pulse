@@ -1,0 +1,436 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "drivers",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "outcome",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": 1
+          },
+          {
+            "name": "predictors",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "REG_OLS",
+        "category": "regression",
+        "level": "intermediate",
+        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses revenue (f64), seats (u16), score (f64), signup (date) and churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "predictors": [
+                "seats",
+                "score",
+                "signup",
+                "churned"
+              ],
+              "target": "revenue",
+              "type": "REG_OLS"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the outcome is yes/no (0/1) or a count",
+            "use": "REG_GLM"
+          },
+          {
+            "when": "you want intervals that combine the data with prior knowledge about the coefficients",
+            "use": "REG_BAYES_LINEAR"
+          },
+          {
+            "when": "you only want how closely two numeric fields follow a straight line together",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "the predictor is a set of groups and you want to know whether the group averages differ",
+            "use": "TEST_ANOVA_F"
+          },
+          {
+            "when": "you want each row's residual, to check the residual assumptions or find rows the model fits badly",
+            "use": "ATTR_REG_RESIDUAL"
+          }
+        ]
+      },
+      {
+        "operator": "REG_OLS",
+        "category": "regression",
+        "level": "intermediate",
+        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses seats (u16), revenue (f64), score (f64), signup (date) and churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "predictors": [
+                "revenue",
+                "score",
+                "signup",
+                "churned"
+              ],
+              "target": "seats",
+              "type": "REG_OLS"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the outcome is yes/no (0/1) or a count",
+            "use": "REG_GLM"
+          },
+          {
+            "when": "you want intervals that combine the data with prior knowledge about the coefficients",
+            "use": "REG_BAYES_LINEAR"
+          },
+          {
+            "when": "you only want how closely two numeric fields follow a straight line together",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "the predictor is a set of groups and you want to know whether the group averages differ",
+            "use": "TEST_ANOVA_F"
+          },
+          {
+            "when": "you want each row's residual, to check the residual assumptions or find rows the model fits badly",
+            "use": "ATTR_REG_RESIDUAL"
+          }
+        ]
+      },
+      {
+        "operator": "REG_OLS",
+        "category": "regression",
+        "level": "intermediate",
+        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses score (f64), revenue (f64), seats (u16), signup (date) and churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "predictors": [
+                "revenue",
+                "seats",
+                "signup",
+                "churned"
+              ],
+              "target": "score",
+              "type": "REG_OLS"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the outcome is yes/no (0/1) or a count",
+            "use": "REG_GLM"
+          },
+          {
+            "when": "you want intervals that combine the data with prior knowledge about the coefficients",
+            "use": "REG_BAYES_LINEAR"
+          },
+          {
+            "when": "you only want how closely two numeric fields follow a straight line together",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "the predictor is a set of groups and you want to know whether the group averages differ",
+            "use": "TEST_ANOVA_F"
+          },
+          {
+            "when": "you want each row's residual, to check the residual assumptions or find rows the model fits badly",
+            "use": "ATTR_REG_RESIDUAL"
+          }
+        ]
+      },
+      {
+        "operator": "REG_BAYES_LINEAR",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. It uses revenue (f64), seats (u16), score (f64), signup (date) and churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "predictors": [
+                "seats",
+                "score",
+                "signup",
+                "churned"
+              ],
+              "target": "revenue",
+              "type": "REG_BAYES_LINEAR"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want p-values, resampled standard errors or stepwise predictor selection (none run on this type)",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "the outcome is yes/no (0/1) or a count",
+            "use": "REG_GLM"
+          },
+          {
+            "when": "you only want how closely two numeric fields follow a straight line together",
+            "use": "TEST_PEARSON_R"
+          }
+        ]
+      },
+      {
+        "operator": "REG_BAYES_LINEAR",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. It uses seats (u16), revenue (f64), score (f64), signup (date) and churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "predictors": [
+                "revenue",
+                "score",
+                "signup",
+                "churned"
+              ],
+              "target": "seats",
+              "type": "REG_BAYES_LINEAR"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want p-values, resampled standard errors or stepwise predictor selection (none run on this type)",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "the outcome is yes/no (0/1) or a count",
+            "use": "REG_GLM"
+          },
+          {
+            "when": "you only want how closely two numeric fields follow a straight line together",
+            "use": "TEST_PEARSON_R"
+          }
+        ]
+      },
+      {
+        "operator": "REG_BAYES_LINEAR",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. It uses score (f64), revenue (f64), seats (u16), signup (date) and churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "predictors": [
+                "revenue",
+                "seats",
+                "signup",
+                "churned"
+              ],
+              "target": "score",
+              "type": "REG_BAYES_LINEAR"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want p-values, resampled standard errors or stepwise predictor selection (none run on this type)",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "the outcome is yes/no (0/1) or a count",
+            "use": "REG_GLM"
+          },
+          {
+            "when": "you only want how closely two numeric fields follow a straight line together",
+            "use": "TEST_PEARSON_R"
+          }
+        ]
+      },
+      {
+        "operator": "REG_GLM",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. It uses revenue (f64), seats (u16), score (f64), signup (date) and churned (packed_bool). Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "family": "\u003cfamily\u003e",
+              "predictors": [
+                "seats",
+                "score",
+                "signup",
+                "churned"
+              ],
+              "target": "revenue",
+              "type": "REG_GLM"
+            }
+          ]
+        },
+        "placeholders": [
+          "family"
+        ],
+        "needs": [
+          {
+            "param": "family",
+            "why": "Choose the model family that suits the outcome."
+          }
+        ],
+        "alternatives": [
+          {
+            "when": "the outcome is a numeric measure with roughly symmetric, constant-spread residuals",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you only want to know whether a yes/no rate differs between two groups",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "the outcome and the single predictor are both categories",
+            "use": "TEST_CHISQ"
+          }
+        ]
+      },
+      {
+        "operator": "REG_GLM",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. It uses seats (u16), revenue (f64), score (f64), signup (date) and churned (packed_bool). Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "family": "\u003cfamily\u003e",
+              "predictors": [
+                "revenue",
+                "score",
+                "signup",
+                "churned"
+              ],
+              "target": "seats",
+              "type": "REG_GLM"
+            }
+          ]
+        },
+        "placeholders": [
+          "family"
+        ],
+        "needs": [
+          {
+            "param": "family",
+            "why": "Choose the model family that suits the outcome."
+          }
+        ],
+        "alternatives": [
+          {
+            "when": "the outcome is a numeric measure with roughly symmetric, constant-spread residuals",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you only want to know whether a yes/no rate differs between two groups",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "the outcome and the single predictor are both categories",
+            "use": "TEST_CHISQ"
+          }
+        ]
+      },
+      {
+        "operator": "REG_GLM",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. It uses score (f64), revenue (f64), seats (u16), signup (date) and churned (packed_bool). Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "regressions": [
+            {
+              "family": "\u003cfamily\u003e",
+              "predictors": [
+                "revenue",
+                "seats",
+                "signup",
+                "churned"
+              ],
+              "target": "score",
+              "type": "REG_GLM"
+            }
+          ]
+        },
+        "placeholders": [
+          "family"
+        ],
+        "needs": [
+          {
+            "param": "family",
+            "why": "Choose the model family that suits the outcome."
+          }
+        ],
+        "alternatives": [
+          {
+            "when": "the outcome is a numeric measure with roughly symmetric, constant-spread residuals",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you only want to know whether a yes/no rate differs between two groups",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "the outcome and the single predictor are both categories",
+            "use": "TEST_CHISQ"
+          }
+        ]
+      }
+    ],
+    "truncated": false,
+    "candidates_considered": 9
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 90d2b27fec1eebe8e2387e0829999266470e985633c9ddfca2709ec627c4c543

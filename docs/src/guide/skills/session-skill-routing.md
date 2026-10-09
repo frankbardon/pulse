@@ -34,6 +34,7 @@ Lowercase the operator family prefix and map through this table.
 | a join-shaped cohort already on disk — `pulse_dedup` (`suggest_groups` alone is read-only; `groups` + `out` converts without touching the original) / `pulse dedup COHORT --group KEY:MEMBER,… [--out P] [--suggest-groups]` | [`tool-dedup`](tool-dedup.md), [`cohort-parent-groups`](cohort-parent-groups.md) |
 | a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | [`cohort-schema-design`](cohort-schema-design.md) (set rungs), [`cohort-sharding`](cohort-sharding.md) (archives auto-widen) |
 | a plain-language question with no operator in mind | [`intents`](intents.md) (`pulse-skill://intents`) — question kinds, then the manifest entries whose [`intents`](intents.md) match |
+| a question kind known, request not — `pulse_recommend` / `pulse recommend --intent ID [--cohort C --field F …]` returns ranked drafts (bound to the cohort's fields and predict-checked when given one) | [`tool-recommend`](tool-recommend.md) |
 | a statistical term in a result or skill | [`glossary`](glossary.md) (`pulse-skill://glossary`) |
 | `error_codes[i]` | `pulse_errors_lookup` — the tool is the surface, not a skill |
 | Request slot `Joins` | [`join-design`](join-design.md) |

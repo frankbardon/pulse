@@ -1,0 +1,396 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "distribution_shape",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "measure",
+            "kinds": [
+              "numeric"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "AGG_MEDIAN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Middle value of a numeric field once sorted: the typical row, not pulled by a few extreme values. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MEDIAN"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want a value other than the middle, such as the 90th percentile",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "the field is roughly symmetric and you want a figure that combines across groups",
+            "use": "AGG_AVERAGE"
+          },
+          {
+            "when": "the field holds categories rather than numbers",
+            "use": "AGG_MODE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_PERCENTILE",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Value of a numeric field below which a chosen share of rows fall, such as the 90th percentile of delivery time. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "percentile": "\u003cpercentile\u003e"
+              },
+              "type": "AGG_PERCENTILE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "percentile"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the 50th percentile",
+            "use": "AGG_MEDIAN"
+          },
+          {
+            "when": "you want each row's own percentile position",
+            "use": "ATTR_PERCENTILE"
+          },
+          {
+            "when": "you want rows split into equal-sized bands",
+            "use": "GROUP_QUANTILE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RANGE",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Distance between the smallest and largest value of a numeric field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_RANGE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want a spread measure that uses every row, not only the two extremes",
+            "use": "AGG_STDDEV"
+          },
+          {
+            "when": "you want the spread of the middle of the data, ignoring extremes",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_STDDEV",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Typical distance of a numeric field's values from their average, in the field's own units, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_STDDEV"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how precisely the average itself is known",
+            "use": "AGG_CI_LOWER"
+          },
+          {
+            "when": "you want the sample form (dividing by n - 1) together with the mean and n",
+            "use": "AGG_WELFORD"
+          },
+          {
+            "when": "the field has extreme values and you want a spread they cannot drag",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_PERCENTILE",
+        "category": "attribute",
+        "level": "basic",
+        "why": "Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "ATTR_PERCENTILE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the value at a chosen percentile, such as the 90th",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want ranks within partitions, or tied values to share a rank",
+            "use": "WIN_RANK"
+          },
+          {
+            "when": "you want rows split into equal-sized bands",
+            "use": "GROUP_QUANTILE"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_RANGE",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits a number into bands of equal width, such as ages 20-30 and 30-40, to see how values spread or to compare bands. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "interval": "\u003cinterval\u003e",
+              "type": "GROUP_RANGE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "interval"
+        ],
+        "alternatives": [
+          {
+            "when": "you want groups of equal size rather than equal width",
+            "use": "GROUP_QUANTILE"
+          },
+          {
+            "when": "you want each band named by its lower edge alone",
+            "use": "GROUP_ROUNDED"
+          },
+          {
+            "when": "you want to keep one band, not split into all of them",
+            "use": "FILTER_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_ROUNDED",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Groups a number by rounding it down to a multiple of a step, such as 23 and 27 both to 20, naming each group by that multiple. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "interval": "\u003cinterval\u003e",
+              "type": "GROUP_ROUNDED"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "interval"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the band's both edges in its name",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "you want groups of equal size",
+            "use": "GROUP_QUANTILE"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_KS",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "split_by": "\u003csplit_by\u003e",
+              "type": "TEST_KS"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "split_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want to check one field against the normal distribution",
+            "use": "TEST_SHAPIRO_WILK"
+          },
+          {
+            "when": "you only care whether one group's values tend to be larger",
+            "use": "TEST_MANN_WHITNEY_U"
+          },
+          {
+            "when": "you compare a subgroup with the whole population",
+            "use": "OVERLAY_KS_VS_POP"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_SHAPIRO_WILK",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether a numeric field looks normally distributed, overall or within each group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "TEST_SHAPIRO_WILK"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you compare the distributions of two groups with each other",
+            "use": "TEST_KS"
+          },
+          {
+            "when": "you want to check whether groups have equal spread",
+            "use": "TEST_BROWN_FORSYTHE"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the shape is far from normal and you planned a two-group t-test",
+            "use": "TEST_MANN_WHITNEY_U"
+          },
+          {
+            "when": "the shape is far from normal and you planned an ANOVA across three or more groups",
+            "use": "TEST_KRUSKAL_WALLIS"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_SKEWNESS",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "How lopsided a numeric field is: positive when a long tail runs to high values, negative when it runs to low ones. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_SKEWNESS"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want to know whether the tails are heavy rather than lopsided",
+            "use": "AGG_KURTOSIS"
+          },
+          {
+            "when": "you want a test of whether the field follows a normal shape",
+            "use": "TEST_SHAPIRO_WILK"
+          },
+          {
+            "when": "you want the typical value of a skewed field",
+            "use": "AGG_MEDIAN"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 16
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 3e022f0d3ca7fc859adbcea4cfbc63409d06cd6dccd916d26a313d6d3ab15b80

@@ -247,3 +247,51 @@ func TestRecommend_FacadeProfiled(t *testing.T) {
 		t.Errorf("profiled instance names hidden %s", hidden)
 	}
 }
+
+// TestRecommend_HiddenFeatureSurfaces: an instance hiding
+// capability:recommend describes no recommend surface — the manifest
+// lists no `recommend` command and the payload schema has no
+// RecommendRequest / RecommendResult root — while one enabling it
+// keeps both. The facade itself stays callable (facade methods are not
+// gated), but PULSE_RECOMMEND_INTENT_UNKNOWN is no longer listed.
+func TestRecommend_HiddenFeatureSurfaces(t *testing.T) {
+	const feat = "capability:recommend"
+	for _, tc := range []struct {
+		name     string
+		features []string
+		want     bool
+	}{
+		{"hidden", allFeaturesBut(feat), false},
+		{"enabled", allFeaturesBut("capability:synth"), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, err := New(Options{FS: afero.NewMemMapFs(), FeatureProfile: &FeatureProfile{Features: tc.features}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := p.Manifest(context.Background())
+			listed := slices.ContainsFunc(m.Commands, func(c descriptor.Command) bool { return c.Name == "recommend" })
+			if listed != tc.want {
+				t.Errorf("manifest lists recommend = %v, want %v", listed, tc.want)
+			}
+			if got := slices.Contains(m.ErrorCodes, string(errors.PULSE_RECOMMEND_INTENT_UNKNOWN)); got != tc.want {
+				t.Errorf("manifest lists PULSE_RECOMMEND_INTENT_UNKNOWN = %v, want %v", got, tc.want)
+			}
+			raw, err := p.PayloadSchema()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var doc struct {
+				Defs map[string]json.RawMessage `json:"$defs"`
+			}
+			if err := json.Unmarshal(raw, &doc); err != nil {
+				t.Fatal(err)
+			}
+			for _, root := range []string{"RecommendRequest", "RecommendResult"} {
+				if _, ok := doc.Defs[root]; ok != tc.want {
+					t.Errorf("payload schema has %s = %v, want %v", root, ok, tc.want)
+				}
+			}
+		})
+	}
+}

@@ -278,6 +278,7 @@
     - [tool-process](skills/tool-process.md)
     - [tool-process-chain](skills/tool-process-chain.md)
     - [tool-range-tables](skills/tool-range-tables.md)
+    - [tool-recommend](skills/tool-recommend.md)
     - [tool-sample](skills/tool-sample.md)
     - [tool-skills-get](skills/tool-skills-get.md)
     - [tool-skills-list](skills/tool-skills-list.md)

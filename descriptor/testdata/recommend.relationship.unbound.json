@@ -1,0 +1,473 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "relationship",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "measures",
+            "kinds": [
+              "numeric"
+            ],
+            "min": 2,
+            "max": -1
+          }
+        ]
+      },
+      {
+        "roles": [
+          {
+            "name": "categories",
+            "kinds": [
+              "categorical",
+              "bool"
+            ],
+            "min": 2,
+            "max": 2
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "TEST_CHISQ",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "cols": "\u003ccols\u003e",
+              "rows": "\u003crows\u003e",
+              "type": "TEST_CHISQ"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "cols",
+          "rows"
+        ],
+        "alternatives": [
+          {
+            "when": "the table is 2x2 and some expected counts are small",
+            "use": "TEST_FISHER_EXACT"
+          },
+          {
+            "when": "you compare a yes/no rate between exactly two groups and want a confidence interval",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "both fields are numeric",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you compare one subgroup's mix with the whole population",
+            "use": "OVERLAY_CHISQ_VS_POP"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the table shows an association and you want to see which cells drive it",
+            "use": "OVERLAY_FISHER_EXACT_CELL"
+          },
+          {
+            "when": "you want to see which rows depart from the overall column mix",
+            "use": "OVERLAY_CHISQ_ROW"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_FISHER_EXACT",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Exact test of whether two yes/no fields are associated, built for small 2x2 tables. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "cols": "\u003ccols\u003e",
+              "rows": "\u003crows\u003e",
+              "type": "TEST_FISHER_EXACT"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "cols",
+          "rows"
+        ],
+        "alternatives": [
+          {
+            "when": "either field has more than two categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "counts are large and you want the difference in rates with a confidence interval",
+            "use": "TEST_PROP_Z"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_KENDALL_TAU",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "field2": "\u003cfield2\u003e",
+              "type": "TEST_KENDALL_TAU"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "field2"
+        ],
+        "alternatives": [
+          {
+            "when": "the data are large; its cost grows with the square of the row count",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you want the strength of a straight-line link",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the link looks roughly straight and you want to predict one field from the other",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_PEARSON_R",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how strongly two numeric fields rise and fall together along a straight line. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "field2": "\u003cfield2\u003e",
+              "type": "TEST_PEARSON_R"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "field2"
+        ],
+        "alternatives": [
+          {
+            "when": "the link is consistent but curved, or the values are ranks",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "the sample is small or has many tied values",
+            "use": "TEST_KENDALL_TAU"
+          },
+          {
+            "when": "both fields are categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "you want to predict one field from several others",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "you want to predict one field from the other, or add more predictors",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_SPEARMAN_R",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Measures how consistently one numeric field rises (or falls) as the other rises, using ranks, so the link need not be a straight line. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "field2": "\u003cfield2\u003e",
+              "type": "TEST_SPEARMAN_R"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "field2"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the strength of a straight-line link",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "the sample is small or many values are tied",
+            "use": "TEST_KENDALL_TAU"
+          },
+          {
+            "when": "both fields are categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "you want to know whether one ordered series keeps rising or falling",
+            "use": "TEST_TREND"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the link looks roughly straight and you want to predict one field from the other",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "REG_OLS",
+        "category": "regression",
+        "level": "intermediate",
+        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "regressions": [
+            {
+              "predictors": [
+                "\u003cpredictors\u003e"
+              ],
+              "target": "\u003ctarget\u003e",
+              "type": "REG_OLS"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "predictors",
+          "target"
+        ],
+        "alternatives": [
+          {
+            "when": "the outcome is yes/no (0/1) or a count",
+            "use": "REG_GLM"
+          },
+          {
+            "when": "you want intervals that combine the data with prior knowledge about the coefficients",
+            "use": "REG_BAYES_LINEAR"
+          },
+          {
+            "when": "you only want how closely two numeric fields follow a straight line together",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "the predictor is a set of groups and you want to know whether the group averages differ",
+            "use": "TEST_ANOVA_F"
+          },
+          {
+            "when": "you want each row's residual, to check the residual assumptions or find rows the model fits badly",
+            "use": "ATTR_REG_RESIDUAL"
+          }
+        ]
+      },
+      {
+        "operator": "MAT_CORRELATION",
+        "category": "matrix",
+        "level": "intermediate",
+        "why": "How closely every pair in a set of numeric fields follows a straight line together, as one square table of r values from -1 to 1. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "MAT_CORRELATION"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you need a p-value or confidence interval for one pair",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "you want the joint spread in the fields' own units",
+            "use": "MAT_COVARIANCE"
+          },
+          {
+            "when": "the links are consistent but curved, or the values are ranks",
+            "use": "TEST_SPEARMAN_R"
+          }
+        ]
+      },
+      {
+        "operator": "MAT_COVARIANCE",
+        "category": "matrix",
+        "level": "intermediate",
+        "why": "How every pair in a set of numeric fields varies together, as one square table with each field's variance on the diagonal. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "MAT_COVARIANCE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how closely two numeric fields follow a straight line together, on a scale from -1 to 1",
+            "use": "TEST_PEARSON_R"
+          },
+          {
+            "when": "you want the spread of one field on its own",
+            "use": "AGG_WELFORD"
+          }
+        ]
+      },
+      {
+        "operator": "REG_BAYES_LINEAR",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "regressions": [
+            {
+              "predictors": [
+                "\u003cpredictors\u003e"
+              ],
+              "target": "\u003ctarget\u003e",
+              "type": "REG_BAYES_LINEAR"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "predictors",
+          "target"
+        ],
+        "alternatives": [
+          {
+            "when": "you want p-values, resampled standard errors or stepwise predictor selection (none run on this type)",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "the outcome is yes/no (0/1) or a count",
+            "use": "REG_GLM"
+          },
+          {
+            "when": "you only want how closely two numeric fields follow a straight line together",
+            "use": "TEST_PEARSON_R"
+          }
+        ]
+      },
+      {
+        "operator": "REG_GLM",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "regressions": [
+            {
+              "family": "\u003cfamily\u003e",
+              "predictors": [
+                "\u003cpredictors\u003e"
+              ],
+              "target": "\u003ctarget\u003e",
+              "type": "REG_GLM"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "family",
+          "predictors",
+          "target"
+        ],
+        "alternatives": [
+          {
+            "when": "the outcome is a numeric measure with roughly symmetric, constant-spread residuals",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you only want to know whether a yes/no rate differs between two groups",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "the outcome and the single predictor are both categories",
+            "use": "TEST_CHISQ"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 12
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: bbaf41ccc3560b403559e0dc0a563f194d066efe65b4e8e9c40560c86cda03bf

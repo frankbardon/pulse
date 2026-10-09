@@ -1,0 +1,407 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "composition",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "category",
+            "kinds": [
+              "categorical",
+              "bool",
+              "set"
+            ],
+            "min": 1,
+            "max": 1
+          },
+          {
+            "name": "by",
+            "kinds": [
+              "categorical",
+              "bool"
+            ],
+            "min": 0,
+            "max": 1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "AGG_MODE_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "How many rows share a field's most common value, over all rows or per group. It uses region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "region",
+              "type": "AGG_MODE_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a count for every value of the field: group by it, then count rows",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want per-value counts for several fields in one call",
+            "use": "capability:facet"
+          },
+          {
+            "when": "you want which value is most common, not how many rows hold it",
+            "use": "AGG_MODE"
+          },
+          {
+            "when": "you want how many rows hold one particular value, such as the Yes answers",
+            "use": "AGG_FREQUENCY"
+          },
+          {
+            "when": "you want how many different values there are",
+            "use": "AGG_DISTINCT_COUNT"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MODE_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "How many rows share a field's most common value, over all rows or per group. It uses plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "plan",
+              "type": "AGG_MODE_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a count for every value of the field: group by it, then count rows",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want per-value counts for several fields in one call",
+            "use": "capability:facet"
+          },
+          {
+            "when": "you want which value is most common, not how many rows hold it",
+            "use": "AGG_MODE"
+          },
+          {
+            "when": "you want how many rows hold one particular value, such as the Yes answers",
+            "use": "AGG_FREQUENCY"
+          },
+          {
+            "when": "you want how many different values there are",
+            "use": "AGG_DISTINCT_COUNT"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MODE_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "How many rows share a field's most common value, over all rows or per group. It uses churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "churned",
+              "type": "AGG_MODE_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a count for every value of the field: group by it, then count rows",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want per-value counts for several fields in one call",
+            "use": "capability:facet"
+          },
+          {
+            "when": "you want which value is most common, not how many rows hold it",
+            "use": "AGG_MODE"
+          },
+          {
+            "when": "you want how many rows hold one particular value, such as the Yes answers",
+            "use": "AGG_FREQUENCY"
+          },
+          {
+            "when": "you want how many different values there are",
+            "use": "AGG_DISTINCT_COUNT"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_SUM",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Total of a numeric field, over all rows or per group. It uses churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "churned",
+              "type": "AGG_SUM"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the typical value per row rather than the total",
+            "use": "AGG_AVERAGE"
+          },
+          {
+            "when": "rows carry weights and you want a weighted average",
+            "use": "AGG_WEIGHTED_MEAN"
+          },
+          {
+            "when": "a value repeats on several rows of the same key and must be added once per key",
+            "use": "AGG_DISTINCT_SUM"
+          },
+          {
+            "when": "you want the total so far, row by row",
+            "use": "WIN_RUNNING_SUM"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_CATEGORY",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. It uses region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "groups": [
+            {
+              "field": "region",
+              "type": "GROUP_CATEGORY"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the field is a number you want in bands, not one group per value",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "the field is a date and you want months or quarters",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_CATEGORY",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. It uses plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "groups": [
+            {
+              "field": "plan",
+              "type": "GROUP_CATEGORY"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the field is a number you want in bands, not one group per value",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "the field is a date and you want months or quarters",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_CATEGORY",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. It uses churned (packed_bool).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "groups": [
+            {
+              "field": "churned",
+              "type": "GROUP_CATEGORY"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the field is a number you want in bands, not one group per value",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "the field is a date and you want months or quarters",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "FEAT_FREQUENCY_ENCODE",
+        "category": "feature",
+        "level": "intermediate",
+        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. It uses region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "features": [
+            {
+              "field": "region",
+              "type": "FEAT_FREQUENCY_ENCODE"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the count table itself, one row per category: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field has few categories and each should be its own column",
+            "use": "FEAT_ONE_HOT"
+          }
+        ]
+      },
+      {
+        "operator": "FEAT_FREQUENCY_ENCODE",
+        "category": "feature",
+        "level": "intermediate",
+        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. It uses plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "features": [
+            {
+              "field": "plan",
+              "type": "FEAT_FREQUENCY_ENCODE"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the count table itself, one row per category: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field has few categories and each should be its own column",
+            "use": "FEAT_ONE_HOT"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_FREQUENCY",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "How many rows hold one chosen value of a field, such as the Yes answers, over all rows or per group. It uses region (categorical_u8, 4 groups). Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "region",
+              "params": {
+                "value": "\u003cvalue\u003e"
+              },
+              "type": "AGG_FREQUENCY"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "placeholders": [
+          "value"
+        ],
+        "needs": [
+          {
+            "param": "value",
+            "why": "Name the value whose share to count."
+          }
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many rows share the field's most common value, whatever it is",
+            "use": "AGG_MODE_COUNT"
+          },
+          {
+            "when": "you want a count for every value of the field: group by it, then count rows",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want rows holding any of several values: keep them, then count rows",
+            "use": "FILTER_INCLUDE"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 12
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: c6da82a9a9d733411a0055226cbba30a2e27bf656e90dacf0efd569f558e4ddd

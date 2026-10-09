@@ -307,6 +307,7 @@ func TestPayloadSchemaForInstance_ScopedOmitsHidden(t *testing.T) {
 		"CrosstabSpec", "JoinSpec", "OverlaySpec", // reachable only through hidden slots
 		"ComposedRequest", "ComposedResponse", "ChainRequest", "ChainResponse",
 		"FacetRequest", "FacetResult", "SampleRequest", "LookupRequest", "LookupResult",
+		"RecommendRequest", "RecommendResult",
 	} {
 		if _, ok := defs[name]; ok {
 			t.Errorf("$defs.%s present on an instance hiding it", name)
@@ -327,12 +328,12 @@ func TestPayloadSchemaForInstance_ScopedOmitsHidden(t *testing.T) {
 // overlay kind, the overlays slot) back.
 func TestPayloadSchemaForInstance_EnabledCapabilityKeepsRoot(t *testing.T) {
 	inst := NewInstanceSnapshot(nil, FeatureSet{Enabled: []string{
-		featProcess, featCompose, featSample, featCrosstab, "AGG_COUNT", "OVERLAY_SHARE_OF_ROW",
+		featProcess, featCompose, featSample, featCrosstab, featRecommend, "AGG_COUNT", "OVERLAY_SHARE_OF_ROW",
 	}})
 	raw := BuildPayloadSchemaForInstance(inst)
 	compileSchema(t, raw)
 	defs := schemaDoc(t, raw)["$defs"].(map[string]any)
-	for _, name := range []string{"ComposedRequest", "ComposedResponse", "SampleRequest", "CrosstabSpec", "OverlaySpec"} {
+	for _, name := range []string{"ComposedRequest", "ComposedResponse", "SampleRequest", "CrosstabSpec", "OverlaySpec", "RecommendRequest", "RecommendResult"} {
 		if _, ok := defs[name]; !ok {
 			t.Errorf("$defs.%s missing on an instance enabling it", name)
 		}

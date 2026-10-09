@@ -1,0 +1,371 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "composition",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "category",
+            "kinds": [
+              "categorical",
+              "bool",
+              "set"
+            ],
+            "min": 1,
+            "max": 1
+          },
+          {
+            "name": "by",
+            "kinds": [
+              "categorical",
+              "bool"
+            ],
+            "min": 0,
+            "max": 1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "AGG_FREQUENCY",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "How many rows hold one chosen value of a field, such as the Yes answers, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "value": "\u003cvalue\u003e"
+              },
+              "type": "AGG_FREQUENCY"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "value"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many rows share the field's most common value, whatever it is",
+            "use": "AGG_MODE_COUNT"
+          },
+          {
+            "when": "you want a count for every value of the field: group by it, then count rows",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want rows holding any of several values: keep them, then count rows",
+            "use": "FILTER_INCLUDE"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MODE_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "How many rows share a field's most common value, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MODE_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want a count for every value of the field: group by it, then count rows",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want per-value counts for several fields in one call",
+            "use": "capability:facet"
+          },
+          {
+            "when": "you want which value is most common, not how many rows hold it",
+            "use": "AGG_MODE"
+          },
+          {
+            "when": "you want how many rows hold one particular value, such as the Yes answers",
+            "use": "AGG_FREQUENCY"
+          },
+          {
+            "when": "you want how many different values there are",
+            "use": "AGG_DISTINCT_COUNT"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RATIO",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Total of one field divided by the total of another, over all rows or per group, such as revenue per order. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "params": {
+                "denominator_field": "\u003cdenominator_field\u003e",
+                "numerator_field": "\u003cnumerator_field\u003e"
+              },
+              "type": "AGG_RATIO"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "denominator_field",
+          "numerator_field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the average of each row's own ratio: compute it per row (guarding a 0 denominator), then average it",
+            "use": "ATTR_FORMULA"
+          },
+          {
+            "when": "you want an average where some rows count more than others",
+            "use": "AGG_WEIGHTED_MEAN"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_SET_FREQUENCY",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "For a multi-select field, how many rows chose each option, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_SET_FREQUENCY"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "the field holds one value per row: group by it, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want how many different combinations were chosen",
+            "use": "AGG_SET_DISTINCT_VALUES"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_SUM",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Total of a numeric field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_SUM"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the typical value per row rather than the total",
+            "use": "AGG_AVERAGE"
+          },
+          {
+            "when": "rows carry weights and you want a weighted average",
+            "use": "AGG_WEIGHTED_MEAN"
+          },
+          {
+            "when": "a value repeats on several rows of the same key and must be added once per key",
+            "use": "AGG_DISTINCT_SUM"
+          },
+          {
+            "when": "you want the total so far, row by row",
+            "use": "WIN_RUNNING_SUM"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_CATEGORY",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "GROUP_CATEGORY"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "the field is a number you want in bands, not one group per value",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "the field is a date and you want months or quarters",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "FEAT_FREQUENCY_ENCODE",
+        "category": "feature",
+        "level": "intermediate",
+        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "features": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "FEAT_FREQUENCY_ENCODE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the count table itself, one row per category: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field has few categories and each should be its own column",
+            "use": "FEAT_ONE_HOT"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_SET_PER_ELEMENT",
+        "category": "grouper",
+        "level": "intermediate",
+        "why": "Splits a multi-select answer into one group per option, counting each row once in every option it picked. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "GROUP_SET_PER_ELEMENT"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want each exact combination of options as one group",
+            "use": "GROUP_SET_VALUE"
+          },
+          {
+            "when": "you only want the count per option, without other figures",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_SET_VALUE",
+        "category": "grouper",
+        "level": "intermediate",
+        "why": "Groups the rows by the exact combination of options picked in a multi-select answer, such as A only, A and B, or none. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "GROUP_SET_VALUE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want one group per option, counting a row in each it picked",
+            "use": "GROUP_SET_PER_ELEMENT"
+          },
+          {
+            "when": "you want to keep one combination rather than see them all",
+            "use": "FILTER_SET_EQUALS"
+          }
+        ]
+      }
+    ],
+    "truncated": false,
+    "candidates_considered": 9
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 86260666e227a33d67158cf1f8b78fbe1583ce2601ad54c34581faefdb4d84b9

@@ -83,11 +83,13 @@ func payloadEntries() []payloadEntry {
 		{reflect.TypeFor[types.FacetRequest](), "facet request", featFacet},
 		{reflect.TypeFor[types.SampleRequest](), "sample request", featSample},
 		{reflect.TypeFor[types.LookupRequest](), "point-lookup request", featLookup},
+		{reflect.TypeFor[descriptor.RecommendRequest](), "recommend request", featRecommend},
 		{reflect.TypeFor[types.Response](), "process / predict result", ""},
 		{reflect.TypeFor[types.ComposedResponse](), "compose result", featCompose},
 		{reflect.TypeFor[types.ChainResponse](), "process-chain result", featProcessChain},
 		{reflect.TypeFor[types.FacetResult](), "facet result", featFacet},
 		{reflect.TypeFor[types.LookupResult](), "point-lookup result", featLookup},
+		{reflect.TypeFor[descriptor.RecommendResult](), "recommend result", featRecommend},
 		{reflect.TypeFor[descriptor.Advisory](), "predict advisory (one entry of a predict result's advisories)", ""},
 		{reflect.TypeFor[descriptor.Envelope](), "universal --json output envelope (data wraps the operation result)", ""},
 	}
@@ -106,7 +108,7 @@ const payloadSchemaDigestPrefix = "feature_set_digest: "
 //     Request.crosstab / joins / overlays and the overlays slot of each
 //     other request root) are not properties;
 //   - a root whose capability is hidden (compose, process_chain, facet,
-//     sample, lookup) is not an entry point;
+//     sample, lookup, recommend) is not an entry point;
 //
 // and every def reachable only through something omitted is absent,
 // because defs are registered by walking from the surviving entries.
@@ -145,8 +147,9 @@ func PayloadSchemaForInstance(inst *InstanceSnapshot) (json.RawMessage, error) {
 		name := b.register(e.t)
 		rootOneOf = append(rootOneOf, map[string]any{"$ref": "#/$defs/" + name})
 		// The root description names the alternative request roots
-		// present (point lookup is not a validated request body there).
-		if name != "Request" && strings.HasSuffix(name, "Request") && name != "LookupRequest" {
+		// present (point lookup and recommend are not validated request
+		// bodies there).
+		if name != "Request" && strings.HasSuffix(name, "Request") && name != "LookupRequest" && name != "RecommendRequest" {
 			altRequests = append(altRequests, name)
 		}
 	}
@@ -283,10 +286,12 @@ func resultOnlyStructs() map[reflect.Type]bool {
 		return seen
 	}
 	results := reach(reflect.TypeFor[types.Response](), reflect.TypeFor[types.ComposedResponse](),
-		reflect.TypeFor[types.ChainResponse](), reflect.TypeFor[types.FacetResult](), reflect.TypeFor[types.LookupResult]())
+		reflect.TypeFor[types.ChainResponse](), reflect.TypeFor[types.FacetResult](), reflect.TypeFor[types.LookupResult](),
+		reflect.TypeFor[descriptor.RecommendResult]())
 	requests := reach(reflect.TypeFor[types.Request](), reflect.TypeFor[types.ComposedRequest](),
 		reflect.TypeFor[types.ChainRequest](), reflect.TypeFor[types.FacetRequest](),
-		reflect.TypeFor[types.SampleRequest](), reflect.TypeFor[types.LookupRequest]())
+		reflect.TypeFor[types.SampleRequest](), reflect.TypeFor[types.LookupRequest](),
+		reflect.TypeFor[descriptor.RecommendRequest]())
 	for t := range requests {
 		delete(results, t)
 	}
@@ -398,6 +403,25 @@ func (b *schemaBuilder) schemaFor(t reflect.Type, inlineNamed bool) any {
 	}
 }
 
+// fieldKey names one struct field by its json name.
+type fieldKey struct {
+	t    reflect.Type
+	name string
+}
+
+// fieldOverrides replaces the reflected schema of a json.RawMessage
+// field that is not operator params (the generic RawMessage rule
+// describes params). A recommend draft is a request object whose
+// caller-supplied values are "<placeholder>" strings, so it is an open
+// object rather than #/$defs/Request: a placeholder may sit where the
+// request takes a number.
+var fieldOverrides = map[fieldKey]any{
+	{reflect.TypeFor[descriptor.Recommendation](), "request"}: map[string]any{
+		"type":        "object",
+		"description": "The draft request as wire JSON (the #/$defs/Request shape). Every value the caller must supply is a \"<placeholder>\" string named after its wire key, listed in placeholders.",
+	},
+}
+
 // structSchema reflects a struct into an object schema, honouring json
 // tags, omitempty/omitzero (→ optional), and "-" (→ skipped).
 //
@@ -433,7 +457,11 @@ func (b *schemaBuilder) structSchema(t reflect.Type) any {
 			}
 			continue
 		}
-		props[name] = b.schemaFor(f.Type, false)
+		if o, ok := fieldOverrides[fieldKey{t, name}]; ok {
+			props[name] = o
+		} else {
+			props[name] = b.schemaFor(f.Type, false)
+		}
 		if !opts["omitempty"] && !opts["omitzero"] {
 			required = append(required, name)
 		}

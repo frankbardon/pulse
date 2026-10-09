@@ -1,0 +1,336 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "distribution_shape",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "measure",
+            "kinds": [
+              "numeric"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "AGG_MEDIAN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Middle value of a numeric field once sorted: the typical row, not pulled by a few extreme values. It uses revenue (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "type": "AGG_MEDIAN"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a value other than the middle, such as the 90th percentile",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "the field is roughly symmetric and you want a figure that combines across groups",
+            "use": "AGG_AVERAGE"
+          },
+          {
+            "when": "the field holds categories rather than numbers",
+            "use": "AGG_MODE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MEDIAN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Middle value of a numeric field once sorted: the typical row, not pulled by a few extreme values. It uses seats (u16).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "type": "AGG_MEDIAN"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a value other than the middle, such as the 90th percentile",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "the field is roughly symmetric and you want a figure that combines across groups",
+            "use": "AGG_AVERAGE"
+          },
+          {
+            "when": "the field holds categories rather than numbers",
+            "use": "AGG_MODE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MEDIAN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Middle value of a numeric field once sorted: the typical row, not pulled by a few extreme values. It uses score (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "score",
+              "type": "AGG_MEDIAN"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a value other than the middle, such as the 90th percentile",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "the field is roughly symmetric and you want a figure that combines across groups",
+            "use": "AGG_AVERAGE"
+          },
+          {
+            "when": "the field holds categories rather than numbers",
+            "use": "AGG_MODE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RANGE",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Distance between the smallest and largest value of a numeric field, over all rows or per group. It uses revenue (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "type": "AGG_RANGE"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a spread measure that uses every row, not only the two extremes",
+            "use": "AGG_STDDEV"
+          },
+          {
+            "when": "you want the spread of the middle of the data, ignoring extremes",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RANGE",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Distance between the smallest and largest value of a numeric field, over all rows or per group. It uses seats (u16).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "type": "AGG_RANGE"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a spread measure that uses every row, not only the two extremes",
+            "use": "AGG_STDDEV"
+          },
+          {
+            "when": "you want the spread of the middle of the data, ignoring extremes",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RANGE",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Distance between the smallest and largest value of a numeric field, over all rows or per group. It uses score (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "score",
+              "type": "AGG_RANGE"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want a spread measure that uses every row, not only the two extremes",
+            "use": "AGG_STDDEV"
+          },
+          {
+            "when": "you want the spread of the middle of the data, ignoring extremes",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_STDDEV",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Typical distance of a numeric field's values from their average, in the field's own units, over all rows or per group. It uses revenue (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "type": "AGG_STDDEV"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want how precisely the average itself is known",
+            "use": "AGG_CI_LOWER"
+          },
+          {
+            "when": "you want the sample form (dividing by n - 1) together with the mean and n",
+            "use": "AGG_WELFORD"
+          },
+          {
+            "when": "the field has extreme values and you want a spread they cannot drag",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_STDDEV",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Typical distance of a numeric field's values from their average, in the field's own units, over all rows or per group. It uses seats (u16).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "type": "AGG_STDDEV"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want how precisely the average itself is known",
+            "use": "AGG_CI_LOWER"
+          },
+          {
+            "when": "you want the sample form (dividing by n - 1) together with the mean and n",
+            "use": "AGG_WELFORD"
+          },
+          {
+            "when": "the field has extreme values and you want a spread they cannot drag",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_STDDEV",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Typical distance of a numeric field's values from their average, in the field's own units, over all rows or per group. It uses score (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "score",
+              "type": "AGG_STDDEV"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want how precisely the average itself is known",
+            "use": "AGG_CI_LOWER"
+          },
+          {
+            "when": "you want the sample form (dividing by n - 1) together with the mean and n",
+            "use": "AGG_WELFORD"
+          },
+          {
+            "when": "the field has extreme values and you want a spread they cannot drag",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_PERCENTILE",
+        "category": "attribute",
+        "level": "basic",
+        "why": "Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. It uses revenue (f64).",
+        "bound": true,
+        "request": {
+          "attributes": [
+            {
+              "field": "revenue",
+              "type": "ATTR_PERCENTILE"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the value at a chosen percentile, such as the 90th",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want ranks within partitions, or tied values to share a rank",
+            "use": "WIN_RANK"
+          },
+          {
+            "when": "you want rows split into equal-sized bands",
+            "use": "GROUP_QUANTILE"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 48
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: f01b591661da32ad131f17bed43ea0328e4cf50d0e969918ff0c3358f4df9b1b

@@ -46,7 +46,8 @@ with a feature profile gets a narrower document:
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
-  `SampleRequest` (sample), `LookupRequest` / `LookupResult` (lookup);
+  `SampleRequest` (sample), `LookupRequest` / `LookupResult` (lookup),
+  `RecommendRequest` / `RecommendResult` (recommend);
 - every def reachable only through an omitted part is dropped, so the
   document stays a valid draft 2020-12 schema with no dangling `$ref`.
 
@@ -60,9 +61,11 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
 
 - **Requests** — `#/$defs/Request` (process / predict), `ComposedRequest`
   (compose), `ChainRequest` (process-chain), `FacetRequest`, `SampleRequest`,
-  `LookupRequest` (point lookup).
+  `LookupRequest` (point lookup), `RecommendRequest` (recommend).
 - **Results** — `#/$defs/Response`, `ComposedResponse`, `ChainResponse`,
-  `FacetResult`, `LookupResult`.
+  `FacetResult`, `LookupResult`, `RecommendResult` (its draft `request`
+  is an open object: a `"<placeholder>"` may sit where `Request` takes a
+  number).
 - **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
   `advisories` (`{code, message, details}`): a coded, non-blocking note
   that the analysis may not fit the data. Never a warning.

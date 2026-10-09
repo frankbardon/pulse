@@ -1,0 +1,386 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "benchmark",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "measure",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": -1
+          },
+          {
+            "name": "group",
+            "kinds": [
+              "categorical",
+              "bool",
+              "date"
+            ],
+            "min": 1,
+            "max": 1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "WIN_DELTA",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. It uses revenue (f64) and signup (date).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "signup"
+                }
+              ],
+              "type": "WIN_DELTA"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the change relative to the earlier value",
+            "use": "WIN_PCT_CHANGE"
+          },
+          {
+            "when": "you want each period's change from the one before as a decoration on the result",
+            "use": "OVERLAY_DELTA_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_DELTA",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "seats"
+                }
+              ],
+              "type": "WIN_DELTA"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the change relative to the earlier value",
+            "use": "WIN_PCT_CHANGE"
+          },
+          {
+            "when": "you want each period's change from the one before as a decoration on the result",
+            "use": "OVERLAY_DELTA_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_DELTA",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "score"
+                }
+              ],
+              "type": "WIN_DELTA"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the change relative to the earlier value",
+            "use": "WIN_PCT_CHANGE"
+          },
+          {
+            "when": "you want each period's change from the one before as a decoration on the result",
+            "use": "OVERLAY_DELTA_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_DENSE_RANK",
+        "category": "window",
+        "level": "basic",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses region (categorical_u8, 4 groups) and signup (date).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "region",
+              "order_by": [
+                {
+                  "field": "signup"
+                }
+              ],
+              "type": "WIN_DENSE_RANK"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the rank should skip past equal values, as in sports standings",
+            "use": "WIN_RANK"
+          },
+          {
+            "when": "every row needs its own number even when values are equal",
+            "use": "WIN_ROW_NUMBER"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_DENSE_RANK",
+        "category": "window",
+        "level": "basic",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses region (categorical_u8, 4 groups) and revenue (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "region",
+              "order_by": [
+                {
+                  "field": "revenue"
+                }
+              ],
+              "type": "WIN_DENSE_RANK"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the rank should skip past equal values, as in sports standings",
+            "use": "WIN_RANK"
+          },
+          {
+            "when": "every row needs its own number even when values are equal",
+            "use": "WIN_ROW_NUMBER"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_DENSE_RANK",
+        "category": "window",
+        "level": "basic",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses region (categorical_u8, 4 groups) and seats (u16).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "region",
+              "order_by": [
+                {
+                  "field": "seats"
+                }
+              ],
+              "type": "WIN_DENSE_RANK"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the rank should skip past equal values, as in sports standings",
+            "use": "WIN_RANK"
+          },
+          {
+            "when": "every row needs its own number even when values are equal",
+            "use": "WIN_ROW_NUMBER"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_PCT_CHANGE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier as a fraction of the earlier value: 0.05 is a 5% rise on last month. It uses revenue (f64) and signup (date).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "signup"
+                }
+              ],
+              "type": "WIN_PCT_CHANGE"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the earlier value can be 0, near 0 or negative, or the field is itself a percentage",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the same year-ago period as the comparison",
+            "use": "OVERLAY_YOY"
+          },
+          {
+            "when": "you want each period as an index value against the one before",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_PCT_CHANGE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier as a fraction of the earlier value: 0.05 is a 5% rise on last month. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "seats"
+                }
+              ],
+              "type": "WIN_PCT_CHANGE"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the earlier value can be 0, near 0 or negative, or the field is itself a percentage",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the same year-ago period as the comparison",
+            "use": "OVERLAY_YOY"
+          },
+          {
+            "when": "you want each period as an index value against the one before",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_PCT_CHANGE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier as a fraction of the earlier value: 0.05 is a 5% rise on last month. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "score"
+                }
+              ],
+              "type": "WIN_PCT_CHANGE"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the earlier value can be 0, near 0 or negative, or the field is itself a percentage",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the same year-ago period as the comparison",
+            "use": "OVERLAY_YOY"
+          },
+          {
+            "when": "you want each period as an index value against the one before",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_RANK",
+        "category": "window",
+        "level": "basic",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next skips: 1, 2, 2, 4. It uses region (categorical_u8, 4 groups) and signup (date).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "region",
+              "order_by": [
+                {
+                  "field": "signup"
+                }
+              ],
+              "type": "WIN_RANK"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "equal values should share a rank with no gap after them",
+            "use": "WIN_DENSE_RANK"
+          },
+          {
+            "when": "every row needs its own number even when values are equal",
+            "use": "WIN_ROW_NUMBER"
+          },
+          {
+            "when": "you want each record's position as a percentage of all records",
+            "use": "ATTR_PERCENTILE"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 24
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 94197ff93d9a3cc7aeb33b27c71bb363db09fbcd9ad19fbb9ea7676bbefee5fa
