@@ -265,6 +265,16 @@ func TestBindForInstance_ProfileFreeByteIdentical(t *testing.T) {
 	if got := enumOf(req, "aggregations", "type"); len(got) != len(types.AllAggregationTypes()) {
 		t.Errorf("profile-free aggregations enum has %d names, want %d", len(got), len(types.AllAggregationTypes()))
 	}
+	// …and every multiplicity block (E5-S1): the profile-free bodies
+	// moved deliberately to carry them, on both binders alike.
+	for tool, paths := range multiplicityPaths {
+		root := decodeBoundRequest(t, want[tool])
+		for _, p := range paths {
+			if schemaAt(root, p) == nil {
+				t.Errorf("profile-free %s: unscoped binder lacks %s", tool, p)
+			}
+		}
+	}
 }
 
 // codedOf unwraps a *perr.CodedError.

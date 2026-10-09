@@ -335,6 +335,7 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
 	dropHiddenSlots(requestObject, &types.FacetRequest{}, inst)
+	dropHiddenMultiplicity(requestObject, inst)
 	return json.Marshal(requestObject)
 }
 
@@ -592,8 +593,12 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			items["properties"].(map[string]any)["weight"] = slotWeightSchema(c)
 		}
 	}
+	reqProps["multiplicity"] = multiplicitySchema(
+		"Request-level multiple-comparison correction, inherited by every test, post-test and overlay that sets no `multiplicity` of its own (each field on its own: slot, then request, then the ComposedRequest, then the instance default). Raw p-values never move; corrected p_adjusted / significant_adjusted ride beside them. {\"method\":\"none\"} opts out. Family `compose` is valid only on a pulse_compose slot.",
+		types.AllMultiplicityFamilies(), true)
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
 	dropHiddenWeights(requestObject, inst)
+	dropHiddenMultiplicity(requestObject, inst)
 
 	return json.Marshal(requestObject)
 }
@@ -626,6 +631,75 @@ func dropHiddenWeights(node any, inst *descx.InstanceSnapshot) {
 		}
 	}
 	walk(node)
+}
+
+// dropHiddenMultiplicity deletes every nested `multiplicity` property
+// (the Request and ComposedRequest roots, tests, post-tests, and the
+// Request / Facet / Compose overlay specs) when inst hides
+// capability:multiplicity — the properties the instance payload schema
+// drops and the request-slot gate refuses. The compose, chain and
+// predict tools embed these bodies, so they follow. No-op unless
+// multiplicity is hidden.
+func dropHiddenMultiplicity(node any, inst *descx.InstanceSnapshot) {
+	if inst.Enabled(descx.FeatureMultiplicity) {
+		return
+	}
+	var walk func(any)
+	walk = func(n any) {
+		switch v := n.(type) {
+		case map[string]any:
+			if props, ok := v["properties"].(map[string]any); ok {
+				delete(props, "multiplicity")
+			}
+			for _, child := range v {
+				walk(child)
+			}
+		case []any:
+			for _, child := range v {
+				walk(child)
+			}
+		}
+	}
+	walk(node)
+}
+
+// multiplicitySchema is the {method, family, alpha} correction block
+// (types.Multiplicity). families is the set the slot's surface accepts
+// (descriptor multiplicity_resolve's per-surface table, widest case);
+// alpha is false where the engine refuses an own alpha (a test's block).
+func multiplicitySchema(description string, families []types.MultiplicityFamily, alpha bool) map[string]any {
+	props := map[string]any{
+		"method": enumStringField(stringSlice(types.AllMultiplicityMethods()), "Correction procedure: none (explicit opt-out), bonferroni, holm (family-wise error), bh, by (false discovery rate). Omit to inherit."),
+		"family": enumStringField(stringSlice(families), "Which p-values are corrected together. Omit to inherit, then the surface default."),
+	}
+	if alpha {
+		props["alpha"] = map[string]any{
+			"type":             "number",
+			"exclusiveMinimum": 0,
+			"exclusiveMaximum": 1,
+			"description":      "Significance level significant_adjusted compares against, in (0, 1). Omit to inherit, then 0.05.",
+		}
+	}
+	return map[string]any{
+		"type":                 "object",
+		"description":          description,
+		"properties":           props,
+		"additionalProperties": false,
+	}
+}
+
+// overlayMultiplicitySchema is an OverlaySpec's own block on the Request
+// or Facet overlay host. A Facet layer has no request or compose family.
+func overlayMultiplicitySchema(facade overlayFacade) map[string]any {
+	families := []types.MultiplicityFamily{types.MultiplicityFamilyLayer, types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn}
+	desc := "This layer's own multiple-comparison correction. Family `layer` (default) corrects the layer's p-values together, `row` / `column` per row / column of a matrix layer."
+	if facade == overlayFacadeRequest {
+		families = append(families, types.MultiplicityFamilyRequest, types.MultiplicityFamilyCompose)
+		desc += " Omit to inherit the request's. `request` pools with the request's tests; `compose` (pulse_compose slots only) pools across the batch."
+	} else {
+		desc += " Omit to inherit the instance default."
+	}
+	return multiplicitySchema(desc, families, true)
 }
 
 // crosstabSchema returns the JSON Schema for the Crosstab section.
@@ -866,6 +940,9 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 					"within":    map[string]any{"type": "integer", "minimum": 0, "description": "Matrix-shape Compose: opposite-axis prefix depth. Ignored on non-matrix kinds."},
 					"params":    map[string]any{"description": "Kind-specific configuration. Per-kind schema lives alongside the kind's processor."},
 					"options":   map[string]any{"type": "object", "description": "Per-spec optimization knobs (e.g. MaxPanelTargets for multi-reference kinds)."},
+					"multiplicity": multiplicitySchema(
+						"This layer's own multiple-comparison correction; omit to inherit the ComposedRequest's. Family `layer` (default) corrects the layer's p-values together, `row` / `column` per row / column of a matrix layer, `compose` pools with every compose-family member of the batch.",
+						[]types.MultiplicityFamily{types.MultiplicityFamilyLayer, types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn, types.MultiplicityFamilyCompose}, true),
 				},
 				"required":             []string{"kind", "reference"},
 				"additionalProperties": true,
@@ -905,13 +982,14 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 			"items": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"name":   map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Scope+Ref."},
-					"kind":   kindField,
-					"scope":  map[string]any{"type": "string", "description": "Where the overlay lands relative to the base result."},
-					"ref":    map[string]any{"type": "object", "description": "Discriminated reference family pointer; per-kind contract documented in Manifest.Overlays."},
-					"level":  map[string]any{"type": "integer", "minimum": 0, "description": "Same-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
-					"within": map[string]any{"type": "integer", "minimum": 0, "description": "Opposite-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
-					"params": map[string]any{"description": "Operator-specific configuration. Per-kind schema lives alongside the kind's processor."},
+					"name":         map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Scope+Ref."},
+					"kind":         kindField,
+					"scope":        map[string]any{"type": "string", "description": "Where the overlay lands relative to the base result."},
+					"ref":          map[string]any{"type": "object", "description": "Discriminated reference family pointer; per-kind contract documented in Manifest.Overlays."},
+					"level":        map[string]any{"type": "integer", "minimum": 0, "description": "Same-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
+					"within":       map[string]any{"type": "integer", "minimum": 0, "description": "Opposite-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
+					"params":       map[string]any{"description": "Operator-specific configuration. Per-kind schema lives alongside the kind's processor."},
+					"multiplicity": overlayMultiplicitySchema(facade),
 				},
 				"required":             []string{"kind", "scope"},
 				"additionalProperties": true,
@@ -940,6 +1018,9 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 				"order_by":      map[string]any{"type": "array", "items": orderKeySchema(c.NumericOrDate)},
 				"params":        map[string]any{},
 				"weight":        slotWeightSchema(c),
+				"multiplicity": multiplicitySchema(
+					"This test's own multiple-comparison correction; omit to inherit the request's. Family `request` (default) pools the request's tests, post-tests and request-family overlays; `compose` (pulse_compose slots only) pools across the batch. No alpha: a test's adjusted flag reads its own `alpha`.",
+					[]types.MultiplicityFamily{types.MultiplicityFamilyRequest, types.MultiplicityFamilyCompose}, false),
 			},
 			"required":             []string{"type"},
 			"additionalProperties": true,
@@ -967,11 +1048,15 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				"items": reqSchema,
 			},
 			"overlays": overlaysSchemaForFacade(overlayFacadeCompose, inst),
+			"multiplicity": multiplicitySchema(
+				"Batch-level multiple-comparison correction, inherited by every slot request (below its own request-level block) and every Compose overlay layer that sets none of its own. Family `compose` pools every compose-family member across the slots and the Compose layers.",
+				types.AllMultiplicityFamilies(), true),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
 	}
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
+	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
 }
 

@@ -30,11 +30,22 @@ var (
 	reflectErrors = map[string]error{}
 )
 
+// reflectOptions overrides the reflector's default for json.RawMessage,
+// which it would otherwise derive from []byte as an array of 0–255
+// integers. A RawMessage field (operator `params`, a recommendation's
+// drafted `request`, an example body) carries any JSON value on the
+// wire, so it reflects as the empty — any-JSON — schema.
+var reflectOptions = &jsonschema.ForOptions{
+	TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+		reflect.TypeFor[json.RawMessage](): {},
+	},
+}
+
 // reflectSchema reflects a JSON Schema for t and marshals it to json.RawMessage.
 // A fallback open-object schema is returned on error; the error is surfaced to
 // the caller for recording.
 func reflectSchema(t reflect.Type) (json.RawMessage, error) {
-	s, err := jsonschema.ForType(t, nil)
+	s, err := jsonschema.ForType(t, reflectOptions)
 	if err != nil {
 		return json.RawMessage(`{"type":"object"}`), err
 	}
