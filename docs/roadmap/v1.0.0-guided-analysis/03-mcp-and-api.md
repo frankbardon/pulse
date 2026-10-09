@@ -129,8 +129,8 @@ Prompts are generated from the intent registry, gated like tools (`TestSkillsCov
 | `pulse_skills_list {intent}` | C | returns the intent's question guide skill + atomic skills, ranked by `Level` |
 | Intent-scoped manifest | S | `pulse_manifest {intent: "compare_groups"}` returns only the operators, params and examples relevant to that intent, roughly a tenth of the full manifest's tokens |
 | Tool descriptions lead with purpose | C | every MCP tool description's first sentence says when to call it (the `## When to use` section already exists in tool skills; move its first line into `mcp/toolmeta` descriptions, which is what clients actually show the model) |
-| `pulse-skill://glossary` resource | C | one fetch gives the whole glossary |
-| "Did you mean" on errors | S | when a request fails validation in a way a different operator would satisfy (e.g. `TEST_T` given a 4-level grouping), the coded error's `details.suggested_operator` names it; the fixup template already exists as a mechanism |
+| `pulse-skill://glossary` resource | C | one fetch gives the whole glossary (shipped in U07) |
+| "Did you mean" on errors | S | when a request fails validation in a way a different operator would satisfy (e.g. `TEST_T` given a 4-level grouping), the coded error's `details.suggested_operator` names it; the fixup template already exists as a mechanism (unowned stretch; no unit carries it) |
 
 ---
 

@@ -107,7 +107,7 @@ The core tools below are registered at server start (the manifest's `mcp_tools` 
 | `pulse_examples_search` | Search the embedded request-example library by query, taxonomy tags (ANDed), or category. |
 | `pulse_examples_get` | Fetch one runnable example body by name. |
 | `pulse_errors_lookup` | Per-code Message + Fixup detail (kept out of the manifest for context economy). |
-| `pulse_skills_list` | Embedded skill metadata. |
+| `pulse_skills_list` | Embedded skill metadata; the optional `intent` filter returns that intent's skills. |
 | `pulse_skills_get` | Fetch one skill body by name. |
 
 ### Resources

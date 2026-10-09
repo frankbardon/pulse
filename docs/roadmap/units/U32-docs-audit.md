@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257]
 branch: docs-audit
 ---
 
@@ -40,6 +40,7 @@ A deliberate final pass over every surface a human or agent reads (mdBook, READM
 - [ ] **#167** (11. Documentation audit) Findings log closed (fixed or deferred with reason and issue) and maintainer sign-off recorded
 - [ ] **#238** (7. Guided analysis › Follow-ups from U21) Hidden-capability prose residue the slot-token filter does not reach (matrices-hidden `pulse_examples_search` / `pulse_manifest` sentences, unscrubbed topical and tool skill bodies, weighted aggregator keys on the Components page of a weighting-hidden instance)
 - [ ] **#239** (7. Guided analysis › Follow-ups from U21) The Analysis Guide's search-index size (about 12 MB warning) and whether the PR-time `docs` job becomes a required check
+- [ ] **#257** (7. Guided analysis › Follow-ups from U23) `pulse_predict` description keeps the generic "send exactly one alternative root alone" sentence on profiles hiding compose, facet and process_chain (the per-root sentences are scrubbed)
 
 ## Scope
 
@@ -118,7 +119,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 
 ## Inherited from U22
 
-- **Two design skills now sit exactly at the 6,000-byte `kind: design` budget** (#161): `skills/weighting.md` (U22 E1-S3 trimmed its SPSS sentence to fit) and `skills/session-bootstrap.md` (U22 E3-S4 shortened step 1's version sentence to fit the `pulse explain` line). The next addition to either must displace text first. Found in U22 (PR #331).
+- **Two design skills now sit exactly at the 6,000-byte `kind: design` budget** (#161): `skills/weighting.md` (U22 E1-S3 trimmed its SPSS sentence to fit) and `skills/session-bootstrap.md` (U22 E3-S4 shortened step 1's version sentence to fit the `pulse explain` line). The next addition to either must displace text first; U23's `intent` routing left `session-bootstrap.md` at 5,999 bytes. Found in U22 (PR #331), extended in U23.
 
 ## Human inputs & decisions
 

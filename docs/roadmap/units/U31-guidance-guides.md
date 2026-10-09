@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U21, U24, U28]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [100, 101, 102, 103]
+todo_items: [100, 101, 102, 103, 250, 251, 252]
 branch: guidance-guides
 ---
 
@@ -33,6 +33,9 @@ Hand-written prose around generated blocks: the "What can Pulse answer?" landing
 - [ ] **#101** (7. Guided analysis — docs, API & MCP › G6 — Guides) Question guides, one per intent: describe, compare groups, relationships, drivers, change over time, composition, benchmark, distribution, segment, measure construct, flows, data quality
 - [ ] **#102** (7. Guided analysis — docs, API & MCP › G6 — Guides) Story examples: `_meta.intent` / `question` / `interpretation`, at least one per intent
 - [ ] **#103** (7. Guided analysis — docs, API & MCP › G6 — Guides) Vector & matrix concept primers: correlation matrix, PCA, distance vs similarity, perceptual maps
+- [ ] **#250** (7. Guided analysis › Follow-ups from U23) Fuzzy (typo-tolerant) search over examples and skills: a final `matchTier` after the literal and `KnownAs`/Sound tiers (the seam in `internal/examples/search.go`), edit distance scaled by length, ranked below exact and synonym hits
+- [ ] **#251** (7. Guided analysis › Follow-ups from U23) Align the story-example metadata spelling: #102 says `_meta.intent`, examples carry `_meta.intents` (a list); pick one and make the item text, the harness and the docs agree
+- [ ] **#252** (7. Guided analysis › Follow-ups from U23) `pulse examples search` has no `--intent` flag (the MCP tool and the facade `ExamplesSearchWith` take one); add it and a `docs/src/cli/flags.md` row
 
 ## Scope
 

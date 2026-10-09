@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249]
+todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260]
 branch: predict-runtime-parity
 ---
 
@@ -44,6 +44,12 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 - [ ] **#207** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Shard-archive cohesion compares `Nullable`: `AddShard`, `shard verify`, the `NewCohortBuilder` anchored-append pre-check and the archive reader refuse a shard whose per-field nullability differs from the canonical schema, instead of decoding it under the canonical flags
 - [ ] **#248** (7. Guided analysis › Follow-ups from U22) Bound Recommend reads a shard archive header-only: the archive path of `descx.Predict` does `io.ReadAll`, so a bound Recommend on an archive reads every shard
 - [ ] **#249** (7. Guided analysis › Follow-ups from U22) Recommend drafts every serving operator: `AGG_RATIO` (predict refuses a missing `field` the runtime ignores), `AGG_WEIGHTED_MEAN` (no weight binding), `ATTR_REG_*` and `FEAT_BUCKETIZE` (required params the manifest does not declare); see `unmappedOnFixture` in `internal/guide/bind_test.go`
+- [ ] **#253** (7. Guided analysis › Follow-ups from U23) Compose predict does not judge slot operators by name: an unknown or hidden operator in a Compose slot predicts valid, so the Explain doc's "predicts each slot" claim is inaccurate until per-slot predict runs
+- [ ] **#254** (7. Guided analysis › Follow-ups from U23) Chain predict does not validate stage label bindings
+- [ ] **#255** (7. Guided analysis › Follow-ups from U23) `PredictCompose` / `PredictFacet` / `PredictChain` and `pulse api predict-compose` / `-facet` / `-chain` ignore Strict and EchoRequest (the validators read neither); wire them, then add `--strict` / `--echo-request`
+- [ ] **#256** (7. Guided analysis › Follow-ups from U23) Bare MCP `pulse_predict` returns no `errors` / `warnings`, so `valid: false` carries no reason (the alternative roots do carry them); additive fix
+- [ ] **#259** (7. Guided analysis › Follow-ups from U23) The engine accepts `weight` on a facet overlay and silently ignores it (facets are never weighted); refuse it
+- [ ] **#260** (7. Guided analysis › Follow-ups from U23) Bound `joins` field-name enums in the MCP input schemas cover only the left cohort; right-side and joined field names fall outside them (the description says so, predict resolves them); widen the enums from the join target's schema
 
 ## Scope
 
