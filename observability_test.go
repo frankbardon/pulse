@@ -290,6 +290,10 @@ var uninstrumentedMethods = map[string]bool{
 	// runs its draft predicts in-process, firing no predict operation.
 	// The OperationKind list stays as the U20 interview locked it.
 	"Recommend": true,
+	// Explain is guidance too: it describes a request from in-memory
+	// guidance and, over a cohort, in-process predicts that fire no
+	// predict operation.
+	"Explain": true,
 }
 
 // TestObservedMethodsCoverSurface guards against a missed method: every

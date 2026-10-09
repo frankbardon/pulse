@@ -62,7 +62,7 @@ func (p *Pulse) Recommend(ctx context.Context, req descriptor.RecommendRequest) 
 		return nil, err
 	}
 	path := resolveCohortPath(req.Cohort)
-	src, err := p.openRecommendCohort(path)
+	src, err := p.openGuideCohort(path, "recommend")
 	if err != nil {
 		return nil, err
 	}
@@ -80,20 +80,22 @@ func (p *Pulse) Recommend(ctx context.Context, req descriptor.RecommendRequest) 
 	})
 }
 
-// recommendCohort is the cohort bound Recommend predicts against: a
-// seekable source predict reads from the start, and its schema.
-type recommendCohort struct {
+// guideCohort is the cohort a guidance surface (bound Recommend,
+// Explain) predicts against: a seekable source predict reads from the
+// start, and its schema.
+type guideCohort struct {
 	rs     io.ReadSeeker
 	schema *encoding.Schema
 	close  func()
 }
 
-// openRecommendCohort opens the cohort at path for bound Recommend. A
+// openGuideCohort opens the cohort at path for a guidance surface; op
+// ("recommend", "explain") prefixes its error messages. A
 // single file stays an open file handle, so predict reads its header
 // and schema and seeks to the end for the record count — never a
 // record. A shard archive or an anchored shard is read into memory, as
 // Predict reads it.
-func (p *Pulse) openRecommendCohort(path string) (*recommendCohort, error) {
+func (p *Pulse) openGuideCohort(path, op string) (*guideCohort, error) {
 	readPath, entry := path, ""
 	if archivePath, e, ok := service.SplitAnchorPath(path); ok {
 		readPath, entry = archivePath, e
@@ -101,50 +103,50 @@ func (p *Pulse) openRecommendCohort(path string) (*recommendCohort, error) {
 	f, err := p.fsys.Open(readPath)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			"recommend: opening cohort: "+err.Error(), map[string]any{"path": path})
+			op+": opening cohort: "+err.Error(), map[string]any{"path": path})
 	}
 	var magic [4]byte
 	n, _ := io.ReadFull(f, magic[:])
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		_ = f.Close()
 		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			"recommend: reading cohort: "+err.Error(), map[string]any{"path": path})
+			op+": reading cohort: "+err.Error(), map[string]any{"path": path})
 	}
 	if entry == "" && (n < 4 || magic != [4]byte{'P', 'K', 0x03, 0x04}) {
-		schema, err := readRecommendSchema(f)
+		schema, err := readGuideSchema(f)
 		if err == nil {
 			_, err = f.Seek(0, io.SeekStart)
 		}
 		if err != nil {
 			_ = f.Close()
-			return nil, recommendSchemaError(path, err)
+			return nil, guideSchemaError(op, path, err)
 		}
-		return &recommendCohort{rs: f, schema: schema, close: func() { _ = f.Close() }}, nil
+		return &guideCohort{rs: f, schema: schema, close: func() { _ = f.Close() }}, nil
 	}
 	data, err := io.ReadAll(f)
 	_ = f.Close()
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			"recommend: reading cohort: "+err.Error(), map[string]any{"path": path})
+			op+": reading cohort: "+err.Error(), map[string]any{"path": path})
 	}
 	schemaBytes := data
 	if entry != "" {
 		if data, err = extractShardBytes(data, entry); err != nil {
-			return nil, recommendSchemaError(path, err)
+			return nil, guideSchemaError(op, path, err)
 		}
 		schemaBytes = data
 	} else if schemaBytes, err = extractShardBytes(data, encx.ReservedSchemaName); err != nil {
-		return nil, recommendSchemaError(path, err)
+		return nil, guideSchemaError(op, path, err)
 	}
-	schema, err := readRecommendSchema(bytes.NewReader(schemaBytes))
+	schema, err := readGuideSchema(bytes.NewReader(schemaBytes))
 	if err != nil {
-		return nil, recommendSchemaError(path, err)
+		return nil, guideSchemaError(op, path, err)
 	}
-	return &recommendCohort{rs: bytes.NewReader(data), schema: schema, close: func() {}}, nil
+	return &guideCohort{rs: bytes.NewReader(data), schema: schema, close: func() {}}, nil
 }
 
-// readRecommendSchema reads a header and the schema block after it.
-func readRecommendSchema(r io.Reader) (*encoding.Schema, error) {
+// readGuideSchema reads a header and the schema block after it.
+func readGuideSchema(r io.Reader) (*encoding.Schema, error) {
 	version, err := encoding.ReadHeader(r)
 	if err != nil {
 		return nil, err
@@ -152,7 +154,7 @@ func readRecommendSchema(r io.Reader) (*encoding.Schema, error) {
 	return encoding.ReadSchema(r, version)
 }
 
-func recommendSchemaError(path string, err error) error {
+func guideSchemaError(op, path string, err error) error {
 	return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
-		"recommend: reading cohort schema: "+err.Error(), map[string]any{"path": path})
+		op+": reading cohort schema: "+err.Error(), map[string]any{"path": path})
 }
