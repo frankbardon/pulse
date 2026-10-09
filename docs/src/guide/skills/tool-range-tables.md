@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-Discover which named labeled-date-range sets exist (e.g. fiscal quarters, marketing campaigns, product-launch windows) before authoring a date-range grouper or filter that references a table by name. This is the INPUT direction: turning a table name into the usable `{label, start, end}` range set an operator resolves.
+CALL TO FIND WHICH NAMED DATE-RANGE SETS EXIST BEFORE GROUPING OR FILTERING BY ONE.
+Fiscal quarters, marketing campaigns, product-launch windows. This is the INPUT direction: turning a table name into the usable `{label, start, end}` range set an operator resolves.
 
 ## Input
 

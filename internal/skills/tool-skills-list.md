@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-Discover available skills before authoring a request when you need domain guidance for a less common operator, or as part of session bootstrap to enumerate the skill catalog. Knowing the kind of question, pass `intent`. Pair with `pulse_skills_get` to fetch a specific skill's markdown body.
+CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST.
+Domain guidance for a less common operator, or session bootstrap. Knowing the kind of question, pass `intent`. Pair with `pulse_skills_get` to fetch a specific skill's markdown body.
 
 ## Input
 

@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-CALL BEFORE AUTHORING A REQUEST. Find a runnable template that matches the user's question; clone its body via `pulse_examples_get` and rename fields for the target cohort. The example library is curated, runnable, and stays in lockstep with the operator surface — prefer it over inferring request shapes from documentation or source code.
+CALL BEFORE AUTHORING A REQUEST.
+Find a runnable template that matches the user's question; clone its body via `pulse_examples_get` and rename fields for the target cohort. The example library is curated, runnable, and stays in lockstep with the operator surface — prefer it over inferring request shapes from documentation or source code.
 
 ## Input
 

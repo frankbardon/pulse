@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-You know the kind of question but not the operator or request shape: get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend --intent ID [--cohort C] [--field F …] [--level L] [--limit N] [--json]`.
+CALL WHEN YOU KNOW THE KIND OF QUESTION BUT NOT THE REQUEST.
+Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend --intent ID [--cohort C] [--field F …] [--level L] [--limit N] [--json]`.
 
 ## Input
 

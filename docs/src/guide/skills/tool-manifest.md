@@ -8,7 +8,8 @@ applies_to: manifest, mcp
 
 ## When to use
 
-CALL FIRST in every session. Cache the result; reference it for every request-authoring decision. Source of truth for every operator, tool and error code THIS deployment offers. Pair with `pulse_examples_search` for runnable templates.
+CALL FIRST IN EVERY SESSION.
+Cache the result; reference it for every request-authoring decision. Source of truth for every operator, tool and error code THIS deployment offers. Pair with `pulse_examples_search` for runnable templates.
 
 ## Input
 

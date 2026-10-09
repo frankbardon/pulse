@@ -8,7 +8,8 @@ applies_to: predict, process, mcp
 
 ## When to use
 
-Before storing or executing a hand-authored or generated request. Cheap — reads only the cohort header + schema, never record data. Returns the same shape errors execution would emit on validation failure, plus normalization metadata.
+CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST.
+Cheap — reads only the cohort header + schema, never records. Returns the shape errors execution would emit, plus normalization metadata.
 
 ## Input
 

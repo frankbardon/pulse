@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-Surface the pool of active managed handles — render a UI of imports, identify expired entries before `pulse_drop`, or check whether a handle name is taken before `pulse_import`. Sweep is NOT invoked — expired entries are flagged via `Expired` so callers decide whether to drop or extend.
+CALL TO SEE WHICH MANAGED IMPORTS EXIST AND WHICH HAVE EXPIRED.
+Render a UI of imports, find expired entries before `pulse_drop`, or check a handle name is free before `pulse_import`. Sweep is NOT invoked — expired entries are flagged via `Expired` so callers decide to drop or extend.
 
 ## Input
 

@@ -8,7 +8,8 @@ applies_to: compose, process, mcp
 
 ## When to use
 
-Multiple distinct `types.Request` payloads against the same or different cohorts. Ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates). Any multi-question authoring loop where one call per question would be N round-trips.
+CALL TO RUN SEVERAL REQUESTS IN ONE ROUND-TRIP.
+Distinct `types.Request` payloads against the same or different cohorts: ecological regression (slot 1 aggregates, slot 2 regresses over aggregates) or any multi-question loop that would otherwise take N round-trips.
 
 ## Input
 
@@ -26,7 +27,7 @@ Multiple distinct `types.Request` payloads against the same or different cohorts
 
 - Compose-overlay multi-slot probes use byte-equal schema match by default. Enable `OverlaySpec.Options.DictPrefixFast` when slots share dictionary-prefix-equal categoricals.
 - Panel overlays cap Targets at `MaxPanelTargets` (default 16); overflow → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
-- Per-slot errors surface in the slot's envelope; Compose returns the array even when one slot fails (unless `FailFast: true`).
+- Per-slot errors surface in that slot's envelope; Compose still returns unless `FailFast: true`.
 
 ## See
 

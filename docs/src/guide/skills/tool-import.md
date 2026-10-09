@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-External data into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live under `$PULSE_DATA_DIR/imports/` with a TTL sidecar; every inspect/predict/process/sample/facet slides expiry forward. `.pulse` passes through unchanged (`managed=false`).
+CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT.
+CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live under `$PULSE_DATA_DIR/imports/` with a TTL sidecar; every inspect/predict/process/sample/facet slides expiry. `.pulse` passes through (`managed=false`).
 
 ## Input
 
@@ -23,7 +24,7 @@ External data into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel
 | `overwrite` | default `false` → `PULSE_IMPORT_HANDLE_EXISTS` |
 | `groups` | parent groups, `[{key: [...], members: [...]}]` (omit `key` for a plain tuple group); unknown entry key → `PULSE_GROUP_DECLARATION_INVALID` |
 | `suggest_groups` | also return measured `group_candidates`; one extra full pass, declares nothing |
-| `source_tz` / `column_source_tz` / `dst_policy` | zone naive datetimes were recorded in (IANA, `UTC`, `±HH:MM`), per-column `{col: zone}` override, DST policy `error`/`earlier`/`later`; persisted on the sidecar |
+| `source_tz` / `column_source_tz` / `dst_policy` | zone naive datetimes were recorded in (IANA, `UTC`, `±HH:MM`), per-column `{col: zone}` override, DST policy `error`/`earlier`/`later`; kept on the sidecar |
 
 ## Output
 
@@ -43,7 +44,7 @@ External data into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel
 - **Parent groups: suggest, then apply.** Import with `suggest_groups: true`, read `group_candidates.candidates` (`suggested: true` = the non-overlapping viable set), then re-import with those `{key, members}` as `groups` and `overwrite: true`. Groups write a smaller `0x02` cohort older binaries cannot open; a member varying within its key is FATAL `PULSE_GROUP_MEMBER_NOT_CONSTANT`. Weak groups WARN at the default floor 2 (`PULSE_GROUP_TOO_NARROW` dropped, `PULSE_DEDUP_LOW_RATIO` written) — there is no floor/strict knob because neither changes the bytes. Refused on a `.pulse` passthrough. **No constant elision here** — its value is at-rest bytes and a managed import is a TTL'd cache; use `pulse import <fmt> --elide-constants`.
 - **One dispatch.** Detection and reader construction use the `io` factory (`io.FormatFromPath` → `io.NewReader`), the same one the CLI and embedders use. No extension match and no `format` → `PULSE_IMPORT_FORMAT_UNKNOWN`; an explicit `format` outside the list → `PULSE_IO_FORMAT_UNSUPPORTED`.
 - A `.pulse.zst` (zstd transfer artifact) is refused with `PULSE_COHORT_COMPRESSED`, even renamed `.pulse`. Decompressing is an operator act: `pulse import transfer` (CLI) — no MCP slot.
-- Passthrough skips copy + sidecar; `pulse_drop` is a no-op on it. MCP success rebinds session-scoped tools from the new cohort (as [`tool-inspect`](tool-inspect.md)).
+- Passthrough skips copy + sidecar (`pulse_drop` no-ops). MCP success rebinds session-scoped tools from the new cohort (as [`tool-inspect`](tool-inspect.md)).
 
 ## See
 

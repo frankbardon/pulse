@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-Discover which categorical dimensions can be reverse-resolved by name (e.g. brand, category, region) before calling `pulse_label_resolve`. Output surfaces already render these labels automatically — this tool and `pulse_label_resolve` are for the INPUT direction: turning a user-supplied name into the raw categorical key a filter / grouper needs.
+CALL TO FIND WHICH CATEGORICAL FIELDS CAN BE RESOLVED BY DISPLAY NAME.
+Run it before `pulse_label_resolve`. Output surfaces already render these labels automatically — this tool and `pulse_label_resolve` are for the INPUT direction: turning a user-supplied name into the raw categorical key a filter / grouper needs.
 
 ## Input
 

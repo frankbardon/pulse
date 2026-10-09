@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-O(1) row addressing by exact key, not a scan — requires a sidecar index already built (`pulse index build` / `Service.BuildIndex`); this tool never builds one. Non-exact-key work needs a scan, not this tool.
+CALL TO FETCH ROWS BY EXACT KEY FROM A COHORT WITH A PREBUILT INDEX.
+O(1) row addressing, not a scan — needs a sidecar index already built (`pulse index build` / `Service.BuildIndex`); this tool never builds one.
 
 ## Input
 
@@ -34,7 +35,7 @@ O(1) row addressing by exact key, not a scan — requires a sidecar index alread
 - `PULSE_INDEX_UNSUPPORTED_SHARDED` — shard archives unsupported; `archive.pulse#shard.pulse` anchor works around it.
 - `PULSE_LOOKUP_NOT_FOUND` — fresh index, no matching record.
 - `PULSE_LOOKUP_AMBIGUOUS` — default `assert_unique` rejects >1-row matches; opt into `first`/`all` for duplicates.
-- Perf shape: indexed lookup is flat O(1) (~5µs, 10k→1M rows); scan is linear — gap widens with size.
+- Perf: indexed lookup is flat O(1) (~5µs, 10k→1M rows); a scan is linear.
 
 ## See
 

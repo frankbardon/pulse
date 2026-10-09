@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-After a tool (e.g. `pulse_predict`) returns a coded error and you need the prose explanation, or when triaging a known error code, or to enumerate every code in one domain. The manifest carries only the slim code-name list — fetch detail here on demand to keep session context lean.
+CALL WHEN A TOOL RETURNS AN ERROR CODE YOU NEED EXPLAINED.
+Also to triage a known code or enumerate every code in one domain. The manifest carries only the slim code-name list — fetch detail here on demand to keep session context lean.
 
 ## Input
 

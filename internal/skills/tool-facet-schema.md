@@ -8,7 +8,8 @@ applies_to: facet, mcp
 
 ## When to use
 
-Multi-field rollups, counts (not just distinct values), null tallies, numeric streaming stats, fixed-width histograms, top-K truncation, additive-contribution counts. The faceted-UI / discovery sibling to `pulse_facet`. Also reusable for "if I added value V to my filter, what is the surviving population" — that's `AdditiveFields`.
+CALL TO SUMMARISE SEVERAL FIELDS AT ONCE WITH COUNTS, NULLS, STATS OR HISTOGRAMS.
+Also top-K truncation and additive-contribution counts: the faceted-UI / discovery sibling to `pulse_facet`. Reusable for "if I added value V to my filter, what is the surviving population" — that's `AdditiveFields`.
 
 ## Input
 

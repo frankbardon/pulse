@@ -8,7 +8,8 @@ applies_to: process-chain, process, mcp
 
 ## When to use
 
-Source-rooted linear chain — collapses N round-trips into one open + N stage validations. Common: "group-then-regress", "filter-then-aggregate-then-attribute". Each stage's synthesized output schema feeds the next stage as its cohort.
+CALL WHEN EACH STAGE SHOULD READ THE PREVIOUS STAGE'S OUTPUT ROWS.
+Collapses N round-trips into one open + N stage validations. Common: "group-then-regress", "filter-then-aggregate-then-attribute". Each stage's synthesized output schema is the next stage's cohort.
 
 ## Input
 
@@ -16,7 +17,7 @@ Source-rooted linear chain — collapses N round-trips into one open + N stage v
 
 ## Output
 
-`descriptor.Envelope` wrapping per-stage `Response`s plus a whole-chain summary. Each stage's `Components` populates as usual. Chain-host overlays fold at the post-chain barrier.
+`descriptor.Envelope` wrapping per-stage `Response`s plus a whole-chain summary. Chain-host overlays fold at the post-chain barrier.
 
 ## Gotchas
 
