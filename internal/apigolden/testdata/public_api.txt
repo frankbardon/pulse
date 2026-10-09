@@ -1148,6 +1148,7 @@ pulse/descriptor: type ExplainFinding field Convention string "json:\"convention
 pulse/descriptor: type ExplainFinding field Multiplicity *pulse/descriptor.ExplainMultiplicity "json:\"multiplicity,omitempty\""
 pulse/descriptor: type ExplainFinding field Numbers map[string]*float64 "json:\"numbers\""
 pulse/descriptor: type ExplainFinding field Operator string "json:\"operator,omitempty\""
+pulse/descriptor: type ExplainFinding field Slot string "json:\"slot,omitempty\""
 pulse/descriptor: type ExplainFinding field StrengthBand string "json:\"strength_band,omitempty\""
 pulse/descriptor: type ExplainFinding field Subject string "json:\"subject\""
 pulse/descriptor: type ExplainFinding field Verdict pulse/descriptor.Verdict "json:\"verdict\""
@@ -1161,9 +1162,12 @@ pulse/descriptor: type ExplainMultiplicity field M int "json:\"m\""
 pulse/descriptor: type ExplainMultiplicity field Method string "json:\"method\""
 pulse/descriptor: type ExplainRequest struct
 pulse/descriptor: type ExplainRequest field Chain *pulse/types.ChainRequest "json:\"chain,omitempty\""
+pulse/descriptor: type ExplainRequest field ChainResponse *pulse/types.ChainResponse "json:\"chain_response,omitempty\""
 pulse/descriptor: type ExplainRequest field Composed *pulse/types.ComposedRequest "json:\"composed,omitempty\""
+pulse/descriptor: type ExplainRequest field ComposedResponse *pulse/types.ComposedResponse "json:\"composed_response,omitempty\""
 pulse/descriptor: type ExplainRequest field Detail pulse/descriptor.ExplainDetail "json:\"detail,omitempty\""
 pulse/descriptor: type ExplainRequest field Facet *pulse/types.FacetRequest "json:\"facet,omitempty\""
+pulse/descriptor: type ExplainRequest field FacetResult *pulse/types.FacetResult "json:\"facet_result,omitempty\""
 pulse/descriptor: type ExplainRequest field Request *pulse/types.Request "json:\"request,omitempty\""
 pulse/descriptor: type ExplainRequest field Response *pulse/types.Response "json:\"response,omitempty\""
 pulse/descriptor: type ExplainRequest field Sample *pulse/types.SampleRequest "json:\"sample,omitempty\""
@@ -1184,8 +1188,11 @@ pulse/descriptor: type ExplainResult field Summary string "json:\"summary\""
 pulse/descriptor: type ExplainResult field Valid *bool "json:\"valid,omitempty\""
 pulse/descriptor: type ExplainRoot string
 pulse/descriptor: const ExplainRootChain pulse/descriptor.ExplainRoot = "chain"
+pulse/descriptor: const ExplainRootChainResponse pulse/descriptor.ExplainRoot = "chain_response"
 pulse/descriptor: const ExplainRootComposed pulse/descriptor.ExplainRoot = "composed"
+pulse/descriptor: const ExplainRootComposedResponse pulse/descriptor.ExplainRoot = "composed_response"
 pulse/descriptor: const ExplainRootFacet pulse/descriptor.ExplainRoot = "facet"
+pulse/descriptor: const ExplainRootFacetResult pulse/descriptor.ExplainRoot = "facet_result"
 pulse/descriptor: const ExplainRootRequest pulse/descriptor.ExplainRoot = "request"
 pulse/descriptor: const ExplainRootResponse pulse/descriptor.ExplainRoot = "response"
 pulse/descriptor: const ExplainRootSample pulse/descriptor.ExplainRoot = "sample"
@@ -4480,4 +4487,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 32a4a08c52180d3c51107267221ad90b73eef4e1d941340bc23f85392e2123e2
+// golden-hash: 8eb3b9a8be59b1ec391056df64d15e34c8eb17e2b78a97771fe0c4e95ed622cb

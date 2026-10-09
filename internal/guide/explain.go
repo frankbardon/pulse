@@ -26,35 +26,61 @@ type Checks struct {
 }
 
 // ValidateExplainRequest checks the parts of req that need no cohort:
-// exactly one request root (request mode) or a response with at most
-// its request companion (response mode), and a known detail level. It
+// exactly one request root (request mode) or exactly one result root
+// with at most its own request companion (response mode: Request beside
+// a Response, Composed beside a ComposedResponse, Chain beside a
+// ChainResponse, Facet beside a FacetResult), and a known detail level. It
 // returns the root and the effective detail.
 func ValidateExplainRequest(req descriptor.ExplainRequest) (descriptor.ExplainRoot, descriptor.ExplainDetail, error) {
 	detail, err := explainDetail(req.Detail)
 	if err != nil {
 		return "", "", err
 	}
-	if req.Response != nil {
+	type rootSet struct {
+		set  bool
+		name descriptor.ExplainRoot
+	}
+	results := []struct {
+		rootSet
+		companion descriptor.ExplainRoot
+	}{
+		{rootSet{req.Response != nil, descriptor.ExplainRootResponse}, descriptor.ExplainRootRequest},
+		{rootSet{req.ComposedResponse != nil, descriptor.ExplainRootComposedResponse}, descriptor.ExplainRootComposed},
+		{rootSet{req.ChainResponse != nil, descriptor.ExplainRootChainResponse}, descriptor.ExplainRootChain},
+		{rootSet{req.FacetResult != nil, descriptor.ExplainRootFacetResult}, descriptor.ExplainRootFacet},
+	}
+	var resultRoots []string
+	result, companion := descriptor.ExplainRoot(""), descriptor.ExplainRoot("")
+	for _, r := range results {
+		if r.set {
+			resultRoots = append(resultRoots, string(r.name))
+			result, companion = r.name, r.companion
+		}
+	}
+	if len(resultRoots) > 1 {
+		return "", "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"explain: set exactly one result root (response, composed_response, chain_response or facet_result)",
+			map[string]any{"field": "response", "roots": resultRoots})
+	}
+	if result != "" {
 		var extra []string
-		for _, r := range []struct {
-			set  bool
-			name descriptor.ExplainRoot
-		}{
+		for _, r := range []rootSet{
+			{req.Request != nil, descriptor.ExplainRootRequest},
 			{req.Composed != nil, descriptor.ExplainRootComposed},
 			{req.Chain != nil, descriptor.ExplainRootChain},
 			{req.Facet != nil, descriptor.ExplainRootFacet},
 			{req.Sample != nil, descriptor.ExplainRootSample},
 		} {
-			if r.set {
+			if r.set && r.name != companion {
 				extra = append(extra, string(r.name))
 			}
 		}
 		if len(extra) > 0 {
 			return "", "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"explain: a response takes only the request that produced it as its companion",
-				map[string]any{"field": "request", "roots": extra, "valid": []string{string(descriptor.ExplainRootRequest)}})
+				"explain: a result takes only the request that produced it as its companion",
+				map[string]any{"field": "request", "result": string(result), "roots": extra, "valid": []string{string(companion)}})
 		}
-		return descriptor.ExplainRootResponse, detail, nil
+		return result, detail, nil
 	}
 	var roots []string
 	root := descriptor.ExplainRoot("")
@@ -129,6 +155,15 @@ func Explain(inst *descx.InstanceSnapshot, req descriptor.ExplainRequest, checks
 	case descriptor.ExplainRootResponse:
 		e.res.Mode = descriptor.ExplainModeResponse
 		e.explainResponse(req.Response, req.Request)
+	case descriptor.ExplainRootComposedResponse:
+		e.res.Mode = descriptor.ExplainModeResponse
+		e.explainComposedResponse(req.ComposedResponse, req.Composed)
+	case descriptor.ExplainRootChainResponse:
+		e.res.Mode = descriptor.ExplainModeResponse
+		e.explainChainResponse(req.ChainResponse, req.Chain)
+	case descriptor.ExplainRootFacetResult:
+		e.res.Mode = descriptor.ExplainModeResponse
+		e.explainFacetResult(req.FacetResult, req.Facet)
 	case descriptor.ExplainRootRequest:
 		err = e.explainRequest(req.Request)
 	case descriptor.ExplainRootComposed:
@@ -191,6 +226,8 @@ type explainer struct {
 	seenOp     map[string]bool
 	inferOps   []string // operators named in an inferential role
 	notes      []string // response mode: full-detail sentences beyond the summary
+	scope      string   // response mode: whose result is read ("Request 2"); "" for the root's own
+	at         string   // response mode: the wire-path prefix of the result read ("responses[1].")
 	caveats    []string
 	seenCv     map[string]bool
 	uncheckedN int // request roots that name no cohort
@@ -208,10 +245,14 @@ type stepIn struct {
 }
 
 func (e *explainer) lead(in stepIn) string {
-	if in.n == 0 {
-		return in.role.lead
+	lead := in.role.lead
+	if in.n != 0 {
+		lead += " " + strconv.Itoa(in.n)
 	}
-	return in.role.lead + " " + strconv.Itoa(in.n)
+	if e.scope != "" {
+		lead = e.scope + "'s " + strings.ToLower(lead[:1]) + lead[1:]
+	}
+	return lead
 }
 
 // opStep describes one operator slot and records its operator for the

@@ -74,8 +74,10 @@ func TestExplain_FacadeSidecarAdvisories(t *testing.T) {
 		return out
 	}
 	roots := map[string]func() descriptor.ExplainRequest{
-		"request":  func() descriptor.ExplainRequest { return descriptor.ExplainRequest{Request: measuredRequest(nil)} },
-		"composed": func() descriptor.ExplainRequest { return descriptor.ExplainRequest{Composed: &types.ComposedRequest{Requests: []*types.Request{measuredRequest(nil)}}} },
+		"request": func() descriptor.ExplainRequest { return descriptor.ExplainRequest{Request: measuredRequest(nil)} },
+		"composed": func() descriptor.ExplainRequest {
+			return descriptor.ExplainRequest{Composed: &types.ComposedRequest{Requests: []*types.Request{measuredRequest(nil)}}}
+		},
 	}
 	p := importSav(t, afero.NewMemMapFs(), measuredSavSpec(), Options{})
 	sp := importSav(t, afero.NewMemMapFs(), measuredSavSpec(), Options{SuppressAdvisories: []string{advNominal}})
@@ -190,5 +192,73 @@ func TestExplain_FacadeResponseMode(t *testing.T) {
 	}
 	if _, err := p.Explain(context.Background(), descriptor.ExplainRequest{Response: resp, Request: req}); err != nil {
 		t.Errorf("response mode touched the cohort: %v", err)
+	}
+}
+
+// TestExplain_FacadeResultRoots: the results Compose, ProcessChain and
+// FacetSchema return read into findings — a chain run with its request
+// echoed names its stages' operators with no request supplied.
+func TestExplain_FacadeResultRoots(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	wideRecommendCohort(t, fsys, "wide.pulse", 20)
+	ctx := context.Background()
+	cohort := &types.Cohort{Filename: "wide.pulse"}
+	sum := func(field, label string) []*types.Aggregation {
+		return []*types.Aggregation{{Type: types.AGG_SUM, Field: field, Label: label}}
+	}
+
+	p, err := New(Options{FS: fsys, EchoRequest: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	creq := &types.ComposedRequest{Requests: []*types.Request{
+		{Cohort: cohort, Aggregations: sum("m0", "a")},
+		{Cohort: cohort, Groups: []*types.Group{{Field: "c0"}}, Aggregations: sum("m0", "b")},
+	}}
+	cresp, err := p.Compose(ctx, creq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := p.Explain(ctx, descriptor.ExplainRequest{ComposedResponse: cresp, Composed: creq})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Root != descriptor.ExplainRootComposedResponse || len(res.Findings) != 2 ||
+		res.Findings[1].Slot != "responses[1].aggregations[0]" || res.Findings[1].Operator != string(types.AGG_SUM) {
+		t.Errorf("compose = %+v", res)
+	}
+
+	chreq := &types.ChainRequest{Cohort: cohort, Stages: []*types.ChainStage{
+		{Request: &types.Request{Groups: []*types.Group{{Field: "c0"}}, Aggregations: sum("m0", "total")}},
+		{Request: &types.Request{Aggregations: sum("total", "grand")}},
+	}}
+	chresp, err := p.ProcessChain(ctx, chreq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chresp.NormalizedRequest == nil {
+		t.Fatal("fixture drift: EchoRequest did not echo the chain request")
+	}
+	res, err = p.Explain(ctx, descriptor.ExplainRequest{ChainResponse: chresp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Findings) != 2 || res.Findings[1].Slot != "stages[1].aggregations[0]" || res.Findings[1].Operator != string(types.AGG_SUM) ||
+		slices.ContainsFunc(res.Caveats, func(c string) bool { return strings.HasPrefix(c, "Partial reading") }) {
+		t.Errorf("chain = %+v", res)
+	}
+
+	freq := &types.FacetRequest{Cohort: cohort, Fields: []string{"c0", "m0"}}
+	fresp, err := p.FacetSchema(ctx, freq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err = p.Explain(ctx, descriptor.ExplainRequest{FacetResult: fresp, Facet: freq})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Findings) != 2 || res.Findings[0].Slot != "fields.c0" || res.Findings[1].Slot != "fields.m0" ||
+		!strings.Contains(res.Summary, "summarises 2 fields from 20 of 20 records") {
+		t.Errorf("facet = %+v", res)
 	}
 }

@@ -42,6 +42,14 @@ const (
 	ExplainRootSample   ExplainRoot = "sample"
 	// ExplainRootResponse is response mode over a Process Response.
 	ExplainRootResponse ExplainRoot = "response"
+	// ExplainRootComposedResponse is response mode over a Compose
+	// ComposedResponse.
+	ExplainRootComposedResponse ExplainRoot = "composed_response"
+	// ExplainRootChainResponse is response mode over a ProcessChain
+	// ChainResponse.
+	ExplainRootChainResponse ExplainRoot = "chain_response"
+	// ExplainRootFacetResult is response mode over a Facet FacetResult.
+	ExplainRootFacetResult ExplainRoot = "facet_result"
 )
 
 // ExplainRequest asks Explain to describe a request, or read a
@@ -55,12 +63,19 @@ const (
 // only, never a record — to name the operators smart defaults would
 // infer and the advisories the request raises.
 //
-// Response mode: Response is set, and Request may ride beside it as
-// the request that produced it (the companion); any other request root
-// beside a response is SERVICE_VALIDATION. A response alone does not
-// say which operator produced an aggregation or which field weighted
-// it, so without the companion those are described by count only and a
-// caveat says the reading is partial. Response mode reads no cohort.
+// Response mode: exactly one result root is set — Response,
+// ComposedResponse, ChainResponse or FacetResult — and the request
+// that produced it may ride beside it as its companion: Request beside
+// a Response, Composed beside a ComposedResponse, Chain beside a
+// ChainResponse, Facet beside a FacetResult. Two result roots, or any
+// other request root beside a result, is SERVICE_VALIDATION. A result
+// alone does not say which operator produced an aggregation or which
+// field weighted it, so without the companion those are described by
+// count only and a caveat says the reading is partial. A ChainResponse
+// that echoes its normalized_request needs no companion: the echo is
+// read first. A FacetResult's overlays are tied to the field they
+// decorate through the companion's overlay params (or the result's
+// only field). Response mode reads no cohort.
 type ExplainRequest struct {
 	Request  *types.Request         `json:"request,omitempty"`
 	Composed *types.ComposedRequest `json:"composed,omitempty"`
@@ -68,7 +83,12 @@ type ExplainRequest struct {
 	Facet    *types.FacetRequest    `json:"facet,omitempty"`
 	Sample   *types.SampleRequest   `json:"sample,omitempty"`
 	Response *types.Response        `json:"response,omitempty"`
-	Detail   ExplainDetail          `json:"detail,omitempty"`
+
+	ComposedResponse *types.ComposedResponse `json:"composed_response,omitempty"`
+	ChainResponse    *types.ChainResponse    `json:"chain_response,omitempty"`
+	FacetResult      *types.FacetResult      `json:"facet_result,omitempty"`
+
+	Detail ExplainDetail `json:"detail,omitempty"`
 }
 
 // ExplainResult is Explain's answer. Summary is one sentence. Findings
@@ -88,7 +108,14 @@ type ExplainRequest struct {
 //
 // Response mode: Findings reads each test, post-test, regression,
 // overlay layer, matrix and aggregation the response reports, and
-// Summary counts them with the run's record counts. Valid, Steps,
+// Summary counts them with the run's record counts. A ComposedResponse
+// is read slot by slot (each finding's Slot under "responses[i].") and
+// then its batch overlays; a ChainResponse stage by stage
+// ("stages[i].") and then its whole-chain overlays; a FacetResult field
+// by field ("fields.<name>", "additive.<name>"), each followed by the
+// overlay layers that decorate it. The many-tests caveat counts the
+// uncorrected p-values of the whole result, across slots, stages,
+// facet fields and overlays. Valid, Steps,
 // DefaultsApplied, Advisories and Refusals stay empty. Caveats carry
 // what the reading cannot vouch for — uncorrected p-values from more
 // than one test, the alpha a regression or overlay was read at, a
@@ -171,7 +198,13 @@ func Verdicts() []Verdict {
 // instead of the raw p-value. A regression and an uncorrected overlay
 // carry no alpha of their own: they are read against 0.05 and a caveat
 // says so. A result whose p-value is undefined is not_computable.
+//
+// Slot is the wire path of the result read ("tests[0]",
+// "regressions[0].coefficients.hours", "responses[1].overlays[0]",
+// "stages[2].aggregations[0]", "fields.region"); an aggregation is
+// named by its request slot.
 type ExplainFinding struct {
+	Slot         string               `json:"slot,omitempty"`
 	Subject      string               `json:"subject"`
 	Operator     string               `json:"operator,omitempty"`
 	Verdict      Verdict              `json:"verdict"`

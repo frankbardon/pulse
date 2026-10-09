@@ -92,13 +92,26 @@ type responseReader struct {
 	evidence     int  // of those, findings with evidence
 	regressionsP bool // a regression p-value was read against readAlpha
 	overlayAlpha []string
+	partial      bool     // aggregations were read without their request
 	notes        []string // full-detail sentences, one per finding or fact
+	later        []string // per-result caveats, emitted after the root-wide ones
 }
 
 // explainResponse reads resp, with req the request that produced it
 // (nil when absent), into findings.
 func (e *explainer) explainResponse(resp *types.Response, req *types.Request) {
 	rr := &responseReader{}
+	parts := e.readResponse(rr, resp, req)
+	e.slotCaveats(rr, resp, req)
+	e.finalCaveats(rr, "request")
+	e.res.Summary = "This response reports " + partsPhrase(parts) + recordsPhrase(resp) + rr.evidencePhrase() + "."
+	e.notes = rr.notes
+}
+
+// readResponse reads one Process response into findings — under the
+// explainer's scope and path prefix when it is a slot or stage of a
+// larger result — and returns the summary phrases counting its parts.
+func (e *explainer) readResponse(rr *responseReader, resp *types.Response, req *types.Request) []string {
 	var parts []string
 	n := 0
 	for i, t := range resp.Tests {
@@ -161,30 +174,43 @@ func (e *explainer) explainResponse(resp *types.Response, req *types.Request) {
 		parts = append(parts, p)
 	}
 	e.runNotes(rr, resp)
-	e.responseCaveats(rr, resp, req)
+	return parts
+}
 
-	s := "This response reports "
+// partsPhrase joins a result's part phrases ("no analysis result" when
+// it has none).
+func partsPhrase(parts []string) string {
 	if len(parts) == 0 {
-		s += "no analysis result"
-	} else {
-		s += andList(parts)
+		return "no analysis result"
 	}
+	return andList(parts)
+}
+
+// recordsPhrase is " from F of T records" when the response carries its
+// run counts, "" otherwise.
+func recordsPhrase(resp *types.Response) string {
 	if total, filtered, ok := runCounts(resp); ok {
-		s += " from " + strconv.FormatInt(filtered, 10) + " of " + strconv.FormatInt(total, 10) + " records"
+		return " from " + strconv.FormatInt(filtered, 10) + " of " + strconv.FormatInt(total, 10) + " records"
 	}
-	if rr.inferential > 0 {
-		s += "; " + strconv.Itoa(rr.evidence) + " of " + count(rr.inferential, "inferential finding shows evidence at its alpha",
-			"inferential findings show evidence at their alpha")
+	return ""
+}
+
+// evidencePhrase counts the inferential findings that show evidence
+// ("; 1 of 2 inferential findings show evidence at their alpha"), ""
+// when there are none.
+func (rr *responseReader) evidencePhrase() string {
+	if rr.inferential == 0 {
+		return ""
 	}
-	e.res.Summary = s + "."
-	e.notes = rr.notes
+	return "; " + strconv.Itoa(rr.evidence) + " of " + count(rr.inferential, "inferential finding shows evidence at its alpha",
+		"inferential findings show evidence at their alpha")
 }
 
 // testFinding reads one test or post-test result.
 func (e *explainer) testFinding(rr *responseReader, r *role, n int, t *types.TestResult, spec *types.Test) {
 	op := string(t.Type)
 	shown := e.shownOp(op)
-	f := descriptor.ExplainFinding{Operator: shown, Numbers: map[string]*float64{}}
+	f := descriptor.ExplainFinding{Slot: e.at + slotPath(r, n), Operator: shown, Numbers: map[string]*float64{}}
 	subjectWords := ""
 	switch {
 	case spec != nil:
@@ -195,10 +221,10 @@ func (e *explainer) testFinding(rr *responseReader, r *role, n int, t *types.Tes
 		f.Subject = t.Label
 		subjectWords = " labelled " + tick(t.Label)
 	default:
-		f.Subject = slotPath(r, n)
+		f.Subject = f.Slot
 	}
 	if f.Subject == "" {
-		f.Subject = slotPath(r, n)
+		f.Subject = f.Slot
 	}
 	setNum(f.Numbers, "statistic", t.Statistic)
 	setNum(f.Numbers, "p_value", t.PValue)
@@ -299,11 +325,12 @@ func (e *explainer) regressionFindings(rr *responseReader, n int, g *types.Regre
 	} else if g.Name != "" {
 		words = " labelled " + tick(g.Name)
 	}
+	slot := e.at + "regressions[" + strconv.Itoa(n-1) + "]"
 	if subject == "" {
-		subject = "regressions[" + strconv.Itoa(n-1) + "]"
+		subject = slot
 	}
 	lead := e.lead(stepIn{role: roleRegression, n: n}) + opParen(shown) + words
-	model := descriptor.ExplainFinding{Subject: subject, Operator: shown, Verdict: descriptor.VerdictDescriptive, Numbers: map[string]*float64{}}
+	model := descriptor.ExplainFinding{Slot: slot, Subject: subject, Operator: shown, Verdict: descriptor.VerdictDescriptive, Numbers: map[string]*float64{}}
 	fit := map[string]float64{}
 	for k, v := range map[string]float64{"r2": g.R2, "adj_r2": g.AdjR2, "pseudo_r2": g.PseudoR2, "deviance": g.Deviance,
 		"null_deviance": g.NullDeviance, "residual_std_err": g.ResidualStdErr, "sum_weights": g.SumWeights, "n_eff": g.NEff} {
@@ -337,7 +364,7 @@ func (e *explainer) regressionFindings(rr *responseReader, n int, g *types.Regre
 		if k == interceptKey {
 			continue
 		}
-		f := descriptor.ExplainFinding{Subject: subject + ": " + tick(k), Operator: shown, Numbers: map[string]*float64{}}
+		f := descriptor.ExplainFinding{Slot: slot + ".coefficients." + k, Subject: subject + ": " + tick(k), Operator: shown, Numbers: map[string]*float64{}}
 		setNum(f.Numbers, "coefficient", g.Coefficients[k])
 		if se, ok := g.StdErrors[k]; ok {
 			setNum(f.Numbers, "std_error", se)
@@ -389,15 +416,17 @@ func descriptive(v float64) descriptor.Verdict {
 func (e *explainer) overlayFinding(rr *responseReader, n int, l *types.OverlayLayer) {
 	op := string(l.Kind)
 	shown := e.shownOp(op)
+	slot := e.at + "overlays[" + strconv.Itoa(n-1) + "]"
 	subject := l.Name
 	words := ""
 	if subject != "" {
 		words = " " + tick(subject)
 	} else {
-		subject = "overlays[" + strconv.Itoa(n-1) + "]"
+		subject = slot
 	}
-	f := descriptor.ExplainFinding{Subject: subject, Operator: shown, Numbers: map[string]*float64{}}
+	f := descriptor.ExplainFinding{Slot: slot, Subject: subject, Operator: shown, Numbers: map[string]*float64{}}
 	lead := e.lead(stepIn{role: roleOverlay, n: n}) + opParen(shown) + words
+	e.layerWarnings(rr, lead, l)
 	pField := ""
 	for _, in := range e.interpretationsOf(op) {
 		if in.Shared == descx.SharedPValue {
@@ -585,11 +614,12 @@ func summaryValue(s *types.OverlaySummary, field string) float64 {
 func (e *explainer) matrixFinding(rr *responseReader, i int, m *types.MatrixResult, comps *types.ResponseComponents) {
 	op := string(m.Type)
 	shown := e.shownOp(op)
+	slot := e.at + "matrices[" + strconv.Itoa(i) + "]"
 	subject := m.Name
 	if subject == "" {
-		subject = "matrices[" + strconv.Itoa(i) + "]"
+		subject = slot
 	}
-	f := descriptor.ExplainFinding{Subject: subject, Operator: shown, Verdict: descriptor.VerdictDescriptive, Numbers: map[string]*float64{}}
+	f := descriptor.ExplainFinding{Slot: slot, Subject: subject, Operator: shown, Verdict: descriptor.VerdictDescriptive, Numbers: map[string]*float64{}}
 	text := e.lead(stepIn{role: roleMatrix, n: i + 1}) + opParen(shown)
 	if m.Primary != nil {
 		text += " relates " + count(len(m.Primary.RowKeys), "field", "fields")
@@ -671,14 +701,14 @@ func (e *explainer) aggregationFindings(rr *responseReader, resp *types.Response
 		case spec != nil && spec.Label != "":
 			label = spec.Label
 		}
-		f := descriptor.ExplainFinding{Verdict: descriptor.VerdictDescriptive, Numbers: map[string]*float64{}}
+		f := descriptor.ExplainFinding{Slot: e.at + "aggregations[" + strconv.Itoa(i) + "]", Verdict: descriptor.VerdictDescriptive, Numbers: map[string]*float64{}}
 		switch {
 		case label != "":
 			f.Subject = label
 		case spec != nil && spec.Field != "":
 			f.Subject = spec.Field
 		default:
-			f.Subject = "aggregations[" + strconv.Itoa(i) + "]"
+			f.Subject = f.Slot
 		}
 		text := e.lead(stepIn{role: roleAgg, n: i + 1})
 		if label != "" {
@@ -787,7 +817,7 @@ func (e *explainer) runNotes(rr *responseReader, resp *types.Response) {
 		return
 	}
 	r := resp.Components.Run
-	s := "The run read " + strconv.FormatInt(r.TotalRecords, 10) + " records; " + strconv.FormatInt(r.FilteredRecords, 10) +
+	s := e.whose("run") + " read " + strconv.FormatInt(r.TotalRecords, 10) + " records; " + strconv.FormatInt(r.FilteredRecords, 10) +
 		" passed the filters and " + strconv.FormatInt(r.NullRecords, 10) + " were left out for a missing value"
 	if r.ShardCount > 0 {
 		s += ", across " + count(r.ShardCount, "shard", "shards")
@@ -795,9 +825,11 @@ func (e *explainer) runNotes(rr *responseReader, resp *types.Response) {
 	rr.notes = append(rr.notes, s+".")
 }
 
-// responseCaveats adds what the reading cannot vouch for. They ride
-// terse output too.
-func (e *explainer) responseCaveats(rr *responseReader, resp *types.Response, req *types.Request) {
+// finalCaveats adds the caveats about the whole result — the
+// many-tests count, the alphas read for regressions and overlays, a
+// partial reading (companion names the request that was absent) —
+// then each result's own. They ride terse output too.
+func (e *explainer) finalCaveats(rr *responseReader, companion string) {
 	if rr.uncorrected >= 2 {
 		e.caveat(strconv.Itoa(rr.uncorrected) + " p-values here carry no adjustment for multiple comparisons, so some may fall below alpha " +
 			"by chance alone; this is the concern the " + "PULSE_ADVISORY_MANY_TESTS advisory raises.")
@@ -814,20 +846,69 @@ func (e *explainer) responseCaveats(rr *responseReader, resp *types.Response, re
 		}
 		e.caveat(label + " carries no alpha of its own unless it is adjusted, so its p-values are read here against " + fmtNum(readAlpha) + ".")
 	}
+	if rr.partial {
+		switch companion {
+		case "chain":
+			e.caveat("Partial reading: the chain request is absent and the response echoes none, so the aggregations and groupings are described by count only; " +
+				"pass the chain request beside the response, or run the chain with its request echoed, to name their operators and weight.")
+		case "request":
+			e.caveat("Partial reading: the request is absent, so the aggregations and groupings are described by count only; " +
+				"pass the request beside the response to name their operators and weight.")
+		default:
+			e.caveat("Partial reading: the " + companion + " request is absent, so the aggregations and groupings are described by count only; " +
+				"pass it beside the response to name their operators and weight.")
+		}
+	}
+	for _, c := range rr.later {
+		e.caveat(c)
+	}
+}
+
+// slotCaveats notes what one Process response's reading cannot vouch
+// for, under the explainer's scope.
+func (e *explainer) slotCaveats(rr *responseReader, resp *types.Response, req *types.Request) {
 	hasAggs := len(resp.Data) > 0 || (resp.Components != nil && len(resp.Components.Aggregations) > 0)
 	if req == nil && hasAggs {
-		e.caveat("Partial reading: the request is absent, so the aggregations and groupings are described by count only; " +
-			"pass the request beside the response to name their operators and weight.")
+		rr.partial = true
 	}
 	if resp.Components == nil && hasAggs {
-		e.caveat("The response carries no components, so the rows each aggregation left out are not reported.")
+		rr.later = append(rr.later, e.whose("response")+" carries no components, so the rows each aggregation left out are not reported.")
 	}
 	if resp.Components != nil && resp.Components.Run != nil && resp.Components.Run.PartialCohortReason != "" {
-		e.caveat("The run read only part of the cohort; components.run.partial_cohort_reason says why.")
+		rr.later = append(rr.later, e.whose("run")+" read only part of the cohort; components.run.partial_cohort_reason says why.")
 	}
 	if resp.Returned != nil {
-		e.caveat("The response was shaped by a return block, so a part it left out is not read here.")
+		rr.later = append(rr.later, e.whose("response")+" was shaped by a return block, so a part it left out is not read here.")
 	}
+}
+
+// whose names a part of the result being read: "The run", or
+// "Request 2's run" under a scope.
+func (e *explainer) whose(part string) string {
+	if e.scope == "" {
+		return "The " + part
+	}
+	return e.scope + "'s " + part
+}
+
+// layerWarnings notes an overlay layer's warnings by code; the
+// messages are engine prose and stay in the layer's own slot.
+func (e *explainer) layerWarnings(rr *responseReader, lead string, l *types.OverlayLayer) {
+	if len(l.Warnings) == 0 {
+		return
+	}
+	var codes []string
+	for _, w := range l.Warnings {
+		if w.Code != "" && !slices.Contains(codes, w.Code) {
+			codes = append(codes, w.Code)
+		}
+	}
+	sort.Strings(codes)
+	s := lead + " carries " + count(len(l.Warnings), "warning", "warnings")
+	if len(codes) > 0 {
+		s += " (" + strings.Join(codes, ", ") + ")"
+	}
+	rr.later = append(rr.later, s+"; the layer's warnings slot holds them, and some of its values may be undefined.")
 }
 
 // addFinding records f and, for full detail, its sentence.
