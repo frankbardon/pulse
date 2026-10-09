@@ -718,6 +718,7 @@ pulse: type Pulse method (*Pulse) Sample(ctx context.Context, path string, n int
 pulse: type Pulse method (*Pulse) SampleWithRequest(ctx context.Context, req *pulse.SampleRequest) (*pulse.SampleResult, error)
 pulse: type Pulse method (*Pulse) Skill(name string) (string, bool)
 pulse: type Pulse method (*Pulse) Skills() []pulse.SkillMetadata
+pulse: type Pulse method (*Pulse) SkillsForIntent(intent string) ([]pulse.SkillMetadata, error)
 pulse: type Pulse method (*Pulse) SweepImports(ctx context.Context) ([]string, error)
 pulse: type Pulse method (*Pulse) Synth(ctx context.Context, spec *pulse.SynthSpec, output string, opts pulse.SynthOptions) (*pulse.SynthResult, error)
 pulse: type Pulse method (*Pulse) SynthStream(ctx context.Context, spec *pulse.SynthSpec, opts pulse.SynthOptions) (pulse.StreamResult[pulse.Row], error)
@@ -4497,4 +4498,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 68f43caad411f9c7f978e7dfe8cbac8b03baeea2f6808f0b372822104610fe87
+// golden-hash: f7af1795c1b3face8884829997ed5b62c9307c8eef9ab4f7f5ddb0bef6fa93c7

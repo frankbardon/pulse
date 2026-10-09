@@ -18,21 +18,12 @@ import (
 // and a hidden intent is dropped from every summary. Never nil on
 // success.
 func (s *InstanceSnapshot) ExamplesSearch(q examples.Query) ([]examples.ExampleSummary, error) {
-	g := s.Ontology()
-	visible := func(id string) bool {
-		return g.Has(OntologyID(descriptor.OntologyNodeIntent, id))
-	}
-	if q.Intent != "" && (!isIntentID(q.Intent) || !visible(q.Intent)) {
-		valid := []string{}
-		for _, id := range IntentIDs() {
-			if visible(id) {
-				valid = append(valid, id)
-			}
+	if q.Intent != "" {
+		if err := s.checkIntent("examples search", q.Intent); err != nil {
+			return nil, err
 		}
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_RECOMMEND_INTENT_UNKNOWN,
-			"examples search: unknown intent "+strconv.Quote(q.Intent),
-			map[string]any{"intent": q.Intent, "valid": valid})
 	}
+	visible := s.intentVisible
 	opts := examples.Options{Aliases: s.KnownAs(), Sounds: map[string]string{}}
 	for _, in := range intentRegistry {
 		if !visible(in.ID) {
@@ -46,6 +37,34 @@ func (s *InstanceSnapshot) ExamplesSearch(q examples.Query) ([]examples.ExampleS
 		opts.KeepIntent = visible
 	}
 	return s.Discovery().SearchExamples(q, opts), nil
+}
+
+// intentVisible reports whether the instance ontology keeps the intent
+// node id — false for an ID outside the taxonomy or one the feature
+// profile prunes.
+func (s *InstanceSnapshot) intentVisible(id string) bool {
+	return s.Ontology().Has(OntologyID(descriptor.OntologyNodeIntent, id))
+}
+
+// checkIntent is the ONE intent resolver of the intent-scoped discovery
+// surfaces (example search, skills for an intent): an ID outside the
+// taxonomy, or one the instance hides, is PULSE_RECOMMEND_INTENT_UNKNOWN —
+// the code pulse_recommend raises — with details.intent and
+// details.valid (the instance's visible intents, declaration order).
+// surface prefixes the message.
+func (s *InstanceSnapshot) checkIntent(surface, intent string) error {
+	if isIntentID(intent) && s.intentVisible(intent) {
+		return nil
+	}
+	valid := []string{}
+	for _, id := range IntentIDs() {
+		if s.intentVisible(id) {
+			valid = append(valid, id)
+		}
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_RECOMMEND_INTENT_UNKNOWN,
+		surface+": unknown intent "+strconv.Quote(intent),
+		map[string]any{"intent": intent, "valid": valid})
 }
 
 func isIntentID(id string) bool {

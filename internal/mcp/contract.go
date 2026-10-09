@@ -52,8 +52,11 @@ type FacetIn struct {
 	Field string `json:"field" jsonschema:"Field name to facet"`
 }
 
-// SkillsListIn is the (empty) input contract for pulse_skills_list.
-type SkillsListIn struct{}
+// SkillsListIn is the input contract for pulse_skills_list. With no
+// intent it lists every skill, sorted by name.
+type SkillsListIn struct {
+	Intent string `json:"intent,omitempty" jsonschema:"Intent-taxonomy ID (e.g. compare_groups, relationship). Lists only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced. Unknown: PULSE_RECOMMEND_INTENT_UNKNOWN"`
+}
 
 // SkillsGetIn is the input contract for pulse_skills_get.
 type SkillsGetIn struct {

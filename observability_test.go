@@ -275,7 +275,7 @@ func obsCalls() []obsCall {
 // follow-ups. A new exported method must land in obsCalls or here, so a
 // method can never silently skip instrumentation.
 var uninstrumentedMethods = map[string]bool{
-	"Ontology": true, "Skills": true, "Skill": true, "ListTemplates": true, "GetTemplate": true,
+	"Ontology": true, "Skills": true, "SkillsForIntent": true, "Skill": true, "ListTemplates": true, "GetTemplate": true,
 	"Limits": true, "LabelTables": true, "RangeTables": true, "ErrorLookup": true,
 	"ErrorsByDomain": true, "ErrorsSearch": true, "ExamplesSearch": true, "ExamplesSearchWith": true, "ExampleGet": true,
 	"FeatureProfile": true, "FeatureSetDigest": true, "Fs": true, "ResolveLabel": true,

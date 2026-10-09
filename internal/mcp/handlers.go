@@ -173,9 +173,19 @@ func HandleManifest(ctx context.Context, p *pulse.Pulse, _ ManifestIn) (Manifest
 }
 
 // HandleSkillsList runs pulse_skills_list: the embedded skill-pack index
-// as the instance sees it — the facade's p.Skills().
-func HandleSkillsList(_ context.Context, p *pulse.Pulse, _ SkillsListIn) (SkillsListOut, error) {
-	return SkillsListOut{Skills: p.Skills()}, nil
+// as the instance sees it — the facade's p.Skills(), unchanged when no
+// intent is given. With an intent it is p.SkillsForIntent's ranked
+// list; an unknown or hidden intent is the coded
+// PULSE_RECOMMEND_INTENT_UNKNOWN.
+func HandleSkillsList(_ context.Context, p *pulse.Pulse, in SkillsListIn) (SkillsListOut, error) {
+	if in.Intent == "" {
+		return SkillsListOut{Skills: p.Skills()}, nil
+	}
+	list, err := p.SkillsForIntent(in.Intent)
+	if err != nil {
+		return SkillsListOut{}, err
+	}
+	return SkillsListOut{Skills: list}, nil
 }
 
 // HandleSkillsGet runs pulse_skills_get: the markdown body of one skill.

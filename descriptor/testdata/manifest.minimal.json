@@ -491,7 +491,7 @@
       },
       {
         "name": "pulse_skills_list",
-        "description": "List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Use this before authoring requests when you need domain guidance for a less common operator; fetch the markdown body via pulse_skills_get."
+        "description": "List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Use this before authoring requests when you need domain guidance for a less common operator; fetch the markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -1263,4 +1263,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 852f54c8c9569db5e8951b403b7550c2e9b74945e29346138cc5bb7b03d0568a
+// golden-hash: 679531b41fdc6ed1503b3dccdbfb9670951ec616578b440940a2573bffab2b5a
