@@ -51,6 +51,21 @@ type FacetValidationResult struct {
 	// budgeting cost across slots sum the map values. Empty when
 	// req.Overlays is empty; never nil in JSON output.
 	OverlayCost map[string]float64 `json:"overlay_cost"`
+
+	// PValues counts the inferential p-values the facet overlays emit
+	// (one per OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP spec) and how
+	// many no multiplicity block corrects — PredictResult.PValues for the
+	// FACET host. Omitted when no p-value is emitted, when the overlays'
+	// multiplicity is refused, and when the instance hides
+	// capability:multiplicity.
+	PValues *descriptor.PValueCount `json:"p_values,omitempty"`
+
+	// Advisories carries the coded, non-blocking PULSE_ADVISORY_* notes
+	// predict raises on the facet request — PredictResult.Advisories for
+	// the FACET host; never a warning. A FacetRequest has no test,
+	// aggregator or weight slot, so only PULSE_ADVISORY_MANY_TESTS can
+	// fire. Omitted when none does.
+	Advisories []descriptor.Advisory `json:"advisories,omitempty"`
 }
 
 // ValidateFacet validates a FacetRequest against a .pulse cohort header
@@ -105,7 +120,8 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	}
 	// Multiplicity on the overlays — the pass FacetSchema runs right
 	// after the slot gate (ResolveFacetMultiplicity).
-	if _, merr := ResolveFacetMultiplicity(req, opts.DefaultMultiplicity, opts.instance()); merr != nil {
+	facetPlan, merr := ResolveFacetMultiplicity(req, opts.DefaultMultiplicity, opts.instance())
+	if merr != nil {
 		addCodedError(env, merr)
 		result.Valid = false
 	}
@@ -245,6 +261,14 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// whether ValidateFacetOverlays surfaced errors so LLM callers see the
 	// catalog identity of the spec the engine would attempt to dispatch.
 	populateFacetOverlayDescriptors(result, req, opts)
+
+	// Multiple-comparison trigger data and the fit-for-purpose
+	// advisories — computed whether or not the request is valid, never a
+	// warning, and dropped per Options.SuppressAdvisories.
+	if merr == nil && opts.instance().Enabled(featMultiplicity) {
+		result.PValues = countFacetPValues(req, facetPlan, opts)
+	}
+	result.Advisories = facetAdvisories(facetPlan, result.PValues, opts)
 
 	if len(env.Errors) > 0 {
 		result.Valid = false

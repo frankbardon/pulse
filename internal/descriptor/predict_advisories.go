@@ -85,6 +85,14 @@ type advisoryInput struct {
 	// measures is PredictOptions.SidecarMeasureLevels.
 	measures map[string]string
 	inst     *InstanceSnapshot
+	// prefix is prepended to every slot path an advisory names
+	// ("requests[1]." for a Compose slot; "" on a Request root) and
+	// extra is merged into every advisory's details (a Compose slot's
+	// {"request": i}). subject opens the many-tests message; "" is
+	// "The request emits".
+	prefix  string
+	extra   map[string]any
+	subject string
 }
 
 // computeAdvisories runs every advisory rule, in advisoryCodes order.
@@ -96,16 +104,20 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 	var out []descriptor.Advisory
 	add := func(as ...descriptor.Advisory) {
 		for _, a := range as {
-			if !in.inst.AdvisorySuppressed(a.Code) {
-				out = append(out, a)
+			if in.inst.AdvisorySuppressed(a.Code) {
+				continue
 			}
+			for k, v := range in.extra {
+				a.Details[k] = v
+			}
+			out = append(out, a)
 		}
 	}
-	add(twoGroupAdvisories(in.req, in.schema, in.inst)...)
-	if a, ok := manyTestsAdvisory(in.plan, in.pv); ok {
+	add(twoGroupAdvisories(in.req, in.schema, in.prefix, in.inst)...)
+	if a, ok := manyTestsAdvisory(in.plan != nil, in.pv, in.subject); ok {
 		add(a)
 	}
-	add(measureLevelAdvisories(in.req, in.cohortSchema, in.measures, in.inst)...)
+	add(measureLevelAdvisories(in.req, in.cohortSchema, in.measures, in.prefix, in.inst)...)
 	if a, ok := weightUnusedAdvisory(in.suggestedWeight); ok {
 		add(a)
 	}
@@ -117,7 +129,7 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 // categorical field with more than two dictionary entries. A packed_bool
 // split has two groups and never fires; a field split_by may not name
 // (numeric) is predict's error, not an advisory.
-func twoGroupAdvisories(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []descriptor.Advisory {
+func twoGroupAdvisories(req *types.Request, schema *encoding.Schema, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
 	var out []descriptor.Advisory
 	for _, tier := range []struct {
 		key  string
@@ -135,7 +147,7 @@ func twoGroupAdvisories(req *types.Request, schema *encoding.Schema, inst *Insta
 			if groups <= 2 {
 				continue
 			}
-			slot := tier.key + "[" + strconv.Itoa(i) + "]"
+			slot := prefix + tier.key + "[" + strconv.Itoa(i) + "]"
 			details := map[string]any{
 				"slot":     slot,
 				"operator": string(routed),
@@ -188,11 +200,16 @@ func splitGroupCount(schema *encoding.Schema, field string) int {
 // manyTestsAdvisory: PULSE_ADVISORY_MANY_TESTS when the request emits at
 // least MultiplicityTriggerThreshold uncorrected p-values and nothing —
 // the request, a slot or Options.DefaultMultiplicity — names a
-// multiplicity block (plan nil). pv is nil when the instance hides the
-// multiple-comparison capability, so the advisory never proposes it.
-func manyTestsAdvisory(plan *MultiplicityPlan, pv *descriptor.PValueCount) (descriptor.Advisory, bool) {
-	if plan != nil || pv == nil || pv.Uncorrected < descriptor.MultiplicityTriggerThreshold {
+// multiplicity block (named false: the resolved plan is nil). pv is nil
+// when the instance hides the multiple-comparison capability, so the
+// advisory never proposes it. subject opens the message ("" is "The
+// request emits").
+func manyTestsAdvisory(named bool, pv *descriptor.PValueCount, subject string) (descriptor.Advisory, bool) {
+	if named || pv == nil || pv.Uncorrected < descriptor.MultiplicityTriggerThreshold {
 		return descriptor.Advisory{}, false
+	}
+	if subject == "" {
+		subject = "The request emits"
 	}
 	count := strconv.Itoa(pv.Uncorrected)
 	switch pv.Basis {
@@ -203,7 +220,7 @@ func manyTestsAdvisory(plan *MultiplicityPlan, pv *descriptor.PValueCount) (desc
 	}
 	return descriptor.Advisory{
 		Code: string(errors.PULSE_ADVISORY_MANY_TESTS),
-		Message: "The request emits " + count + " uncorrected p-values (threshold " +
+		Message: subject + " " + count + " uncorrected p-values (threshold " +
 			strconv.Itoa(descriptor.MultiplicityTriggerThreshold) +
 			") and names no multiplicity block; with this many tests some may fall below alpha by chance alone, so consider adding one such as holm.",
 		Details: map[string]any{
@@ -294,7 +311,7 @@ func sidecarMeasure(cohort *encoding.Schema, measures map[string]string, field s
 // parametric test — one per (slot, field), in slot order. The levels
 // come from the cohort's SPSS metadata sidecar only; with no sidecar
 // nothing fires.
-func measureLevelAdvisories(req *types.Request, cohort *encoding.Schema, measures map[string]string, inst *InstanceSnapshot) []descriptor.Advisory {
+func measureLevelAdvisories(req *types.Request, cohort *encoding.Schema, measures map[string]string, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
 	if len(measures) == 0 {
 		return nil
 	}
@@ -310,7 +327,7 @@ func measureLevelAdvisories(req *types.Request, cohort *encoding.Schema, measure
 		if sidecarMeasure(cohort, measures, a.Field) != measureNominal {
 			return
 		}
-		out = append(out, nominalAdvisory(slot, string(routed), a.Field, types.AGG_FREQUENCY, "counts each code", inst))
+		out = append(out, nominalAdvisory(prefix+slot, string(routed), a.Field, types.AGG_FREQUENCY, "counts each code", inst))
 	}
 	for i, a := range req.Aggregations {
 		aggSlot("aggregations["+strconv.Itoa(i)+"]", a)
@@ -333,7 +350,7 @@ func measureLevelAdvisories(req *types.Request, cohort *encoding.Schema, measure
 			if routed == "" || !slices.Contains(parametricTests, routed) {
 				continue
 			}
-			slot := tier.key + "[" + strconv.Itoa(i) + "]"
+			slot := prefix + tier.key + "[" + strconv.Itoa(i) + "]"
 			for _, field := range []string{t.Field, t.Field2} {
 				switch sidecarMeasure(cohort, measures, field) {
 				case measureNominal:

@@ -192,6 +192,15 @@ type PredictOptions struct {
 	// sidecar). It feeds the measure-level advisories and nothing else.
 	SidecarMeasureLevels map[string]string
 
+	// SidecarLoader reads the SPSS metadata sidecar facts beside the
+	// cohort at a path — the weighting variable ("" when there is none or
+	// capability:weighting is hidden) and the measure levels (nil when
+	// there is no usable sidecar). Compose predict calls it once per slot
+	// cohort, because each slot names its own cohort; the single-cohort
+	// roots take SuggestedWeightVariable / SidecarMeasureLevels instead.
+	// Nil reads nothing: no sidecar advisory fires on a Compose slot.
+	SidecarLoader func(path string) (weightVariable string, measureLevels map[string]string)
+
 	// DisableCrosstabFusion is pulse.Options.DisableCrosstabFusion. When
 	// set, PredictResult.CrosstabFusable answers false with
 	// CrosstabFusionDisabledReason for every crosstab request, as the

@@ -40,6 +40,10 @@ The two-group rule reads the dictionary, not the data: it fires even when a filt
 
 The three SPSS rules need the cohort's SPSS metadata sidecar: a cohort imported from any other format, or one whose sidecar is missing or stale, never fires them, and a labelled SPSS numeric (imported as categorical) is not a numeric field.
 
+## Roots
+
+Request predict runs every rule. <!-- feature: capability:facet -->Facet predict runs them too, but a facet request has no test, aggregation or weight slot, so only the many-tests note can fire: one p-value per inferential population-comparison overlay (chi-square or Kolmogorov-Smirnov), counted in its own `p_values`. <!-- /feature --><!-- feature: capability:compose -->Compose predict forwards each slot's advisories in slot order, attributed by `details.request` (the slot index) and a `requests[i].` prefix on `slot`, then adds a many-tests note over its own overlays. Their `p_values` count one per inferential overlay on a `lower_bound` basis, because the extent depends on slot results. <!-- /feature --><!-- feature: capability:process_chain -->Chain predict carries no advisories.<!-- /feature -->
+
 ## Suppression
 
 Embedders set `Options.SuppressAdvisories` (a list of codes) for questions their product answers itself. `pulse.New` refuses an unknown code with `PULSE_SUPPRESS_ADVISORY_UNKNOWN`. There is no per-request or CLI knob.

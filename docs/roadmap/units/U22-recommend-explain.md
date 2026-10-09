@@ -92,7 +92,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(recommend-explain
 ## Inherited from U13
 
 - **The many-tests advisory reads data, not a code.** Predict reports `p_values {total, uncorrected, basis, threshold}` (`descriptor.PValueCount`, `internal/descriptor/predict_pvalues.go`); trigger is `uncorrected >= descriptor.MultiplicityTriggerThreshold` (10). `basis` is `exact` / `dictionary` / `lower_bound` (weakest wins) — an advisory built on a `dictionary` or `lower_bound` count must say it is an estimate. `PULSE_ADVISORY_MANY_TESTS` was deliberately not added; this unit owns the code + fixup if it wants one.
-- **Count the other roots.** Only Request predict counts today. `ComposeValidationResult`, `ChainValidationResult` and `FacetValidationResult` carry no `p_values`; add them when the advisory needs them (a compose-host count is cohort-free, so always `lower_bound`; v1 chain stages reach no p-site).
+- **Count the other roots.** Done at E1-S4: Facet and Compose predict now carry `p_values` + `advisories` (contract: `.claude/reference/predict-inspect.md`, Advisories → Roots); Chain stays untouched. Original note: only Request predict counted. `ComposeValidationResult`, `ChainValidationResult` and `FacetValidationResult` carry no `p_values`; add them when the advisory needs them (a compose-host count is cohort-free, so always `lower_bound`; v1 chain stages reach no p-site).
 - Explain should name the correction actually applied: TestResult / OverlayLayer `multiplicity {method, family, alpha, m[, m_per]}` is present only when a correction ran. Skill: `skills/multiplicity-correction.md`.
 
 ## Human inputs & decisions

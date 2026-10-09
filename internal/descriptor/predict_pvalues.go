@@ -38,15 +38,7 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 		return nil
 	}
 	out := &descriptor.PValueCount{Basis: descriptor.PValueBasisExact, Threshold: descriptor.MultiplicityTriggerThreshold}
-	add := func(n int, basis string, member bool) {
-		out.Total += n
-		if !member {
-			out.Uncorrected += n
-		}
-		if pvalueBasisRank[basis] > pvalueBasisRank[out.Basis] {
-			out.Basis = basis
-		}
-	}
+	add := func(n int, basis string, member bool) { addPValues(out, n, basis, member) }
 	member := func(list []ResolvedMultiplicity, i int) bool {
 		return i < len(list) && list[i].Member
 	}
