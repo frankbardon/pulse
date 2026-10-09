@@ -21,8 +21,8 @@ const (
 
 // PurposeRule names one validity rule ValidatePurpose enforces. The
 // rules fall into four families, one per named gate: the limits
-// (TestSkillsCoverAllPurposes), alternatives (TestPurposeAlternativesResolve),
-// intents (TestPurposeQuestionsResolve) and glossary links
+// (TestSkillsCoverAllPurposes), alternatives and follow-ups
+// (TestPurposeAlternativesResolve), intents (TestPurposeQuestionsResolve) and glossary links
 // (TestGlossaryTermsResolve).
 type PurposeRule string
 
@@ -46,6 +46,10 @@ const (
 	// PurposeRuleAlternative: every NotFor entry has a When and a Use
 	// that resolves (and is not the operator itself).
 	PurposeRuleAlternative PurposeRule = "alternative"
+	// PurposeRuleFollowUp: every FollowUps entry has a When and a Use
+	// that resolves (and is not the operator itself). FollowUps is
+	// optional: an empty list breaks nothing.
+	PurposeRuleFollowUp PurposeRule = "follow_up"
 	// PurposeRuleIntentUnknown: every intent ID is in the taxonomy and
 	// listed once.
 	PurposeRuleIntentUnknown PurposeRule = "intent_unknown"
@@ -71,8 +75,9 @@ func (v PurposeViolation) String() string {
 	return fmt.Sprintf("%s: purpose %s: %s", v.Name, v.Rule, v.Detail)
 }
 
-// PurposeResolver reports whether a NotFor.Use target names something
-// that exists: a bare registered operator, or a "<kind>:<name>" feature.
+// PurposeResolver reports whether a NotFor.Use or FollowUps.Use target
+// names something that exists: a bare registered operator, or a
+// "<kind>:<name>" feature.
 type PurposeResolver func(use string) bool
 
 // BuiltinPurposeResolver resolves a NotFor.Use against the full
@@ -144,20 +149,24 @@ func ValidatePurpose(name string, p descriptor.Purpose, resolve PurposeResolver)
 		bad(PurposeRuleLevel, "Level %q is not one of basic, intermediate, advanced", p.Level)
 	}
 
-	// Alternatives.
-	for i, a := range p.NotFor {
-		if strings.TrimSpace(a.When) == "" {
-			bad(PurposeRuleAlternative, "NotFor[%d] has an empty When", i)
-		}
-		switch {
-		case strings.TrimSpace(a.Use) == "":
-			bad(PurposeRuleAlternative, "NotFor[%d] has an empty Use", i)
-		case a.Use == name:
-			bad(PurposeRuleAlternative, "NotFor[%d] names the operator itself", i)
-		case resolve == nil || !resolve(a.Use):
-			bad(PurposeRuleAlternative, "NotFor[%d].Use %q does not resolve to a registered operator or feature", i, a.Use)
+	// Alternatives and follow-ups share one resolver.
+	checkAlts := func(rule PurposeRule, slot string, alts []descriptor.Alternative) {
+		for i, a := range alts {
+			if strings.TrimSpace(a.When) == "" {
+				bad(rule, "%s[%d] has an empty When", slot, i)
+			}
+			switch {
+			case strings.TrimSpace(a.Use) == "":
+				bad(rule, "%s[%d] has an empty Use", slot, i)
+			case a.Use == name:
+				bad(rule, "%s[%d] names the operator itself", slot, i)
+			case resolve == nil || !resolve(a.Use):
+				bad(rule, "%s[%d].Use %q does not resolve to a registered operator or feature", slot, i, a.Use)
+			}
 		}
 	}
+	checkAlts(PurposeRuleAlternative, "NotFor", p.NotFor)
+	checkAlts(PurposeRuleFollowUp, "FollowUps", p.FollowUps)
 
 	// Intents.
 	seenIntent := map[string]bool{}

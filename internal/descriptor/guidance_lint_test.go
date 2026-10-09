@@ -203,6 +203,21 @@ func TestGuidanceProseLint_ReportsLocation(t *testing.T) {
 	t.Errorf("want violation %s in %v", want, lintGuidance(reg))
 }
 
+// TestGuidanceProseLint_CoversFollowUps: a FollowUps When is linted like
+// a NotFor When, and reported under its own slot.
+func TestGuidanceProseLint_CoversFollowUps(t *testing.T) {
+	reg := lintRegistry{purposes: map[string]descriptor.Purpose{
+		"TEST_X": {FollowUps: []descriptor.Alternative{{When: "ok", Use: "TEST_T"}, {When: "Read that as no effect.", Use: "TEST_T"}}},
+	}}
+	want := lintViolation{"TEST_X", "purpose.follow_ups[1].when", ruleASANoDiff, "no effect"}
+	for _, v := range lintGuidance(reg) {
+		if v == want {
+			return
+		}
+	}
+	t.Errorf("want violation %s in %v", want, lintGuidance(reg))
+}
+
 func TestGuidanceProseLint_Allowlist(t *testing.T) {
 	vs := []lintViolation{{"OP", "f", ruleASANoDiff, "no effect"}}
 	rem, probs := applyAllowlist(vs, []lintAllow{{"OP", "f", ruleASANoDiff, "justified"}})

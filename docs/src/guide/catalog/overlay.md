@@ -121,6 +121,11 @@ Chi-square test on a whole crosstab: checks whether the row and column categorie
 - [`TEST_CHISQ`](test.md#op-test_chisq) when you also want how strongly the two fields are associated (Cramer's V), from raw rows.
 - [`OVERLAY_CHISQ_VS_REF`](#op-overlay_chisq_vs_ref) when you compare this table's mix with another Compose request's table.
 
+**Follow up with:**
+
+- [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when the table shows an association and you want to see which cells drive it.
+- [`OVERLAY_CHISQ_ROW`](#op-overlay_chisq_row) when you want to see which rows depart from the overall column mix.
+
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size)
 
 **Skill:** [`op-overlay-chisq-matrix`](../skills/op-overlay-chisq-matrix.md)

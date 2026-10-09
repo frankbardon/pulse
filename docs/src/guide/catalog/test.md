@@ -62,6 +62,11 @@ Checks whether the average of a numeric measure differs across three or more gro
 - [`TEST_WELCH`](#op-test_welch) when there are only two groups.
 - [`TEST_TUKEY_HSD`](#op-test_tukey_hsd) when you need to know which pairs of groups differ.
 
+**Follow up with:**
+
+- [`TEST_TUKEY_HSD`](#op-test_tukey_hsd) when the groups differ and you want to know which pairs of groups do.
+- [`OVERLAY_PAIRWISE_WELCH_T`](overlay.md#op-overlay_pairwise_welch_t) when the groups are the rows of a crosstab of averages and you want every pair tested.
+
 **Glossary:** [`effect-size`](../glossary.md#term-effect-size), [`eta-squared`](../glossary.md#term-eta-squared), [`f-statistic`](../glossary.md#term-f-statistic), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`omega-squared`](../glossary.md#term-omega-squared), [`p-value`](../glossary.md#term-p-value), [`post-hoc-test`](../glossary.md#term-post-hoc-test), [`variance`](../glossary.md#term-variance)
 
 **Skill:** [`op-test-anova-f`](../skills/op-test-anova-f.md)
@@ -134,6 +139,11 @@ Checks whether the average of a numeric measure differs across groups when the g
 - [`TEST_WELCH`](#op-test_welch) when there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and set multiplicity on the request (for example holm) to adjust their p-values for multiple comparisons.
 - [`TEST_ANOVA_F`](#op-test_anova_f) when spreads are similar and you want Tukey's pairwise follow-up.
 
+**Follow up with:**
+
+- [`OVERLAY_PAIRWISE_WELCH_T`](overlay.md#op-overlay_pairwise_welch_t) when the groups differ and you want each pair tested without assuming equal spread.
+- [`TEST_TUKEY_HSD`](#op-test_tukey_hsd) when the groups differ and their spreads turn out similar after all.
+
 **Glossary:** [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`f-statistic`](../glossary.md#term-f-statistic), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`omega-squared`](../glossary.md#term-omega-squared), [`p-value`](../glossary.md#term-p-value), [`variance`](../glossary.md#term-variance)
 
 **Skill:** [`op-test-anova-welch`](../skills/op-test-anova-welch.md)
@@ -168,6 +178,10 @@ Checks whether the spread of a numeric field differs across groups: a robust tes
 
 - [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when you want to compare the group averages themselves.
 - [`TEST_SHAPIRO_WILK`](#op-test_shapiro_wilk) when you want to check whether a measure is bell-shaped.
+
+**Follow up with:**
+
+- [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when the spreads differ and you still want to compare group averages.
 
 **Glossary:** [`f-statistic`](../glossary.md#term-f-statistic), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`median`](../glossary.md#term-median), [`p-value`](../glossary.md#term-p-value), [`variance`](../glossary.md#term-variance)
 
@@ -205,6 +219,11 @@ Checks whether two categorical fields are associated by comparing a cross-tabula
 - [`TEST_PROP_Z`](#op-test_prop_z) when you compare a yes/no rate between exactly two groups and want a confidence interval.
 - [`TEST_SPEARMAN_R`](#op-test_spearman_r) when both fields are numeric.
 - [`OVERLAY_CHISQ_VS_POP`](overlay.md#op-overlay_chisq_vs_pop) when you compare one subgroup's mix with the whole population.
+
+**Follow up with:**
+
+- [`OVERLAY_FISHER_EXACT_CELL`](overlay.md#op-overlay_fisher_exact_cell) when the table shows an association and you want to see which cells drive it.
+- [`OVERLAY_CHISQ_ROW`](overlay.md#op-overlay_chisq_row) when you want to see which rows depart from the overall column mix.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`continuity-correction`](../glossary.md#term-continuity-correction), [`cramers-v`](../glossary.md#term-cramers-v), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`p-value`](../glossary.md#term-p-value), [`phi`](../glossary.md#term-phi)
 
@@ -276,6 +295,10 @@ Measures how often pairs of rows agree in order on two numeric fields: a rank-ba
 - [`TEST_PEARSON_R`](#op-test_pearson_r) when you want the strength of a straight-line link.
 - [`TEST_TREND`](#op-test_trend) when you want to know whether one ordered series keeps rising or falling.
 
+**Follow up with:**
+
+- [`REG_OLS`](regression.md#op-reg_ols) when the link looks roughly straight and you want to predict one field from the other.
+
 **Glossary:** [`correlation`](../glossary.md#term-correlation), [`independence`](../glossary.md#term-independence), [`kendall-tau`](../glossary.md#term-kendall-tau), [`monotonic-trend`](../glossary.md#term-monotonic-trend), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties), [`two-tailed`](../glossary.md#term-two-tailed)
 
 **Skill:** [`op-test-kendall-tau`](../skills/op-test-kendall-tau.md)
@@ -311,6 +334,10 @@ Rank-based check of whether values tend to be larger in some groups than in othe
 - [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when the data are roughly normal and you want to compare averages.
 - [`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when there are only two groups.
 - [`TEST_ANOVA_RM`](#op-test_anova_rm) when the same subjects are measured in every group and the measure is roughly normal (Pulse has no Friedman test for skewed repeated measures; for two conditions use TEST_WILCOXON_SR).
+
+**Follow up with:**
+
+- [`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when the groups differ and you want a rank-based comparison of each pair, read with multiple-comparison caution.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`epsilon-squared`](../glossary.md#term-epsilon-squared), [`independence`](../glossary.md#term-independence), [`median`](../glossary.md#term-median), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`non-parametric`](../glossary.md#term-non-parametric), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties)
 
@@ -459,6 +486,10 @@ Measures how strongly two numeric fields rise and fall together along a straight
 - [`REG_OLS`](regression.md#op-reg_ols) when you want to predict one field from several others.
 - [`TEST_TREND`](#op-test_trend) when you want to know whether one ordered series keeps rising or falling.
 
+**Follow up with:**
+
+- [`REG_OLS`](regression.md#op-reg_ols) when you want to predict one field from the other, or add more predictors.
+
 **Glossary:** [`confidence-interval`](../glossary.md#term-confidence-interval), [`correlation`](../glossary.md#term-correlation), [`covariance`](../glossary.md#term-covariance), [`independence`](../glossary.md#term-independence), [`normal-distribution`](../glossary.md#term-normal-distribution), [`outlier`](../glossary.md#term-outlier), [`p-value`](../glossary.md#term-p-value), [`r-squared`](../glossary.md#term-r-squared), [`standard-deviation`](../glossary.md#term-standard-deviation)
 
 **Skill:** [`op-test-pearson-r`](../skills/op-test-pearson-r.md)
@@ -529,6 +560,11 @@ Checks whether a numeric field looks normally distributed, overall or within eac
 - [`TEST_KS`](#op-test_ks) when you compare the distributions of two groups with each other.
 - [`TEST_BROWN_FORSYTHE`](#op-test_brown_forsythe) when you want to check whether groups have equal spread.
 
+**Follow up with:**
+
+- [`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when the shape is far from normal and you planned a two-group t-test.
+- [`TEST_KRUSKAL_WALLIS`](#op-test_kruskal_wallis) when the shape is far from normal and you planned an ANOVA across three or more groups.
+
 **Glossary:** [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`kurtosis`](../glossary.md#term-kurtosis), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`skew`](../glossary.md#term-skew), [`statistical-power`](../glossary.md#term-statistical-power), [`statistical-significance`](../glossary.md#term-statistical-significance), [`test-statistic`](../glossary.md#term-test-statistic)
 
 **Skill:** [`op-test-shapiro-wilk`](../skills/op-test-shapiro-wilk.md)
@@ -564,6 +600,10 @@ Measures how consistently one numeric field rises (or falls) as the other rises,
 - [`TEST_KENDALL_TAU`](#op-test_kendall_tau) when the sample is small or many values are tied.
 - [`TEST_CHISQ`](#op-test_chisq) when both fields are categories.
 - [`TEST_TREND`](#op-test_trend) when you want to know whether one ordered series keeps rising or falling.
+
+**Follow up with:**
+
+- [`REG_OLS`](regression.md#op-reg_ols) when the link looks roughly straight and you want to predict one field from the other.
 
 **Glossary:** [`correlation`](../glossary.md#term-correlation), [`independence`](../glossary.md#term-independence), [`monotonic-trend`](../glossary.md#term-monotonic-trend), [`outlier`](../glossary.md#term-outlier), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`spearman-rho`](../glossary.md#term-spearman-rho), [`ties`](../glossary.md#term-ties)
 

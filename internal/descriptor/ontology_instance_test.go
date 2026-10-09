@@ -183,6 +183,35 @@ func TestOntologyPrune_Intents(t *testing.T) {
 	}
 }
 
+// TestOntologyPrune_FollowUps: a follow_up edge goes with its hidden
+// target while the source operator and its other follow-ups stay.
+func TestOntologyPrune_FollowUps(t *testing.T) {
+	base := BaseOntology()
+	anova, tukey, pairwise := opID("TEST_ANOVA_F"), opID("TEST_TUKEY_HSD"), opID("OVERLAY_PAIRWISE_WELCH_T")
+	for _, to := range []string{tukey, pairwise} {
+		if !hasEdge(base, ontoEdge(anova, to, descriptor.OntologyEdgeFollowUp)) {
+			t.Fatalf("premise: base carries follow_up %s → %s", anova, to)
+		}
+	}
+	g := pruneOntology(base, hidingSnapshot("TEST_TUKEY_HSD"))
+	if g.Has(tukey) || !g.Has(anova) {
+		t.Fatal("hiding TEST_TUKEY_HSD: it must go, TEST_ANOVA_F stay")
+	}
+	for _, e := range g.Out(anova, descriptor.OntologyEdgeFollowUp) {
+		if e.To == tukey {
+			t.Errorf("follow_up into hidden %s survives", tukey)
+		}
+	}
+	if !hasEdge(g, ontoEdge(anova, pairwise, descriptor.OntologyEdgeFollowUp)) {
+		t.Error("an enabled follow-up target was pruned with its hidden sibling")
+	}
+
+	g = pruneOntology(base, hidingSnapshot("REG_OLS"))
+	if n := len(g.Out(opID("TEST_PEARSON_R"), descriptor.OntologyEdgeFollowUp)); n != 0 || !g.Has(opID("TEST_PEARSON_R")) {
+		t.Errorf("hiding REG_OLS: TEST_PEARSON_R must stay with no follow_up, has %d", n)
+	}
+}
+
 // termUsers returns the operators whose Purpose cites term.
 func termUsers(g *OntologyGraph, term string) []string {
 	var out []string

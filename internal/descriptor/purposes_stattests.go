@@ -184,6 +184,10 @@ var (
 			{When: "there are only two groups", Use: "TEST_WELCH"},
 			{When: "you need to know which pairs of groups differ", Use: "TEST_TUKEY_HSD"},
 		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the groups differ and you want to know which pairs of groups do", Use: "TEST_TUKEY_HSD"},
+			{When: "the groups are the rows of a crosstab of averages and you want every pair tested", Use: "OVERLAY_PAIRWISE_WELCH_T"},
+		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",
 			"The measure is roughly normally distributed within each group.",
@@ -215,6 +219,10 @@ var (
 			{When: "the same subjects are measured in every group", Use: "TEST_ANOVA_RM"},
 			{When: "there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and set multiplicity on the request (for example holm) to adjust their p-values for multiple comparisons", Use: "TEST_WELCH"},
 			{When: "spreads are similar and you want Tukey's pairwise follow-up", Use: "TEST_ANOVA_F"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the groups differ and you want each pair tested without assuming equal spread", Use: "OVERLAY_PAIRWISE_WELCH_T"},
+			{When: "the groups differ and their spreads turn out similar after all", Use: "TEST_TUKEY_HSD"},
 		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",
@@ -303,6 +311,9 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "you want to compare the group averages themselves", Use: "TEST_ANOVA_WELCH"},
 			{When: "you want to check whether a measure is bell-shaped", Use: "TEST_SHAPIRO_WILK"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the spreads differ and you still want to compare group averages", Use: "TEST_ANOVA_WELCH"},
 		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",
@@ -397,6 +408,9 @@ var (
 			{When: "there are only two groups", Use: "TEST_MANN_WHITNEY_U"},
 			{When: "the same subjects are measured in every group and the measure is roughly normal (Pulse has no Friedman test for skewed repeated measures; for two conditions use TEST_WILCOXON_SR)", Use: "TEST_ANOVA_RM"},
 		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the groups differ and you want a rank-based comparison of each pair, read with multiple-comparison caution", Use: "TEST_MANN_WHITNEY_U"},
+		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",
 			"It tests whether values tend to be larger in some groups; it reads as a difference in medians only when all groups have the same shape.",
@@ -431,6 +445,10 @@ var (
 			{When: "you compare a yes/no rate between exactly two groups and want a confidence interval", Use: "TEST_PROP_Z"},
 			{When: "both fields are numeric", Use: "TEST_SPEARMAN_R"},
 			{When: "you compare one subgroup's mix with the whole population", Use: "OVERLAY_CHISQ_VS_POP"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the table shows an association and you want to see which cells drive it", Use: "OVERLAY_FISHER_EXACT_CELL"},
+			{When: "you want to see which rows depart from the overall column mix", Use: "OVERLAY_CHISQ_ROW"},
 		},
 		Assumptions: []string{
 			"Each row is counted once and rows are independent of each other.",
@@ -526,6 +544,9 @@ var (
 			{When: "you want to predict one field from several others", Use: "REG_OLS"},
 			{When: "you want to know whether one ordered series keeps rising or falling", Use: "TEST_TREND"},
 		},
+		FollowUps: []descriptor.Alternative{
+			{When: "you want to predict one field from the other, or add more predictors", Use: "REG_OLS"},
+		},
 		Assumptions: []string{
 			"The relationship is roughly a straight line.",
 			"Pairs of values are independent of each other.",
@@ -559,6 +580,9 @@ var (
 			{When: "both fields are categories", Use: "TEST_CHISQ"},
 			{When: "you want to know whether one ordered series keeps rising or falling", Use: "TEST_TREND"},
 		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the link looks roughly straight and you want to predict one field from the other", Use: "REG_OLS"},
+		},
 		Assumptions: []string{
 			"Pairs of values are independent of each other.",
 			"It detects monotonic links (one keeps rising as the other rises, or falls); a U-shaped link can score near zero.",
@@ -587,6 +611,9 @@ var (
 			{When: "the data are large; its cost grows with the square of the row count", Use: "TEST_SPEARMAN_R"},
 			{When: "you want the strength of a straight-line link", Use: "TEST_PEARSON_R"},
 			{When: "you want to know whether one ordered series keeps rising or falling", Use: "TEST_TREND"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the link looks roughly straight and you want to predict one field from the other", Use: "REG_OLS"},
 		},
 		Assumptions: []string{
 			"Pairs of values are independent of each other.",
@@ -649,6 +676,10 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "you compare the distributions of two groups with each other", Use: "TEST_KS"},
 			{When: "you want to check whether groups have equal spread", Use: "TEST_BROWN_FORSYTHE"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the shape is far from normal and you planned a two-group t-test", Use: "TEST_MANN_WHITNEY_U"},
+			{When: "the shape is far from normal and you planned an ANOVA across three or more groups", Use: "TEST_KRUSKAL_WALLIS"},
 		},
 		Assumptions: []string{
 			"Rows are independent of each other.",

@@ -181,8 +181,8 @@ func TestOntology_ToolEdges(t *testing.T) {
 	}
 }
 
-// TestOntology_PurposeEdges: every Purpose intent, NotFor alternative
-// and glossary term becomes an edge.
+// TestOntology_PurposeEdges: every Purpose intent, NotFor alternative,
+// follow-up and glossary term becomes an edge.
 func TestOntology_PurposeEdges(t *testing.T) {
 	g := BaseOntology()
 	for name, p := range builtinPurposes {
@@ -196,11 +196,47 @@ func TestOntology_PurposeEdges(t *testing.T) {
 				t.Errorf("not_for: missing %+v", e)
 			}
 		}
+		for _, alt := range p.FollowUps {
+			if e := ontoEdge(opID(name), featureNodeID(t, alt.Use), descriptor.OntologyEdgeFollowUp); !hasEdge(g, e) {
+				t.Errorf("follow_up: missing %+v", e)
+			}
+		}
 		for _, term := range p.Glossary {
 			if e := ontoEdge(opID(name), OntologyID(descriptor.OntologyNodeGlossaryTerm, term), descriptor.OntologyEdgeUsesTerm); !hasEdge(g, e) {
 				t.Errorf("uses_term: missing %+v", e)
 			}
 		}
+	}
+}
+
+// TestOntology_FollowUpEdges: the curated follow-ups land as follow_up
+// edges (not not_for), and a FollowUps entry on an injected Purpose is
+// the only thing that adds one.
+func TestOntology_FollowUpEdges(t *testing.T) {
+	g := BaseOntology()
+	for _, want := range []descriptor.OntologyEdge{
+		ontoEdge(opID("TEST_ANOVA_F"), opID("TEST_TUKEY_HSD"), descriptor.OntologyEdgeFollowUp),
+		ontoEdge(opID("TEST_CHISQ"), opID("OVERLAY_FISHER_EXACT_CELL"), descriptor.OntologyEdgeFollowUp),
+		ontoEdge(opID("TEST_PEARSON_R"), opID("REG_OLS"), descriptor.OntologyEdgeFollowUp),
+		ontoEdge(opID("TEST_SHAPIRO_WILK"), opID("TEST_MANN_WHITNEY_U"), descriptor.OntologyEdgeFollowUp),
+	} {
+		if !hasEdge(g, want) {
+			t.Errorf("missing %+v", want)
+		}
+	}
+	if n := len(g.Out(opID("MAT_CORRELATION"), descriptor.OntologyEdgeFollowUp)); n != 0 {
+		t.Errorf("MAT_CORRELATION carries %d follow_up edges, want none yet", n)
+	}
+
+	src := ontologySources{features: Features(), purposes: map[string]descriptor.Purpose{
+		"AGG_SUM": {FollowUps: []descriptor.Alternative{{When: "next", Use: "AGG_COUNT"}}},
+	}}
+	fg := buildOntology(src)
+	if !hasEdge(fg, ontoEdge(opID("AGG_SUM"), opID("AGG_COUNT"), descriptor.OntologyEdgeFollowUp)) {
+		t.Error("injected FollowUps entry produced no follow_up edge")
+	}
+	if hasEdge(fg, ontoEdge(opID("AGG_SUM"), opID("AGG_COUNT"), descriptor.OntologyEdgeNotFor)) {
+		t.Error("a follow-up was emitted as not_for")
 	}
 }
 

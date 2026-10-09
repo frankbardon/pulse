@@ -113,8 +113,8 @@ type Intent struct {
 	Shapes []Shape `json:"shapes"`
 }
 
-// Alternative is one "not for" entry in a Purpose: when the operator is
-// the wrong choice, and what to use instead.
+// Alternative is one "not for" or "follow-up" entry in a Purpose: the
+// situation in plain words, and the operator or feature it points to.
 type Alternative struct {
 	// When describes the situation in plain words.
 	When string `json:"when"`
@@ -138,6 +138,10 @@ type Purpose struct {
 	UseCases map[Domain]string `json:"use_cases,omitempty"`
 	// NotFor lists the situations where another choice fits better.
 	NotFor []Alternative `json:"not_for,omitempty"`
+	// FollowUps lists the natural next steps once the operator has run:
+	// when to take one, and what to run. Optional; each Use resolves
+	// exactly as a NotFor Use does.
+	FollowUps []Alternative `json:"follow_ups,omitempty"`
 	// Assumptions lists the operator's assumptions as plain sentences.
 	Assumptions []string `json:"assumptions,omitempty"`
 	// Level grades the background the operator assumes.

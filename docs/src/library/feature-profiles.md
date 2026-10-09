@@ -443,7 +443,7 @@ list := p.Skills() // []pulse.SkillMetadata, as pulse_skills_list returns it
 - `p.Ontology()` returns the instance's skill ontology: intents,
   operators, skills, examples, glossary terms, capabilities, MCP tools
   and named tables, joined by typed edges (`serves_intent`,
-  `documented_by`, `exemplified_by`, `not_for`, `uses_term`,
+  `documented_by`, `exemplified_by`, `not_for`, `follow_up`, `uses_term`,
   `routes_to`, `requires_capability`). It is always the pruned view —
   every node for a hidden feature, and every skill, example, intent or
   term left with nothing to describe, is absent with its edges. Each

@@ -103,6 +103,10 @@ var (
 			{When: "you also want how strongly the two fields are associated (Cramer's V), from raw rows", Use: "TEST_CHISQ"},
 			{When: "you compare this table's mix with another Compose request's table", Use: "OVERLAY_CHISQ_VS_REF"},
 		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the table shows an association and you want to see which cells drive it", Use: "OVERLAY_FISHER_EXACT_CELL"},
+			{When: "you want to see which rows depart from the overall column mix", Use: "OVERLAY_CHISQ_ROW"},
+		},
 		Assumptions: []string{
 			overlayCountsOnly,
 			"The null hypothesis is that row and column categories are independent; the p-value comes from the chi-square approximation.",

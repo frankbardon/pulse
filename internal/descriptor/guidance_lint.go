@@ -244,6 +244,9 @@ func purposeTexts(p descriptor.Purpose) []lintText {
 	for i, a := range p.NotFor {
 		out = append(out, lintText{fmt.Sprintf("not_for[%d].when", i), a.When})
 	}
+	for i, a := range p.FollowUps {
+		out = append(out, lintText{fmt.Sprintf("follow_ups[%d].when", i), a.When})
+	}
 	for i, a := range p.Assumptions {
 		out = append(out, lintText{fmt.Sprintf("assumptions[%d]", i), a})
 	}

@@ -62,6 +62,9 @@ const (
 	// OntologyEdgeNotFor: operator → the operator or capability to use
 	// instead (Purpose.NotFor).
 	OntologyEdgeNotFor OntologyEdgeKind = "not_for"
+	// OntologyEdgeFollowUp: operator → the operator or capability to run
+	// next (Purpose.FollowUps).
+	OntologyEdgeFollowUp OntologyEdgeKind = "follow_up"
 	// OntologyEdgeUsesTerm: operator → glossary_term.
 	OntologyEdgeUsesTerm OntologyEdgeKind = "uses_term"
 	// OntologyEdgeRoutesTo: skill → skill, glossary_term → glossary_term

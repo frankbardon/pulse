@@ -918,6 +918,9 @@ and listed once; at least two `Questions`; at least one `NotFor` entry,
 each with a `When` and a `Use` that is not the operator itself and
 resolves against the **instance** registry — a built-in operator, any
 other registered extension, or a `<kind>:<name>` feature-table row;
+an optional `FollowUps` list (the natural next steps once the operator
+has run) whose entries follow the same `When` / `Use` rules as `NotFor`
+and land in `p.Ontology()` as `follow_up` edges;
 `UseCases` keyed by `survey` / `ops` / `science` / `harness`; `Level`
 one of `basic` / `intermediate` / `advanced`; `Glossary` IDs from
 `pulse.Glossary()`, listing every jargon term `Plain` uses. An

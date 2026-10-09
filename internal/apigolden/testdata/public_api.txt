@@ -1385,6 +1385,7 @@ pulse/descriptor: type OntologyEdge field Kind pulse/descriptor.OntologyEdgeKind
 pulse/descriptor: type OntologyEdge field To string "json:\"to\""
 pulse/descriptor: const OntologyEdgeDocumentedBy pulse/descriptor.OntologyEdgeKind = "documented_by"
 pulse/descriptor: const OntologyEdgeExemplifiedBy pulse/descriptor.OntologyEdgeKind = "exemplified_by"
+pulse/descriptor: const OntologyEdgeFollowUp pulse/descriptor.OntologyEdgeKind = "follow_up"
 pulse/descriptor: type OntologyEdgeKind string
 pulse/descriptor: const OntologyEdgeNotFor pulse/descriptor.OntologyEdgeKind = "not_for"
 pulse/descriptor: const OntologyEdgeRequiresCapability pulse/descriptor.OntologyEdgeKind = "requires_capability"
@@ -1519,6 +1520,7 @@ pulse/descriptor: type ProcessChainCapability field RejectionRules []string "jso
 pulse/descriptor: type ProcessChainCapability field RowLocalAttributes []string "json:\"row_local_attributes\""
 pulse/descriptor: type Purpose struct
 pulse/descriptor: type Purpose field Assumptions []string "json:\"assumptions,omitempty\""
+pulse/descriptor: type Purpose field FollowUps []pulse/descriptor.Alternative "json:\"follow_ups,omitempty\""
 pulse/descriptor: type Purpose field Glossary []string "json:\"glossary,omitempty\""
 pulse/descriptor: type Purpose field Intents []string "json:\"intents\""
 pulse/descriptor: type Purpose field Level pulse/descriptor.Level "json:\"level,omitempty\""
@@ -4382,4 +4384,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 024f6c670f6816a42f75a90637988918efff5644726200df2d3aa211b0b0de00
+// golden-hash: ea63501a57233b095d7688145a35309dcabd5c6bcd9413d409806c0d20963b76

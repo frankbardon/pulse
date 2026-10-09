@@ -24,6 +24,7 @@ func validPurposeFixture() descriptor.Purpose {
 		Questions: []string{"Is it one?", "Is it two?"},
 		UseCases:  map[descriptor.Domain]string{descriptor.DomainOps: "A use."},
 		NotFor:    []descriptor.Alternative{{When: "something else fits", Use: "AGG_MEDIAN"}},
+		FollowUps: []descriptor.Alternative{{When: "you want the next step", Use: "TEST_TUKEY_HSD"}},
 		Level:     descriptor.LevelBasic,
 		Glossary:  []string{"p-value"},
 	}
@@ -59,6 +60,12 @@ var purposeRuleCases = []purposeRuleCase{
 	{"use names self", PurposeRuleAlternative, func(p *descriptor.Purpose) { p.NotFor[0].Use = "FIXTURE_OP" }},
 	{"empty use", PurposeRuleAlternative, func(p *descriptor.Purpose) { p.NotFor[0].Use = "" }},
 	{"empty when", PurposeRuleAlternative, func(p *descriptor.Purpose) { p.NotFor[0].When = "" }},
+	// Follow-ups — TestPurposeAlternativesResolve (same resolver).
+	{"follow-up use unregistered", PurposeRuleFollowUp, func(p *descriptor.Purpose) { p.FollowUps[0].Use = "AGG_NOPE" }},
+	{"follow-up prefixed use unknown", PurposeRuleFollowUp, func(p *descriptor.Purpose) { p.FollowUps[0].Use = "capability:nope" }},
+	{"follow-up names self", PurposeRuleFollowUp, func(p *descriptor.Purpose) { p.FollowUps[0].Use = "FIXTURE_OP" }},
+	{"follow-up empty use", PurposeRuleFollowUp, func(p *descriptor.Purpose) { p.FollowUps[0].Use = "" }},
+	{"follow-up empty when", PurposeRuleFollowUp, func(p *descriptor.Purpose) { p.FollowUps[0].When = " " }},
 	// Intents — TestPurposeQuestionsResolve.
 	{"unknown intent", PurposeRuleIntentUnknown, func(p *descriptor.Purpose) { p.Intents = []string{"astrology"} }},
 	{"repeated intent", PurposeRuleIntentUnknown, func(p *descriptor.Purpose) {
@@ -200,7 +207,14 @@ func TestPurposeRegistry_OrphanKeysDetected(t *testing.T) {
 // a "<kind>:<name>" spelling to a feature-table row — and never names
 // the operator itself.
 func TestPurposeAlternativesResolve(t *testing.T) {
-	assertPurposeRuleFamily(t, PurposeRuleAlternative)
+	assertPurposeRuleFamily(t, PurposeRuleAlternative, PurposeRuleFollowUp)
+
+	// FollowUps is optional: dropping it breaks no rule.
+	noFollow := validPurposeFixture()
+	noFollow.FollowUps = nil
+	if v := ValidatePurpose("FIXTURE_OP", noFollow, BuiltinPurposeResolver()); len(v) != 0 {
+		t.Errorf("a Purpose without FollowUps reported violations: %v", v)
+	}
 
 	resolve := BuiltinPurposeResolver()
 	for _, ok := range []string{"AGG_MEDIAN", "TEST_WELCH", "REG_OLS", "OVERLAY_SHARE_OF_TOTAL", "capability:crosstab", "io_format:csv"} {
@@ -213,8 +227,8 @@ func TestPurposeAlternativesResolve(t *testing.T) {
 			t.Errorf("resolver accepted %q", bad)
 		}
 	}
-	if v := ValidatePurpose("X", validPurposeFixture(), nil); len(v) != 1 || v[0].Rule != PurposeRuleAlternative {
-		t.Errorf("nil resolver: want exactly one alternative violation, got %v", v)
+	if v := ValidatePurpose("X", validPurposeFixture(), nil); len(v) != 2 || v[0].Rule != PurposeRuleAlternative || v[1].Rule != PurposeRuleFollowUp {
+		t.Errorf("nil resolver: want one alternative and one follow-up violation, got %v", v)
 	}
 }
 

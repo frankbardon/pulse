@@ -238,6 +238,41 @@ func TestRender_NotForDropsHiddenTarget(t *testing.T) {
 	}
 }
 
+// TestRender_FollowUpsListedAndPruned: an operator's FollowUps render
+// as a "Follow up with" list in its detail block, and an entry whose
+// target the instance hides is dropped while the block stays.
+func TestRender_FollowUpsListedAndPruned(t *testing.T) {
+	const page, from, target = "catalog/test.md", "TEST_PEARSON_R", "REG_OLS"
+	block := func(body string) string {
+		start := strings.Index(body, `<a id="op-`+strings.ToLower(from)+`"></a>`)
+		if start < 0 {
+			return ""
+		}
+		rest := body[start+1:]
+		if end := strings.Index(rest, `<a id="`); end >= 0 {
+			rest = rest[:end]
+		}
+		return rest
+	}
+	full := block(tree(docgen.Render(defaultSnapshot(), docgen.Options{}))[page])
+	if !strings.Contains(full, "**Follow up with:**") || !strings.Contains(full, "`"+target+"`") {
+		t.Fatalf("default %s block lacks its %s follow-up:\n%s", from, target, full)
+	}
+	var enabled []string
+	for _, n := range descx.FeatureNames() {
+		if n != target {
+			enabled = append(enabled, n)
+		}
+	}
+	got := block(tree(docgen.Render(snapshotEnabling(enabled), docgen.Options{}))[page])
+	if got == "" {
+		t.Fatalf("%s lost %s", page, from)
+	}
+	if strings.Contains(got, "**Follow up with:**") || strings.Contains(got, "`"+target+"`") {
+		t.Errorf("%s block still follows up with hidden %s:\n%s", from, target, got)
+	}
+}
+
 // citingPage returns the catalog page and name of the first catalogued
 // built-in operator whose Purpose lists use as an alternative.
 func citingPage(use string) (page, from string) {

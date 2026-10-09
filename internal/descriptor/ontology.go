@@ -365,8 +365,8 @@ func (b *ontologyBuilder) addToolEdges(src ontologySources) {
 	}
 }
 
-// addPurposeEdges: serves_intent, not_for and uses_term from each
-// operator's Purpose.
+// addPurposeEdges: serves_intent, not_for, follow_up and uses_term from
+// each operator's Purpose.
 func (b *ontologyBuilder) addPurposeEdges(src ontologySources) {
 	for name, p := range src.purposes {
 		from := OntologyID(descriptor.OntologyNodeOperator, name)
@@ -375,6 +375,9 @@ func (b *ontologyBuilder) addPurposeEdges(src ontologySources) {
 		}
 		for _, alt := range p.NotFor {
 			b.edge(from, b.featureNode(alt.Use, "purpose not_for "+name), descriptor.OntologyEdgeNotFor, "purpose not_for")
+		}
+		for _, alt := range p.FollowUps {
+			b.edge(from, b.featureNode(alt.Use, "purpose follow_up "+name), descriptor.OntologyEdgeFollowUp, "purpose follow_up")
 		}
 		for _, term := range p.Glossary {
 			b.edge(from, OntologyID(descriptor.OntologyNodeGlossaryTerm, term), descriptor.OntologyEdgeUsesTerm, "purpose glossary")
