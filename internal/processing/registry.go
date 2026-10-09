@@ -53,6 +53,8 @@ var attributeRegistry = map[types.AttributeType]AttributeFactory{
 
 	types.ATTR_SET_POPCOUNT: newSetPopcountAttribute,
 	types.ATTR_SET_HAS:      newSetHasAttribute,
+
+	types.ATTR_CODE_IN: newCodeInAttribute,
 }
 
 // filtererRegistry maps filterer types to their factory functions.

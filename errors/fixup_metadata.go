@@ -645,6 +645,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ATTR_CODE_NOT_IN_DICTIONARY: {
+		Message: "An ATTR_CODE_IN code is absent from the categorical field's dictionary in this cohort, so it matches no row and adds nothing to the share.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Attributes", "*", "Params", "codes"},
+				Hint:   "Codes on a categorical field are dictionary LABELS, matched exactly (case included); check them against pulse inspect --full-dict and correct or drop each one listed in details.missing_codes.",
+			},
+		},
+	},
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN: {
 		Message: "A synth spec referenced a distribution kind not registered in the synth package.",
 		Fixups: []Fixup{

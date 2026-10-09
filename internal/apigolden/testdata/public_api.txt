@@ -1925,6 +1925,7 @@ pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL pulse/errors.Code =
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_CORRUPT"
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
+pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
 pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
@@ -3430,6 +3431,7 @@ pulse/types: const AGG_VARIANCE pulse/types.AggregationType = "AGG_VARIANCE"
 pulse/types: const AGG_WEIGHTED_MEAN pulse/types.AggregationType = "AGG_WEIGHTED_MEAN"
 pulse/types: const AGG_WELFORD pulse/types.AggregationType = "AGG_WELFORD"
 pulse/types: const AGG_ZSCORE pulse/types.AggregationType = "AGG_ZSCORE"
+pulse/types: const ATTR_CODE_IN pulse/types.AttributeType = "ATTR_CODE_IN"
 pulse/types: const ATTR_DATE_PART pulse/types.AttributeType = "ATTR_DATE_PART"
 pulse/types: const ATTR_FORMULA pulse/types.AttributeType = "ATTR_FORMULA"
 pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
@@ -4368,4 +4370,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 00eb33ee24ea25c1f5c513554b43fd0e1c7958cfc0af76f0ae43fc1643d4751d
+// golden-hash: 0209f0b168c1588a6c4ed6ad8f3681ffa918bfab6ce8bf4f666f647d6977c4e8

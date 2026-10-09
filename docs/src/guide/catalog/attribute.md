@@ -4,6 +4,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
+| [`ATTR_CODE_IN`](#op-attr_code_in) | Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base. | What share of all respondents gave a top-two-box answer (codes 4 or 5)? | basic | [`FILTER_INCLUDE`](filterer.md#op-filter_include) when you want to keep only the rows with those codes.<br>[`AGG_FREQUENCY`](aggregator.md#op-agg_frequency) when you want how often a single value occurs.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when the field is a multi-select. |
 | [`ATTR_DATE_PART`](#op-attr_date_part) | Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour. | Which month of the year does each order fall in, so seasons can be compared across years? | basic | [`GROUP_DATE`](grouper.md#op-group_date) when you only want rows grouped by day, week, month or year.<br>[`FEAT_DATE_FEATURES`](feature.md#op-feat_date_features) when you want several calendar columns at once, including weekday. |
 | [`ATTR_FORMULA`](#op-attr_formula) | Adds a number to every row computed from the row's own fields with an expression, such as price * qty. | What is each order's line total from its price and quantity? | intermediate | [`FILTER_EXPRESSION`](filterer.md#op-filter_expression) when you want to keep or drop rows by a rule rather than add a column.<br>[`FEAT_LOG`](feature.md#op-feat_log) when you want the logarithm of a field. |
 | [`ATTR_NORMALIZED`](#op-attr_normalized) | Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the largest. | How can fields on very different scales be put on one 0-to-1 scale before combining them? | basic | [`ATTR_PERCENTILE`](#op-attr_percentile) when the field has extreme values that would squeeze the rest of the range.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want distance from the mean in standard deviations.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want a composite on the scales' fixed endpoints (1-5, 0-10), such as (x - 1) / 4. |
@@ -17,6 +18,39 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_ZSCORE`](#op-attr_zscore) | Adds to every row its z-score: how many standard deviations the row's value sits above or below the mean. | Which orders are unusually large compared with all orders? | intermediate | [`AGG_ZSCORE`](aggregator.md#op-agg_zscore) when you want the centre and spread of each group, not a score per row.<br>[`ATTR_PERCENTILE`](#op-attr_percentile) when the field is skewed or has extreme values and you want a position they cannot distort.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](overlay.md#op-overlay_zscore_vs_total) when you want each group's value against all groups. |
 
 ## Operators
+
+<a id="op-attr_code_in"></a>
+
+### `ATTR_CODE_IN`
+
+Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base.
+
+**Level:** basic
+
+**Questions it answers:**
+
+- What share of all respondents gave a top-two-box answer (codes 4 or 5)?
+- Which orders carry one of the priority status codes, as a column to average by region?
+
+**Use cases by domain:**
+
+- *survey:* Top-box flag to average as a share of the whole weighted base: non-answers stay in the denominator unless FILTER_NULL drops them first.
+- *ops:* Flag for orders whose status code is in a chosen group.
+
+**Assumptions:**
+
+- On a categorical field a code is a dictionary label; one absent from the dictionary matches nothing.
+- A row with a missing value reads 0, the same as a row with another code.
+
+**Use something else:**
+
+- [`FILTER_INCLUDE`](filterer.md#op-filter_include) when you want to keep only the rows with those codes.
+- [`AGG_FREQUENCY`](aggregator.md#op-agg_frequency) when you want how often a single value occurs.
+- [`ATTR_SET_HAS`](#op-attr_set_has) when the field is a multi-select.
+
+**Glossary:** [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-attr-code-in`](../skills/op-attr-code-in.md)
 
 <a id="op-attr_date_part"></a>
 

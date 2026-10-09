@@ -328,11 +328,18 @@ const (
 	// set field has a specific dictionary label set. Params.value names
 	// the label whose bit is tested. Streamable.
 	ATTR_SET_HAS AttributeType = "ATTR_SET_HAS"
+
+	// ATTR_CODE_IN emits a packed_bool (0/1) per row: 1 when the row's
+	// Field value is one of Params.codes, else 0 (a null input reads 0).
+	// Accepts categorical_* (codes are dictionary labels) and u4..u64
+	// (codes are whole numbers). Row-local and streamable.
+	ATTR_CODE_IN AttributeType = "ATTR_CODE_IN"
 )
 
 // AllAttributeTypes returns all defined attribute types.
 func AllAttributeTypes() []AttributeType {
 	return []AttributeType{
+		ATTR_CODE_IN,
 		ATTR_DATE_PART,
 		ATTR_FORMULA,
 		ATTR_NORMALIZED,

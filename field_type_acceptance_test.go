@@ -167,6 +167,7 @@ var acceptanceTemplates = map[string]string{
 	"ATTR_REG_LEVERAGE": `{"attributes":[{"type":"ATTR_REG_LEVERAGE","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_SET_POPCOUNT": `{"attributes":[{"type":"ATTR_SET_POPCOUNT","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_SET_HAS":      `{"attributes":[{"type":"ATTR_SET_HAS","field":"$F","label":"o","params":{"label":"a"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_CODE_IN":      `{"attributes":[{"type":"ATTR_CODE_IN","field":"$F","label":"o","params":{"codes":["$V"]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 
 	// Features.
 	"FEAT_LOG":              `{"features":[{"type":"FEAT_LOG","field":"$F"}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,

@@ -225,6 +225,7 @@ func TestTwoPassOrder_UpstreamRowLocal(t *testing.T) {
 		"date_part":    {Type: types.ATTR_DATE_PART, Field: "day", Params: []byte(`{"part":"day"}`), Label: "u"},
 		"set_popcount": {Type: types.ATTR_SET_POPCOUNT, Field: "tags", Label: "u"},
 		"set_has":      {Type: types.ATTR_SET_HAS, Field: "tags", Params: []byte(`{"label":"t001"}`), Label: "u"},
+		"code_in":      {Type: types.ATTR_CODE_IN, Field: "region", Params: []byte(`{"codes":["north","east"]}`), Label: "u"},
 	}
 	twoPass := map[string]*types.Attribute{
 		"zscore":       {Type: types.ATTR_ZSCORE, Field: "u", Label: "out"},

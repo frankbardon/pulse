@@ -74,6 +74,7 @@
     - [op-agg-weighted-mean](skills/op-agg-weighted-mean.md)
     - [op-agg-welford](skills/op-agg-welford.md)
     - [op-agg-zscore](skills/op-agg-zscore.md)
+    - [op-attr-code-in](skills/op-attr-code-in.md)
     - [op-attr-date-part](skills/op-attr-date-part.md)
     - [op-attr-formula](skills/op-attr-formula.md)
     - [op-attr-normalized](skills/op-attr-normalized.md)

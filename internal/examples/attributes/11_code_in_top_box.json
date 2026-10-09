@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Top-box share of the WHOLE base on a weighted crosstab. ATTR_CODE_IN turns the categorical converted field into a per-row 1/0 indicator (1 when the row's label is one of params.codes, here just \"yes\"; a null converted reads 0 and stays in the base), named by label. AGG_WEIGHTED_MEAN of that indicator in each region x treatment cell, weighted by session_minutes, is the weighted share of every row in the cell that converted. Contrast FILTER_INCLUDE on the same codes: it drops the non-matching rows, so every cell would read 100%. Categorical codes match dictionary labels, never ids; the attribute is row-local, so the crosstab scan stays fused and streamable.",
+    "intents": [
+      "composition",
+      "prepare"
+    ],
+    "name": "attr_code_in_top_box",
+    "operators": [
+      "AGG_WEIGHTED_MEAN",
+      "ATTR_CODE_IN",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "feature-engineering",
+      "proportion-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_CODE_IN",
+      "field": "converted",
+      "label": "converted_top_box",
+      "params": {
+        "codes": ["yes"]
+      }
+    }
+  ],
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "treatment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_WEIGHTED_MEAN",
+      "field": "converted_top_box",
+      "label": "weighted_top_box_share",
+      "params": {
+        "weight_field": "session_minutes"
+      }
+    }
+  }
+}

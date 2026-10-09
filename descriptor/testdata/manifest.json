@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:21e79fbd70c85f9aef52604656cd6b2ba31b4e5a589bc79d5bcebfbb540f7704",
+    "feature_set_digest": "fs1:4bfe9c1fbc91dda362da9bab9a4268f09d159166068c4312352dc1ff3a19d1e8",
     "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
     "commands": [
       {
@@ -2503,6 +2503,38 @@
         }
       ],
       "attributes": [
+        {
+          "name": "ATTR_CODE_IN",
+          "category": "attribute",
+          "description": "Per-row 0/1: whether the field's value is one of the listed codes. Every row stays in the base (a null reads 0), so a mean of the output is the share of the whole base; FILTER_INCLUDE on the same codes drops the other rows instead.",
+          "params": [
+            {
+              "name": "codes",
+              "type": "list",
+              "required": true,
+              "description": "Non-empty list of codes (JSON strings or integers; duplicates ignored). On a categorical field each is a dictionary label, and one absent from the dictionary matches nothing; on an integer field each must be a whole number within the field's width."
+            }
+          ],
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "packed_bool",
+          "emits_type_note": "one 0/1 per record (0 when the value is null)",
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "prepare"
+          ]
+        },
         {
           "name": "ATTR_DATE_PART",
           "category": "attribute",
@@ -6351,7 +6383,7 @@
         ]
       }
     ],
-    "error_codes_count": 285,
+    "error_codes_count": 286,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6390,6 +6422,7 @@
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
+      "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
       "PULSE_CHAIN_STAGE_JOIN",
@@ -6769,6 +6802,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_CODE_IN",
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
@@ -6845,6 +6879,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_CODE_IN",
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
@@ -6921,6 +6956,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_CODE_IN",
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
@@ -6997,6 +7033,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_CODE_IN",
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
@@ -7224,6 +7261,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_CODE_IN",
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
@@ -7415,6 +7453,7 @@
           "AGG_RATIO"
         ],
         "compatible_attributes": [
+          "ATTR_CODE_IN",
           "ATTR_FORMULA"
         ],
         "compatible_filterers": [
@@ -7454,6 +7493,7 @@
           "AGG_RATIO"
         ],
         "compatible_attributes": [
+          "ATTR_CODE_IN",
           "ATTR_FORMULA"
         ],
         "compatible_filterers": [
@@ -7493,6 +7533,7 @@
           "AGG_RATIO"
         ],
         "compatible_attributes": [
+          "ATTR_CODE_IN",
           "ATTR_FORMULA"
         ],
         "compatible_filterers": [
@@ -8085,6 +8126,10 @@
       {
         "name": "op-agg-zscore",
         "description": "Standardized z-score aggregate — mean-centered, stddev-scaled summary."
+      },
+      {
+        "name": "op-attr-code-in",
+        "description": "Per-row 0/1 — whether a field's value is one of a list of codes; its mean is the share of the whole base."
       },
       {
         "name": "op-attr-date-part",
@@ -8995,7 +9040,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 179,
+    "examples_count": 180,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -12319,4 +12364,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 09c3dbe19b03fea77b1dfef94e0b0b358f22f2e1e82e82549e98c40c39debf3c
+// golden-hash: 3f7b08f7d9482cc83e1b78302bf0dc054957f8953ace24834bd0c6098dcd2a4e

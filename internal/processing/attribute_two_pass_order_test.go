@@ -27,6 +27,7 @@ func twoPassOrderSchema(t *testing.T) *encoding.Schema {
 			{Name: "y", Type: encoding.FieldTypeF64, Description: "input y"},
 			{Name: "d", Type: encoding.FieldTypeDate, Description: "epoch days"},
 			{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: dict},
+			{Name: "c", Type: encoding.FieldTypeU8, Description: "integer code"},
 		},
 	}
 }
@@ -42,7 +43,7 @@ func twoPassOrderRecords(schema *encoding.Schema) []*Record {
 		d := float64(i * 23) // spans several months
 		mask := uint64((i*5 + 3) % 16)
 		out[i] = NewRecordWithWide(schema,
-			map[string]float64{"x": x, "y": y, "d": d}, nil,
+			map[string]float64{"x": x, "y": y, "d": d, "c": float64(i % 5)}, nil,
 			map[string]any{"tags": mask})
 	}
 	return out
@@ -105,6 +106,7 @@ func TestTwoPass_DeclaredOrder_UpstreamRowLocalFeedsTwoPass(t *testing.T) {
 		"date_part":    {Type: types.ATTR_DATE_PART, Field: "d", Params: []byte(`{"part":"month"}`), Label: "u"},
 		"set_popcount": {Type: types.ATTR_SET_POPCOUNT, Field: "tags", Label: "u"},
 		"set_has":      {Type: types.ATTR_SET_HAS, Field: "tags", Params: []byte(`{"label":"AMEX"}`), Label: "u"},
+		"code_in":      {Type: types.ATTR_CODE_IN, Field: "c", Params: []byte(`{"codes":[1, 3]}`), Label: "u"},
 	}
 	twoPass := map[string]*types.Attribute{
 		"zscore":       {Type: types.ATTR_ZSCORE, Field: "u", Label: "out"},

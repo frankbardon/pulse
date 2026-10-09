@@ -917,6 +917,10 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// the engines in Phases 1–4.
 	validateRegressions(env, req, schema, projected, opts.Instance)
 
+	// ATTR_CODE_IN: the runtime constructor's refusals, re-derived from
+	// the schema, and the absent-categorical-code warning.
+	validateCodeIn(env, req, schema, projected, opts)
+
 	// Check attribute fields.
 	for _, attr := range req.Attributes {
 		// Removed-type sentinel: ATTR_RANK was retired in favor of WIN_RANK.
