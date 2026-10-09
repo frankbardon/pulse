@@ -162,6 +162,10 @@ func obsCalls() []obsCall {
 			return err
 		}},
 		{"Manifest", observe.OpManifest, func(ctx context.Context, p *Pulse) error { p.Manifest(ctx); return nil }},
+		{"ManifestForIntent", observe.OpManifest, func(ctx context.Context, p *Pulse) error {
+			_, err := p.ManifestForIntent(ctx, "compare_groups")
+			return err
+		}},
 		{"PayloadSchema", observe.OpPayloadSchema, func(ctx context.Context, p *Pulse) error { _, err := p.PayloadSchema(); return err }},
 		{"Import", observe.OpImport, func(ctx context.Context, p *Pulse) error {
 			_, err := p.Import(ctx, pio.NewImportJob(newMockReader([]string{"a"}, [][]string{{"1"}}), "imported.pulse"))

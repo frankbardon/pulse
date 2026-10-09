@@ -164,8 +164,20 @@ func HandleLookup(ctx context.Context, p *pulse.Pulse, in LookupIn) (LookupOut, 
 // HandleManifest runs pulse_manifest: the slim bootstrap blob. Prose
 // descriptions live in skills and are fetched via pulse_skills_get;
 // duplicating them in the per-session bootstrap is the bloat --slim avoids.
-func HandleManifest(ctx context.Context, p *pulse.Pulse, _ ManifestIn) (ManifestOut, error) {
-	slim := descx.SlimManifest(p.Manifest(ctx))
+// With an intent it is the slim form of p.ManifestForIntent; an unknown or
+// hidden intent is the coded PULSE_RECOMMEND_INTENT_UNKNOWN.
+func HandleManifest(ctx context.Context, p *pulse.Pulse, in ManifestIn) (ManifestOut, error) {
+	var full *descriptor.Manifest
+	if in.Intent == "" {
+		full = p.Manifest(ctx)
+	} else {
+		scoped, err := p.ManifestForIntent(ctx, in.Intent)
+		if err != nil {
+			return ManifestOut{}, err
+		}
+		full = scoped
+	}
+	slim := descx.SlimManifest(full)
 	if slim == nil {
 		return ManifestOut{}, nil
 	}

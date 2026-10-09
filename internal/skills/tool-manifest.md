@@ -8,21 +8,21 @@ applies_to: manifest, mcp
 
 ## When to use
 
-CALL FIRST in every session. Cache the result; reference it for every request-authoring decision. Source of truth for what operators, tests, regressions, synth distributions, MCP tools, and error codes exist in THIS deployment. Pair with `pulse_examples_search` for runnable templates.
+CALL FIRST in every session. Cache the result; reference it for every request-authoring decision. Source of truth for every operator, tool and error code THIS deployment offers. Pair with `pulse_examples_search` for runnable templates.
 
 ## Input
 
-No arguments. (CLI: `pulse manifest --json` accepts `--slim` for the same payload MCP serves.)
+Optional `intent` (an intent-taxonomy ID, e.g. `compare_groups`): the manifest scoped to it — only operators serving it, its ranked skills, the intent record in `scope.intent`. Fixed sections (commands, error codes, cohort types, tool list, limits, `components_schemas`, ...) are absent and named in `elided`. Cache per intent. Unknown: `PULSE_RECOMMEND_INTENT_UNKNOWN`. (CLI: `pulse manifest --json` with `--slim` = the MCP payload, `--intent ID`.)
 
 ## Output
 
-`descriptor.Envelope` shape (`format_version: "1.0"`). `data` is the manifest payload — `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, plus capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Export`, `Import`, `Overlays` (a block is absent when this deployment does not offer that capability), `limits` (this server's effective resource limits — `{name, value, default, unit}`, `-1` = none) and `feature_set_digest` + `limits_digest` — key a cached manifest on both plus the build version. Sort-stable; golden-checked.
+`descriptor.Envelope`; `data` = `commands`, `components`, `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes*`, `mcp_tools`, `cohort_types`, `skills`, `extensions`, capability blocks (`facet`, `join`, `process_chain`, `crosstab`, `export`, `import`, `overlays`; absent when not offered), `limits` (`{name, value, default, unit}`, `-1` = none), `feature_set_digest` + `limits_digest` — the cache key with the build version (and the intent). Sort-stable.
 
 ## Gotchas
 
-- MCP path always serves the slim payload (no prose) to keep bootstrap context lean. Fetch per-operator prose via `pulse_skills_get` and per-error prose via `pulse_errors_lookup` on demand.
+- MCP always serves the slim payload (no prose). Fetch per-operator prose via `pulse_skills_get` and per-error prose via `pulse_errors_lookup` on demand.
 - Operator names in `components.aggregators[]` / `components.groupers[]` are the manifest catalog, NOT the request slot keys — request bodies use `"aggregations"` / `"groups"`<!-- feature: capability:process --> (see `tool-process` Gotchas)<!-- /feature -->.
-- Per-operator `ComponentSchema` declarations live under `components_schemas.{aggregators,groupers,filterers}`.
+- Each operator entry carries its `component_schema`; the unscoped manifest also keys them by name under `components_schemas`.
 
 ## See
 

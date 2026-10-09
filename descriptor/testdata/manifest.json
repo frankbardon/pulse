@@ -6768,7 +6768,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, matrix operators (`matrices`, used through the request's `vectors` / `matrices` slots, plus the `matrix` capability block), synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, matrix operators (`matrices`, used through the request's `vectors` / `matrices` slots, plus the `matrix` capability block), synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -12409,4 +12409,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f06fcdda91911678d130946470b1ab93b3c969e21db74b4d049382157cd13924
+// golden-hash: 9781540b0973b8f8cb17624e3ae9fc0834165b3983e5efc4b5cf836530df66ee

@@ -141,7 +141,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 ### Manifest payload
 
-`internal/descriptor.BuildManifest()` returns the deterministic LLM-bootstrap blob — one fetch per session, client-cached, via `pulse manifest --json` and `pulse_manifest`; sort-stable, golden `descriptor/testdata/manifest.json`, cache key `(pulse_version, feature_set_digest, limits_digest)`. Declarations: `internal/descriptor/capabilities_*.go`; MCP tool metadata: `internal/mcp/toolmeta/meta.go`. Top-level field list: `.claude/reference/architecture.md` (Payload schema and manifest payload).
+`internal/descriptor.BuildManifest()` returns the deterministic LLM-bootstrap blob — one fetch per session, client-cached, via `pulse manifest --json` and `pulse_manifest`; sort-stable, golden `descriptor/testdata/manifest.json`, cache key `(pulse_version, feature_set_digest, limits_digest)` (+ the intent for `ManifestForIntent` / `pulse_manifest {intent}`, which drops the fixed sections and lists them in `elided`). Declarations: `internal/descriptor/capabilities_*.go`; MCP tool metadata: `internal/mcp/toolmeta/meta.go`. Top-level field list: `.claude/reference/architecture.md` (Payload schema and manifest payload).
 
 ### Predict / Inspect contracts
 

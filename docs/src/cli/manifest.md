@@ -16,7 +16,7 @@ the filesystem.
 ## Synopsis
 
 ```
-pulse --json [--slim]
+pulse --json [--slim] [--intent ID]
 ```
 
 (There is no `pulse manifest` subcommand — the manifest is the root
@@ -28,6 +28,7 @@ command's `--json` output.)
 |---|---|---|---|
 | `--json` | bool | false | Emit the manifest as a JSON envelope |
 | `--slim` | bool | false | Drop prose descriptions from the manifest payload (smaller for size-sensitive clients) |
+| `--intent` | string | "" | Scope the manifest to one intent-taxonomy ID (see below) |
 
 ## Manifest shape
 
@@ -55,6 +56,30 @@ From [`internal/descriptor/manifest.go`](https://github.com/frankbardon/pulse/bl
 Every list is sorted deterministically (alphabetical or category +
 alphabetical). The same Pulse binary always emits the same manifest
 bytes (modulo `--slim`).
+
+## Intent-scoped manifest
+
+`--intent ID` (MCP: `pulse_manifest {"intent": ID}`; library:
+`Pulse.ManifestForIntent`) narrows the manifest to one intent-taxonomy
+ID, for an agent that already knows the kind of question it is
+answering. The operator sections (`components`, `tests`, `post_tests`,
+`regressions`, `matrices`, `overlays`) keep only operators whose purpose
+names the intent, `skills` becomes the intent's ranked skill list, and
+`crosstab` / `matrix` stay only when a remaining operator can use them.
+The fixed sections — `commands`, `operations`, the error-code lists,
+`cohort_types`, `mcp_tools`, `synth_distributions`, `extensions`,
+`limits`, `components_schemas` (each operator keeps its own
+`component_schema`) and the `facet` / `process_chain` / `join` /
+`export` / `import` blocks — are absent, never empty, and listed in
+`elided`. `scope.intent` carries the full intent record (label, sample
+phrasings, data shapes). Versions, digests, `intents` and
+`return_presets` are kept, so a client caches a scoped manifest under
+`(pulse_version, feature_set_digest, limits_digest, scope.intent.id)`.
+
+A scoped slim manifest is gated at no more than 15% of the full slim
+manifest for every analytic intent; `describe` (served by every summary
+aggregator) is the one named exception, with a measured ceiling. The
+unscoped manifest is unchanged.
 
 ## Determinism gates
 

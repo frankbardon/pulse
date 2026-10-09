@@ -2532,6 +2532,32 @@ func (p *Pulse) manifest(ctx context.Context) *descriptor.Manifest {
 	return descx.BuildManifestForInstance(p.svc.InstanceSnapshot())
 }
 
+// ManifestForIntent returns the instance's manifest narrowed to one
+// intent-taxonomy ID (see Intents) — the bootstrap pulse_manifest
+// {intent} serves, a small fraction of the full manifest. The
+// operator-keyed sections (components, tests, post_tests, regressions,
+// matrices, overlays, components_schemas) keep only operators whose
+// purpose names the intent; skills is the intent's ranked list
+// (SkillsForIntent); crosstab and matrix stay only when a remaining
+// operator can use them. The fixed sections — commands, operations,
+// error codes, cohort_types, mcp_tools, synth_distributions, extensions,
+// limits and the facet / process_chain / join / export / import blocks —
+// are dropped: zero here, absent on the wire. Scope carries the full
+// intent record and Elided lists every dropped key. Version, digests,
+// intents and return_presets are kept, so a client caches it under
+// (pulse_version, feature_set_digest, limits_digest, intent).
+//
+// It composes with the instance's feature profile: nothing the profile
+// hides appears. An unknown intent, or one the profile hides, is
+// PULSE_RECOMMEND_INTENT_UNKNOWN (details.valid lists the instance's
+// intents). Manifest itself is unchanged. Observed as a manifest
+// operation.
+func (p *Pulse) ManifestForIntent(ctx context.Context, intent string) (*descriptor.Manifest, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpManifest}, func(context.Context) (*descriptor.Manifest, error) {
+		return descx.BuildManifestForIntent(p.svc.InstanceSnapshot(), intent)
+	})
+}
+
 // PayloadSchema returns the instance's payload JSON Schema (draft
 // 2020-12) as raw JSON: only what it offers. The operator, overlay-kind
 // and regression enums list only enabled names; a hidden request slot

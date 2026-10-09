@@ -296,7 +296,10 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   `table:` fails `PULSE_RANGE_TABLE_UNKNOWN`. `p.LabelTables()` and
   `p.RangeTables()` still return them: facade methods are not gated.
   Lookup tables (the expression `lookup()` function) have no
-  capability and always resolve.
+  capability and always resolve. `p.ManifestForIntent(ctx, intent)`
+  narrows this same instance view to one intent, so it never lists a
+  hidden operator either; an intent the profile prunes (every operator
+  serving it hidden) is `PULSE_RECOMMEND_INTENT_UNKNOWN`.
 - **Payload schema.** `p.PayloadSchema()` returns the JSON Schema for
   the instance: enums keep only enabled names, hidden slots are not
   properties, and a request root whose capability is off (compose,

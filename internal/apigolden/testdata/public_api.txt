@@ -694,6 +694,7 @@ pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath st
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
 pulse: type Pulse method (*Pulse) Manifest(ctx context.Context) *pulse/descriptor.Manifest
+pulse: type Pulse method (*Pulse) ManifestForIntent(ctx context.Context, intent string) (*pulse/descriptor.Manifest, error)
 pulse: type Pulse method (*Pulse) NewCohortBuilder(ctx context.Context, target string, schema pulse/encoding.Schema, opts pulse.CohortBuilderOptions) (*pulse.CohortBuilder, error)
 pulse: type Pulse method (*Pulse) Ontology() pulse/descriptor.Ontology
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
@@ -1375,6 +1376,7 @@ pulse/descriptor: type Manifest field Commands []pulse/descriptor.Command "json:
 pulse/descriptor: type Manifest field Components pulse/descriptor.Components "json:\"components\""
 pulse/descriptor: type Manifest field ComponentsSchemas pulse/descriptor.ComponentsSchemasBlock "json:\"components_schemas\""
 pulse/descriptor: type Manifest field Crosstab *pulse/descriptor.CrosstabCapability "json:\"crosstab,omitempty\""
+pulse/descriptor: type Manifest field Elided []string "json:\"elided,omitempty\""
 pulse/descriptor: type Manifest field ErrorCodes []string "json:\"error_codes\""
 pulse/descriptor: type Manifest field ErrorCodesCount int "json:\"error_codes_count\""
 pulse/descriptor: type Manifest field ErrorDomains []string "json:\"error_domains\""
@@ -1401,10 +1403,14 @@ pulse/descriptor: type Manifest field ProcessChain *pulse/descriptor.ProcessChai
 pulse/descriptor: type Manifest field PulseVersion string "json:\"pulse_version\""
 pulse/descriptor: type Manifest field Regressions []pulse/descriptor.RegressionMeta "json:\"regressions\""
 pulse/descriptor: type Manifest field ReturnPresets []pulse/descriptor.ReturnPresetMeta "json:\"return_presets\""
+pulse/descriptor: type Manifest field Scope *pulse/descriptor.ManifestScope "json:\"scope,omitempty\""
 pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:\"skills\""
 pulse/descriptor: type Manifest field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
 pulse/descriptor: type Manifest field TZDataVersion string "json:\"tzdata_version\""
 pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"tests\""
+pulse/descriptor: type Manifest method (Manifest) MarshalJSON() ([]byte, error)
+pulse/descriptor: type ManifestScope struct
+pulse/descriptor: type ManifestScope field Intent pulse/descriptor.Intent "json:\"intent\""
 pulse/descriptor: type MatrixCapability struct
 pulse/descriptor: type MatrixCapability field DefaultEncoding string "json:\"default_encoding\""
 pulse/descriptor: type MatrixCapability field Encodings []string "json:\"encodings\""
@@ -1686,6 +1692,7 @@ pulse/descriptor: type Role field Max int "json:\"max\""
 pulse/descriptor: type Role field Min int "json:\"min\""
 pulse/descriptor: type Role field Name string "json:\"name\""
 pulse/descriptor: const RoleUnbounded untyped int = -1
+pulse/descriptor: func ScopedManifestElidedKeys() []string
 pulse/descriptor: type Shape struct
 pulse/descriptor: type Shape field Roles []pulse/descriptor.Role "json:\"roles\""
 pulse/descriptor: type ShardInfo struct
@@ -4498,4 +4505,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: f7af1795c1b3face8884829997ed5b62c9307c8eef9ab4f7f5ddb0bef6fa93c7
+// golden-hash: e9afe8dea7ccca8d2287908658bfd0305f0540f53fcd460bc5db24e58e1e88c4

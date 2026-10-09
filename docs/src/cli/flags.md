@@ -20,8 +20,9 @@ Available on the bare `pulse` invocation:
 |---|---|
 | `--json` | Print the root manifest as JSON (envelope-wrapped) |
 | `--slim` | With `--json`, drop prose descriptions for size-sensitive clients |
+| `--intent ID` | With `--json`, scope the manifest to one intent-taxonomy ID (e.g. `compare_groups`): only the operators serving it and its skills, the fixed sections dropped and listed in `elided`. An unknown ID is a `PULSE_RECOMMEND_INTENT_UNKNOWN` error envelope |
 
-Both default to off. `pulse --json` is the discovery entry point — it
+All default to off. `pulse --json` is the discovery entry point — it
 emits the manifest documented at [`pulse manifest`](manifest.md).
 
 Persistent on **every** leaf (accepted before or after the leaf name):

@@ -1,5 +1,7 @@
 package descriptor
 
+import "encoding/json"
+
 // Command describes a CLI leaf command in the manifest.
 type Command struct {
 	Name        string `json:"name"`
@@ -264,6 +266,83 @@ type Manifest struct {
 	// Limits are behaviour, not features — they never enter
 	// feature_set_digest; LimitsDigest identifies them.
 	Limits []LimitMeta `json:"limits"`
+
+	// Scope is set only on an intent-scoped manifest (ManifestForIntent,
+	// pulse_manifest {intent}, pulse --json --intent): the one intent the
+	// manifest was narrowed to, as its full taxonomy record. Nil — and
+	// absent on the wire — on the unscoped manifest, which is unchanged.
+	// A client caching manifests keys a scoped one on (pulse_version,
+	// feature_set_digest, limits_digest, scope.intent.id).
+	Scope *ManifestScope `json:"scope,omitempty"`
+
+	// Elided lists, sorted, the top-level keys an intent-scoped manifest
+	// dropped that the unscoped manifest of the same instance carries
+	// (commands, error_codes, cohort_types, mcp_tools, ...). Those keys
+	// are ABSENT on the wire, never null or empty, and zero in the Go
+	// value. Empty on the unscoped manifest.
+	Elided []string `json:"elided,omitempty"`
+}
+
+// ManifestScope names what an intent-scoped manifest was narrowed to.
+type ManifestScope struct {
+	// Intent is the intent-taxonomy record (id, label, analytic, sounds,
+	// shapes) the manifest serves; its operator-keyed sections list only
+	// operators whose purpose names Intent.ID.
+	Intent Intent `json:"intent"`
+}
+
+// ScopedManifestElidedKeys returns, sorted, the top-level manifest keys
+// an intent-scoped manifest always drops. components_schemas is dropped
+// as a duplicate: each remaining operator carries the same schema as its
+// own component_schema. crosstab and matrix are
+// dropped too when no operator serving the intent can use them; those
+// two are listed in Manifest.Elided only when that happens.
+func ScopedManifestElidedKeys() []string {
+	return []string{
+		"cohort_types", "commands", "components_schemas", "error_codes", "error_codes_count",
+		"error_domains", "export", "extensions", "facet", "import", "join",
+		"limits", "mcp_tools", "operations", "process_chain",
+		"synth_distributions",
+	}
+}
+
+// plainManifest is Manifest without its MarshalJSON method: the default
+// struct encoding.
+type plainManifest Manifest
+
+// scopedManifestWire is the wire form of an intent-scoped manifest. Each
+// outer field shadows the embedded field of the same JSON name (the
+// shallower field wins in encoding/json) and, nil with omitempty, drops
+// it; every other Manifest key encodes exactly as the default would.
+// The shadow set is ScopedManifestElidedKeys (TestScopedManifestWire*).
+type scopedManifestWire struct {
+	plainManifest
+	CohortTypes        *struct{} `json:"cohort_types,omitempty"`
+	Commands           *struct{} `json:"commands,omitempty"`
+	ComponentsSchemas  *struct{} `json:"components_schemas,omitempty"`
+	ErrorCodes         *struct{} `json:"error_codes,omitempty"`
+	ErrorCodesCount    *struct{} `json:"error_codes_count,omitempty"`
+	ErrorDomains       *struct{} `json:"error_domains,omitempty"`
+	Export             *struct{} `json:"export,omitempty"`
+	Extensions         *struct{} `json:"extensions,omitempty"`
+	Facet              *struct{} `json:"facet,omitempty"`
+	Import             *struct{} `json:"import,omitempty"`
+	Join               *struct{} `json:"join,omitempty"`
+	Limits             *struct{} `json:"limits,omitempty"`
+	MCPTools           *struct{} `json:"mcp_tools,omitempty"`
+	Operations         *struct{} `json:"operations,omitempty"`
+	ProcessChain       *struct{} `json:"process_chain,omitempty"`
+	SynthDistributions *struct{} `json:"synth_distributions,omitempty"`
+}
+
+// MarshalJSON encodes the manifest. The unscoped manifest (Scope nil)
+// encodes exactly as the default struct encoding; an intent-scoped one
+// omits every ScopedManifestElidedKeys key instead of writing it empty.
+func (m Manifest) MarshalJSON() ([]byte, error) {
+	if m.Scope == nil {
+		return json.Marshal(plainManifest(m))
+	}
+	return json.Marshal(scopedManifestWire{plainManifest: plainManifest(m)})
 }
 
 // LimitMeta is one effective resource limit as the manifest lists it.

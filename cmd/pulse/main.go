@@ -9,8 +9,6 @@ import (
 	pcli "github.com/frankbardon/pulse/internal/cli"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/descriptor"
-	descx "github.com/frankbardon/pulse/internal/descriptor"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -30,18 +28,14 @@ func buildApp() *cli.Command {
 		Flags: append([]cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "Output self-describing manifest as JSON"},
 			&cli.BoolFlag{Name: "slim", Usage: "Drop prose descriptions from the manifest payload (smaller for size-sensitive clients)"},
+			&cli.StringFlag{Name: "intent", Usage: "With --json, scope the manifest to one intent-taxonomy ID (e.g. compare_groups): only its operators and skills"},
 		}, pcli.LogFlags()...),
 		// --log-level / --log-format are persistent: every leaf accepts
 		// them, and Before hands the stderr logger to the leaf via ctx.
 		Before: pcli.LogBefore,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Bool("json") {
-				manifest := descx.BuildManifest()
-				if cmd.Bool("slim") {
-					manifest = descx.SlimManifest(manifest)
-				}
-				env := descriptor.NewEnvelope(manifest)
-				return pcli.WriteJSONPublic(cmd.Writer, env)
+				return pcli.WriteManifest(cmd.Writer, cmd.Bool("slim"), cmd.String("intent"))
 			}
 			// Default: print usage.
 			cli.ShowAppHelp(cmd)

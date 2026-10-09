@@ -63,8 +63,11 @@ type SkillsGetIn struct {
 	Name string `json:"name" jsonschema:"Skill name (e.g. 'aggregation-design')"`
 }
 
-// ManifestIn is the (empty) input contract for pulse_manifest.
-type ManifestIn struct{}
+// ManifestIn is the input contract for pulse_manifest. With no intent
+// it returns the full slim manifest.
+type ManifestIn struct {
+	Intent string `json:"intent,omitempty" jsonschema:"Intent-taxonomy ID (e.g. compare_groups, relationship). Returns the manifest scoped to that intent: only its operators and skills, the fixed sections dropped and listed in elided, the intent record in scope. Unknown: PULSE_RECOMMEND_INTENT_UNKNOWN"`
+}
 
 // ExamplesSearchIn is the input contract for pulse_examples_search. All four
 // filters are optional and ANDed.
