@@ -284,6 +284,9 @@ var uninstrumentedMethods = map[string]bool{
 	"ResolveCanonicalSchema": true, "ApplySeriesOverlays": true, "InvalidatedSidecars": true,
 	"Watch": true, "WatchWithOptions": true, "WatchDir": true, "WatchDirWithOptions": true,
 	"ExportReference": true,
+
+	// Unbound Recommend renders in-memory guidance (no file, no record).
+	"Recommend": true,
 }
 
 // TestObservedMethodsCoverSurface guards against a missed method: every

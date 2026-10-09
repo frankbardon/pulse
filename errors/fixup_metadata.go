@@ -715,6 +715,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_RECOMMEND_INTENT_UNKNOWN: {
+		Message: "Recommend was asked for an intent that is not in the intent taxonomy.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Set intent to one of: benchmark, change_over_time, compare_groups, composition, data_quality, describe, distribution_shape, drivers, flows, lookup, measure_construct, prepare, relationship, segment, simulate; details.valid lists them.",
+			},
+		},
+	},
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN: {
 		Message: "A synth spec referenced a distribution kind not registered in the synth package.",
 		Fixups: []Fixup{

@@ -35,9 +35,19 @@ Public types live in `descriptor/guidance.go`; the registries and built-in decla
 - Analytic (`Analytic: true`): `describe`, `compare_groups`, `relationship`, `drivers`, `change_over_time`, `composition`, `benchmark`, `distribution_shape`, `segment`, `measure_construct`, `flows`, `data_quality`.
 - Non-analytic — routes to tooling, not operators: `prepare`, `simulate`, `lookup`.
 
-Every intent declares ≥1 `Shape` with validated kinds (`TestIntentRegistry_WellFormed`; the exact ID set is pinned by `TestIntentRegistry_ExactIDs`). Shapes have no runtime consumer yet — U22 (recommend) is the first.
+Every intent declares ≥1 `Shape` with validated kinds (`TestIntentRegistry_WellFormed`; the exact ID set is pinned by `TestIntentRegistry_ExactIDs`). Shapes' first runtime consumer is Recommend (section below).
 
 **Manifest projection.** Top-level `intents[]` is the sorted ID strings ONLY. Each `Operator`, `TestMeta`, `RegressionMeta`, `DistributionMeta`, overlay-kind `OverlayCapability` and extension `OperatorMeta` entry carries `intents []string` (`omitempty`) — the sorted intent IDs of its Purpose. The nested `ProcessChainCapability.Overlays` list does NOT carry them. An entry without a Purpose omits the key, so guidance-free output is byte-identical. A hidden operator under a feature profile drops its intents through the existing hide path (`TestManifestIntents_EntriesAndHidePath`). `format_version` stays `"1.1"` — the slots are additive.
+
+## Recommend (U22)
+
+`Pulse.Recommend(ctx, descriptor.RecommendRequest{Intent, Cohort?, Fields?, Level?, Limit?})` is the first consumer of intent `Shapes`. Types live in `descriptor/recommend.go`; logic in the NO-EXECUTE `internal/guide/` (`TestGuideNoExecutionImports`). It reads the instance snapshot only: the PRUNED ontology (`OperatorsServing`, `not_for` / `follow_up` edges), the instance manifest (`BuildManifestForInstance`: categories, `Requires`, required params) and each operator's `Purpose` (built-in, else the extension registration's).
+
+- **Unbound** (no cohort, `bound: false`, never predict-run): one draft per serving operator whose category takes a single-slot draft (tests, post-tests, regressions, matrices and the six component categories; overlays need a host and distributions serve `simulate`, so neither is drafted). A draft is wire JSON with `"<key>"` placeholders named after the wire key (`placeholders[]` lists them; `cohort` always). `TestMeta.Requires` Go names map through `requireKey` (`SplitBy` → `split_by`), a regression's params and a grouper's `interval` are top-level keys, every other required param rides `params`; filterer value slots come from a written table (`filtererShape`). `TEST_T` under `compare_groups` drafts the two-sample form (`split_by`). `why` = the scrubbed `Purpose.Plain` plus a fixed placeholder sentence (lint-clean, `TestRecommend_ProseLintAndProvenance`); `alternatives` / `follow_ups` are exactly the declared `NotFor` / `FollowUps` whose target survives the prune — never invented. The result echoes the intent's `shapes`.
+- **Ranking + cap.** Requested `level` first (else simplest), then category (`test` → `regression` → `matrix` → `aggregator` → `window` → `attribute` → `feature` → `grouper` → `filterer` → `post_test`), then name. `limit` (default 10, plain request field, not `Options.Limits`) cuts the list: `truncated` + `candidates_considered`. A negative limit or unknown level is `SERVICE_VALIDATION`.
+- **No drafts.** A non-analytic intent (`prepare`, `simulate`, `lookup`) and an analytic one with no draftable operator (`measure_construct`, `flows`) return `recommendations: []` plus `routes_to[]` (`{when, use}`, a feature spelling: import / dedup / widen, synth, lookup, matrices, crosstab), each route dropped when its feature is hidden. Not an error. An unknown intent is `PULSE_RECOMMEND_INTENT_UNKNOWN` (`details.intent`, `details.valid` = every intent ID; the fixup lists them).
+- **Profiles.** No hidden operator or capability appears in a draft, alternative, follow-up or route (`TestRecommend_ProfileHidesOperators`, root `TestRecommend_FacadeProfiled`).
+- **Bound mode** (a cohort) is E2-S3; until it lands the facade refuses a cohort with `SERVICE_VALIDATION`.
 
 ## Glossary and the jargon rule
 
@@ -181,7 +191,7 @@ Delivered: `internal/docgen` and the committed book tree `docs/src/guide` (`make
 - U36 also owns the runtime defects U09 documented rather than fixed (split-aware `FEAT_TARGET_ENCODE`, `AGG_ZSCORE`'s always-zero value, normal-z `AGG_CI_*`, tied `ATTR_PERCENTILE`, attributes writing 0 for missing inputs) — the Interpretations and skills describe today's behaviour.
 - U10 — profile-aware skill rendering.
 - U38 — syncing the hand-written atomic skills that drifted from the registries (U21 delivered the rendering; see Generated reference above and `skill-pack.md` Generated sections).
-- U22 — recommend / explain (first consumer of intent shapes).
+- U22 — explain, and Recommend's cohort-bound mode (unbound Recommend: section above).
 - U23 — guidance over MCP.
 - U33 — release-blocking human statistics sign-off of the U08 review record (`docs/roadmap/reviews/U08-statistics-review.md`), with the reviewer's CODEOWNERS entries.
 - U36 — per-output numeric oracles (Statistical primitives and the R oracle, "Not yet covered").

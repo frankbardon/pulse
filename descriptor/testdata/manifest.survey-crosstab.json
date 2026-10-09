@@ -739,7 +739,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 161,
+    "error_codes_count": 162,
     "error_domains": [
       "CLI",
       "DATA",
@@ -846,6 +846,7 @@
       "PULSE_OVERLAY_REF_ZERO",
       "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
       "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT",
+      "PULSE_RECOMMEND_INTENT_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
@@ -2203,4 +2204,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3d3ad66053a40aeead52956080ff8bbf13dc8f14b1224394d08c89f48f1ab9d8
+// golden-hash: 90a7a08a44888f2c285b1d3eeed8e5a91cac9b980025ed0cc878a9feef64539a

@@ -696,6 +696,7 @@ pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.
 pulse: type Pulse method (*Pulse) ProcessStreamResult(ctx context.Context, req *pulse.Request) (pulse.StreamResult[pulse.Row], error)
 pulse: type Pulse method (*Pulse) Profile(ctx context.Context, path string, opts pulse.ProfileOptions) (*pulse.Profile, error)
 pulse: type Pulse method (*Pulse) RangeTables() []pulse.RangeTableInfo
+pulse: type Pulse method (*Pulse) Recommend(ctx context.Context, req pulse/descriptor.RecommendRequest) (*pulse/descriptor.RecommendResult, error)
 pulse: type Pulse method (*Pulse) ReloadTemplates() error
 pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) error
 pulse: type Pulse method (*Pulse) RenderTemplate(name string, vars map[string]any) (*pulse.RenderedTemplate, error)
@@ -1532,6 +1533,34 @@ pulse/descriptor: type RangeTableMeta struct
 pulse/descriptor: type RangeTableMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type RangeTableMeta field Name string "json:\"name\""
 pulse/descriptor: type RangeTableMeta field RangeCount int "json:\"range_count\""
+pulse/descriptor: type RecommendNeed struct
+pulse/descriptor: type RecommendNeed field Param string "json:\"param\""
+pulse/descriptor: type RecommendNeed field Why string "json:\"why\""
+pulse/descriptor: type RecommendRequest struct
+pulse/descriptor: type RecommendRequest field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
+pulse/descriptor: type RecommendRequest field Fields []string "json:\"fields,omitempty\""
+pulse/descriptor: type RecommendRequest field Intent string "json:\"intent\""
+pulse/descriptor: type RecommendRequest field Level pulse/descriptor.Level "json:\"level,omitempty\""
+pulse/descriptor: type RecommendRequest field Limit int "json:\"limit,omitempty\""
+pulse/descriptor: type RecommendResult struct
+pulse/descriptor: type RecommendResult field Bound bool "json:\"bound\""
+pulse/descriptor: type RecommendResult field CandidatesConsidered int "json:\"candidates_considered\""
+pulse/descriptor: type RecommendResult field Intent string "json:\"intent\""
+pulse/descriptor: type RecommendResult field Recommendations []pulse/descriptor.Recommendation "json:\"recommendations\""
+pulse/descriptor: type RecommendResult field RoutesTo []pulse/descriptor.Alternative "json:\"routes_to,omitempty\""
+pulse/descriptor: type RecommendResult field Shapes []pulse/descriptor.Shape "json:\"shapes,omitempty\""
+pulse/descriptor: type RecommendResult field Truncated bool "json:\"truncated\""
+pulse/descriptor: type Recommendation struct
+pulse/descriptor: type Recommendation field Alternatives []pulse/descriptor.Alternative "json:\"alternatives,omitempty\""
+pulse/descriptor: type Recommendation field Bound bool "json:\"bound\""
+pulse/descriptor: type Recommendation field Category string "json:\"category\""
+pulse/descriptor: type Recommendation field FollowUps []pulse/descriptor.Alternative "json:\"follow_ups,omitempty\""
+pulse/descriptor: type Recommendation field Level pulse/descriptor.Level "json:\"level,omitempty\""
+pulse/descriptor: type Recommendation field Needs []pulse/descriptor.RecommendNeed "json:\"needs,omitempty\""
+pulse/descriptor: type Recommendation field Operator string "json:\"operator\""
+pulse/descriptor: type Recommendation field Placeholders []string "json:\"placeholders,omitempty\""
+pulse/descriptor: type Recommendation field Request encoding/json.RawMessage "json:\"request\""
+pulse/descriptor: type Recommendation field Why string "json:\"why\""
 pulse/descriptor: type RegressionMeta struct
 pulse/descriptor: type RegressionMeta field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type RegressionMeta field Description string "json:\"description\""
@@ -2081,6 +2110,7 @@ pulse/errors: const PULSE_RANGE_INVALID pulse/errors.Code = "PULSE_RANGE_INVALID
 pulse/errors: const PULSE_RANGE_OVERLAP pulse/errors.Code = "PULSE_RANGE_OVERLAP"
 pulse/errors: const PULSE_RANGE_SOURCE_AMBIGUOUS pulse/errors.Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
 pulse/errors: const PULSE_RANGE_TABLE_UNKNOWN pulse/errors.Code = "PULSE_RANGE_TABLE_UNKNOWN"
+pulse/errors: const PULSE_RECOMMEND_INTENT_UNKNOWN pulse/errors.Code = "PULSE_RECOMMEND_INTENT_UNKNOWN"
 pulse/errors: const PULSE_REQUEST_UNKNOWN_FIELD pulse/errors.Code = "PULSE_REQUEST_UNKNOWN_FIELD"
 pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVALID"
 pulse/errors: const PULSE_RETURN_PATH_UNKNOWN pulse/errors.Code = "PULSE_RETURN_PATH_UNKNOWN"
@@ -4384,4 +4414,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ea63501a57233b095d7688145a35309dcabd5c6bcd9413d409806c0d20963b76
+// golden-hash: 27616614ff0f4677787e126927e4aa9505de9d290b180f521808ecf7c52b64d2
