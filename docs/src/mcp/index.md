@@ -124,7 +124,7 @@ Resources are registered once at server start. Files added afterwards do not app
 | Name | Args | Returns |
 |---|---|---|
 | `pulse-bootstrap` | none | A short instructions block telling the assistant what to call (and in what order) before authoring any request, and where the authoritative references live. Inject at session start. |
-| `pulse-author-request` | `question` | A guided tool-call sequence for translating an analytical question into a Pulse request: manifest → examples search → inspect → predict → process. |
+| `pulse-author-request` | `question` | Classifies the question against the intents (label + example phrasings) and hands it to the matching mounted `pulse-<intent>` prompt, or — for `prepare` and `lookup` — straight to the mounted route tool (`pulse_import` / `pulse_dedup`, `pulse_lookup`; `simulate` has no MCP tool). It lists only what this server mounts. Otherwise a guided tool-call sequence: manifest → examples search → inspect → predict → process. |
 | `pulse-describe` | `cohort`, `measure` | The guided intent workflow for `describe` (below). |
 | `pulse-compare-groups` | `cohort`, `outcome`, `group` | The guided intent workflow for `compare_groups` (below). |
 | `pulse-relationship` | `cohort`, `measures`, `categories` | The guided intent workflow for `relationship` (below). |

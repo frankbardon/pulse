@@ -381,7 +381,9 @@ listed; the discovery tools (`pulse_inspect`, `pulse_predict`,
 there. Calling a tool the profile hides fails exactly like calling one
 that does not exist. Each prompt needs its own `mcp_extra:prompt_*`
 feature. A `pulse-<intent>` prompt also disappears, feature or not, when
-the profile hides every operator that answers its intent. Without `mcp_extra:cohort_resources` the server skips the
+the profile hides every operator that answers its intent, and
+`pulse-author-request` then routes no question to it: its intent list
+names only the prompts and route tools the instance mounts. Without `mcp_extra:cohort_resources` the server skips the
 startup walk and does not list cohorts under `resources/list`, as if
 `--no-cohort-scan` were set; every cohort stays readable by its
 `pulse://` URI.

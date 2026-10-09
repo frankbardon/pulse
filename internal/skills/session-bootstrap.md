@@ -41,7 +41,7 @@ Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-
 Manifest = the contract. `pulse_inspect` = field names + values. `pulse_examples_*` = runnable JSON. Skills = gotchas, slot-key naming, rationale. `pulse_errors_lookup` = per-code prose. Prompts:
 
 - <!-- feature: mcp_extra:prompt_bootstrap -->`pulse-bootstrap`: this order.<!-- /feature -->
-- <!-- feature: mcp_extra:prompt_author_request -->`pulse-author-request`: question → request.<!-- /feature -->
+- <!-- feature: mcp_extra:prompt_author_request -->`pulse-author-request`: question → intent prompt, tool or request.<!-- /feature -->
 - <!-- feature: capability:recommend, capability:explain, capability:process -->`pulse-<intent>` (per analytic intent): inspect, recommend, confirm, process, explain.<!-- /feature -->
 
 ## On failure
@@ -50,7 +50,7 @@ Read every `errors[]` / `warnings[]` entry (`{code, message, details}`) → `pul
 
 ## Environment
 
-Directory roots auto-loaded at `pulse.New` time:
+Roots auto-loaded at `pulse.New`:
 
 - `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Give it its own directory.** Every `*.json` beneath it is parsed as a label table and an unparseable file hard-fails `pulse.New`; Pulse's own `.spss.json` / `.meta.json` sidecars are excluded by suffix, nothing else is.
 - `PULSE_RANGE_TABLES_DIR` — named labeled-date-range tables (`{label,start,end}` sets referenced by the date-range grouper and filter). Same sidecar exclusion.

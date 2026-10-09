@@ -268,3 +268,77 @@ func TestSkillsCoverAllMCPPrompts(t *testing.T) {
 		t.Error("session-bootstrap does not name the `pulse-<intent>` intent-prompt family")
 	}
 }
+
+// TestRegister_AuthorRequestRoutesByIntent pins the author-request
+// routing section on a profile-free instance: every analytic intent
+// hands off to its own mounted prompt with its label and phrasings,
+// and each tooling intent points straight at its mounted route tools.
+func TestRegister_AuthorRequestRoutesByIntent(t *testing.T) {
+	c, cancel := profiledServer(t, afero.NewMemMapFs(), nil, gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
+	defer cancel()
+	text := promptText(t, c, gosdk.PromptAuthorRequest, map[string]string{"question": "Do regions differ in revenue?"})
+	for _, in := range pulse.Intents() {
+		if !in.Analytic {
+			continue
+		}
+		line := "- `" + in.ID + "` — " + in.Label + " (sounds like \"" + in.Sounds[0] + "\""
+		if !strings.Contains(text, line) {
+			t.Errorf("routing lacks %q:\n%s", line, text)
+		}
+		if want := "follow the `" + descx.IntentPromptName(in.ID) + "` prompt."; !strings.Contains(text, want) {
+			t.Errorf("routing lacks %q", want)
+		}
+	}
+	for _, want := range []string{
+		"- `prepare` — Prepare data",
+		"call `pulse_import` when the source data still has to be brought in as a cohort; or `pulse_dedup` when rows repeat",
+		"- `lookup` — Look up records",
+		"call `pulse_lookup` when you want the records stored under a key value.",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("routing lacks %q:\n%s", want, text)
+		}
+	}
+	// simulate's only route (capability:synth) has no MCP tool: no line.
+	if strings.Contains(text, "- `simulate`") {
+		t.Errorf("simulate routed although no MCP tool serves it:\n%s", text)
+	}
+	if i, j := strings.Index(text, "First classify the question."), strings.Index(text, "Follow this discovery flow:"); i < 0 || j < i {
+		t.Errorf("routing does not precede the discovery flow:\n%s", text)
+	}
+}
+
+// TestRegister_AuthorRequestNamesOnlyMountedPrompts pins that a profile
+// hiding one intent prompt drops that prompt (and its intent line) from
+// the author-request body, keeps every other mounted one, and routes no
+// tooling intent to a hidden tool.
+func TestRegister_AuthorRequestNamesOnlyMountedPrompts(t *testing.T) {
+	fp, err := pulse.ExampleFeatureProfile("read-only-analyst")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const hidden = "mcp_extra:prompt_compare_groups"
+	fp.Features = slices.DeleteFunc(fp.Features, func(f string) bool { return f == hidden })
+	c, cancel := profiledServer(t, afero.NewMemMapFs(), fp, gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
+	defer cancel()
+	text := promptText(t, c, gosdk.PromptAuthorRequest, map[string]string{"question": "q"})
+	if strings.Contains(text, "pulse-compare-groups") || strings.Contains(text, "- `compare_groups`") {
+		t.Errorf("author-request names the hidden prompt:\n%s", text)
+	}
+	mounted := promptNames(t, c)
+	for _, ip := range descx.MCPIntentPrompts() {
+		if ip.Feature == hidden {
+			continue
+		}
+		if !slices.Contains(mounted, ip.Prompt) || !strings.Contains(text, "`"+ip.Prompt+"`") {
+			t.Errorf("mounted prompt %s missing from the author-request body", ip.Prompt)
+		}
+	}
+	// read-only-analyst offers lookup but not import or dedup.
+	if !strings.Contains(text, "call `pulse_lookup`") {
+		t.Errorf("lookup not routed to its mounted tool:\n%s", text)
+	}
+	if strings.Contains(text, "pulse_import") || strings.Contains(text, "pulse_dedup") || strings.Contains(text, "- `prepare`") {
+		t.Errorf("prepare routed to a hidden tool:\n%s", text)
+	}
+}
