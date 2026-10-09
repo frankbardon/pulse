@@ -116,6 +116,10 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 - **`skills/response-components.md` is at 5,991 / 6,000** (`kind: design` hard budget) after U16 added `Components.Matrices`. Any further Components block must displace prose first.
 - **CLAUDE.md headroom is 516 bytes** (49,484 / 50,000 after U16, which displaced the execution-modes pointer list into `.claude/reference/execution-modes.md` "Mode index").
 
+## Inherited from U22
+
+- **Two design skills now sit exactly at the 6,000-byte `kind: design` budget** (#161): `skills/weighting.md` (U22 E1-S3 trimmed its SPSS sentence to fit) and `skills/session-bootstrap.md` (U22 E3-S4 shortened step 1's version sentence to fit the `pulse explain` line). The next addition to either must displace text first. Found in U22 (PR #331).
+
 ## Human inputs & decisions
 
 - Maintainer sign-off; a fresh reader (developer without a statistics background) for the review

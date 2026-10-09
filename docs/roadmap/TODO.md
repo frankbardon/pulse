@@ -225,6 +225,12 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#93** Predict `advisories`, with codes and fixups · [U22](units/U22-recommend-explain.md)
 - [x] **#94** Explain goldens per operator family; Recommend goldens per intent · [U22](units/U22-recommend-explain.md)
 
+#### Follow-ups from U22
+- [ ] **#246** Compose and Facet predict get a direct facade, CLI and MCP entry (today their advisories reach callers only through Explain and bound Recommend; `PredictOptions.SidecarLoader` is wired from the Explain facade only) · [U23](units/U23-guidance-mcp.md)
+- [ ] **#247** The MCP core reflector (`internal/mcp/schema.go`) describes `json.RawMessage` as an open object, not a byte array (operator `params`, `pulse_recommend`'s `recommendations[].request`); harmless while output schemas stay unmounted · [U23](units/U23-guidance-mcp.md)
+- [ ] **#248** Bound Recommend reads a shard archive header-only: the archive path of `descx.Predict` does `io.ReadAll`, so a bound Recommend on an archive reads every shard · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#249** Recommend drafts every serving operator: `AGG_RATIO` (predict refuses a missing `field` the runtime ignores), `AGG_WEIGHTED_MEAN` (no weight binding), `ATTR_REG_*` and `FEAT_BUCKETIZE` (required params the manifest does not declare); see `unmappedOnFixture` in `internal/guide/bind_test.go` · [U35](units/U35-predict-runtime-parity.md)
+
 ### G5 — MCP guidance layer
 - [ ] **#95** One MCP prompt per intent (extending `pulse-bootstrap` / `pulse-author-request`), plus the prompt gate · [U23](units/U23-guidance-mcp.md)
 - [ ] **#96** `pulse_examples_search {intent}` and question search; synonym table · [U23](units/U23-guidance-mcp.md)

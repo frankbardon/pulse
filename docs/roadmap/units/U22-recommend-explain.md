@@ -121,9 +121,9 @@ Merged without a release (rolls into v1.0.0); `format_version` stays `"1.1"`. Th
 | Item | Owner |
 |---|---|
 | Facet predict can only fire `MANY_TESTS` (`FacetRequest` has no test slot); the two-group advisory is proven through a Compose slot | none, by design |
-| Compose and Facet predict have no direct facade, CLI or MCP entry; their advisories are reachable through Explain and bound Recommend only | [U23](U23-guidance-mcp.md) |
-| Bound Recommend reads a shard archive whole (the archive path of `descx.Predict` does `io.ReadAll`) | [U35](U35-predict-runtime-parity.md) |
-| Serving operators never drafted by Recommend: `AGG_RATIO`, `AGG_WEIGHTED_MEAN`, `ATTR_REG_*`, `FEAT_BUCKETIZE` (predict / manifest gaps for their required params) | [U35](U35-predict-runtime-parity.md) |
-| The MCP core reflector renders `json.RawMessage` (operator params, `recommendations[].request`) as a byte array; output schemas stay unmounted and the payload schema is the fixed contract | [U23](U23-guidance-mcp.md) |
+| Compose and Facet predict have no direct facade, CLI or MCP entry; their advisories are reachable through Explain and bound Recommend only | [U23](U23-guidance-mcp.md) #246 |
+| Bound Recommend reads a shard archive whole (the archive path of `descx.Predict` does `io.ReadAll`) | [U35](U35-predict-runtime-parity.md) #248 |
+| Serving operators never drafted by Recommend: `AGG_RATIO`, `AGG_WEIGHTED_MEAN`, `ATTR_REG_*`, `FEAT_BUCKETIZE` (predict / manifest gaps for their required params) | [U35](U35-predict-runtime-parity.md) #249 |
+| The MCP core reflector renders `json.RawMessage` (operator params, `recommendations[].request`) as a byte array; output schemas stay unmounted and the payload schema is the fixed contract | [U23](U23-guidance-mcp.md) #247 |
 | `PULSE_ADVISORY_COSINE_ON_SCALE` | [U27](U27-vector-metrics-aggregates.md) (U29 for native vector fields) |
-| Skill budgets at the ceiling: `weighting.md` and `session-bootstrap.md` sit at 6000 bytes, so the next addition must displace text | [U38](U38-skill-sync.md) |
+| Skill budgets at the ceiling: `weighting.md` and `session-bootstrap.md` sit at 6000 bytes, so the next addition must displace text | [U32](U32-docs-audit.md) #161 (U38 excludes the design-skill overrun) |
