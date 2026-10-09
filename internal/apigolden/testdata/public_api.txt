@@ -1551,6 +1551,7 @@ pulse/descriptor: type RecommendResult field RoutesTo []pulse/descriptor.Alterna
 pulse/descriptor: type RecommendResult field Shapes []pulse/descriptor.Shape "json:\"shapes,omitempty\""
 pulse/descriptor: type RecommendResult field Truncated bool "json:\"truncated\""
 pulse/descriptor: type Recommendation struct
+pulse/descriptor: type Recommendation field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse/descriptor: type Recommendation field Alternatives []pulse/descriptor.Alternative "json:\"alternatives,omitempty\""
 pulse/descriptor: type Recommendation field Bound bool "json:\"bound\""
 pulse/descriptor: type Recommendation field Category string "json:\"category\""
@@ -4414,4 +4415,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 27616614ff0f4677787e126927e4aa9505de9d290b180f521808ecf7c52b64d2
+// golden-hash: 6d9214c67122aa05f3471f1b2af189b00d8c66fa2b490c3253a577c268fc5dcf

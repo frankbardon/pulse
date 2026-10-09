@@ -67,13 +67,19 @@ type opInfo struct {
 	name         string
 	category     string
 	ignoresField bool
+	accepts      []string // field type names the operator's field takes; empty = undeclared
 	requires     []string // tests: types.Test Go field names
 	params       []param  // required params without a default
 }
 
+// param is one required, default-less param. typ and fieldFilter are
+// the manifest's: a "field" param names a schema field, so bound mode
+// fills it from the schema instead of asking the caller.
 type param struct {
-	name string
-	list bool
+	name        string
+	list        bool
+	typ         string
+	fieldFilter string
 }
 
 // catalog indexes the instance manifest's operator entries by name. A
@@ -83,7 +89,7 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 	out := map[string]opInfo{}
 	addOps := func(ops []descriptor.Operator) {
 		for _, o := range ops {
-			out[o.Name] = opInfo{name: o.Name, category: o.Category, ignoresField: o.IgnoresField, params: requiredParams(o.Params)}
+			out[o.Name] = opInfo{name: o.Name, category: o.Category, ignoresField: o.IgnoresField, accepts: o.AcceptsTypes, params: requiredParams(o.Params)}
 		}
 	}
 	c := m.Components
@@ -103,7 +109,7 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 		}
 	}
 	for _, r := range m.Regressions {
-		out[r.Name] = opInfo{name: r.Name, category: catRegression, params: requiredParams(r.Params)}
+		out[r.Name] = opInfo{name: r.Name, category: catRegression, accepts: r.AcceptsTypes, params: requiredParams(r.Params)}
 	}
 	for _, x := range m.Matrices {
 		out[x.Name] = opInfo{name: x.Name, category: catMatrix, params: requiredParams(x.Params)}
@@ -114,7 +120,7 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 		catGrouper: e.Groupers, catWindow: e.Windows, catFeature: e.Features, catTest: e.Tests,
 	} {
 		for _, o := range metas {
-			info := opInfo{name: o.Name, category: cat}
+			info := opInfo{name: o.Name, category: cat, accepts: o.Accepts}
 			if cat == catTest {
 				info.requires = []string{"Field"}
 				if o.Tier == "tier2" {
@@ -123,7 +129,7 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 			}
 			for _, p := range o.Params {
 				if p.Required && p.Default == nil {
-					info.params = append(info.params, param{name: p.Name, list: p.JSONType == "array"})
+					info.params = append(info.params, param{name: p.Name, list: p.JSONType == "array", typ: p.JSONType})
 				}
 			}
 			out[o.Name] = info
@@ -138,7 +144,7 @@ func requiredParams(ps []descriptor.Param) []param {
 	var out []param
 	for _, p := range ps {
 		if p.Required && p.Default == nil {
-			out = append(out, param{name: p.Name, list: p.Type == "list" || p.Type == "array"})
+			out = append(out, param{name: p.Name, list: p.Type == "list" || p.Type == "array", typ: p.Type, fieldFilter: p.FieldFilter})
 		}
 	}
 	return out

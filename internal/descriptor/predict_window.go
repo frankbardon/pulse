@@ -18,6 +18,11 @@ var windowFrameRequired = map[types.WindowType]bool{
 	types.WIN_EWMA:        true,
 }
 
+// WindowFrameRequired reports whether predict refuses a window of type
+// t that carries no frame — the rule Recommend's drafts ask the caller
+// to satisfy.
+func WindowFrameRequired(t types.WindowType) bool { return windowFrameRequired[t] }
+
 // windowFrameRejected lists window types that REJECT a frame specification.
 var windowFrameRejected = map[types.WindowType]bool{
 	types.WIN_LAG:        true,

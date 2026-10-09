@@ -5,5 +5,8 @@
 // snapshot (pruned ontology, instance manifest, Purposes) and never
 // imports internal/service or internal/processing
 // (TestGuideNoExecutionImports). Everything it says is derived from
-// declared guidance metadata; nothing here runs a request.
+// declared guidance metadata; nothing here runs a request. Cohort-bound
+// Recommend also reads the cohort's schema and validates each draft
+// through the caller's Bound.Predict — a no-execute predict over the
+// header and schema, never a record.
 package guide

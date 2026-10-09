@@ -1489,24 +1489,8 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		data = shardBytes
 	}
 
-	sidecar := p.sidecarFacts(path)
-	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
-		Extensions:            p.svc.ExtensionsSnapshot(),
-		Instance:              p.svc.InstanceSnapshot(),
-		DefaultTimeZone:       p.svc.DefaultTimeZone(),
-		DefaultWeight:         p.svc.DefaultWeight(),
-		DefaultMultiplicity:   p.svc.DefaultMultiplicity(),
-		ZoneLoader:            p.svc.ZoneLoader(),
-		DisableDefaults:       p.svc.DefaultsDisabled(),
-		DisableComponents:     p.svc.DisableComponents(),
-		SchemaLoader:          p.predictSchemaLoader(ctx),
-		RecordCounter:         p.predictRecordCounter(ctx),
-		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
-		// Echoed (never applied) when no weight resolves; measure levels
-		// feed the measure-level advisories only.
-		SuggestedWeightVariable: sidecar.weightVariable,
-		SidecarMeasureLevels:    sidecar.measures,
-	})
+	opts := p.predictOptions(ctx, p.sidecarFacts(path))
+	env := descx.Predict(bytes.NewReader(data), req, &opts)
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
@@ -1605,6 +1589,31 @@ func (p *Pulse) predictSchemaLoader(ctx context.Context) func(string) (*encoding
 			return nil, err
 		}
 		return c.Schema(), nil
+	}
+}
+
+// predictOptions is the request-predict option set every in-process
+// predict of a stored cohort shares (Predict, and Recommend's draft
+// validation): the instance's snapshot and defaults, plus the cohort's
+// sidecar facts. Returned by value so a caller's options can stay on
+// its stack (TestObservabilityOffNoAllocs pins predict's allocations).
+func (p *Pulse) predictOptions(ctx context.Context, sidecar sidecarFacts) descx.PredictOptions {
+	return descx.PredictOptions{
+		Extensions:            p.svc.ExtensionsSnapshot(),
+		Instance:              p.svc.InstanceSnapshot(),
+		DefaultTimeZone:       p.svc.DefaultTimeZone(),
+		DefaultWeight:         p.svc.DefaultWeight(),
+		DefaultMultiplicity:   p.svc.DefaultMultiplicity(),
+		ZoneLoader:            p.svc.ZoneLoader(),
+		DisableDefaults:       p.svc.DefaultsDisabled(),
+		DisableComponents:     p.svc.DisableComponents(),
+		SchemaLoader:          p.predictSchemaLoader(ctx),
+		RecordCounter:         p.predictRecordCounter(ctx),
+		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
+		// Echoed (never applied) when no weight resolves; measure levels
+		// feed the measure-level advisories only.
+		SuggestedWeightVariable: sidecar.weightVariable,
+		SidecarMeasureLevels:    sidecar.measures,
 	}
 }
 

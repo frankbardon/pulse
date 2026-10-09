@@ -285,7 +285,10 @@ var uninstrumentedMethods = map[string]bool{
 	"Watch": true, "WatchWithOptions": true, "WatchDir": true, "WatchDirWithOptions": true,
 	"ExportReference": true,
 
-	// Unbound Recommend renders in-memory guidance (no file, no record).
+	// Recommend is guidance, not an operation: unbound renders in-memory
+	// guidance; bound reads a cohort's header, schema and sidecar and
+	// runs its draft predicts in-process, firing no predict operation.
+	// The OperationKind list stays as the U20 interview locked it.
 	"Recommend": true,
 }
 
