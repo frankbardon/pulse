@@ -80,6 +80,21 @@ type ComposeValidationResult struct {
 	// callers budgeting cost across slots sum the map values. Empty (but
 	// non-nil) when req.Overlays is empty; never nil in JSON output.
 	OverlayCost map[string]float64 `json:"overlay_cost"`
+
+	// PValues counts the inferential p-values the Compose-host overlays
+	// emit and how many no multiplicity block corrects. Their extent
+	// depends on slot results predict never sees, so each inferential
+	// spec counts as one and the basis is always lower_bound. Omitted
+	// when no host overlay is inferential, when the batch multiplicity is
+	// refused, and when the instance hides capability:multiplicity.
+	PValues *descriptor.PValueCount `json:"p_values,omitempty"`
+
+	// Advisories carries the coded, non-blocking PULSE_ADVISORY_* notes:
+	// each slot's Request advisories in slot order (details.request = the
+	// slot index, every slot path prefixed "requests[i]."), then
+	// PULSE_ADVISORY_MANY_TESTS over PValues. Never a warning; omitted
+	// when none fires.
+	Advisories []descriptor.Advisory `json:"advisories,omitempty"`
 }
 
 // ValidateCompose runs the no-execute COMPOSE-host overlay walk over
@@ -132,7 +147,8 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 	}
 	// Multiplicity over the whole batch — the pass Compose runs before
 	// any slot starts (ResolveComposeMultiplicity).
-	if _, merr := ResolveComposeMultiplicity(req, opts.defaultMultiplicity(), opts.instance()); merr != nil {
+	multPlan, merr := ResolveComposeMultiplicity(req, opts.defaultMultiplicity(), opts.instance())
+	if merr != nil {
 		addCodedError(env, merr)
 		result.Valid = false
 	}
@@ -147,6 +163,14 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 	// read through opts.SchemaLoader. A refusal carries the slot index
 	// under details.request, as the runtime's does.
 	validateComposeSlots(env, req, opts)
+
+	// Fit-for-purpose advisories, per slot then over the Compose-host
+	// overlays — computed whether or not the batch is valid, never a
+	// warning, and dropped per Options.SuppressAdvisories.
+	if merr == nil && opts.instance().Enabled(featMultiplicity) {
+		result.PValues = countComposeHostPValues(req, multPlan, opts)
+	}
+	result.Advisories = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts)
 
 	if len(req.Overlays) == 0 {
 		if len(env.Errors) > 0 {

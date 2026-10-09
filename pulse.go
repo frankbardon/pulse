@@ -350,6 +350,17 @@ type Options struct {
 	// falls back to that surface's default there.
 	DefaultMultiplicity *types.Multiplicity
 
+	// SuppressAdvisories lists PULSE_ADVISORY_* codes this instance's
+	// predict never reports in PredictResult.Advisories — for an
+	// embedder whose product handles that analysis-fit question itself.
+	// Advisories are coded, non-blocking notes (never warnings, never
+	// escalated by Strict, never a change to execution); suppressing one
+	// changes nothing else. Engine-level only: there is no per-request
+	// or CLI knob. New() refuses a code that is not a registered
+	// advisory code (PULSE_SUPPRESS_ADVISORY_UNKNOWN). Nil or empty
+	// suppresses nothing.
+	SuppressAdvisories []string
+
 	// Limits are the instance resource limits: request timeout, group
 	// count, crosstab cells, estimated memory, matrix dimension, Compose
 	// slots, chain stages and join build rows. A zero field uses the
@@ -628,6 +639,9 @@ func New(opts Options) (*Pulse, error) {
 	if err := descx.ValidateMultiplicitySpec(opts.DefaultMultiplicity, "Options.DefaultMultiplicity"); err != nil {
 		return nil, err
 	}
+	if err := descx.ValidateSuppressAdvisories(opts.SuppressAdvisories); err != nil {
+		return nil, err
+	}
 
 	var fsCfg *fs.Config
 
@@ -707,6 +721,9 @@ func New(opts Options) (*Pulse, error) {
 		snap = snap.WithDefaultReturn(defaultReturn)
 	}
 	snap = snap.WithLimits(effectiveLimits)
+	if len(opts.SuppressAdvisories) > 0 {
+		snap = snap.WithSuppressedAdvisories(opts.SuppressAdvisories)
+	}
 	svc.SetInstanceSnapshot(snap)
 	svc.SetLimits(effectiveLimits)
 	svc.SetShardWorkers(opts.ShardWorkers)
@@ -1472,21 +1489,8 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		data = shardBytes
 	}
 
-	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
-		Extensions:            p.svc.ExtensionsSnapshot(),
-		Instance:              p.svc.InstanceSnapshot(),
-		DefaultTimeZone:       p.svc.DefaultTimeZone(),
-		DefaultWeight:         p.svc.DefaultWeight(),
-		DefaultMultiplicity:   p.svc.DefaultMultiplicity(),
-		ZoneLoader:            p.svc.ZoneLoader(),
-		DisableDefaults:       p.svc.DefaultsDisabled(),
-		DisableComponents:     p.svc.DisableComponents(),
-		SchemaLoader:          p.predictSchemaLoader(ctx),
-		RecordCounter:         p.predictRecordCounter(ctx),
-		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
-		// Echoed (never applied) when no weight resolves.
-		SuggestedWeightVariable: p.sidecarWeightVariable(path),
-	})
+	opts := p.predictOptions(ctx, p.sidecarFacts(path))
+	env := descx.Predict(bytes.NewReader(data), req, &opts)
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
@@ -1585,6 +1589,31 @@ func (p *Pulse) predictSchemaLoader(ctx context.Context) func(string) (*encoding
 			return nil, err
 		}
 		return c.Schema(), nil
+	}
+}
+
+// predictOptions is the request-predict option set every in-process
+// predict of a stored cohort shares (Predict, and Recommend's draft
+// validation): the instance's snapshot and defaults, plus the cohort's
+// sidecar facts. Returned by value so a caller's options can stay on
+// its stack (TestObservabilityOffNoAllocs pins predict's allocations).
+func (p *Pulse) predictOptions(ctx context.Context, sidecar sidecarFacts) descx.PredictOptions {
+	return descx.PredictOptions{
+		Extensions:            p.svc.ExtensionsSnapshot(),
+		Instance:              p.svc.InstanceSnapshot(),
+		DefaultTimeZone:       p.svc.DefaultTimeZone(),
+		DefaultWeight:         p.svc.DefaultWeight(),
+		DefaultMultiplicity:   p.svc.DefaultMultiplicity(),
+		ZoneLoader:            p.svc.ZoneLoader(),
+		DisableDefaults:       p.svc.DefaultsDisabled(),
+		DisableComponents:     p.svc.DisableComponents(),
+		SchemaLoader:          p.predictSchemaLoader(ctx),
+		RecordCounter:         p.predictRecordCounter(ctx),
+		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
+		// Echoed (never applied) when no weight resolves; measure levels
+		// feed the measure-level advisories only.
+		SuggestedWeightVariable: sidecar.weightVariable,
+		SidecarMeasureLevels:    sidecar.measures,
 	}
 }
 

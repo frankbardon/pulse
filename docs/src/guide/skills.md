@@ -195,6 +195,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-win-running-sum`](skills/op-win-running-sum.md): Running total of Field over the configured Frame within the ordered partition.
 - [`overlay-system`](skills/overlay-system.md): Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics.
 - [`pairwise-n-sources`](skills/pairwise-n-sources.md): The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
+- [`predict-advisories`](skills/predict-advisories.md): Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
 - [`process-chain`](skills/process-chain.md): ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning.
 - [`regression-modeling`](skills/regression-modeling.md): Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills.
 - [`request-envelope`](skills/request-envelope.md): Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request.
@@ -244,6 +245,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-errors-lookup`](skills/tool-errors-lookup.md): Look up Pulse error code metadata — message and fixup hints.
 - [`tool-examples-get`](skills/tool-examples-get.md): Fetch one runnable request example from the embedded library by name.
 - [`tool-examples-search`](skills/tool-examples-search.md): Search the runnable request-example library for templates matching a question.
+- [`tool-explain`](skills/tool-explain.md): Say in plain words what a request will do, or what a result found — closed verdicts, conventional strength bands and caveats.
 - [`tool-facet`](skills/tool-facet.md): Return distinct values for one field in a cohort.
 - [`tool-facet-schema`](skills/tool-facet-schema.md): Multi-field rich facet — counts, nulls, percentiles, histograms, additive contributions.
 - [`tool-import`](skills/tool-import.md): Import a tabular source file (or pass through .pulse) into a managed handle.
@@ -257,6 +259,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-process`](skills/tool-process.md): Execute one pre-built processing request against a cohort.
 - [`tool-process-chain`](skills/tool-process-chain.md): Linear chain of stages; stage N+1 consumes stage N's output rows.
 - [`tool-range-tables`](skills/tool-range-tables.md): List registered range tables — named, reusable sets of labeled date ranges.
+- [`tool-recommend`](skills/tool-recommend.md): Turn a question kind (an intent ID) into ranked draft requests — placeholder skeletons, or predict-checked drafts bound to a cohort's fields.
 - [`tool-sample`](skills/tool-sample.md): Return up to N rows from a cohort for eyeball / preview.
 - [`tool-skills-get`](skills/tool-skills-get.md): Fetch the markdown body of one named skill.
 - [`tool-skills-list`](skills/tool-skills-list.md): List the skill pack — domain guides and atomic operator/type/tool refs, deployment-added skills included.

@@ -46,7 +46,12 @@ with a feature profile gets a narrower document:
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
-  `SampleRequest` (sample), `LookupRequest` / `LookupResult` (lookup);
+  `SampleRequest` (sample), `LookupRequest` / `LookupResult` (lookup),
+  `RecommendRequest` / `RecommendResult` (recommend),
+  `ExplainRequest` / `ExplainResult` (explain); on an instance that
+  offers explain, `ExplainRequest` drops the slots of every hidden root
+  (`composed` / `composed_response`, `chain` / `chain_response`,
+  `facet` / `facet_result`, `sample`);
 - every def reachable only through an omitted part is dropped, so the
   document stays a valid draft 2020-12 schema with no dangling `$ref`.
 
@@ -60,9 +65,17 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
 
 - **Requests** — `#/$defs/Request` (process / predict), `ComposedRequest`
   (compose), `ChainRequest` (process-chain), `FacetRequest`, `SampleRequest`,
-  `LookupRequest` (point lookup).
+  `LookupRequest` (point lookup), `RecommendRequest` (recommend),
+  `ExplainRequest` (explain: one request root, or one result root with
+  its request companion, plus `detail`).
 - **Results** — `#/$defs/Response`, `ComposedResponse`, `ChainResponse`,
-  `FacetResult`, `LookupResult`.
+  `FacetResult`, `LookupResult`, `RecommendResult` (its draft `request`
+  is an open object: a `"<placeholder>"` may sit where `Request` takes a
+  number), `ExplainResult` (its `findings[].numbers` values are
+  `["number", "null"]`, `verdict` the closed `Verdict` enum).
+- **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
+  `advisories` (`{code, message, details}`): a coded, non-blocking note
+  that the analysis may not fit the data. Never a warning.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect
@@ -483,7 +496,15 @@ weighted floor's `sum_weights` / `n_eff` on `AggregationComponents` and
 is `"type": ["number", "null"]`. The open slots (`data` rows,
 components operator maps, matrix cell `value`) already admit `null`.
 Request floats stay `"number"`: a decoded request never carries a
-non-finite float.
+non-finite float. `ExplainRequest` is not a request root for this rule:
+the results it carries keep their nullable floats.
+
+Reading a result back is the inverse: plain `encoding/json` decodes a
+`null` into a Go float as `0`, which a reader would take for a real
+figure. `pulse explain --response` and MCP `pulse_explain` decode the
+result they are handed so that `null` in a float slot is NaN again —
+undefined stays undefined (a `not_computable` verdict, a `null` number),
+never a confident 0.
 
 Widening those slots did not move `format_version` (still `"1.1"`):
 every document the schema accepted before it still accepts, and output

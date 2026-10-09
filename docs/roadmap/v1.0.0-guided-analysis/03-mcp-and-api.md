@@ -83,7 +83,7 @@ Predict already validates a request. Add **advisories**: plain-language, non-blo
 | `PULSE_ADVISORY_MANY_TESTS` | > N inferential results in one request without `multiplicity` → fixup sets `multiplicity: {method: "holm"}` (statistical integrity 02) |
 | `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | a numeric-coded categorical (e.g. SPSS-imported region codes with value labels) used in `AGG_AVERAGE` |
 | `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | parametric test on a small-range integer scale (u4/u8 with ≤ 7 distinct labels) → mentions the rank-based alternative |
-| `PULSE_ADVISORY_COSINE_ON_SCALE` | raw cosine on a `kind: scale` vector (vector-matrix doc 07) |
+| `PULSE_ADVISORY_COSINE_ON_SCALE` | raw cosine on a `kind: scale` vector (vector-matrix doc 07). **Not shipped by U22**: it needs `kind: scale` vectors, so it moved to [U27](../units/U27-vector-metrics-aggregates.md) (U29 for native vector fields) |
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | cohort has an SPSS weight variable / a field named like a weight, and the request uses none |
 
 **Rules:**

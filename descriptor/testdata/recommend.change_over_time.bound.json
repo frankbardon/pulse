@@ -1,0 +1,384 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "change_over_time",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "time",
+            "kinds": [
+              "date"
+            ],
+            "min": 1,
+            "max": 1
+          },
+          {
+            "name": "measure",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "WIN_DELTA",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. It uses revenue (f64) and signup (date).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "signup"
+                }
+              ],
+              "type": "WIN_DELTA"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the change relative to the earlier value",
+            "use": "WIN_PCT_CHANGE"
+          },
+          {
+            "when": "you want each period's change from the one before as a decoration on the result",
+            "use": "OVERLAY_DELTA_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_DELTA",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "seats"
+                }
+              ],
+              "type": "WIN_DELTA"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the change relative to the earlier value",
+            "use": "WIN_PCT_CHANGE"
+          },
+          {
+            "when": "you want each period's change from the one before as a decoration on the result",
+            "use": "OVERLAY_DELTA_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_DELTA",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "score"
+                }
+              ],
+              "type": "WIN_DELTA"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the change relative to the earlier value",
+            "use": "WIN_PCT_CHANGE"
+          },
+          {
+            "when": "you want each period's change from the one before as a decoration on the result",
+            "use": "OVERLAY_DELTA_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LAG",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds to every row the value of a field from a set number of rows earlier in the ordered series, such as last month's sales. It uses revenue (f64) and signup (date).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "signup"
+                }
+              ],
+              "type": "WIN_LAG"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the difference from the earlier row, not its value",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the value from a later row",
+            "use": "WIN_LEAD"
+          },
+          {
+            "when": "you want each period against the period before it as an index",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LAG",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds to every row the value of a field from a set number of rows earlier in the ordered series, such as last month's sales. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "seats"
+                }
+              ],
+              "type": "WIN_LAG"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the difference from the earlier row, not its value",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the value from a later row",
+            "use": "WIN_LEAD"
+          },
+          {
+            "when": "you want each period against the period before it as an index",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LAG",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds to every row the value of a field from a set number of rows earlier in the ordered series, such as last month's sales. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "score"
+                }
+              ],
+              "type": "WIN_LAG"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the difference from the earlier row, not its value",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the value from a later row",
+            "use": "WIN_LEAD"
+          },
+          {
+            "when": "you want each period against the period before it as an index",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LEAD",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds to every row the value of a field from a set number of rows later in the ordered series, such as next month's sales. It uses revenue (f64) and signup (date).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "signup"
+                }
+              ],
+              "type": "WIN_LEAD"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the value from an earlier row",
+            "use": "WIN_LAG"
+          },
+          {
+            "when": "you want how much the field changed between rows",
+            "use": "WIN_DELTA"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LEAD",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds to every row the value of a field from a set number of rows later in the ordered series, such as next month's sales. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "seats"
+                }
+              ],
+              "type": "WIN_LEAD"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the value from an earlier row",
+            "use": "WIN_LAG"
+          },
+          {
+            "when": "you want how much the field changed between rows",
+            "use": "WIN_DELTA"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LEAD",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds to every row the value of a field from a set number of rows later in the ordered series, such as next month's sales. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "score"
+                }
+              ],
+              "type": "WIN_LEAD"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want the value from an earlier row",
+            "use": "WIN_LAG"
+          },
+          {
+            "when": "you want how much the field changed between rows",
+            "use": "WIN_DELTA"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_PCT_CHANGE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier as a fraction of the earlier value: 0.05 is a 5% rise on last month. It uses revenue (f64) and signup (date).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "windows": [
+            {
+              "field": "revenue",
+              "order_by": [
+                {
+                  "field": "signup"
+                }
+              ],
+              "type": "WIN_PCT_CHANGE"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the earlier value can be 0, near 0 or negative, or the field is itself a percentage",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the same year-ago period as the comparison",
+            "use": "OVERLAY_YOY"
+          },
+          {
+            "when": "you want each period as an index value against the one before",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 41
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: cd10edb76dd5068a7566c4df1eb766b7ee1c6cbc13dc1cf7f91b2ff44a6e0b87

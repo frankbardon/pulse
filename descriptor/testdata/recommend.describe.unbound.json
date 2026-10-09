@@ -1,0 +1,434 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "describe",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "measure",
+            "kinds": [
+              "numeric"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      },
+      {
+        "roles": [
+          {
+            "name": "measure",
+            "kinds": [
+              "categorical",
+              "bool",
+              "set"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "AGG_AVERAGE",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Average of a numeric field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_AVERAGE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "the field is skewed or has extreme values and you want the typical row",
+            "use": "AGG_MEDIAN"
+          },
+          {
+            "when": "rows carry weights",
+            "use": "AGG_WEIGHTED_MEAN"
+          },
+          {
+            "when": "you also need the spread around the average",
+            "use": "AGG_WELFORD"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Number of rows that have a value in a field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the rows where the field is empty",
+            "use": "AGG_NULL_COUNT"
+          },
+          {
+            "when": "you want how many different values appear, not how many rows",
+            "use": "AGG_DISTINCT_COUNT"
+          },
+          {
+            "when": "you want a count for every value of the field: group by it, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want how many rows hold one particular value, such as the Yes answers",
+            "use": "AGG_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_DISTINCT_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Number of different values a field takes, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_DISTINCT_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many rows there are, not how many different values",
+            "use": "AGG_COUNT"
+          },
+          {
+            "when": "you want how many rows hold each value: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field is a multi-select and each combination is the unit",
+            "use": "AGG_SET_DISTINCT_VALUES"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_FREQUENCY",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "How many rows hold one chosen value of a field, such as the Yes answers, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "value": "\u003cvalue\u003e"
+              },
+              "type": "AGG_FREQUENCY"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "value"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many rows share the field's most common value, whatever it is",
+            "use": "AGG_MODE_COUNT"
+          },
+          {
+            "when": "you want a count for every value of the field: group by it, then count rows",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want rows holding any of several values: keep them, then count rows",
+            "use": "FILTER_INCLUDE"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MAX",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Largest value of a numeric or date field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MAX"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the smallest value",
+            "use": "AGG_MIN"
+          },
+          {
+            "when": "one extreme row would mislead and you want a high value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MEDIAN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Middle value of a numeric field once sorted: the typical row, not pulled by a few extreme values. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MEDIAN"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want a value other than the middle, such as the 90th percentile",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "the field is roughly symmetric and you want a figure that combines across groups",
+            "use": "AGG_AVERAGE"
+          },
+          {
+            "when": "the field holds categories rather than numbers",
+            "use": "AGG_MODE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MIN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Smallest value of a numeric or date field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MIN"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the largest value",
+            "use": "AGG_MAX"
+          },
+          {
+            "when": "one extreme row would mislead and you want a low value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MODE",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Most common value of a field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MODE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the count of every value, not only the top one: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field is numeric and you want its middle value",
+            "use": "AGG_MEDIAN"
+          },
+          {
+            "when": "you want how many rows hold one particular value, such as the Yes answers",
+            "use": "AGG_FREQUENCY"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MODE_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "How many rows share a field's most common value, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MODE_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want a count for every value of the field: group by it, then count rows",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want per-value counts for several fields in one call",
+            "use": "capability:facet"
+          },
+          {
+            "when": "you want which value is most common, not how many rows hold it",
+            "use": "AGG_MODE"
+          },
+          {
+            "when": "you want how many rows hold one particular value, such as the Yes answers",
+            "use": "AGG_FREQUENCY"
+          },
+          {
+            "when": "you want how many different values there are",
+            "use": "AGG_DISTINCT_COUNT"
+          },
+          {
+            "when": "the field is a multi-select",
+            "use": "AGG_SET_FREQUENCY"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_PERCENTILE",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Value of a numeric field below which a chosen share of rows fall, such as the 90th percentile of delivery time. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "percentile": "\u003cpercentile\u003e"
+              },
+              "type": "AGG_PERCENTILE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "percentile"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the 50th percentile",
+            "use": "AGG_MEDIAN"
+          },
+          {
+            "when": "you want each row's own percentile position",
+            "use": "ATTR_PERCENTILE"
+          },
+          {
+            "when": "you want rows split into equal-sized bands",
+            "use": "GROUP_QUANTILE"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 32
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 599211823ecadd06266747b37d0cdc756f4c039dc90ad3cf6a56f689146151e0

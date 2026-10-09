@@ -739,7 +739,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 157,
+    "error_codes_count": 161,
     "error_domains": [
       "CLI",
       "DATA",
@@ -767,6 +767,9 @@
       "PROCESSING_INTERNAL",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
+      "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
+      "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
+      "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
@@ -891,6 +894,7 @@
       "PULSE_SPSS_WIDTH_OVERFLOW",
       "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
       "PULSE_SPSS_ZSAV_INVALID",
+      "PULSE_SUPPRESS_ADVISORY_UNKNOWN",
       "PULSE_TEST_CONTINGENCY_DEGENERATE",
       "PULSE_TEST_CORRELATION_UNDEFINED",
       "PULSE_TEST_EXPECTED_COUNT_TOO_LOW",
@@ -1388,6 +1392,10 @@
       {
         "name": "pairwise-n-sources",
         "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
+      },
+      {
+        "name": "predict-advisories",
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "regression-modeling",
@@ -2195,4 +2203,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d7e7cc5c7255439529f6e6d79016b9736a41b74d8f77b01bdae816686776a432
+// golden-hash: 3d3ad66053a40aeead52956080ff8bbf13dc8f14b1224394d08c89f48f1ab9d8

@@ -1,0 +1,473 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "compare_groups",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "outcome",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": 1
+          },
+          {
+            "name": "group",
+            "kinds": [
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": 1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "TEST_PROP_Z",
+        "category": "test",
+        "level": "basic",
+        "why": "Checks whether the rate of one outcome, such as conversion, differs between two groups. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "success": "\u003csuccess\u003e"
+              },
+              "split_by": "\u003csplit_by\u003e",
+              "type": "TEST_PROP_Z"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "split_by",
+          "success"
+        ],
+        "alternatives": [
+          {
+            "when": "some groups have only a handful of successes or failures",
+            "use": "TEST_FISHER_EXACT"
+          },
+          {
+            "when": "there are more than two groups or more than two outcomes",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "the outcome is a numeric measure rather than a yes/no rate",
+            "use": "TEST_WELCH"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_CATEGORY",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "GROUP_CATEGORY"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "the field is a number you want in bands, not one group per value",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "the field is a date and you want months or quarters",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_DATE_RANGES",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Labels each row with the named date range its date falls in, such as custom fiscal quarters or before and after a launch. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "ranges": [
+                  "\u003cranges\u003e"
+                ]
+              },
+              "type": "GROUP_DATE_RANGES"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "ranges"
+        ],
+        "alternatives": [
+          {
+            "when": "plain calendar months, quarters or weeks are enough",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "you want to keep only the rows inside the ranges",
+            "use": "FILTER_DATE_RANGES"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_ANOVA_F",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether the average of a numeric measure differs across three or more groups. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "split_by": "\u003csplit_by\u003e",
+              "type": "TEST_ANOVA_F"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "split_by"
+        ],
+        "alternatives": [
+          {
+            "when": "the groups have clearly unequal spread",
+            "use": "TEST_ANOVA_WELCH"
+          },
+          {
+            "when": "the measure is heavily skewed or only ordered",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the same subjects are measured in every group",
+            "use": "TEST_ANOVA_RM"
+          },
+          {
+            "when": "there are only two groups",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "you need to know which pairs of groups differ",
+            "use": "TEST_TUKEY_HSD"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want to know which pairs of groups do",
+            "use": "TEST_TUKEY_HSD"
+          },
+          {
+            "when": "the groups are the rows of a crosstab of averages and you want every pair tested",
+            "use": "OVERLAY_PAIRWISE_WELCH_T"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_ANOVA_WELCH",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "split_by": "\u003csplit_by\u003e",
+              "type": "TEST_ANOVA_WELCH"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "split_by"
+        ],
+        "alternatives": [
+          {
+            "when": "the measure is heavily skewed or only ordered",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the same subjects are measured in every group",
+            "use": "TEST_ANOVA_RM"
+          },
+          {
+            "when": "there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and set multiplicity on the request (for example holm) to adjust their p-values for multiple comparisons",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "spreads are similar and you want Tukey's pairwise follow-up",
+            "use": "TEST_ANOVA_F"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want each pair tested without assuming equal spread",
+            "use": "OVERLAY_PAIRWISE_WELCH_T"
+          },
+          {
+            "when": "the groups differ and their spreads turn out similar after all",
+            "use": "TEST_TUKEY_HSD"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_CHISQ",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "cols": "\u003ccols\u003e",
+              "rows": "\u003crows\u003e",
+              "type": "TEST_CHISQ"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "cols",
+          "rows"
+        ],
+        "alternatives": [
+          {
+            "when": "the table is 2x2 and some expected counts are small",
+            "use": "TEST_FISHER_EXACT"
+          },
+          {
+            "when": "you compare a yes/no rate between exactly two groups and want a confidence interval",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "both fields are numeric",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you compare one subgroup's mix with the whole population",
+            "use": "OVERLAY_CHISQ_VS_POP"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the table shows an association and you want to see which cells drive it",
+            "use": "OVERLAY_FISHER_EXACT_CELL"
+          },
+          {
+            "when": "you want to see which rows depart from the overall column mix",
+            "use": "OVERLAY_CHISQ_ROW"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_FISHER_EXACT",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Exact test of whether two yes/no fields are associated, built for small 2x2 tables. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "cols": "\u003ccols\u003e",
+              "rows": "\u003crows\u003e",
+              "type": "TEST_FISHER_EXACT"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "cols",
+          "rows"
+        ],
+        "alternatives": [
+          {
+            "when": "either field has more than two categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "counts are large and you want the difference in rates with a confidence interval",
+            "use": "TEST_PROP_Z"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_KRUSKAL_WALLIS",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Rank-based check of whether values tend to be larger in some groups than in others, across two or more groups. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "split_by": "\u003csplit_by\u003e",
+              "type": "TEST_KRUSKAL_WALLIS"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "split_by"
+        ],
+        "alternatives": [
+          {
+            "when": "the data are roughly normal and you want to compare averages",
+            "use": "TEST_ANOVA_WELCH"
+          },
+          {
+            "when": "there are only two groups",
+            "use": "TEST_MANN_WHITNEY_U"
+          },
+          {
+            "when": "the same subjects are measured in every group and the measure is roughly normal (Pulse has no Friedman test for skewed repeated measures; for two conditions use TEST_WILCOXON_SR)",
+            "use": "TEST_ANOVA_RM"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want a rank-based comparison of each pair, read with multiple-comparison caution",
+            "use": "TEST_MANN_WHITNEY_U"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_KS",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "split_by": "\u003csplit_by\u003e",
+              "type": "TEST_KS"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "split_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want to check one field against the normal distribution",
+            "use": "TEST_SHAPIRO_WILK"
+          },
+          {
+            "when": "you only care whether one group's values tend to be larger",
+            "use": "TEST_MANN_WHITNEY_U"
+          },
+          {
+            "when": "you compare a subgroup with the whole population",
+            "use": "OVERLAY_KS_VS_POP"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_MANN_WHITNEY_U",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Rank-based check of whether values in one of two groups tend to be larger than in the other. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "split_by": "\u003csplit_by\u003e",
+              "type": "TEST_MANN_WHITNEY_U"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "split_by"
+        ],
+        "alternatives": [
+          {
+            "when": "the same subjects are measured twice",
+            "use": "TEST_WILCOXON_SR"
+          },
+          {
+            "when": "there are three or more groups",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the data are roughly normal and you want the difference in averages",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "you care about any difference in the shape of the two distributions",
+            "use": "TEST_KS"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 22
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: b0b57acf8c14961fd337a12da01a5891a94eddb3d8c2233f0709fc44c44c6514

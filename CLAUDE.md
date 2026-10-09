@@ -4,7 +4,7 @@ Pulse is a self-describing tabular data processing engine. Ships as a Go library
 
 **Design principles**
 
-- **Library-first.** `pulse.go` is the public API — `New`, `Open` (+ `Cohort.Reader`), `NewCohortBuilder`, `Process`, `Compose`, `ComposeParallel`, `ProcessStream`, `ProcessChain`, `Import`, `Export`, `Convert`, `Inspect`, `InspectEnvelope`, `InspectBytes`, `Predict`, `PredictBytes`, `Sample`, `Facet`, `Synth`, `Profile`, `CountRecords`, `Lookup`, `BuildIndex`, `VerifyIndex`, `ListIndexes`, `DropIndex`, `CohortArtifacts`, `WidenSetField`, `Dedup`, `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`, `InitFeatureProfile`, `CheckFeatureProfile`, `DiffFeatureProfile`, `DescribeFeatureProfile`, `ExampleFeatureProfiles`, `ExampleFeatureProfile`, `Glossary`, `Intents`, `Ontology`, `Skills`, `Skill`, `ExportReference`, `Version`. **The CLI never contains business logic.**
+- **Library-first.** `pulse.go` is the public API — `New`, `Open` (+ `Cohort.Reader`), `NewCohortBuilder`, `Process`, `Compose`, `ComposeParallel`, `ProcessStream`, `ProcessChain`, `Import`, `Export`, `Convert`, `Inspect`, `InspectEnvelope`, `InspectBytes`, `Predict`, `PredictBytes`, `Recommend`, `Explain`, `Sample`, `Facet`, `Synth`, `Profile`, `CountRecords`, `Lookup`, `BuildIndex`, `VerifyIndex`, `ListIndexes`, `DropIndex`, `CohortArtifacts`, `WidenSetField`, `Dedup`, `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`, `InitFeatureProfile`, `CheckFeatureProfile`, `DiffFeatureProfile`, `DescribeFeatureProfile`, `ExampleFeatureProfiles`, `ExampleFeatureProfile`, `Glossary`, `Intents`, `Ontology`, `Skills`, `Skill`, `ExportReference`, `Version`. **The CLI never contains business logic.**
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `internal/descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
 - **Skill-augmented.** `internal/skills/` embeds an atomic-per-surface pack (`op-*` / `tool-*` / `type-*`) plus ~20 topical design skills via `//go:embed *.md`; the filesystem walk + frontmatter parse is the source of truth.
 - **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators, expr functions, named tables, skills and examples. Predict, manifest, MCP and runtime treat them identically to built-ins.
@@ -50,7 +50,7 @@ Between them the rows carry every word `TestUpdateDemandTableCovers` checks; kee
 
 Docs: <https://frankbardon.github.io/pulse/>.
 
-CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `schema`, `mcp`, `widen`, `dedup`, `docs export`, `version`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `index {build,list,verify,drop}`, `features {init,check,diff,show}`, `api {process,compose,facet,process-chain,lookup}`. `pulse schema` prints the payload JSON Schema RAW — not envelope-wrapped.
+CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `recommend`, `explain`, `manifest`, `schema`, `mcp`, `widen`, `dedup`, `docs export`, `version`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `index {build,list,verify,drop}`, `features {init,check,diff,show}`, `api {process,compose,facet,process-chain,lookup}`. `pulse schema` prints the payload JSON Schema RAW — not envelope-wrapped.
 
 **MCP:** `internal/mcp/` is the SDK-free core (`TestMCPCore_NoSDKImport`); `mcp/gosdk/` is the ONLY go-sdk importer (`Register(server, p, cfg)`). **The manifest is the source-of-truth tool count, never hardcode it**; `pulse://schema` is a RESOURCE, not a tool. **Tools, prompts and resources are registered per instance** — a profiled instance mounts only what it enables, so `gosdk.RegisteredTools()` / `RegisteredPrompts()` stay the GLOBAL lists. MCP `return` defaults to `standard`, not `full`. Detail: `.claude/reference/architecture.md` (MCP layer split).
 
@@ -88,19 +88,9 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 ### Smart defaults
 
-When a request slot names a field but omits `Type`, engine infers from schema type. Table in `internal/descriptor/defaults.go` (`defaultRules`).
+A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`; numeric -> `AGG_SUM`/`GROUP_RANGE`, categorical and `packed_bool` -> `AGG_MODE_COUNT`/`GROUP_CATEGORY`, date-family -> `GROUP_DATE` only). Defaults never override `Type`, cross categories or default tests/filters/attributes/windows/features; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`; predict always computes `DefaultsApplied`. Table: `execution-modes.md` (Smart defaults).
 
-| Field type | Default aggregation | Default grouper |
-|---|---|---|
-| numeric (u4/u8/u16/u32/u64, f32/f64, decimal128) | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
-| categorical_* | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
-| `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
-| `datetime` | (explicit only) | `GROUP_DATE` (`"day"`) |
-| `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
-
-`Field.Nullable` never changes the inferred operator. Defaults apply only when `Field` is set and `Type` empty; never override `Type`, cross categories, or default tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
-
-**Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept both `date` and `datetime`; all epoch-day / calendar / zone math lives in `internal/temporal` (`TestNoZoneMathOutsideTemporal`). Long form: `execution-modes.md` (Date-family field types, Time zones); skill `skills/time-zones.md`.
+**Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept both `date` and `datetime`; zone math lives only in `internal/temporal` (`TestNoZoneMathOutsideTemporal`). Long form: `execution-modes.md` (Date-family field types, Time zones); `skills/time-zones.md`.
 
 ## Output Format Contract
 
@@ -110,7 +100,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 
 - `format_version` is always `"1.1"`, bumped from `"1.0"` for the Compose facade lift. **Additive-only: bump only on a backward-incompatible shape change** — new `data` fields do not bump, renames and removals do. Any bump MUST update this section.
 - `errors` / `warnings` are `{"code", "message", "details"}` entries, an empty array (never null) when absent. **A FATAL `*errors.CodedError` carries its own code** — every CLI leaf (`pulse api *` included) routes through `writeCodedErrorEnvelope`, which unwraps with `errors.As` and falls back to the placeholder (`PROCESS_ERROR`, …) only for an UNCODED error. Stringifying a coded error into the placeholder makes `errors[0].code` unusable with `pulse errors lookup`. **The overlay family follows the same rule**: every `PULSE_OVERLAY_*` fault is raised with that code as its own `Code`, never `PROCESSING_INTERNAL` with a `details["code"]` echo; `PROCESSING_INTERNAL` is reserved for a caller-side invariant violation with no user-facing code.
-- **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
+- **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN; a result read back decodes `null` → NaN (`internal/jsonfinite`), never 0. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
 - `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; its shape follows the operation (one of the five request roots). Streaming skips the echo. Additive `omitempty`; no `format_version` bump.
 
 **Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, not the legacy array; `--stream` bypasses the envelope with per-row NDJSON. Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
@@ -134,11 +124,11 @@ Every `Response` carries an optional `Components *ResponseComponents` (additive 
 
 Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers,Matrices}`, each carrying a mergeability class — `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable operators; non-mergeable ones surface only at terminal flush.
 
-**Opt-out.** `Options.DisableComponents bool` (engine default) + `types.Request.DisableComponents *bool` (per-request, `nil` inherits engine — a request `return` never re-opens an engine-off gate; only explicit `false` does); CLI `--no-components` on `api process` / `process-chain` / `compose`. Disabled leaves `Components` `nil`, byte-identical — `format_version` NOT bumped. A sub-part `return` drops is never COMPUTED (`processing.ComputePlan`; overlays veto).
+**Opt-out.** `Options.DisableComponents` (engine default) + `types.Request.DisableComponents *bool` (`nil` inherits; a `return` never re-opens an engine-off gate, only explicit `false` does); CLI `--no-components`. Disabled leaves `Components` `nil`, byte-identical — `format_version` NOT bumped. Full contract: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Weighted slots** add `omitempty` aggregator-floor keys `sum_weights`, `n_eff` (probability only), `n_weight_invalid` — absent means unweighted; `n` / `n_null` and every count stay raw ints. Long form: `.claude/reference/weighting.md`.
 
-**Long form: `.claude/reference/response-components.md`** — the auxiliary `crosstab.margin_aggregations` figures (ADMISSION rule, `present` semantics, display-flag gate, allocation/emission gap), the full opt-out contract and the Compose per-slot / per-layer surface. Skill: `skills/response-components.md`.
+**Long form: `.claude/reference/response-components.md`** (auxiliary margins, opt-out, Compose surface); skill `skills/response-components.md`.
 
 ### Structural defense bans
 
@@ -147,11 +137,11 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 ### Payload JSON Schema
 
-`internal/descriptor.BuildPayloadSchema()` returns the deterministic JSON Schema (draft 2020-12) for every public payload — the request roots, result shapes and the `Envelope` (open `data` slot). Generated by reflection over `types`, registry-injected enums (`types.All*Types()` / `AllOverlayKinds()` / `AllRegressionTypes()`) and strict unions (`OverlayRef`, `OverlayPayload`); operator `params` stay open. Golden `descriptor/testdata/payload-schema.json`; `$id` version equals `format_version`; root `$comment` carries `feature_set_digest`. **`Pulse.PayloadSchema()` is the instance's view** (enums, slots and roots it hides are absent) and backs `pulse schema` (raw); `pulse://schema` stays full. Detail: `.claude/reference/feature-profiles.md` (Payload schema hiding). Full prose: `docs/src/contract/payload-schema.md`.
+`internal/descriptor.BuildPayloadSchema()` returns the deterministic JSON Schema (draft 2020-12) for every public payload; golden `descriptor/testdata/payload-schema.json`, `$id` version equals `format_version`, root `$comment` carries `feature_set_digest`. **`Pulse.PayloadSchema()` is the instance's view** (hidden enums, slots and roots absent) and backs `pulse schema` (raw); `pulse://schema` stays full. Long form: `.claude/reference/architecture.md` (Payload schema and manifest payload); `docs/src/contract/payload-schema.md`.
 
 ### Manifest payload
 
-`internal/descriptor.BuildManifest()` returns the deterministic LLM-bootstrap blob — one fetch per session, client-cached, reachable as `pulse manifest --json` and `pulse_manifest`. Top level: `format_version`, `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, `intents`, `return_presets`, `limits` + `limits_digest` (effective limits; cache key `(pulse_version, feature_set_digest, limits_digest)`), `feature_set_digest`, plus the capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Export`, `Import` (pointers, omitted when hidden) and `Overlays`. Sort-stable; golden at `descriptor/testdata/manifest.json`. Declarations live in `internal/descriptor/capabilities_*.go`; MCP tool metadata in `internal/mcp/toolmeta/meta.go`.
+`internal/descriptor.BuildManifest()` returns the deterministic LLM-bootstrap blob — one fetch per session, client-cached, via `pulse manifest --json` and `pulse_manifest`; sort-stable, golden `descriptor/testdata/manifest.json`, cache key `(pulse_version, feature_set_digest, limits_digest)`. Declarations: `internal/descriptor/capabilities_*.go`; MCP tool metadata: `internal/mcp/toolmeta/meta.go`. Top-level field list: `.claude/reference/architecture.md` (Payload schema and manifest payload).
 
 ### Predict / Inspect contracts
 
@@ -160,6 +150,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 - **Predict structural ban:** `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/`. Enforced by `TestPredictNoExecutionImports`. Reads only header + schema, never records.
 - **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via the engine's internal streamability gate (`TestPredict_Streamable_MatchesRuntime`). Beside it, `CrosstabFusable` (nil ⇔ no crosstab) + `CrosstabFusionReasons`: the fused-crosstab dispatch answer from the shared `internal/crosstabfuse` rule, instance-aware (`DisableCrosstabFusion`) — `TestPredict_CrosstabFusableMatchesRuntime`.
 - **Inspect reads no record:** header + schema + sidecar metadata (`suggested_weight`); dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`; `RecordCount` derives from the file LENGTH. **`Pulse.Inspect` drops `env.Warnings`** — CLI and `pulse_inspect` read `Pulse.InspectEnvelope`.
+- **Advisories:** `PredictResult.Advisories` (`PULSE_ADVISORY_*`) — coded fit notes, never warnings, never escalated by Strict, never change execution; `Options.SuppressAdvisories` validated at `New`. Long form: `predict-inspect.md` (Advisories).
 - **CountRecords header-fast:** no payload decode; the single-file floor division exists ONCE (`encoding.Schema.RecordCountForPayload`, shared with `Inspect`). `Inspect` warns on a truncated tail, `CountRecords` floors SILENTLY — deliberately; never make it error.
 
 ### Execution modes (pointers)
@@ -195,9 +186,9 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 Both table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
-**Knobs.** `pulse.Options` concurrency `ShardWorkers` / `DecodeWorkers` (default `0` ⇒ `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs `DictPrefixFast` / `MaxPanelTargets`: `.claude/reference/execution-modes.md` (Parallel shards, Parallel buffered Process, Overlays). Resource limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), guide `docs/src/library/tuning-limits.md`. Observability: `Options.Logger` / `Hooks` / `Metrics` (nil = zero cost, alloc-identical off path; `observe` pkg; OTel/Prometheus only in nested `contrib/` modules, never the core `go.mod`; no `PULSE_*` var): `.claude/reference/observability.md`.
+**Knobs.** Concurrency `ShardWorkers` / `DecodeWorkers` (`0` => `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs: `.claude/reference/execution-modes.md`. Limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), `docs/src/library/tuning-limits.md`. Observability: `Options.Logger` / `Hooks` / `Metrics` (nil = zero cost; OTel/Prometheus only in nested `contrib/` modules; no `PULSE_*` var): `.claude/reference/observability.md`.
 
-Hermetic testing: `fs.NewMemMap()` (`internal/fs`) returns an `afero.NewMemMapFs()`-backed `Config`; no disk I/O.
+Hermetic tests: `fs.NewMemMap()` (`internal/fs`).
 
 ## Extension Points
 

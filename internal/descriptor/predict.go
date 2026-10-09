@@ -186,6 +186,21 @@ type PredictOptions struct {
 	// resolves a weight — it is never applied.
 	SuggestedWeightVariable string
 
+	// SidecarMeasureLevels maps a field name to the SPSS measure level
+	// ("nominal", "ordinal", "scale", "unset") the cohort's SPSS metadata
+	// sidecar records; the facade reads it (nil when there is no usable
+	// sidecar). It feeds the measure-level advisories and nothing else.
+	SidecarMeasureLevels map[string]string
+
+	// SidecarLoader reads the SPSS metadata sidecar facts beside the
+	// cohort at a path — the weighting variable ("" when there is none or
+	// capability:weighting is hidden) and the measure levels (nil when
+	// there is no usable sidecar). Compose predict calls it once per slot
+	// cohort, because each slot names its own cohort; the single-cohort
+	// roots take SuggestedWeightVariable / SidecarMeasureLevels instead.
+	// Nil reads nothing: no sidecar advisory fires on a Compose slot.
+	SidecarLoader func(path string) (weightVariable string, measureLevels map[string]string)
+
 	// DisableCrosstabFusion is pulse.Options.DisableCrosstabFusion. When
 	// set, PredictResult.CrosstabFusable answers false with
 	// CrosstabFusionDisabledReason for every crosstab request, as the
@@ -582,6 +597,21 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// when the request is otherwise valid (streamability hints), so this
 	// runs unconditionally after every other validator.
 	result.Suggestions = computeSuggestions(req, schema, result.Streamable, opts.Extensions, opts.Instance)
+
+	// Fit-for-purpose advisories (PULSE_ADVISORY_*): coded, non-blocking,
+	// never warnings — Strict cannot escalate one — and never a change to
+	// what executes. On the defaults-resolved request over the schema it
+	// executes over; the instance drops suppressed codes.
+	result.Advisories = computeAdvisories(advisoryInput{
+		req:             req,
+		schema:          schema,
+		cohortSchema:    cohortSchema,
+		plan:            multPlan,
+		pv:              result.PValues,
+		suggestedWeight: result.SuggestedWeight,
+		measures:        opts.SidecarMeasureLevels,
+		inst:            opts.Instance,
+	})
 
 	// If any errors were added, mark invalid.
 	if len(env.Errors) > 0 {

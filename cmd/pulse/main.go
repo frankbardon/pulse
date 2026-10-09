@@ -64,6 +64,8 @@ func buildApp() *cli.Command {
 			pcli.IndexCommand(),
 			pcli.WidenCommand(),
 			pcli.DedupCommand(),
+			pcli.RecommendCommand(),
+			pcli.ExplainCommand(),
 			pcli.VersionCommand(),
 			pcli.FeaturesCommand(),
 			pcli.DocsCommand(),

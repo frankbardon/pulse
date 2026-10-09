@@ -1,0 +1,35 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "response",
+    "detail": "terse",
+    "summary": "This response reports aggregated output of 96 rows across 2 groups from 96 of 100 records.",
+    "findings": [
+      {
+        "slot": "aggregations[0]",
+        "subject": "total",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 90,
+          "n_null": 4
+        }
+      },
+      {
+        "slot": "aggregations[1]",
+        "subject": "avg_score",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 88,
+          "n_null": 6
+        }
+      }
+    ],
+    "caveats": [
+      "Partial reading: the request is absent, so the aggregations and groupings are described by count only; pass the request beside the response to name their operators and weight."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 5f1d5c0410b5db929dab9dd0fb2297daffef2cdac516999a2717d210350d01c3

@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/frankbardon/pulse"
@@ -9,7 +10,9 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/imports"
+	"github.com/frankbardon/pulse/internal/jsonfinite"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 )
 
 // This file holds the SDK-free typed tool handlers: one exported
@@ -268,6 +271,74 @@ func HandleDedup(ctx context.Context, p *pulse.Pulse, in DedupIn) (DedupOut, err
 	})
 	if err != nil {
 		return DedupOut{}, err
+	}
+	return *res, nil
+}
+
+// HandleRecommend runs pulse_recommend: an intent becomes ranked draft
+// requests, bound to a cohort's fields when one is given. All behaviour
+// is pulse.Recommend: an empty intent is PULSE_RECOMMEND_INTENT_UNKNOWN,
+// whose details.valid lists every ID — more use to an agent than a bare
+// missing-argument error.
+func HandleRecommend(ctx context.Context, p *pulse.Pulse, in RecommendIn) (RecommendOut, error) {
+	req := descriptor.RecommendRequest{
+		Intent: in.Intent,
+		Fields: in.Fields,
+		Level:  descriptor.Level(in.Level),
+		Limit:  in.Limit,
+	}
+	if in.Cohort != "" {
+		req.Cohort = &types.Cohort{Filename: in.Cohort}
+	}
+	res, err := p.Recommend(ctx, req)
+	if err != nil {
+		return RecommendOut{}, err
+	}
+	return *res, nil
+}
+
+// HandleExplain runs pulse_explain: each root the input sets is
+// re-encoded and decoded into its typed slot — results through
+// jsonfinite, so a figure the wire wrote as null (undefined) reads as
+// NaN rather than as a real 0 — and pulse.Explain does the rest (root
+// and detail validation included).
+func HandleExplain(ctx context.Context, p *pulse.Pulse, in ExplainIn) (ExplainOut, error) {
+	req := descriptor.ExplainRequest{Detail: descriptor.ExplainDetail(in.Detail)}
+	for _, slot := range []struct {
+		key    string
+		obj    map[string]any
+		dst    any
+		result bool
+	}{
+		{"request", in.Request, &req.Request, false},
+		{"composed", in.Composed, &req.Composed, false},
+		{"chain", in.Chain, &req.Chain, false},
+		{"facet", in.Facet, &req.Facet, false},
+		{"sample", in.Sample, &req.Sample, false},
+		{"response", in.Response, &req.Response, true},
+		{"composed_response", in.ComposedResponse, &req.ComposedResponse, true},
+		{"chain_response", in.ChainResponse, &req.ChainResponse, true},
+		{"facet_result", in.FacetResult, &req.FacetResult, true},
+	} {
+		if slot.obj == nil {
+			continue
+		}
+		raw, err := json.Marshal(slot.obj)
+		if err == nil {
+			if slot.result {
+				err = jsonfinite.Unmarshal(raw, slot.dst)
+			} else {
+				err = json.Unmarshal(raw, slot.dst)
+			}
+		}
+		if err != nil {
+			return ExplainOut{}, perr.NewCodedErrorWithDetails(perr.SERVICE_VALIDATION,
+				"pulse_explain: "+slot.key+" does not decode: "+err.Error(), map[string]any{"field": slot.key})
+		}
+	}
+	res, err := p.Explain(ctx, req)
+	if err != nil {
+		return ExplainOut{}, err
 	}
 	return *res, nil
 }

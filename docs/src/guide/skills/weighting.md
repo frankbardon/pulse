@@ -81,7 +81,7 @@ A weighted slot's components add `sum_weights`, `n_eff` (`probability` only) and
 
 ## SPSS suggestion
 
-`pulse_inspect` / `pulse_predict` report `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` from `WEIGHT BY`. Never applied — name it yourself; `WEIGHT BY` replicates cases, so `kind: "frequency"` is usually faithful.
+`pulse_inspect` / `pulse_predict` report `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` from `WEIGHT BY`. Never applied, name it yourself; `WEIGHT BY` replicates cases, so `kind: "frequency"` usually fits. Predict adds advisory `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` ([`predict-advisories`](predict-advisories.md)).
 
 ## See
 

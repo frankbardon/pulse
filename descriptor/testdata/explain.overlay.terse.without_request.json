@@ -1,0 +1,37 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "response",
+    "detail": "terse",
+    "summary": "This response reports 2 overlays from 96 of 100 records; 1 of 1 inferential finding shows evidence at its alpha.",
+    "findings": [
+      {
+        "slot": "overlays[0]",
+        "subject": "plan cells",
+        "operator": "OVERLAY_T_CELL",
+        "verdict": "evidence_of_difference",
+        "numbers": {
+          "alpha": 0.05,
+          "below_alpha": 1,
+          "tests": 2
+        }
+      },
+      {
+        "slot": "overlays[1]",
+        "subject": "share",
+        "operator": "OVERLAY_ZSCORE_VS_TOTAL",
+        "verdict": "descriptive",
+        "numbers": {}
+      }
+    ],
+    "caveats": [
+      "2 p-values here carry no adjustment for multiple comparisons, so some may fall below alpha by chance alone; this is the concern the PULSE_ADVISORY_MANY_TESTS advisory raises.",
+      "Adding a multiplicity block (for example holm) adjusts them for multiple comparisons; then read p_adjusted beside each raw p-value.",
+      "OVERLAY_T_CELL carries no alpha of its own unless it is adjusted, so its p-values are read here against 0.05."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 5f7ed935fe5c8df83020b7f29399b5648194fc3a39110e3d0e477e1311952976

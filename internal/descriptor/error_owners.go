@@ -160,6 +160,21 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: shared,
 	// Predict only: an ATTR_CODE_IN code absent from a categorical dictionary.
 	errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY: own("ATTR_CODE_IN"),
+	// Predict advisories: the two-group rule fires only on the two
+	// two-sample tests; the many-tests rule needs the p-value count,
+	// which a hidden capability:multiplicity withholds. The suppression
+	// refusal is raised by pulse.New on every instance.
+	errors.PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: own("TEST_T", "TEST_WELCH"),
+	errors.PULSE_ADVISORY_MANY_TESTS:                 own(featMultiplicity),
+	// The SPSS-sidecar measure-level rules fire only on the operators
+	// that treat a field as a quantity (mean-family aggregators,
+	// parametric tests); the weight rule wraps suggested_weight, which a
+	// hidden capability:weighting withholds.
+	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC:  own(advisoryQuantityOperators()...),
+	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
+	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
+	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:        shared,
+	errors.PULSE_RECOMMEND_INTENT_UNKNOWN:         own(featRecommend),
 
 	// Synth (data-profile capture included).
 	errors.PULSE_SYNTH_DISTRIBUTION_UNKNOWN:    own(featSynth),

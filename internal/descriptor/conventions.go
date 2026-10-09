@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"math"
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -159,4 +160,44 @@ func conventionIDs() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// BandOf returns the label of the band of in that v falls in, reading
+// v the way the bands are declared: |v| when in.Abs, and max(v, 1/v)
+// when in.Convention is the citation of a registered SymmetricLog
+// convention (an odds ratio of 0.1 reads like one of 10). ok is false
+// when in has no bands or no convention, v is not finite (or a
+// SymmetricLog ratio is not positive), or no band holds v.
+func BandOf(in descriptor.Interpretation, v float64) (label string, ok bool) {
+	if len(in.Bands) == 0 || in.Convention == "" || math.IsNaN(v) || math.IsInf(v, 0) {
+		return "", false
+	}
+	if in.Abs {
+		v = math.Abs(v)
+	}
+	if symmetricLogCitation(in.Convention) {
+		if v <= 0 {
+			return "", false
+		}
+		if v < 1 {
+			v = 1 / v
+		}
+	}
+	for _, b := range in.Bands {
+		if (b.Min == nil || v >= *b.Min) && (b.Max == nil || v < *b.Max) {
+			return b.Label, true
+		}
+	}
+	return "", false
+}
+
+// symmetricLogCitation reports whether citation is the Convention text
+// of a registered SymmetricLog convention.
+func symmetricLogCitation(citation string) bool {
+	for _, c := range builtinConventions {
+		if c.SymmetricLog && c.Citation == citation {
+			return true
+		}
+	}
+	return false
 }

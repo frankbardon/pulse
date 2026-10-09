@@ -1,0 +1,43 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "flows",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "from",
+            "kinds": [
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": 1
+          },
+          {
+            "name": "to",
+            "kinds": [
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": 1
+          }
+        ]
+      }
+    ],
+    "recommendations": [],
+    "routes_to": [
+      {
+        "when": "you want a table of the from state against the to state",
+        "use": "capability:crosstab"
+      }
+    ],
+    "truncated": false,
+    "candidates_considered": 0
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 7db31cc4ae192e67790de0ae72b114222167dd9ac7466337b54e09ac6f4939e3

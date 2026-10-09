@@ -342,6 +342,49 @@ const (
 	// unsigned-integer field.
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 
+	// PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS is a predict advisory
+	// (PredictResult.Advisories, never a warning or error): a TEST_T or
+	// TEST_WELCH whose split_by grouping resolves to more than two
+	// groups (a categorical dictionary's entry count). A two-sample test
+	// compares exactly two groups; details.suggested names the
+	// many-group ANOVA the instance offers.
+	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS Code = "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS"
+
+	// PULSE_ADVISORY_MANY_TESTS is a predict advisory: the request emits
+	// at least MultiplicityTriggerThreshold uncorrected p-values
+	// (PredictResult.PValues) and names no multiplicity block anywhere
+	// (request, slot or Options.DefaultMultiplicity). details.suggested
+	// is the request patch {"multiplicity":{"method":"holm"}}.
+	PULSE_ADVISORY_MANY_TESTS Code = "PULSE_ADVISORY_MANY_TESTS"
+
+	// PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC is a predict advisory: a
+	// numeric field the cohort's SPSS metadata sidecar records at the
+	// nominal measure level feeds a mean-family aggregator or a
+	// parametric test, which treat its codes as quantities.
+	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
+
+	// PULSE_ADVISORY_ORDINAL_PARAMETRIC is a predict advisory: a
+	// parametric test runs on a field the cohort's SPSS metadata sidecar
+	// records at the ordinal measure level. details.suggested names a
+	// rank-based alternative from the test's Purpose.NotFor.
+	PULSE_ADVISORY_ORDINAL_PARAMETRIC Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
+
+	// PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED is a predict advisory: the
+	// cohort's SPSS metadata sidecar records a weighting variable
+	// (PredictResult.SuggestedWeight) and no slot resolves a weight.
+	// details.suggested is the request patch {"weight":{"field":...}}.
+	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED Code = "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED"
+
+	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
+	// Options.SuppressAdvisories names a code that is not a registered
+	// PULSE_ADVISORY_* advisory code.
+	PULSE_SUPPRESS_ADVISORY_UNKNOWN Code = "PULSE_SUPPRESS_ADVISORY_UNKNOWN"
+
+	// PULSE_RECOMMEND_INTENT_UNKNOWN is raised by Recommend when the
+	// request's intent is not an intent-taxonomy ID. details.intent
+	// echoes it and details.valid lists every intent ID.
+	PULSE_RECOMMEND_INTENT_UNKNOWN Code = "PULSE_RECOMMEND_INTENT_UNKNOWN"
+
 	// PULSE_SYNTH_DISTRIBUTION_UNKNOWN indicates a synth spec referenced
 	// a distribution kind not registered in the synth package.
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
@@ -2944,6 +2987,13 @@ var allCodes = []Code{
 	PULSE_DECIMAL_DIVIDE_BY_ZERO,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY,
+	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS,
+	PULSE_ADVISORY_MANY_TESTS,
+	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC,
+	PULSE_ADVISORY_ORDINAL_PARAMETRIC,
+	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
+	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
+	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE,
 	PULSE_SYNTH_SOURCE_REQUIRED,

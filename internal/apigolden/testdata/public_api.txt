@@ -600,6 +600,7 @@ pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
 pulse: type Options field ShardWorkers int
 pulse: type Options field Strict bool
+pulse: type Options field SuppressAdvisories []string
 pulse: type Options field TemplateDirs []string
 pulse: type ParamMeta struct
 pulse: type ParamMeta field Default any "json:\"default,omitempty\""
@@ -655,6 +656,7 @@ pulse: type Pulse method (*Pulse) ErrorsByDomain(domain string) []pulse.ErrorMet
 pulse: type Pulse method (*Pulse) ErrorsSearch(query string) []pulse.ErrorMetadata
 pulse: type Pulse method (*Pulse) ExampleGet(name string) (*pulse.Example, bool)
 pulse: type Pulse method (*Pulse) ExamplesSearch(query string, tags []string, category string) []pulse.ExampleSummary
+pulse: type Pulse method (*Pulse) Explain(ctx context.Context, req pulse/descriptor.ExplainRequest) (*pulse/descriptor.ExplainResult, error)
 pulse: type Pulse method (*Pulse) Export(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.ExportReport, error)
 pulse: type Pulse method (*Pulse) ExportReference(fsys github.com/spf13/afero.Fs, dir string, opts pulse.ExportReferenceOptions) error
 pulse: type Pulse method (*Pulse) ExportTransfer(ctx context.Context, job *pulse/io.TransferExportJob) (*pulse/io.TransferReport, error)
@@ -695,6 +697,7 @@ pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.
 pulse: type Pulse method (*Pulse) ProcessStreamResult(ctx context.Context, req *pulse.Request) (pulse.StreamResult[pulse.Row], error)
 pulse: type Pulse method (*Pulse) Profile(ctx context.Context, path string, opts pulse.ProfileOptions) (*pulse.Profile, error)
 pulse: type Pulse method (*Pulse) RangeTables() []pulse.RangeTableInfo
+pulse: type Pulse method (*Pulse) Recommend(ctx context.Context, req pulse/descriptor.RecommendRequest) (*pulse/descriptor.RecommendResult, error)
 pulse: type Pulse method (*Pulse) ReloadTemplates() error
 pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) error
 pulse: type Pulse method (*Pulse) RenderTemplate(name string, vars map[string]any) (*pulse.RenderedTemplate, error)
@@ -1030,6 +1033,10 @@ pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
 pulse: type WindowRegistration field Purpose *pulse/descriptor.Purpose
 pulse/descriptor: package descriptor
+pulse/descriptor: type Advisory struct
+pulse/descriptor: type Advisory field Code string "json:\"code\""
+pulse/descriptor: type Advisory field Details map[string]any "json:\"details,omitempty\""
+pulse/descriptor: type Advisory field Message string "json:\"message\""
 pulse/descriptor: type AggregationPredict struct
 pulse/descriptor: type AggregationPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type AggregationPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
@@ -1135,6 +1142,67 @@ pulse/descriptor: type EnvelopeEntry struct
 pulse/descriptor: type EnvelopeEntry field Code string "json:\"code\""
 pulse/descriptor: type EnvelopeEntry field Details map[string]any "json:\"details,omitempty\""
 pulse/descriptor: type EnvelopeEntry field Message string "json:\"message\""
+pulse/descriptor: type ExplainDetail string
+pulse/descriptor: type ExplainFinding struct
+pulse/descriptor: type ExplainFinding field Convention string "json:\"convention,omitempty\""
+pulse/descriptor: type ExplainFinding field Multiplicity *pulse/descriptor.ExplainMultiplicity "json:\"multiplicity,omitempty\""
+pulse/descriptor: type ExplainFinding field Numbers map[string]*float64 "json:\"numbers\""
+pulse/descriptor: type ExplainFinding field Operator string "json:\"operator,omitempty\""
+pulse/descriptor: type ExplainFinding field Slot string "json:\"slot,omitempty\""
+pulse/descriptor: type ExplainFinding field StrengthBand string "json:\"strength_band,omitempty\""
+pulse/descriptor: type ExplainFinding field Subject string "json:\"subject\""
+pulse/descriptor: type ExplainFinding field Verdict pulse/descriptor.Verdict "json:\"verdict\""
+pulse/descriptor: const ExplainFull pulse/descriptor.ExplainDetail = "full"
+pulse/descriptor: type ExplainMode string
+pulse/descriptor: const ExplainModeRequest pulse/descriptor.ExplainMode = "request"
+pulse/descriptor: const ExplainModeResponse pulse/descriptor.ExplainMode = "response"
+pulse/descriptor: type ExplainMultiplicity struct
+pulse/descriptor: type ExplainMultiplicity field Family string "json:\"family\""
+pulse/descriptor: type ExplainMultiplicity field M int "json:\"m\""
+pulse/descriptor: type ExplainMultiplicity field Method string "json:\"method\""
+pulse/descriptor: type ExplainRequest struct
+pulse/descriptor: type ExplainRequest field Chain *pulse/types.ChainRequest "json:\"chain,omitempty\""
+pulse/descriptor: type ExplainRequest field ChainResponse *pulse/types.ChainResponse "json:\"chain_response,omitempty\""
+pulse/descriptor: type ExplainRequest field Composed *pulse/types.ComposedRequest "json:\"composed,omitempty\""
+pulse/descriptor: type ExplainRequest field ComposedResponse *pulse/types.ComposedResponse "json:\"composed_response,omitempty\""
+pulse/descriptor: type ExplainRequest field Detail pulse/descriptor.ExplainDetail "json:\"detail,omitempty\""
+pulse/descriptor: type ExplainRequest field Facet *pulse/types.FacetRequest "json:\"facet,omitempty\""
+pulse/descriptor: type ExplainRequest field FacetResult *pulse/types.FacetResult "json:\"facet_result,omitempty\""
+pulse/descriptor: type ExplainRequest field Request *pulse/types.Request "json:\"request,omitempty\""
+pulse/descriptor: type ExplainRequest field Response *pulse/types.Response "json:\"response,omitempty\""
+pulse/descriptor: type ExplainRequest field Sample *pulse/types.SampleRequest "json:\"sample,omitempty\""
+pulse/descriptor: type ExplainResult struct
+pulse/descriptor: type ExplainResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse/descriptor: type ExplainResult field Caveats []string "json:\"caveats,omitempty\""
+pulse/descriptor: type ExplainResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied,omitempty\""
+pulse/descriptor: type ExplainResult field Detail pulse/descriptor.ExplainDetail "json:\"detail\""
+pulse/descriptor: type ExplainResult field Findings []pulse/descriptor.ExplainFinding "json:\"findings\""
+pulse/descriptor: type ExplainResult field FollowUps []pulse/descriptor.Alternative "json:\"follow_ups,omitempty\""
+pulse/descriptor: type ExplainResult field GlossaryRefs []string "json:\"glossary_refs,omitempty\""
+pulse/descriptor: type ExplainResult field Mode pulse/descriptor.ExplainMode "json:\"mode\""
+pulse/descriptor: type ExplainResult field Refusals []pulse/descriptor.EnvelopeEntry "json:\"refusals,omitempty\""
+pulse/descriptor: type ExplainResult field Root pulse/descriptor.ExplainRoot "json:\"root\""
+pulse/descriptor: type ExplainResult field Sentences []string "json:\"sentences,omitempty\""
+pulse/descriptor: type ExplainResult field Steps []pulse/descriptor.ExplainStep "json:\"steps,omitempty\""
+pulse/descriptor: type ExplainResult field Summary string "json:\"summary\""
+pulse/descriptor: type ExplainResult field Valid *bool "json:\"valid,omitempty\""
+pulse/descriptor: type ExplainRoot string
+pulse/descriptor: const ExplainRootChain pulse/descriptor.ExplainRoot = "chain"
+pulse/descriptor: const ExplainRootChainResponse pulse/descriptor.ExplainRoot = "chain_response"
+pulse/descriptor: const ExplainRootComposed pulse/descriptor.ExplainRoot = "composed"
+pulse/descriptor: const ExplainRootComposedResponse pulse/descriptor.ExplainRoot = "composed_response"
+pulse/descriptor: const ExplainRootFacet pulse/descriptor.ExplainRoot = "facet"
+pulse/descriptor: const ExplainRootFacetResult pulse/descriptor.ExplainRoot = "facet_result"
+pulse/descriptor: const ExplainRootRequest pulse/descriptor.ExplainRoot = "request"
+pulse/descriptor: const ExplainRootResponse pulse/descriptor.ExplainRoot = "response"
+pulse/descriptor: const ExplainRootSample pulse/descriptor.ExplainRoot = "sample"
+pulse/descriptor: type ExplainStep struct
+pulse/descriptor: type ExplainStep field Defaulted bool "json:\"defaulted,omitempty\""
+pulse/descriptor: type ExplainStep field Fields []string "json:\"fields,omitempty\""
+pulse/descriptor: type ExplainStep field Operator string "json:\"operator,omitempty\""
+pulse/descriptor: type ExplainStep field Slot string "json:\"slot\""
+pulse/descriptor: type ExplainStep field Text string "json:\"text\""
+pulse/descriptor: const ExplainTerse pulse/descriptor.ExplainDetail = "terse"
 pulse/descriptor: type ExportCapability struct
 pulse/descriptor: type ExportCapability field Formats []pulse/descriptor.ExportFormatCapability "json:\"formats\""
 pulse/descriptor: type ExportFormatCapability struct
@@ -1380,6 +1448,7 @@ pulse/descriptor: type OntologyEdge field Kind pulse/descriptor.OntologyEdgeKind
 pulse/descriptor: type OntologyEdge field To string "json:\"to\""
 pulse/descriptor: const OntologyEdgeDocumentedBy pulse/descriptor.OntologyEdgeKind = "documented_by"
 pulse/descriptor: const OntologyEdgeExemplifiedBy pulse/descriptor.OntologyEdgeKind = "exemplified_by"
+pulse/descriptor: const OntologyEdgeFollowUp pulse/descriptor.OntologyEdgeKind = "follow_up"
 pulse/descriptor: type OntologyEdgeKind string
 pulse/descriptor: const OntologyEdgeNotFor pulse/descriptor.OntologyEdgeKind = "not_for"
 pulse/descriptor: const OntologyEdgeRequiresCapability pulse/descriptor.OntologyEdgeKind = "requires_capability"
@@ -1473,6 +1542,7 @@ pulse/descriptor: type Param field Required bool "json:\"required\""
 pulse/descriptor: type Param field Type string "json:\"type\""
 pulse/descriptor: const Partial pulse/types.ComponentsMergeability = "partial"
 pulse/descriptor: type PredictResult struct
+pulse/descriptor: type PredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse/descriptor: type PredictResult field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
 pulse/descriptor: type PredictResult field CrosstabFusable *bool "json:\"crosstab_fusable,omitempty\""
 pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:\"crosstab_fusion_reasons,omitempty\""
@@ -1513,6 +1583,7 @@ pulse/descriptor: type ProcessChainCapability field RejectionRules []string "jso
 pulse/descriptor: type ProcessChainCapability field RowLocalAttributes []string "json:\"row_local_attributes\""
 pulse/descriptor: type Purpose struct
 pulse/descriptor: type Purpose field Assumptions []string "json:\"assumptions,omitempty\""
+pulse/descriptor: type Purpose field FollowUps []pulse/descriptor.Alternative "json:\"follow_ups,omitempty\""
 pulse/descriptor: type Purpose field Glossary []string "json:\"glossary,omitempty\""
 pulse/descriptor: type Purpose field Intents []string "json:\"intents\""
 pulse/descriptor: type Purpose field Level pulse/descriptor.Level "json:\"level,omitempty\""
@@ -1524,6 +1595,35 @@ pulse/descriptor: type RangeTableMeta struct
 pulse/descriptor: type RangeTableMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type RangeTableMeta field Name string "json:\"name\""
 pulse/descriptor: type RangeTableMeta field RangeCount int "json:\"range_count\""
+pulse/descriptor: type RecommendNeed struct
+pulse/descriptor: type RecommendNeed field Param string "json:\"param\""
+pulse/descriptor: type RecommendNeed field Why string "json:\"why\""
+pulse/descriptor: type RecommendRequest struct
+pulse/descriptor: type RecommendRequest field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
+pulse/descriptor: type RecommendRequest field Fields []string "json:\"fields,omitempty\""
+pulse/descriptor: type RecommendRequest field Intent string "json:\"intent\""
+pulse/descriptor: type RecommendRequest field Level pulse/descriptor.Level "json:\"level,omitempty\""
+pulse/descriptor: type RecommendRequest field Limit int "json:\"limit,omitempty\""
+pulse/descriptor: type RecommendResult struct
+pulse/descriptor: type RecommendResult field Bound bool "json:\"bound\""
+pulse/descriptor: type RecommendResult field CandidatesConsidered int "json:\"candidates_considered\""
+pulse/descriptor: type RecommendResult field Intent string "json:\"intent\""
+pulse/descriptor: type RecommendResult field Recommendations []pulse/descriptor.Recommendation "json:\"recommendations\""
+pulse/descriptor: type RecommendResult field RoutesTo []pulse/descriptor.Alternative "json:\"routes_to,omitempty\""
+pulse/descriptor: type RecommendResult field Shapes []pulse/descriptor.Shape "json:\"shapes,omitempty\""
+pulse/descriptor: type RecommendResult field Truncated bool "json:\"truncated\""
+pulse/descriptor: type Recommendation struct
+pulse/descriptor: type Recommendation field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse/descriptor: type Recommendation field Alternatives []pulse/descriptor.Alternative "json:\"alternatives,omitempty\""
+pulse/descriptor: type Recommendation field Bound bool "json:\"bound\""
+pulse/descriptor: type Recommendation field Category string "json:\"category\""
+pulse/descriptor: type Recommendation field FollowUps []pulse/descriptor.Alternative "json:\"follow_ups,omitempty\""
+pulse/descriptor: type Recommendation field Level pulse/descriptor.Level "json:\"level,omitempty\""
+pulse/descriptor: type Recommendation field Needs []pulse/descriptor.RecommendNeed "json:\"needs,omitempty\""
+pulse/descriptor: type Recommendation field Operator string "json:\"operator\""
+pulse/descriptor: type Recommendation field Placeholders []string "json:\"placeholders,omitempty\""
+pulse/descriptor: type Recommendation field Request encoding/json.RawMessage "json:\"request\""
+pulse/descriptor: type Recommendation field Why string "json:\"why\""
 pulse/descriptor: type RegressionMeta struct
 pulse/descriptor: type RegressionMeta field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type RegressionMeta field Description string "json:\"description\""
@@ -1615,6 +1715,16 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type Verdict string
+pulse/descriptor: const VerdictDescriptive pulse/descriptor.Verdict = "descriptive"
+pulse/descriptor: const VerdictEvidenceOfAssociation pulse/descriptor.Verdict = "evidence_of_association"
+pulse/descriptor: const VerdictEvidenceOfDifference pulse/descriptor.Verdict = "evidence_of_difference"
+pulse/descriptor: const VerdictEvidenceOfEffect pulse/descriptor.Verdict = "evidence_of_effect"
+pulse/descriptor: const VerdictNoEvidenceOfAssociation pulse/descriptor.Verdict = "no_evidence_of_association"
+pulse/descriptor: const VerdictNoEvidenceOfDifference pulse/descriptor.Verdict = "no_evidence_of_difference"
+pulse/descriptor: const VerdictNoEvidenceOfEffect pulse/descriptor.Verdict = "no_evidence_of_effect"
+pulse/descriptor: const VerdictNotComputable pulse/descriptor.Verdict = "not_computable"
+pulse/descriptor: func Verdicts() []pulse/descriptor.Verdict
 pulse/descriptor: const WeightSourceNone untyped string = "none"
 pulse/descriptor: const WeightSourceOptions untyped string = "options"
 pulse/descriptor: const WeightSourceRequest untyped string = "request"
@@ -1921,6 +2031,11 @@ pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PR
 pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
 pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
 pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
+pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
+pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
+pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
+pulse/errors: const PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS pulse/errors.Code = "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS"
+pulse/errors: const PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED pulse/errors.Code = "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED"
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_CORRUPT"
@@ -2068,6 +2183,7 @@ pulse/errors: const PULSE_RANGE_INVALID pulse/errors.Code = "PULSE_RANGE_INVALID
 pulse/errors: const PULSE_RANGE_OVERLAP pulse/errors.Code = "PULSE_RANGE_OVERLAP"
 pulse/errors: const PULSE_RANGE_SOURCE_AMBIGUOUS pulse/errors.Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
 pulse/errors: const PULSE_RANGE_TABLE_UNKNOWN pulse/errors.Code = "PULSE_RANGE_TABLE_UNKNOWN"
+pulse/errors: const PULSE_RECOMMEND_INTENT_UNKNOWN pulse/errors.Code = "PULSE_RECOMMEND_INTENT_UNKNOWN"
 pulse/errors: const PULSE_REQUEST_UNKNOWN_FIELD pulse/errors.Code = "PULSE_REQUEST_UNKNOWN_FIELD"
 pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVALID"
 pulse/errors: const PULSE_RETURN_PATH_UNKNOWN pulse/errors.Code = "PULSE_RETURN_PATH_UNKNOWN"
@@ -2123,6 +2239,7 @@ pulse/errors: const PULSE_SPSS_VERY_LONG_STRING_INVALID pulse/errors.Code = "PUL
 pulse/errors: const PULSE_SPSS_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SPSS_WIDTH_OVERFLOW"
 pulse/errors: const PULSE_SPSS_ZSAV_BLOCK_CORRUPT pulse/errors.Code = "PULSE_SPSS_ZSAV_BLOCK_CORRUPT"
 pulse/errors: const PULSE_SPSS_ZSAV_INVALID pulse/errors.Code = "PULSE_SPSS_ZSAV_INVALID"
+pulse/errors: const PULSE_SUPPRESS_ADVISORY_UNKNOWN pulse/errors.Code = "PULSE_SUPPRESS_ADVISORY_UNKNOWN"
 pulse/errors: const PULSE_SYNTH_ALREADY_TAGGED pulse/errors.Code = "PULSE_SYNTH_ALREADY_TAGGED"
 pulse/errors: const PULSE_SYNTH_CONSTRAINT_INFEASIBLE pulse/errors.Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 pulse/errors: const PULSE_SYNTH_DISTRIBUTION_UNKNOWN pulse/errors.Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
@@ -4370,4 +4487,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0209f0b168c1588a6c4ed6ad8f3681ffa918bfab6ce8bf4f666f647d6977c4e8
+// golden-hash: 8eb3b9a8be59b1ec391056df64d15e34c8eb17e2b78a97771fe0c4e95ed622cb

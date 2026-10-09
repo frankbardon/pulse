@@ -103,6 +103,11 @@ type InstanceSnapshot struct {
 	// Nil: the built-in defaults. Not covered by the feature-set digest.
 	limits *limits.Limits
 
+	// suppressedAdvisories is Options.SuppressAdvisories (validated by
+	// pulse.New): the PULSE_ADVISORY_* codes predict never reports on
+	// this instance. Nil: none. Not covered by the feature-set digest.
+	suppressedAdvisories map[string]struct{}
+
 	// returnPlans memoizes Response-rooted `return` resolutions
 	// (return_plan_cache.go). Allocated by buildOntology; shared by
 	// WithDefaultReturn copies, whose visibility — the only instance
@@ -289,6 +294,37 @@ func (s *InstanceSnapshot) WithLimits(l limits.Limits) *InstanceSnapshot {
 	}
 	out.limits = &l
 	return &out
+}
+
+// WithSuppressedAdvisories returns a copy of s whose predict omits
+// every advisory whose code is in codes (Options.SuppressAdvisories,
+// validated by ValidateSuppressAdvisories first). An empty list
+// suppresses nothing. Nil-safe like WithLimits.
+func (s *InstanceSnapshot) WithSuppressedAdvisories(codes []string) *InstanceSnapshot {
+	var out InstanceSnapshot
+	if s != nil {
+		out = *s
+	} else {
+		out.buildOntology()
+	}
+	out.suppressedAdvisories = nil
+	if len(codes) > 0 {
+		out.suppressedAdvisories = make(map[string]struct{}, len(codes))
+		for _, c := range codes {
+			out.suppressedAdvisories[c] = struct{}{}
+		}
+	}
+	return &out
+}
+
+// AdvisorySuppressed reports whether the instance suppresses the
+// advisory code. Nil-safe: a nil snapshot suppresses nothing.
+func (s *InstanceSnapshot) AdvisorySuppressed(code string) bool {
+	if s == nil {
+		return false
+	}
+	_, ok := s.suppressedAdvisories[code]
+	return ok
 }
 
 // Limits returns the instance's effective resource limits — the

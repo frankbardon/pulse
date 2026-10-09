@@ -1,0 +1,168 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "segment",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "measures",
+            "kinds": [
+              "numeric"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "FEAT_BUCKETIZE",
+        "category": "feature",
+        "level": "basic",
+        "why": "Puts each value into an ordered bin, using cut points you give or bins holding about equal numbers of records, and adds the bin number. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "features": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "FEAT_BUCKETIZE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want results grouped by fixed-width bands",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "you want results grouped by equal-count bins",
+            "use": "GROUP_QUANTILE"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_RANGE",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits a number into bands of equal width, such as ages 20-30 and 30-40, to see how values spread or to compare bands. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "interval": "\u003cinterval\u003e",
+              "type": "GROUP_RANGE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "interval"
+        ],
+        "alternatives": [
+          {
+            "when": "you want groups of equal size rather than equal width",
+            "use": "GROUP_QUANTILE"
+          },
+          {
+            "when": "you want each band named by its lower edge alone",
+            "use": "GROUP_ROUNDED"
+          },
+          {
+            "when": "you want to keep one band, not split into all of them",
+            "use": "FILTER_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_ROUNDED",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Groups a number by rounding it down to a multiple of a step, such as 23 and 27 both to 20, naming each group by that multiple. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "interval": "\u003cinterval\u003e",
+              "type": "GROUP_ROUNDED"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "interval"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the band's both edges in its name",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "you want groups of equal size",
+            "use": "GROUP_QUANTILE"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_QUANTILE",
+        "category": "grouper",
+        "level": "intermediate",
+        "why": "Splits the rows into equal-sized groups by rank of a number, such as quartiles or deciles of spend, to compare top and bottom. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "GROUP_QUANTILE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want bands of a fixed width, such as every 10 years of age",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "you want each row's rank as a number, not a group",
+            "use": "ATTR_PERCENTILE"
+          },
+          {
+            "when": "you want the cut-off values themselves",
+            "use": "AGG_PERCENTILE"
+          }
+        ]
+      }
+    ],
+    "truncated": false,
+    "candidates_considered": 4
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 4545fe21f6eefeea8edde49da4078a2877caf4c84178f53ca252d00b4f20597e

@@ -15,8 +15,9 @@ and a glossary of the statistical terms involved. The metadata is
 > and `## Reading the output` sections of every operator skill, and
 > `p.ExportReference` / `pulse docs export` for your own instance. The
 > prose is still pulled, never pushed: it appears in none of the default
-> `Response`, `PredictResult` or manifest. Recommend, Explain and the
-> MCP guidance tools come in later units.
+> `Response`, `PredictResult` or manifest. `Recommend`, `Explain` and
+> predict advisories (below) turn that metadata into answers; the MCP
+> guidance tools beyond them come in a later unit.
 
 ## Intents: what kind of question
 
@@ -85,6 +86,74 @@ Bands are a labelled convention, not a verdict: what counts as a large
 effect depends on the field. Effect sizes with no published convention,
 such as `rank_biserial` or `cramers_v`, are deliberately left unbanded,
 and their interpretation says why.
+
+## Recommend: from a question to a request
+
+`p.Recommend` takes an intent and returns ranked draft requests. Without
+a cohort it is cohort-free (`bound: false`): each draft carries
+`"<key>"` placeholders you fill in, and nothing is validated against
+data. With a cohort it reads only the header and schema, matches your
+`Fields` hints to roles, and predict-validates every draft, so a bound
+draft that is fully filled in is a request you can run. A draft that
+still needs a choice from you says so in `needs`. A fully bound draft
+ranks above one that needs something.
+
+```go
+res, err := p.Recommend(ctx, descriptor.RecommendRequest{
+    Intent: "compare_groups",
+    Cohort: &types.Cohort{Filename: "survey.pulse"},
+    Fields: []string{"score", "region"},
+})
+for _, r := range res.Recommendations {
+    fmt.Println(r.Operator, r.Bound, r.Why)
+}
+```
+
+Each recommendation carries `why` in plain words, `alternatives` (what
+not to use it for) and `follow_ups` (what to ask next). Only operators
+the instance offers appear. CLI: `pulse recommend --intent ID`; MCP:
+`pulse_recommend`.
+
+## Explain: from a request or a result to plain language
+
+`p.Explain` takes exactly one root: a request (`request`, `composed`,
+`chain`, `facet`, `sample`) or a result (`response`, `composed_response`,
+`chain_response`, `facet_result`, each with its own request as an
+optional companion). Given a request it describes what each slot will
+do, which defaults apply and what predict says. Given a result it
+returns `findings[]`, each with a `verdict` from a closed set, a
+strength band that names the convention it uses, and the figures behind
+it. Output is terse by default; `Detail: "full"` adds the sentences,
+glossary terms and follow-ups.
+
+Explain never says "no difference" for a non-significant result: a
+p-value above the threshold is reported as no evidence of an effect,
+which is not evidence of none. An undefined figure stays `null` in the
+result, and a result you decode from JSON keeps its `null`s as undefined
+rather than reading them as zero. Regressions and overlays without a
+multiplicity correction are read against an alpha of 0.05, and the
+result says so. CLI: `pulse explain --request FILE` or `--response FILE`;
+MCP: `pulse_explain`.
+
+## Predict advisories
+
+A predict result can carry `advisories[]`: coded, non-blocking notes
+that the analysis may not fit the data. Each has a code, a message and a
+suggested fix. They never change execution, `valid` or `--strict`.
+
+| Code | Fires when |
+|---|---|
+| `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS` | a two-sample test splits on a field with more than two groups |
+| `PULSE_ADVISORY_MANY_TESTS` | ten or more uncorrected p-values and no `multiplicity` |
+| `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | an SPSS nominal field is averaged as a number |
+| `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | a parametric test runs on an SPSS ordinal field |
+| `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | the cohort names a weight variable and the request uses none |
+
+Silence a code for the whole instance with `Options.SuppressAdvisories`;
+an unknown code is refused at `pulse.New` with
+`PULSE_SUPPRESS_ADVISORY_UNKNOWN`. Compose and Facet predict carry
+advisories too. Facet has no test slot, so only the many-tests code can
+fire there.
 
 ## Over MCP and the CLI
 

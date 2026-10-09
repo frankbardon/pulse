@@ -216,6 +216,7 @@ skills/op-win-running-avg.md
 skills/op-win-running-sum.md
 skills/overlay-system.md
 skills/pairwise-n-sources.md
+skills/predict-advisories.md
 skills/process-chain.md
 skills/regression-modeling.md
 skills/request-envelope.md
@@ -265,6 +266,7 @@ skills/tool-drop.md
 skills/tool-errors-lookup.md
 skills/tool-examples-get.md
 skills/tool-examples-search.md
+skills/tool-explain.md
 skills/tool-facet-schema.md
 skills/tool-facet.md
 skills/tool-import.md
@@ -278,6 +280,7 @@ skills/tool-predict.md
 skills/tool-process-chain.md
 skills/tool-process.md
 skills/tool-range-tables.md
+skills/tool-recommend.md
 skills/tool-sample.md
 skills/tool-skills-get.md
 skills/tool-skills-list.md

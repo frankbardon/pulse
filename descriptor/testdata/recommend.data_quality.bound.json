@@ -1,0 +1,348 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "data_quality",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "fields",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "date",
+              "bool",
+              "set"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "AGG_DISTINCT_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Number of different values a field takes, over all rows or per group. It uses region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "region",
+              "type": "AGG_DISTINCT_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want how many rows there are, not how many different values",
+            "use": "AGG_COUNT"
+          },
+          {
+            "when": "you want how many rows hold each value: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field is a multi-select and each combination is the unit",
+            "use": "AGG_SET_DISTINCT_VALUES"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_DISTINCT_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Number of different values a field takes, over all rows or per group. It uses plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "plan",
+              "type": "AGG_DISTINCT_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want how many rows there are, not how many different values",
+            "use": "AGG_COUNT"
+          },
+          {
+            "when": "you want how many rows hold each value: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field is a multi-select and each combination is the unit",
+            "use": "AGG_SET_DISTINCT_VALUES"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_DISTINCT_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Number of different values a field takes, over all rows or per group. It uses revenue (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "type": "AGG_DISTINCT_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want how many rows there are, not how many different values",
+            "use": "AGG_COUNT"
+          },
+          {
+            "when": "you want how many rows hold each value: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field is a multi-select and each combination is the unit",
+            "use": "AGG_SET_DISTINCT_VALUES"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MAX",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Largest value of a numeric or date field, over all rows or per group. It uses revenue (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "type": "AGG_MAX"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the smallest value",
+            "use": "AGG_MIN"
+          },
+          {
+            "when": "one extreme row would mislead and you want a high value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MAX",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Largest value of a numeric or date field, over all rows or per group. It uses seats (u16).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "type": "AGG_MAX"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the smallest value",
+            "use": "AGG_MIN"
+          },
+          {
+            "when": "one extreme row would mislead and you want a high value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MAX",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Largest value of a numeric or date field, over all rows or per group. It uses score (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "score",
+              "type": "AGG_MAX"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the smallest value",
+            "use": "AGG_MIN"
+          },
+          {
+            "when": "one extreme row would mislead and you want a high value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MIN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Smallest value of a numeric or date field, over all rows or per group. It uses revenue (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "type": "AGG_MIN"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the largest value",
+            "use": "AGG_MAX"
+          },
+          {
+            "when": "one extreme row would mislead and you want a low value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MIN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Smallest value of a numeric or date field, over all rows or per group. It uses seats (u16).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "type": "AGG_MIN"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the largest value",
+            "use": "AGG_MAX"
+          },
+          {
+            "when": "one extreme row would mislead and you want a low value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MIN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Smallest value of a numeric or date field, over all rows or per group. It uses score (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "score",
+              "type": "AGG_MIN"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the largest value",
+            "use": "AGG_MAX"
+          },
+          {
+            "when": "one extreme row would mislead and you want a low value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_NULL_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Number of rows where a field has no value, over all rows or per group. It uses region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "region",
+              "type": "AGG_NULL_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the rows that do have a value",
+            "use": "AGG_COUNT"
+          },
+          {
+            "when": "you want to keep or drop the rows with no value",
+            "use": "FILTER_NULL"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 22
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: fb4dc98598a97e5e175ec1140a04c02a73c79930cd9f44563c54428df1864176

@@ -25,6 +25,7 @@ var wantCapabilities = []string{
 	"sample", "joins", "crosstab", "lookup", "index", "shard", "import",
 	"export", "filter_to_file", "dedup", "widen", "templates", "synth",
 	"labels", "range_tables", "weighting", "multiplicity", "matrices",
+	"recommend", "explain",
 }
 
 // wantOperators collects every registered operator name across the

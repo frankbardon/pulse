@@ -13,13 +13,13 @@ Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` | once per session | operator catalogs (each entry's [`intents`](intents.md) = the question kinds it answers), field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version; that version is the manifest's top-level version field (CLI: `pulse version --json`) |
+| 1 | `pulse_manifest` | once per session | operator catalogs (each entry's [`intents`](intents.md) = the question kinds it answers), field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version (the top-level version field; CLI `pulse version --json`) |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict` / `pulse_process` / `pulse_compose` / `pulse_sample` / `pulse_facet`, constraining them to schema-resident values |
-| 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category` |
+| 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category`; or `pulse_recommend` by `intents` ID |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
 | 5 | `pulse_skills_get` | on demand | shape, gotchas, contract. Runnable JSON comes from examples, NOT skills. Cold start ⇒ `docs/src/getting-started/`, else derive via [`session-skill-routing`](session-skill-routing.md) |
 | 6 | `pulse_predict` | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
-| 7 | the execute tool the manifest's `mcp_tools` lists for the operation — `pulse_process` / `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample` / `pulse_lookup` | execute | `{format_version, data, errors, warnings}` + additive `data.components`; `format_version` is `"1.1"` |
+| 7 | the execute tool the manifest's `mcp_tools` lists for the operation — `pulse_process` / `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample` / `pulse_lookup` | execute | `{format_version, data, errors, warnings}` + additive `data.components`; `format_version` is `"1.1"`; read via `pulse_explain` |
 | 8 | `pulse_errors_lookup` | per unique `code` | canonical `message` + structured `fixups[]`. Authoritative — never paraphrase from memory |
 
 **Step 7 Compose return shape.** `pulse_compose`'s `data` is a `ComposedResponse` `{responses[], overlays[]}` — NOT the legacy `[]*Response`. Per-slot Components ride each `responses[i]`; overlay diagnostics ride `overlays[i].warnings`.

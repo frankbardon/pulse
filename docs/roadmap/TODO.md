@@ -219,11 +219,17 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#239** The Analysis Guide adds 303 pages: the mdBook search index warns at about 12 MB, and the `docs` CI job (PR-time `mdbook build`) is not a required check. Decide whether to trim the search index and whether to require the job · [U32](units/U32-docs-audit.md)
 
 ### G4 — Recommend, Explain, advisories
-- [ ] **#90** `pulse.Recommend` with bound (cohort) and unbound (cohort-free) modes; `pulse recommend`; `pulse_recommend`; `tool-recommend.md` · [U22](units/U22-recommend-explain.md)
-- [ ] **#91** `pulse.Explain` request mode; terse by default, `detail: "full"` on request · [U22](units/U22-recommend-explain.md)
-- [ ] **#92** `pulse.Explain` response mode; `pulse explain`; `pulse_explain`; `tool-explain.md` · [U22](units/U22-recommend-explain.md)
-- [ ] **#93** Predict `advisories`, with codes and fixups · [U22](units/U22-recommend-explain.md)
-- [ ] **#94** Explain goldens per operator family; Recommend goldens per intent · [U22](units/U22-recommend-explain.md)
+- [x] **#90** `pulse.Recommend` with bound (cohort) and unbound (cohort-free) modes; `pulse recommend`; `pulse_recommend`; `tool-recommend.md` · [U22](units/U22-recommend-explain.md)
+- [x] **#91** `pulse.Explain` request mode; terse by default, `detail: "full"` on request · [U22](units/U22-recommend-explain.md)
+- [x] **#92** `pulse.Explain` response mode; `pulse explain`; `pulse_explain`; `tool-explain.md` · [U22](units/U22-recommend-explain.md)
+- [x] **#93** Predict `advisories`, with codes and fixups · [U22](units/U22-recommend-explain.md)
+- [x] **#94** Explain goldens per operator family; Recommend goldens per intent · [U22](units/U22-recommend-explain.md)
+
+#### Follow-ups from U22
+- [ ] **#246** Compose and Facet predict get a direct facade, CLI and MCP entry (today their advisories reach callers only through Explain and bound Recommend; `PredictOptions.SidecarLoader` is wired from the Explain facade only) · [U23](units/U23-guidance-mcp.md)
+- [ ] **#247** The MCP core reflector (`internal/mcp/schema.go`) describes `json.RawMessage` as an open object, not a byte array (operator `params`, `pulse_recommend`'s `recommendations[].request`); harmless while output schemas stay unmounted · [U23](units/U23-guidance-mcp.md)
+- [ ] **#248** Bound Recommend reads a shard archive header-only: the archive path of `descx.Predict` does `io.ReadAll`, so a bound Recommend on an archive reads every shard · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#249** Recommend drafts every serving operator: `AGG_RATIO` (predict refuses a missing `field` the runtime ignores), `AGG_WEIGHTED_MEAN` (no weight binding), `ATTR_REG_*` and `FEAT_BUCKETIZE` (required params the manifest does not declare); see `unmappedOnFixture` in `internal/guide/bind_test.go` · [U35](units/U35-predict-runtime-parity.md)
 
 ### G5 — MCP guidance layer
 - [ ] **#95** One MCP prompt per intent (extending `pulse-bootstrap` / `pulse-author-request`), plus the prompt gate · [U23](units/U23-guidance-mcp.md)
@@ -327,7 +333,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#139** Centering functions `vcenter`, `vzscore`, `vnormalize` · [U26](units/U26-vector-expr-functions.md)
 - [ ] **#140** Set similarity `jaccard`, `dice`, `hamming`, `overlap` on `set_*` fields · [U26](units/U26-vector-expr-functions.md)
 - [ ] **#141** Shared metric registry `linalg/metric` · [U27](units/U27-vector-metrics-aggregates.md)
-- [ ] **#142** Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED` · [U27](units/U27-vector-metrics-aggregates.md)
+- [ ] **#142** Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`; also owns `PULSE_ADVISORY_COSINE_ON_SCALE` (moved from U22) · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#143** `ATTR_SCALE_SCORE` · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#144** `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option) · [U27](units/U27-vector-metrics-aggregates.md)
 

@@ -1,0 +1,424 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "benchmark",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "measure",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": -1
+          },
+          {
+            "name": "group",
+            "kinds": [
+              "categorical",
+              "bool",
+              "date"
+            ],
+            "min": 1,
+            "max": 1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "WIN_DELTA",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_DELTA"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the change relative to the earlier value",
+            "use": "WIN_PCT_CHANGE"
+          },
+          {
+            "when": "you want each period's change from the one before as a decoration on the result",
+            "use": "OVERLAY_DELTA_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_DENSE_RANK",
+        "category": "window",
+        "level": "basic",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_DENSE_RANK"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "the rank should skip past equal values, as in sports standings",
+            "use": "WIN_RANK"
+          },
+          {
+            "when": "every row needs its own number even when values are equal",
+            "use": "WIN_ROW_NUMBER"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_PCT_CHANGE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier as a fraction of the earlier value: 0.05 is a 5% rise on last month. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_PCT_CHANGE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "the earlier value can be 0, near 0 or negative, or the field is itself a percentage",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the same year-ago period as the comparison",
+            "use": "OVERLAY_YOY"
+          },
+          {
+            "when": "you want each period as an index value against the one before",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_RANK",
+        "category": "window",
+        "level": "basic",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next skips: 1, 2, 2, 4. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_RANK"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "equal values should share a rank with no gap after them",
+            "use": "WIN_DENSE_RANK"
+          },
+          {
+            "when": "every row needs its own number even when values are equal",
+            "use": "WIN_ROW_NUMBER"
+          },
+          {
+            "when": "you want each record's position as a percentage of all records",
+            "use": "ATTR_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_PERCENTILE",
+        "category": "attribute",
+        "level": "basic",
+        "why": "Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "ATTR_PERCENTILE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the value at a chosen percentile, such as the 90th",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want ranks within partitions, or tied values to share a rank",
+            "use": "WIN_RANK"
+          },
+          {
+            "when": "you want rows split into equal-sized bands",
+            "use": "GROUP_QUANTILE"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_T",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether a numeric field's average differs from a target value, or between two groups (Welch's version). Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "TEST_T"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "the same subjects are measured twice, such as before and after",
+            "use": "TEST_PAIRED_T"
+          },
+          {
+            "when": "two groups are compared and the measure is heavily skewed, has extreme values or is only ordered",
+            "use": "TEST_MANN_WHITNEY_U"
+          },
+          {
+            "when": "there are three or more groups",
+            "use": "TEST_ANOVA_WELCH"
+          },
+          {
+            "when": "the outcome is a yes/no rate rather than a numeric measure",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "the request is always a two-group comparison and should say so by name",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "both groups are large and reporting conventions call for a z-test",
+            "use": "TEST_Z_TWO_SAMPLE"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_TSCORE",
+        "category": "attribute",
+        "level": "intermediate",
+        "why": "Adds to every row its T-score: the z-score rescaled so the mean is 50 and one standard deviation is 10. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "ATTR_TSCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want plain standard-deviation units centred on 0",
+            "use": "ATTR_ZSCORE"
+          },
+          {
+            "when": "you want each row's percentile rank (the share at or below it when values are untied)",
+            "use": "ATTR_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_ZSCORE",
+        "category": "attribute",
+        "level": "intermediate",
+        "why": "Adds to every row its z-score: how many standard deviations the row's value sits above or below the mean. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "ATTR_ZSCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the centre and spread of each group, not a score per row",
+            "use": "AGG_ZSCORE"
+          },
+          {
+            "when": "the field is skewed or has extreme values and you want a position they cannot distort",
+            "use": "ATTR_PERCENTILE"
+          },
+          {
+            "when": "you want each group's value against all groups",
+            "use": "OVERLAY_ZSCORE_VS_TOTAL"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_REG_FITTED",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row the value a straight-line model predicts for its target from its predictors. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "ATTR_REG_FITTED"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the coefficients, R-squared and p-values of the model",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want how far each row sits from its prediction",
+            "use": "ATTR_REG_RESIDUAL"
+          },
+          {
+            "when": "the target is yes/no or a count",
+            "use": "REG_GLM"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_REG_RESIDUAL",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "ATTR_REG_RESIDUAL"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the model's summary (coefficients, R-squared)",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want how unusual each row's predictor values are",
+            "use": "ATTR_REG_LEVERAGE"
+          },
+          {
+            "when": "you want how far a value is from the mean, with no model",
+            "use": "ATTR_ZSCORE"
+          }
+        ]
+      }
+    ],
+    "truncated": false,
+    "candidates_considered": 10
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 57f9476484cc812f87486983d1db8c1c5c5f0f9228e3c8c4fc59f0cc404520e1

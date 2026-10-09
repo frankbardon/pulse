@@ -1,0 +1,56 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "chain_response",
+    "detail": "full",
+    "summary": "This chain reports 2 stages, each on the rows the stage before it returns; its last stage reports aggregated output of 2 rows across 2 groups from 2 of 100 records, with 1 whole-chain overlay.",
+    "findings": [
+      {
+        "slot": "stages[0].aggregations[0]",
+        "subject": "total",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 90,
+          "n_null": 0
+        }
+      },
+      {
+        "slot": "stages[1].aggregations[0]",
+        "subject": "avg",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 2,
+          "n_null": 0
+        }
+      },
+      {
+        "slot": "overlays[0]",
+        "subject": "growth",
+        "operator": "OVERLAY_INDEX_VS_STAGE",
+        "verdict": "descriptive",
+        "numbers": {}
+      }
+    ],
+    "sentences": [
+      "This chain reports 2 stages, each on the rows the stage before it returns; its last stage reports aggregated output of 2 rows across 2 groups from 2 of 100 records, with 1 whole-chain overlay.",
+      "Stage 1 reports aggregated output of 90 rows across 2 groups from 90 of 100 records.",
+      "Stage 1's aggregation 1 `total` is reported without its request, so its operator is not named. It read 90 rows and left out 0 with no value.",
+      "Stage 1's run read 100 records; 90 passed the filters and 0 were left out for a missing value.",
+      "Stage 2 reports aggregated output of 2 rows across 2 groups from 2 of 100 records.",
+      "Stage 2's aggregation 1 `avg` is reported without its request, so its operator is not named. It read 2 rows and left out 0 with no value.",
+      "Stage 2's run read 100 records; 2 passed the filters and 0 were left out for a missing value.",
+      "The chain's overlay 1 (OVERLAY_INDEX_VS_STAGE) `growth` describes the host's values; it carries no p-value."
+    ],
+    "glossary_refs": [
+      "baseline",
+      "index-value"
+    ],
+    "caveats": [
+      "Partial reading: the chain request is absent and the response echoes none, so the aggregations and groupings are described by count only; pass the chain request beside the response, or run the chain with its request echoed, to name their operators and weight."
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 3cb84e2eb7c46f84b61a47383151a70df26fced33be9cca2b5c7e4921238d648

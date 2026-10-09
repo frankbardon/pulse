@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -106,6 +107,9 @@ func TestExtensions_PurposeInvalidRules(t *testing.T) {
 		{descx.PurposeRuleLevel, func(p *descriptor.Purpose) { p.Level = "expert" }},
 		{descx.PurposeRuleAlternative, func(p *descriptor.Purpose) { p.NotFor[0].Use = "AGG_ACME_MISSING" }},
 		{descx.PurposeRuleAlternative, func(p *descriptor.Purpose) { p.NotFor[0].Use = "AGG_ACME_BRAND" }},
+		{descx.PurposeRuleFollowUp, func(p *descriptor.Purpose) {
+			p.FollowUps = []descriptor.Alternative{{When: "next", Use: "AGG_ACME_MISSING"}}
+		}},
 		{descx.PurposeRuleIntentUnknown, func(p *descriptor.Purpose) { p.Intents = []string{"vibes"} }},
 		{descx.PurposeRuleGlossaryUnknown, func(p *descriptor.Purpose) { p.Glossary = []string{"not-a-term"} }},
 		{descx.PurposeRuleJargonUnlinked, func(p *descriptor.Purpose) { p.Plain = "Brand score with a p-value." }},
@@ -147,6 +151,24 @@ func TestExtensions_PurposeNotForResolvesAcrossExtensions(t *testing.T) {
 	ext.Tests = []TestRegistration{{Name: "TEST_ACME_BRAND_GAP", Description: "Stub.", Tier: TestTierPost, PostFactory: guidanceStubPostTestFactory}}
 	if _, err := New(Options{FS: memFsWith(t, nil), Extensions: ext}); err != nil {
 		t.Fatalf("New: %v", err)
+	}
+}
+
+// TestExtensions_PurposeFollowUpsResolveAndProject: a FollowUps.Use
+// naming another registered extension resolves, and the instance
+// ontology carries the follow_up edge.
+func TestExtensions_PurposeFollowUpsResolveAndProject(t *testing.T) {
+	pp := validExtPurpose()
+	pp.FollowUps = []descriptor.Alternative{{When: "the score moved and you want to test the gap", Use: "TEST_ACME_BRAND_GAP"}}
+	ext := guidanceExt(pp)
+	ext.Tests = []TestRegistration{{Name: "TEST_ACME_BRAND_GAP", Description: "Stub.", Tier: TestTierPost, PostFactory: guidanceStubPostTestFactory}}
+	p, err := New(Options{FS: memFsWith(t, nil), Extensions: ext})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	want := descriptor.OntologyEdge{From: "operator:AGG_ACME_BRAND", To: "operator:TEST_ACME_BRAND_GAP", Kind: descriptor.OntologyEdgeFollowUp}
+	if !slices.Contains(p.Ontology().Edges, want) {
+		t.Errorf("instance ontology lacks %+v", want)
 	}
 }
 

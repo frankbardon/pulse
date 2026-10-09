@@ -276,6 +276,41 @@ type ErrorsLookupOut struct {
 	Results []perr.LookupResult `json:"results" jsonschema:"Matching error-code metadata records"`
 }
 
+// RecommendIn is the input contract for pulse_recommend. Cohort is a
+// path (pulse_inspect's convention), lifted onto
+// descriptor.RecommendRequest's cohort by the handler; every other
+// slot is the request's own.
+type RecommendIn struct {
+	Intent string   `json:"intent" jsonschema:"Intent ID naming the kind of question (the intents skill lists every ID). An unknown ID is PULSE_RECOMMEND_INTENT_UNKNOWN; its details.valid lists the IDs."`
+	Cohort string   `json:"cohort,omitempty" jsonschema:"Path to a .pulse cohort (relative to PULSE_DATA_DIR). Set it to bind drafts to the cohort's fields and predict-validate each one; omit it for unbound placeholder skeletons."`
+	Fields []string `json:"fields,omitempty" jsonschema:"Field hints, cohort only: each names a cohort field whose kind the intent takes and pins the first role it fits. A hint that is not a field, or fits no role, is SERVICE_VALIDATION."`
+	Level  string   `json:"level,omitempty" jsonschema:"Rank operators at this level first: basic, intermediate or advanced. Omit to rank the simplest suitable operator first."`
+	Limit  int      `json:"limit,omitempty" jsonschema:"Maximum recommendations returned (default 10). truncated reports a cut; candidates_considered counts the survivors before it."`
+}
+
+// RecommendOut is the output contract for pulse_recommend.
+type RecommendOut = descriptor.RecommendResult
+
+// ExplainIn is the input contract for pulse_explain: the roots of
+// descriptor.ExplainRequest as open objects. A result root is decoded
+// with the undefined-figure rule (a null figure stays undefined, never
+// 0); a request root with plain encoding/json.
+type ExplainIn struct {
+	Request          map[string]any `json:"request,omitempty" jsonschema:"A pulse_process request body. Alone: described before it runs (predict-checked when it names a cohort). Beside response: the request that produced it."`
+	Composed         map[string]any `json:"composed,omitempty" jsonschema:"A pulse_compose request. Alone: described before it runs. Beside composed_response: the request that produced it."`
+	Chain            map[string]any `json:"chain,omitempty" jsonschema:"A pulse_process_chain request. Alone: described before it runs. Beside chain_response: the request that produced it."`
+	Facet            map[string]any `json:"facet,omitempty" jsonschema:"A pulse_facet request. Alone: described before it runs. Beside facet_result: the request that produced it."`
+	Sample           map[string]any `json:"sample,omitempty" jsonschema:"A pulse_sample request, described before it runs (never predicted)."`
+	Response         map[string]any `json:"response,omitempty" jsonschema:"A pulse_process result to read into findings, exactly as returned (null figures stay undefined)."`
+	ComposedResponse map[string]any `json:"composed_response,omitempty" jsonschema:"A pulse_compose result ({responses, overlays}) to read slot by slot."`
+	ChainResponse    map[string]any `json:"chain_response,omitempty" jsonschema:"A pulse_process_chain result to read stage by stage (its echoed normalized_request is read first)."`
+	FacetResult      map[string]any `json:"facet_result,omitempty" jsonschema:"A pulse_facet result to read field by field."`
+	Detail           string         `json:"detail,omitempty" jsonschema:"terse (default: summary, findings, steps, caveats) or full (adds narrative sentences, glossary refs, follow-ups and assumptions)."`
+}
+
+// ExplainOut is the output contract for pulse_explain.
+type ExplainOut = descriptor.ExplainResult
+
 // DedupOut is the output contract for pulse_dedup.
 type DedupOut = pulse.DedupResult
 

@@ -101,7 +101,10 @@ inferential p-values the request emits and how many no block reaches.
 `uncorrected` count at or above it is the cue to add a block. `basis` is
 `exact`, `dictionary` (assumes every dictionary entry of a category axis
 becomes a bucket, so it can over- or under-count) or `lower_bound` (an
-axis it cannot size counts as one). Only request predict reports it.
+axis it cannot size counts as one). Request predict reports it; facet
+predict counts its inferential overlays (one p-value each) and compose
+predict counts its own overlays, always as a `lower_bound`, beside each
+slot's advisories. Chain predict reports none.
 
 ## Feature profiles
 

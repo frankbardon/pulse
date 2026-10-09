@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221]
+todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249]
 branch: predict-runtime-parity
 ---
 
@@ -42,6 +42,8 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 - [ ] **#214** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A joined slot or stage derives its `return` precision-exact set from the defaults-resolved request
 - [ ] **#215** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) `finalizeMergedPartial`'s empty-partial path emits the zero-n aggregation entries the serial path emits
 - [ ] **#207** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Shard-archive cohesion compares `Nullable`: `AddShard`, `shard verify`, the `NewCohortBuilder` anchored-append pre-check and the archive reader refuse a shard whose per-field nullability differs from the canonical schema, instead of decoding it under the canonical flags
+- [ ] **#248** (7. Guided analysis › Follow-ups from U22) Bound Recommend reads a shard archive header-only: the archive path of `descx.Predict` does `io.ReadAll`, so a bound Recommend on an archive reads every shard
+- [ ] **#249** (7. Guided analysis › Follow-ups from U22) Recommend drafts every serving operator: `AGG_RATIO` (predict refuses a missing `field` the runtime ignores), `AGG_WEIGHTED_MEAN` (no weight binding), `ATTR_REG_*` and `FEAT_BUCKETIZE` (required params the manifest does not declare); see `unmappedOnFixture` in `internal/guide/bind_test.go`
 
 ## Scope
 
@@ -126,3 +128,8 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 - **Simple `Facet` has no limits pre-flight** (#225). U19 wired the `MaxEstimatedMemory` pre-flight into the rich facet path after `checkFacetFieldRefs` (`internal/service/facet_rich.go`), but `pulse.Facet(path, field)` builds no request and skips it. Route it through the same estimate (`descx.EstimateFacetMemory`) and extend `TestLimitsPredictRuntimeParity`.
 - **No predict limit findings for Compose / chain / facet** (#226). `ValidateCompose` / `ValidateChain` and the facet validator compute no `LimitFindings`; `TestLimitsPredictRuntimeParity` treats `max_compose_slots`, `max_chain_stages` and facet group counts as unknowable at predict. Add the findings (via `internal/descriptor.RequestLimitFindings`) where a facade predict surface exists or is added.
 - **Memory estimate precision** (#229). U19's model (`internal/limits/memory.go`) is records x (3 x stride + `RecordBytes(schema)`) at full schema width: calibration (`TestMemoryEstimate_Calibration`, table in `.claude/reference/predict-inspect.md`) shows 1.33x-4.94x over peak heap, worst on projected buffered runs. It also assumes at most one right match per left row, so a 1:N fan-out join can exceed the estimate (the one under-estimate). Model projection and join fan-out (e.g. from the right key dictionary) without losing the upper-bound property.
+
+## Inherited from U22
+
+- **#248** — Bound Recommend reads a shard archive header-only: the archive path of `descx.Predict` does `io.ReadAll`, so a bound Recommend on an archive reads every shard. Found in U22 (PR #331); see [U22 handed on](U22-recommend-explain.md#handed-on).
+- **#249** — Recommend drafts every serving operator: `AGG_RATIO` (predict refuses a missing `field` the runtime ignores), `AGG_WEIGHTED_MEAN` (no weight binding), `ATTR_REG_*` and `FEAT_BUCKETIZE` (required params the manifest does not declare); see `unmappedOnFixture` in `internal/guide/bind_test.go`. Found in U22 (PR #331); see [U22 handed on](U22-recommend-explain.md#handed-on).

@@ -44,6 +44,12 @@ Lowercase the operator family prefix and map through this table.
 | a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | `cohort-schema-design` (set rungs), `cohort-sharding` (archives auto-widen) |
 <!-- /feature -->
 | a plain-language question with no operator in mind | `intents` (`pulse-skill://intents`) — question kinds, then the manifest entries whose `intents` match |
+<!-- feature: capability:recommend -->
+| a question kind known, request not — `pulse_recommend` / `pulse recommend --intent ID [--cohort C --field F …]` returns ranked drafts (bound to the cohort's fields and predict-checked when given one) | `tool-recommend` |
+<!-- /feature -->
+<!-- feature: capability:explain -->
+| what a request will do, or what a result found, in plain words — `pulse_explain` / `pulse explain --request F \| --response F [--request F]` returns findings with verdicts and caveats | `tool-explain` |
+<!-- /feature -->
 | a statistical term in a result or skill | `glossary` (`pulse-skill://glossary`) |
 | `error_codes[i]` | `pulse_errors_lookup` — the tool is the surface, not a skill |
 <!-- feature: capability:joins -->

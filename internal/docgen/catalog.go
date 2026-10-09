@@ -209,8 +209,18 @@ type alternative struct {
 // alternative whose target the prune removed, or whose situation the
 // scrub empties, is dropped.
 func (g *gen) alternatives(p *descriptor.Purpose) []alternative {
+	return g.visibleAlternatives(p.NotFor)
+}
+
+// followUps returns p's follow-up list for the instance, filtered like
+// alternatives.
+func (g *gen) followUps(p *descriptor.Purpose) []alternative {
+	return g.visibleAlternatives(p.FollowUps)
+}
+
+func (g *gen) visibleAlternatives(in []descriptor.Alternative) []alternative {
 	var out []alternative
-	for _, a := range p.NotFor {
+	for _, a := range in {
 		use := strings.TrimSpace(a.Use)
 		if use == "" || g.text(use) == "" {
 			continue
@@ -383,6 +393,11 @@ func (g *gen) renderDetail(b *strings.Builder, e entry, from string) {
 			alts = append(alts, g.operatorLink(a.use, from)+" when "+sentenceEnd(a.when))
 		}
 		writeList(b, "Use something else", alts)
+		var next []string
+		for _, a := range g.followUps(p) {
+			next = append(next, g.operatorLink(a.use, from)+" when "+sentenceEnd(a.when))
+		}
+		writeList(b, "Follow up with", next)
 		var terms []string
 		for _, id := range g.glossaryTerms(p) {
 			terms = append(terms, "[`"+id+"`](../glossary.md#"+termAnchor(id)+")")

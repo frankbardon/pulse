@@ -1,0 +1,476 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "compare_groups",
+    "bound": true,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "outcome",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": 1
+          },
+          {
+            "name": "group",
+            "kinds": [
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": 1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "GROUP_CATEGORY",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. It uses region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "groups": [
+            {
+              "field": "region",
+              "type": "GROUP_CATEGORY"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the field is a number you want in bands, not one group per value",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "the field is a date and you want months or quarters",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_CATEGORY",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. It uses plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "groups": [
+            {
+              "field": "plan",
+              "type": "GROUP_CATEGORY"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the field is a number you want in bands, not one group per value",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "the field is a date and you want months or quarters",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_CATEGORY",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. It uses revenue (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "groups": [
+            {
+              "field": "revenue",
+              "type": "GROUP_CATEGORY"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the field is a number you want in bands, not one group per value",
+            "use": "GROUP_RANGE"
+          },
+          {
+            "when": "the field is a date and you want months or quarters",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_ANOVA_F",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether the average of a numeric measure differs across three or more groups. It uses revenue (f64) and region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "revenue",
+              "split_by": "region",
+              "type": "TEST_ANOVA_F"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the groups have clearly unequal spread",
+            "use": "TEST_ANOVA_WELCH"
+          },
+          {
+            "when": "the measure is heavily skewed or only ordered",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the same subjects are measured in every group",
+            "use": "TEST_ANOVA_RM"
+          },
+          {
+            "when": "there are only two groups",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "you need to know which pairs of groups differ",
+            "use": "TEST_TUKEY_HSD"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want to know which pairs of groups do",
+            "use": "TEST_TUKEY_HSD"
+          },
+          {
+            "when": "the groups are the rows of a crosstab of averages and you want every pair tested",
+            "use": "OVERLAY_PAIRWISE_WELCH_T"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_ANOVA_F",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether the average of a numeric measure differs across three or more groups. It uses revenue (f64) and plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "revenue",
+              "split_by": "plan",
+              "type": "TEST_ANOVA_F"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the groups have clearly unequal spread",
+            "use": "TEST_ANOVA_WELCH"
+          },
+          {
+            "when": "the measure is heavily skewed or only ordered",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the same subjects are measured in every group",
+            "use": "TEST_ANOVA_RM"
+          },
+          {
+            "when": "there are only two groups",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "you need to know which pairs of groups differ",
+            "use": "TEST_TUKEY_HSD"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want to know which pairs of groups do",
+            "use": "TEST_TUKEY_HSD"
+          },
+          {
+            "when": "the groups are the rows of a crosstab of averages and you want every pair tested",
+            "use": "OVERLAY_PAIRWISE_WELCH_T"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_ANOVA_F",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether the average of a numeric measure differs across three or more groups. It uses seats (u16) and region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "seats",
+              "split_by": "region",
+              "type": "TEST_ANOVA_F"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the groups have clearly unequal spread",
+            "use": "TEST_ANOVA_WELCH"
+          },
+          {
+            "when": "the measure is heavily skewed or only ordered",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the same subjects are measured in every group",
+            "use": "TEST_ANOVA_RM"
+          },
+          {
+            "when": "there are only two groups",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "you need to know which pairs of groups differ",
+            "use": "TEST_TUKEY_HSD"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want to know which pairs of groups do",
+            "use": "TEST_TUKEY_HSD"
+          },
+          {
+            "when": "the groups are the rows of a crosstab of averages and you want every pair tested",
+            "use": "OVERLAY_PAIRWISE_WELCH_T"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_ANOVA_WELCH",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. It uses revenue (f64) and region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "revenue",
+              "split_by": "region",
+              "type": "TEST_ANOVA_WELCH"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the measure is heavily skewed or only ordered",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the same subjects are measured in every group",
+            "use": "TEST_ANOVA_RM"
+          },
+          {
+            "when": "there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and set multiplicity on the request (for example holm) to adjust their p-values for multiple comparisons",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "spreads are similar and you want Tukey's pairwise follow-up",
+            "use": "TEST_ANOVA_F"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want each pair tested without assuming equal spread",
+            "use": "OVERLAY_PAIRWISE_WELCH_T"
+          },
+          {
+            "when": "the groups differ and their spreads turn out similar after all",
+            "use": "TEST_TUKEY_HSD"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_ANOVA_WELCH",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. It uses revenue (f64) and plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "revenue",
+              "split_by": "plan",
+              "type": "TEST_ANOVA_WELCH"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the measure is heavily skewed or only ordered",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the same subjects are measured in every group",
+            "use": "TEST_ANOVA_RM"
+          },
+          {
+            "when": "there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and set multiplicity on the request (for example holm) to adjust their p-values for multiple comparisons",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "spreads are similar and you want Tukey's pairwise follow-up",
+            "use": "TEST_ANOVA_F"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want each pair tested without assuming equal spread",
+            "use": "OVERLAY_PAIRWISE_WELCH_T"
+          },
+          {
+            "when": "the groups differ and their spreads turn out similar after all",
+            "use": "TEST_TUKEY_HSD"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_ANOVA_WELCH",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. It uses seats (u16) and region (categorical_u8, 4 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "field": "seats",
+              "split_by": "region",
+              "type": "TEST_ANOVA_WELCH"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the measure is heavily skewed or only ordered",
+            "use": "TEST_KRUSKAL_WALLIS"
+          },
+          {
+            "when": "the same subjects are measured in every group",
+            "use": "TEST_ANOVA_RM"
+          },
+          {
+            "when": "there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and set multiplicity on the request (for example holm) to adjust their p-values for multiple comparisons",
+            "use": "TEST_WELCH"
+          },
+          {
+            "when": "spreads are similar and you want Tukey's pairwise follow-up",
+            "use": "TEST_ANOVA_F"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the groups differ and you want each pair tested without assuming equal spread",
+            "use": "OVERLAY_PAIRWISE_WELCH_T"
+          },
+          {
+            "when": "the groups differ and their spreads turn out similar after all",
+            "use": "TEST_TUKEY_HSD"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_CHISQ",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses region (categorical_u8, 4 groups) and plan (categorical_u8, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "cols": "plan",
+              "rows": "region",
+              "type": "TEST_CHISQ"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the table is 2x2 and some expected counts are small",
+            "use": "TEST_FISHER_EXACT"
+          },
+          {
+            "when": "you compare a yes/no rate between exactly two groups and want a confidence interval",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "both fields are numeric",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you compare one subgroup's mix with the whole population",
+            "use": "OVERLAY_CHISQ_VS_POP"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the table shows an association and you want to see which cells drive it",
+            "use": "OVERLAY_FISHER_EXACT_CELL"
+          },
+          {
+            "when": "you want to see which rows depart from the overall column mix",
+            "use": "OVERLAY_CHISQ_ROW"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 57
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: ebd67e5752f6d7cd08228c996e2dc4ee6fccdd332feb5f2bc8bb92965654e143

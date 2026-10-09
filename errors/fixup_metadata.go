@@ -655,6 +655,75 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: {
+		Message: "A two-sample test splits its field by a grouping with more than two groups, but it compares exactly two; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Tests", "*", "Type"},
+				Hint:   "Use the many-group comparison named in details.suggested, or filter split_by down to the two groups you mean to compare.",
+			},
+		},
+	},
+	PULSE_ADVISORY_MANY_TESTS: {
+		Message: "The request emits many uncorrected p-values and names no multiplicity block, so some may fall below alpha by chance alone; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Multiplicity"},
+				Hint:     "Merge details.suggested into the request — a multiplicity block such as {\"method\": \"holm\"} — to add adjusted p-values beside the raw ones.",
+				Examples: []any{map[string]any{"multiplicity": map[string]any{"method": "holm"}}},
+			},
+		},
+	},
+	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC: {
+		Message: "A mean-family aggregator or parametric test treats a field as a quantity, but the cohort's SPSS metadata records it as nominal, so its codes are labels; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Hint:   "Count the codes instead — use the operator named in details.suggested, or group by the field — unless the codes really are quantities and the SPSS measure level is out of date.",
+			},
+		},
+	},
+	PULSE_ADVISORY_ORDINAL_PARAMETRIC: {
+		Message: "A parametric test treats a field as evenly spaced, but the cohort's SPSS metadata records it as ordinal, so its levels are ordered without a known spacing; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Tests", "*", "Type"},
+				Hint:   "Use the rank-based test named in details.suggested, which reads only the order of the levels.",
+			},
+		},
+	},
+	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: {
+		Message: "The cohort's SPSS metadata records a weighting variable, but no slot resolves a weight, so every row counts once; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Weight"},
+				Hint:     "Merge details.suggested into the request — a weight block naming the SPSS weighting variable — to weight every weight-aware slot; leave it out when unweighted figures are what you want.",
+				Examples: []any{map[string]any{"weight": map[string]any{"field": "WT"}}},
+			},
+		},
+	},
+	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
+		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Hint:   "Drop the code or correct its spelling; details.valid lists every advisory code this build registers.",
+			},
+		},
+	},
+	PULSE_RECOMMEND_INTENT_UNKNOWN: {
+		Message: "Recommend was asked for an intent that is not in the intent taxonomy.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Set intent to one of: benchmark, change_over_time, compare_groups, composition, data_quality, describe, distribution_shape, drivers, flows, lookup, measure_construct, prepare, relationship, segment, simulate; details.valid lists them.",
+			},
+		},
+	},
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN: {
 		Message: "A synth spec referenced a distribution kind not registered in the synth package.",
 		Fixups: []Fixup{

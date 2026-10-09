@@ -1,0 +1,420 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "change_over_time",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "time",
+            "kinds": [
+              "date"
+            ],
+            "min": 1,
+            "max": 1
+          },
+          {
+            "name": "measure",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "bool"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "WIN_DELTA",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_DELTA"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the change relative to the earlier value",
+            "use": "WIN_PCT_CHANGE"
+          },
+          {
+            "when": "you want each period's change from the one before as a decoration on the result",
+            "use": "OVERLAY_DELTA_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LAG",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds to every row the value of a field from a set number of rows earlier in the ordered series, such as last month's sales. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_LAG"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the difference from the earlier row, not its value",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the value from a later row",
+            "use": "WIN_LEAD"
+          },
+          {
+            "when": "you want each period against the period before it as an index",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LEAD",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds to every row the value of a field from a set number of rows later in the ordered series, such as next month's sales. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_LEAD"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the value from an earlier row",
+            "use": "WIN_LAG"
+          },
+          {
+            "when": "you want how much the field changed between rows",
+            "use": "WIN_DELTA"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_MOVING_AVG",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds a moving average: the mean of a field over a fixed number of neighbouring rows, smoothing short-term swings in a series. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_MOVING_AVG"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the average of everything up to this row",
+            "use": "WIN_RUNNING_AVG"
+          },
+          {
+            "when": "you want recent rows to count more than older ones",
+            "use": "WIN_EWMA"
+          },
+          {
+            "when": "you want each period against its recent average",
+            "use": "OVERLAY_INDEX_VS_ROLLING_MEAN"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_PCT_CHANGE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the change from a set number of rows earlier as a fraction of the earlier value: 0.05 is a 5% rise on last month. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_PCT_CHANGE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "the earlier value can be 0, near 0 or negative, or the field is itself a percentage",
+            "use": "WIN_DELTA"
+          },
+          {
+            "when": "you want the same year-ago period as the comparison",
+            "use": "OVERLAY_YOY"
+          },
+          {
+            "when": "you want each period as an index value against the one before",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_RUNNING_AVG",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds the average of a field over the rows so far in the ordered series, such as the average order value to date. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_RUNNING_AVG"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the average of a fixed number of recent rows",
+            "use": "WIN_MOVING_AVG"
+          },
+          {
+            "when": "you want one average per group, not a running one",
+            "use": "AGG_AVERAGE"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_RUNNING_SUM",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds a running total of a field down the ordered rows, such as revenue for the year to date. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_RUNNING_SUM"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want one total per group, not a running one",
+            "use": "AGG_SUM"
+          },
+          {
+            "when": "you want the running average instead of the total",
+            "use": "WIN_RUNNING_AVG"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_DATE_PART",
+        "category": "attribute",
+        "level": "basic",
+        "why": "Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "part": "\u003cpart\u003e"
+              },
+              "type": "ATTR_DATE_PART"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "part"
+        ],
+        "alternatives": [
+          {
+            "when": "you only want rows grouped by day, week, month or year",
+            "use": "GROUP_DATE"
+          },
+          {
+            "when": "you want several calendar columns at once, including weekday",
+            "use": "FEAT_DATE_FEATURES"
+          }
+        ]
+      },
+      {
+        "operator": "FEAT_DATE_FEATURES",
+        "category": "feature",
+        "level": "basic",
+        "why": "Splits a date into year, month, day, day of week and quarter columns, so each part can be filtered, grouped or modelled. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "features": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "FEAT_DATE_FEATURES"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you need just one part of the date",
+            "use": "ATTR_DATE_PART"
+          },
+          {
+            "when": "you want results grouped by day, month or year",
+            "use": "GROUP_DATE"
+          }
+        ]
+      },
+      {
+        "operator": "GROUP_DATE",
+        "category": "grouper",
+        "level": "basic",
+        "why": "Splits the rows by calendar period of a date, such as month, quarter, ISO week or weekday, to see a measure over time. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "GROUP_DATE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "your periods are custom, such as campaign windows",
+            "use": "GROUP_DATE_RANGES"
+          },
+          {
+            "when": "you want each period against the one before it",
+            "use": "OVERLAY_INDEX_VS_PRIOR"
+          },
+          {
+            "when": "you want a running total down the periods",
+            "use": "WIN_RUNNING_SUM"
+          }
+        ]
+      }
+    ],
+    "truncated": true,
+    "candidates_considered": 17
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 9e397bcf0b4b2b5bffe7c7f21a3a9db28268d43e33ea0647878e35d97d945e59

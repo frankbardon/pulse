@@ -623,6 +623,9 @@ func apiPredictCmd() *cli.Command {
 			for _, w := range env.Warnings {
 				writeText(cmd.Writer, "Warning [%s]: %s\n", w.Code, w.Message)
 			}
+			for _, a := range result.Advisories {
+				writeText(cmd.Writer, "Advisory [%s]: %s\n", a.Code, a.Message)
+			}
 
 			if !result.Valid {
 				return fmt.Errorf("validation failed")

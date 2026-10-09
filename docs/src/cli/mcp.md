@@ -209,7 +209,7 @@ or `mcpserve.Options{DisableCohortScan: true}`; both default to scanning.
 
 Restart the client. The Pulse tools (`pulse_manifest`, `pulse_inspect`,
 `pulse_predict`, `pulse_process`, `pulse_compose`, `pulse_sample`,
-`pulse_facet`, `pulse_import`, `pulse_dedup`, `pulse_drop`, `pulse_imports_list`,
+`pulse_facet`, `pulse_import`, `pulse_dedup`, `pulse_recommend`, `pulse_explain`, `pulse_drop`, `pulse_imports_list`,
 `pulse_examples_search`, `pulse_examples_get`, `pulse_errors_lookup`,
 `pulse_skills_list`, `pulse_skills_get`) and resources
 (`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource

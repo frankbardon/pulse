@@ -121,7 +121,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 81,
+    "error_codes_count": 82,
     "error_domains": [
       "CLI",
       "DATA",
@@ -206,6 +206,7 @@
       "PULSE_SHARD_HEADER_INVALID",
       "PULSE_SHARD_MISSING",
       "PULSE_SHARD_RESERVED_NAME",
+      "PULSE_SUPPRESS_ADVISORY_UNKNOWN",
       "PULSE_TEST_UNKNOWN_TYPE",
       "PULSE_TIMEZONE_UNKNOWN",
       "SERVICE_INTERNAL",
@@ -409,6 +410,10 @@
       {
         "name": "overlay-system",
         "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics."
+      },
+      {
+        "name": "predict-advisories",
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "regression-modeling",
@@ -740,4 +745,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3e22a360abe325245245714f8b4a57428a5bbe931ffdd4bbc0a7744b48c804ae
+// golden-hash: ae0789e2c8fa64ac1bba07b16533336afd792720470d70410e87b3da59977a81

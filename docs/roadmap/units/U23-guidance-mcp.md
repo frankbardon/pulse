@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U22]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [95, 96, 97, 98, 99]
+todo_items: [95, 96, 97, 98, 99, 246, 247]
 branch: guidance-mcp
 ---
 
@@ -34,6 +34,8 @@ One MCP prompt per intent (extending `pulse-bootstrap` / `pulse-author-request`)
 - [ ] **#97** (7. Guided analysis — docs, API & MCP › G5 — MCP guidance layer) `pulse_skills_list {intent}`
 - [ ] **#98** (7. Guided analysis — docs, API & MCP › G5 — MCP guidance layer) Intent-scoped manifest (`pulse_manifest {intent}`)
 - [ ] **#99** (7. Guided analysis — docs, API & MCP › G5 — MCP guidance layer) MCP tool descriptions lead with when to call the tool
+- [ ] **#246** (7. Guided analysis › Follow-ups from U22) Compose and Facet predict get a direct facade, CLI and MCP entry (today their advisories reach callers only through Explain and bound Recommend; `PredictOptions.SidecarLoader` is wired from the Explain facade only)
+- [ ] **#247** (7. Guided analysis › Follow-ups from U22) The MCP core reflector (`internal/mcp/schema.go`) describes `json.RawMessage` as an open object, not a byte array (operator `params`, `pulse_recommend`'s `recommendations[].request`); harmless while output schemas stay unmounted
 
 ## Scope
 
@@ -83,3 +85,8 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-mcp/E<n>
 ## Human inputs & decisions
 
 - None.
+
+## Inherited from U22
+
+- **#246** — Compose and Facet predict get a direct facade, CLI and MCP entry (today their advisories reach callers only through Explain and bound Recommend; `PredictOptions.SidecarLoader` is wired from the Explain facade only). Found in U22 (PR #331); see [U22 handed on](U22-recommend-explain.md#handed-on).
+- **#247** — The MCP core reflector (`internal/mcp/schema.go`) describes `json.RawMessage` as an open object, not a byte array (operator `params`, `pulse_recommend`'s `recommendations[].request`); harmless while output schemas stay unmounted. Found in U22 (PR #331); see [U22 handed on](U22-recommend-explain.md#handed-on).

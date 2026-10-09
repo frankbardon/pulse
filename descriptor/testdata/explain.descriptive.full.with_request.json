@@ -1,0 +1,47 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "response",
+    "detail": "full",
+    "summary": "This response reports 2 aggregations across 2 groups from 96 of 100 records.",
+    "findings": [
+      {
+        "slot": "aggregations[0]",
+        "subject": "total",
+        "operator": "AGG_SUM",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 90,
+          "n_null": 4
+        }
+      },
+      {
+        "slot": "aggregations[1]",
+        "subject": "avg_score",
+        "operator": "AGG_AVERAGE",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 88,
+          "n_null": 6
+        }
+      }
+    ],
+    "sentences": [
+      "This response reports 2 aggregations across 2 groups from 96 of 100 records.",
+      "Aggregation 1 `total` runs AGG_SUM on `revenue`. Total of a numeric field, over all rows or per group. It read 90 rows and left out 4 with no value.",
+      "Aggregation 2 `avg_score` runs AGG_AVERAGE on `score`. Average of a numeric field, over all rows or per group. It read 88 rows and left out 6 with no value.",
+      "The run read 100 records; 96 passed the filters and 0 were left out for a missing value."
+    ],
+    "glossary_refs": [
+      "missing-value",
+      "mean",
+      "median",
+      "outlier",
+      "skew"
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 2f9eb1f1a1f80bd847f6e4a373750c57a8ec5f1b6624a11ede4c93e6843a777f

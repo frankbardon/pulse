@@ -60,7 +60,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(vector-metrics-ag
 
 ## Acceptance criteria
 
-- [ ] Raw cosine on a `kind: scale` vector warns, naming the suggested metric
+- [ ] Raw cosine on a `kind: scale` vector warns, naming the suggested metric; this is `PULSE_ADVISORY_COSINE_ON_SCALE`, moved here from [U22](U22-recommend-explain.md) because it needs `kind: scale` vectors, and it rides the predict `advisories[]` slot (the `predict-advisories` skill pattern, suppressible through `Options.SuppressAdvisories`)
 - [ ] Vector aggregators merge exactly (streaming/shards)
 - [ ] `expand: true` yields per-element columns
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))

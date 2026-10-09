@@ -321,15 +321,20 @@ func cohortSchemaFor(c *types.Cohort, opts *PredictOptions) *encoding.Schema {
 	if c == nil || opts == nil || opts.SchemaLoader == nil {
 		return nil
 	}
-	path := c.Filename
-	if c.DataDir != "" {
-		path = c.DataDir + "/" + c.Filename
-	}
-	schema, err := opts.SchemaLoader(path)
+	schema, err := opts.SchemaLoader(cohortPathFor(c))
 	if err != nil {
 		return nil
 	}
 	return schema
+}
+
+// cohortPathFor is the path a Compose slot's cohort resolves to, joined
+// the way the runtime joins it (Cohort.DataDir + "/" + Cohort.Filename).
+func cohortPathFor(c *types.Cohort) string {
+	if c.DataDir != "" {
+		return c.DataDir + "/" + c.Filename
+	}
+	return c.Filename
 }
 
 // zoneCapableOperators is the zone-capable set in the order the

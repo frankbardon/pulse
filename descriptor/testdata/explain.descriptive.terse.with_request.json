@@ -1,0 +1,34 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "response",
+    "root": "response",
+    "detail": "terse",
+    "summary": "This response reports 2 aggregations across 2 groups from 96 of 100 records.",
+    "findings": [
+      {
+        "slot": "aggregations[0]",
+        "subject": "total",
+        "operator": "AGG_SUM",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 90,
+          "n_null": 4
+        }
+      },
+      {
+        "slot": "aggregations[1]",
+        "subject": "avg_score",
+        "operator": "AGG_AVERAGE",
+        "verdict": "descriptive",
+        "numbers": {
+          "n": 88,
+          "n_null": 6
+        }
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: b6b158ee8a0cf408af561440dbf357027209af8f79df9c4a051ce82ac62b4d29

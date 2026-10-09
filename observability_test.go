@@ -284,6 +284,16 @@ var uninstrumentedMethods = map[string]bool{
 	"ResolveCanonicalSchema": true, "ApplySeriesOverlays": true, "InvalidatedSidecars": true,
 	"Watch": true, "WatchWithOptions": true, "WatchDir": true, "WatchDirWithOptions": true,
 	"ExportReference": true,
+
+	// Recommend is guidance, not an operation: unbound renders in-memory
+	// guidance; bound reads a cohort's header, schema and sidecar and
+	// runs its draft predicts in-process, firing no predict operation.
+	// The OperationKind list stays as the U20 interview locked it.
+	"Recommend": true,
+	// Explain is guidance too: it describes a request from in-memory
+	// guidance and, over a cohort, in-process predicts that fire no
+	// predict operation.
+	"Explain": true,
 }
 
 // TestObservedMethodsCoverSurface guards against a missed method: every

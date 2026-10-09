@@ -131,10 +131,14 @@ if [ "$PUSH" -eq 1 ]; then
 fi
 
 git -C "$WT" add -- $(for m in $MODULES; do printf '%s/go.mod %s/go.sum ' "$m" "$m"; done)
-git -C "$WT" \
-	-c user.name="${GIT_AUTHOR_NAME:-github-actions[bot]}" \
-	-c user.email="${GIT_AUTHOR_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}" \
-	commit --quiet --allow-empty -m "release: contrib modules require $ROOT_MODULE $TAG"
+# One identity for the release commit AND the annotated tags: a CI runner
+# has no git config, and `git tag -a` needs a tagger as much as `commit`
+# needs an author.
+GIT_ID=(
+	-c "user.name=${GIT_AUTHOR_NAME:-github-actions[bot]}"
+	-c "user.email=${GIT_AUTHOR_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
+)
+git -C "$WT" "${GIT_ID[@]}" commit --quiet --allow-empty -m "release: contrib modules require $ROOT_MODULE $TAG"
 RELEASE_SHA="$(git -C "$WT" rev-parse HEAD)"
 
 echo
@@ -157,7 +161,7 @@ fi
 
 refs=""
 for m in $MODULES; do
-	git tag -a "$m/$TAG" -m "$m $TAG (lockstep with $TAG)" "$RELEASE_SHA"
+	git "${GIT_ID[@]}" tag -a "$m/$TAG" -m "$m $TAG (lockstep with $TAG)" "$RELEASE_SHA"
 	refs="$refs refs/tags/$m/$TAG"
 done
 # shellcheck disable=SC2086

@@ -1,0 +1,392 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "intent": "data_quality",
+    "bound": false,
+    "shapes": [
+      {
+        "roles": [
+          {
+            "name": "fields",
+            "kinds": [
+              "numeric",
+              "categorical",
+              "date",
+              "bool",
+              "set"
+            ],
+            "min": 1,
+            "max": -1
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "operator": "AGG_DISTINCT_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Number of different values a field takes, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_DISTINCT_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many rows there are, not how many different values",
+            "use": "AGG_COUNT"
+          },
+          {
+            "when": "you want how many rows hold each value: group by the field, then count",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "the field is a multi-select and each combination is the unit",
+            "use": "AGG_SET_DISTINCT_VALUES"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MAX",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Largest value of a numeric or date field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MAX"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the smallest value",
+            "use": "AGG_MIN"
+          },
+          {
+            "when": "one extreme row would mislead and you want a high value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MIN",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Smallest value of a numeric or date field, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_MIN"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the largest value",
+            "use": "AGG_MAX"
+          },
+          {
+            "when": "one extreme row would mislead and you want a low value that ignores it",
+            "use": "AGG_PERCENTILE"
+          },
+          {
+            "when": "you want the distance between smallest and largest",
+            "use": "AGG_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_NULL_COUNT",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Number of rows where a field has no value, over all rows or per group. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "AGG_NULL_COUNT"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the rows that do have a value",
+            "use": "AGG_COUNT"
+          },
+          {
+            "when": "you want to keep or drop the rows with no value",
+            "use": "FILTER_NULL"
+          }
+        ]
+      },
+      {
+        "operator": "FILTER_EXCLUDE",
+        "category": "filterer",
+        "level": "basic",
+        "why": "Drops the rows whose field holds one of the listed values and keeps the rest, such as removing test accounts. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "filterers": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "FILTER_EXCLUDE",
+              "values": [
+                "\u003cvalues\u003e"
+              ]
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "values"
+        ],
+        "alternatives": [
+          {
+            "when": "you want to keep only the listed values",
+            "use": "FILTER_INCLUDE"
+          },
+          {
+            "when": "you want to drop the rows where the field is missing",
+            "use": "FILTER_NULL"
+          },
+          {
+            "when": "the field is a multi-select answer",
+            "use": "FILTER_SET_CONTAINS_NONE"
+          }
+        ]
+      },
+      {
+        "operator": "FILTER_NULL",
+        "category": "filterer",
+        "level": "basic",
+        "why": "Keeps either the rows where a field is missing or the rows where it is present, to find gaps or set them aside. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "filterers": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "FILTER_NULL",
+              "values": [
+                "\u003cvalues\u003e"
+              ]
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "values"
+        ],
+        "alternatives": [
+          {
+            "when": "you only want to count the missing values, not filter on them",
+            "use": "AGG_NULL_COUNT"
+          },
+          {
+            "when": "you want to drop particular values, not missing ones",
+            "use": "FILTER_EXCLUDE"
+          }
+        ]
+      },
+      {
+        "operator": "FILTER_RANGE",
+        "category": "filterer",
+        "level": "basic",
+        "why": "Keeps only the rows whose number lies between a low and a high limit, both limits included. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "filterers": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "FILTER_RANGE",
+              "values": [
+                "\u003cvalues\u003e"
+              ]
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "values"
+        ],
+        "alternatives": [
+          {
+            "when": "you need an open limit, such as strictly above a value",
+            "use": "FILTER_EXPRESSION"
+          },
+          {
+            "when": "the field is a date and you want named periods",
+            "use": "FILTER_DATE_RANGES"
+          },
+          {
+            "when": "you want to split the values into bands rather than keep one",
+            "use": "GROUP_RANGE"
+          }
+        ]
+      },
+      {
+        "operator": "FILTER_EXPRESSION",
+        "category": "filterer",
+        "level": "intermediate",
+        "why": "Keeps the rows for which a written yes-or-no condition is true, for rules the other filters cannot state, such as two fields together. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "filterers": [
+            {
+              "expression": "\u003cexpression\u003e",
+              "type": "FILTER_EXPRESSION"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "expression"
+        ],
+        "alternatives": [
+          {
+            "when": "you only need to keep a list of values",
+            "use": "FILTER_INCLUDE"
+          },
+          {
+            "when": "you only need a low and a high limit",
+            "use": "FILTER_RANGE"
+          },
+          {
+            "when": "you only need rows where a field is or is not missing",
+            "use": "FILTER_NULL"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_REG_LEVERAGE",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "ATTR_REG_LEVERAGE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want rows the model predicts badly",
+            "use": "ATTR_REG_RESIDUAL"
+          },
+          {
+            "when": "you want the model itself",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_REG_RESIDUAL",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "type": "ATTR_REG_RESIDUAL"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the model's summary (coefficients, R-squared)",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want how unusual each row's predictor values are",
+            "use": "ATTR_REG_LEVERAGE"
+          },
+          {
+            "when": "you want how far a value is from the mean, with no model",
+            "use": "ATTR_ZSCORE"
+          }
+        ]
+      }
+    ],
+    "truncated": false,
+    "candidates_considered": 10
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: fe9e3a36336fc95416ad6174088c1267c987e67042904efe1cac8c03a841945e
