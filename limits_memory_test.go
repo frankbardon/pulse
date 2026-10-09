@@ -137,7 +137,7 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 			if res.Valid || fmt.Sprint(res.LimitFindings) != fmt.Sprint(want) {
 				t.Fatalf("Predict valid=%v findings=%+v, want false %+v", res.Valid, res.LimitFindings, want)
 			}
-			out, err := mcp.HandlePredict(ctx, p, *c.req())
+			out, err := mcp.HandlePredict(ctx, p, mcp.PredictIn{Request: *c.req()})
 			if err != nil {
 				t.Fatal(err)
 			}

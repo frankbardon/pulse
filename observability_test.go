@@ -161,7 +161,24 @@ func obsCalls() []obsCall {
 			_, err := p.PredictBytes(ctx, []byte("x"), obsRequest())
 			return err
 		}},
+		{"PredictCompose", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			_, err := p.PredictCompose(ctx, &ComposedRequest{Requests: []*Request{obsRequest()}})
+			return err
+		}},
+		{"PredictFacet", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			_, err := p.PredictFacet(ctx, &FacetRequest{Cohort: &types.Cohort{Filename: obsCohort}, Fields: []string{"region"}})
+			return err
+		}},
+		{"PredictChain", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			r := obsRequest()
+			_, err := p.PredictChain(ctx, &ChainRequest{Cohort: r.Cohort, Stages: []*ChainStage{{Request: r}}})
+			return err
+		}},
 		{"Manifest", observe.OpManifest, func(ctx context.Context, p *Pulse) error { p.Manifest(ctx); return nil }},
+		{"ManifestForIntent", observe.OpManifest, func(ctx context.Context, p *Pulse) error {
+			_, err := p.ManifestForIntent(ctx, "compare_groups")
+			return err
+		}},
 		{"PayloadSchema", observe.OpPayloadSchema, func(ctx context.Context, p *Pulse) error { _, err := p.PayloadSchema(); return err }},
 		{"Import", observe.OpImport, func(ctx context.Context, p *Pulse) error {
 			_, err := p.Import(ctx, pio.NewImportJob(newMockReader([]string{"a"}, [][]string{{"1"}}), "imported.pulse"))
@@ -275,9 +292,9 @@ func obsCalls() []obsCall {
 // follow-ups. A new exported method must land in obsCalls or here, so a
 // method can never silently skip instrumentation.
 var uninstrumentedMethods = map[string]bool{
-	"Ontology": true, "Skills": true, "Skill": true, "ListTemplates": true, "GetTemplate": true,
+	"Ontology": true, "Skills": true, "SkillsForIntent": true, "Skill": true, "ListTemplates": true, "GetTemplate": true,
 	"Limits": true, "LabelTables": true, "RangeTables": true, "ErrorLookup": true,
-	"ErrorsByDomain": true, "ErrorsSearch": true, "ExamplesSearch": true, "ExampleGet": true,
+	"ErrorsByDomain": true, "ErrorsSearch": true, "ExamplesSearch": true, "ExamplesSearchWith": true, "ExampleGet": true,
 	"FeatureProfile": true, "FeatureSetDigest": true, "Fs": true, "ResolveLabel": true,
 
 	"CohortArtifacts": true, "NewCohortBuilder": true, "Imports": true, "ResolveImport": true,

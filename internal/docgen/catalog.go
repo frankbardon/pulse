@@ -373,6 +373,11 @@ func (g *gen) renderDetail(b *strings.Builder, e entry, from string) {
 			b.WriteString(string(p.Level))
 			b.WriteString("\n")
 		}
+		if len(p.KnownAs) > 0 {
+			b.WriteString("\n**Also known as:** ")
+			b.WriteString(knownAsLine(p.KnownAs))
+			b.WriteString("\n")
+		}
 		writeList(b, "Questions it answers", g.questions(p))
 		var cases []string
 		for _, d := range useCaseDomains(p.UseCases) {
@@ -415,6 +420,18 @@ func (g *gen) renderDetail(b *strings.Builder, e entry, from string) {
 		b.WriteString(skillPath(stem))
 		b.WriteString(")\n")
 	}
+}
+
+// knownAsLine renders a Purpose's aliases in declaration order, each
+// as inline code so a spelling like "chisq.test" reads verbatim.
+func knownAsLine(aliases []string) string {
+	parts := make([]string, 0, len(aliases))
+	for _, a := range aliases {
+		if a = strings.TrimSpace(a); a != "" {
+			parts = append(parts, "`"+a+"`")
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // writeList renders a bold-labelled bullet list; nothing when items is

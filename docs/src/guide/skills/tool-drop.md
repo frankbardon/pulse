@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-Manually evict a managed-import handle from the pool — e.g. cleaning up after a one-off analysis, or freeing a name for re-import. Sidecar `expired=true` entries can stay until swept; `pulse_drop` is the explicit eviction.
+CALL TO DELETE A MANAGED IMPORT YOU NO LONGER NEED.
+Cleaning up after a one-off analysis, or freeing a name for re-import. Sidecar `expired=true` entries can stay until swept; `pulse_drop` is the explicit eviction.
 
 ## Input
 

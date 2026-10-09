@@ -174,6 +174,18 @@
     "OVERLAY_Z_VS_REF",
     "mcp_extra:cohort_resources",
     "mcp_extra:prompt_bootstrap",
-    "mcp_extra:prompt_author_request"
+    "mcp_extra:prompt_author_request",
+    "mcp_extra:prompt_describe",
+    "mcp_extra:prompt_compare_groups",
+    "mcp_extra:prompt_relationship",
+    "mcp_extra:prompt_drivers",
+    "mcp_extra:prompt_change_over_time",
+    "mcp_extra:prompt_composition",
+    "mcp_extra:prompt_benchmark",
+    "mcp_extra:prompt_distribution_shape",
+    "mcp_extra:prompt_segment",
+    "mcp_extra:prompt_measure_construct",
+    "mcp_extra:prompt_flows",
+    "mcp_extra:prompt_data_quality"
   ]
 }

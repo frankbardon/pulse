@@ -61,14 +61,47 @@ func HandleInspect(ctx context.Context, p *pulse.Pulse, in InspectIn) (InspectOu
 	return InspectOut{InspectResult: *res, Warnings: env.Warnings}, nil
 }
 
-// HandlePredict runs pulse_predict: no-execute request validation.
+// HandlePredict runs pulse_predict: no-execute validation of a bare
+// request, or of the one alternative root (composed / facet / chain)
+// the decode accepted. An alternative root's verdict rides under its
+// own key beside the envelope's coded errors and warnings; a returned
+// error is the facade's own (a nil request or cohort, an unreadable
+// cohort), passed through verbatim so its code survives.
 func HandlePredict(ctx context.Context, p *pulse.Pulse, in PredictIn) (PredictOut, error) {
-	req := in
-	res, err := p.Predict(ctx, &req)
+	var (
+		env *descriptor.Envelope
+		err error
+	)
+	switch {
+	case in.Composed != nil:
+		env, err = p.PredictCompose(ctx, in.Composed)
+	case in.Facet != nil:
+		env, err = p.PredictFacet(ctx, in.Facet)
+	case in.Chain != nil:
+		env, err = p.PredictChain(ctx, in.Chain)
+	default:
+		req := in.Request
+		res, perr := p.Predict(ctx, &req)
+		if perr != nil {
+			return PredictOut{}, perr
+		}
+		return PredictOut{PredictResult: res}, nil
+	}
 	if err != nil {
 		return PredictOut{}, err
 	}
-	return *res, nil
+	out := PredictOut{Errors: env.Errors, Warnings: env.Warnings}
+	switch d := env.Data.(type) {
+	case *pulse.ComposePredictResult:
+		out.Composed = d
+	case *pulse.FacetPredictResult:
+		out.Facet = d
+	case *pulse.ChainPredictResult:
+		out.Chain = d
+	default:
+		return PredictOut{}, errors.New("pulse: predict returned unexpected type")
+	}
+	return out, nil
 }
 
 // HandleProcess runs pulse_process: the buffered aggregation pipeline.
@@ -164,8 +197,20 @@ func HandleLookup(ctx context.Context, p *pulse.Pulse, in LookupIn) (LookupOut, 
 // HandleManifest runs pulse_manifest: the slim bootstrap blob. Prose
 // descriptions live in skills and are fetched via pulse_skills_get;
 // duplicating them in the per-session bootstrap is the bloat --slim avoids.
-func HandleManifest(ctx context.Context, p *pulse.Pulse, _ ManifestIn) (ManifestOut, error) {
-	slim := descx.SlimManifest(p.Manifest(ctx))
+// With an intent it is the slim form of p.ManifestForIntent; an unknown or
+// hidden intent is the coded PULSE_RECOMMEND_INTENT_UNKNOWN.
+func HandleManifest(ctx context.Context, p *pulse.Pulse, in ManifestIn) (ManifestOut, error) {
+	var full *descriptor.Manifest
+	if in.Intent == "" {
+		full = p.Manifest(ctx)
+	} else {
+		scoped, err := p.ManifestForIntent(ctx, in.Intent)
+		if err != nil {
+			return ManifestOut{}, err
+		}
+		full = scoped
+	}
+	slim := descx.SlimManifest(full)
 	if slim == nil {
 		return ManifestOut{}, nil
 	}
@@ -173,9 +218,19 @@ func HandleManifest(ctx context.Context, p *pulse.Pulse, _ ManifestIn) (Manifest
 }
 
 // HandleSkillsList runs pulse_skills_list: the embedded skill-pack index
-// as the instance sees it — the facade's p.Skills().
-func HandleSkillsList(_ context.Context, p *pulse.Pulse, _ SkillsListIn) (SkillsListOut, error) {
-	return SkillsListOut{Skills: p.Skills()}, nil
+// as the instance sees it — the facade's p.Skills(), unchanged when no
+// intent is given. With an intent it is p.SkillsForIntent's ranked
+// list; an unknown or hidden intent is the coded
+// PULSE_RECOMMEND_INTENT_UNKNOWN.
+func HandleSkillsList(_ context.Context, p *pulse.Pulse, in SkillsListIn) (SkillsListOut, error) {
+	if in.Intent == "" {
+		return SkillsListOut{Skills: p.Skills()}, nil
+	}
+	list, err := p.SkillsForIntent(in.Intent)
+	if err != nil {
+		return SkillsListOut{}, err
+	}
+	return SkillsListOut{Skills: list}, nil
 }
 
 // HandleSkillsGet runs pulse_skills_get: the markdown body of one skill.
@@ -192,10 +247,16 @@ func HandleSkillsGet(_ context.Context, p *pulse.Pulse, in SkillsGetIn) (SkillsG
 	return SkillsGetOut{Body: body}, nil
 }
 
-// HandleExamplesSearch runs pulse_examples_search. All three filters are
-// optional and ANDed.
+// HandleExamplesSearch runs pulse_examples_search. All four filters are
+// optional and ANDed; an unknown or hidden intent is the coded
+// PULSE_RECOMMEND_INTENT_UNKNOWN.
 func HandleExamplesSearch(_ context.Context, p *pulse.Pulse, in ExamplesSearchIn) (ExamplesSearchOut, error) {
-	results := p.ExamplesSearch(in.Query, in.Tags, in.Category)
+	results, err := p.ExamplesSearchWith(pulse.ExamplesQuery{
+		Query: in.Query, Tags: in.Tags, Category: in.Category, Intent: in.Intent,
+	})
+	if err != nil {
+		return ExamplesSearchOut{}, err
+	}
 	if results == nil {
 		results = []pulse.ExampleSummary{}
 	}

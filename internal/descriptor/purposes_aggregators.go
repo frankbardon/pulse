@@ -53,6 +53,7 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 var (
 	purposeAggAverage = descriptor.Purpose{
 		Plain:   "Average of a numeric field, over all rows or per group.",
+		KnownAs: []string{"mean", "arithmetic mean"},
 		Intents: []string{IntentDescribe},
 		Questions: []string{
 			"What is the average order value?",
@@ -528,6 +529,7 @@ var (
 var (
 	purposeAggStdDev = descriptor.Purpose{
 		Plain:   "Typical distance of a numeric field's values from their average, in the field's own units, over all rows or per group.",
+		KnownAs: []string{"standard deviation", "sd"},
 		Intents: []string{IntentDescribe, IntentDistributionShape},
 		Questions: []string{
 			"How much do delivery times vary around the average in each region?",

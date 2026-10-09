@@ -48,6 +48,21 @@ pulse: type BuildIndexResult underlying struct
 pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
 pulse: type BuildIndexResult field IndexPath string
 pulse: type BuildIndexResult field ManifestPath string
+pulse: type ChainOverlaySchemaDivergence = pulse/internal/descriptor.ChainOverlaySchemaDivergence
+pulse: type ChainOverlaySchemaDivergence underlying struct
+pulse: type ChainOverlaySchemaDivergence field Index int "json:\"index\""
+pulse: type ChainOverlaySchemaDivergence field Kind pulse/types.OverlayKind "json:\"kind\""
+pulse: type ChainOverlaySchemaDivergence field RefIndex int "json:\"ref_index\""
+pulse: type ChainOverlaySchemaDivergence field RefShape pulse/types.OverlayShape "json:\"ref_shape\""
+pulse: type ChainOverlaySchemaDivergence field TargetIndex int "json:\"target_index\""
+pulse: type ChainOverlaySchemaDivergence field TargetShape pulse/types.OverlayShape "json:\"target_shape\""
+pulse: type ChainPredictResult = pulse/internal/descriptor.ChainValidationResult
+pulse: type ChainPredictResult underlying struct
+pulse: type ChainPredictResult field OverlaysSchemaDivergence []pulse/internal/descriptor.ChainOverlaySchemaDivergence "json:\"overlays_schema_divergence,omitempty\""
+pulse: type ChainPredictResult field Request *pulse/types.ChainRequest "json:\"request\""
+pulse: type ChainPredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
+pulse: type ChainPredictResult field StageSchemas [][]string "json:\"stage_schemas,omitempty\""
+pulse: type ChainPredictResult field Valid bool "json:\"valid\""
 pulse: type ChainRequest = pulse/types.ChainRequest
 pulse: type ChainRequest underlying struct
 pulse: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\""
@@ -123,6 +138,14 @@ pulse: type ComposeOptions underlying struct
 pulse: type ComposeOptions field FailFast bool
 pulse: type ComposeOptions field MaxWorkers int
 pulse: type ComposeOptions field PerRequestTimeout time.Duration
+pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationResult
+pulse: type ComposePredictResult underlying struct
+pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
+pulse: type ComposePredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
+pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
+pulse: type ComposePredictResult field Request *pulse/types.ComposedRequest "json:\"request\""
+pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
@@ -208,6 +231,7 @@ pulse: type Example underlying struct
 pulse: type Example field Body encoding/json.RawMessage "json:\"body\""
 pulse: type Example field Category string "json:\"category\""
 pulse: type Example field Description string "json:\"description\""
+pulse: type Example field Intents []string "json:\"intents,omitempty\""
 pulse: type Example field Name string "json:\"name\""
 pulse: type Example field Operators []string "json:\"operators\""
 pulse: type Example field Tags []string "json:\"tags\""
@@ -217,9 +241,16 @@ pulse: type ExampleSummary = pulse/internal/examples.ExampleSummary
 pulse: type ExampleSummary underlying struct
 pulse: type ExampleSummary field Category string "json:\"category\""
 pulse: type ExampleSummary field Description string "json:\"description\""
+pulse: type ExampleSummary field Intents []string "json:\"intents,omitempty\""
 pulse: type ExampleSummary field Name string "json:\"name\""
 pulse: type ExampleSummary field Operators []string "json:\"operators\""
 pulse: type ExampleSummary field Tags []string "json:\"tags\""
+pulse: type ExamplesQuery = pulse/internal/examples.Query
+pulse: type ExamplesQuery underlying struct
+pulse: type ExamplesQuery field Category string "json:\"category,omitempty\""
+pulse: type ExamplesQuery field Intent string "json:\"intent,omitempty\""
+pulse: type ExamplesQuery field Query string "json:\"query,omitempty\""
+pulse: type ExamplesQuery field Tags []string "json:\"tags,omitempty\""
 pulse: type ExportReferenceOptions struct
 pulse: type ExportReferenceOptions field OmitSkills bool
 pulse: type ExprFunction struct
@@ -272,6 +303,15 @@ pulse: type FacetNumeric field Min float64 "json:\"min\""
 pulse: type FacetNumeric field Percentiles map[string]float64 "json:\"percentiles,omitempty\""
 pulse: type FacetNumeric field StdDev float64 "json:\"stddev\""
 pulse: type FacetNumeric field Sum float64 "json:\"sum\""
+pulse: type FacetPredictResult = pulse/internal/descriptor.FacetValidationResult
+pulse: type FacetPredictResult underlying struct
+pulse: type FacetPredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type FacetPredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
+pulse: type FacetPredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
+pulse: type FacetPredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
+pulse: type FacetPredictResult field Request *pulse/types.FacetRequest "json:\"request\""
+pulse: type FacetPredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
+pulse: type FacetPredictResult field Valid bool "json:\"valid\""
 pulse: type FacetRequest = pulse/types.FacetRequest
 pulse: type FacetRequest underlying struct
 pulse: type FacetRequest field AdditiveFields []string "json:\"additive_fields,omitempty\""
@@ -656,6 +696,7 @@ pulse: type Pulse method (*Pulse) ErrorsByDomain(domain string) []pulse.ErrorMet
 pulse: type Pulse method (*Pulse) ErrorsSearch(query string) []pulse.ErrorMetadata
 pulse: type Pulse method (*Pulse) ExampleGet(name string) (*pulse.Example, bool)
 pulse: type Pulse method (*Pulse) ExamplesSearch(query string, tags []string, category string) []pulse.ExampleSummary
+pulse: type Pulse method (*Pulse) ExamplesSearchWith(q pulse.ExamplesQuery) ([]pulse.ExampleSummary, error)
 pulse: type Pulse method (*Pulse) Explain(ctx context.Context, req pulse/descriptor.ExplainRequest) (*pulse/descriptor.ExplainResult, error)
 pulse: type Pulse method (*Pulse) Export(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.ExportReport, error)
 pulse: type Pulse method (*Pulse) ExportReference(fsys github.com/spf13/afero.Fs, dir string, opts pulse.ExportReferenceOptions) error
@@ -685,12 +726,16 @@ pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath st
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
 pulse: type Pulse method (*Pulse) Manifest(ctx context.Context) *pulse/descriptor.Manifest
+pulse: type Pulse method (*Pulse) ManifestForIntent(ctx context.Context, intent string) (*pulse/descriptor.Manifest, error)
 pulse: type Pulse method (*Pulse) NewCohortBuilder(ctx context.Context, target string, schema pulse/encoding.Schema, opts pulse.CohortBuilderOptions) (*pulse.CohortBuilder, error)
 pulse: type Pulse method (*Pulse) Ontology() pulse/descriptor.Ontology
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
 pulse: type Pulse method (*Pulse) PayloadSchema() ([]byte, error)
 pulse: type Pulse method (*Pulse) Predict(ctx context.Context, req *pulse.Request) (*pulse/descriptor.PredictResult, error)
 pulse: type Pulse method (*Pulse) PredictBytes(ctx context.Context, data []byte, req *pulse.Request) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictChain(ctx context.Context, req *pulse.ChainRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictCompose(ctx context.Context, req *pulse.ComposedRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictFacet(ctx context.Context, req *pulse.FacetRequest) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Request) (*pulse.Response, error)
 pulse: type Pulse method (*Pulse) ProcessChain(ctx context.Context, req *pulse.ChainRequest) (*pulse.ChainResponse, error)
 pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.Request) (pulse.RowIter, error)
@@ -709,6 +754,7 @@ pulse: type Pulse method (*Pulse) Sample(ctx context.Context, path string, n int
 pulse: type Pulse method (*Pulse) SampleWithRequest(ctx context.Context, req *pulse.SampleRequest) (*pulse.SampleResult, error)
 pulse: type Pulse method (*Pulse) Skill(name string) (string, bool)
 pulse: type Pulse method (*Pulse) Skills() []pulse.SkillMetadata
+pulse: type Pulse method (*Pulse) SkillsForIntent(intent string) ([]pulse.SkillMetadata, error)
 pulse: type Pulse method (*Pulse) SweepImports(ctx context.Context) ([]string, error)
 pulse: type Pulse method (*Pulse) Synth(ctx context.Context, spec *pulse.SynthSpec, output string, opts pulse.SynthOptions) (*pulse.SynthResult, error)
 pulse: type Pulse method (*Pulse) SynthStream(ctx context.Context, spec *pulse.SynthSpec, opts pulse.SynthOptions) (pulse.StreamResult[pulse.Row], error)
@@ -1365,6 +1411,7 @@ pulse/descriptor: type Manifest field Commands []pulse/descriptor.Command "json:
 pulse/descriptor: type Manifest field Components pulse/descriptor.Components "json:\"components\""
 pulse/descriptor: type Manifest field ComponentsSchemas pulse/descriptor.ComponentsSchemasBlock "json:\"components_schemas\""
 pulse/descriptor: type Manifest field Crosstab *pulse/descriptor.CrosstabCapability "json:\"crosstab,omitempty\""
+pulse/descriptor: type Manifest field Elided []string "json:\"elided,omitempty\""
 pulse/descriptor: type Manifest field ErrorCodes []string "json:\"error_codes\""
 pulse/descriptor: type Manifest field ErrorCodesCount int "json:\"error_codes_count\""
 pulse/descriptor: type Manifest field ErrorDomains []string "json:\"error_domains\""
@@ -1391,10 +1438,14 @@ pulse/descriptor: type Manifest field ProcessChain *pulse/descriptor.ProcessChai
 pulse/descriptor: type Manifest field PulseVersion string "json:\"pulse_version\""
 pulse/descriptor: type Manifest field Regressions []pulse/descriptor.RegressionMeta "json:\"regressions\""
 pulse/descriptor: type Manifest field ReturnPresets []pulse/descriptor.ReturnPresetMeta "json:\"return_presets\""
+pulse/descriptor: type Manifest field Scope *pulse/descriptor.ManifestScope "json:\"scope,omitempty\""
 pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:\"skills\""
 pulse/descriptor: type Manifest field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
 pulse/descriptor: type Manifest field TZDataVersion string "json:\"tzdata_version\""
 pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"tests\""
+pulse/descriptor: type Manifest method (Manifest) MarshalJSON() ([]byte, error)
+pulse/descriptor: type ManifestScope struct
+pulse/descriptor: type ManifestScope field Intent pulse/descriptor.Intent "json:\"intent\""
 pulse/descriptor: type MatrixCapability struct
 pulse/descriptor: type MatrixCapability field DefaultEncoding string "json:\"default_encoding\""
 pulse/descriptor: type MatrixCapability field Encodings []string "json:\"encodings\""
@@ -1586,6 +1637,7 @@ pulse/descriptor: type Purpose field Assumptions []string "json:\"assumptions,om
 pulse/descriptor: type Purpose field FollowUps []pulse/descriptor.Alternative "json:\"follow_ups,omitempty\""
 pulse/descriptor: type Purpose field Glossary []string "json:\"glossary,omitempty\""
 pulse/descriptor: type Purpose field Intents []string "json:\"intents\""
+pulse/descriptor: type Purpose field KnownAs []string "json:\"known_as,omitempty\""
 pulse/descriptor: type Purpose field Level pulse/descriptor.Level "json:\"level,omitempty\""
 pulse/descriptor: type Purpose field NotFor []pulse/descriptor.Alternative "json:\"not_for,omitempty\""
 pulse/descriptor: type Purpose field Plain string "json:\"plain\""
@@ -1675,6 +1727,7 @@ pulse/descriptor: type Role field Max int "json:\"max\""
 pulse/descriptor: type Role field Min int "json:\"min\""
 pulse/descriptor: type Role field Name string "json:\"name\""
 pulse/descriptor: const RoleUnbounded untyped int = -1
+pulse/descriptor: func ScopedManifestElidedKeys() []string
 pulse/descriptor: type Shape struct
 pulse/descriptor: type Shape field Roles []pulse/descriptor.Role "json:\"roles\""
 pulse/descriptor: type ShardInfo struct
@@ -2842,7 +2895,7 @@ pulse/mcp/gosdk: type Config field BindOnInspect bool
 pulse/mcp/gosdk: type Config field DefaultReturn pulse/types.ReturnPreset
 pulse/mcp/gosdk: type Config field DisableCohortScan bool
 pulse/mcp/gosdk: type Config field Version string
-pulse/mcp/gosdk: const DescPromptAuthorRequest untyped string = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
+pulse/mcp/gosdk: const DescPromptAuthorRequest untyped string = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. First classifies the question by intent and hands it to the matching per-intent prompt or tool this server mounts; otherwise produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
 pulse/mcp/gosdk: const DescPromptBootstrap untyped string = "Inject the Pulse session-bootstrap instructions into the conversation. Tells the assistant which tools to call (and in what order) before authoring any request, and where the authoritative request-shape references live. Useful when starting a fresh session against a Pulse MCP server."
 pulse/mcp/gosdk: const PromptAuthorRequest untyped string = "pulse-author-request"
 pulse/mcp/gosdk: const PromptBootstrap untyped string = "pulse-bootstrap"
@@ -4487,4 +4540,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8eb3b9a8be59b1ec391056df64d15e34c8eb17e2b78a97771fe0c4e95ed622cb
+// golden-hash: bd768a506f569a7c0f5c20b1e95f2e156b62b7e288aeb519113c91d485f317b1

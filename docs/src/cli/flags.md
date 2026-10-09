@@ -20,8 +20,9 @@ Available on the bare `pulse` invocation:
 |---|---|
 | `--json` | Print the root manifest as JSON (envelope-wrapped) |
 | `--slim` | With `--json`, drop prose descriptions for size-sensitive clients |
+| `--intent ID` | With `--json`, scope the manifest to one intent-taxonomy ID (e.g. `compare_groups`): only the operators serving it and its skills, the fixed sections dropped and listed in `elided`. An unknown ID is a `PULSE_RECOMMEND_INTENT_UNKNOWN` error envelope |
 
-Both default to off. `pulse --json` is the discovery entry point — it
+All default to off. `pulse --json` is the discovery entry point — it
 emits the manifest documented at [`pulse manifest`](manifest.md).
 
 Persistent on **every** leaf (accepted before or after the leaf name):
@@ -501,6 +502,9 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse api facet` | Distinct values for a field, or a rich multi-field summary | [api facet](api-facet.md) |
 | `pulse api lookup` | Key-exact row read against a prebuilt sidecar index | [api lookup](api-lookup.md) |
 | `pulse api predict` | Validate a request against a cohort without executing | [api predict](api-predict.md) |
+| `pulse api predict-chain` | Validate a process-chain request without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
+| `pulse api predict-compose` | Validate a Compose batch without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
+| `pulse api predict-facet` | Validate a facet request without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
 | `pulse api process` | Execute a processing request against a cohort | [api process](api-process.md) |
 | `pulse api process-chain` | Source-rooted linear chain of mergeable stages | [api process](api-process.md) |
 | `pulse api sample` | Return sample rows from a cohort | [api sample](api-sample.md) |

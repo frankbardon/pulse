@@ -721,10 +721,10 @@ func TestHandleInspect_SuggestsTheSPSSWeight(t *testing.T) {
 		if has != tc.want {
 			t.Errorf("%s: pulse_inspect suggested_weight present=%v, want %v: %s", tc.name, has, tc.want, body)
 		}
-		pred, err := HandlePredict(ctx, tc.p, PredictIn{
+		pred, err := HandlePredict(ctx, tc.p, PredictIn{Request: types.Request{
 			Cohort:       &types.Cohort{Filename: imp.Path},
 			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "ID", Label: "n"}},
-		})
+		}})
 		if err != nil {
 			t.Fatalf("%s: HandlePredict: %v", tc.name, err)
 		}

@@ -73,6 +73,7 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `InspectBytes(ctx, data, opts) (*Envelope, error)` | Inspect an in-memory cohort (single file or shard archive); envelope returned whole, warnings included |
 | `Predict(ctx, req) (*PredictResult, error)` | Validate a request without executing |
 | `PredictBytes(ctx, data, req) (*Envelope, error)` | Validate a request against an in-memory cohort; the extension snapshot, `Options.Strict` and `Options.EchoRequest` come from the instance |
+| `PredictCompose(ctx, req)` / `PredictFacet(ctx, req)` / `PredictChain(ctx, req)` `(*Envelope, error)` | Validate a Compose batch, facet request or ProcessChain without executing it; the whole envelope comes back, `Data` a `*ComposePredictResult` / `*FacetPredictResult` / `*ChainPredictResult` with each refusal a coded `Errors` entry |
 | `CohortArtifacts(ctx, cohort) ([]string, error)` | Every existing Pulse-owned sidecar of a cohort (`.<keyhash>.idx`, `.indexes.json`, `.spss.json`, `.meta.json`), sorted — what must move with it (keep the cohort's mtime: both sidecars fingerprint it) |
 | `Sample(ctx, path, n) ([]Record, error)` | Up to n rows |
 | `Facet(ctx, path, field) ([]string, error)` | Distinct values of a field |

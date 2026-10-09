@@ -262,7 +262,13 @@ func TestRegister_CanonicalListsIgnoreFeatureProfile(t *testing.T) {
 	if got := gosdk.RegisteredTools(); !slices.Equal(got, toolmeta.Names()) {
 		t.Errorf("RegisteredTools = %v, want toolmeta.Names()", got)
 	}
-	if got := gosdk.RegisteredPrompts(); !slices.Equal(got, []string{gosdk.PromptBootstrap, gosdk.PromptAuthorRequest}) {
+	wantPrompts := []string{
+		gosdk.PromptBootstrap, gosdk.PromptAuthorRequest,
+		"pulse-describe", "pulse-compare-groups", "pulse-relationship", "pulse-drivers",
+		"pulse-change-over-time", "pulse-composition", "pulse-benchmark", "pulse-distribution-shape",
+		"pulse-segment", "pulse-measure-construct", "pulse-flows", "pulse-data-quality",
+	}
+	if got := gosdk.RegisteredPrompts(); !slices.Equal(got, wantPrompts) {
 		t.Errorf("RegisteredPrompts = %v", got)
 	}
 }

@@ -226,17 +226,30 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#94** Explain goldens per operator family; Recommend goldens per intent · [U22](units/U22-recommend-explain.md)
 
 #### Follow-ups from U22
-- [ ] **#246** Compose and Facet predict get a direct facade, CLI and MCP entry (today their advisories reach callers only through Explain and bound Recommend; `PredictOptions.SidecarLoader` is wired from the Explain facade only) · [U23](units/U23-guidance-mcp.md)
-- [ ] **#247** The MCP core reflector (`internal/mcp/schema.go`) describes `json.RawMessage` as an open object, not a byte array (operator `params`, `pulse_recommend`'s `recommendations[].request`); harmless while output schemas stay unmounted · [U23](units/U23-guidance-mcp.md)
+- [x] **#246** Compose and Facet predict get a direct facade, CLI and MCP entry (today their advisories reach callers only through Explain and bound Recommend; `PredictOptions.SidecarLoader` is wired from the Explain facade only) · [U23](units/U23-guidance-mcp.md)
+- [x] **#247** The MCP core reflector (`internal/mcp/schema.go`) rendered `json.RawMessage` as a byte array (operator `params`, `pulse_recommend`'s `recommendations[].request`); it now renders any-JSON · [U23](units/U23-guidance-mcp.md)
 - [ ] **#248** Bound Recommend reads a shard archive header-only: the archive path of `descx.Predict` does `io.ReadAll`, so a bound Recommend on an archive reads every shard · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#249** Recommend drafts every serving operator: `AGG_RATIO` (predict refuses a missing `field` the runtime ignores), `AGG_WEIGHTED_MEAN` (no weight binding), `ATTR_REG_*` and `FEAT_BUCKETIZE` (required params the manifest does not declare); see `unmappedOnFixture` in `internal/guide/bind_test.go` · [U35](units/U35-predict-runtime-parity.md)
 
 ### G5 — MCP guidance layer
-- [ ] **#95** One MCP prompt per intent (extending `pulse-bootstrap` / `pulse-author-request`), plus the prompt gate · [U23](units/U23-guidance-mcp.md)
-- [ ] **#96** `pulse_examples_search {intent}` and question search; synonym table · [U23](units/U23-guidance-mcp.md)
-- [ ] **#97** `pulse_skills_list {intent}` · [U23](units/U23-guidance-mcp.md)
-- [ ] **#98** Intent-scoped manifest (`pulse_manifest {intent}`) · [U23](units/U23-guidance-mcp.md)
-- [ ] **#99** MCP tool descriptions lead with when to call the tool · [U23](units/U23-guidance-mcp.md)
+- [x] **#95** One MCP prompt per intent (extending `pulse-bootstrap` / `pulse-author-request`), plus the prompt gate · [U23](units/U23-guidance-mcp.md)
+- [x] **#96** `pulse_examples_search {intent}` and question search; synonym table · [U23](units/U23-guidance-mcp.md)
+- [x] **#97** `pulse_skills_list {intent}` · [U23](units/U23-guidance-mcp.md)
+- [x] **#98** Intent-scoped manifest (`pulse_manifest {intent}`) · [U23](units/U23-guidance-mcp.md)
+- [x] **#99** MCP tool descriptions lead with when to call the tool · [U23](units/U23-guidance-mcp.md)
+
+#### Follow-ups from U23
+- [ ] **#250** Fuzzy (typo-tolerant) search over examples and skills: a final `matchTier` after the literal and `KnownAs`/Sound tiers (the seam in `internal/examples/search.go`), edit distance scaled by length, ranked below exact and synonym hits · [U31](units/U31-guidance-guides.md)
+- [ ] **#251** Align the story-example metadata spelling: #102 says `_meta.intent`, examples carry `_meta.intents` (a list); pick one and make the item text, the harness and the docs agree · [U31](units/U31-guidance-guides.md)
+- [ ] **#252** `pulse examples search` has no `--intent` flag (the MCP tool and the facade `ExamplesSearchWith` take one); add it and a `docs/src/cli/flags.md` row · [U31](units/U31-guidance-guides.md)
+- [ ] **#253** Compose predict does not judge slot operators by name: an unknown or hidden operator in a Compose slot predicts valid, so the Explain doc's "predicts each slot" claim is inaccurate until per-slot predict runs · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#254** Chain predict does not validate stage label bindings · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#255** `PredictCompose` / `PredictFacet` / `PredictChain` and `pulse api predict-compose` / `-facet` / `-chain` ignore Strict and EchoRequest (the validators read neither); wire them, then add `--strict` / `--echo-request` · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#256** Bare MCP `pulse_predict` returns no `errors` / `warnings`, so `valid: false` carries no reason (the alternative roots do carry them); additive fix · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#257** `pulse_predict` description keeps the generic "send exactly one alternative root alone" sentence on profiles hiding compose, facet and process_chain (the per-root sentences are scrubbed) · [U32](units/U32-docs-audit.md)
+- [ ] **#258** `MAT_RELIABILITY` (Cronbach's alpha) needs `Purpose.KnownAs` aliases ("cronbach's alpha") when the operator lands, so the U23 synonym tier finds it · [U24](units/U24-matrix-operators.md)
+- [ ] **#259** The engine accepts `weight` on a facet overlay and silently ignores it (facets are never weighted); refuse it · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#260** Bound `joins` field-name enums in the MCP input schemas cover only the left cohort; right-side and joined field names fall outside them (the description says so, predict resolves them); widen the enums from the join target's schema · [U35](units/U35-predict-runtime-parity.md)
 
 ### G6 — Guides
 - [ ] **#100** "What can Pulse answer?" landing page · [U31](units/U31-guidance-guides.md)
@@ -363,7 +376,7 @@ Theme documents: see the [roadmap index](README.md).
 
 - [ ] **#159** Documentation inventory and coverage matrix: every public API symbol, CLI leaf and flag, MCP tool / prompt / resource, operator, field type, error code, env var, `Options` field and request/response slot, mapped to where it is documented · [U32](units/U32-docs-audit.md)
 - [ ] **#160** Automated checks in CI: link checker, runnable-snippet test, CLI help ↔ `flags.md` parity, GoDoc `Example*` functions for the public facade, removed-name scan · [U32](units/U32-docs-audit.md)
-- [ ] **#161** `TestSkillTokenBudget` flipped from soft to hard-failing, with every skill within budget (known overrun: `session-bootstrap.md`) · [U32](units/U32-docs-audit.md)
+- [ ] **#161** `TestSkillTokenBudget` flipped from soft to hard-failing, with every skill within budget (known overrun: `session-bootstrap.md`, now 5,999 of 6,000 bytes after U23's `intent` routing, so the next addition must displace text) · [U32](units/U32-docs-audit.md)
 - [ ] **#162** Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/` · [U32](units/U32-docs-audit.md)
 - [ ] **#163** Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary · [U32](units/U32-docs-audit.md)
 - [ ] **#164** Getting Started rewritten for v1 (install from GitHub Releases → first cohort → first analysis → first MCP session) and a single embedder guide (profiles, limits, observability, response shaping) · [U32](units/U32-docs-audit.md)

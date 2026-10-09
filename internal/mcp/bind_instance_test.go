@@ -101,7 +101,13 @@ func TestBindForInstance_EnumsCarryOnlyEnabledNames(t *testing.T) {
 	for _, f := range schema.Fields {
 		literals[f.Name] = true
 	}
-	for _, l := range []string{"none", "row", "column", "total", "matrix", "long", "replace", "augment", "probability", "frequency"} {
+	for _, l := range []string{"none", "row", "column", "total", "matrix", "long", "replace", "augment", "probability", "frequency",
+		// Fixed per-slot vocabularies: regression / regression-attribute
+		// settings and the window frame mode.
+		"l1", "l2", "elasticnet", "binomial", "poisson", "gamma", "jackknife", "bootstrap", "forward", "backward", "stepwise", "aic", "bic", "rows"} {
+		literals[l] = true
+	}
+	for _, l := range slices.Concat(stringSlice(types.AllReturnPresets()), stringSlice(types.AllMatrixEncodings()), stringSlice(types.AllVectorCoerces())) {
 		literals[l] = true
 	}
 	for _, tc := range []struct {
@@ -264,6 +270,16 @@ func TestBindForInstance_ProfileFreeByteIdentical(t *testing.T) {
 	req := decodeBoundRequest(t, want[toolmeta.ToolProcess])
 	if got := enumOf(req, "aggregations", "type"); len(got) != len(types.AllAggregationTypes()) {
 		t.Errorf("profile-free aggregations enum has %d names, want %d", len(got), len(types.AllAggregationTypes()))
+	}
+	// …and every multiplicity block (E5-S1): the profile-free bodies
+	// moved deliberately to carry them, on both binders alike.
+	for tool, paths := range multiplicityPaths {
+		root := decodeBoundRequest(t, want[tool])
+		for _, p := range paths {
+			if schemaAt(root, p) == nil {
+				t.Errorf("profile-free %s: unscoped binder lacks %s", tool, p)
+			}
+		}
 	}
 }
 

@@ -59,6 +59,11 @@ const (
 	// PurposeRuleJargonUnlinked: every jargon term whose Form appears in
 	// Plain is listed in Glossary.
 	PurposeRuleJargonUnlinked PurposeRule = "jargon_unlinked"
+	// PurposeRuleKnownAs: every KnownAs alias is non-empty, at most
+	// KnownAsMax characters, listed once and distinct from every intent
+	// Sound (folded with FoldAlias). Across operators each alias is
+	// unique too (KnownAsCollisions; at pulse.New for extensions).
+	PurposeRuleKnownAs PurposeRule = "known_as"
 )
 
 // PurposeViolation is one broken validity rule on one Purpose.
@@ -179,6 +184,9 @@ func ValidatePurpose(name string, p descriptor.Purpose, resolve PurposeResolver)
 		}
 		seenIntent[id] = true
 	}
+
+	// Aliases.
+	out = append(out, knownAsViolations(name, p.KnownAs)...)
 
 	// Glossary links.
 	linked := map[string]bool{}

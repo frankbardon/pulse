@@ -1,6 +1,7 @@
 package skills_test
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,6 +27,71 @@ func TestSkillsCoverAllMCPTools(t *testing.T) {
 			t.Errorf("MCP tool %q: missing atomic skill skills/%s.md", name, stem)
 		}
 	}
+}
+
+// TestToolDescriptionsLeadWithWhenToUse ties every MCP tool's description
+// lead to its skill: the first line of the tool skill's `## When to use`
+// section is ONE `CALL …` trigger sentence, and the toolmeta description
+// opens with exactly that sentence. An agent choosing a tool from the
+// tool list reads when to call it first, in the same words the skill uses.
+// The lead carries no fence (it is served whole on every instance) and no
+// internal sentence break (it is one sentence, so "first sentence" is
+// unambiguous).
+func TestToolDescriptionsLeadWithWhenToUse(t *testing.T) {
+	for _, m := range toolmeta.Meta() {
+		stem := "tool-" + strings.ReplaceAll(strings.TrimPrefix(m.Name, "pulse_"), "_", "-")
+		lead, err := whenToUseLead(stem)
+		if err != nil {
+			t.Errorf("%s: %v", m.Name, err)
+			continue
+		}
+		switch {
+		case !strings.HasPrefix(lead, "CALL "):
+			t.Errorf("%s: skills/%s.md `## When to use` first line must open with \"CALL \": %q", m.Name, stem, lead)
+		case !strings.HasSuffix(lead, "."):
+			t.Errorf("%s: skills/%s.md `## When to use` first line must be one sentence ending in \".\": %q", m.Name, stem, lead)
+		case strings.Contains(strings.TrimSuffix(lead, "."), ". "):
+			t.Errorf("%s: skills/%s.md `## When to use` first line must be ONE sentence; put the rest on the next line: %q", m.Name, stem, lead)
+		case strings.Contains(lead, "<!--"):
+			t.Errorf("%s: skills/%s.md `## When to use` first line must carry no feature fence: %q", m.Name, stem, lead)
+		}
+		rest, ok := strings.CutPrefix(m.Description, lead)
+		if !ok || (rest != "" && rest[0] != ' ' && rest[0] != '\n') {
+			t.Errorf("%s: toolmeta description must open with the skill's when-to-use sentence %q; got %q", m.Name, lead, firstChars(m.Description, len(lead)+20))
+		}
+	}
+}
+
+// whenToUseLead returns the first non-blank line under a skill's
+// `## When to use` heading, read from the raw embedded body.
+func whenToUseLead(stem string) (string, error) {
+	raw, ok := skills.Raw(stem)
+	if !ok {
+		return "", fmt.Errorf("missing skill %s", stem)
+	}
+	lines := strings.Split(skills.StripFrontmatter(raw), "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) != "## When to use" {
+			continue
+		}
+		for _, next := range lines[i+1:] {
+			if strings.HasPrefix(next, "## ") {
+				break
+			}
+			if s := strings.TrimSpace(next); s != "" {
+				return s, nil
+			}
+		}
+		return "", fmt.Errorf("skills/%s.md `## When to use` is empty", stem)
+	}
+	return "", fmt.Errorf("skills/%s.md has no `## When to use` section", stem)
+}
+
+func firstChars(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 // TestMCPToolMentionsAreRegistered is the reverse direction: every

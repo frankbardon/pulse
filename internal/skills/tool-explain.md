@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-Before running a request, to confirm what it does; after, to read the result without re-deriving verdicts from p-values. CLI twin: `pulse explain --request F | --response F [--request F] [--root R] [--detail full] [--json]`.
+CALL TO SAY IN PLAIN WORDS WHAT A REQUEST WILL DO, OR WHAT A RESULT FOUND — instead of reading p-values yourself.
+CLI twin: `pulse explain --request F | --response F [--request F] [--root R] [--detail full] [--json]`.
 
 ## Input
 
@@ -24,7 +25,7 @@ Exactly ONE root, as an object:
 
 ## Gotchas
 
-- **Relay `caveats`; never drop them** — uncorrected p-values, alpha assumed for a regression, a partial reading.
+- **Relay `caveats`; never drop them** — uncorrected p-values, an assumed alpha, a partial reading.
 - A `no_evidence_of_*` verdict is not evidence of none; say "no evidence of a difference", never "no difference".
 - Pass results unedited: a `null` figure is undefined and reads `not_computable`.
 - Without the request companion an aggregation is described by count only.

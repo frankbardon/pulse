@@ -262,7 +262,7 @@ Restart the host. Pulse tools appear in the tool list.
 | `pulse://<path>` | One per `.pulse` file under the data directory. Read returns `descriptor.InspectResult` JSON. |
 | `pulse-skill://<name>` | One per embedded skill. Read returns the markdown body. |
 
-Two prompts (`pulse-bootstrap`, `pulse-author-request`) are registered for hosts that surface them as slash commands.
+Prompts `pulse-bootstrap` and `pulse-author-request`, plus one guided `pulse-<intent>` prompt per analytic intent (inspect → recommend → confirm → process → explain), are registered for hosts that surface them as slash commands.
 
 ### Recommended session flow
 

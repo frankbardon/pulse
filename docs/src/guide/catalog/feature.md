@@ -161,6 +161,8 @@ Turns a category field into one 0/1 column per category, so a model or a sum can
 
 **Level:** basic
 
+**Also known as:** `dummy coding`, `dummy variables`
+
 **Questions it answers:**
 
 - How do I feed region into a regression as separate yes/no predictors?

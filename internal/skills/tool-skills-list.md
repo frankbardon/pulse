@@ -8,15 +8,16 @@ applies_to: mcp
 
 ## When to use
 
-Discover available skills before authoring a request when you need domain guidance for a less common operator, or as part of session bootstrap to enumerate the skill catalog. Pair with `pulse_skills_get` to fetch a specific skill's markdown body.
+CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST.
+Domain guidance for a less common operator, or session bootstrap. Knowing the kind of question, pass `intent`. Pair with `pulse_skills_get` to fetch a specific skill's markdown body.
 
 ## Input
 
-No arguments.
+`intent` (optional): an ID from the `intents` skill (`compare_groups`). Given, only that intent's skills, ranked: `intents`, design skills covering its operators, then their `op-*` skills basic to advanced. Unknown: `PULSE_RECOMMEND_INTENT_UNKNOWN`, `details.valid` lists the accepted IDs.
 
 ## Output
 
-`descriptor.Envelope` wrapping `[]internal/skills.Metadata`. Each entry carries `Name`, `Description`, `Type` (`guide` | `reference`), `AppliesTo` (CLI leaves), `Kind` (`operator` | `tool` | `type` | `design`), `Category` (operator family, when applicable), `Operator` (full constant, when atomic), `Covers` (for design skills), `ExamplesTags`. Sorted by `Name`.
+`{skills: [...]}`, each entry `name`, `description`, `type`, `applies_to`, `kind` (`operator` | `tool` | `type` | `design` | `reference`), `category`, `operator` (atomic), `covers` (design), `examples_tags`. Sorted by name, or ranked when `intent` is set.
 
 ## Gotchas
 

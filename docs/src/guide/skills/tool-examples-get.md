@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-After `pulse_examples_search` identifies a matching template. Returns the full record including a runnable `body` with the `_meta` annotation block already stripped — hand it straight to `pulse_predict` or `pulse_process` after renaming fields for the target cohort.
+CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY.
+The full record's `body` has the `_meta` annotation block already stripped — hand it straight to `pulse_predict` or `pulse_process` after renaming fields for the target cohort.
 
 ## Input
 

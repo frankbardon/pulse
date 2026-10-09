@@ -903,6 +903,7 @@ pulse.AggregatorRegistration{
         Plain:     "Composite brand health score for a set of respondents.",
         Intents:   []string{"measure_construct"},
         Questions: []string{"How healthy is our brand this wave?", "Which segment rates it highest?"},
+        KnownAs:   []string{"brand health index", "BHI"},
         UseCases:  map[descriptor.Domain]string{descriptor.DomainSurvey: "Brand tracker across waves."},
         NotFor:    []descriptor.Alternative{{When: "you need one rating's plain average", Use: "AGG_AVERAGE"}},
         Level:     descriptor.LevelIntermediate,
@@ -923,7 +924,13 @@ has run) whose entries follow the same `When` / `Use` rules as `NotFor`
 and land in `p.Ontology()` as `follow_up` edges;
 `UseCases` keyed by `survey` / `ops` / `science` / `harness`; `Level`
 one of `basic` / `intermediate` / `advanced`; `Glossary` IDs from
-`pulse.Glossary()`, listing every jargon term `Plain` uses. An
+`pulse.Glossary()`, listing every jargon term `Plain` uses; an
+optional `KnownAs` list of the names analysts already use for the
+operator (an SPSS, R or textbook spelling — only a real alias, never a
+paraphrase), each non-empty, at most 48 characters, listed once, not
+the same as any intent's example phrasing (`Intent.Sounds`), and —
+compared case-insensitively with whitespace collapsed — not already
+declared by a built-in or an earlier extension. An
 `Interpretation` is checked for **structure only** — path syntax,
 `Means` or a known `Shared` rule set, `Bands` with a `Convention`,
 `Sign` keys `+` / `-` — since an extension declares no output keys to
@@ -938,7 +945,11 @@ as the extension entry's `intents` list; the prose never rides a
 default payload. An absent Purpose projects no `intents` key and leaves
 the operator out of guidance coverage. The extensions snapshot carries
 the validated Purpose and Interpretation for later surfaces, and an
-extension a feature profile hides drops its guidance with it.
+extension a feature profile hides drops its guidance with it. `KnownAs`
+aliases are identifiers, not prose: they never reach the manifest, but
+they join the instance's synonym index beside the built-in aliases, so
+discovery that matches plain words (example search, skill ranking)
+finds the operator by them; a hidden operator's aliases drop out.
 
 ## FieldInputs hook (buffered-projection introspection)
 

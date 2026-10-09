@@ -8,7 +8,8 @@ applies_to: sample, mcp
 
 ## When to use
 
-Diagnostic / preview tool. After running a request when you want to inspect the underlying data, or before authoring a filter when you need to see typical row shapes. NOT a query interface: selection and aggregation belong to request execution.
+CALL TO EYEBALL A FEW RAW ROWS OF A COHORT.
+After running a request, to inspect the underlying data, or before authoring a filter, to see typical row shapes. NOT a query interface: selection and aggregation belong to request execution.
 
 ## Input
 

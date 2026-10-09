@@ -107,7 +107,7 @@ The core tools below are registered at server start (the manifest's `mcp_tools` 
 | `pulse_examples_search` | Search the embedded request-example library by query, taxonomy tags (ANDed), or category. |
 | `pulse_examples_get` | Fetch one runnable example body by name. |
 | `pulse_errors_lookup` | Per-code Message + Fixup detail (kept out of the manifest for context economy). |
-| `pulse_skills_list` | Embedded skill metadata. |
+| `pulse_skills_list` | Embedded skill metadata; the optional `intent` filter returns that intent's skills. |
 | `pulse_skills_get` | Fetch one skill body by name. |
 
 ### Resources
@@ -124,7 +124,21 @@ Resources are registered once at server start. Files added afterwards do not app
 | Name | Args | Returns |
 |---|---|---|
 | `pulse-bootstrap` | none | A short instructions block telling the assistant what to call (and in what order) before authoring any request, and where the authoritative references live. Inject at session start. |
-| `pulse-author-request` | `question` | A guided tool-call sequence for translating an analytical question into a Pulse request: manifest → examples search → inspect → predict → process. |
+| `pulse-author-request` | `question` | Classifies the question against the intents (label + example phrasings) and hands it to the matching mounted `pulse-<intent>` prompt, or — for `prepare` and `lookup` — straight to the mounted route tool (`pulse_import` / `pulse_dedup`, `pulse_lookup`; `simulate` has no MCP tool). It lists only what this server mounts. Otherwise a guided tool-call sequence: manifest → examples search → inspect → predict → process. |
+| `pulse-describe` | `cohort`, `measure` | The guided intent workflow for `describe` (below). |
+| `pulse-compare-groups` | `cohort`, `outcome`, `group` | The guided intent workflow for `compare_groups` (below). |
+| `pulse-relationship` | `cohort`, `measures`, `categories` | The guided intent workflow for `relationship` (below). |
+| `pulse-drivers` | `cohort`, `outcome`, `predictors` | The guided intent workflow for `drivers` (below). |
+| `pulse-change-over-time` | `cohort`, `time`, `measure` | The guided intent workflow for `change_over_time` (below). |
+| `pulse-composition` | `cohort`, `category`, `by` | The guided intent workflow for `composition` (below). |
+| `pulse-benchmark` | `cohort`, `measure`, `group` | The guided intent workflow for `benchmark` (below). |
+| `pulse-distribution-shape` | `cohort`, `measure` | The guided intent workflow for `distribution_shape` (below). |
+| `pulse-segment` | `cohort`, `measures` | The guided intent workflow for `segment` (below). |
+| `pulse-measure-construct` | `cohort`, `items` | The guided intent workflow for `measure_construct` (below). |
+| `pulse-flows` | `cohort`, `from`, `to` | The guided intent workflow for `flows` (below). |
+| `pulse-data-quality` | `cohort`, `fields` | The guided intent workflow for `data_quality` (below). |
+
+**Intent prompts.** One `pulse-<intent>` prompt per analytic intent (the twelve above; the tooling intents `prepare`, `simulate` and `lookup` route to tools and get none), generated from the intent registry. Every argument is optional: `cohort` plus one field hint per role of the intent's shapes, comma-separated field names. All share one script: `pulse_inspect` the cohort → `pulse_recommend {intent, fields}` (the role arguments become `fields` hints) → `pulse_explain` the draft request and confirm it with the user → `pulse_process` → `pulse_explain` the response. Under a feature profile each prompt is its own `mcp_extra:prompt_<intent>` feature (it needs `capability:recommend`, `capability:explain` and `capability:process`), and it is not mounted when every operator serving its intent is hidden.
 
 Hosts that surface prompts as slash commands let users trigger these directly.
 
@@ -179,7 +193,14 @@ What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compos
 | `tests[].field`, `tests[].field2` | Numeric fields only |
 | `tests[].split_by` / `rows` / `cols` / `subject_field` | All cohort field names |
 | `tests[].type` | Full test catalogue (`TEST_*`) |
+| `attributes[].target`, `attributes[].predictors[]` | Numeric fields only (regression attributes) |
+| `regressions[].target`, `regressions[].predictors[]` | Numeric fields only |
+| `regressions[].type` | Full regression catalogue (`REG_*`) |
+| `matrices[].type` | Full matrix catalogue (`MAT_*`) |
+| `joins[].on[].left_field` | All cohort field names (the right cohort is not bound) |
 | `pulse_facet` `field` arg | All cohort field names |
+
+Beyond the enums, a bound schema carries every key the payload schema declares on the request roots it describes (`Request`, `ComposedRequest`, `ChainRequest`, `FacetRequest`, and `pulse_predict`'s alternative roots), nested slot objects included, and no key the instance's payload schema lacks. The only deliberate omissions are a test's `multiplicity.alpha` (the engine refuses it: a test reads its own `alpha`), a facet overlay's `weight` (facets are never weighted) and the `labels` slot on an instance offering no label table. `TestBindForInstance_PayloadSchemaParity` holds the two in step, profile-free and under feature profiles.
 
 **Trigger and lifecycle.** Binding fires on a successful `pulse_inspect`. The go-sdk server auto-fires `notifications/tools/list_changed` on the post-serve `AddTool` / `RemoveTools` swap; the host refreshes its tool list and picks up the bound schemas on the next list. Bound tools share names with the global tools — the session-scoped variants override globals for that session.
 

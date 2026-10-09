@@ -66,8 +66,9 @@ func extensionPurposeResolver(ext Extensions) descx.PurposeResolver {
 }
 
 // validateExtensionGuidance checks every registration's optional
-// Purpose with the built-in tier's rules (descx.ValidatePurpose) and a
-// test registration's Interpretation for structure only
+// Purpose with the built-in tier's rules (descx.ValidatePurpose) plus
+// alias uniqueness (a KnownAs alias no built-in or earlier extension
+// declares — extensionKnownAsCollisions), and a test registration's Interpretation for structure only
 // (descx.ValidateInterpretations with a nil resolver: output keys are
 // not probed). The first registration with a violation — validation
 // order, Purpose before Interpretation — fails with
@@ -75,9 +76,12 @@ func extensionPurposeResolver(ext Extensions) descx.PurposeResolver {
 // every violation. It runs at every pulse.New, after DependsOn.
 func validateExtensionGuidance(ext Extensions) error {
 	resolve := extensionPurposeResolver(ext)
+	aliases := descx.BuiltinKnownAs()
 	for _, e := range guidanceEntries(ext) {
 		if e.purpose != nil {
-			if vs := descx.ValidatePurpose(e.name, *e.purpose, resolve); len(vs) > 0 {
+			vs := descx.ValidatePurpose(e.name, *e.purpose, resolve)
+			vs = append(vs, extensionKnownAsCollisions(e.name, e.purpose.KnownAs, aliases)...)
+			if len(vs) > 0 {
 				lines := make([]string, len(vs))
 				rules := make([]string, len(vs))
 				for i, v := range vs {
@@ -100,6 +104,27 @@ func validateExtensionGuidance(ext Extensions) error {
 		}
 	}
 	return nil
+}
+
+// extensionKnownAsCollisions reports every alias of the extension
+// operator name already claimed — by a built-in (the full registry,
+// profile-blind) or by an extension earlier in validation order — then
+// claims the rest in taken, so aliases stay unique across the instance.
+func extensionKnownAsCollisions(name string, known []string, taken map[string]string) []descx.PurposeViolation {
+	var out []descx.PurposeViolation
+	for _, a := range known {
+		f := descx.FoldAlias(a)
+		if f == "" {
+			continue
+		}
+		if owner, ok := taken[f]; ok && owner != name {
+			out = append(out, descx.PurposeViolation{Name: name, Rule: descx.PurposeRuleKnownAs,
+				Detail: fmt.Sprintf("KnownAs %q is already declared by %s", a, owner)})
+			continue
+		}
+		taken[f] = name
+	}
+	return out
 }
 
 func guidanceError(e guidanceEntry, part string, rules, lines []string) error {

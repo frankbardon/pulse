@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U16]
 soft_depends_on: [U13]
 blocks: [U25, U28, U31]
-todo_items: [124, 125, 126, 127, 128, 129, 130, 172]
+todo_items: [124, 125, 126, 127, 128, 129, 130, 172, 258]
 branch: matrix-operators
 ---
 
@@ -37,6 +37,7 @@ Add `MAT_CORRELATION` Spearman/Kendall, `MAT_PARTIAL_CORRELATION`, `MAT_RELIABIL
 - [ ] **#128** (10. Vector & matrix — operators › E3 — Core matrix operators) `MAT_COLLINEARITY` (VIF, tolerance, condition indices)
 - [ ] **#129** (10. Vector & matrix — operators › E3 — Core matrix operators) `RegressionResult.Vcov` and `.Correlation`
 - [ ] **#130** (10. Vector & matrix — operators › E3 — Core matrix operators) Topical skill `multivariate-design.md`
+- [ ] **#258** (7. Guided analysis › Follow-ups from U23) `MAT_RELIABILITY` (Cronbach's alpha) needs `Purpose.KnownAs` aliases ("cronbach's alpha") when the operator lands, so the U23 synonym tier finds it
 
 ## Scope
 

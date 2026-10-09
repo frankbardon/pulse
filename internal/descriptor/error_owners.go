@@ -174,7 +174,9 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
 	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:        shared,
-	errors.PULSE_RECOMMEND_INTENT_UNKNOWN:         own(featRecommend),
+	// Raised by recommend AND by the core examples search's intent
+	// filter, which every instance carries.
+	errors.PULSE_RECOMMEND_INTENT_UNKNOWN: shared,
 
 	// Synth (data-profile capture included).
 	errors.PULSE_SYNTH_DISTRIBUTION_UNKNOWN:    own(featSynth),

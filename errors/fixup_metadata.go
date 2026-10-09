@@ -716,7 +716,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RECOMMEND_INTENT_UNKNOWN: {
-		Message: "Recommend was asked for an intent that is not in the intent taxonomy.",
+		Message: "Recommend or an examples search was asked for an intent that is not in the intent taxonomy, or one this instance hides.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

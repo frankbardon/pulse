@@ -8,7 +8,8 @@ applies_to: mcp
 
 ## When to use
 
-After `pulse_skills_list` (or directly when you know the skill name) to pull the full markdown body of one skill — operator guide, type reference, tool reference, or design doc. The skill pack is the authoritative reference for operator semantics, gotchas, and recipes in this deployment.
+CALL TO READ ONE SKILL'S FULL GUIDE ONCE YOU KNOW ITS NAME.
+Usually after `pulse_skills_list`: an operator guide, type reference, tool reference, or design doc. The skill pack is the authoritative reference for operator semantics, gotchas, and recipes in this deployment.
 
 ## Input
 

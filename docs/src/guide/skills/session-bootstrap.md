@@ -9,16 +9,16 @@ covers: [pulse_manifest, pulse_examples_search, pulse_examples_get, pulse_skills
 
 # Session bootstrap
 
-Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-enter from step 3 per user question.
+Canonical MCP call order. Steps 1–2 once, cached; re-enter from step 3 per user question.
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` | once per session | operator catalogs (each entry's [`intents`](intents.md) = the question kinds it answers), field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version (the top-level version field; CLI `pulse version --json`) |
+| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs (each entry's [`intents`](intents.md) = the question kinds it answers), field types, error codes, MCP tool list, skills index, extensions, capability blocks. Deterministic per binary version |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict` / `pulse_process` / `pulse_compose` / `pulse_sample` / `pulse_facet`, constraining them to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category`; or `pulse_recommend` by `intents` ID |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
-| 5 | `pulse_skills_get` | on demand | shape, gotchas, contract. Runnable JSON comes from examples, NOT skills. Cold start ⇒ `docs/src/getting-started/`, else derive via [`session-skill-routing`](session-skill-routing.md) |
-| 6 | `pulse_predict` | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
+| 5 | `pulse_skills_get` | on demand | shape, gotchas, contract; pick via [`session-skill-routing`](session-skill-routing.md). Runnable JSON comes from examples, NOT skills |
+| 6 | `pulse_predict` (bare request, or `composed`, or `facet`, or `chain`) | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
 | 7 | the execute tool the manifest's `mcp_tools` lists for the operation — `pulse_process` / `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample` / `pulse_lookup` | execute | `{format_version, data, errors, warnings}` + additive `data.components`; `format_version` is `"1.1"`; read via `pulse_explain` |
 | 8 | `pulse_errors_lookup` | per unique `code` | canonical `message` + structured `fixups[]`. Authoritative — never paraphrase from memory |
 
@@ -34,7 +34,11 @@ Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-
 
 ## Authoring layers
 
-Manifest = the contract (operator names, parameter shapes, streamable hints, error codes). `pulse_inspect` = field names + values. `pulse_examples_*` = runnable JSON. Skills = gotchas, slot-key naming, rationale. `pulse_errors_lookup` = per-code prose.
+Manifest = the contract. `pulse_inspect` = field names + values. `pulse_examples_*` = runnable JSON. Skills = gotchas, slot-key naming, rationale. `pulse_errors_lookup` = per-code prose. Prompts:
+
+- `pulse-bootstrap`: this order.
+- `pulse-author-request`: question → intent prompt, tool or request.
+- `pulse-<intent>` (per analytic intent): inspect, recommend, confirm, process, explain.
 
 ## On failure
 
@@ -42,7 +46,7 @@ Read every `errors[]` / `warnings[]` entry (`{code, message, details}`) → `pul
 
 ## Environment
 
-Directory roots auto-loaded at `pulse.New` time:
+Roots auto-loaded at `pulse.New`:
 
 - `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Give it its own directory.** Every `*.json` beneath it is parsed as a label table and an unparseable file hard-fails `pulse.New`; Pulse's own `.spss.json` / `.meta.json` sidecars are excluded by suffix, nothing else is.
 - `PULSE_RANGE_TABLES_DIR` — named labeled-date-range tables (`{label,start,end}` sets referenced by the date-range grouper and filter). Same sidecar exclusion.

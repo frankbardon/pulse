@@ -52,23 +52,30 @@ type FacetIn struct {
 	Field string `json:"field" jsonschema:"Field name to facet"`
 }
 
-// SkillsListIn is the (empty) input contract for pulse_skills_list.
-type SkillsListIn struct{}
+// SkillsListIn is the input contract for pulse_skills_list. With no
+// intent it lists every skill, sorted by name.
+type SkillsListIn struct {
+	Intent string `json:"intent,omitempty" jsonschema:"Intent-taxonomy ID (e.g. compare_groups, relationship). Lists only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced. Unknown: PULSE_RECOMMEND_INTENT_UNKNOWN"`
+}
 
 // SkillsGetIn is the input contract for pulse_skills_get.
 type SkillsGetIn struct {
 	Name string `json:"name" jsonschema:"Skill name (e.g. 'aggregation-design')"`
 }
 
-// ManifestIn is the (empty) input contract for pulse_manifest.
-type ManifestIn struct{}
+// ManifestIn is the input contract for pulse_manifest. With no intent
+// it returns the full slim manifest.
+type ManifestIn struct {
+	Intent string `json:"intent,omitempty" jsonschema:"Intent-taxonomy ID (e.g. compare_groups, relationship). Returns the manifest scoped to that intent: only its operators and skills, the fixed sections dropped and listed in elided, the intent record in scope. Unknown: PULSE_RECOMMEND_INTENT_UNKNOWN"`
+}
 
-// ExamplesSearchIn is the input contract for pulse_examples_search. All three
+// ExamplesSearchIn is the input contract for pulse_examples_search. All four
 // filters are optional and ANDed.
 type ExamplesSearchIn struct {
-	Query    string   `json:"query,omitempty" jsonschema:"Case-insensitive substring matched against name, description, and operators"`
+	Query    string   `json:"query,omitempty" jsonschema:"Plain words or a name. One word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags. Known operator aliases (anova, chisq.test, pearson) and phrases from an intent's sounds (move together) also match"`
 	Tags     []string `json:"tags,omitempty" jsonschema:"Canonical taxonomy tags; results must carry every tag (AND)"`
-	Category string   `json:"category,omitempty" jsonschema:"Exact directory: aggregations, attributes, features, filterers, groupers, regression, tests, windows"`
+	Category string   `json:"category,omitempty" jsonschema:"Exact directory: aggregations, attributes, crosstab, facet, features, filterers, groupers, matrices, overlays, regression, tests, windows"`
+	Intent   string   `json:"intent,omitempty" jsonschema:"Intent-taxonomy ID (e.g. compare_groups, relationship); results must declare it. Unknown: PULSE_RECOMMEND_INTENT_UNKNOWN"`
 }
 
 // ExamplesGetIn is the input contract for pulse_examples_get.
@@ -175,8 +182,17 @@ type LabelResolveIn struct {
 // ProcessIn is the input contract for pulse_process.
 type ProcessIn = types.Request
 
-// PredictIn is the input contract for pulse_predict.
-type PredictIn = types.Request
+// PredictIn is the input contract for pulse_predict: a bare
+// types.Request at the root (the original contract, unchanged), or
+// exactly ONE alternative root naming a different request shape. A root
+// key beside an alternative, or two alternatives, is SERVICE_VALIDATION;
+// an alternative whose capability the instance hides is an unknown key.
+type PredictIn struct {
+	types.Request
+	Composed *types.ComposedRequest `json:"composed,omitempty" jsonschema:"A pulse_compose request to predict instead of a bare request: each slot over its own cohort, then the batch overlays. Alone at the root."`
+	Facet    *types.FacetRequest    `json:"facet,omitempty" jsonschema:"A pulse_facet_schema request to predict instead of a bare request. Alone at the root."`
+	Chain    *types.ChainRequest    `json:"chain,omitempty" jsonschema:"A pulse_process_chain request to predict instead of a bare request: stage 0 over the cohort, each later stage over the schema the one before produces. Alone at the root."`
+}
 
 // ComposeIn is the input contract for pulse_compose.
 type ComposeIn = types.ComposedRequest
@@ -217,8 +233,19 @@ type InspectOut struct {
 	Warnings []*descriptor.EnvelopeEntry `json:"warnings,omitempty" jsonschema:"Diagnostics from the header read — coded {code, message, details} entries. A truncated payload tail raises ENCODING_INVALID and record_count is the floor. Absent when the read was clean."`
 }
 
-// PredictOut is the output contract for pulse_predict.
-type PredictOut = descriptor.PredictResult
+// PredictOut is the output contract for pulse_predict. A bare request
+// answers with the PredictResult EMBEDDED, so its keys sit at the root
+// byte-identically to the original contract. An alternative root
+// answers under the same key it was sent under, beside the coded
+// errors / warnings that explain a `valid: false` verdict.
+type PredictOut struct {
+	*descriptor.PredictResult
+	Composed *pulse.ComposePredictResult `json:"composed,omitempty" jsonschema:"The verdict on a composed root: valid, the echoed request, rejected overlay pairs, overlay cost, p-value count and each slot's advisories."`
+	Facet    *pulse.FacetPredictResult   `json:"facet,omitempty" jsonschema:"The verdict on a facet root: valid, the echoed request, schema info and the accepted overlays."`
+	Chain    *pulse.ChainPredictResult   `json:"chain,omitempty" jsonschema:"The verdict on a chain root: valid, the echoed request, the source schema and each stage's inferred output columns."`
+	Errors   []*descriptor.EnvelopeEntry `json:"errors,omitempty" jsonschema:"Alternative roots only: every coded refusal behind valid false — {code, message, details}. Absent when there is none."`
+	Warnings []*descriptor.EnvelopeEntry `json:"warnings,omitempty" jsonschema:"Alternative roots only: coded warnings. Absent when there is none."`
+}
 
 // ProcessOut is the output contract for pulse_process.
 type ProcessOut = types.Response

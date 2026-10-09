@@ -274,8 +274,10 @@ func TestRecommend_HiddenFeatureSurfaces(t *testing.T) {
 			if listed != tc.want {
 				t.Errorf("manifest lists recommend = %v, want %v", listed, tc.want)
 			}
-			if got := slices.Contains(m.ErrorCodes, string(errors.PULSE_RECOMMEND_INTENT_UNKNOWN)); got != tc.want {
-				t.Errorf("manifest lists PULSE_RECOMMEND_INTENT_UNKNOWN = %v, want %v", got, tc.want)
+			// The code stays listed even with recommend hidden: the core
+			// examples search's intent filter raises it too.
+			if !slices.Contains(m.ErrorCodes, string(errors.PULSE_RECOMMEND_INTENT_UNKNOWN)) {
+				t.Error("manifest drops PULSE_RECOMMEND_INTENT_UNKNOWN; pulse_examples_search still raises it")
 			}
 			raw, err := p.PayloadSchema()
 			if err != nil {

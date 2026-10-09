@@ -138,7 +138,6 @@ func BindForInstance(schema *encoding.Schema, inst *descx.InstanceSnapshot) (map
 		return nil, err
 	}
 	out[toolmeta.ToolProcess] = reqBody
-	out[toolmeta.ToolPredict] = reqBody
 
 	composeBody, err := buildComposeSchemaWithExtensions(c, inst)
 	if err != nil {
@@ -170,7 +169,53 @@ func BindForInstance(schema *encoding.Schema, inst *descx.InstanceSnapshot) (map
 	}
 	out[toolmeta.ToolProcessChain] = chainBody
 
+	predictBody, err := buildPredictSchema(reqBody, map[string]json.RawMessage{
+		"composed": composeBody,
+		"facet":    facetSchemaBody,
+		"chain":    chainBody,
+	}, inst)
+	if err != nil {
+		return nil, err
+	}
+	out[toolmeta.ToolPredict] = predictBody
+
 	return out, nil
+}
+
+// buildPredictSchema describes pulse_predict: the bound request schema
+// (a bare request at the root, as pulse_process takes it) plus one
+// property per alternative root the instance offers, each carrying its
+// own execution tool's bound body. No root key is required — an
+// alternative stands alone, without a root cohort.
+func buildPredictSchema(reqBody json.RawMessage, roots map[string]json.RawMessage, inst *descx.InstanceSnapshot) (json.RawMessage, error) {
+	var schema map[string]any
+	if err := json.Unmarshal(reqBody, &schema); err != nil {
+		return nil, err
+	}
+	props, _ := schema["properties"].(map[string]any)
+	if props == nil {
+		props = map[string]any{}
+		schema["properties"] = props
+	}
+	for _, r := range predictRoots {
+		if inst.Hidden(r.feature) {
+			continue
+		}
+		var body map[string]any
+		if err := json.Unmarshal(roots[r.key], &body); err != nil {
+			return nil, err
+		}
+		body["description"] = "Predict this request shape instead of a bare request; alone at the root, never beside another key. " + stringOr(body["description"])
+		props[r.key] = body
+	}
+	delete(schema, "required")
+	return json.Marshal(schema)
+}
+
+// stringOr returns v as a string, or "" when it is not one.
+func stringOr(v any) string {
+	s, _ := v.(string)
+	return s
 }
 
 // buildProcessChainSchemaWithExtensions describes the pulse_process_chain
@@ -259,11 +304,14 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 						"field":      enumStringField(c.AllFields, "Field to filter on. FILTER_EXPRESSION may omit this."),
 						"values":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 						"expression": map[string]any{"type": "string"},
+						"params":     map[string]any{"description": "Operator-specific configuration (e.g. FILTER_DATE_RANGES' inline `ranges`)."},
+						"tz":         zoneSchema("Per-slot IANA zone override; empty inherits time_zone. Accepted only on zone-capable filterers."),
 					},
 					"required":             []string{"type"},
 					"additionalProperties": true,
 				},
 			},
+			"time_zone": zoneSchema("IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable filterer that sets no `tz`. Empty inherits the instance default, then UTC."),
 			"discrete_top_k": map[string]any{
 				"type":        "integer",
 				"description": "Cap discrete values per field; 0 means no cap.",
@@ -290,6 +338,7 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
 	dropHiddenSlots(requestObject, &types.FacetRequest{}, inst)
+	dropHiddenMultiplicity(requestObject, inst)
 	return json.Marshal(requestObject)
 }
 
@@ -541,16 +590,272 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
 	reqProps := requestObject["properties"].(map[string]any)
+	addRequestSlotDetail(reqProps, c, inst)
 	reqProps["weight"] = weightSpecSchema(c, "Request-level row weight, inherited by every weight-bearing slot that sets no `weight` of its own.")
 	if overlays, ok := reqProps["overlays"].(map[string]any); ok {
 		if items, ok := overlays["items"].(map[string]any); ok {
 			items["properties"].(map[string]any)["weight"] = slotWeightSchema(c)
 		}
 	}
+	reqProps["multiplicity"] = multiplicitySchema(
+		"Request-level multiple-comparison correction, inherited by every test, post-test and overlay that sets no `multiplicity` of its own (each field on its own: slot, then request, then the ComposedRequest, then the instance default). Raw p-values never move; corrected p_adjusted / significant_adjusted ride beside them. {\"method\":\"none\"} opts out. Family `compose` is valid only on a pulse_compose slot.",
+		types.AllMultiplicityFamilies(), true)
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
 	dropHiddenWeights(requestObject, inst)
+	dropHiddenMultiplicity(requestObject, inst)
 
 	return json.Marshal(requestObject)
+}
+
+// addRequestSlotDetail completes a bound Request schema with the slots
+// and per-slot keys the payload schema's Request def declares beyond the
+// core operator arrays: the slot label, zones, response shaping, the
+// components override, joins, regressions, vectors and matrices, plus
+// the zone / include / params / regression-attribute keys of the nested
+// slots and the window frame. TestBindForInstance_PayloadSchemaParity
+// holds the two in step.
+func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *descx.InstanceSnapshot) {
+	props["label"] = map[string]any{"type": "string", "description": "Slot label. In a pulse_compose batch it names this slot for Compose overlay reference / targets (empty auto-defaults to request_<i+1>); standalone it has no effect."}
+	props["time_zone"] = zoneSchema("Request-level IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable slot that sets no `tz` of its own. Empty inherits the instance default, then UTC.")
+	props["disable_components"] = map[string]any{"type": "boolean", "description": "true suppresses Response.Components for this request; false forces them on even when the engine default disables them. Omit to inherit."}
+	props["return"] = returnSchema("Response shaping for this request: a preset, include / exclude paths over the Response, a wire float precision. Omitted on pulse_process / pulse_compose slots, the MCP default preset `standard` applies; {\"preset\":\"full\"} returns everything.")
+	props["joins"] = joinsSchema(c)
+	props["regressions"] = regressionsSchema(c, inst)
+	props["vectors"] = vectorsSchema()
+	props["matrices"] = matricesSchema(c, inst)
+
+	itemProps := func(slot string) map[string]any {
+		arr, _ := props[slot].(map[string]any)
+		items, _ := arr["items"].(map[string]any)
+		p, _ := items["properties"].(map[string]any)
+		return p
+	}
+	slotZone := zoneSchema("Per-slot IANA zone override; empty inherits the request's time_zone. Accepted only on zone-capable operators (manifest operator `zone` key).")
+	for _, slot := range []string{"filterers", "groups", "features", "attributes"} {
+		itemProps(slot)["tz"] = slotZone
+	}
+	itemProps("filterers")["params"] = map[string]any{"description": "Operator-specific configuration (e.g. FILTER_DATE_RANGES' inline `ranges`)."}
+	itemProps("groups")["include"] = groupIncludeSchema()
+	attr := itemProps("attributes")
+	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE).")
+	attr["predictors"] = map[string]any{"type": "array", "description": "Independent variables for the regression attributes; at least one.", "items": enumStringField(c.Numeric, "")}
+	attr["penalty"] = enumStringField([]string{"l1", "l2", "elasticnet"}, "Regression-attribute OLS penalty; omit for none. ATTR_REG_LEVERAGE refuses one.")
+	attr["alpha"] = map[string]any{"type": "number", "description": "Penalty strength (> 0) when penalty is set."}
+	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
+	itemProps("windows")["frame"] = frameSchema()
+
+	if ct, ok := props["crosstab"].(map[string]any); ok {
+		ctProps, _ := ct["properties"].(map[string]any)
+		for _, axis := range []string{"rows", "columns"} {
+			a, _ := ctProps[axis].(map[string]any)
+			items, _ := a["items"].(map[string]any)
+			p, _ := items["properties"].(map[string]any)
+			// Both axes share one item map: write a fresh copy per axis
+			// so the marshalled schema never aliases.
+			np := make(map[string]any, len(p)+2)
+			for k, v := range p {
+				np[k] = v
+			}
+			np["include"] = groupIncludeSchema()
+			np["tz"] = slotZone
+			nItems := make(map[string]any, len(items))
+			for k, v := range items {
+				nItems[k] = v
+			}
+			nItems["properties"] = np
+			a["items"] = nItems
+		}
+	}
+}
+
+// zoneSchema is an IANA zone name (`UTC` or `Area/Location`).
+func zoneSchema(description string) map[string]any {
+	return map[string]any{"type": "string", "description": description}
+}
+
+// groupIncludeSchema is Group.include: the bucket allowlist.
+func groupIncludeSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "Bucket allowlist, in output order, for GROUP_CATEGORY / GROUP_SET_VALUE / GROUP_SET_PER_ELEMENT (flagged on other groupers); omit for every bucket.",
+		"items":       map[string]any{"type": "string"},
+	}
+}
+
+// returnSchema is the {preset, include, exclude, precision} block
+// (types.Return).
+func returnSchema(description string) map[string]any {
+	paths := func(d string) map[string]any {
+		return map[string]any{"type": "array", "description": d, "items": map[string]any{"type": "string"}}
+	}
+	return map[string]any{
+		"type":        "object",
+		"description": description,
+		"properties": map[string]any{
+			"preset":    enumStringField(stringSlice(types.AllReturnPresets()), "Predefined selection; an include list without one starts from an empty base."),
+			"include":   paths("Paths to add (`.` separates keys, `[*]` steps into arrays, a trailing `*` globs a key prefix)."),
+			"exclude":   paths("Paths to remove; exclude wins over include. An excluded part is absent, never null."),
+			"precision": map[string]any{"type": "integer", "minimum": 0, "maximum": 17, "description": "Significant digits per wire float, 1-17; 0 is unlimited."},
+		},
+		"additionalProperties": false,
+	}
+}
+
+// joinsSchema is Request.joins (types.JoinSpec). left_field names this
+// cohort's fields; the right cohort is not bound, so right_field (and a
+// joined field referenced elsewhere) is unconstrained here.
+func joinsSchema(c fieldClassification) map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "Hash joins against another cohort (at most one in v1). Right-side fields are not in this schema's field enums; predict resolves the joined schema.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"right": map[string]any{"type": "string", "description": "Right-side cohort path (single file, shard archive or archive#shard.pulse)."},
+				"kind":  map[string]any{"type": "string", "description": "Join kind: inner (the only implemented kind; omit for inner)."},
+				"as":    map[string]any{"type": "string", "description": "Prefix prepended to every right-side field name."},
+				"on": map[string]any{
+					"type":        "array",
+					"description": "Equi-join key pairs, AND-ed; at least one.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"left_field":  enumStringField(c.AllFields, "Key field on this cohort."),
+							"right_field": map[string]any{"type": "string", "description": "Key field on the right cohort."},
+						},
+						"required":             []string{"left_field", "right_field"},
+						"additionalProperties": false,
+					},
+				},
+			},
+			"required":             []string{"right", "on"},
+			"additionalProperties": false,
+		},
+	}
+}
+
+// regressionsSchema is Request.regressions (types.RegressionSpec).
+func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[string]any {
+	num := func(d string) map[string]any { return map[string]any{"type": "number", "description": d} }
+	integer := func(d string) map[string]any { return map[string]any{"type": "integer", "description": d} }
+	return map[string]any{
+		"type":        "array",
+		"description": "Regression fits (REG_*), each a result in Response.regressions.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"type":            enumStringField(mergeEnumNames(stringSlice(types.AllRegressionTypes()), inst, "regression"), ""),
+				"name":            map[string]any{"type": "string", "description": "Result name; defaults from type and target."},
+				"target":          enumStringField(c.Numeric, "Response variable."),
+				"predictors":      map[string]any{"type": "array", "description": "Predictor fields; at least one.", "items": enumStringField(c.Numeric, "")},
+				"penalty":         enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS regularization; omit for none."),
+				"alpha":           num("Penalty strength (> 0) when penalty is set."),
+				"l1_ratio":        num("Elastic-net mixing in [0, 1]."),
+				"family":          enumStringField([]string{"binomial", "poisson", "gamma"}, "REG_GLM error family (required for REG_GLM)."),
+				"link":            map[string]any{"type": "string", "description": "REG_GLM link; defaults per family (logit, log, inverse)."},
+				"max_iters":       integer("Iteration cap for iterative fits; 0 uses the operator default."),
+				"tol":             num("Relative convergence tolerance; 0 uses the operator default."),
+				"prior":           map[string]any{"type": "string", "description": "REG_BAYES_LINEAR prior family: nig."},
+				"prior_mu":        map[string]any{"type": "array", "description": "REG_BAYES_LINEAR prior mean, intercept first then one per predictor.", "items": map[string]any{"type": "number"}},
+				"prior_precision": num("REG_BAYES_LINEAR prior precision."),
+				"prior_shape":     num("REG_BAYES_LINEAR inverse-gamma shape."),
+				"prior_rate":      num("REG_BAYES_LINEAR inverse-gamma rate."),
+				"credible_level":  num("REG_BAYES_LINEAR credible-interval mass; 0 means 0.95."),
+				"resample":        enumStringField([]string{"jackknife", "bootstrap"}, "Resampling layer; omit for none."),
+				"bootstrap_iters": integer("Bootstrap replicates when resample is bootstrap."),
+				"rng_seed":        integer("Bootstrap RNG seed."),
+				"selection":       enumStringField([]string{"forward", "backward", "stepwise"}, "Subset selection; omit for none."),
+				"criterion":       enumStringField([]string{"aic", "bic"}, "Information criterion; required with selection."),
+				"weight":          slotWeightSchema(c),
+			},
+			"required":             []string{"type", "target"},
+			"additionalProperties": true,
+		},
+	}
+}
+
+// vectorsSchema is Request.vectors (types.VectorSpec). Members may be
+// globs, so the field list carries no enum.
+func vectorsSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "Named batteries of numeric columns that matrices reference by name. Set exactly one of fields and pattern.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":    map[string]any{"type": "string", "description": "Request-scoped vector name."},
+				"fields":  map[string]any{"type": "array", "description": "Member names and / or globs (`*`, `?`, `[`), expanded in schema order.", "items": map[string]any{"type": "string"}},
+				"pattern": map[string]any{"type": "string", "description": "Go regular expression over field names (unanchored)."},
+				"labels":  map[string]any{"type": "array", "description": "Display labels, one per resolved member.", "items": map[string]any{"type": "string"}},
+				"coerce":  enumStringField(stringSlice(types.AllVectorCoerces()), "binary admits packed_bool members as 0 / 1."),
+			},
+			"required":             []string{"name"},
+			"additionalProperties": false,
+		},
+	}
+}
+
+// matricesSchema is Request.matrices (types.MatrixSpec).
+func matricesSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "Matrix operators (MAT_*) over a vector or an inline member list, each a result in Response.matrices.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"type":     enumStringField(mergeEnumNames(stringSlice(types.AllMatrixTypes()), inst, "matrix"), ""),
+				"name":     map[string]any{"type": "string", "description": "Result name; defaults to <TYPE>_<vector> or <TYPE>."},
+				"vector":   map[string]any{"type": "string", "description": "A vectors[] entry's name. Set exactly one of vector and fields."},
+				"fields":   map[string]any{"type": "array", "description": "Inline members (names and / or globs).", "items": map[string]any{"type": "string"}},
+				"params":   map[string]any{"description": "Operator parameters (ddof, missing, max_drop_share, summary); see the operator's skill."},
+				"encoding": enumStringField(stringSlice(types.AllMatrixEncodings()), "Values layout; full when omitted."),
+				"weight":   slotWeightSchema(c),
+			},
+			"required":             []string{"type"},
+			"additionalProperties": false,
+		},
+	}
+}
+
+// frameSchema is Window.frame (types.FrameSpec).
+func frameSchema() map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": "Window frame bounds. Omitted preceding / following is unbounded; both 0 is the current row.",
+		"properties": map[string]any{
+			"mode":      enumStringField([]string{"rows"}, "Frame mode (rows is the only mode)."),
+			"preceding": map[string]any{"type": "integer", "minimum": 0},
+			"following": map[string]any{"type": "integer", "minimum": 0},
+		},
+		"required":             []string{"mode"},
+		"additionalProperties": false,
+	}
+}
+
+// overlayRefSchema is OverlaySpec.ref (types.OverlayRef): a
+// discriminated union with at most one arm set.
+func overlayRefSchema() map[string]any {
+	obj := func(desc string, props map[string]any) map[string]any {
+		return map[string]any{"type": "object", "description": desc, "properties": props, "additionalProperties": false}
+	}
+	strs := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+	return map[string]any{
+		"type":          "object",
+		"description":   "Discriminated reference: set at most one arm; empty for implicit-margin kinds. Which arm a kind reads is in Manifest.Overlays.",
+		"maxProperties": 1,
+		"properties": map[string]any{
+			"margin":         obj("Margin reference.", map[string]any{"axis": map[string]any{"type": "string"}}),
+			"sibling":        obj("Sibling bucket reference.", map[string]any{"field": map[string]any{"type": "string"}, "value": map[string]any{"type": "string"}}),
+			"baseline_index": obj("Baseline bucket by position or key.", map[string]any{"position": map[string]any{"type": "integer"}, "row": strs, "column": strs}),
+			"prior":          obj("Prior-period reference.", map[string]any{"lag": map[string]any{"type": "integer"}}),
+			"rolling_mean":   obj("Rolling-mean reference.", map[string]any{}),
+			"yoy":            obj("Year-over-year reference.", map[string]any{}),
+			"population":     obj("Population cohort (facet kinds).", map[string]any{"cohort": map[string]any{"type": "string"}}),
+			"slot":           obj("Compose slot reference.", map[string]any{"name": map[string]any{"type": "string"}}),
+			"stage":          obj("Chain stage reference; one of index / name.", map[string]any{"index": map[string]any{"type": "integer", "minimum": 0}, "name": map[string]any{"type": "string"}}),
+		},
+		"additionalProperties": false,
+	}
 }
 
 // dropHiddenWeights deletes every nested `weight` property (the per-slot
@@ -581,6 +886,75 @@ func dropHiddenWeights(node any, inst *descx.InstanceSnapshot) {
 		}
 	}
 	walk(node)
+}
+
+// dropHiddenMultiplicity deletes every nested `multiplicity` property
+// (the Request and ComposedRequest roots, tests, post-tests, and the
+// Request / Facet / Compose overlay specs) when inst hides
+// capability:multiplicity — the properties the instance payload schema
+// drops and the request-slot gate refuses. The compose, chain and
+// predict tools embed these bodies, so they follow. No-op unless
+// multiplicity is hidden.
+func dropHiddenMultiplicity(node any, inst *descx.InstanceSnapshot) {
+	if inst.Enabled(descx.FeatureMultiplicity) {
+		return
+	}
+	var walk func(any)
+	walk = func(n any) {
+		switch v := n.(type) {
+		case map[string]any:
+			if props, ok := v["properties"].(map[string]any); ok {
+				delete(props, "multiplicity")
+			}
+			for _, child := range v {
+				walk(child)
+			}
+		case []any:
+			for _, child := range v {
+				walk(child)
+			}
+		}
+	}
+	walk(node)
+}
+
+// multiplicitySchema is the {method, family, alpha} correction block
+// (types.Multiplicity). families is the set the slot's surface accepts
+// (descriptor multiplicity_resolve's per-surface table, widest case);
+// alpha is false where the engine refuses an own alpha (a test's block).
+func multiplicitySchema(description string, families []types.MultiplicityFamily, alpha bool) map[string]any {
+	props := map[string]any{
+		"method": enumStringField(stringSlice(types.AllMultiplicityMethods()), "Correction procedure: none (explicit opt-out), bonferroni, holm (family-wise error), bh, by (false discovery rate). Omit to inherit."),
+		"family": enumStringField(stringSlice(families), "Which p-values are corrected together. Omit to inherit, then the surface default."),
+	}
+	if alpha {
+		props["alpha"] = map[string]any{
+			"type":             "number",
+			"exclusiveMinimum": 0,
+			"exclusiveMaximum": 1,
+			"description":      "Significance level significant_adjusted compares against, in (0, 1). Omit to inherit, then 0.05.",
+		}
+	}
+	return map[string]any{
+		"type":                 "object",
+		"description":          description,
+		"properties":           props,
+		"additionalProperties": false,
+	}
+}
+
+// overlayMultiplicitySchema is an OverlaySpec's own block on the Request
+// or Facet overlay host. A Facet layer has no request or compose family.
+func overlayMultiplicitySchema(facade overlayFacade) map[string]any {
+	families := []types.MultiplicityFamily{types.MultiplicityFamilyLayer, types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn}
+	desc := "This layer's own multiple-comparison correction. Family `layer` (default) corrects the layer's p-values together, `row` / `column` per row / column of a matrix layer."
+	if facade == overlayFacadeRequest {
+		families = append(families, types.MultiplicityFamilyRequest, types.MultiplicityFamilyCompose)
+		desc += " Omit to inherit the request's. `request` pools with the request's tests; `compose` (pulse_compose slots only) pools across the batch."
+	} else {
+		desc += " Omit to inherit the instance default."
+	}
+	return multiplicitySchema(desc, families, true)
 }
 
 // crosstabSchema returns the JSON Schema for the Crosstab section.
@@ -820,7 +1194,18 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 					"level":     map[string]any{"type": "integer", "minimum": 0, "description": "Matrix-shape Compose: same-axis prefix depth. Ignored on non-matrix kinds."},
 					"within":    map[string]any{"type": "integer", "minimum": 0, "description": "Matrix-shape Compose: opposite-axis prefix depth. Ignored on non-matrix kinds."},
 					"params":    map[string]any{"description": "Kind-specific configuration. Per-kind schema lives alongside the kind's processor."},
-					"options":   map[string]any{"type": "object", "description": "Per-spec optimization knobs (e.g. MaxPanelTargets for multi-reference kinds)."},
+					"options": map[string]any{
+						"type":        "object",
+						"description": "Per-spec optimization knobs.",
+						"properties": map[string]any{
+							"max_panel_targets": map[string]any{"type": "integer", "minimum": 0, "description": "Cap on target slots a multi-reference kind (OVERLAY_PROP_Z_PANEL) folds; 0 uses the default 16. Over the cap is PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP."},
+							"dict_prefix_fast":  map[string]any{"type": "boolean", "description": "Opt into the byte-equal dictionary-prefix fast path for cross-slot categorical comparison (default: the safe by-label join); drifted prefixes are PULSE_OVERLAY_DICT_PREFIX_DRIFT."},
+						},
+						"additionalProperties": false,
+					},
+					"multiplicity": multiplicitySchema(
+						"This layer's own multiple-comparison correction; omit to inherit the ComposedRequest's. Family `layer` (default) corrects the layer's p-values together, `row` / `column` per row / column of a matrix layer, `compose` pools with every compose-family member of the batch.",
+						[]types.MultiplicityFamily{types.MultiplicityFamilyLayer, types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn, types.MultiplicityFamilyCompose}, true),
 				},
 				"required":             []string{"kind", "reference"},
 				"additionalProperties": true,
@@ -860,13 +1245,14 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 			"items": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"name":   map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Scope+Ref."},
-					"kind":   kindField,
-					"scope":  map[string]any{"type": "string", "description": "Where the overlay lands relative to the base result."},
-					"ref":    map[string]any{"type": "object", "description": "Discriminated reference family pointer; per-kind contract documented in Manifest.Overlays."},
-					"level":  map[string]any{"type": "integer", "minimum": 0, "description": "Same-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
-					"within": map[string]any{"type": "integer", "minimum": 0, "description": "Opposite-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
-					"params": map[string]any{"description": "Operator-specific configuration. Per-kind schema lives alongside the kind's processor."},
+					"name":         map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Scope+Ref."},
+					"kind":         kindField,
+					"scope":        map[string]any{"type": "string", "description": "Where the overlay lands relative to the base result."},
+					"ref":          overlayRefSchema(),
+					"level":        map[string]any{"type": "integer", "minimum": 0, "description": "Same-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
+					"within":       map[string]any{"type": "integer", "minimum": 0, "description": "Opposite-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
+					"params":       map[string]any{"description": "Operator-specific configuration. Per-kind schema lives alongside the kind's processor."},
+					"multiplicity": overlayMultiplicitySchema(facade),
 				},
 				"required":             []string{"kind", "scope"},
 				"additionalProperties": true,
@@ -895,6 +1281,9 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 				"order_by":      map[string]any{"type": "array", "items": orderKeySchema(c.NumericOrDate)},
 				"params":        map[string]any{},
 				"weight":        slotWeightSchema(c),
+				"multiplicity": multiplicitySchema(
+					"This test's own multiple-comparison correction; omit to inherit the request's. Family `request` (default) pools the request's tests, post-tests and request-family overlays; `compose` (pulse_compose slots only) pools across the batch. No alpha: a test's adjusted flag reads its own `alpha`.",
+					[]types.MultiplicityFamily{types.MultiplicityFamilyRequest, types.MultiplicityFamilyCompose}, false),
 			},
 			"required":             []string{"type"},
 			"additionalProperties": true,
@@ -922,11 +1311,16 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				"items": reqSchema,
 			},
 			"overlays": overlaysSchemaForFacade(overlayFacadeCompose, inst),
+			"multiplicity": multiplicitySchema(
+				"Batch-level multiple-comparison correction, inherited by every slot request (below its own request-level block) and every Compose overlay layer that sets none of its own. Family `compose` pools every compose-family member across the slots and the Compose layers.",
+				types.AllMultiplicityFamilies(), true),
+			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
 	}
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
+	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
 }
 

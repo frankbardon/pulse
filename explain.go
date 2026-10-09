@@ -62,43 +62,23 @@ func (p *Pulse) Explain(ctx context.Context, req descriptor.ExplainRequest) (*de
 	}
 	return guide.Explain(p.svc.InstanceSnapshot(), req, guide.Checks{
 		Request: func(r *types.Request) (*descriptor.Envelope, error) {
-			return p.explainCheck(ctx, r.Cohort, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			return p.predictCohortRoot(ctx, r.Cohort, "explain", false, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 				return descx.Predict(src.rs, r, opts)
 			})
 		},
 		Compose: func(c *types.ComposedRequest) (*descriptor.Envelope, error) {
-			opts := p.predictOptions(ctx, sidecarFacts{})
-			opts.SidecarLoader = func(path string) (string, map[string]string) {
-				f := p.sidecarFacts(path)
-				return f.weightVariable, f.measures
-			}
+			opts := p.composePredictOptions(ctx)
 			return descx.ValidateComposeWithOptions(c, &opts), nil
 		},
 		Chain: func(c *types.ChainRequest) (*descriptor.Envelope, error) {
-			return p.explainCheck(ctx, c.Cohort, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			return p.predictCohortRoot(ctx, c.Cohort, "explain", false, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 				return descx.ValidateChainWithOptions(src.rs, c, opts)
 			})
 		},
 		Facet: func(f *types.FacetRequest) (*descriptor.Envelope, error) {
-			return p.explainCheck(ctx, f.Cohort, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			return p.predictCohortRoot(ctx, f.Cohort, "explain", false, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 				return descx.ValidateFacetWithOptions(src.rs, f, opts)
 			})
 		},
 	})
-}
-
-// explainCheck opens cohort and runs check over it with the facade's
-// predict options and the cohort's sidecar facts.
-func (p *Pulse) explainCheck(ctx context.Context, cohort *types.Cohort, check func(*guideCohort, *descx.PredictOptions) *descriptor.Envelope) (*descriptor.Envelope, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	path := resolveCohortPath(cohort)
-	src, err := p.openGuideCohort(path, "explain")
-	if err != nil {
-		return nil, err
-	}
-	defer src.close()
-	opts := p.predictOptions(ctx, p.sidecarFacts(path))
-	return check(src, &opts), nil
 }

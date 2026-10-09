@@ -165,7 +165,7 @@ func TestAdvisories_NeverChangeExecution(t *testing.T) {
 // advisories slot must — and does — ride the tool output.
 func TestHandlePredict_CarriesAdvisories(t *testing.T) {
 	fs, cohort := limitsCohort(t)
-	out, err := mcp.HandlePredict(context.Background(), limitsPulse(t, fs, pulse.Limits{}), *manyOneSampleTests(cohort))
+	out, err := mcp.HandlePredict(context.Background(), limitsPulse(t, fs, pulse.Limits{}), mcp.PredictIn{Request: *manyOneSampleTests(cohort)})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,8 @@ applies_to: inspect, mcp
 
 ## When to use
 
-Schema-only output without running a request: listing fields, debugging dictionaries, confirming a field's type. On MCP a successful inspect rebinds session-scoped tool variants whose schemas enum the field names (best-effort).
+CALL TO SEE A COHORT'S FIELDS AND TYPES WITHOUT RUNNING A REQUEST.
+Listing fields, debugging dictionaries, checking a type. On MCP a successful inspect rebinds session tool variants to the field names (best-effort).
 
 ## Input
 

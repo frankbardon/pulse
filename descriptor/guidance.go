@@ -134,6 +134,15 @@ type Purpose struct {
 	Intents []string `json:"intents"`
 	// Questions lists natural-language questions the operator answers.
 	Questions []string `json:"questions"`
+	// KnownAs lists the other names analysts already know the operator
+	// by — SPSS, R or textbook spellings such as "anova" or "chi square".
+	// Optional, and declared only where a real alias exists. Each alias
+	// is a short surface spelling, not prose: unique across every
+	// operator on an instance and distinct from every intent's Sounds
+	// once case-folded with whitespace collapsed. Search treats an alias
+	// hit as a synonym for the operator; an alias of an operator the
+	// instance hides drops out with it.
+	KnownAs []string `json:"known_as,omitempty"`
 	// UseCases maps an audience domain to a one-line use case.
 	UseCases map[Domain]string `json:"use_cases,omitempty"`
 	// NotFor lists the situations where another choice fits better.

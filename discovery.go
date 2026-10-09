@@ -32,6 +32,27 @@ func (p *Pulse) Skills() []SkillMetadata {
 	return p.svc.InstanceSnapshot().Discovery().Skills()
 }
 
+// SkillsForIntent returns the skills relevant to one intent-taxonomy ID
+// (see Intents), ranked — the list pulse_skills_list {intent} serves.
+// Order: the skill documenting the intent itself (the virtual "intents"
+// skill), then the design skills whose covers names an operator serving
+// the intent or its category (TEST, AGG, ...), by name, then those operators' atomic skills, simplest
+// first by the operator's Purpose.Level (basic, intermediate, advanced,
+// then operators with none), then by name. Every edge is read off the
+// instance's pruned ontology, so under a feature profile a hidden
+// operator — and its skill — takes no part, and each entry is the
+// rendered metadata Skills lists. An intent no operator serves answers
+// its reference skill only.
+//
+// An unknown intent, or one the instance's feature profile hides, is
+// PULSE_RECOMMEND_INTENT_UNKNOWN (details.valid lists the instance's
+// intents) — the same refusal ExamplesSearchWith and Recommend give.
+// Skills itself is unchanged. Never nil on success; each call returns a
+// fresh slice the caller may mutate.
+func (p *Pulse) SkillsForIntent(intent string) ([]SkillMetadata, error) {
+	return p.svc.InstanceSnapshot().SkillsForIntent(intent)
+}
+
 // Skill returns the markdown body of the named skill (no ".md" suffix) as
 // the instance serves it — the body pulse_skills_get and a
 // pulse-skill://<name> read return. A skill the instance hides answers

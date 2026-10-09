@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"sort"
+	"strings"
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
@@ -147,6 +149,87 @@ func strictChainDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (types
 	return lenientDecode[types.ChainRequest](raw, inst)
 }
 
+// Alternative pulse_predict roots, each with the capability that owns
+// the request shape it carries. A hidden capability's key is not an
+// alternative: it falls through to the bare-request check and is
+// refused as an unknown key, exactly as on a build without it.
+var predictRoots = []struct{ key, feature string }{
+	{"composed", descx.FeatureName(descx.FeatureKindCapability, "compose")},
+	{"facet", descx.FeatureName(descx.FeatureKindCapability, "facet")},
+	{"chain", descx.FeatureName(descx.FeatureKindCapability, "process_chain")},
+}
+
+// strictPredictDecode decodes pulse_predict's input: a bare request
+// (strictRequestDecode, unchanged) unless the body carries an
+// alternative root key. An alternative must stand ALONE at the root —
+// beside any other key, or another alternative, the call is
+// SERVICE_VALIDATION — and its body is decoded with its own tool's
+// strict check (the pulse_facet_schema body stays lenient, as there).
+func strictPredictDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (PredictIn, error) {
+	var top map[string]json.RawMessage
+	if json.Unmarshal(raw, &top) != nil {
+		req, err := strictRequestDecode(raw, inst)
+		return PredictIn{Request: req}, err
+	}
+	var roots []string
+	for _, r := range predictRoots {
+		if _, ok := top[r.key]; ok && !inst.Hidden(r.feature) {
+			roots = append(roots, r.key)
+		}
+	}
+	if len(roots) == 0 {
+		req, err := strictRequestDecode(raw, inst)
+		return PredictIn{Request: req}, err
+	}
+	if len(top) > 1 {
+		keys := make([]string, 0, len(top))
+		for k := range top {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return PredictIn{}, perr.NewCodedErrorWithDetails(perr.SERVICE_VALIDATION,
+			"pulse_predict: send a bare request, or exactly one of composed / facet / chain alone at the root; got "+strings.Join(keys, ", "),
+			map[string]any{"keys": keys, "roots": roots})
+	}
+	body := top[roots[0]]
+	var in PredictIn
+	switch roots[0] {
+	case "composed":
+		c, err := strictComposedDecode(body, inst)
+		if err != nil {
+			return PredictIn{}, err
+		}
+		in.Composed = &c
+	case "facet":
+		f, err := lenientDecode[types.FacetRequest](body, inst)
+		if err != nil {
+			return PredictIn{}, err
+		}
+		in.Facet = &f
+	case "chain":
+		c, err := strictChainDecode(body, inst)
+		if err != nil {
+			return PredictIn{}, err
+		}
+		in.Chain = &c
+	}
+	return in, nil
+}
+
+// fillPredictReturn applies the MCP `return` default to whichever root
+// pulse_predict decoded, as its execution tool would (a facet request
+// carries no `return`).
+func fillPredictReturn(in *PredictIn, def *types.Return) {
+	switch {
+	case in.Composed != nil:
+		fillComposeReturn(in.Composed, def)
+	case in.Chain != nil:
+		fillChainReturn(in.Chain, def)
+	case in.Facet == nil:
+		fillReturn(&in.Request, def)
+	}
+}
+
 // makeInvoke composes a decode function with a typed handler into the
 // type-erased InvokeFunc. Errors (decode or handler) are returned verbatim.
 func makeInvoke[In, Out any](decode decodeFunc[In], h func(context.Context, *pulse.Pulse, In) (Out, error)) InvokeFunc {
@@ -178,7 +261,7 @@ func instanceOf(p *pulse.Pulse) *descx.InstanceSnapshot {
 func invokers(cfg Config) map[string]InvokeFunc {
 	return map[string]InvokeFunc{
 		toolmeta.ToolInspect:        makeInvoke(lenientDecode[InspectIn], HandleInspect),
-		toolmeta.ToolPredict:        makeInvoke(withReturnDefault(cfg, strictRequestDecode, fillRequestReturn), HandlePredict),
+		toolmeta.ToolPredict:        makeInvoke(withReturnDefault(cfg, strictPredictDecode, fillPredictReturn), HandlePredict),
 		toolmeta.ToolProcess:        makeInvoke(withReturnDefault(cfg, strictRequestDecode, fillRequestReturn), HandleProcess),
 		toolmeta.ToolProcessChain:   makeInvoke(withReturnDefault(cfg, strictChainDecode, fillChainReturn), HandleProcessChain),
 		toolmeta.ToolCompose:        makeInvoke(withReturnDefault(cfg, strictComposedDecode, fillComposeReturn), HandleCompose),

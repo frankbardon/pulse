@@ -1,7 +1,9 @@
 package mcp
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
@@ -72,4 +74,52 @@ func TestSchemasStableOrder(t *testing.T) {
 			t.Errorf("order[%d] = %q, want %q", i, got[i].Name, want[i])
 		}
 	}
+}
+
+// TestSchemasNoRawMessageByteArray: no reflected tool schema describes a
+// json.RawMessage field (operator `params`, a recommendation's drafted
+// `request`) as the byte array the reflector derives from []byte — the
+// wire carries any JSON value there, so the schema must be any-JSON.
+func TestSchemasNoRawMessageByteArray(t *testing.T) {
+	for _, ts := range Schemas() {
+		for side, raw := range map[string]json.RawMessage{"input": ts.InputSchema, "output": ts.OutputSchema} {
+			var root any
+			if err := json.Unmarshal(raw, &root); err != nil {
+				t.Fatalf("%s %s: %v", ts.Name, side, err)
+			}
+			for _, path := range byteArrayPaths(root, "") {
+				t.Errorf("%s %s schema: %s reflects as a byte array, want any-JSON", ts.Name, side, path)
+			}
+		}
+	}
+
+	// Not vacuous: a RawMessage-carrying output reflects the field as
+	// the empty schema, which marshals as the boolean schema `true`
+	// (any JSON value).
+	ts, _ := SchemaFor(toolmeta.ToolRecommend)
+	if !bytes.Contains(ts.OutputSchema, []byte(`"request":true`)) {
+		t.Errorf("pulse_recommend output: recommendations[].request is not the any-JSON schema")
+	}
+}
+
+// byteArrayPaths returns the JSON-pointer-ish path of every schema node
+// shaped like a reflected []byte: an array whose items are integers
+// bounded to [0, 255].
+func byteArrayPaths(node any, path string) []string {
+	var out []string
+	switch v := node.(type) {
+	case map[string]any:
+		if items, ok := v["items"].(map[string]any); ok &&
+			items["type"] == "integer" && items["minimum"] == float64(0) && items["maximum"] == float64(255) {
+			out = append(out, path)
+		}
+		for k, child := range v {
+			out = append(out, byteArrayPaths(child, path+"/"+k)...)
+		}
+	case []any:
+		for i, child := range v {
+			out = append(out, byteArrayPaths(child, fmt.Sprintf("%s/%d", path, i))...)
+		}
+	}
+	return out
 }

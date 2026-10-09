@@ -32,12 +32,20 @@ var (
 	_ func(*pulse.Pulse, context.Context, *pulse.ComposedRequest, pulse.ComposeOptions) (*pulse.ComposedResponse, error) = (*pulse.Pulse).ComposeParallel
 	_ func(*pulse.Pulse, context.Context, []byte, *descriptor.InspectOptions) (*descriptor.Envelope, error)              = (*pulse.Pulse).InspectBytes
 	_ func(*pulse.Pulse, context.Context, []byte, *pulse.Request) (*descriptor.Envelope, error)                          = (*pulse.Pulse).PredictBytes
-	_ func(*pulse.Pulse, context.Context, string) ([]string, error)                                                      = (*pulse.Pulse).CohortArtifacts
-	_ func(*pulse.Pulse, context.Context, string, []string) (*pulse.BuildIndexResult, error)                             = (*pulse.Pulse).BuildIndex
-	_ func(*pulse.Pulse, context.Context, *pio.ImportJob) (*pio.ImportReport, error)                                     = (*pulse.Pulse).Import
-	_ func(*pulse.Pulse, context.Context, *pio.ExportJob) (*pio.ExportReport, error)                                     = (*pulse.Pulse).Export
-	_ func(*pulse.Pulse, context.Context, pulse.ImportSpec) (*pulse.ImportResult, error)                                 = (*pulse.Pulse).ImportFile
-	_ func(io.Reader, *encoding.Schema, string) (pulse.LoadMemberSetResult, error)                                       = pulse.LoadMemberSetFromReader
+	_ func(*pulse.Pulse, context.Context, *pulse.ComposedRequest) (*descriptor.Envelope, error)                          = (*pulse.Pulse).PredictCompose
+	_ func(*pulse.Pulse, context.Context, *pulse.FacetRequest) (*descriptor.Envelope, error)                             = (*pulse.Pulse).PredictFacet
+	_ func(*pulse.Pulse, context.Context, *pulse.ChainRequest) (*descriptor.Envelope, error)                             = (*pulse.Pulse).PredictChain
+	// The predict-root envelopes' Data types.
+	_                                                                                        = pulse.ComposePredictResult{}
+	_                                                                                        = pulse.FacetPredictResult{}
+	_                                                                                        = pulse.ChainPredictResult{}
+	_                                                                                        = pulse.ChainOverlaySchemaDivergence{}
+	_ func(*pulse.Pulse, context.Context, string) ([]string, error)                          = (*pulse.Pulse).CohortArtifacts
+	_ func(*pulse.Pulse, context.Context, string, []string) (*pulse.BuildIndexResult, error) = (*pulse.Pulse).BuildIndex
+	_ func(*pulse.Pulse, context.Context, *pio.ImportJob) (*pio.ImportReport, error)         = (*pulse.Pulse).Import
+	_ func(*pulse.Pulse, context.Context, *pio.ExportJob) (*pio.ExportReport, error)         = (*pulse.Pulse).Export
+	_ func(*pulse.Pulse, context.Context, pulse.ImportSpec) (*pulse.ImportResult, error)     = (*pulse.Pulse).ImportFile
+	_ func(io.Reader, *encoding.Schema, string) (pulse.LoadMemberSetResult, error)           = pulse.LoadMemberSetFromReader
 )
 
 // Record-by-record reader: Cohort.Reader and the exact-typed CohortRow.

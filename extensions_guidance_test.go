@@ -113,6 +113,9 @@ func TestExtensions_PurposeInvalidRules(t *testing.T) {
 		{descx.PurposeRuleIntentUnknown, func(p *descriptor.Purpose) { p.Intents = []string{"vibes"} }},
 		{descx.PurposeRuleGlossaryUnknown, func(p *descriptor.Purpose) { p.Glossary = []string{"not-a-term"} }},
 		{descx.PurposeRuleJargonUnlinked, func(p *descriptor.Purpose) { p.Plain = "Brand score with a p-value." }},
+		{descx.PurposeRuleKnownAs, func(p *descriptor.Purpose) { p.KnownAs = []string{"brand index", "Brand  Index"} }},
+		{descx.PurposeRuleKnownAs, func(p *descriptor.Purpose) { p.KnownAs = []string{"What's the mix?"} }},
+		{descx.PurposeRuleKnownAs, func(p *descriptor.Purpose) { p.KnownAs = []string{"ANOVA"} }},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.rule), func(t *testing.T) {
@@ -275,5 +278,56 @@ func TestExtensions_PurposeProseNeverInManifest(t *testing.T) {
 	}
 	if !strings.Contains(body, `"intents":["describe","measure_construct"]`) {
 		t.Error("extension intents not projected into the manifest")
+	}
+}
+
+// TestExtensions_KnownAsInInstanceView: an extension's KnownAs aliases
+// join the instance alias index, drop out when a feature profile hides
+// the operator, and a second extension may not reuse one.
+func TestExtensions_KnownAsInInstanceView(t *testing.T) {
+	brand := validExtPurpose()
+	brand.KnownAs = []string{"Brand Health Index", "BHI"}
+	kept := validExtPurpose()
+	kept.KnownAs = []string{"kept score"}
+	ext := guidanceExt(brand)
+	ext.Aggregators = append(ext.Aggregators, AggregatorRegistration{
+		Name: "AGG_ACME_KEPT", Description: "Stub.", Factory: featureSetStubAggFactory, Purpose: kept,
+	})
+
+	p, err := New(Options{FS: memFsWith(t, nil), Extensions: ext})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	idx := p.svc.InstanceSnapshot().KnownAs()
+	if idx["brand health index"] != "AGG_ACME_BRAND" || idx["bhi"] != "AGG_ACME_BRAND" || idx["kept score"] != "AGG_ACME_KEPT" {
+		t.Errorf("instance aliases = brand %q bhi %q kept %q", idx["brand health index"], idx["bhi"], idx["kept score"])
+	}
+	if idx["anova"] != "TEST_ANOVA_F" {
+		t.Errorf("built-in alias anova → %q", idx["anova"])
+	}
+
+	p, err = New(Options{FS: memFsWith(t, nil), Extensions: ext,
+		FeatureProfile: &FeatureProfile{Features: []string{"capability:process", "AGG_ACME_KEPT"}}})
+	if err != nil {
+		t.Fatalf("New (profiled): %v", err)
+	}
+	idx = p.svc.InstanceSnapshot().KnownAs()
+	if _, ok := idx["bhi"]; ok {
+		t.Error("hidden extension's alias still in the instance view")
+	}
+	if _, ok := idx["anova"]; ok {
+		t.Error("hidden built-in TEST_ANOVA_F's alias still in the instance view")
+	}
+	if idx["kept score"] != "AGG_ACME_KEPT" {
+		t.Error("visible extension's alias missing under the profile")
+	}
+
+	dup := validExtPurpose()
+	dup.KnownAs = []string{"bhi"}
+	ext.Aggregators[1].Purpose = dup
+	_, err = New(Options{FS: memFsWith(t, nil), Extensions: ext})
+	ce := purposeInvalid(t, err)
+	if ce.Details["name"] != "AGG_ACME_KEPT" || ce.Details["rule"] != string(descx.PurposeRuleKnownAs) {
+		t.Errorf("details = %v, want AGG_ACME_KEPT rule known_as", ce.Details)
 	}
 }

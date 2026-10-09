@@ -30,6 +30,10 @@ returns via `gosdk.Register`.
 ## 2. Register tool metadata
 
 Add the tool's name + description in `internal/mcp/toolmeta/meta.go`.
+The description opens with one `CALL …` sentence saying when to call the
+tool, and that sentence is the first line of the tool skill's
+`## When to use` section, word for word
+(`TestToolDescriptionsLeadWithWhenToUse`).
 The `internal/mcp/toolmeta` package is imported by `internal/descriptor/` (which assembles
 the manifest) and by the core, so this is the leaf-metadata package that
 lets the descriptor surface the tool without importing the MCP layer or
@@ -53,6 +57,9 @@ Schema-binding parity is enforced by:
 - `TestMCPSchemaBinding_SampleAndFacetFieldEnum`
 - `TestMCPSchemaBinding_DedupAndSort`
 - `TestMCPSchemaBinding_NilSchema`
+- `TestBindForInstance_PayloadSchemaParity` — every payload-schema key under
+  a bound request root is in the bound schema (allowlisted omissions carry a
+  reason), and no bound key is absent from the instance's payload schema
 
 The transport caveat: bind-on-inspect works on the single stdio session
 (post-serve `AddTool`/`RemoveTools` auto-emits `list_changed`); there is

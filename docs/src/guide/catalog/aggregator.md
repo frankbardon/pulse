@@ -45,6 +45,8 @@ Average of a numeric field, over all rows or per group.
 
 **Level:** basic
 
+**Also known as:** `mean`, `arithmetic mean`
+
 **Questions it answers:**
 
 - What is the average order value?
@@ -835,6 +837,8 @@ How lopsided a numeric field is: positive when a long tail runs to high values, 
 Typical distance of a numeric field's values from their average, in the field's own units, over all rows or per group.
 
 **Level:** basic
+
+**Also known as:** `standard deviation`, `sd`
 
 **Questions it answers:**
 

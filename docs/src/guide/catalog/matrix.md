@@ -17,6 +17,8 @@ How closely every pair in a set of numeric fields follows a straight line togeth
 
 **Level:** intermediate
 
+**Also known as:** `correlation matrix`, `cor`
+
 **Questions it answers:**
 
 - Which of these ten rating items go together most strongly?
@@ -52,6 +54,8 @@ How closely every pair in a set of numeric fields follows a straight line togeth
 How every pair in a set of numeric fields varies together, as one square table with each field's variance on the diagonal.
 
 **Level:** intermediate
+
+**Also known as:** `covariance matrix`, `cov`
 
 **Questions it answers:**
 

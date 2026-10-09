@@ -175,6 +175,30 @@ pulse api predict --request req.json --json | \
     jq '.data | {streamable, streamable_reasons}'
 ```
 
+## Compose, facet and chain requests
+
+Three sibling leaves predict the request shapes `api predict` does not
+take. Each reads `--request FILE` (required) and takes `--json`; none
+takes `--strict` or `--echo-request`, because the validators behind them
+honour neither.
+
+| Leaf | Request file | `data` on `--json` |
+|---|---|---|
+| `pulse api predict-compose` | a `ComposedRequest` | the batch verdict: `valid`, the echoed `request`, rejected overlay pairs, overlay cost, the p-value count and each slot's advisories |
+| `pulse api predict-facet` | a `FacetRequest` | `valid`, the echoed `request`, `schema_info` and the accepted overlays |
+| `pulse api predict-chain` | a `ChainRequest` | `valid`, the echoed `request`, the source schema and each stage's inferred output columns |
+
+A refused request comes back as coded `errors` beside `data.valid:
+false` (exit 1 in text mode). A request with no cohort is
+`SERVICE_VALIDATION`; an unreadable cohort is `DATA_FILE`
+(`ENCODING_INVALID` for a malformed header). Each fault keeps its own code
+in `errors[0]`. Over MCP the same three shapes are `pulse_predict`'s
+alternative roots: `composed`, `facet` or `chain`, alone at the root.
+
+```bash
+pulse api predict-compose --request batch.json --json | jq '.data.valid'
+```
+
 ## Common warning codes
 
 | Code | What to do |

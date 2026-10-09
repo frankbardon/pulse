@@ -110,6 +110,8 @@ An atomic skill may carry the marker LINES `<!-- generated: use-when -->` (after
 
 `TestAtomicSkillHasRequiredSections` keys off the `category:` frontmatter field; stem prefix is the fallback.
 
+A `tool-*` skill's `## When to use` opens with ONE line holding ONE `CALL …` trigger sentence (no fence; the rest goes on the next line), and that sentence is also the first sentence of the tool's `internal/mcp/toolmeta/meta.go` description — `TestToolDescriptionsLeadWithWhenToUse` (`internal/skills`).
+
 **Built-in-only generated sections (U21).** Beyond the table, EVERY shipped `op-*` skill carries `<!-- generated: use-when -->` alone on a line between the lead sentence and `## Params`, and `<!-- generated: reading-the-output -->` at the END of the `## Output` section (just before the next `##` heading) in exactly those whose frontmatter `operator:` has `Interpretation` entries (`InterpretationsOf`). `TestSkillPurposeSectionsCurrent` (`internal/descriptor`) enforces the rule — marker present per the predicate and absent otherwise, the served `skills.Get` body carrying the rendered heading, non-empty and within `UseWhenSectionCap` / `ReadingSectionCap` — so a new op skill needs the marker(s) in the same PR. The two regression modifier skills (`op-reg-mod-resample`, `op-reg-mod-selection`) document spec fields with no registered Purpose: they carry the use-when marker but it renders nothing. The requirement is NOT in `families.go` `RequiredSections` (shared with embedder validation): an embedder op skill without markers still loads.
 
 ## Token budget

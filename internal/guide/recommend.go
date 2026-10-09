@@ -39,6 +39,18 @@ var routes = map[string][]descriptor.Alternative{
 	},
 }
 
+// Routes returns a copy of the tooling routes declared for an intent
+// (feature spellings, unfiltered by any instance), or nil when the
+// intent declares none. The MCP author-request prompt reads it to
+// point the tooling intents straight at their tools.
+func Routes(intentID string) []descriptor.Alternative {
+	rs := routes[intentID]
+	if len(rs) == 0 {
+		return nil
+	}
+	return append([]descriptor.Alternative(nil), rs...)
+}
+
 // Recommend answers an UNBOUND recommend request (no cohort) for the
 // instance inst: the operators the pruned ontology says serve the
 // intent, each as a placeholder skeleton, ranked and capped.

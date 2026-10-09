@@ -297,7 +297,8 @@ func malformedEntryPoints() []parityEntryPoint {
 	out := make([]parityEntryPoint, len(parityEntryPoints))
 	for i, ep := range parityEntryPoints {
 		key := ep.name
-		if key == "ProcessChain/stage1" {
+		// PredictChain/stage0 runs the same chain stage gate.
+		if key == "ProcessChain/stage1" || key == "PredictChain/stage0" {
 			key = "ProcessChain/stage0"
 		}
 		extra := malformedVacuous[key]

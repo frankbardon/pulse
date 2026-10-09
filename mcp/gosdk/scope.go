@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/facadebridge"
 )
@@ -47,6 +48,18 @@ func promptEnabled(inst *descx.InstanceSnapshot, prompt string) bool {
 		return true
 	}
 	return inst.Enabled(feature)
+}
+
+// intentPromptEnabled reports whether the instance mounts a generated
+// intent prompt: its mcp_extra feature is enabled AND its intent node
+// survives the instance's ontology prune (an intent whose every
+// serving operator is hidden has nothing to recommend).
+func intentPromptEnabled(inst *descx.InstanceSnapshot, ip descx.MCPIntentPrompt) bool {
+	if !inst.Enabled(ip.Feature) {
+		return false
+	}
+	_, ok := inst.Ontology().Node(descx.OntologyID(descriptor.OntologyNodeIntent, ip.Intent))
+	return ok
 }
 
 // scrubbedSchema applies the instance's prose scrub to every description

@@ -88,7 +88,7 @@ func TestLimits_MaxCrosstabCells_BothArms(t *testing.T) {
 			if !res.Valid || !reflect.DeepEqual(res.LimitFindings, want) {
 				t.Fatalf("Predict valid=%v findings=%+v, want true %+v", res.Valid, res.LimitFindings, want)
 			}
-			out, err := mcp.HandlePredict(ctx, p, *segByTier(cohort))
+			out, err := mcp.HandlePredict(ctx, p, mcp.PredictIn{Request: *segByTier(cohort)})
 			if err != nil {
 				t.Fatal(err)
 			}

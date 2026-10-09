@@ -15,6 +15,7 @@ var matrixPurposes = map[string]descriptor.Purpose{
 
 var purposeMatCorrelation = descriptor.Purpose{
 	Plain:   "How closely every pair in a set of numeric fields follows a straight line together, as one square table of r values from -1 to 1.",
+	KnownAs: []string{"correlation matrix", "cor"},
 	Intents: []string{IntentRelationship, IntentDescribe},
 	Questions: []string{
 		"Which of these ten rating items go together most strongly?",
@@ -42,6 +43,7 @@ var purposeMatCorrelation = descriptor.Purpose{
 
 var purposeMatCovariance = descriptor.Purpose{
 	Plain:   "How every pair in a set of numeric fields varies together, as one square table with each field's variance on the diagonal.",
+	KnownAs: []string{"covariance matrix", "cov"},
 	Intents: []string{IntentRelationship, IntentDescribe},
 	Questions: []string{
 		"How do these five rating scales vary together across respondents?",

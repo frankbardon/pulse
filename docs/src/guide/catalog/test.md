@@ -36,6 +36,8 @@ Checks whether the average of a numeric measure differs across three or more gro
 
 **Level:** intermediate
 
+**Also known as:** `anova`, `one-way anova`, `aov`
+
 **Questions it answers:**
 
 - Does average spend differ across regions?
@@ -79,6 +81,8 @@ Checks whether the average differs across conditions when every subject is measu
 
 **Level:** advanced
 
+**Also known as:** `repeated measures anova`, `within-subjects anova`
+
 **Questions it answers:**
 
 - Do the same panel members rate the three ad concepts differently on average?
@@ -113,6 +117,8 @@ Checks whether the average differs across conditions when every subject is measu
 Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread.
 
 **Level:** intermediate
+
+**Also known as:** `welch's anova`, `oneway.test`
 
 **Questions it answers:**
 
@@ -156,6 +162,8 @@ Checks whether the spread of a numeric field differs across groups: a robust tes
 
 **Level:** advanced
 
+**Also known as:** `levene's test`, `median-centred levene test`
+
 **Questions it answers:**
 
 - Is delivery time more variable at some warehouses than at others?
@@ -194,6 +202,8 @@ Checks whether the spread of a numeric field differs across groups: a robust tes
 Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated.
 
 **Level:** intermediate
+
+**Also known as:** `chi square`, `chi-square test`, `pearson chi-square`, `chisq.test`
 
 **Questions it answers:**
 
@@ -237,6 +247,8 @@ Exact test of whether two yes/no fields are associated, built for small 2x2 tabl
 
 **Level:** intermediate
 
+**Also known as:** `fisher's exact test`, `fisher.test`
+
 **Questions it answers:**
 
 - In a small pilot, did the treated group recover more often than the control group?
@@ -271,6 +283,8 @@ Exact test of whether two yes/no fields are associated, built for small 2x2 tabl
 Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties.
 
 **Level:** intermediate
+
+**Also known as:** `kendall`, `kendall's tau`, `tau-b`
 
 **Questions it answers:**
 
@@ -310,6 +324,8 @@ Measures how often pairs of rows agree in order on two numeric fields: a rank-ba
 Rank-based check of whether values tend to be larger in some groups than in others, across two or more groups.
 
 **Level:** intermediate
+
+**Also known as:** `kruskal-wallis h test`, `kruskal.test`
 
 **Questions it answers:**
 
@@ -351,6 +367,8 @@ Checks whether a numeric field's values follow the same distribution in two grou
 
 **Level:** intermediate
 
+**Also known as:** `kolmogorov-smirnov test`, `ks test`, `ks.test`
+
 **Questions it answers:**
 
 - Do order values in the two regions have the same overall distribution?
@@ -386,6 +404,8 @@ Checks whether a numeric field's values follow the same distribution in two grou
 Rank-based check of whether values in one of two groups tend to be larger than in the other.
 
 **Level:** intermediate
+
+**Also known as:** `mann-whitney`, `wilcoxon rank-sum test`
 
 **Questions it answers:**
 
@@ -423,6 +443,8 @@ Checks whether the average change between two measurements of the same rows, suc
 
 **Level:** intermediate
 
+**Also known as:** `paired t test`, `paired-samples t test`, `dependent t test`
+
 **Questions it answers:**
 
 - On average, did customers' spend differ between the period before and after the loyalty programme started?
@@ -458,6 +480,8 @@ Checks whether the average change between two measurements of the same rows, suc
 Measures how strongly two numeric fields rise and fall together along a straight line.
 
 **Level:** intermediate
+
+**Also known as:** `pearson`, `pearson correlation`, `pearson's r`
 
 **Questions it answers:**
 
@@ -502,6 +526,8 @@ Checks whether the rate of one outcome, such as conversion, differs between two 
 
 **Level:** basic
 
+**Also known as:** `two-proportion z test`, `prop.test`
+
 **Questions it answers:**
 
 - Does the new checkout convert at a different rate from the old one?
@@ -536,6 +562,8 @@ Checks whether the rate of one outcome, such as conversion, differs between two 
 Checks whether a numeric field looks normally distributed, overall or within each group.
 
 **Level:** intermediate
+
+**Also known as:** `shapiro test`, `shapiro.test`
 
 **Questions it answers:**
 
@@ -577,6 +605,8 @@ Measures how consistently one numeric field rises (or falls) as the other rises,
 
 **Level:** intermediate
 
+**Also known as:** `spearman`, `spearman's rho`, `spearman rank correlation`
+
 **Questions it answers:**
 
 - Do higher-ranked products also tend to sell more, even if not in proportion?
@@ -617,6 +647,8 @@ Checks whether a numeric field's average differs from a target value, or between
 
 **Level:** intermediate
 
+**Also known as:** `t test`, `one-sample t test`
+
 **Questions it answers:**
 
 - Is the average order value different from our target of 50?
@@ -656,6 +688,8 @@ Checks whether an ordered series, such as monthly totals, tends to keep rising o
 
 **Level:** intermediate
 
+**Also known as:** `mann-kendall test`
+
 **Questions it answers:**
 
 - Is monthly churn creeping up?
@@ -692,6 +726,8 @@ After an ANOVA, compares every pair of group averages to find which ones differ,
 
 **Level:** advanced
 
+**Also known as:** `tukey hsd`, `tukey's honest significant difference`
+
 **Questions it answers:**
 
 - Which regions differ from each other in average spend?
@@ -727,6 +763,8 @@ After an ANOVA, compares every pair of group averages to find which ones differ,
 Checks whether the average of a numeric field differs between two groups, without assuming they have equal spread.
 
 **Level:** intermediate
+
+**Also known as:** `welch's t test`, `unequal variances t test`
 
 **Questions it answers:**
 
@@ -766,6 +804,8 @@ Rank-based check of whether paired before/after values tend to shift in one dire
 
 **Level:** intermediate
 
+**Also known as:** `wilcoxon signed-rank test`, `signed-rank test`
+
 **Questions it answers:**
 
 - Did each customer's rating tend to go up after the redesign?
@@ -800,6 +840,8 @@ Rank-based check of whether paired before/after values tend to shift in one dire
 Large-sample check of whether two groups differ in average, with the p-value read from the normal distribution.
 
 **Level:** intermediate
+
+**Also known as:** `two-sample z test`
 
 **Questions it answers:**
 

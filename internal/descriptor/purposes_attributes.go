@@ -170,6 +170,7 @@ var (
 var (
 	purposeAttrZScore = descriptor.Purpose{
 		Plain:   "Adds to every row its z-score: how many standard deviations the row's value sits above or below the mean.",
+		KnownAs: []string{"standard score", "standardized score"},
 		Intents: []string{IntentBenchmark, IntentPrepare},
 		Questions: []string{
 			"Which orders are unusually large compared with all orders?",
