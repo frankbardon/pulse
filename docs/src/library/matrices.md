@@ -2,9 +2,9 @@
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a square result in which every member is compared
-with every member. Three operators ship: `MAT_COVARIANCE`,
+with every member. Four operators ship: `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
-`params.method`) and `MAT_PARTIAL_CORRELATION`. All are additive: a request without
+`params.method`), `MAT_PARTIAL_CORRELATION` and `MAT_RELIABILITY`. All are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -103,6 +103,35 @@ largest) — and keeps the code as a warning carrying
 `frobenius_adjustment`, `iterations` and `converged`. A member or
 control that is a linear mix of the others is `PULSE_MATRIX_SINGULAR`
 with `rank`, `condition_number` and `dependent_fields`.
+
+## Scale reliability
+
+`MAT_RELIABILITY` checks a battery of items before it is summed into a
+score. Its `primary` is the inter-item correlation matrix; `scalars`
+carry Cronbach's `alpha` (on the covariance, `psych::alpha` raw_alpha),
+`alpha_standardized` (from the mean inter-item r), `mean_inter_item_r`
+and McDonald's `omega`; `vectors` carry, per item in axis order, the
+corrected `item_total_r` (the item against the sum of the others),
+`alpha_if_deleted`, `item_mean` and `item_sd`.
+
+Reverse-worded items are named in `params.reverse` together with the
+battery's `scale_min` / `scale_max`: each value becomes
+`scale_min + scale_max − x` before the fold, so the operator streams and
+merges like `MAT_CORRELATION` and takes both weight kinds. A reverse
+list without the range, or any item value outside a declared range, is
+`PROCESSING_CONFIG` — values are never clamped and the range is never
+read off the data.
+
+`omega` is `(Σλ)² / ((Σλ)² + Σψ)` from a one-factor minimum-residual fit
+of the inter-item correlation (`psych::fa(nfactors = 1, fm = "minres")`);
+`components.matrices[i].operator` reports the fit's `iterations` and
+`converged`. It is `null` with a warning when the battery has 2 items
+(`PULSE_MATRIX_NOT_IDENTIFIED`), when the fit is a Heywood case
+(`PULSE_MATRIX_HEYWOOD`), or when a pairwise table is not positive
+semi-definite and `params.repair` is not `"nearest"`
+(`PULSE_MATRIX_NOT_PSD` as a warning — alpha needs no such input and is
+always reported). Alpha is read against George & Mallery's (2003) bands;
+omega is not banded.
 
 ## Groups, cost and refusals
 

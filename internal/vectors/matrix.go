@@ -3,6 +3,8 @@ package vectors
 import (
 	"bytes"
 	"encoding/json"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -73,6 +75,21 @@ type Matrix struct {
 	// Repair is a decomposition operator's params.repair: "" (refuse a
 	// non-PSD input with PULSE_MATRIX_NOT_PSD) or RepairNearest.
 	Repair string
+	// Reverse are MAT_RELIABILITY's reverse-keyed items as member
+	// positions, ascending (params.reverse, de-duplicated by name): the
+	// slot folds x' = ScaleMin + ScaleMax − x for each before the
+	// co-moment. Nil when nothing is reversed.
+	Reverse []int
+	// HasScale reports a declared battery-wide params.scale_min /
+	// scale_max (both or neither; required with a reverse list): every
+	// present member value must lie in [ScaleMin, ScaleMax], or the run
+	// is refused with PROCESSING_CONFIG — never clamped, never inferred
+	// from the data.
+	HasScale           bool
+	ScaleMin, ScaleMax float64
+	// reverseNames carries params.reverse from decode to
+	// resolveReliability (members resolve in between).
+	reverseNames []string
 }
 
 // RepairNearest is params.repair "nearest": a non-PSD input matrix is
@@ -135,9 +152,12 @@ func (m Matrix) OutputMembers() (members, labels []string) {
 func (m Matrix) Decomposition() bool { return IsDecomposition(m.Type) }
 
 // IsDecomposition reports whether t is a decomposition operator (see
-// Matrix.Decomposition): today MAT_PARTIAL_CORRELATION.
+// Matrix.Decomposition): MAT_PARTIAL_CORRELATION, and MAT_RELIABILITY,
+// whose McDonald's omega factors the inter-item correlation (there the
+// guard's refusal nulls omega with a warning instead of failing the
+// matrix: alpha needs no PSD input).
 func IsDecomposition(t types.MatrixType) bool {
-	return t == types.MAT_PARTIAL_CORRELATION
+	return t == types.MAT_PARTIAL_CORRELATION || t == types.MAT_RELIABILITY
 }
 
 // Missing-data modes (params.missing).
@@ -214,6 +234,17 @@ type correlationParams struct {
 type partialParams struct {
 	Control json.RawMessage `json:"control"`
 	Repair  *string         `json:"repair"`
+	missingParams
+}
+
+// reliabilityParams is MAT_RELIABILITY's params object: the
+// reverse-keyed items, the battery-wide scale range, the repair choice
+// and the missing-data knobs; any other key is refused.
+type reliabilityParams struct {
+	Reverse  []string `json:"reverse"`
+	ScaleMin *float64 `json:"scale_min"`
+	ScaleMax *float64 `json:"scale_max"`
+	Repair   *string  `json:"repair"`
 	missingParams
 }
 
@@ -317,6 +348,9 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 		if err := resolveControls(at, schema, &m); err != nil {
 			return nil, err
 		}
+		if err := resolveReliability(at, spec, &m); err != nil {
+			return nil, err
+		}
 		out = append(out, m)
 	}
 	return out, nil
@@ -392,16 +426,121 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			return err
 		}
 		m.Controls = controls
-		if p.Repair != nil {
-			if *p.Repair != RepairNearest {
-				return matrixInvalid(at, "bad_params", at+" params.repair must be \"nearest\"",
-					map[string]any{"param": "repair", "value": *p.Repair, "valid": []string{RepairNearest}})
-			}
-			m.Repair = RepairNearest
+		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		miss = p.missingParams
+	case types.MAT_RELIABILITY:
+		var p reliabilityParams
+		if err := decodeStrict(raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if err := decodeScale(at, p, m); err != nil {
+			return err
+		}
+		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
 		}
 		miss = p.missingParams
 	}
 	return decodeMissing(at, miss, m)
+}
+
+// decodeRepair applies a decomposition operator's params.repair: absent
+// or "nearest".
+func decodeRepair(at string, repair *string, m *Matrix) *errors.CodedError {
+	if repair == nil {
+		return nil
+	}
+	if *repair != RepairNearest {
+		return matrixInvalid(at, "bad_params", at+" params.repair must be \"nearest\"",
+			map[string]any{"param": "repair", "value": *repair, "valid": []string{RepairNearest}})
+	}
+	m.Repair = RepairNearest
+	return nil
+}
+
+// decodeScale applies MAT_RELIABILITY's params.scale_min / scale_max
+// (both or neither, finite, min < max) and keeps the reverse names for
+// resolveReliability. A reverse list without a range, half a range, or
+// a range that is not a finite min < max is PROCESSING_CONFIG: the
+// reversal x' = min + max − x needs the declared range, which is never
+// inferred from the data.
+func decodeScale(at string, p reliabilityParams, m *Matrix) *errors.CodedError {
+	switch {
+	case p.ScaleMin == nil && p.ScaleMax == nil:
+		if len(p.Reverse) > 0 {
+			return scaleConfig(at, at+" params.reverse needs the battery's scale range: set params.scale_min and params.scale_max (the range is never inferred from the data)",
+				map[string]any{"param": "scale_min", "reverse": append([]string(nil), p.Reverse...)})
+		}
+		return nil
+	case p.ScaleMin == nil || p.ScaleMax == nil:
+		return scaleConfig(at, at+" params.scale_min and params.scale_max are set together", map[string]any{"param": "scale_min"})
+	}
+	lo, hi := *p.ScaleMin, *p.ScaleMax
+	if math.IsNaN(lo) || math.IsInf(lo, 0) || math.IsNaN(hi) || math.IsInf(hi, 0) || !(lo < hi) {
+		return scaleConfig(at, at+" params.scale_min must be below params.scale_max",
+			map[string]any{"param": "scale_min", "scale_min": lo, "scale_max": hi})
+	}
+	m.HasScale, m.ScaleMin, m.ScaleMax = true, lo, hi
+	m.reverseNames = p.Reverse
+	return nil
+}
+
+// scaleConfig is a MAT_RELIABILITY scale-range refusal: PROCESSING_CONFIG
+// naming the matrix slot.
+func scaleConfig(at, msg string, extra map[string]any) *errors.CodedError {
+	details := map[string]any{"matrix": at}
+	for k, v := range extra {
+		details[k] = v
+	}
+	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, msg, details)
+}
+
+// ReliabilityMinItems is the fewest members MAT_RELIABILITY takes:
+// alpha compares at least two items.
+const ReliabilityMinItems = 2
+
+// resolveReliability places MAT_RELIABILITY's reverse names on the
+// resolved members (each must be a member, listed once) and refuses a
+// battery of fewer than ReliabilityMinItems members — both
+// SERVICE_VALIDATION bad_params.
+func resolveReliability(at string, spec types.MatrixSpec, m *Matrix) *errors.CodedError {
+	if spec.Type != types.MAT_RELIABILITY {
+		return nil
+	}
+	members := m.Members.Members
+	if len(members) < ReliabilityMinItems {
+		return matrixInvalid(at, "bad_params", at+" MAT_RELIABILITY needs at least 2 items; alpha compares items with one another",
+			map[string]any{"members": append([]string(nil), members...), "min_items": ReliabilityMinItems})
+	}
+	names := m.reverseNames
+	m.reverseNames = nil
+	if len(names) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(names))
+	for _, r := range names {
+		if seen[r] {
+			return matrixInvalid(at, "bad_params", at+" params.reverse names "+strconv.Quote(r)+" twice",
+				map[string]any{"param": "reverse", "value": r})
+		}
+		seen[r] = true
+		pos := -1
+		for i, f := range members {
+			if f == r {
+				pos = i
+				break
+			}
+		}
+		if pos < 0 {
+			return matrixInvalid(at, "bad_params", at+" params.reverse names "+strconv.Quote(r)+", which is not an item of the matrix",
+				map[string]any{"param": "reverse", "value": r, "members": append([]string(nil), members...)})
+		}
+		m.Reverse = append(m.Reverse, pos)
+	}
+	slices.Sort(m.Reverse)
+	return nil
 }
 
 // decodeControl decodes params.control: absent, null or "all" is nil

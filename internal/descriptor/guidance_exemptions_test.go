@@ -52,7 +52,7 @@ var interpretationExemptions = []guidanceExemption{}
 var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
 	{Key: IntentFlows, Owner: "U28", Why: "Flow analysis needs the matrix overlays (stochastic matrices, steady states) U28 ships."},
-	{Key: IntentMeasureConstruct, Owner: "U24", Why: "Construct measurement needs the reliability / PCA operators U24 ships."},
+	{Key: IntentMeasureConstruct, Owner: "U24", Why: "MAT_RELIABILITY declares it; the PCA operator U24 ships is the second declarer, and a third is still owed."},
 }
 
 // intentExampleExemptions — intents no example's _meta.intents tags
@@ -60,7 +60,6 @@ var intentDeclarerExemptions = []guidanceExemption{
 var intentExampleExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent served by pulse_lookup; the example library holds request payloads, and a lookup is not one."},
 	{Key: IntentFlows, Owner: "U28", Why: "No flow operator exists to exemplify until U28 ships the matrix overlays."},
-	{Key: IntentMeasureConstruct, Owner: "U24", Why: "No construct-measurement operator exists to exemplify until U24 ships."},
 	{Key: IntentSimulate, Owner: ownerPermanent, Why: "Synth specs are a separate surface (pulse synth); the raw internal/examples/synth/*.synth.json specs sit outside the embedded library and carry no _meta, so no library example can carry simulate."},
 }
 
@@ -78,7 +77,6 @@ var glossaryOrphanExemptions = []guidanceExemption{
 	{Key: "eigenvalue", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
 	{Key: "loading", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
 	{Key: "principal-component", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
-	{Key: "reliability", Owner: "U24", Why: "Written ahead of the reliability operator U24 ships."},
 	// Segmentation.
 	{Key: "centroid", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},
 	{Key: "distance", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},

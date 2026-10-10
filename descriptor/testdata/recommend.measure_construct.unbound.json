@@ -17,17 +17,46 @@
         ]
       }
     ],
-    "recommendations": [],
-    "routes_to": [
+    "recommendations": [
       {
-        "when": "you want to see how the items move together before scoring them",
-        "use": "capability:matrices"
+        "operator": "MAT_RELIABILITY",
+        "category": "matrix",
+        "level": "intermediate",
+        "why": "How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "MAT_RELIABILITY"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you only want to see which items go together, pair by pair",
+            "use": "MAT_CORRELATION"
+          },
+          {
+            "when": "you want a p-value for one pair of items",
+            "use": "TEST_PEARSON_R"
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 0
+    "candidates_considered": 1
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8a3b8d31293e47188f2b2e2c0d2cce7a493f9d3a787bcaab236006ee8cc3b905
+// golden-hash: 0b4e48dc4ab680d9e07f08d2d4435de1ebefc6ff8ef51fb820c71969f2fcc5a4

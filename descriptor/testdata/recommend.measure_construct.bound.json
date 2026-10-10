@@ -17,17 +17,44 @@
         ]
       }
     ],
-    "recommendations": [],
-    "routes_to": [
+    "recommendations": [
       {
-        "when": "you want to see how the items move together before scoring them",
-        "use": "capability:matrices"
+        "operator": "MAT_RELIABILITY",
+        "category": "matrix",
+        "level": "intermediate",
+        "why": "How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest. It uses revenue (f64), seats (u16) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "revenue",
+                "seats",
+                "score"
+              ],
+              "type": "MAT_RELIABILITY"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you only want to see which items go together, pair by pair",
+            "use": "MAT_CORRELATION"
+          },
+          {
+            "when": "you want a p-value for one pair of items",
+            "use": "TEST_PEARSON_R"
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 0
+    "candidates_considered": 1
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 985fc70e3c08787ae3f57fe3e18239296479e90fce24f50e6da6868deb22b44c
+// golden-hash: 7f18bc2cd169acff592dfeb53232325e6fbef94c686775e8ddb8ad2f2f512232

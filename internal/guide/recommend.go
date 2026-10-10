@@ -16,8 +16,8 @@ const DefaultLimit = 10
 const unboundWhy = "Fill in each placeholder in the draft before you run it."
 
 // routes names the tooling that answers an intent no operator draft
-// can: the non-analytic intents, and the analytic ones no operator
-// serves yet. Use is a feature spelling; a route whose feature the
+// can: the non-analytic intents, the analytic ones no operator serves
+// yet, and the fallback when an intent's operators leave no draft. Use is a feature spelling; a route whose feature the
 // instance hides is dropped.
 var routes = map[string][]descriptor.Alternative{
 	descx.IntentPrepare: {
@@ -31,8 +31,11 @@ var routes = map[string][]descriptor.Alternative{
 	descx.IntentLookup: {
 		{When: "you want the records stored under a key value", Use: "capability:lookup"},
 	},
+	// measure_construct drafts MAT_RELIABILITY; the route answers only
+	// when no draft survives (a bound cohort with fewer than two
+	// numeric items to bind).
 	descx.IntentMeasureConstruct: {
-		{When: "you want to see how the items move together before scoring them", Use: "capability:matrices"},
+		{When: "you want to check that a battery of items is reliable (Cronbach's alpha, McDonald's omega) before scoring it", Use: "MAT_RELIABILITY"},
 	},
 	descx.IntentFlows: {
 		{When: "you want a table of the from state against the to state", Use: "capability:crosstab"},

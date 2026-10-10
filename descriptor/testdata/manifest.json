@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:7a432e0c8e7568672e326159e97550e6d818c42bb2cfb84b2910a1d4497f54a0",
+    "feature_set_digest": "fs1:f9599a7d8f0725d8f48de31868f99b327225544cb38716214421030f7e349afa",
     "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
     "commands": [
       {
@@ -6181,6 +6181,155 @@
           "frequency",
           "probability"
         ]
+      },
+      {
+        "name": "MAT_RELIABILITY",
+        "description": "Scale reliability of a battery of items (listwise or pairwise): Cronbach's alpha and standardized alpha, McDonald's omega from a one-factor minres fit, the mean inter-item correlation, and per item the corrected item-total r, alpha if deleted, mean and sd; the primary is the inter-item correlation matrix. params.reverse flips reverse-keyed items x' = scale_min + scale_max - x before the fold. At least 2 items; omega needs 3 and is null with a warning on 2 items, on a Heywood fit, or on a non-PSD (pairwise) input without params.repair. Weighted under frequency and probability weights. No p-values.",
+        "accepts_types": [
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "params": [
+          {
+            "name": "reverse",
+            "type": "list",
+            "required": false,
+            "description": "Items (members of the matrix) that are reverse-keyed: each value is replaced by scale_min + scale_max - x before the fold. Requires scale_min and scale_max (PROCESSING_CONFIG otherwise)."
+          },
+          {
+            "name": "scale_min",
+            "type": "float",
+            "required": false,
+            "description": "The battery's lowest possible response, with scale_max (both or neither; required with reverse). Every item value must lie in [scale_min, scale_max]: one outside is PROCESSING_CONFIG, never clamped, and the range is never inferred from the data."
+          },
+          {
+            "name": "scale_max",
+            "type": "float",
+            "required": false,
+            "description": "The battery's highest possible response (see scale_min)."
+          },
+          {
+            "name": "repair",
+            "type": "enum",
+            "required": false,
+            "description": "nearest: fit omega on the nearest correlation matrix when the (pairwise) inter-item correlation is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: omega is null with that warning. Alpha never needs it.",
+            "enum_values": [
+              "nearest"
+            ]
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N).",
+            "enum_values": [
+              "listwise",
+              "pairwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          }
+        ],
+        "output_keys": {
+          "primary": "inter_item_correlation",
+          "auxiliary": [
+            "n"
+          ],
+          "vectors": [
+            "alpha_if_deleted",
+            "item_mean",
+            "item_sd",
+            "item_total_r"
+          ],
+          "scalars": [
+            "alpha",
+            "alpha_standardized",
+            "mean_inter_item_r",
+            "omega"
+          ]
+        },
+        "streamable": true,
+        "mergeable": true,
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "iterations",
+              "type": "int",
+              "description": "Coordinate sweeps the one-factor minres fit behind omega ran (cap 1000); absent when no fit ran (2 items, an undefined or unrepaired non-PSD input).",
+              "optional": true
+            },
+            {
+              "name": "converged",
+              "type": "bool",
+              "description": "Whether the minres fit met its tolerance (1e-12) within the cap; false comes with PULSE_MATRIX_NOT_CONVERGED. Absent when no fit ran.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "intents": [
+          "measure_construct"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
       }
     ],
     "synth_distributions": [
@@ -6555,7 +6704,7 @@
         ]
       }
     ],
-    "error_codes_count": 294,
+    "error_codes_count": 296,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6700,10 +6849,12 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MATRIX_HEYWOOD",
       "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_INSUFFICIENT_N",
       "PULSE_MATRIX_LISTWISE_HEAVY_DROP",
       "PULSE_MATRIX_NOT_CONVERGED",
+      "PULSE_MATRIX_NOT_IDENTIFIED",
       "PULSE_MATRIX_NOT_PSD",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
@@ -8492,6 +8643,10 @@
         "description": "Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair \"nearest\", singular input refused."
       },
       {
+        "name": "op-mat-reliability",
+        "description": "Scale reliability of a battery — Cronbach's alpha, standardized alpha, McDonald's omega (one-factor minres), mean inter-item r, per-item item-total r / alpha if deleted / mean / sd — with reverse-keyed items flipped before the fold; listwise or pairwise, weighted."
+      },
+      {
         "name": "op-overlay-chisq-col",
         "description": "Per-column χ² goodness-of-fit test across the host crosstab's contingency table."
       },
@@ -9244,7 +9399,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 182,
+    "examples_count": 183,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -12427,6 +12582,68 @@
             }
           ],
           "mergeability": "mergeable"
+        },
+        "MAT_RELIABILITY": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "iterations",
+              "type": "int",
+              "description": "Coordinate sweeps the one-factor minres fit behind omega ran (cap 1000); absent when no fit ran (2 items, an undefined or unrepaired non-PSD input).",
+              "optional": true
+            },
+            {
+              "name": "converged",
+              "type": "bool",
+              "description": "Whether the minres fit met its tolerance (1e-12) within the cap; false comes with PULSE_MATRIX_NOT_CONVERGED. Absent when no fit ran.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
         }
       }
     },
@@ -12618,4 +12835,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1a38694e1b475f126f61fb73284386c5e6fde11872ab11a1ca63a435831f801f
+// golden-hash: 2d3a379c808c2e4f3ac816feca1dd1d5ff0594b63b015b38bdde1e0af289f515

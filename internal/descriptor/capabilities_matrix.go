@@ -57,6 +57,29 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			ComponentSchema: matrixSchema(),
 		},
 		{
+			Name:         string(types.MAT_RELIABILITY),
+			Description:  "Scale reliability of a battery of items (listwise or pairwise): Cronbach's alpha and standardized alpha, McDonald's omega from a one-factor minres fit, the mean inter-item correlation, and per item the corrected item-total r, alpha if deleted, mean and sd; the primary is the inter-item correlation matrix. params.reverse flips reverse-keyed items x' = scale_min + scale_max - x before the fold. At least 2 items; omega needs 3 and is null with a warning on 2 items, on a Heywood fit, or on a non-PSD (pairwise) input without params.repair. Weighted under frequency and probability weights. No p-values.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "reverse", Type: "list", Required: false, Description: "Items (members of the matrix) that are reverse-keyed: each value is replaced by scale_min + scale_max - x before the fold. Requires scale_min and scale_max (PROCESSING_CONFIG otherwise)."},
+				{Name: "scale_min", Type: "float", Required: false, Description: "The battery's lowest possible response, with scale_max (both or neither; required with reverse). Every item value must lie in [scale_min, scale_max]: one outside is PROCESSING_CONFIG, never clamped, and the range is never inferred from the data."},
+				{Name: "scale_max", Type: "float", Required: false, Description: "The battery's highest possible response (see scale_min)."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: fit omega on the nearest correlation matrix when the (pairwise) inter-item correlation is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: omega is null with that warning. Alpha never needs it."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "inter_item_correlation",
+				Auxiliary: []string{"n"},
+				Vectors:   []string{"alpha_if_deleted", "item_mean", "item_sd", "item_total_r"},
+				Scalars:   []string{"alpha", "alpha_standardized", "mean_inter_item_r", "omega"},
+			},
+			Streamable: types.MAT_RELIABILITY.Streamable(),
+			Mergeable:  types.MAT_RELIABILITY.Mergeable(),
+			ComponentSchema: matrixSchema(
+				descriptor.ComponentKey{Name: "iterations", Type: "int", Optional: true, Description: "Coordinate sweeps the one-factor minres fit behind omega ran (cap 1000); absent when no fit ran (2 items, an undefined or unrepaired non-PSD input)."},
+				descriptor.ComponentKey{Name: "converged", Type: "bool", Optional: true, Description: "Whether the minres fit met its tolerance (1e-12) within the cap; false comes with PULSE_MATRIX_NOT_CONVERGED. Absent when no fit ran."},
+			),
+		},
+		{
 			Name:         string(types.MAT_COVARIANCE),
 			Description:  "Covariance matrix of a vector's members (listwise or pairwise): sample covariance by default, weighted under frequency and probability weights.",
 			AcceptsTypes: memberTypes,

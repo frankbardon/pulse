@@ -82,16 +82,31 @@
         {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Psychological Bulletin 112(1), Table 1 row 8 (multiple and multiple partial correlation, ES index f^2 = R^2/(1 - R^2)), small/medium/large = .02/.15/.35, p. 157; Table 1 note: ES = population effect size. R^2 = f^2/(1+f^2) gives .0196/.1304/.2593, conventionally rounded to .02/.13/.26 (verified 2026-10-03 against the page image)"},
         {"url": "https://easystats.github.io/effectsize/reference/interpret_r2.html", "locator": "effectsize 1.0.3 interpret_r2, Rules: cohen1988 (default), for linear regression: R2 < 0.02 / 0.02 <= R2 < 0.13 / 0.13 <= R2 < 0.26 / R2 >= 0.26 (effectsize labels very weak / weak / moderate / substantial; Pulse uses the shared very small / small / medium / large)"}
       ]
+    },
+    {
+      "id": "georgemallery2003_alpha",
+      "citation": "George & Mallery (2003)",
+      "statistics": ["cronbach_alpha"],
+      "thresholds": [0.5, 0.6, 0.7, 0.8, 0.9],
+      "labels": ["unacceptable", "poor", "questionable", "acceptable", "good", "excellent"],
+      "abs": false,
+      "symmetric_log": false,
+      "sources": [
+        {"url": "https://scholarworks.indianapolis.iu.edu/bitstreams/976cec6a-914f-4e49-84b2-f658d5b26ff9/download", "locator": "Gliem, J. A. & Gliem, R. R. (2003) Calculating, Interpreting, and Reporting Cronbach's Alpha Reliability Coefficient for Likert-Type Scales, Midwest Research-to-Practice Conference, p. 87, quoting George & Mallery (2003, SPSS for Windows step by step, 4th ed., p. 231): '> .9 Excellent, > .8 Good, > .7 Acceptable, > .6 Questionable, > .5 Poor, < .5 Unacceptable'. The book itself could not be fetched; transcribed via this secondary quotation (verified 2026-10-09 via search snippet). The source's '>' boundaries are rendered as Pulse's inclusive band minimums (a value of exactly .9 reads 'excellent')"},
+        {"url": "https://www.academia.edu/4185662/Gliem_and_Gliem", "locator": "Same paper (mirror), p. 87"}
+      ]
     }
   ],
   "statistic_bindings": {
     "MAT_CORRELATION": "pearson_r",
     "MAT_PARTIAL_CORRELATION": "pearson_r",
+    "MAT_RELIABILITY": "cronbach_alpha",
     "REG_OLS": "r_squared",
     "TEST_FISHER_EXACT": "odds_ratio",
     "TEST_PEARSON_R": "pearson_r"
   },
   "excluded": [
+    {"operator": "MAT_RELIABILITY", "field": "scalars.omega", "reason": "No published convention for McDonald's omega was verified, and George & Mallery's bands were stated for alpha; omega (model-based, usually at least alpha) is not read against them. Means plus caveat only (U24 E2-S2)."},
     {"operator": "REG_OLS", "field": "adj_r2", "reason": "Cohen's R^2 benchmarks (Cohen 1992 Table 1 row 8) are stated for R^2 itself; adjusted R^2 is a corrected estimate on a different scale (it can fall below 0) and no adjusted-R^2 convention was verified. Means plus caveat only (U08 E4-S3)."},
     {"operator": "REG_BAYES_LINEAR", "field": "r2", "reason": "Pulse computes it from the posterior-mean coefficients, which the prior pulls away from the least-squares fit, so it can sit below the least-squares R^2 and even below 0; Cohen's R^2 benchmarks were set for least-squares multiple regression. Means plus caveat only (U08 E4-S3)."},
     {"operator": "REG_BAYES_LINEAR", "field": "adj_r2", "reason": "As for REG_OLS adj_r2 and REG_BAYES_LINEAR r2."},

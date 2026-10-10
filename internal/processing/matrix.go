@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"math"
 	"slices"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -168,6 +169,11 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 		all = all && isNaN
 		m.x[i] = v
 	}
+	if m.plan.HasScale {
+		if err := m.scoreReliability(); err != nil {
+			return err
+		}
+	}
 	if null && !m.plan.Pairwise {
 		m.dropped++
 	}
@@ -186,6 +192,30 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 		m.rows.add(m.x, w)
 	}
 	return m.state.Add(r, m.x, w)
+}
+
+// scoreReliability applies MAT_RELIABILITY's declared scale range to
+// the row in m.x: every present member must lie in [scale_min,
+// scale_max] — a value outside it is PROCESSING_CONFIG (never clamped:
+// a reversal of an out-of-range value would be silently wrong) — and
+// each reverse-keyed member is flipped x' = min + max − x before the
+// fold, so the co-moment (and every merge) sees the keyed battery.
+func (m *matrixSlot) scoreReliability() error {
+	lo, hi := m.plan.ScaleMin, m.plan.ScaleMax
+	for i, v := range m.x {
+		if !math.IsNaN(v) && (v < lo || v > hi) {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				"matrix "+m.plan.Name+": item "+m.cols[i]+" holds "+strconv.FormatFloat(v, 'g', -1, 64)+
+					", outside the declared scale range ["+strconv.FormatFloat(lo, 'g', -1, 64)+", "+strconv.FormatFloat(hi, 'g', -1, 64)+"]; fix params.scale_min / scale_max or the data (values are never clamped)",
+				map[string]any{"matrix": m.plan.Name, "field": m.cols[i], "value": v, "scale_min": lo, "scale_max": hi})
+		}
+	}
+	for _, i := range m.plan.Reverse {
+		if v := m.x[i]; !math.IsNaN(v) {
+			m.x[i] = lo + hi - v
+		}
+	}
+	return nil
 }
 
 // Finalize satisfies OnlineAggregator for the BlockMerger opt-in; a
@@ -207,15 +237,35 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 		return types.MatrixResult{}, nil, err
 	}
 	var res types.MatrixResult
+	var op map[string]any
 	if m.compute.MatricesSlot {
-		if res, err = m.render(cm); err != nil {
+		if res, op, err = m.render(cm); err != nil {
 			return types.MatrixResult{}, nil, err
 		}
 	}
 	if !m.compute.Matrices {
 		return res, nil, nil
 	}
-	return res, m.components(cm), nil
+	if !m.compute.MatricesSlot && finalizerComponents[m.plan.Type] {
+		// Components kept, the slot skipped: the operator keys still
+		// need the finalizer (its result parts are all off in the
+		// plan, so none is built).
+		out, ferr := matrixFinalizers[m.plan.Type](&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+		if ferr != nil {
+			return types.MatrixResult{}, nil, ferr
+		}
+		op = out.Operator
+	}
+	c := m.components(cm)
+	if len(op) > 0 {
+		if c.Operator == nil {
+			c.Operator = make(map[string]any, len(op))
+		}
+		for k, v := range op {
+			c.Operator[k] = v
+		}
+	}
+	return res, c, nil
 }
 
 // render is the slot's MatrixResult off the merged state cm: the
@@ -224,19 +274,19 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 // PULSE_MATRIX_SINGULAR — is returned as is. A part the run's plan
 // skips is dropped even if a finalizer built it, so the plan, not the
 // operator, decides what is on the wire.
-func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, error) {
+func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, map[string]any, error) {
 	workMatrixResultBuilds.Add(1)
 	fin, ok := matrixFinalizers[m.plan.Type]
 	if !ok {
-		return types.MatrixResult{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return types.MatrixResult{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
 	}
 	out, err := fin(&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
 	if err != nil {
-		return types.MatrixResult{}, err
+		return types.MatrixResult{}, nil, err
 	}
 	if out.Primary == nil {
-		return types.MatrixResult{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return types.MatrixResult{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"matrix finalizer returned no primary matrix", map[string]any{"type": string(m.plan.Type)})
 	}
 	res := types.MatrixResult{
@@ -257,7 +307,7 @@ func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, error) {
 		workMatrixVectorBuilds.Add(1)
 		res.Vectors = out.Vectors
 	}
-	return res, nil
+	return res, out.Operator, nil
 }
 
 // components renders the slot's Response.Components.Matrices entry off
@@ -309,6 +359,7 @@ var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
 	types.MAT_COVARIANCE:          finalizeCovariance,
 	types.MAT_CORRELATION:         finalizeCorrelation,
 	types.MAT_PARTIAL_CORRELATION: finalizePartialCorrelation,
+	types.MAT_RELIABILITY:         finalizeReliability,
 }
 
 // finalizeCovariance is MAT_COVARIANCE: M2 / (W − ddof), NaN where

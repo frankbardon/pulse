@@ -12,6 +12,33 @@ var matrixPurposes = map[string]descriptor.Purpose{
 	"MAT_CORRELATION":         purposeMatCorrelation,
 	"MAT_COVARIANCE":          purposeMatCovariance,
 	"MAT_PARTIAL_CORRELATION": purposeMatPartialCorrelation,
+	"MAT_RELIABILITY":         purposeMatReliability,
+}
+
+var purposeMatReliability = descriptor.Purpose{
+	Plain:   "How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest.",
+	KnownAs: []string{"cronbach's alpha", "scale reliability", "internal consistency", "mcdonald's omega"},
+	Intents: []string{IntentMeasureConstruct},
+	Questions: []string{
+		"Are these five satisfaction questions reliable enough to average into one score?",
+		"Which item in this battery fits the others worst and should be dropped?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey:  "Checking a battery of agree-disagree items, some worded in reverse, before summing it into a scale score.",
+		descriptor.DomainScience: "Checking that several measured indicators of one trait agree well enough to be combined.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you only want to see which items go together, pair by pair", Use: "MAT_CORRELATION"},
+		{When: "you want a p-value for one pair of items", Use: "TEST_PEARSON_R"},
+	},
+	Assumptions: []string{
+		"The items are meant to measure one shared quality; the figures do not check that there is only one.",
+		"Items worded in reverse must be named in params.reverse with the scale's range, or they pull the figures down.",
+		"Alpha treats every item as equally tied to the shared quality; omega lets each item's tie differ and needs at least 3 items.",
+		"A row with any item missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.",
+	},
+	Level:    descriptor.LevelIntermediate,
+	Glossary: []string{"reliability", "correlation", "listwise-deletion", "pairwise-deletion"},
 }
 
 var purposeMatPartialCorrelation = descriptor.Purpose{

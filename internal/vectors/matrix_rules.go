@@ -28,7 +28,11 @@ import (
 //     outside controls) — its input is the pairwise correlation over
 //     every column. A decomposition operator (Decomposition): there the
 //     risk is a FATAL PULSE_MATRIX_NOT_PSD, or the repair warning under
-//     params.repair "nearest", never the detection-only warning.
+//     params.repair "nearest", never the detection-only warning;
+//   - MAT_RELIABILITY at p ≥ 3 — omega factors the pairwise inter-item
+//     correlation (a decomposition operator); there an unrepaired
+//     non-PSD input nulls omega with a PULSE_MATRIX_NOT_PSD warning
+//     (alpha needs no PSD input and still computes).
 func (m Matrix) PSDRisk() bool {
 	if !m.Pairwise {
 		return false
@@ -37,7 +41,7 @@ func (m Matrix) PSDRisk() bool {
 	switch m.Type {
 	case types.MAT_COVARIANCE:
 		return p >= 2
-	case types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION:
+	case types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY:
 		return p >= 3
 	}
 	return false

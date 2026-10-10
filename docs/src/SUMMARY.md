@@ -130,6 +130,7 @@
     - [op-mat-correlation](guide/skills/op-mat-correlation.md)
     - [op-mat-covariance](guide/skills/op-mat-covariance.md)
     - [op-mat-partial-correlation](guide/skills/op-mat-partial-correlation.md)
+    - [op-mat-reliability](guide/skills/op-mat-reliability.md)
     - [op-overlay-chisq-col](guide/skills/op-overlay-chisq-col.md)
     - [op-overlay-chisq-matrix](guide/skills/op-overlay-chisq-matrix.md)
     - [op-overlay-chisq-row](guide/skills/op-overlay-chisq-row.md)

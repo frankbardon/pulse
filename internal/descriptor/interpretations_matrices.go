@@ -11,6 +11,46 @@ import "github.com/frankbardon/pulse/descriptor"
 var matrixInterpretations = map[string][]descriptor.Interpretation{
 	"MAT_CORRELATION":         interpMatCorrelation,
 	"MAT_PARTIAL_CORRELATION": interpMatPartialCorrelation,
+	"MAT_RELIABILITY":         interpMatReliability,
+}
+
+// interpMatReliability bands alpha by George & Mallery (2003) and
+// leaves omega unbanded: no omega-specific convention was verified, and
+// the alpha bands are not transferred to it.
+var interpMatReliability = []descriptor.Interpretation{
+	bandedBy(ConventionGeorgeMalleryAlpha, descriptor.Interpretation{
+		Field: "scalars.alpha",
+		Means: "Cronbach's alpha: how consistently the items measure one shared quality, from the share of the summed score's spread that the items share. 1 means the items move in lockstep; it can fall below 0 when items pull against each other, which usually means a reverse-worded item was not reversed.",
+		Caveats: []string{
+			"Alpha rises with the number of items, so a long battery can reach a high alpha with weakly related items.",
+			"A high alpha does not show the items measure only one thing.",
+			"Alpha assumes every item is equally tied to the shared quality; when the ties differ it understates reliability, which omega allows for.",
+		},
+	}),
+	bandedBy(ConventionGeorgeMalleryAlpha, descriptor.Interpretation{
+		Field: "scalars.alpha_standardized",
+		Means: "Alpha computed on the items' correlations instead of their raw spreads: the alpha the battery would have if every item were first put on the same scale.",
+		Caveats: []string{
+			"It differs from alpha when the items' spreads differ; report the one that matches how the score is built (raw sums or standardised items).",
+		},
+	}),
+	{
+		Field: "scalars.omega",
+		Means: "McDonald's omega: the share of the summed score's spread due to the one shared quality, from a one-factor fit that lets each item's tie to it differ. Read on the same 0 to 1 scale as alpha; it is usually at least as high.",
+		Caveats: []string{
+			"No published convention bands omega; it is not read against the alpha bands.",
+			"Null with a warning when the battery has 2 items, when the fit puts an item's leftover spread at or below zero (a Heywood case), or when a pairwise table is inconsistent and params.repair is not set.",
+			"The fit assumes one shared quality; when the items reflect several, omega from one factor misstates reliability.",
+		},
+	},
+	{
+		Field: "scalars.mean_inter_item_r",
+		Means: "The average correlation among the items, the strength of the typical pair; standardized alpha is built from it and the item count.",
+		Caveats: []string{
+			"An average hides spread: one item unrelated to the rest pulls it down; check the table and item_total_r.",
+			"Like any correlation it shows the items move together, not that one causes another.",
+		},
+	},
 }
 
 var interpMatPartialCorrelation = []descriptor.Interpretation{

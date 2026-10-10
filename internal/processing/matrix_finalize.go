@@ -26,13 +26,25 @@ import (
 type matrixFinalizer func(in *matrixFinalizeInput) (matrixOutput, error)
 
 // matrixOutput is what a finalizer returns: MatrixResult's parts. Nil
-// maps are absent parts.
+// maps are absent parts. Operator is the operator's own
+// Response.Components.Matrices keys that only the finalizer knows (a
+// fit's iterations / converged), merged into the slot's components
+// entry; nil adds none.
 type matrixOutput struct {
 	Primary   *types.MatrixValues
 	Auxiliary map[string]*types.MatrixValues
 	Vectors   map[string]any
 	Scalars   map[string]float64
 	Warnings  []*types.ResponseWarning
+	Operator  map[string]any
+}
+
+// finalizerComponents are the operators whose components entry carries
+// keys only the finalizer computes (matrixOutput.Operator): on a run
+// that keeps components.matrices but skips the matrices slot, the slot
+// still runs the finalizer — with every result part off — to fill them.
+var finalizerComponents = map[types.MatrixType]bool{
+	types.MAT_RELIABILITY: true,
 }
 
 // matrixFinalizeInput is what a finalizer reads. CM is the slot's

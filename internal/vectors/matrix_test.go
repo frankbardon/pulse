@@ -328,3 +328,58 @@ func TestResolveMatrices_PartialControls(t *testing.T) {
 		t.Error("MatrixMembers ok with an unknown control")
 	}
 }
+
+// TestResolveMatrices_Reliability: MAT_RELIABILITY places params.reverse
+// on member positions (ascending, whatever the list order), keeps the
+// declared range, refuses a missing / half / inverted range with
+// PROCESSING_CONFIG, and a non-member reverse name or a one-item
+// battery with bad_params; it is a decomposition operator whose PSD
+// risk starts at 3 pairwise items.
+func TestResolveMatrices_Reliability(t *testing.T) {
+	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
+		spec := types.MatrixSpec{Type: types.MAT_RELIABILITY, Fields: fields}
+		if params != "" {
+			spec.Params = json.RawMessage(params)
+		}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	items := []string{"q_1", "q_2", "q_3"}
+	m, err := resolve(items, `{"reverse": ["q_3", "q_1"], "scale_min": 1, "scale_max": 5, "missing": "pairwise"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(m.Reverse, []int{0, 2}) || !m.HasScale || m.ScaleMin != 1 || m.ScaleMax != 5 || m.reverseNames != nil {
+		t.Errorf("reverse %v scale %v [%v, %v] names %v", m.Reverse, m.HasScale, m.ScaleMin, m.ScaleMax, m.reverseNames)
+	}
+	if !m.Decomposition() || !m.PSDRisk() || !m.Streamable || !m.Mergeable {
+		t.Errorf("decomposition %v psd risk %v streamable %v mergeable %v", m.Decomposition(), m.PSDRisk(), m.Streamable, m.Mergeable)
+	}
+	if m, _ := resolve(items[:2], `{"missing": "pairwise"}`); m.PSDRisk() {
+		t.Error("a 2-item pairwise battery carries PSD risk")
+	}
+	if m, _ := resolve(items, ""); m.Reverse != nil || m.HasScale {
+		t.Errorf("no params: reverse %v scale %v", m.Reverse, m.HasScale)
+	}
+	for _, c := range []struct {
+		fields []string
+		params string
+		code   errors.Code
+	}{
+		{items, `{"reverse": ["q_1"]}`, errors.PROCESSING_CONFIG},
+		{items, `{"reverse": ["q_1"], "scale_max": 5}`, errors.PROCESSING_CONFIG},
+		{items, `{"scale_min": 5, "scale_max": 5}`, errors.PROCESSING_CONFIG},
+		{items, `{"reverse": ["score"], "scale_min": 1, "scale_max": 5}`, errors.SERVICE_VALIDATION},
+		{items, `{"reverse": ["q_1", "q_1"], "scale_min": 1, "scale_max": 5}`, errors.SERVICE_VALIDATION},
+		{items, `{"repair": "clip"}`, errors.SERVICE_VALIDATION},
+		{items, `{"control": "all"}`, errors.SERVICE_VALIDATION},
+		{items[:1], "", errors.SERVICE_VALIDATION},
+	} {
+		if _, err := resolve(c.fields, c.params); err == nil || err.Code != c.code {
+			t.Errorf("%v %s: error %v, want %s", c.fields, c.params, err, c.code)
+		}
+	}
+}

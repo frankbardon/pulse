@@ -190,6 +190,11 @@ var matrixClasses = map[types.MatrixType]Class{
 	// inverts it (corpcor::cor2pcor on the weighted r): scale-free, so
 	// the two kinds agree, as for MAT_CORRELATION.
 	types.MAT_PARTIAL_CORRELATION: ClassAware,
+	// MAT_RELIABILITY reads the weighted co-moments: alpha is a ratio
+	// of the weighted covariance (scale-free), omega fits the weighted
+	// correlation; item_sd takes the kind's denominator (frequency
+	// Σw − 1, probability Σw − Σw²/Σw).
+	types.MAT_RELIABILITY: ClassAware,
 }
 
 // MatrixClassOf is a matrix spec's weight class: its type's

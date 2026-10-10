@@ -2060,7 +2060,6 @@
       "describe",
       "flows",
       "lookup",
-      "measure_construct",
       "prepare",
       "relationship"
     ],
@@ -2213,4 +2212,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 549d78c202b5d1d621c4c6dc651d5ecf9fe248c9ed2243b3ecbee4ae767ed9ca
+// golden-hash: d4e172cc60ac8327c96470d83bc50c57b8b3fa5b32f0dbed2a7be1bad1c023bd

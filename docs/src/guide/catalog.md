@@ -10,6 +10,6 @@ The operators this instance offers, one page per category. Each page opens with 
 - [Feature operators](catalog/feature.md) (9)
 - [Statistical tests](catalog/test.md) (21)
 - [Regressions](catalog/regression.md) (3)
-- [Matrix operators](catalog/matrix.md) (3)
+- [Matrix operators](catalog/matrix.md) (4)
 - [Overlays](catalog/overlay.md) (44)
 - [Synth distributions](catalog/synth_distribution.md) (15)

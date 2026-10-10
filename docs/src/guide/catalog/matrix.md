@@ -7,6 +7,7 @@ The matrix operators this instance offers: what each is for, the questions it an
 | [`MAT_CORRELATION`](#op-mat_correlation) | How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1. | Which of these ten rating items go together most strongly? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value or confidence interval for one pair.<br>[`MAT_COVARIANCE`](#op-mat_covariance) when you want the joint spread in the fields' own units.<br>[`TEST_SPEARMAN_R`](test.md#op-test_spearman_r) when you need a p-value for one pair's rank correlation.<br>[`TEST_KENDALL_TAU`](test.md#op-test_kendall_tau) when you need a p-value for one pair's Kendall tau.<br>[`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) when you want each pair's link with other fields held fixed. |
 | [`MAT_COVARIANCE`](#op-mat_covariance) | How every pair in a set of numeric fields varies together, as one square table with each field's variance on the diagonal. | How do these five rating scales vary together across respondents? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want how closely two numeric fields follow a straight line together, on a scale from -1 to 1.<br>[`AGG_WELFORD`](aggregator.md#op-agg_welford) when you want the spread of one field on its own. |
 | [`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) | How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. | Does satisfaction still track price once delivery time is held fixed? | advanced | [`MAT_CORRELATION`](#op-mat_correlation) when you want each pair's link with nothing held fixed.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want how much each field moves the outcome, in its own units.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value for one pair. |
+| [`MAT_RELIABILITY`](#op-mat_reliability) | How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest. | Are these five satisfaction questions reliable enough to average into one score? | intermediate | [`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which items go together, pair by pair.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want a p-value for one pair of items. |
 
 ## Operators
 
@@ -123,3 +124,39 @@ How closely each pair of numeric fields moves together once other fields are hel
 **Glossary:** [`partial-correlation`](../glossary.md#term-partial-correlation), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion), [`multicollinearity`](../glossary.md#term-multicollinearity)
 
 **Skill:** [`op-mat-partial-correlation`](../skills/op-mat-partial-correlation.md)
+
+<a id="op-mat_reliability"></a>
+
+### `MAT_RELIABILITY`
+
+How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest.
+
+**Level:** intermediate
+
+**Also known as:** `cronbach's alpha`, `scale reliability`, `internal consistency`, `mcdonald's omega`
+
+**Questions it answers:**
+
+- Are these five satisfaction questions reliable enough to average into one score?
+- Which item in this battery fits the others worst and should be dropped?
+
+**Use cases by domain:**
+
+- *survey:* Checking a battery of agree-disagree items, some worded in reverse, before summing it into a scale score.
+- *science:* Checking that several measured indicators of one trait agree well enough to be combined.
+
+**Assumptions:**
+
+- The items are meant to measure one shared quality; the figures do not check that there is only one.
+- Items worded in reverse must be named in params.reverse with the scale's range, or they pull the figures down.
+- Alpha treats every item as equally tied to the shared quality; omega lets each item's tie differ and needs at least 3 items.
+- A row with any item missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.
+
+**Use something else:**
+
+- [`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which items go together, pair by pair.
+- [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want a p-value for one pair of items.
+
+**Glossary:** [`reliability`](../glossary.md#term-reliability), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
+
+**Skill:** [`op-mat-reliability`](../skills/op-mat-reliability.md)

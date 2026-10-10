@@ -3246,6 +3246,26 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_HEYWOOD: {
+		Message: "A one-factor fit gave at least one member a uniqueness at or below zero (a Heywood case: the member's loading is at least its own standard deviation, an impossible negative error variance), so the figure built on the fit is withheld and null: MAT_RELIABILITY's `omega`. Alpha and the item statistics do not use the fit and are unaffected. Details carry `matrix`, `output`, `members` and `uniquenesses`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "A Heywood case usually means a member is almost a copy of another, or the battery has too few items to pin the factor down: drop the near-duplicate member, or add items, and rerun.",
+			},
+		},
+	},
+	PULSE_MATRIX_NOT_IDENTIFIED: {
+		Message: "A model the operator fits is not identified on this many members, so the figure it would give is withheld and null: MAT_RELIABILITY's `omega` needs a one-factor fit, which needs at least 3 items (2 items have one correlation for two loadings). Alpha and the item statistics still compute. Details carry `matrix`, `output`, `members` and `min_members`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Add a third item to the vector to get omega; with two items, read `alpha` (Spearman-Brown for two items) instead.",
+			},
+		},
+	},
 	PULSE_RETURN_INVALID: {
 		Message: "The `return` block cannot be read, so the request is refused before any record is read — predict refuses it identically. `preset` must be full, standard or minimal; `precision` is significant digits from 1 to 17 (0 or absent means unlimited); every include / exclude path is JSON keys joined by `.`, with `[*]` stepping into every array element and a trailing `*` on a map-key segment as a prefix glob (`tests[*].details.effect_*`). The offending key is under `key`, its value under `value`, a path's position under `index`, the rule under `reason` and, for a preset, the accepted names under `valid`.",
 		Fixups: []Fixup{

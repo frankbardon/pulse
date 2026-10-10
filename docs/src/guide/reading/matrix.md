@@ -76,3 +76,68 @@ Each off-diagonal cell is the correlation of its row and column members once the
 - A null cell means the input had an undefined correlation (a member with no spread, or too few rows), so no cell can be computed.
 - Under params.repair the cells come from the nearest consistent correlation table, not the observed one; the PULSE_MATRIX_NOT_PSD warning says how far it moved.
 - The matrix reports no p-values.
+
+<a id="op-mat_reliability"></a>
+
+### `MAT_RELIABILITY`
+
+How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest. See its [catalog entry](../catalog/matrix.md#op-mat_reliability).
+
+#### `scalars.alpha`
+
+Cronbach's alpha: how consistently the items measure one shared quality, from the share of the summed score's spread that the items share. 1 means the items move in lockstep; it can fall below 0 when items pull against each other, which usually means a reverse-worded item was not reversed.
+
+**Bands** (convention: George & Mallery (2003); a labelled convention, not a rule):
+
+| Value | Label |
+|---|---|
+| below 0.5 | unacceptable |
+| from 0.5 to below 0.6 | poor |
+| from 0.6 to below 0.7 | questionable |
+| from 0.7 to below 0.8 | acceptable |
+| from 0.8 to below 0.9 | good |
+| 0.9 and above | excellent |
+
+**Caveats:**
+
+- Alpha rises with the number of items, so a long battery can reach a high alpha with weakly related items.
+- A high alpha does not show the items measure only one thing.
+- Alpha assumes every item is equally tied to the shared quality; when the ties differ it understates reliability, which omega allows for.
+
+#### `scalars.alpha_standardized`
+
+Alpha computed on the items' correlations instead of their raw spreads: the alpha the battery would have if every item were first put on the same scale.
+
+**Bands** (convention: George & Mallery (2003); a labelled convention, not a rule):
+
+| Value | Label |
+|---|---|
+| below 0.5 | unacceptable |
+| from 0.5 to below 0.6 | poor |
+| from 0.6 to below 0.7 | questionable |
+| from 0.7 to below 0.8 | acceptable |
+| from 0.8 to below 0.9 | good |
+| 0.9 and above | excellent |
+
+**Caveats:**
+
+- It differs from alpha when the items' spreads differ; report the one that matches how the score is built (raw sums or standardised items).
+
+#### `scalars.omega`
+
+McDonald's omega: the share of the summed score's spread due to the one shared quality, from a one-factor fit that lets each item's tie to it differ. Read on the same 0 to 1 scale as alpha; it is usually at least as high.
+
+**Caveats:**
+
+- No published convention bands omega; it is not read against the alpha bands.
+- Null with a warning when the battery has 2 items, when the fit puts an item's leftover spread at or below zero (a Heywood case), or when a pairwise table is inconsistent and params.repair is not set.
+- The fit assumes one shared quality; when the items reflect several, omega from one factor misstates reliability.
+
+#### `scalars.mean_inter_item_r`
+
+The average correlation among the items, the strength of the typical pair; standardized alpha is built from it and the item count.
+
+**Caveats:**
+
+- An average hides spread: one item unrelated to the rest pulls it down; check the table and item_total_r.
+- Like any correlation it shows the items move together, not that one causes another.

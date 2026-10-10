@@ -594,8 +594,7 @@
     "components_schemas": {},
     "intents": [
       "flows",
-      "lookup",
-      "measure_construct"
+      "lookup"
     ],
     "return_presets": [
       {
@@ -746,4 +745,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b0043f0419aa6f4e1f5fcb4d5cff1cd7f9fddef5fc454c4fdc1c7e9a3c9c814b
+// golden-hash: b15445ba21fb7da7c233810376e9940837d8f5157045d161978ace9abe583347

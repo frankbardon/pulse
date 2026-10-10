@@ -95,7 +95,9 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 	// pairwise correlations are not PSD, so its pairwise variant repairs
 	// them (the repair is a function of the merged bits, so it is as
 	// worker-invariant as they are).
-	if v.matrixType() == types.MAT_PARTIAL_CORRELATION && v.pairwise {
+	// MAT_RELIABILITY's omega decomposes the same input, so its
+	// pairwise variant repairs too (and so runs the minres fit).
+	if (v.matrixType() == types.MAT_PARTIAL_CORRELATION || v.matrixType() == types.MAT_RELIABILITY) && v.pairwise {
 		spec.Params = json.RawMessage(`{"missing": "pairwise", "repair": "nearest"}`)
 	}
 	if v.weighted {
@@ -115,10 +117,13 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 // bits (every cell and the determinant), the pairwise N (auxiliary.n),
 // the response and matrix warnings, and the run counters.
 type matrixRun struct {
-	words     []uint64
-	auxN      []uint64
-	pairs     []types.MatrixPair
-	pairBits  []uint64
+	words    []uint64
+	auxN     []uint64
+	pairs    []types.MatrixPair
+	pairBits []uint64
+	// relBits are MAT_RELIABILITY's scalars and vectors, in a fixed
+	// key order.
+	relBits   []uint64
 	warnings  []*types.ResponseWarning
 	matWarns  []*types.ResponseWarning
 	run       types.RunComponents
@@ -181,8 +186,21 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 		for _, pr := range pairs {
 			out.pairBits = append(out.pairBits, math.Float64bits(pr.R))
 		}
+	} else if req.Matrices[0].Type == types.MAT_RELIABILITY {
+		for _, k := range []string{"alpha", "alpha_standardized", "mean_inter_item_r", "omega"} {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		for _, k := range []string{"item_total_r", "alpha_if_deleted", "item_mean", "item_sd"} {
+			vs, ok := m.Vectors[k].([]float64)
+			if !ok || len(vs) != 3 {
+				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
+			}
+			for _, x := range vs {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
 	} else if m.Vectors != nil {
-		t.Fatalf("MAT_COVARIANCE emitted vectors %v", m.Vectors)
+		t.Fatalf("%s emitted vectors %v", req.Matrices[0].Type, m.Vectors)
 	}
 	if resp.Components == nil || resp.Components.Run == nil {
 		t.Fatalf("Process(decode=%d, shard=%d): no Components.Run", decodeWorkers, shardWorkers)
@@ -210,6 +228,9 @@ func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
 	}
 	if i := firstWordDiff(got.pairBits, want.pairBits); i != -1 || len(got.pairBits) != len(want.pairBits) || !reflect.DeepEqual(got.pairs, want.pairs) {
 		t.Errorf("%s: top_pairs %+v, serial %+v", label, got.pairs, want.pairs)
+	}
+	if i := firstWordDiff(got.relBits, want.relBits); i != -1 || len(got.relBits) != len(want.relBits) {
+		t.Errorf("%s: reliability scalars / vectors differ from serial at word %d", label, i)
 	}
 	if !reflect.DeepEqual(got.warnings, want.warnings) {
 		t.Errorf("%s: warnings %v, serial %v", label, got.warnings, want.warnings)
@@ -257,7 +278,7 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 	}
 	cov := c.Cov(1)
 	switch v.matrixType() {
-	case types.MAT_CORRELATION:
+	case types.MAT_CORRELATION, types.MAT_RELIABILITY:
 		cov = c.Corr()
 	case types.MAT_PARTIAL_CORRELATION:
 		if v.pairwise {

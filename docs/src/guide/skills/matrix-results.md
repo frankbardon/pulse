@@ -25,12 +25,13 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 `matrices: [{name?, type, vector | fields, params?, weight?, encoding?}]`; the answer is `Response.matrices[]`, one `MatrixResult` per spec in request order.
 
 - `MAT_COVARIANCE` — covariance; `params.ddof` 0 or 1 (default 1).
-- `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); no p-values (run a test per pair for those); `params.summary.top_pairs: k` lists the k strongest pairs.
+- `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); no p-values; `params.summary.top_pairs: k` lists the k strongest pairs.
 - `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"` (a repair stopped at its iteration cap also warns `PULSE_MATRIX_NOT_CONVERGED`).
+- `MAT_RELIABILITY` — alpha, omega, item diagnostics; `params.reverse` + `scale_min` / `scale_max` flip reverse-keyed items.
 
 Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**
 
-`encoding`: `full` (default, p rows of p cells) or `upper` (row r holds the p − r cells from the diagonal, `values[r][k]` = cell (r, r + k)) — about half the bytes; both are symmetric.
+`encoding`: `full` (default, p rows of p cells) or `upper` (row r holds the p − r cells from the diagonal, `values[r][k]` = cell (r, r + k)) — about half the bytes.
 
 ## 3. Missing data and weights
 
@@ -64,7 +65,6 @@ A range or date grouper is `unknown`: the three figures are omitted, never guess
 
 - `matrices` with `joins`, or on a chain stage after the first: `PULSE_MATRIX_UNSUPPORTED_SOURCE`.
 - `matrices` with `crosstab`: `PULSE_MATRIX_HOST_CONFLICT`.
-- Predict and the run refuse identically, before any record is read.
 - Matrices are not streamed row by row: they arrive at the final flush. `ProcessStream` rows carry no matrices.
 
 Serial, parallel-decode and sharded runs return bit-identical matrices on one cohort file; a multi-shard archive matches its single-file twin within rounding only.

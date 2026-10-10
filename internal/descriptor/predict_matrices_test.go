@@ -31,6 +31,8 @@ func TestPredict_Matrices(t *testing.T) {
 			{Name: "pear", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"method": "pearson"}`)},
 			{Name: "pv", Type: types.MAT_PARTIAL_CORRELATION, Vector: "v", Params: json.RawMessage(`{"control": ["q_1"]}`)},
 			{Name: "pc", Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_2", "q_3"}, Params: json.RawMessage(`{"control": ["q_1"], "missing": "pairwise"}`)},
+			{Name: "rel", Type: types.MAT_RELIABILITY, Vector: "v", Params: json.RawMessage(`{"reverse": ["q_1"], "scale_min": 0, "scale_max": 5, "missing": "pairwise"}`)},
+			{Name: "rel2", Type: types.MAT_RELIABILITY, Fields: []string{"q_1", "q_3"}, Params: pairwise},
 		},
 	}
 	env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
@@ -70,6 +72,14 @@ func TestPredict_Matrices(t *testing.T) {
 			AccumulatorBytes: 32 + 8*(3+6), Streamable: true},
 		{Name: "pc", Type: types.MAT_PARTIAL_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_2", "q_3"},
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		// Reliability reverses in the fold, so it stays streamable and
+		// mergeable; omega's decomposition carries the PSD risk at p ≥ 3
+		// only (a 2-item battery has no omega and an always-PSD r).
+		{Name: "rel", Type: types.MAT_RELIABILITY, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		{Name: "rel2", Type: types.MAT_RELIABILITY, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
 	}
 	// Ungrouped: one bucket, p² cells, one accumulator per merge block.
 	for i := range want {

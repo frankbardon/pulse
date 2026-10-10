@@ -2673,6 +2673,22 @@ const (
 	// "iterations", "max_iterations" and "tolerance".
 	PULSE_MATRIX_NOT_CONVERGED Code = "PULSE_MATRIX_NOT_CONVERGED"
 
+	// PULSE_MATRIX_HEYWOOD is a per-matrix WARNING: a one-factor fit
+	// put a member's uniqueness at or below zero (|loading| ≥ its
+	// standard deviation — an impossible negative error variance), so
+	// the figures built on the fit are withheld: MAT_RELIABILITY's
+	// omega is null. Details carry "matrix", "output", "members" and
+	// "uniquenesses" (the offending members' ψ).
+	PULSE_MATRIX_HEYWOOD Code = "PULSE_MATRIX_HEYWOOD"
+
+	// PULSE_MATRIX_NOT_IDENTIFIED is a per-matrix WARNING: a model the
+	// operator fits is not identified on this many members, so the
+	// figure it would give is withheld: MAT_RELIABILITY's omega needs
+	// a one-factor fit, which needs at least 3 items (2 items have one
+	// correlation for two loadings), so with 2 it is null. Details
+	// carry "matrix", "output", "members" and "min_members".
+	PULSE_MATRIX_NOT_IDENTIFIED Code = "PULSE_MATRIX_NOT_IDENTIFIED"
+
 	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
 	// read: an unknown preset, a precision outside 1–17, or a malformed
 	// include / exclude path (an empty segment, `*` anywhere but the end
@@ -3234,6 +3250,8 @@ var allCodes = []Code{
 	PULSE_MATRIX_INSUFFICIENT_N,
 	PULSE_MATRIX_ZERO_VARIANCE,
 	PULSE_MATRIX_NOT_CONVERGED,
+	PULSE_MATRIX_HEYWOOD,
+	PULSE_MATRIX_NOT_IDENTIFIED,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,
