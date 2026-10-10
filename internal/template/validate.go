@@ -302,7 +302,7 @@ func validateBodyReferences(t *Template) error {
 			declared[v.Name] = struct{}{}
 		}
 	}
-	return (&bodyScan{t: t, declared: declared}).value(body, bodyPath)
+	return (&bodyScan{t: t, declared: declared}).value(body, bodyPath, nil)
 }
 
 // bodyScan is the declaration-time body walker. It mirrors the render
@@ -314,29 +314,30 @@ type bodyScan struct {
 	declared map[string]struct{}
 }
 
-// value dispatches on the node's JSON kind.
-func (s *bodyScan) value(v any, path string) error {
+// value dispatches on the node's JSON kind. axes is the for_each axis
+// scope in force at the node, exactly as in the render walk.
+func (s *bodyScan) value(v any, path string, axes axisScope) error {
 	switch node := v.(type) {
 	case map[string]any:
-		return s.object(node, path)
+		return s.object(node, path, axes)
 	case []any:
 		for i, e := range node {
-			if err := s.value(e, indexPath(path, i)); err != nil {
+			if err := s.value(e, indexPath(path, i), axes); err != nil {
 				return err
 			}
 		}
 		return nil
 	case string:
-		return s.text(node, path)
+		return s.text(node, path, axes)
 	default:
 		return nil
 	}
 }
 
 // object checks a marker, a guard, and every key, in that order.
-func (s *bodyScan) object(obj map[string]any, path string) error {
+func (s *bodyScan) object(obj map[string]any, path string, axes axisScope) error {
 	if isLoneMarkerKey(obj) {
-		return s.marker(obj[markerKey], path)
+		return s.marker(obj[markerKey], path, axes)
 	}
 
 	if raw, guarded := obj[guardKey]; guarded {
@@ -349,6 +350,20 @@ func (s *bodyScan) object(obj map[string]any, path string) error {
 		}
 	}
 
+	// A for_each item's axes scope its other keys; an axis sharing a
+	// declared variable's name is ambiguous and refused here, at
+	// declaration, never at render.
+	itemAx, err := itemAxes(s.t, obj, path)
+	if err != nil {
+		return err
+	}
+	for _, a := range itemAx {
+		if s.isDeclared(a.name) {
+			return axisCollision(s.t, a)
+		}
+	}
+	inner := axes.with(itemAx)
+
 	for _, key := range slices.Sorted(maps.Keys(obj)) {
 		if strings.Contains(key, interpOpen) {
 			return invalidAt(s.t, childPath(path, key), "", "template body at "+path+
@@ -359,7 +374,11 @@ func (s *bodyScan) object(obj map[string]any, path string) error {
 		if key == guardKey {
 			continue
 		}
-		if err := s.value(obj[key], childPath(path, key)); err != nil {
+		scope := inner
+		if key == forEachKey {
+			scope = axes
+		}
+		if err := s.value(obj[key], childPath(path, key), scope); err != nil {
 			return err
 		}
 	}
@@ -370,7 +389,7 @@ func (s *bodyScan) object(obj map[string]any, path string) error {
 // value, an empty name — are rejected here rather than passed through as
 // literal data, because literal data carrying a `$var` key can only ever
 // fail the post-render strict decode with a far worse message.
-func (s *bodyScan) marker(raw any, path string) error {
+func (s *bodyScan) marker(raw any, path string, axes axisScope) error {
 	name, ok := raw.(string)
 	if !ok {
 		return invalidAt(s.t, path, "", "template body at "+path+" carries a lone "+
@@ -382,19 +401,19 @@ func (s *bodyScan) marker(raw any, path string) error {
 		return invalidAt(s.t, path, "", "template body at "+path+" carries a "+
 			strconv.Quote(markerKey)+" marker with an empty variable name")
 	}
-	if !s.isDeclared(name) {
+	if !s.isDeclared(name) && !axes.has(name) {
 		return undeclaredRef(s.t, name, path, subjectMarker)
 	}
 	return nil
 }
 
 // text checks every interpolation token in a string value.
-func (s *bodyScan) text(str, path string) error {
+func (s *bodyScan) text(str, path string, axes axisScope) error {
 	if !strings.Contains(str, interpOpen) {
 		return nil
 	}
 	return walkInterpolation(s.t, str, path, func(string) {}, func(name string) error {
-		if !s.isDeclared(name) {
+		if !s.isDeclared(name) && !axes.has(name) {
 			return undeclaredRef(s.t, name, path, subjectInterp)
 		}
 		return nil

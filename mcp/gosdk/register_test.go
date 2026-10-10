@@ -399,6 +399,14 @@ func enumAt(schema map[string]any, arrayKey, innerKey string) []string {
 	field, _ := ips[innerKey].(map[string]any)
 	enum, _ := field["enum"].([]any)
 	if enum == nil {
+		// A for_each-capable item's bound string carries its enum as the
+		// first anyOf branch beside the axis-placeholder pattern.
+		if alts, _ := field["anyOf"].([]any); len(alts) > 0 {
+			first, _ := alts[0].(map[string]any)
+			enum, _ = first["enum"].([]any)
+		}
+	}
+	if enum == nil {
 		return nil
 	}
 	out := make([]string, 0, len(enum))

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -350,5 +352,209 @@ func TestForEach_AbsentIsByteIdentical(t *testing.T) {
 	}
 	if round.Hash() != req.Hash() {
 		t.Fatal("hash moved across a round trip")
+	}
+}
+
+// TestForEach_StoredTemplate: a request template carrying a for_each
+// item renders with the item's axis placeholders intact — no escape —
+// while a template variable supplies one axis's values and another
+// fills the label prefix; the rendered request then runs exactly as its
+// hand-expanded twin. A template variable sharing an axis name is
+// refused at load (PULSE_TEMPLATE_AXIS_COLLISION).
+func TestForEach_StoredTemplate(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	copyCohort(t, fsys)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "adstock.json"), []byte(`{
+		"target": "request",
+		"variables": [
+			{"name": "metric", "type": "field", "required": true},
+			{"name": "decays", "type": "list", "items": "number", "required": true}
+		],
+		"body": {
+			"cohort": {"filename": "s.pulse"},
+			"windows": [
+				{"type": "WIN_LAG", "field": "{{metric}}", "label": "lag", "order_by": [{"field": "week"}]},
+				{"for_each": {"axes": [{"name": "d", "values": [30, 50, 70]}, {"name": "decay", "values": {"$var": "decays"}}], "mode": "zip"},
+				 "type": "WIN_EWMA", "field": {"$var": "metric"}, "label": "{{metric}}_ad{{d}}", "order_by": [{"field": "week"}],
+				 "frame": {"mode": "rows"}, "params": {"decay": {"$var": "decay"}}}
+			]
+		}
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: fsys, TemplateDirs: []string{dir}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	req, err := p.RenderTemplateRequest("adstock", map[string]any{"metric": "x", "decays": []any{0.3, 0.5, 0.7}})
+	if err != nil {
+		t.Fatalf("RenderTemplateRequest: %v", err)
+	}
+	if got := req.Windows[1].Label; got != "x_ad{{d}}" {
+		t.Fatalf("rendered label = %q, want the axis placeholder left for the expansion", got)
+	}
+	ctx := context.Background()
+	got, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process(rendered): %v", err)
+	}
+	want, err := p.Process(ctx, handExpanded())
+	if err != nil {
+		t.Fatalf("Process(hand-expanded): %v", err)
+	}
+	for _, col := range forEachLabels {
+		var a, b []any
+		for i := range got.Data {
+			a = append(a, got.Data[i][col])
+			b = append(b, want.Data[i][col])
+		}
+		if len(a) == 0 || !sameBits(a, b) {
+			t.Fatalf("column %s: %v, want %v", col, a, b)
+		}
+	}
+
+	bad := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bad, "clash.json"), []byte(`{
+		"target": "request",
+		"variables": [{"name": "decay", "type": "number", "default": 0.5}],
+		"body": {"cohort": {"filename": "s.pulse"}, "windows": [
+			{"for_each": {"axes": [{"name": "decay", "values": [0.3]}]},
+			 "type": "WIN_EWMA", "field": "x", "order_by": [{"field": "week"}], "params": {"decay": {"$var": "decay"}}}
+		]}
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = pulse.New(pulse.Options{FS: fsys, TemplateDirs: []string{bad}})
+	if ce := codeOf(t, err); ce.Code != errors.PULSE_TEMPLATE_AXIS_COLLISION {
+		t.Fatalf("New with a colliding template = %s, want PULSE_TEMPLATE_AXIS_COLLISION", ce.Code)
+	}
+}
+
+// TestForEach_Explain: Explain describes the items that RUN — each
+// for_each item expanded in place, its fan-out stated once before the
+// items it adds, each added item naming its column — with or without a
+// cohort and inside a Compose slot; a for_each that does not expand is a
+// caveat naming the code.
+func TestForEach_Explain(t *testing.T) {
+	p, _ := ewmaCohort(t)
+	ctx := context.Background()
+	check := func(t *testing.T, res *descriptor.ExplainResult, prefix string) {
+		t.Helper()
+		if !strings.Contains(res.Summary, "4 window columns") {
+			t.Fatalf("summary %q does not count the expanded windows", res.Summary)
+		}
+		var fan, ewma []string
+		for _, st := range res.Steps {
+			switch {
+			case st.Slot == prefix+"windows[1].for_each":
+				fan = append(fan, st.Text)
+			case st.Slot == prefix+"windows[1]" && st.Operator == string(types.WIN_EWMA):
+				ewma = append(ewma, st.Text)
+			}
+		}
+		if len(fan) != 1 || !strings.Contains(fan[0], "expands it into 3 window columns") || !strings.Contains(fan[0], "in lockstep") {
+			t.Fatalf("fan-out steps = %q, want one stating the 3-way zip", fan)
+		}
+		if len(ewma) != 3 {
+			t.Fatalf("WIN_EWMA steps = %q, want the 3 expanded items", ewma)
+		}
+		for i, label := range []string{"x_ad30", "x_ad50", "x_ad70"} {
+			if !strings.Contains(ewma[i], "`"+label+"`") {
+				t.Errorf("step %d %q does not name its column %s", i, ewma[i], label)
+			}
+		}
+	}
+	t.Run("bound", func(t *testing.T) {
+		res, err := p.Explain(ctx, descriptor.ExplainRequest{Request: forEachReq(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Valid == nil || !*res.Valid {
+			t.Fatalf("Valid = %v, want the for_each request judged valid", res.Valid)
+		}
+		check(t, res, "")
+	})
+	t.Run("no cohort", func(t *testing.T) {
+		req := forEachReq(t)
+		req.Cohort = nil
+		res, err := p.Explain(ctx, descriptor.ExplainRequest{Request: req})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, res, "")
+	})
+	t.Run("compose slot", func(t *testing.T) {
+		res, err := p.Explain(ctx, descriptor.ExplainRequest{Composed: &types.ComposedRequest{Requests: []*types.Request{forEachReq(t)}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, res, "requests[0].")
+	})
+	t.Run("does not expand", func(t *testing.T) {
+		req := forEachReq(t)
+		req.Cohort = nil
+		req.Windows[1].ForEach.Axes[0].Values = req.Windows[1].ForEach.Axes[0].Values[:1]
+		res, err := p.Explain(ctx, descriptor.ExplainRequest{Request: req})
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, c := range res.Caveats {
+			found = found || strings.Contains(c, "does not expand (PULSE_FOR_EACH_INVALID)")
+		}
+		if !found {
+			t.Fatalf("caveats %q do not name the for_each refusal", res.Caveats)
+		}
+	})
+}
+
+// TestForEach_Recommend: bound Recommend drafts never carry a for_each,
+// and a window draft it produces composes with one — fanned out over
+// decay it predicts valid, reports the fan-out and runs every column.
+func TestForEach_Recommend(t *testing.T) {
+	p, _ := ewmaCohort(t)
+	ctx := context.Background()
+	res, err := p.Recommend(ctx, descriptor.RecommendRequest{Intent: "change_over_time", Cohort: &types.Cohort{Filename: "s.pulse"}, Limit: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var draft json.RawMessage
+	for _, r := range res.Recommendations {
+		if strings.Contains(string(r.Request), "for_each") {
+			t.Fatalf("draft %s carries a for_each", r.Request)
+		}
+		if r.Operator == string(types.WIN_EWMA) && strings.Contains(string(r.Request), `"field":"x"`) {
+			draft = r.Request
+		}
+	}
+	if draft == nil {
+		t.Fatal("vacuous: no WIN_EWMA draft over x")
+	}
+	// Fill the draft's placeholders the way a caller would.
+	filled := strings.NewReplacer(`"<frame>"`, `{"mode":"rows"}`, `"<alpha>"`, `0.5`).Replace(string(draft))
+	var req types.Request
+	if err := json.Unmarshal([]byte(filled), &req); err != nil {
+		t.Fatal(err)
+	}
+	w := req.Windows[0]
+	w.Label = "x_ew{{decay}}"
+	w.Params = json.RawMessage(`{"decay": {"$var": "decay"}}`)
+	w.ForEach = &types.ForEach{Axes: []types.SweepAxis{{Name: "decay", Values: []any{json.Number("0.3"), json.Number("0.6")}}}}
+	pr, err := p.Predict(ctx, &req)
+	if err != nil || !pr.Valid {
+		t.Fatalf("the fanned-out draft fails predict: %v %+v", err, pr)
+	}
+	if len(pr.ForEach) != 1 || pr.ForEach[0].ExpandedCount != 2 {
+		t.Fatalf("predict ForEach = %+v, want one 2-way fan-out", pr.ForEach)
+	}
+	resp, err := p.Process(ctx, &req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	for _, col := range []string{"x_ew0.3", "x_ew0.6"} {
+		if _, ok := resp.Data[0][col]; !ok {
+			t.Fatalf("row %v lacks the expanded column %s", resp.Data[0], col)
+		}
 	}
 }

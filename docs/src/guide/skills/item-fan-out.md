@@ -57,6 +57,12 @@ Under `grid` the same two axes would make 16 items, most mislabelled. To cross c
 - Predict expands exactly as the runtime does and reports each fan-out under `for_each` `[{path, axes, mode, expanded_count}]`; its other answers judge the expanded items. Predict before running a large grid.
 - Every request host expands: a process run, each compose slot, each chain stage, and a materialize run (every expanded item becomes a column). The echoed request carries the expanded items; its canonical hash equals the hand-written twin's.
 
+## Templates, MCP and Explain
+
+- In a stored request template ([`request-templating`](request-templating.md)) the renderer leaves a `for_each` item's own `{{axis}}` and `{"$var": "axis"}` untouched for the expansion — no escape needed. Template variables still substitute beside them and inside `for_each` itself, so `"values": {"$var": "decays"}` takes an axis list from a `list` variable. Axis names must be literal; a template variable named like an axis is refused at load (`PULSE_TEMPLATE_AXIS_COLLISION`).
+- A cohort-bound MCP tool schema lets an item WITH `for_each` spell its field, type, `partition_by` / `order_by` keys and other enum-bound strings as `{{axis}}` placeholders; an item without one keeps the strict enums.
+- Explain describes the expanded items (each naming its column) and states each fan-out.
+
 ## See
 
 [`compose-sweeps`](compose-sweeps.md) (the same axes over whole requests) · [`window-design`](window-design.md) (window frames and ordering) · [`feature-engineering`](feature-engineering.md) (multi-output features)

@@ -112,7 +112,7 @@ func RenderJSON(t *Template, supplied map[string]any) (json.RawMessage, error) {
 	}
 
 	r := &renderer{t: t, res: res}
-	rendered, keep, err := r.value(body, bodyPath)
+	rendered, keep, err := r.value(body, bodyPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -152,15 +152,17 @@ type renderer struct {
 
 // value renders one node. The bool reports whether the node survives; a
 // false means a `$when` guard dropped it and the parent must omit it
-// entirely rather than substitute a null.
-func (r *renderer) value(v any, path string) (any, bool, error) {
+// entirely rather than substitute a null. axes is the for_each axis scope
+// in force at the node (see for_each.go): a placeholder naming one of
+// them passes through for the item's own expansion.
+func (r *renderer) value(v any, path string, axes axisScope) (any, bool, error) {
 	switch node := v.(type) {
 	case map[string]any:
-		return r.object(node, path)
+		return r.object(node, path, axes)
 	case []any:
-		return r.array(node, path)
+		return r.array(node, path, axes)
 	case string:
-		s, err := r.interpolate(node, path)
+		s, err := r.interpolate(node, path, axes)
 		if err != nil {
 			return nil, false, err
 		}
@@ -177,8 +179,13 @@ func (r *renderer) value(v any, path string) (any, bool, error) {
 // descended into. A guard is evaluated BEFORE any child is rendered, so an
 // unresolved marker inside a doomed subtree raises nothing — the subtree
 // is never visited.
-func (r *renderer) object(obj map[string]any, path string) (any, bool, error) {
+func (r *renderer) object(obj map[string]any, path string, axes axisScope) (any, bool, error) {
 	if name, ok := markerName(obj); ok {
+		if axes.has(name) {
+			// An enclosing for_each item's axis marker: left whole for
+			// that item's expansion to splice.
+			return map[string]any{markerKey: name}, true, nil
+		}
 		val, err := r.substitute(name, path)
 		if err != nil {
 			return nil, false, err
@@ -199,6 +206,15 @@ func (r *renderer) object(obj map[string]any, path string) (any, bool, error) {
 		}
 	}
 
+	// A for_each item scopes its axes over its other keys; the for_each
+	// value itself renders in the enclosing scope, so a template variable
+	// can still supply an axis's values.
+	declared, err := itemAxes(r.t, obj, path)
+	if err != nil {
+		return nil, false, err
+	}
+	inner := axes.with(declared)
+
 	// Keys are walked in sorted order so the first fault reported for a
 	// body with several is deterministic across runs; Go's map iteration
 	// order is not.
@@ -207,7 +223,11 @@ func (r *renderer) object(obj map[string]any, path string) (any, bool, error) {
 		if key == guardKey {
 			continue // a passing guard is stripped from the output
 		}
-		child, keep, err := r.value(obj[key], childPath(path, key))
+		scope := inner
+		if key == forEachKey {
+			scope = axes
+		}
+		child, keep, err := r.value(obj[key], childPath(path, key), scope)
 		if err != nil {
 			return nil, false, err
 		}
@@ -223,10 +243,10 @@ func (r *renderer) object(obj map[string]any, path string) (any, bool, error) {
 // compaction is the point: leaving a null behind would decode to a nil
 // operator slot, which is exactly the silent-omission failure this whole
 // surface exists to prevent.
-func (r *renderer) array(elems []any, path string) (any, bool, error) {
+func (r *renderer) array(elems []any, path string, axes axisScope) (any, bool, error) {
 	out := make([]any, 0, len(elems))
 	for i, e := range elems {
-		child, keep, err := r.value(e, indexPath(path, i))
+		child, keep, err := r.value(e, indexPath(path, i), axes)
 		if err != nil {
 			return nil, false, err
 		}
@@ -253,8 +273,9 @@ func (r *renderer) substitute(name, path string) (any, error) {
 
 // interpolate expands every `{{name}}` token in a string value. A string
 // with no token is returned untouched, so the common case allocates
-// nothing.
-func (r *renderer) interpolate(s, path string) (string, error) {
+// nothing. A token naming an axis in scope is written back as `{{name}}`
+// for the enclosing for_each item's expansion.
+func (r *renderer) interpolate(s, path string, axes axisScope) (string, error) {
 	if !strings.Contains(s, interpOpen) {
 		return s, nil
 	}
@@ -263,6 +284,10 @@ func (r *renderer) interpolate(s, path string) (string, error) {
 	err := walkInterpolation(r.t, s, path,
 		func(literal string) { b.WriteString(literal) },
 		func(name string) error {
+			if axes.has(name) {
+				b.WriteString(interpOpen + name + interpClose)
+				return nil
+			}
 			text, err := r.scalarText(name, path)
 			if err != nil {
 				return err

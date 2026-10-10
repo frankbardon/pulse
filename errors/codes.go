@@ -1856,6 +1856,18 @@ const (
 	// fault.
 	PULSE_TEMPLATE_RENDER_INVALID Code = "PULSE_TEMPLATE_RENDER_INVALID"
 
+	// PULSE_TEMPLATE_AXIS_COLLISION indicates a template declares a
+	// variable with the same name as an axis of a `for_each` item in its
+	// body. Inside that item the renderer leaves the item's own axis
+	// placeholders (`{{axis}}`, {"$var": "axis"}) for the for_each
+	// expansion, so a same-named template variable would make every such
+	// placeholder ambiguous; the declaration is refused rather than one
+	// reading silently winning. Raised at declaration validation (an
+	// author error, like PULSE_TEMPLATE_INVALID). Details carry the
+	// template under DetailTemplate, the shared name under
+	// DetailVariable, and the axis name's body path under "path".
+	PULSE_TEMPLATE_AXIS_COLLISION Code = "PULSE_TEMPLATE_AXIS_COLLISION"
+
 	// PULSE_SPSS_DICT_INVALID indicates an SPSS `.sav` dictionary is
 	// structurally malformed: the file does not open with the `$FL2` /
 	// `$FL3` magic, the layout code identifies neither byte order, a
@@ -3342,6 +3354,7 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_VAR_ENUM,
 	PULSE_TEMPLATE_UNRESOLVED,
 	PULSE_TEMPLATE_RENDER_INVALID,
+	PULSE_TEMPLATE_AXIS_COLLISION,
 	PULSE_SPSS_DICT_INVALID,
 	PULSE_SPSS_DICT_TRUNCATED,
 	PULSE_SPSS_FILE_EMPTY,

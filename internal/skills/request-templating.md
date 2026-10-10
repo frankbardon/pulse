@@ -10,9 +10,9 @@ requires: [capability:templates]
 
 # Request templating
 
-Stored JSON that renders into a **validated typed request** — shape fixed once, caller supplies only variables. Rendering is execution-free.
+Stored JSON that renders into a **validated typed request** — shape fixed once, caller supplies only variables. Execution-free.
 
-**Not expr-lang.** `$var` / `{{}}` / `$when` are *request-authoring* parameters substituted before decode; the formula attribute and expression filter run expr-lang over *row fields* at execution time (`expression-language`). No interop: a formula string in a body is inert text to the renderer.
+**Not expr-lang.** `$var` / `{{}}` / `$when` are *request-authoring* parameters substituted before decode; the formula attribute and expression filter run expr-lang over *row fields* at execution time (`expression-language`). A formula string in a body is inert text to the renderer.
 
 ## File shape
 
@@ -25,6 +25,10 @@ Stored JSON that renders into a **validated typed request** — shape fixed once
 | `{"$var":"bucket"}` | Marker **iff** `$var` is the only key and its value a non-empty string; replaced whole, **type-preserving** — `{"interval":{"$var":"bucket"}}` → `{"interval":10}`, never `"10"`. `{"$var":"x","other":1}` is literal data. |
 | `"{{name}}"` | Natural text, inside a **string value** only; `{{ name }}` works, `{{{{` escapes a literal `{{`. `list`/`period` have no text form → `_VAR_TYPE`. `{{` in an object **key** is rejected. |
 | `{"$when":"segs",…}` | Survives iff the variable resolved — **presence, not truthiness**: drops only when unsupplied AND undefaulted; supplied `""`/`[]`/`0`/`false` KEEPS it. Key stripped either way. Guards run **before** descent, so markers in a dropped block never raise. Array drops compact the slice; root-level `$when` errors. |
+
+<!-- feature: capability:for_each -->
+A `for_each` item's own axis placeholders pass through to its expansion (`item-fan-out`).
+<!-- /feature -->
 
 ## Variable types (nine)
 
@@ -48,7 +52,7 @@ Stored JSON that renders into a **validated typed request** — shape fixed once
   {"$when":"segs","type":"<category grouper>","field":"region","include":{"$var":"segs"}}]}}
 ```
 
-`<…>` = any operator the manifest lists for the slot; render never inspects `type`.
+`<…>` = any operator the manifest lists; render never inspects `type`.
 
 `RenderTemplateRequest("finance/revenue", map[string]any{"metric":"revenue"})` →
 
@@ -58,11 +62,11 @@ Stored JSON that renders into a **validated typed request** — shape fixed once
 "groups":[{"type":"<binning grouper>","field":"revenue","interval":10}]}
 ```
 
-`bucket` defaulted, splicing as the **number** `10`; the `segs`-guarded grouper dropped and the array compacted.
+`bucket` defaulted, splicing the **number** `10`; the `segs`-guarded grouper dropped, the array compacted.
 
 ## Discovery + lifecycle
 
-`Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator` (`:` Unix, `;` Windows). Name = path relative to its root minus `.json`, forward-slash separated. Roots are ordered precedence — **first root wins**; losers land on the winner's `Summary.Shadows`, never an error. **Filesystem faults are `DATA_FILE`**, outside the `PULSE_TEMPLATE_*` family.
+`Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator` Name = path relative to its root minus `.json`, forward-slash separated. Roots are ordered precedence — **first root wins**; losers land on the winner's `Summary.Shadows`, never an error. **Filesystem faults are `DATA_FILE`**, outside the `PULSE_TEMPLATE_*` family.
 
 | Malformed file | Behaviour |
 |---|---|
@@ -70,15 +74,15 @@ Stored JSON that renders into a **validated typed request** — shape fixed once
 | after startup, parsed before | **serves last-good parse**; `ListTemplates` marks `Broken` + `Error` |
 | after startup, never parsed | listed to be seen, not fetchable; `GetTemplate` → `_INVALID` |
 
-Lookups rescan after 1s (unchanged size+mtime is not re-parsed). `ReloadTemplates()` forces the walk — for a deploy step that writes then renders; it returns **nil** for one broken file, only whole-walk faults return.
+Lookups rescan after 1s (unchanged size+mtime is not re-parsed). `ReloadTemplates()` forces the walk (a deploy step that writes then renders); it returns **nil** for one broken file, only whole-walk faults return.
 
 Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (all five targets), `RenderTemplateRequest` (95% path), `ReloadTemplates`. `Rendered.Target` picks the populated pointer — compare it to `pulse.TemplateTarget*`, a variable's type to `pulse.TemplateVar*`, never `.String()`; echo `Rendered.JSON` — re-marshaling drops explicit zeros from `omitempty` structs.
 
-## Errors — nine codes, by provenance
+## Errors — ten codes, by provenance
 
 A bad **declared default** is an author error → `PULSE_TEMPLATE_INVALID` (checked semantically at declaration: enum membership, date parse, period XOR); a bad **caller value** → `_VAR_TYPE` / `_VAR_ENUM`. Same split on names: `$var`/`{{}}`/`$when` naming an **undeclared** variable is an author error caught at validation (`_INVALID`); a **declared but unresolved** reference is render-time `_UNRESOLVED`.
 
-Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target, or `RenderTemplateRequest` on a non-`request` template), `_VAR_MISSING` (required, nothing resolved), `_VAR_UNKNOWN` (supplied but undeclared — never ignored), `_RENDER_INVALID` (strict decode failed — including a top-level slot this instance does not offer). Details carry `template` + `variable`; `pulse errors lookup CODE` is authoritative.
+Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target, or `RenderTemplateRequest` on a non-`request` template), `_VAR_MISSING` (required, nothing resolved), `_VAR_UNKNOWN` (supplied, undeclared — never ignored), `_RENDER_INVALID` (strict decode failed, incl. a top-level slot this instance does not offer), `_AXIS_COLLISION` (a variable shares an item axis's name). Details carry `template` + `variable`; `pulse errors lookup CODE` is authoritative.
 
 ## What render does NOT do
 
