@@ -267,6 +267,15 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#244** A general `target` / `predictors` refusal on every non-regression attribute (only `ATTR_CODE_IN` refuses them today) · [U39](units/U39-attr-code-in.md)
 - [ ] **#245** Optional: move the `ATTR_CODE_IN` parse and accept rules into a neutral shared package instead of the predict copy pinned by `TestCodeIn_PredictRefusalsMatchRuntime` · [U39](units/U39-attr-code-in.md)
 
+### Compose parameter sweeps — added after the plan ([U40](units/U40-compose-sweep.md); inspired by the [MMM worked example](fixtures/mmm-harbor-pine/README.md))
+- [ ] **#261** `ComposedRequest.Sweep`: one request body + named axes + a label pattern, expanded before execution into ordinary slots; `grid` (Cartesian, default) and `zip` (paired) modes; deterministic order and labels · [U40](units/U40-compose-sweep.md)
+- [ ] **#262** Substitution reuses the request-template engine (`$var` slot markers and `{{}}` string sugar); no second placeholder syntax · [U40](units/U40-compose-sweep.md)
+- [ ] **#263** Expanded slots count against the existing `Options.Limits.MaxComposeSlots` and are refused with `PULSE_LIMIT_EXCEEDED` before any slot runs; predict reports `axes`, `mode`, `expanded_count` · [U40](units/U40-compose-sweep.md)
+- [ ] **#264** `sweep.rank {by, order, top}` ranks finished slot responses by one scalar path; `ComposedResponse.Ranking` · [U40](units/U40-compose-sweep.md)
+- [ ] **#265** `PULSE_SWEEP_INVALID` and `PULSE_SWEEP_RANK_PATH` with `codeMetadata` and owners · [U40](units/U40-compose-sweep.md)
+- [ ] **#266** Companions: payload-schema golden, `update-demand.md` row, `features.go` capability row, `compose-requests` / `tool-compose` skills, an examples-library entry, CLAUDE.md Compose-envelope note, a `docs/src/library/` page · [U40](units/U40-compose-sweep.md)
+- [ ] **#267** Acceptance: the MMM fixture's 256-slot grid is reproduced bit-for-bit by one sweep, and its ranking matches · [U40](units/U40-compose-sweep.md)
+
 ---
 
 ## 8. Response shaping ([response-shaping 00](v1.0.0-response-shaping/00-design.md))

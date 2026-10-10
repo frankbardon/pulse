@@ -1,0 +1,29 @@
+{
+  "cohort": {
+    "filename": "harbor_pine_mmm.pulse",
+    "data_dir": "."
+  },
+  "vectors": [
+    {
+      "name": "drivers",
+      "fields": [
+        "revenue_k",
+        "tv_spend_k",
+        "search_spend_k",
+        "social_spend_k",
+        "display_spend_k",
+        "email_ksends",
+        "discount_pct",
+        "competitor_sov",
+        "category_demand"
+      ]
+    }
+  ],
+  "matrices": [
+    {
+      "type": "MAT_CORRELATION",
+      "name": "driver_corr",
+      "vector": "drivers"
+    }
+  ]
+}

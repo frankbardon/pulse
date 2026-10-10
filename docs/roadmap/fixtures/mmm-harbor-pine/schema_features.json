@@ -1,0 +1,207 @@
+[
+ {
+  "name": "category_demand",
+  "type": "f64",
+  "description": "Category search-demand index for the region, 100 = Jan 2024 national level."
+ },
+ {
+  "name": "competitor_sov",
+  "type": "f64",
+  "description": "Competitor share of voice in the category, 0 to 1, from an ad-intelligence vendor."
+ },
+ {
+  "name": "discount_pct",
+  "type": "f64",
+  "description": "Average sitewide discount depth for the week, percent off list."
+ },
+ {
+  "name": "display_ad10",
+  "type": "f64",
+  "description": "Geometric adstock of display_spend_k, decay 0.1 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "display_ad30",
+  "type": "f64",
+  "description": "Geometric adstock of display_spend_k, decay 0.3 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "display_ad50",
+  "type": "f64",
+  "description": "Geometric adstock of display_spend_k, decay 0.5 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "display_ad70",
+  "type": "f64",
+  "description": "Geometric adstock of display_spend_k, decay 0.7 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "display_minus1m_ad",
+  "type": "f64",
+  "description": "Scenario: adstock of display_minus1m_k at the chosen decay."
+ },
+ {
+  "name": "display_minus1m_k",
+  "type": "f64",
+  "description": "Scenario: display_spend_k with $1M/yr removed pro rata, thousands of USD."
+ },
+ {
+  "name": "display_spend_k",
+  "type": "f64",
+  "description": "Programmatic display spend for the region-week, thousands of USD."
+ },
+ {
+  "name": "email_ksends",
+  "type": "f64",
+  "description": "Marketing emails delivered in the region-week, thousands of sends."
+ },
+ {
+  "name": "holiday",
+  "type": "packed_bool",
+  "description": "True for weeks containing a US retail holiday."
+ },
+ {
+  "name": "promo",
+  "type": "packed_bool",
+  "description": "True when a named sitewide promotion ran that week."
+ },
+ {
+  "name": "region",
+  "type": "categorical_u8",
+  "description": "Harbor & Pine US sales region (8 regions)."
+ },
+ {
+  "name": "revenue_k",
+  "type": "f64",
+  "description": "Online revenue for the region-week in thousands of USD; the MMM target."
+ },
+ {
+  "name": "search_ad10",
+  "type": "f64",
+  "description": "Geometric adstock of search_spend_k, decay 0.1 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "search_ad30",
+  "type": "f64",
+  "description": "Geometric adstock of search_spend_k, decay 0.3 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "search_ad50",
+  "type": "f64",
+  "description": "Geometric adstock of search_spend_k, decay 0.5 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "search_ad70",
+  "type": "f64",
+  "description": "Geometric adstock of search_spend_k, decay 0.7 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "search_plus1m_ad",
+  "type": "f64",
+  "description": "Scenario: adstock of search_plus1m_k at the chosen decay."
+ },
+ {
+  "name": "search_plus1m_k",
+  "type": "f64",
+  "description": "Scenario: search_spend_k with $1M/yr added pro rata, thousands of USD."
+ },
+ {
+  "name": "search_spend_k",
+  "type": "f64",
+  "description": "Paid search spend for the region-week, thousands of USD."
+ },
+ {
+  "name": "social_ad10",
+  "type": "f64",
+  "description": "Geometric adstock of social_spend_k, decay 0.1 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "social_ad30",
+  "type": "f64",
+  "description": "Geometric adstock of social_spend_k, decay 0.3 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "social_ad50",
+  "type": "f64",
+  "description": "Geometric adstock of social_spend_k, decay 0.5 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "social_ad70",
+  "type": "f64",
+  "description": "Geometric adstock of social_spend_k, decay 0.7 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "social_plus1m_ad",
+  "type": "f64",
+  "description": "Scenario: adstock of social_plus1m_k at the chosen decay."
+ },
+ {
+  "name": "social_plus1m_k",
+  "type": "f64",
+  "description": "Scenario: social_spend_k with $1M/yr added pro rata, thousands of USD."
+ },
+ {
+  "name": "social_spend_k",
+  "type": "f64",
+  "description": "Paid social spend for the region-week, thousands of USD."
+ },
+ {
+  "name": "tv_ad10",
+  "type": "f64",
+  "description": "Geometric adstock of tv_spend_k, decay 0.1 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "tv_ad30",
+  "type": "f64",
+  "description": "Geometric adstock of tv_spend_k, decay 0.3 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "tv_ad50",
+  "type": "f64",
+  "description": "Geometric adstock of tv_spend_k, decay 0.5 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "tv_ad60",
+  "type": "f64",
+  "description": "Geometric adstock of tv_spend_k, decay 0.6 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "tv_ad70",
+  "type": "f64",
+  "description": "Geometric adstock of tv_spend_k, decay 0.7 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "tv_ad80",
+  "type": "f64",
+  "description": "Geometric adstock of tv_spend_k, decay 0.8 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "tv_ad90",
+  "type": "f64",
+  "description": "Geometric adstock of tv_spend_k, decay 0.9 per week, EWMA-normalised (weights sum to 1), per region."
+ },
+ {
+  "name": "tv_minus1m_ad",
+  "type": "f64",
+  "description": "Scenario: adstock of tv_minus1m_k at the chosen decay."
+ },
+ {
+  "name": "tv_minus1m_k",
+  "type": "f64",
+  "description": "Scenario: tv_spend_k with $1M/yr removed pro rata, thousands of USD."
+ },
+ {
+  "name": "tv_spend_k",
+  "type": "f64",
+  "description": "Linear TV media spend allocated to the region-week, thousands of USD."
+ },
+ {
+  "name": "week",
+  "type": "u16",
+  "description": "Week start as epoch days (streamed rows carry dates as integers)."
+ },
+ {
+  "name": "week_index",
+  "type": "u8",
+  "description": "Weeks since 2024-01-01, 0 to 103; the linear trend term."
+ }
+]

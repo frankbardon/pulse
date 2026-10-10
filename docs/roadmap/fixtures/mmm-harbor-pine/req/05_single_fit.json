@@ -1,0 +1,59 @@
+{
+  "cohort": {
+    "filename": "harbor_pine_features.pulse",
+    "data_dir": "."
+  },
+  "features": [
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "region",
+      "label": "rg"
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "tv_ad70",
+      "label": "tv_sat"
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "search_ad10",
+      "label": "search_sat"
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "social_ad50",
+      "label": "social_sat"
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "display_ad30",
+      "label": "display_sat"
+    }
+  ],
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "mmm_tv70_se10_so50_di30",
+      "target": "revenue_k",
+      "predictors": [
+        "tv_sat",
+        "search_sat",
+        "social_sat",
+        "display_sat",
+        "email_ksends",
+        "discount_pct",
+        "holiday",
+        "competitor_sov",
+        "category_demand",
+        "week_index",
+        "rg_California",
+        "rg_Mid-Atlantic",
+        "rg_Mountain",
+        "rg_Northeast",
+        "rg_Pacific_NW",
+        "rg_South_Central",
+        "rg_Southeast"
+      ]
+    }
+  ]
+}

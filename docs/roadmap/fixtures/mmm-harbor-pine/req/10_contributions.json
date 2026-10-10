@@ -1,0 +1,458 @@
+{
+  "requests": [
+    {
+      "cohort": {
+        "filename": "harbor_pine_features.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_ONE_HOT",
+          "field": "region",
+          "label": "rg"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "tv_ad70",
+          "label": "tv_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "search_ad10",
+          "label": "search_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "social_ad30",
+          "label": "social_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "display_ad70",
+          "label": "display_sat"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "week_index",
+          "interval": 52,
+          "label": "year_bucket"
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_contrib_k",
+          "expression": "8.8683 * tv_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_marginal_k",
+          "expression": "8.8683 * tv_ad70 / (1 + tv_ad70)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_contrib_k",
+          "expression": "12.207 * search_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_marginal_k",
+          "expression": "12.207 * search_ad10 / (1 + search_ad10)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_contrib_k",
+          "expression": "11.544 * social_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_marginal_k",
+          "expression": "11.544 * social_ad30 / (1 + social_ad30)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "display_contrib_k",
+          "expression": "9.7971 * display_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "display_marginal_k",
+          "expression": "9.7971 * display_ad70 / (1 + display_ad70)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_contrib_lo_k",
+          "expression": "7.5452 * tv_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_contrib_hi_k",
+          "expression": "10.1913 * tv_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_contrib_lo_k",
+          "expression": "5.1269 * search_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_contrib_hi_k",
+          "expression": "19.2871 * search_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_contrib_lo_k",
+          "expression": "5.4813 * social_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_contrib_hi_k",
+          "expression": "17.6067 * social_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "display_contrib_lo_k",
+          "expression": "-3.1573 * display_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "display_contrib_hi_k",
+          "expression": "22.7515 * display_sat"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "tv_spend_k",
+          "label": "tv_spend_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tv_contrib_k",
+          "label": "tv_contrib_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tv_marginal_k",
+          "label": "tv_marginal_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_spend_k",
+          "label": "search_spend_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_contrib_k",
+          "label": "search_contrib_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_marginal_k",
+          "label": "search_marginal_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_spend_k",
+          "label": "social_spend_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_contrib_k",
+          "label": "social_contrib_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_marginal_k",
+          "label": "social_marginal_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_spend_k",
+          "label": "display_spend_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_contrib_k",
+          "label": "display_contrib_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_marginal_k",
+          "label": "display_marginal_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "revenue_k",
+          "label": "revenue_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tv_contrib_lo_k",
+          "label": "tv_contrib_lo_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tv_contrib_hi_k",
+          "label": "tv_contrib_hi_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_contrib_lo_k",
+          "label": "search_contrib_lo_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_contrib_hi_k",
+          "label": "search_contrib_hi_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_contrib_lo_k",
+          "label": "social_contrib_lo_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_contrib_hi_k",
+          "label": "social_contrib_hi_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_contrib_lo_k",
+          "label": "display_contrib_lo_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_contrib_hi_k",
+          "label": "display_contrib_hi_k"
+        }
+      ],
+      "label": "by_year"
+    },
+    {
+      "cohort": {
+        "filename": "harbor_pine_features.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_ONE_HOT",
+          "field": "region",
+          "label": "rg"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "tv_ad70",
+          "label": "tv_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "search_ad10",
+          "label": "search_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "social_ad30",
+          "label": "social_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "display_ad70",
+          "label": "display_sat"
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_contrib_k",
+          "expression": "8.8683 * tv_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_marginal_k",
+          "expression": "8.8683 * tv_ad70 / (1 + tv_ad70)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_contrib_k",
+          "expression": "12.207 * search_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_marginal_k",
+          "expression": "12.207 * search_ad10 / (1 + search_ad10)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_contrib_k",
+          "expression": "11.544 * social_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_marginal_k",
+          "expression": "11.544 * social_ad30 / (1 + social_ad30)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "display_contrib_k",
+          "expression": "9.7971 * display_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "display_marginal_k",
+          "expression": "9.7971 * display_ad70 / (1 + display_ad70)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_contrib_lo_k",
+          "expression": "7.5452 * tv_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_contrib_hi_k",
+          "expression": "10.1913 * tv_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_contrib_lo_k",
+          "expression": "5.1269 * search_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_contrib_hi_k",
+          "expression": "19.2871 * search_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_contrib_lo_k",
+          "expression": "5.4813 * social_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_contrib_hi_k",
+          "expression": "17.6067 * social_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "display_contrib_lo_k",
+          "expression": "-3.1573 * display_sat"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "display_contrib_hi_k",
+          "expression": "22.7515 * display_sat"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "tv_spend_k",
+          "label": "tv_spend_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tv_contrib_k",
+          "label": "tv_contrib_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tv_marginal_k",
+          "label": "tv_marginal_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_spend_k",
+          "label": "search_spend_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_contrib_k",
+          "label": "search_contrib_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_marginal_k",
+          "label": "search_marginal_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_spend_k",
+          "label": "social_spend_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_contrib_k",
+          "label": "social_contrib_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_marginal_k",
+          "label": "social_marginal_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_spend_k",
+          "label": "display_spend_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_contrib_k",
+          "label": "display_contrib_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_marginal_k",
+          "label": "display_marginal_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "revenue_k",
+          "label": "revenue_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tv_contrib_lo_k",
+          "label": "tv_contrib_lo_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tv_contrib_hi_k",
+          "label": "tv_contrib_hi_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_contrib_lo_k",
+          "label": "search_contrib_lo_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "search_contrib_hi_k",
+          "label": "search_contrib_hi_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_contrib_lo_k",
+          "label": "social_contrib_lo_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "social_contrib_hi_k",
+          "label": "social_contrib_hi_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_contrib_lo_k",
+          "label": "display_contrib_lo_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "display_contrib_hi_k",
+          "label": "display_contrib_hi_k"
+        }
+      ],
+      "label": "two_year_total"
+    }
+  ]
+}

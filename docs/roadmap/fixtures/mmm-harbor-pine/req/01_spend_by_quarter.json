@@ -1,0 +1,47 @@
+{
+  "cohort": {
+    "filename": "harbor_pine_mmm.pulse",
+    "data_dir": "."
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "week",
+      "params": {
+        "component": "quarter"
+      }
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue_k",
+      "label": "revenue_k"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "tv_spend_k",
+      "label": "tv_k"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "search_spend_k",
+      "label": "search_k"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "social_spend_k",
+      "label": "social_k"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "display_spend_k",
+      "label": "display_k"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "email_ksends",
+      "label": "email_ksends"
+    }
+  ]
+}

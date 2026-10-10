@@ -1,6 +1,6 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **41 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **42 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweeps, appended after U39) has no hard dependency; whether it ships in v1.0.0 is open (see the unit). U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -77,6 +77,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U37 | [shell-completion](U37-shell-completion.md): The pulse CLI completes commands, flags and values natively in the terminal | API & release | M | — (U06 soft) | 208, 209, 210, 211, 212 |
 | U38 | [skill-sync](U38-skill-sync.md): Hand-written skills say exactly what the engine does, and every skill fits its budget | Guided analysis | M | U21 | 235, 236, 237 |
 | U39 | [code-in-attribute](U39-attr-code-in.md): A top-box share of the whole base is one attribute and one weighted mean on the fused crosstab path | Guided analysis | S | — | 240, 241, 242, 243, 244, 245 |
+| U40 | [compose-sweep](U40-compose-sweep.md): A parameter grid is one compose request: Pulse expands it, runs every combination and ranks the results | API & release | M | — (U35 soft) | 261, 262, 263, 264, 265, 266, 267 |
 
 ## Dependency graph
 
@@ -123,6 +124,7 @@ graph TD
   U37["U37 shell-completion"]
   U38["U38 skill-sync"]
   U39["U39 code-in-attribute"]
+  U40["U40 compose-sweep"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -191,6 +193,7 @@ graph TD
   U06 -.-> U37
   U21 --> U38
   U38 --> U32
+  U35 -.-> U40
 ```
 
 ## Human inputs that gate units
