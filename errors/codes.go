@@ -354,6 +354,41 @@ const (
 	// Never a refusal on ratio alone — an error only under --strict.
 	PULSE_DEDUP_LOW_RATIO Code = "PULSE_DEDUP_LOW_RATIO"
 
+	// PULSE_MATERIALIZE_SLOT_UNSUPPORTED indicates a Pulse.Materialize
+	// request carrying a slot that does not produce one value per source
+	// record (groups, aggregations, crosstab, joins, sort, tests,
+	// post_tests, regressions, matrices, vectors, return, overlays,
+	// outputs, labels, multiplicity). details.slot names the slot's JSON
+	// key. Raised before any record is read or any file is created.
+	PULSE_MATERIALIZE_SLOT_UNSUPPORTED Code = "PULSE_MATERIALIZE_SLOT_UNSUPPORTED"
+
+	// PULSE_MATERIALIZE_NO_DERIVED indicates a Pulse.Materialize request
+	// with no features, attributes or windows: there is no derived
+	// column to append. Raised before any file is created.
+	PULSE_MATERIALIZE_NO_DERIVED Code = "PULSE_MATERIALIZE_NO_DERIVED"
+
+	// PULSE_MATERIALIZE_OUTPUT_UNDECLARED indicates a Pulse.Materialize
+	// request carrying a feature whose output columns cannot be named
+	// before the run (an embedder-registered feature, or a built-in one
+	// whose params or source field yield no output), so the output
+	// schema cannot be laid out. details carry feature_index and
+	// feature. Raised before any file is created.
+	PULSE_MATERIALIZE_OUTPUT_UNDECLARED Code = "PULSE_MATERIALIZE_OUTPUT_UNDECLARED"
+
+	// PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC indicates a derived value a
+	// Pulse.Materialize run cannot store in its f64 column — a window
+	// copying a categorical, set or decimal source value, or a
+	// non-numeric lag/lead default. details carry column and value_type.
+	// The run fails with no target written.
+	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC Code = "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC"
+
+	// PULSE_MATERIALIZE_SIDECARS_INVALIDATED is a warning: a
+	// Pulse.Materialize run with Overwrite replaced a cohort whose
+	// sidecars (point-lookup index, SPSS metadata) are now stale.
+	// details carry target and sidecars (their paths); the result's
+	// invalidated_sidecars names each with its rebuild command.
+	PULSE_MATERIALIZE_SIDECARS_INVALIDATED Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
+
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
 	// was requested on a categorical field.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
@@ -3118,6 +3153,11 @@ var allCodes = []Code{
 	PULSE_GROUP_ENTRIES_EXHAUSTED,
 	PULSE_GROUP_TOO_NARROW,
 	PULSE_DEDUP_LOW_RATIO,
+	PULSE_MATERIALIZE_SLOT_UNSUPPORTED,
+	PULSE_MATERIALIZE_NO_DERIVED,
+	PULSE_MATERIALIZE_OUTPUT_UNDECLARED,
+	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC,
+	PULSE_MATERIALIZE_SIDECARS_INVALIDATED,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,

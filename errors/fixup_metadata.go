@@ -652,6 +652,56 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATERIALIZE_SLOT_UNSUPPORTED: {
+		Message: "A materialize request carries a slot that does not produce one value per source record; only features, filterers, attributes, windows, weight and time_zone are accepted.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"*"},
+				Hint:   "Remove the slot named in details.slot, or run the request through Process instead; a materialized cohort can then be processed with that slot as an ordinary request.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_NO_DERIVED: {
+		Message: "A materialize request carries no features, attributes or windows, so there is no derived column to append to the cohort.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Features"},
+				Hint:   "Add at least one feature, attribute or window slot; to copy filtered records without new columns, write the filtered cohort instead.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_UNDECLARED: {
+		Message: "A materialize request carries a feature whose output columns cannot be named before the run, so the output schema cannot be laid out.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Features", "*", "Type"},
+				Hint:   "Replace the feature named in details.feature with a built-in operator, or fix its params or source field so it yields at least one output column (predict lists the columns each feature emits).",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC: {
+		Message: "A derived value is not numeric, so it cannot be stored in the f64 column a materialize run writes for it; nothing was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Windows", "*", "Field"},
+				Hint:   "Point the window named by details.column at a numeric field, or give a lag/lead a numeric default; details.value_type names the value that was refused.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_SIDECARS_INVALIDATED: {
+		Message: "A materialize run overwrote a cohort whose sidecars are now stale; nothing was rebuilt.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"InvalidatedSidecars"},
+				Hint:   "Run each rebuild command the result's invalidated_sidecars lists (details.sidecars names their paths), or delete the stale sidecars.",
+			},
+		},
+	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
 		Message: "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field.",
 		Fixups: []Fixup{

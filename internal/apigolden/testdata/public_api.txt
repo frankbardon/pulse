@@ -612,6 +612,15 @@ pulse: type LookupTable struct
 pulse: type LookupTable field Description string
 pulse: type LookupTable field Lookup func(keys ...string) (value float64, ok bool, err error)
 pulse: type LookupTable field Rows map[string]float64
+pulse: type MaterializeOptions struct
+pulse: type MaterializeOptions field Overwrite bool
+pulse: type MaterializeOptions field Strict bool
+pulse: type MaterializeResult struct
+pulse: type MaterializeResult field DerivedColumns []string "json:\"derived_columns\""
+pulse: type MaterializeResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
+pulse: type MaterializeResult field Records int64 "json:\"records\""
+pulse: type MaterializeResult field Target string "json:\"target\""
+pulse: type MaterializeResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
 pulse: type MemberSet interface
 pulse: type MemberSet imethod Kind() string
 pulse: type MemberSet imethod Len() int
@@ -734,6 +743,7 @@ pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
 pulse: type Pulse method (*Pulse) Manifest(ctx context.Context) *pulse/descriptor.Manifest
 pulse: type Pulse method (*Pulse) ManifestForIntent(ctx context.Context, intent string) (*pulse/descriptor.Manifest, error)
+pulse: type Pulse method (*Pulse) Materialize(ctx context.Context, req *pulse.Request, out string, opts pulse.MaterializeOptions) (*pulse.MaterializeResult, error)
 pulse: type Pulse method (*Pulse) NewCohortBuilder(ctx context.Context, target string, schema pulse/encoding.Schema, opts pulse.CohortBuilderOptions) (*pulse.CohortBuilder, error)
 pulse: type Pulse method (*Pulse) Ontology() pulse/descriptor.Ontology
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
@@ -2219,6 +2229,11 @@ pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMB
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
+pulse/errors: const PULSE_MATERIALIZE_NO_DERIVED pulse/errors.Code = "PULSE_MATERIALIZE_NO_DERIVED"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNDECLARED pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_UNDECLARED"
+pulse/errors: const PULSE_MATERIALIZE_SIDECARS_INVALIDATED pulse/errors.Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
+pulse/errors: const PULSE_MATERIALIZE_SLOT_UNSUPPORTED pulse/errors.Code = "PULSE_MATERIALIZE_SLOT_UNSUPPORTED"
 pulse/errors: const PULSE_MATRIX_HEYWOOD pulse/errors.Code = "PULSE_MATRIX_HEYWOOD"
 pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX_HOST_CONFLICT"
 pulse/errors: const PULSE_MATRIX_INSUFFICIENT_N pulse/errors.Code = "PULSE_MATRIX_INSUFFICIENT_N"
@@ -3005,6 +3020,7 @@ pulse/observe: const OpIndexVerify pulse/observe.OperationKind = "index_verify"
 pulse/observe: const OpInspect pulse/observe.OperationKind = "inspect"
 pulse/observe: const OpLookup pulse/observe.OperationKind = "lookup"
 pulse/observe: const OpManifest pulse/observe.OperationKind = "manifest"
+pulse/observe: const OpMaterialize pulse/observe.OperationKind = "materialize"
 pulse/observe: const OpOpen pulse/observe.OperationKind = "open"
 pulse/observe: const OpPayloadSchema pulse/observe.OperationKind = "payload_schema"
 pulse/observe: const OpPredict pulse/observe.OperationKind = "predict"
@@ -4614,4 +4630,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5a228827007fc88bee95cdfa4cbdd70349fc8954e686f32f4e84b24a3d54cc7b
+// golden-hash: 89cdb1155e7eecaa0818d43d229240f353bf1883d5d32224f448aade342992b7

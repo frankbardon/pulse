@@ -6991,7 +6991,7 @@
         ]
       }
     ],
-    "error_codes_count": 307,
+    "error_codes_count": 312,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7144,6 +7144,11 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MATERIALIZE_NO_DERIVED",
+      "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC",
+      "PULSE_MATERIALIZE_OUTPUT_UNDECLARED",
+      "PULSE_MATERIALIZE_SIDECARS_INVALIDATED",
+      "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_HEYWOOD",
       "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_INSUFFICIENT_N",
@@ -13258,4 +13263,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0e3bcca0641fcaa895cb477365d9156fbcf04a7d78c32ccabe3e5ea8d303b7bd
+// golden-hash: 2eba56d0cb384c2683403ee07e3307bb437fc2c075c261033994319e85616a46

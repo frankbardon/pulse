@@ -156,6 +156,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_GROUP_TOO_NARROW:          shared,
 	errors.PULSE_DEDUP_LOW_RATIO:           shared,
 
+	// Pulse.Materialize is a library method every instance carries.
+	errors.PULSE_MATERIALIZE_SLOT_UNSUPPORTED:     shared,
+	errors.PULSE_MATERIALIZE_NO_DERIVED:           shared,
+	errors.PULSE_MATERIALIZE_OUTPUT_UNDECLARED:    shared,
+	errors.PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC:   shared,
+	errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED: shared,
+
 	// Any numeric aggregator on a categorical field; predict raises it.
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: shared,
 	errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY:      shared,
