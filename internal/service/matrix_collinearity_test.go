@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -24,7 +25,9 @@ type collinearityOracle struct {
 	Response   string        `json:"response"`
 	Predictors []string      `json:"predictors"`
 	Weight     string        `json:"weight"`
+	Missing    string        `json:"missing"`
 	NRows      int           `json:"n_rows"`
+	PairN      [][]float64   `json:"pair_n"`
 	VIF        []float64     `json:"vif"`
 	Tolerance  []float64     `json:"tolerance"`
 	Uncentered belsleyOracle `json:"uncentered"`
@@ -86,22 +89,39 @@ func collNear(t *testing.T, where string, got, want float64) {
 // predictors; the response never enters), the condition indices and
 // the variance-decomposition proportions (perturb::colldiag, transposed
 // to a row per variable), and condition_number the largest index.
+//
+// The pairwise nulls case pins Pulse's pairwise construction end to
+// end: R = cor(use = "pairwise.complete.obs"), VIF = diag(R⁻¹), and
+// Belsley on B = [[1, μᵀ], [μ, D·R·D + μμᵀ]] with each member's own-row
+// mean and population sd (colldiag on chol(B) in R; the moment route is
+// asserted equal to the data route on the listwise cases), plus
+// auxiliary.n = the oracle's pair counts.
 func TestMatrixCollinearity_MatchesROracle(t *testing.T) {
 	cases, dir := loadCollinearityOracle(t)
 	cfg := fixtureFS(t, dir)
+	pairwise := 0
 	for _, c := range cases {
-		t.Run(fmt.Sprintf("%s/%s", c.Fixture, c.Weight), func(t *testing.T) {
+		if c.Missing == vectors.MissingPairwise {
+			pairwise++
+		}
+		t.Run(fmt.Sprintf("%s/%s/%s", c.Fixture, c.Missing, c.Weight), func(t *testing.T) {
 			resp := processMatrices(t, cfg, &types.Request{
 				Cohort: &types.Cohort{Filename: filepath.Join(dir, c.Fixture+".pulse")},
 				Matrices: []types.MatrixSpec{
-					collinearitySpec("uncentered", c.Predictors, nil, c.Weight),
-					collinearitySpec("centered", c.Predictors, map[string]any{"center": true}, c.Weight),
+					collinearitySpec("uncentered", c.Predictors, map[string]any{"missing": c.Missing}, c.Weight),
+					collinearitySpec("centered", c.Predictors, map[string]any{"center": true, "missing": c.Missing}, c.Weight),
 				},
 			})
 			for v, want := range map[int]belsleyOracle{0: c.Uncentered, 1: c.Centered} {
 				res := resp.Matrices[v]
 				if len(res.Warnings) != 0 {
 					t.Errorf("%s warnings %v", res.Name, matWarningCodes(res))
+				}
+				if c.Missing == vectors.MissingPairwise {
+					n := res.Auxiliary["n"]
+					if n == nil || !reflect.DeepEqual(n.Values, c.PairN) {
+						t.Errorf("%s auxiliary.n %+v, want pair_n %v", res.Name, n, c.PairN)
+					}
 				}
 				if res.Primary.Kind != types.MatrixKindSquareSymmetric || !reflect.DeepEqual(res.Primary.RowKeys, c.Predictors) {
 					t.Fatalf("%s primary %+v", res.Name, res.Primary)
@@ -142,6 +162,9 @@ func TestMatrixCollinearity_MatchesROracle(t *testing.T) {
 				}
 			}
 		})
+	}
+	if pairwise == 0 {
+		t.Fatal("oracle has no pairwise case")
 	}
 }
 

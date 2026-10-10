@@ -81,35 +81,35 @@ func pcaNear(t *testing.T, where string, got, want float64) {
 	}
 }
 
-// TestMatrixPCA_MatchesROracle pins every LISTWISE mv_pca.json case —
+// TestMatrixPCA_MatchesROracle pins every mv_pca.json case —
 // attitude and mtcars on the correlation and the covariance, likert
 // ties, the weighted fixture and the listwise nulls fixture; unweighted,
 // frequency (the rep() expansion: Σw = N*) and probability weights
-// (Kish n_eff = N*) — with every component kept (an integer k = p), so
-// the full eigen-decomposition is compared: eigenvalues, the
+// (Kish n_eff = N*) — plus the pairwise nulls case, whose input is
+// cor(use = "pairwise.complete.obs") (the MAT_CORRELATION matrix Pulse
+// analyses) and whose Bartlett N* is the smallest pair N, named by
+// PULSE_MATRIX_PAIRWISE_N_STAR. Every component is kept (an integer
+// k = p), so the full eigen-decomposition is compared: eigenvalues, the
 // eigenvectors' and loadings' SIGN, ORDER and SHAPE exactly (the
 // SymEigen convention the oracle applies too) and their values to
 // tolerance, explained / cumulative shares, KMO, per-member MSA and
 // Bartlett's chi-square, df and p. The kaiser default is checked
 // against the oracle's kaiser_components and communalities.
-//
-// The pairwise case is pinned separately
-// (TestMatrixPCA_PairwiseUsesPairwiseCorrelation): the oracle builds its
-// pairwise input as cov2cor of the pairwise covariance, whereas Pulse
-// analyses cor(use = "pairwise") — the MAT_CORRELATION matrix.
 func TestMatrixPCA_MatchesROracle(t *testing.T) {
 	cases, dir := loadPCAOracle(t)
 	cfg := fixtureFS(t, dir)
+	pairwise := 0
 	for _, c := range cases {
-		if c.Missing != vectors.MissingListwise {
-			continue
-		}
 		p := len(c.Fields)
-		name := fmt.Sprintf("%s/%s/p%d/%s", c.Fixture, c.On, p, c.Weight)
+		name := fmt.Sprintf("%s/%s/%s/p%d/%s", c.Fixture, c.On, c.Missing, p, c.Weight)
+		if c.Missing == vectors.MissingPairwise {
+			pairwise++
+		}
 		t.Run(name, func(t *testing.T) {
-			specs := []types.MatrixSpec{pcaSpec("all", c.Fields, map[string]any{"on": c.On, "components": p}, c.Weight)}
+			params := map[string]any{"on": c.On, "components": p, "missing": c.Missing}
+			specs := []types.MatrixSpec{pcaSpec("all", c.Fields, params, c.Weight)}
 			if c.On == vectors.PCAOnCorrelation {
-				specs = append(specs, pcaSpec("kaiser", c.Fields, nil, c.Weight))
+				specs = append(specs, pcaSpec("kaiser", c.Fields, map[string]any{"missing": c.Missing}, c.Weight))
 			}
 			resp := processMatrices(t, cfg, &types.Request{
 				Cohort:   &types.Cohort{Filename: filepath.Join(dir, c.Fixture+".pulse")},
@@ -157,7 +157,16 @@ func TestMatrixPCA_MatchesROracle(t *testing.T) {
 			if res.Scalars["bartlett_df"] != c.BartlettDF || res.Scalars["components_retained"] != float64(p) {
 				t.Errorf("df %v (R %v), retained %v", res.Scalars["bartlett_df"], c.BartlettDF, res.Scalars["components_retained"])
 			}
-			if len(res.Warnings) != 0 {
+			if c.Missing == vectors.MissingPairwise {
+				// Bartlett reads the smallest pair N, and says so.
+				w := findWarning(res, errors.PULSE_MATRIX_PAIRWISE_N_STAR)
+				if len(res.Warnings) != 1 || w == nil || w.Details["n_star"] != c.NStar {
+					t.Errorf("warnings %v (%+v), want PULSE_MATRIX_PAIRWISE_N_STAR alone with n_star %v", matWarningCodes(res), w, c.NStar)
+				}
+				if res.Auxiliary["n"] == nil {
+					t.Error("pairwise auxiliary.n missing")
+				}
+			} else if len(res.Warnings) != 0 {
 				t.Errorf("warnings %v", matWarningCodes(res))
 			}
 			if c.On != vectors.PCAOnCorrelation {
@@ -173,6 +182,9 @@ func TestMatrixPCA_MatchesROracle(t *testing.T) {
 				pcaNear(t, fmt.Sprintf("communalities[%d]", i), comm[i], *w)
 			}
 		})
+	}
+	if pairwise == 0 {
+		t.Fatal("oracle has no pairwise case")
 	}
 }
 
@@ -201,64 +213,6 @@ func TestMatrixPCA_SpectrumKernelMatchesOracle(t *testing.T) {
 				pcaNear(t, fmt.Sprintf("case %d v[%d][%d]", n, i, k), got, c.Eigenvectors[i][k])
 			}
 		}
-	}
-}
-
-// TestMatrixPCA_PairwiseUsesPairwiseCorrelation: under pairwise deletion
-// MAT_PCA analyses the MAT_CORRELATION matrix of the same request (R's
-// cor(use = "pairwise")) — its eigenvalues are that matrix's — and
-// Bartlett reads the smallest pair N (the oracle's n_star) with
-// PULSE_MATRIX_PAIRWISE_N_STAR naming it.
-func TestMatrixPCA_PairwiseUsesPairwiseCorrelation(t *testing.T) {
-	cases, dir := loadPCAOracle(t)
-	cfg := fixtureFS(t, dir)
-	found := false
-	for _, c := range cases {
-		if c.Missing != vectors.MissingPairwise {
-			continue
-		}
-		found = true
-		raw, _ := json.Marshal(map[string]any{"missing": "pairwise"})
-		resp := processMatrices(t, cfg, &types.Request{
-			Cohort: &types.Cohort{Filename: filepath.Join(dir, c.Fixture+".pulse")},
-			Matrices: []types.MatrixSpec{
-				pcaSpec("pca", c.Fields, map[string]any{"missing": "pairwise", "components": len(c.Fields)}, c.Weight),
-				{Name: "r", Type: types.MAT_CORRELATION, Fields: c.Fields, Params: raw},
-			},
-		})
-		pca, corr := resp.Matrices[0], resp.Matrices[1]
-		s, err := linalg.NewSymFromRows(corr.Primary.Values)
-		if err != nil {
-			t.Fatal(err)
-		}
-		eig, err := linalg.SymEigen(s)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := relFloats(t, pca.Vectors["eigenvalues"])
-		for k := range got {
-			if got[k] != eig.Values.At(k) {
-				t.Errorf("λ[%d] = %v, eigen of the pairwise correlation %v", k, got[k], eig.Values.At(k))
-			}
-		}
-		w := findWarning(pca, errors.PULSE_MATRIX_PAIRWISE_N_STAR)
-		if w == nil || w.Details["n_star"] != c.NStar {
-			t.Fatalf("pairwise N* warning %+v, want n_star %v", w, c.NStar)
-		}
-		// Bartlett on Pulse's own correlation with the oracle's N*.
-		p := float64(len(c.Fields))
-		chol, err := linalg.Cholesky(s)
-		if err != nil {
-			t.Fatal(err)
-		}
-		logDet := 0.0
-		for i := 0; i < len(c.Fields); i++ {
-			logDet += 2 * math.Log(chol.At(i, i))
-		}
-		pcaNear(t, "bartlett_chisq", pca.Scalars["bartlett_chisq"], -logDet*(c.NStar-1-(2*p+5)/6))
-	}
-	if !found {
-		t.Fatal("oracle has no pairwise case")
 	}
 }
 

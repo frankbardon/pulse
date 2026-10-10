@@ -13,13 +13,14 @@
   },
   "primitive": "collinearity diagnostics",
   "r_function": "car::vif(lm(response ~ predictors[, weights])) (asserted) == diag(solve(R_w)); perturb::colldiag(X, scale = TRUE, center = FALSE, add.intercept = TRUE) and (center = TRUE, add.intercept = FALSE)",
-  "note": "Weighted colldiag runs on sqrt(w)-scaled rows (uncentered with a sqrt(w) intercept column; centered on the weighted mean), equivalent to W(Sigma + mu mu^T) after column scaling. condition_indices are ascending as perturb returns them; variance_decomposition rows follow them, columns follow 'columns'. Response is used only for car::vif's lm and does not enter the diagnostics.",
+  "note": "Weighted colldiag runs on sqrt(w)-scaled rows (uncentered with a sqrt(w) intercept column; centered on the weighted mean), equivalent to W(Sigma + mu mu^T) after column scaling. condition_indices are ascending as perturb returns them; variance_decomposition rows follow them, columns follow 'columns'. Response is used only for car::vif's lm and does not enter the diagnostics. The one pairwise case (unweighted, response null) is built from the moments as Pulse builds it: R = cor(use = 'pairwise.complete.obs'), VIF = diag(solve(R)) (no car::vif: lm needs complete rows); colldiag on chol(B), B = [[1, mu'], [mu, D R D + mu mu']] with each member's own-row mean and population sd (uncentered) and on chol(R) (centered) — the moment route is asserted equal to the data route on every unweighted listwise case.",
   "cases": [
     {
       "fixture": "attitude",
       "response": "rating",
       "predictors": ["complaints", "privileges", "learning", "raises", "critical", "advance"],
       "weight": "none",
+      "missing": "listwise",
       "n_rows": 30,
       "vif": [
         2.6670603082578488,
@@ -181,6 +182,7 @@
       "response": "mpg",
       "predictors": ["disp", "hp", "drat", "wt", "qsec"],
       "weight": "none",
+      "missing": "listwise",
       "n_rows": 32,
       "vif": [
         9.1108693142085588,
@@ -310,6 +312,7 @@
       "response": "y",
       "predictors": ["x1", "x2", "x3", "x4"],
       "weight": "none",
+      "missing": "listwise",
       "n_rows": 40,
       "vif": [
         1.9333097054782642,
@@ -411,6 +414,7 @@
       "response": "rating",
       "predictors": ["complaints", "privileges", "learning", "raises", "critical", "advance"],
       "weight": "frequency",
+      "missing": "listwise",
       "n_rows": 30,
       "vif": [
         2.2725539821001575,
@@ -572,6 +576,7 @@
       "response": "mpg",
       "predictors": ["disp", "hp", "drat", "wt", "qsec"],
       "weight": "frequency",
+      "missing": "listwise",
       "n_rows": 32,
       "vif": [
         8.796322370839583,
@@ -701,6 +706,7 @@
       "response": "y",
       "predictors": ["x1", "x2", "x3", "x4"],
       "weight": "frequency",
+      "missing": "listwise",
       "n_rows": 40,
       "vif": [
         1.6621383433304628,
@@ -802,6 +808,7 @@
       "response": "rating",
       "predictors": ["complaints", "privileges", "learning", "raises", "critical", "advance"],
       "weight": "probability",
+      "missing": "listwise",
       "n_rows": 30,
       "vif": [
         2.8640015041591971,
@@ -963,6 +970,7 @@
       "response": "mpg",
       "predictors": ["disp", "hp", "drat", "wt", "qsec"],
       "weight": "probability",
+      "missing": "listwise",
       "n_rows": 32,
       "vif": [
         10.520074755240403,
@@ -1092,6 +1100,7 @@
       "response": "y",
       "predictors": ["x1", "x2", "x3", "x4"],
       "weight": "probability",
+      "missing": "listwise",
       "n_rows": 40,
       "vif": [
         2.1817588398973013,
@@ -1187,7 +1196,135 @@
           ]
         ]
       }
+    },
+    {
+      "fixture": "nulls",
+      "response": null,
+      "predictors": ["x1", "x2", "x3", "x4"],
+      "weight": "none",
+      "missing": "pairwise",
+      "n_rows": 48,
+      "pair_n": [
+        [
+          42,
+          37,
+          37,
+          36
+        ],
+        [
+          37,
+          42,
+          38,
+          37
+        ],
+        [
+          37,
+          38,
+          42,
+          36
+        ],
+        [
+          36,
+          37,
+          36,
+          42
+        ]
+      ],
+      "vif": [
+        1.5352782690210554,
+        1.4147868827782988,
+        1.4240404643500084,
+        1.1549179522360173
+      ],
+      "tolerance": [
+        0.65134771993980833,
+        0.70682023714853948,
+        0.702227236538845,
+        0.86586237408806122
+      ],
+      "uncentered": {
+        "columns": ["intercept", "x1", "x2", "x3", "x4"],
+        "condition_indices": [
+          1,
+          1.5663335650110306,
+          2.2193730712624071,
+          15.963881826336635,
+          17.662193144887802
+        ],
+        "variance_decomposition": [
+          [
+            0.0015251637012347454,
+            0.0018259783226584694,
+            0.0016326113579562529,
+            0.0054842664258669743,
+            0.010332965861036377
+          ],
+          [
+            0.00037214783287427321,
+            0.0002127594799845141,
+            0.00022308814160615552,
+            0.27363290927332024,
+            0.29110184994486055
+          ],
+          [
+            1.4599126286598773e-06,
+            6.2439669897029304e-05,
+            1.1117643601707434e-05,
+            0.5259187358563252,
+            0.69291805309130694
+          ],
+          [
+            0.085629928212273984,
+            0.95120594046681128,
+            0.38175286429993399,
+            0.063859873080854571,
+            0.0036290365858346976
+          ],
+          [
+            0.91247130034098833,
+            0.046692882060648741,
+            0.6163803185569019,
+            0.13110421536363312,
+            0.0020180945169615779
+          ]
+        ]
+      },
+      "centered": {
+        "columns": ["x1", "x2", "x3", "x4"],
+        "condition_indices": [
+          1,
+          1.4809835565348852,
+          1.8684393672611135,
+          2.1449782363212426
+        ],
+        "variance_decomposition": [
+          [
+            0.095860419490061341,
+            0.095278586123999726,
+            0.10059973406011889,
+            0.056022719183262744
+          ],
+          [
+            0.10633750774723399,
+            0.10505658979299989,
+            0.032338301139560474,
+            0.62050329402977245
+          ],
+          [
+            0.019860518247852618,
+            0.42419360710212389,
+            0.582440360781736,
+            0.21674946650778548
+          ],
+          [
+            0.77794155451485203,
+            0.37547121698087643,
+            0.28462160401858466,
+            0.10672452027917928
+          ]
+        ]
+      }
     }
   ]
 }
-// golden-hash: 13b714b13a3f52ab033b8709434806b1028730727d393fdd8d6d6352cd01bbb1
+// golden-hash: 254bb9d540ac5fd57f98ee356649dbad4acc48f1bb0cc3932cc4abece58e22a5

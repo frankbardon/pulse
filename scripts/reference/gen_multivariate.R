@@ -508,11 +508,15 @@ add_pca <- function(fx, df, cols, kind, on = "correlation", missing = "listwise"
   w <- wvec(d, kind)
   ns <- n_star(w, kind)
   if (missing == "pairwise") {
+    # Pairwise: R is cor(use = "pairwise") — each pair over its own rows,
+    # the MAT_CORRELATION matrix Pulse analyses — NOT cov2cor of the
+    # pairwise covariance (whose variances rest on other rows).
     S <- cov(X, use = "pairwise.complete.obs"); ns <- min(pair_n(X))
+    R <- cor(X, use = "pairwise.complete.obs")
   } else {
     S <- wcov(X, w, kind)
+    R <- cov2cor(S)
   }
-  R <- cov2cor(S)
   M <- if (on == "correlation") R else S
   e <- eigen(M, symmetric = TRUE)
   V <- sign_fix(e$vectors)
@@ -549,13 +553,47 @@ for (kind in w_kinds) {
 add_pca("nulls", nl, paste0("x", 1:4), "none", missing = "pairwise")
 pca_doc <- c(mv_meta("principal components, KMO and Bartlett",
   "eigen(M, symmetric = TRUE) (prcomp asserted on unweighted listwise); psych::KMO(R); psych::cortest.bartlett(R, n = n_star)",
-  "Eigenvectors carry Pulse's sign convention (largest-magnitude component positive, tie within 2^-26 -> lowest index); loadings = eigenvector * sqrt(lambda). Eigenvalues descending. kaiser_components / communalities_kaiser are for correlation input only (lambda > 1). KMO and Bartlett always run on the correlation; n_star = N listwise, min pair n pairwise, sum(w) frequency, Kish n_eff probability."),
+  "Eigenvectors carry Pulse's sign convention (largest-magnitude component positive, tie within 2^-26 -> lowest index); loadings = eigenvector * sqrt(lambda). Eigenvalues descending. kaiser_components / communalities_kaiser are for correlation input only (lambda > 1). KMO and Bartlett always run on the correlation; n_star = N listwise, min pair n pairwise, sum(w) frequency, Kish n_eff probability. The pairwise correlation is cor(use = 'pairwise.complete.obs') (each pair over its own rows), not cov2cor of the pairwise covariance."),
   list(cases = pca_cases))
 
 # ------------------------------------------------------------ collinearity
 col_cases <- list()
 colldiag_parts <- function(cd) list(cond = as.numeric(cd$condindx), pi = unname(as.matrix(cd$pi)), names = colnames(cd$pi))
-add_coll <- function(fx, df, response, preds, kind) {
+# Belsley from the moments, Pulse's construction: B = [[1, mu'], [mu,
+# D R D + mu mu']] (D = population sds) for the uncentered variant, R
+# itself for the centered one. colldiag runs on chol(B) — a pseudo data
+# matrix with crossprod(chol(B)) == B — so its scaled SVD is exactly the
+# scaled eigen-decomposition of B.
+colldiag_moments <- function(M, names) {
+  U <- chol(M); colnames(U) <- names
+  colldiag_parts(perturb::colldiag(U, scale = TRUE, center = FALSE, add.intercept = FALSE))
+}
+uncentered_b <- function(R, mu, sdp) {
+  B <- diag(sdp, length(sdp)) %*% R %*% diag(sdp, length(sdp)) + mu %o% mu
+  rbind(c(1, mu), cbind(mu, B))
+}
+add_coll <- function(fx, df, response, preds, kind, missing = "listwise") {
+  if (missing == "pairwise") {
+    # Pairwise (unweighted): R = cor(use = "pairwise"); VIF = diag(R^-1)
+    # (no lm to assert against — car::vif needs complete rows). Belsley
+    # on Pulse's pairwise moments: each member's own-row mean and
+    # population sd around R.
+    X <- as.matrix(df[, preds])
+    R <- cor(X, use = "pairwise.complete.obs")
+    vif <- diag(solve(R))
+    mu <- colMeans(X, na.rm = TRUE)
+    sdp <- sqrt(colSums(sweep(X, 2, mu)^2, na.rm = TRUE) / colSums(!is.na(X)))
+    un <- colldiag_moments(uncentered_b(R, mu, sdp), c("intercept", preds))
+    ce <- colldiag_moments(R, preds)
+    col_cases[[length(col_cases) + 1]] <<- list(
+      fixture = fx, response = jnull, predictors = strs(preds), weight = kind, missing = missing,
+      n_rows = num(nrow(X)), pair_n = numm(pair_n(X)),
+      vif = numv(vif), tolerance = numv(1 / vif),
+      uncentered = list(columns = strs(c("intercept", preds)), condition_indices = numv(un$cond), variance_decomposition = numm(un$pi)),
+      centered = list(columns = strs(preds), condition_indices = numv(ce$cond), variance_decomposition = numm(ce$pi))
+    )
+    return(invisible())
+  }
   d <- listwise(df, c(response, preds))
   X <- as.matrix(d[, preds])
   w <- wvec(d, kind)
@@ -572,6 +610,14 @@ add_coll <- function(fx, df, response, preds, kind) {
   if (kind == "none") {
     un <- colldiag_parts(perturb::colldiag(X, scale = TRUE, center = FALSE, add.intercept = TRUE))
     ce <- colldiag_parts(perturb::colldiag(X, scale = TRUE, center = TRUE, add.intercept = FALSE))
+    # The moment construction (the pairwise case's route) equals the
+    # data route listwise.
+    mu <- colMeans(X)
+    sdp <- sqrt(colMeans(sweep(X, 2, mu)^2))
+    um <- colldiag_moments(uncentered_b(R, mu, sdp), c("intercept", preds))
+    cm <- colldiag_moments(R, preds)
+    near(um$cond, un$cond, 1e-8, paste("moment colldiag uncentered", fx)); near(um$pi, un$pi, 1e-8, paste("moment pi uncentered", fx))
+    near(cm$cond, ce$cond, 1e-8, paste("moment colldiag centered", fx)); near(cm$pi, ce$pi, 1e-8, paste("moment pi centered", fx))
   } else {
     Xi <- cbind(intercept = sw, X * sw)
     un <- colldiag_parts(perturb::colldiag(Xi, scale = TRUE, center = FALSE, add.intercept = FALSE))
@@ -580,7 +626,7 @@ add_coll <- function(fx, df, response, preds, kind) {
     ce <- colldiag_parts(perturb::colldiag(Xc, scale = TRUE, center = FALSE, add.intercept = FALSE))
   }
   col_cases[[length(col_cases) + 1]] <<- list(
-    fixture = fx, response = response, predictors = strs(preds), weight = kind,
+    fixture = fx, response = response, predictors = strs(preds), weight = kind, missing = missing,
     n_rows = num(nrow(X)),
     vif = numv(vif), tolerance = numv(1 / vif),
     uncentered = list(columns = strs(c("intercept", preds)), condition_indices = numv(un$cond), variance_decomposition = numm(un$pi)),
@@ -592,9 +638,10 @@ for (kind in w_kinds) {
   add_coll("mtcars", mt, "mpg", c("disp", "hp", "drat", "wt", "qsec"), kind)
   add_coll("weighted", wd, "y", paste0("x", 1:4), kind)
 }
+add_coll("nulls", nl, NULL, paste0("x", 1:4), "none", "pairwise")
 col_doc <- c(mv_meta("collinearity diagnostics",
   "car::vif(lm(response ~ predictors[, weights])) (asserted) == diag(solve(R_w)); perturb::colldiag(X, scale = TRUE, center = FALSE, add.intercept = TRUE) and (center = TRUE, add.intercept = FALSE)",
-  "Weighted colldiag runs on sqrt(w)-scaled rows (uncentered with a sqrt(w) intercept column; centered on the weighted mean), equivalent to W(Sigma + mu mu^T) after column scaling. condition_indices are ascending as perturb returns them; variance_decomposition rows follow them, columns follow 'columns'. Response is used only for car::vif's lm and does not enter the diagnostics."),
+  "Weighted colldiag runs on sqrt(w)-scaled rows (uncentered with a sqrt(w) intercept column; centered on the weighted mean), equivalent to W(Sigma + mu mu^T) after column scaling. condition_indices are ascending as perturb returns them; variance_decomposition rows follow them, columns follow 'columns'. Response is used only for car::vif's lm and does not enter the diagnostics. The one pairwise case (unweighted, response null) is built from the moments as Pulse builds it: R = cor(use = 'pairwise.complete.obs'), VIF = diag(solve(R)) (no car::vif: lm needs complete rows); colldiag on chol(B), B = [[1, mu'], [mu, D R D + mu mu']] with each member's own-row mean and population sd (uncentered) and on chol(R) (centered) — the moment route is asserted equal to the data route on every unweighted listwise case."),
   list(cases = col_cases))
 
 # ------------------------------------------------------------ vcov(lm/glm)
