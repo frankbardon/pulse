@@ -91,6 +91,12 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	// U12 E5-S1: the normal-critical bound on N* (Σw / Kish n_eff).
 	types.AGG_CI_LOWER: ClassAware,
 	types.AGG_CI_UPPER: ClassAware,
+
+	// fit-scoring E2-S1: model error as a ratio of two weighted sums,
+	// Σw·loss / Σw (RMSE its square root).
+	types.AGG_MAPE: ClassAware,
+	types.AGG_RMSE: ClassAware,
+	types.AGG_MAE:  ClassAware,
 }
 
 // attributeClasses classes the attributes the table governs: the

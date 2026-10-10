@@ -3662,6 +3662,8 @@ pulse/types: const AGG_DISTINCT_COUNT pulse/types.AggregationType = "AGG_DISTINC
 pulse/types: const AGG_DISTINCT_SUM pulse/types.AggregationType = "AGG_DISTINCT_SUM"
 pulse/types: const AGG_FREQUENCY pulse/types.AggregationType = "AGG_FREQUENCY"
 pulse/types: const AGG_KURTOSIS pulse/types.AggregationType = "AGG_KURTOSIS"
+pulse/types: const AGG_MAE pulse/types.AggregationType = "AGG_MAE"
+pulse/types: const AGG_MAPE pulse/types.AggregationType = "AGG_MAPE"
 pulse/types: const AGG_MAX pulse/types.AggregationType = "AGG_MAX"
 pulse/types: const AGG_MEDIAN pulse/types.AggregationType = "AGG_MEDIAN"
 pulse/types: const AGG_MIN pulse/types.AggregationType = "AGG_MIN"
@@ -3671,6 +3673,7 @@ pulse/types: const AGG_NULL_COUNT pulse/types.AggregationType = "AGG_NULL_COUNT"
 pulse/types: const AGG_PERCENTILE pulse/types.AggregationType = "AGG_PERCENTILE"
 pulse/types: const AGG_RANGE pulse/types.AggregationType = "AGG_RANGE"
 pulse/types: const AGG_RATIO pulse/types.AggregationType = "AGG_RATIO"
+pulse/types: const AGG_RMSE pulse/types.AggregationType = "AGG_RMSE"
 pulse/types: const AGG_SET_CARDINALITY_AVG pulse/types.AggregationType = "AGG_SET_CARDINALITY_AVG"
 pulse/types: const AGG_SET_CARDINALITY_SUM pulse/types.AggregationType = "AGG_SET_CARDINALITY_SUM"
 pulse/types: const AGG_SET_DISTINCT_VALUES pulse/types.AggregationType = "AGG_SET_DISTINCT_VALUES"
@@ -4674,4 +4677,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: cccd0080bc81cce21cbf41edca5502e4fb68744222c0a5f6bce8ef38629a04ad
+// golden-hash: bddd64b99240de646ae133b7809cc088fc54c03486371a96b076f292e023be91

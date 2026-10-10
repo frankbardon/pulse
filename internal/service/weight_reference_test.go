@@ -316,6 +316,10 @@ var weightRefScale = map[types.AggregationType]string{
 	// probability — so the f / p twins differ by design.
 	types.AGG_CI_LOWER: "none",
 	types.AGG_CI_UPPER: "none",
+	// Model error is a ratio of two weighted sums.
+	types.AGG_MAPE: "free",
+	types.AGG_RMSE: "free",
+	types.AGG_MAE:  "free",
 }
 
 // TestWeightReferenceKindsAgree: the same replication pattern given as

@@ -62,6 +62,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		AGG_WELFORD,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
@@ -99,6 +100,7 @@ func (t AggregationType) Mergeable() bool {
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES:
@@ -179,6 +181,11 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		AGG_MEDIAN, AGG_PERCENTILE, AGG_MODE,
 		AGG_ZSCORE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		// A pooled mean of per-row losses: re-derivable from per-cell
+		// (loss_sum, weight_sum) in principle, but no cell exposes them
+		// to the reshape pass, so the margin re-walks raw rows (RMSE's
+		// square root does not pool by addition either).
+		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		// Welford emits a running (mean, sample-variance, n) triple.
 		// Sample variance does not pool by addition across cells — the
 		// margin must re-walk raw rows. Mirrors AGG_VARIANCE / AGG_STDDEV.

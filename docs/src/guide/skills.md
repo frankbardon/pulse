@@ -37,6 +37,8 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-distinct-sum`](skills/op-agg-distinct-sum.md): Sum a value field once per distinct key.
 - [`op-agg-frequency`](skills/op-agg-frequency.md): Value count — how many non-null rows hold one chosen value (params.value); one float64 per output row.
 - [`op-agg-kurtosis`](skills/op-agg-kurtosis.md): Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.
+- [`op-agg-mae`](skills/op-agg-mae.md): Mean absolute error of a prediction against an actual — mean(|y - prediction|).
+- [`op-agg-mape`](skills/op-agg-mape.md): Mean absolute percentage error of a prediction against an actual — mean(|y - prediction| / |y|), as a fraction.
 - [`op-agg-max`](skills/op-agg-max.md): Largest non-null value of the field.
 - [`op-agg-median`](skills/op-agg-median.md): 50th percentile of the field; requires sorting the full value set.
 - [`op-agg-min`](skills/op-agg-min.md): Smallest non-null value of the field.
@@ -46,6 +48,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-percentile`](skills/op-agg-percentile.md): Configurable percentile of the field; requires sorting the full value set.
 - [`op-agg-range`](skills/op-agg-range.md): Spread (max minus min) of the field across the input set.
 - [`op-agg-ratio`](skills/op-agg-ratio.md): Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored.
+- [`op-agg-rmse`](skills/op-agg-rmse.md): Root mean squared error of a prediction against an actual — sqrt(mean((y - prediction)^2)).
 - [`op-agg-set-cardinality-avg`](skills/op-agg-set-cardinality-avg.md): Average popcount per contributing row — typical number of selections.
 - [`op-agg-set-cardinality-sum`](skills/op-agg-set-cardinality-sum.md): Sum of popcounts across contributing rows — total label selections seen.
 - [`op-agg-set-distinct-values`](skills/op-agg-set-distinct-values.md): Count of distinct exact mask values seen; each combination is atomic.

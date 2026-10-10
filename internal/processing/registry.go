@@ -30,6 +30,9 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_CI_LOWER:       newCIAggregator(ciLower),
 	types.AGG_CI_UPPER:       newCIAggregator(ciUpper),
 	types.AGG_WELFORD:        newWelfordAggregator,
+	types.AGG_MAPE:           newModelErrorAggregator(modelErrorMAPE),
+	types.AGG_RMSE:           newModelErrorAggregator(modelErrorRMSE),
+	types.AGG_MAE:            newModelErrorAggregator(modelErrorMAE),
 
 	types.AGG_SET_UNION:           newSetUnionAggregator,
 	types.AGG_SET_INTERSECTION:    newSetIntersectionAggregator,

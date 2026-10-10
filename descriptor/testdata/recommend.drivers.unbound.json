@@ -113,6 +113,114 @@
         ]
       },
       {
+        "operator": "AGG_MAE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "prediction_field": "\u003cprediction_field\u003e"
+              },
+              "type": "AGG_MAE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "prediction_field"
+        ],
+        "alternatives": [
+          {
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
+          },
+          {
+            "when": "you want the miss as a share of the actual value",
+            "use": "AGG_MAPE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MAPE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "prediction_field": "\u003cprediction_field\u003e"
+              },
+              "type": "AGG_MAPE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "prediction_field"
+        ],
+        "alternatives": [
+          {
+            "when": "actual values can be 0 or close to 0, where a share is undefined or explodes",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RMSE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "prediction_field": "\u003cprediction_field\u003e"
+              },
+              "type": "AGG_RMSE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "prediction_field"
+        ],
+        "alternatives": [
+          {
+            "when": "every unit of miss should count the same, so a few large misses do not dominate",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "you want the miss as a share of the actual value",
+            "use": "AGG_MAPE"
+          }
+        ]
+      },
+      {
         "operator": "REG_BAYES_LINEAR",
         "category": "regression",
         "level": "advanced",
@@ -270,9 +378,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 6
+    "candidates_considered": 9
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: e23c25939a2cbf6baacd947b93a41433e9379b3e1edc8ececabc2afbbb903cf8
+// golden-hash: decc4cfcc5b6a892d6312d94ba0d55916912e92435b513ded4152756dab5c1ae

@@ -157,13 +157,14 @@ func readingListProblems(surfaces []PurposeSurface, needs, self []string) []stri
 // aggregator, attribute, filterer, grouper, window, feature, synth
 // distribution — is in exactly one of needsReadingOperators /
 // selfReadingOperators, and the needs-reading list is exactly the one
-// agreed for U09 (plus U42's model-based ATTR_REG_PREDICT).
+// agreed for U09 (plus U42's model-based ATTR_REG_PREDICT and its
+// AGG_MAPE / AGG_RMSE / AGG_MAE model-error figures).
 func TestDescriptiveReadingLists(t *testing.T) {
 	for _, p := range readingListProblems(PurposeSurfaces(), needsReadingOperators, selfReadingOperators) {
 		t.Error(p)
 	}
 	want := []string{
-		"AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_KURTOSIS", "AGG_PERCENTILE", "AGG_RATIO",
+		"AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_KURTOSIS", "AGG_MAE", "AGG_MAPE", "AGG_PERCENTILE", "AGG_RATIO", "AGG_RMSE",
 		"AGG_SKEWNESS", "AGG_STDDEV", "AGG_VARIANCE", "AGG_WEIGHTED_MEAN", "AGG_WELFORD", "AGG_ZSCORE",
 		"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_REG_FITTED", "ATTR_REG_LEVERAGE",
 		"ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", "ATTR_TSCORE", "ATTR_ZSCORE",

@@ -21,7 +21,10 @@ var descriptiveInterpretations = map[string][]descriptor.Interpretation{
 	"AGG_CI_UPPER":      interpAggCIUpper,
 	"AGG_KURTOSIS":      interpAggKurtosis,
 	"AGG_PERCENTILE":    interpAggPercentile,
+	"AGG_MAE":           interpAggMAE,
+	"AGG_MAPE":          interpAggMAPE,
 	"AGG_RATIO":         interpAggRatio,
+	"AGG_RMSE":          interpAggRMSE,
 	"AGG_SKEWNESS":      interpAggSkewness,
 	"AGG_STDDEV":        interpAggStdDev,
 	"AGG_VARIANCE":      interpAggVariance,
@@ -221,6 +224,55 @@ var (
 					"such as a quantity, where the base is sum_weights) or to inverse-variance weights.",
 				"It reads 0 when no row has a usable weight; check components sum_weights before trusting a 0.",
 				"Negative, NaN and infinite weights are excluded and counted in components n_weight_invalid, with a warning, so the result stays within the range of the values.",
+			},
+		},
+	}
+)
+
+// --- Model error (fit-scoring E2-S1) -----------------------------------
+
+// descModelErrorRows is the shared row rule of the model-error family.
+const descModelErrorRows = "A row counts only when both the actual and the prediction have a value; components n_scored is the rows used and n_null_prediction the rows skipped for a missing prediction. Empty (NaN) when no row is used."
+
+// descModelErrorHoldout is the shared fitted-rows caveat.
+const descModelErrorHoldout = "Measured on the rows the model was fitted to, it is optimistic: read it on held-out rows (a filter or range grouper keeps them apart) to judge how the model does on new data."
+
+var (
+	interpAggMAPE = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The average of each row's miss divided by its actual value, ignoring sign, as a FRACTION: 0.12 means the predictions are off by 12% of the actual value on average. 0 means every prediction is exact.",
+			Caveats: []string{
+				"Rows whose actual is exactly 0 are left out (their share is undefined) and counted in components n_zero_actual; actual values near 0 can still inflate it sharply.",
+				"It punishes over-prediction more than under-prediction of the same size, because the share is taken of the actual.",
+				descModelErrorRows,
+				descModelErrorHoldout,
+			},
+		},
+	}
+
+	interpAggRMSE = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The square root of the average squared miss between prediction and actual, in the actual's own units. 0 means every prediction is exact; it is never below AGG_MAE on the same rows.",
+			Caveats: []string{
+				"Squaring makes a few large misses dominate it; a gap well above AGG_MAE on the same rows says the misses are uneven.",
+				"It has the actual's units, so compare it only between models scored on the same rows and target.",
+				descModelErrorRows,
+				descModelErrorHoldout,
+			},
+		},
+	}
+
+	interpAggMAE = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The average size of the miss between prediction and actual, ignoring sign, in the actual's own units. 0 means every prediction is exact.",
+			Caveats: []string{
+				"It says how big the misses are, not which way: a model that is always too high and one that is always too low can share a value.",
+				"It has the actual's units, so compare it only between models scored on the same rows and target.",
+				descModelErrorRows,
+				descModelErrorHoldout,
 			},
 		},
 	}

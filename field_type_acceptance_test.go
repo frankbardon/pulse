@@ -124,27 +124,33 @@ func acceptanceCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 // malformed slot's.
 var acceptanceTemplates = map[string]string{
 	// Aggregations.
-	"AGG_COUNT":               `{"aggregations":[{"type":"AGG_COUNT","field":"$F"}]}`,
-	"AGG_SUM":                 `{"aggregations":[{"type":"AGG_SUM","field":"$F"}]}`,
-	"AGG_AVERAGE":             `{"aggregations":[{"type":"AGG_AVERAGE","field":"$F"}]}`,
-	"AGG_MIN":                 `{"aggregations":[{"type":"AGG_MIN","field":"$F"}]}`,
-	"AGG_MAX":                 `{"aggregations":[{"type":"AGG_MAX","field":"$F"}]}`,
-	"AGG_STDDEV":              `{"aggregations":[{"type":"AGG_STDDEV","field":"$F"}]}`,
-	"AGG_RANGE":               `{"aggregations":[{"type":"AGG_RANGE","field":"$F"}]}`,
-	"AGG_MODE_COUNT":          `{"aggregations":[{"type":"AGG_MODE_COUNT","field":"$F"}]}`,
-	"AGG_FREQUENCY":           `{"aggregations":[{"type":"AGG_FREQUENCY","field":"$F","params":{"value":"$V"}}]}`,
-	"AGG_ZSCORE":              `{"aggregations":[{"type":"AGG_ZSCORE","field":"$F"}]}`,
-	"AGG_MEDIAN":              `{"aggregations":[{"type":"AGG_MEDIAN","field":"$F"}]}`,
-	"AGG_VARIANCE":            `{"aggregations":[{"type":"AGG_VARIANCE","field":"$F"}]}`,
-	"AGG_MODE":                `{"aggregations":[{"type":"AGG_MODE","field":"$F"}]}`,
-	"AGG_SKEWNESS":            `{"aggregations":[{"type":"AGG_SKEWNESS","field":"$F"}]}`,
-	"AGG_KURTOSIS":            `{"aggregations":[{"type":"AGG_KURTOSIS","field":"$F"}]}`,
-	"AGG_DISTINCT_COUNT":      `{"aggregations":[{"type":"AGG_DISTINCT_COUNT","field":"$F"}]}`,
-	"AGG_PERCENTILE":          `{"aggregations":[{"type":"AGG_PERCENTILE","field":"$F","params":{"percentile":90}}]}`,
-	"AGG_NULL_COUNT":          `{"aggregations":[{"type":"AGG_NULL_COUNT","field":"$F"}]}`,
-	"AGG_WEIGHTED_MEAN":       `{"aggregations":[{"type":"AGG_WEIGHTED_MEAN","field":"$F","params":{"weight_field":"y"}}]}`,
-	"AGG_RATIO":               `{"aggregations":[{"type":"AGG_RATIO","field":"$F","params":{"numerator_field":"$F","denominator_field":"y"}}]}`,
-	"AGG_DISTINCT_SUM":        `{"aggregations":[{"type":"AGG_DISTINCT_SUM","field":"$F","params":{"distinct_by":"subj"}}]}`,
+	"AGG_COUNT":          `{"aggregations":[{"type":"AGG_COUNT","field":"$F"}]}`,
+	"AGG_SUM":            `{"aggregations":[{"type":"AGG_SUM","field":"$F"}]}`,
+	"AGG_AVERAGE":        `{"aggregations":[{"type":"AGG_AVERAGE","field":"$F"}]}`,
+	"AGG_MIN":            `{"aggregations":[{"type":"AGG_MIN","field":"$F"}]}`,
+	"AGG_MAX":            `{"aggregations":[{"type":"AGG_MAX","field":"$F"}]}`,
+	"AGG_STDDEV":         `{"aggregations":[{"type":"AGG_STDDEV","field":"$F"}]}`,
+	"AGG_RANGE":          `{"aggregations":[{"type":"AGG_RANGE","field":"$F"}]}`,
+	"AGG_MODE_COUNT":     `{"aggregations":[{"type":"AGG_MODE_COUNT","field":"$F"}]}`,
+	"AGG_FREQUENCY":      `{"aggregations":[{"type":"AGG_FREQUENCY","field":"$F","params":{"value":"$V"}}]}`,
+	"AGG_ZSCORE":         `{"aggregations":[{"type":"AGG_ZSCORE","field":"$F"}]}`,
+	"AGG_MEDIAN":         `{"aggregations":[{"type":"AGG_MEDIAN","field":"$F"}]}`,
+	"AGG_VARIANCE":       `{"aggregations":[{"type":"AGG_VARIANCE","field":"$F"}]}`,
+	"AGG_MODE":           `{"aggregations":[{"type":"AGG_MODE","field":"$F"}]}`,
+	"AGG_SKEWNESS":       `{"aggregations":[{"type":"AGG_SKEWNESS","field":"$F"}]}`,
+	"AGG_KURTOSIS":       `{"aggregations":[{"type":"AGG_KURTOSIS","field":"$F"}]}`,
+	"AGG_DISTINCT_COUNT": `{"aggregations":[{"type":"AGG_DISTINCT_COUNT","field":"$F"}]}`,
+	"AGG_PERCENTILE":     `{"aggregations":[{"type":"AGG_PERCENTILE","field":"$F","params":{"percentile":90}}]}`,
+	"AGG_NULL_COUNT":     `{"aggregations":[{"type":"AGG_NULL_COUNT","field":"$F"}]}`,
+	"AGG_WEIGHTED_MEAN":  `{"aggregations":[{"type":"AGG_WEIGHTED_MEAN","field":"$F","params":{"weight_field":"y"}}]}`,
+	"AGG_RATIO":          `{"aggregations":[{"type":"AGG_RATIO","field":"$F","params":{"numerator_field":"$F","denominator_field":"y"}}]}`,
+	"AGG_DISTINCT_SUM":   `{"aggregations":[{"type":"AGG_DISTINCT_SUM","field":"$F","params":{"distinct_by":"subj"}}]}`,
+	// Model error: the field under judgement is the actual; the paired
+	// prediction column (params.prediction_field, the same type check)
+	// is pinned by TestModelError_PredictMatchesRuntime.
+	"AGG_MAPE":                `{"aggregations":[{"type":"AGG_MAPE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	"AGG_RMSE":                `{"aggregations":[{"type":"AGG_RMSE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	"AGG_MAE":                 `{"aggregations":[{"type":"AGG_MAE","field":"$F","params":{"prediction_field":"y"}}]}`,
 	"AGG_CI_LOWER":            `{"aggregations":[{"type":"AGG_CI_LOWER","field":"$F","params":{"confidence":0.95,"method":"normal"}}]}`,
 	"AGG_CI_UPPER":            `{"aggregations":[{"type":"AGG_CI_UPPER","field":"$F","params":{"confidence":0.95,"method":"normal"}}]}`,
 	"AGG_WELFORD":             `{"aggregations":[{"type":"AGG_WELFORD","field":"$F"}]}`,
@@ -429,6 +435,43 @@ func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 		}
 		if !anyAccepted {
 			t.Errorf("%s: no field type accepted by both sides — the template is malformed", op)
+		}
+	}
+}
+
+// TestModelError_PredictionFieldTypeParity walks every field type on
+// the PREDICTION side of the model-error aggregators (the acceptance
+// templates judge the actual): predict and runtime accept exactly the
+// same types, and that set is the declared numeric one — the integer
+// and float scalars plus packed_bool. decimal128 is refused on both
+// sides (fit-scoring E2-S1 decision: no decimal implementation).
+func TestModelError_PredictionFieldTypeParity(t *testing.T) {
+	p, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	wantOK := map[encoding.FieldType]bool{
+		encoding.FieldTypeU4: true, encoding.FieldTypeU8: true, encoding.FieldTypeU16: true,
+		encoding.FieldTypeU32: true, encoding.FieldTypeU64: true,
+		encoding.FieldTypeF32: true, encoding.FieldTypeF64: true, encoding.FieldTypePackedBool: true,
+	}
+	for _, op := range []string{"AGG_MAPE", "AGG_RMSE", "AGG_MAE"} {
+		for _, ft := range acceptanceFieldTypes() {
+			body := `{"aggregations":[{"type":"` + op + `","field":"x","params":{"prediction_field":"t_` + ft.String() + `"}}]}`
+			mk := func() *types.Request {
+				var req types.Request
+				if err := json.Unmarshal([]byte(body), &req); err != nil {
+					t.Fatal(err)
+				}
+				req.Cohort = &types.Cohort{Filename: cohort}
+				return &req
+			}
+			_, rerr := p.Process(ctx, mk())
+			predictOK := len(predictEnvelope(t, p, fs, cohort, mk()).Errors) == 0
+			if (rerr == nil) != predictOK {
+				t.Errorf("%s prediction %s: runtime err %v, predict ok %v", op, ft, rerr, predictOK)
+			}
+			if (rerr == nil) != wantOK[ft] {
+				t.Errorf("%s prediction %s: accepted %v, want %v (%v)", op, ft, rerr == nil, wantOK[ft], rerr)
+			}
 		}
 	}
 }

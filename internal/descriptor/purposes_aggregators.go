@@ -32,7 +32,10 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_NULL_COUNT":          purposeAggNullCount,
 	"AGG_PERCENTILE":          purposeAggPercentile,
 	"AGG_RANGE":               purposeAggRange,
+	"AGG_MAE":                 purposeAggMAE,
+	"AGG_MAPE":                purposeAggMAPE,
 	"AGG_RATIO":               purposeAggRatio,
+	"AGG_RMSE":                purposeAggRMSE,
 	"AGG_SET_CARDINALITY_AVG": purposeAggSetCardinalityAvg,
 	"AGG_SET_CARDINALITY_SUM": purposeAggSetCardinalitySum,
 	"AGG_SET_DISTINCT_VALUES": purposeAggSetDistinctValues,
@@ -799,5 +802,86 @@ var (
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"weighting", "mean", "effective-sample-size"},
+	}
+)
+
+// --- Model error (fit-scoring E2-S1) -----------------------------------
+
+var (
+	purposeAggMAPE = descriptor.Purpose{
+		Plain:   "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row.",
+		KnownAs: []string{"mean absolute percentage error"},
+		Intents: []string{IntentBenchmark, IntentDrivers},
+		Questions: []string{
+			"On the held-out weeks, how far off is the sales model, as a share of actual sales?",
+			"Is the forecast's percentage miss larger in some regions than in others?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Percentage miss of a model-predicted response rate against the observed rate per wave.",
+			descriptor.DomainOps:     "Holdout forecast accuracy of weekly sales, as a share of actual sales.",
+			descriptor.DomainScience: "Relative error of a calibration model on the validation samples.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "actual values can be 0 or close to 0, where a share is undefined or explodes", Use: "AGG_MAE"},
+			{When: "large misses should count for more than small ones", Use: "AGG_RMSE"},
+		},
+		Assumptions: []string{
+			"A row is used only when both the actual and the prediction have a value; a row whose actual is exactly 0 is left out and counted in components n_zero_actual.",
+			"The result is a fraction (0.12 means 12%), not a percentage.",
+			"Train and holdout rows are separated with a filter or a range grouper; the operator itself never splits rows.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"residual", "overfitting", "missing-value"},
+	}
+
+	purposeAggRMSE = descriptor.Purpose{
+		Plain:   "Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss.",
+		KnownAs: []string{"root mean squared error"},
+		Intents: []string{IntentBenchmark, IntentDrivers},
+		Questions: []string{
+			"How many units off is the sales model on the held-out weeks, with big misses weighing more?",
+			"Which of two models misses less on the same rows?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Error of a predicted satisfaction score against the observed score, in scale points.",
+			descriptor.DomainOps:     "Holdout error of a handling-time model, in minutes.",
+			descriptor.DomainScience: "Prediction error of a dose-response model on the validation subjects.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "every unit of miss should count the same, so a few large misses do not dominate", Use: "AGG_MAE"},
+			{When: "you want the miss as a share of the actual value", Use: "AGG_MAPE"},
+		},
+		Assumptions: []string{
+			"A row is used only when both the actual and the prediction have a value.",
+			"Each miss is squared before averaging, so a few large misses can dominate it.",
+			"Train and holdout rows are separated with a filter or a range grouper; the operator itself never splits rows.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"residual", "overfitting", "missing-value"},
+	}
+
+	purposeAggMAE = descriptor.Purpose{
+		Plain:   "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row.",
+		KnownAs: []string{"mean absolute error"},
+		Intents: []string{IntentBenchmark, IntentDrivers},
+		Questions: []string{
+			"On average, how many units off is the sales model on the held-out weeks?",
+			"Is the forecast miss larger for some stores than for others?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Average miss of a predicted score against the observed score, in scale points.",
+			descriptor.DomainOps:     "Average holdout miss of a demand forecast, in units.",
+			descriptor.DomainScience: "Average absolute error of a calibration model on the validation samples.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "large misses should count for more than small ones", Use: "AGG_RMSE"},
+			{When: "you want the miss as a share of the actual value", Use: "AGG_MAPE"},
+		},
+		Assumptions: []string{
+			"A row is used only when both the actual and the prediction have a value.",
+			"Train and holdout rows are separated with a filter or a range grouper; the operator itself never splits rows.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"residual", "overfitting", "missing-value"},
 	}
 )

@@ -64,6 +64,40 @@ How heavy the tails are next to a normal distribution. Pulse computes the popula
 - It is 0 when n is 0 or 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n.
 - It measures the tails, not how pointed the peak looks, and a single extreme value can dominate it.
 
+<a id="op-agg_mae"></a>
+
+### `AGG_MAE`
+
+Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. See its [catalog entry](../catalog/aggregator.md#op-agg_mae).
+
+#### `value`
+
+The average size of the miss between prediction and actual, ignoring sign, in the actual's own units. 0 means every prediction is exact.
+
+**Caveats:**
+
+- It says how big the misses are, not which way: a model that is always too high and one that is always too low can share a value.
+- It has the actual's units, so compare it only between models scored on the same rows and target.
+- A row counts only when both the actual and the prediction have a value; components n_scored is the rows used and n_null_prediction the rows skipped for a missing prediction. Empty (NaN) when no row is used.
+- Measured on the rows the model was fitted to, it is optimistic: read it on held-out rows (a filter or range grouper keeps them apart) to judge how the model does on new data.
+
+<a id="op-agg_mape"></a>
+
+### `AGG_MAPE`
+
+Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. See its [catalog entry](../catalog/aggregator.md#op-agg_mape).
+
+#### `value`
+
+The average of each row's miss divided by its actual value, ignoring sign, as a FRACTION: 0.12 means the predictions are off by 12% of the actual value on average. 0 means every prediction is exact.
+
+**Caveats:**
+
+- Rows whose actual is exactly 0 are left out (their share is undefined) and counted in components n_zero_actual; actual values near 0 can still inflate it sharply.
+- It punishes over-prediction more than under-prediction of the same size, because the share is taken of the actual.
+- A row counts only when both the actual and the prediction have a value; components n_scored is the rows used and n_null_prediction the rows skipped for a missing prediction. Empty (NaN) when no row is used.
+- Measured on the rows the model was fitted to, it is optimistic: read it on held-out rows (a filter or range grouper keeps them apart) to judge how the model does on new data.
+
 <a id="op-agg_percentile"></a>
 
 ### `AGG_PERCENTILE`
@@ -96,6 +130,23 @@ The total of the numerator field divided by the total of the denominator field o
 - A row missing either field is left out of BOTH totals.
 - Empty (NaN) when the denominator total is 0.
 - Read it as a share (times 100 for a percentage) only when the numerator counts a part of what the denominator counts.
+
+<a id="op-agg_rmse"></a>
+
+### `AGG_RMSE`
+
+Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss. See its [catalog entry](../catalog/aggregator.md#op-agg_rmse).
+
+#### `value`
+
+The square root of the average squared miss between prediction and actual, in the actual's own units. 0 means every prediction is exact; it is never below AGG_MAE on the same rows.
+
+**Caveats:**
+
+- Squaring makes a few large misses dominate it; a gap well above AGG_MAE on the same rows says the misses are uneven.
+- It has the actual's units, so compare it only between models scored on the same rows and target.
+- A row counts only when both the actual and the prediction have a value; components n_scored is the rows used and n_null_prediction the rows skipped for a missing prediction. Empty (NaN) when no row is used.
+- Measured on the rows the model was fitted to, it is optimistic: read it on held-out rows (a filter or range grouper keeps them apart) to judge how the model does on new data.
 
 <a id="op-agg_skewness"></a>
 

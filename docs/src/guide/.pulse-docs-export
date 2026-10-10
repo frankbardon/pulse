@@ -58,6 +58,8 @@ skills/op-agg-distinct-count.md
 skills/op-agg-distinct-sum.md
 skills/op-agg-frequency.md
 skills/op-agg-kurtosis.md
+skills/op-agg-mae.md
+skills/op-agg-mape.md
 skills/op-agg-max.md
 skills/op-agg-median.md
 skills/op-agg-min.md
@@ -67,6 +69,7 @@ skills/op-agg-null-count.md
 skills/op-agg-percentile.md
 skills/op-agg-range.md
 skills/op-agg-ratio.md
+skills/op-agg-rmse.md
 skills/op-agg-set-cardinality-avg.md
 skills/op-agg-set-cardinality-sum.md
 skills/op-agg-set-distinct-values.md

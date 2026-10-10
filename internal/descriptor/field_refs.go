@@ -513,6 +513,9 @@ var aggParamFieldKeys = map[types.AggregationType][]string{
 	types.AGG_WEIGHTED_MEAN: {"weight_field"},
 	types.AGG_RATIO:         {"numerator_field", "denominator_field"},
 	types.AGG_DISTINCT_SUM:  {"distinct_by"},
+	types.AGG_MAPE:          {"prediction_field"},
+	types.AGG_RMSE:          {"prediction_field"},
+	types.AGG_MAE:           {"prediction_field"},
 }
 
 // postTestParamFieldKeys lists, per built-in tier-2 test, the Params

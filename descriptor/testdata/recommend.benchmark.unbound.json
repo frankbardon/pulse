@@ -275,6 +275,114 @@
         ]
       },
       {
+        "operator": "AGG_MAE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "prediction_field": "\u003cprediction_field\u003e"
+              },
+              "type": "AGG_MAE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "prediction_field"
+        ],
+        "alternatives": [
+          {
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
+          },
+          {
+            "when": "you want the miss as a share of the actual value",
+            "use": "AGG_MAPE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_MAPE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "prediction_field": "\u003cprediction_field\u003e"
+              },
+              "type": "AGG_MAPE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "prediction_field"
+        ],
+        "alternatives": [
+          {
+            "when": "actual values can be 0 or close to 0, where a share is undefined or explodes",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RMSE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "prediction_field": "\u003cprediction_field\u003e"
+              },
+              "type": "AGG_RMSE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "prediction_field"
+        ],
+        "alternatives": [
+          {
+            "when": "every unit of miss should count the same, so a few large misses do not dominate",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "you want the miss as a share of the actual value",
+            "use": "AGG_MAPE"
+          }
+        ]
+      },
+      {
         "operator": "ATTR_TSCORE",
         "category": "attribute",
         "level": "intermediate",
@@ -305,120 +413,12 @@
             "use": "ATTR_PERCENTILE"
           }
         ]
-      },
-      {
-        "operator": "ATTR_ZSCORE",
-        "category": "attribute",
-        "level": "intermediate",
-        "why": "Adds to every row its z-score: how many standard deviations the row's value sits above or below the mean. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "attributes": [
-            {
-              "field": "\u003cfield\u003e",
-              "type": "ATTR_ZSCORE"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "field"
-        ],
-        "alternatives": [
-          {
-            "when": "you want the centre and spread of each group, not a score per row",
-            "use": "AGG_ZSCORE"
-          },
-          {
-            "when": "the field is skewed or has extreme values and you want a position they cannot distort",
-            "use": "ATTR_PERCENTILE"
-          },
-          {
-            "when": "you want each group's value against all groups",
-            "use": "OVERLAY_ZSCORE_VS_TOTAL"
-          }
-        ]
-      },
-      {
-        "operator": "ATTR_REG_FITTED",
-        "category": "attribute",
-        "level": "advanced",
-        "why": "Adds to every row the value a straight-line model predicts for its target from its predictors. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "attributes": [
-            {
-              "field": "\u003cfield\u003e",
-              "type": "ATTR_REG_FITTED"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "field"
-        ],
-        "alternatives": [
-          {
-            "when": "you want the coefficients, R-squared and p-values of the model",
-            "use": "REG_OLS"
-          },
-          {
-            "when": "you want how far each row sits from its prediction",
-            "use": "ATTR_REG_RESIDUAL"
-          },
-          {
-            "when": "the target is yes/no or a count",
-            "use": "REG_GLM"
-          }
-        ]
-      },
-      {
-        "operator": "ATTR_REG_PREDICT",
-        "category": "attribute",
-        "level": "advanced",
-        "why": "Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "attributes": [
-            {
-              "field": "\u003cfield\u003e",
-              "params": {
-                "fit": "\u003cfit\u003e"
-              },
-              "type": "ATTR_REG_PREDICT"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "field",
-          "fit"
-        ],
-        "alternatives": [
-          {
-            "when": "the model should be fitted to these same rows inside the slot",
-            "use": "ATTR_REG_FITTED"
-          },
-          {
-            "when": "you want the coefficients, their standard errors and p-values",
-            "use": "REG_OLS"
-          }
-        ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 11
+    "candidates_considered": 14
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: c09ac4bb496d87dd36f49f3757301722c80096e4efb174951e5922f9eb3bb298
+// golden-hash: 7f9f2e4dd734d158109496837b3cc0a99cd4912d50b1a8b00b4e5c10ed8525b4

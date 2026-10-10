@@ -614,6 +614,20 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "ratio", Type: "float64", Description: "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."},
 			),
 		},
+		modelErrorCapability(types.AGG_MAPE,
+			"Mean absolute percentage error of a prediction against an actual: mean(|field - prediction| / |field|) as a FRACTION (0.12 = 12%), over rows where both sides answer and the actual is non-zero (a zero actual is excluded and counted in n_zero_actual). Weighted: sum(w*loss) / sum(w). No contributing row yields NaN (null in JSON).",
+			descriptor.ComponentKey{Name: "n_zero_actual", Type: "int", Description: "Rows whose actual and prediction both answered but whose actual is exactly 0: their percentage error is undefined, so they are excluded from the figure."},
+			descriptor.ComponentKey{Name: "mape", Type: "float64", Description: "Resolved MAPE fraction: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."},
+		),
+		modelErrorCapability(types.AGG_RMSE,
+			"Root mean squared error of a prediction against an actual: sqrt(mean((field - prediction)^2)) over rows where both sides answer; in the actual's units. Weighted: sqrt(sum(w*(y - yhat)^2) / sum(w)) — the square root of the pooled MSE. No contributing row yields NaN (null in JSON).",
+			descriptor.ComponentKey{Name: "mse", Type: "float64", Description: "Mean squared error loss_sum / weight_sum; rmse is its square root (NaN, null in JSON, when no row contributed)."},
+			descriptor.ComponentKey{Name: "rmse", Type: "float64", Description: "Resolved RMSE: sqrt(mse)."},
+		),
+		modelErrorCapability(types.AGG_MAE,
+			"Mean absolute error of a prediction against an actual: mean(|field - prediction|) over rows where both sides answer; in the actual's units. Weighted: sum(w*|y - yhat|) / sum(w). No contributing row yields NaN (null in JSON).",
+			descriptor.ComponentKey{Name: "mae", Type: "float64", Description: "Resolved MAE: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."},
+		),
 		{
 			Name:        string(types.AGG_CI_LOWER),
 			Category:    "aggregator",
@@ -768,5 +782,53 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "labels", Type: "[]string", Description: "Resolved dictionary labels for every bit set in mask_union."},
 			),
 		},
+	}
+}
+
+// modelErrorFieldTypes are the column types a model-error aggregator
+// (AGG_MAPE / AGG_RMSE / AGG_MAE) reads on either side: the integer and
+// float scalars plus packed_bool (a 0/1 outcome scored against a
+// probability). Mirrors processing.modelErrorFieldTypeOK and the
+// predict check modelErrorTypeOK; categorical, set, date, datetime and
+// decimal128 are refused PROCESSING_CONFIG on both sides.
+var modelErrorFieldTypes = []string{
+	"f32",
+	"f64",
+	"packed_bool",
+	"u16",
+	"u32",
+	"u4",
+	"u64",
+	"u8",
+}
+
+// modelErrorCapability declares one model-error aggregator: the shared
+// prediction_field param, the shared floor-plus-sums components and
+// the operator's own keys.
+func modelErrorCapability(op types.AggregationType, desc string, own ...descriptor.ComponentKey) descriptor.Operator {
+	keys := []descriptor.ComponentKey{
+		{Name: "loss_sum", Type: "float64", Description: "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."},
+		{Name: "weight_sum", Type: "float64", Description: "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."},
+		{Name: "n_scored", Type: "int", Description: "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and > 0)."},
+		{Name: "n_null_prediction", Type: "int", Description: "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."},
+	}
+	keys = append(keys, own...)
+	return descriptor.Operator{
+		Name:        string(op),
+		Category:    "aggregator",
+		Description: desc,
+		Params: []descriptor.Param{
+			{
+				Name:        "prediction_field",
+				Type:        "field",
+				Required:    true,
+				FieldFilter: "numeric",
+				Description: "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+			},
+		},
+		AcceptsTypes:    modelErrorFieldTypes,
+		EmitsTypeNote:   "scalar float64 (NaN, null in JSON, when no row contributed)",
+		Streamable:      true,
+		ComponentSchema: aggSchema(descriptor.Mergeable, keys...),
 	}
 }

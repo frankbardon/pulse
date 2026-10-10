@@ -78,6 +78,18 @@ const (
 	// independent sums).
 	AGG_RATIO AggregationType = "AGG_RATIO"
 
+	// AGG_MAPE, AGG_RMSE and AGG_MAE score a prediction against an
+	// actual: Field is the actual, params.prediction_field the
+	// prediction (typically an ATTR_REG_PREDICT column). MAPE is the
+	// mean of |y − ŷ| / |y| as a FRACTION (rows with y == 0 excluded and
+	// counted in the n_zero_actual component), RMSE the square root of
+	// the mean of (y − ŷ)², MAE the mean of |y − ŷ|. A null on either
+	// side skips the row. Weighted: Σw·loss / Σw. Streamable + mergeable
+	// (additive sums).
+	AGG_MAPE AggregationType = "AGG_MAPE"
+	AGG_RMSE AggregationType = "AGG_RMSE"
+	AGG_MAE  AggregationType = "AGG_MAE"
+
 	// AGG_CI_LOWER and AGG_CI_UPPER emit the lower / upper bound of a
 	// confidence interval for the mean of the named numeric field.
 	// Params: `confidence` (float, default 0.95), `method` (string,
@@ -151,6 +163,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_DISTINCT_SUM,
 		AGG_CI_LOWER, AGG_CI_UPPER,
 		AGG_WELFORD,
+		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,

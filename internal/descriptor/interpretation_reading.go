@@ -66,6 +66,7 @@ var multiColumnOutputs = map[string]string{
 var needsReadingOperators = []string{
 	// aggregator
 	string(types.AGG_CI_LOWER), string(types.AGG_CI_UPPER), string(types.AGG_KURTOSIS),
+	string(types.AGG_MAE), string(types.AGG_MAPE), string(types.AGG_RMSE),
 	string(types.AGG_PERCENTILE), string(types.AGG_RATIO), string(types.AGG_SKEWNESS),
 	string(types.AGG_STDDEV), string(types.AGG_VARIANCE), string(types.AGG_WEIGHTED_MEAN),
 	string(types.AGG_WELFORD), string(types.AGG_ZSCORE),

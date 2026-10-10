@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:1219daee5e00ef66b42b3805e704c9c2a73473b1fb3e49d44cb740e0f1ec0d4a",
+    "feature_set_digest": "fs1:47e5421481318503f008fcf5da91f7511662b5bb7556689eea7cad05b563909e",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -1034,6 +1034,197 @@
           ]
         },
         {
+          "name": "AGG_MAE",
+          "category": "aggregator",
+          "description": "Mean absolute error of a prediction against an actual: mean(|field - prediction|) over rows where both sides answer; in the actual's units. Weighted: sum(w*|y - yhat|) / sum(w). No contributing row yields NaN (null in JSON).",
+          "params": [
+            {
+              "name": "prediction_field",
+              "type": "field",
+              "required": true,
+              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "field_filter": "numeric"
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when no row contributed)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "loss_sum",
+                "type": "float64",
+                "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+              },
+              {
+                "name": "weight_sum",
+                "type": "float64",
+                "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+              },
+              {
+                "name": "n_scored",
+                "type": "int",
+                "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+              },
+              {
+                "name": "n_null_prediction",
+                "type": "int",
+                "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+              },
+              {
+                "name": "mae",
+                "type": "float64",
+                "description": "Resolved MAE: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "drivers"
+          ]
+        },
+        {
+          "name": "AGG_MAPE",
+          "category": "aggregator",
+          "description": "Mean absolute percentage error of a prediction against an actual: mean(|field - prediction| / |field|) as a FRACTION (0.12 = 12%), over rows where both sides answer and the actual is non-zero (a zero actual is excluded and counted in n_zero_actual). Weighted: sum(w*loss) / sum(w). No contributing row yields NaN (null in JSON).",
+          "params": [
+            {
+              "name": "prediction_field",
+              "type": "field",
+              "required": true,
+              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "field_filter": "numeric"
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when no row contributed)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "loss_sum",
+                "type": "float64",
+                "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+              },
+              {
+                "name": "weight_sum",
+                "type": "float64",
+                "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+              },
+              {
+                "name": "n_scored",
+                "type": "int",
+                "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+              },
+              {
+                "name": "n_null_prediction",
+                "type": "int",
+                "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+              },
+              {
+                "name": "n_zero_actual",
+                "type": "int",
+                "description": "Rows whose actual and prediction both answered but whose actual is exactly 0: their percentage error is undefined, so they are excluded from the figure."
+              },
+              {
+                "name": "mape",
+                "type": "float64",
+                "description": "Resolved MAPE fraction: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "drivers"
+          ]
+        },
+        {
           "name": "AGG_MAX",
           "category": "aggregator",
           "description": "Largest non-null value of the field.",
@@ -1665,6 +1856,104 @@
           "intents": [
             "composition",
             "describe"
+          ]
+        },
+        {
+          "name": "AGG_RMSE",
+          "category": "aggregator",
+          "description": "Root mean squared error of a prediction against an actual: sqrt(mean((field - prediction)^2)) over rows where both sides answer; in the actual's units. Weighted: sqrt(sum(w*(y - yhat)^2) / sum(w)) — the square root of the pooled MSE. No contributing row yields NaN (null in JSON).",
+          "params": [
+            {
+              "name": "prediction_field",
+              "type": "field",
+              "required": true,
+              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "field_filter": "numeric"
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when no row contributed)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "loss_sum",
+                "type": "float64",
+                "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+              },
+              {
+                "name": "weight_sum",
+                "type": "float64",
+                "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+              },
+              {
+                "name": "n_scored",
+                "type": "int",
+                "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+              },
+              {
+                "name": "n_null_prediction",
+                "type": "int",
+                "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+              },
+              {
+                "name": "mse",
+                "type": "float64",
+                "description": "Mean squared error loss_sum / weight_sum; rmse is its square root (NaN, null in JSON, when no row contributed)."
+              },
+              {
+                "name": "rmse",
+                "type": "float64",
+                "description": "Resolved RMSE: sqrt(mse)."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "drivers"
           ]
         },
         {
@@ -7512,6 +7801,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7521,6 +7812,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7590,6 +7882,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7599,6 +7893,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7668,6 +7963,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7677,6 +7974,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7746,6 +8044,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7755,6 +8055,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7824,6 +8125,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7833,6 +8136,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7901,6 +8205,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7910,6 +8216,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7978,6 +8285,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7987,6 +8296,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -8136,6 +8446,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -8145,6 +8457,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -8796,6 +9109,14 @@
         "description": "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments."
       },
       {
+        "name": "op-agg-mae",
+        "description": "Mean absolute error of a prediction against an actual — mean(|y - prediction|)."
+      },
+      {
+        "name": "op-agg-mape",
+        "description": "Mean absolute percentage error of a prediction against an actual — mean(|y - prediction| / |y|), as a fraction."
+      },
+      {
         "name": "op-agg-max",
         "description": "Largest non-null value of the field."
       },
@@ -8830,6 +9151,10 @@
       {
         "name": "op-agg-ratio",
         "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored."
+      },
+      {
+        "name": "op-agg-rmse",
+        "description": "Root mean squared error of a prediction against an actual — sqrt(mean((y - prediction)^2))."
       },
       {
         "name": "op-agg-set-cardinality-avg",
@@ -9836,7 +10161,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 188,
+    "examples_count": 190,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -10084,12 +10409,15 @@
         "AGG_CI_LOWER",
         "AGG_CI_UPPER",
         "AGG_KURTOSIS",
+        "AGG_MAE",
+        "AGG_MAPE",
         "AGG_MAX",
         "AGG_MEDIAN",
         "AGG_MIN",
         "AGG_MODE",
         "AGG_PERCENTILE",
         "AGG_RANGE",
+        "AGG_RMSE",
         "AGG_SET_INTERSECTION",
         "AGG_SKEWNESS",
         "AGG_STDDEV",
@@ -11462,6 +11790,127 @@
           ],
           "mergeability": "mergeable"
         },
+        "AGG_MAE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "loss_sum",
+              "type": "float64",
+              "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+            },
+            {
+              "name": "weight_sum",
+              "type": "float64",
+              "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+            },
+            {
+              "name": "n_scored",
+              "type": "int",
+              "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+            },
+            {
+              "name": "n_null_prediction",
+              "type": "int",
+              "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+            },
+            {
+              "name": "mae",
+              "type": "float64",
+              "description": "Resolved MAE: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_MAPE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "loss_sum",
+              "type": "float64",
+              "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+            },
+            {
+              "name": "weight_sum",
+              "type": "float64",
+              "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+            },
+            {
+              "name": "n_scored",
+              "type": "int",
+              "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+            },
+            {
+              "name": "n_null_prediction",
+              "type": "int",
+              "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+            },
+            {
+              "name": "n_zero_actual",
+              "type": "int",
+              "description": "Rows whose actual and prediction both answered but whose actual is exactly 0: their percentage error is undefined, so they are excluded from the figure."
+            },
+            {
+              "name": "mape",
+              "type": "float64",
+              "description": "Resolved MAPE fraction: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "AGG_MAX": {
           "keys": [
             {
@@ -11798,6 +12247,69 @@
               "name": "ratio",
               "type": "float64",
               "description": "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_RMSE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "loss_sum",
+              "type": "float64",
+              "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+            },
+            {
+              "name": "weight_sum",
+              "type": "float64",
+              "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+            },
+            {
+              "name": "n_scored",
+              "type": "int",
+              "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+            },
+            {
+              "name": "n_null_prediction",
+              "type": "int",
+              "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+            },
+            {
+              "name": "mse",
+              "type": "float64",
+              "description": "Mean squared error loss_sum / weight_sum; rmse is its square root (NaN, null in JSON, when no row contributed)."
+            },
+            {
+              "name": "rmse",
+              "type": "float64",
+              "description": "Resolved RMSE: sqrt(mse)."
             }
           ],
           "mergeability": "mergeable"
@@ -13383,4 +13895,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8506e5adf4cfdf139f0dc16a735646d35cf75548c5acd53273ef1071082c074c
+// golden-hash: 94fe97e9132d038f87b405fd3bffac74dd2c615dc89743243964e75777976ae3

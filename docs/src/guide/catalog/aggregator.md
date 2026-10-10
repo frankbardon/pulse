@@ -12,6 +12,8 @@ The aggregators this instance offers: what each is for, the questions it answers
 | [`AGG_DISTINCT_SUM`](#op-agg_distinct_sum) | Total of a numeric field counting each key once, such as a respondent's weight summed once per respondent. | What is the weighted base when each respondent appears on several rows? | intermediate | [`AGG_SUM`](#op-agg_sum) when every row is its own unit and should be added.<br>[`AGG_DISTINCT_COUNT`](#op-agg_distinct_count) when you want how many keys there are, not a total. |
 | [`AGG_FREQUENCY`](#op-agg_frequency) | How many rows hold one chosen value of a field, such as the Yes answers, over all rows or per group. | How many respondents answered Yes in each region? | basic | [`AGG_MODE_COUNT`](#op-agg_mode_count) when you want how many rows share the field's most common value, whatever it is.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want a count for every value of the field: group by it, then count rows.<br>[`FILTER_INCLUDE`](filterer.md#op-filter_include) when you want rows holding any of several values: keep them, then count rows.<br>[`AGG_SET_FREQUENCY`](#op-agg_set_frequency) when the field is a multi-select. |
 | [`AGG_KURTOSIS`](#op-agg_kurtosis) | How heavy a numeric field's tails are next to a normal distribution: positive when extreme values are more common. | Do transaction amounts have more extreme values than a bell curve would give? | advanced | [`AGG_SKEWNESS`](#op-agg_skewness) when you want to know whether the field is lopsided.<br>[`TEST_SHAPIRO_WILK`](test.md#op-test_shapiro_wilk) when you want a test of whether the field follows a normal shape. |
+| [`AGG_MAE`](#op-agg_mae) | Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. | On average, how many units off is the sales model on the held-out weeks? | intermediate | [`AGG_RMSE`](#op-agg_rmse) when large misses should count for more than small ones.<br>[`AGG_MAPE`](#op-agg_mape) when you want the miss as a share of the actual value. |
+| [`AGG_MAPE`](#op-agg_mape) | Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. | On the held-out weeks, how far off is the sales model, as a share of actual sales? | intermediate | [`AGG_MAE`](#op-agg_mae) when actual values can be 0 or close to 0, where a share is undefined or explodes.<br>[`AGG_RMSE`](#op-agg_rmse) when large misses should count for more than small ones. |
 | [`AGG_MAX`](#op-agg_max) | Largest value of a numeric or date field, over all rows or per group. | What is the latest order date in each region? | basic | [`AGG_MIN`](#op-agg_min) when you want the smallest value.<br>[`AGG_PERCENTILE`](#op-agg_percentile) when one extreme row would mislead and you want a high value that ignores it.<br>[`AGG_RANGE`](#op-agg_range) when you want the distance between smallest and largest. |
 | [`AGG_MEDIAN`](#op-agg_median) | Middle value of a numeric field once sorted: the typical row, not pulled by a few extreme values. | What is the typical household income in each region? | basic | [`AGG_PERCENTILE`](#op-agg_percentile) when you want a value other than the middle, such as the 90th percentile.<br>[`AGG_AVERAGE`](#op-agg_average) when the field is roughly symmetric and you want a figure that combines across groups.<br>[`AGG_MODE`](#op-agg_mode) when the field holds categories rather than numbers. |
 | [`AGG_MIN`](#op-agg_min) | Smallest value of a numeric or date field, over all rows or per group. | What is the earliest order date in each region? | basic | [`AGG_MAX`](#op-agg_max) when you want the largest value.<br>[`AGG_PERCENTILE`](#op-agg_percentile) when one extreme row would mislead and you want a low value that ignores it.<br>[`AGG_RANGE`](#op-agg_range) when you want the distance between smallest and largest. |
@@ -21,6 +23,7 @@ The aggregators this instance offers: what each is for, the questions it answers
 | [`AGG_PERCENTILE`](#op-agg_percentile) | Value of a numeric field below which a chosen share of rows fall, such as the 90th percentile of delivery time. | How long do the slowest 10% of deliveries take in each region? | basic | [`AGG_MEDIAN`](#op-agg_median) when you want the 50th percentile.<br>[`ATTR_PERCENTILE`](attribute.md#op-attr_percentile) when you want each row's own percentile position.<br>[`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want rows split into equal-sized bands. |
 | [`AGG_RANGE`](#op-agg_range) | Distance between the smallest and largest value of a numeric field, over all rows or per group. | How far apart are the cheapest and most expensive orders? | basic | [`AGG_STDDEV`](#op-agg_stddev) when you want a spread measure that uses every row, not only the two extremes.<br>[`AGG_PERCENTILE`](#op-agg_percentile) when you want the spread of the middle of the data, ignoring extremes. |
 | [`AGG_RATIO`](#op-agg_ratio) | Total of one field divided by the total of another, over all rows or per group, such as revenue per order. | What is revenue per visit in each channel? | basic | [`ATTR_FORMULA`](attribute.md#op-attr_formula) when you want the average of each row's own ratio: compute it per row (guarding a 0 denominator), then average it.<br>[`AGG_WEIGHTED_MEAN`](#op-agg_weighted_mean) when you want an average where some rows count more than others. |
+| [`AGG_RMSE`](#op-agg_rmse) | Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss. | How many units off is the sales model on the held-out weeks, with big misses weighing more? | intermediate | [`AGG_MAE`](#op-agg_mae) when every unit of miss should count the same, so a few large misses do not dominate.<br>[`AGG_MAPE`](#op-agg_mape) when you want the miss as a share of the actual value. |
 | [`AGG_SET_CARDINALITY_AVG`](#op-agg_set_cardinality_avg) | For a multi-select field, the average number of options chosen per row. | How many brands does a respondent recognise on average? | basic | [`AGG_SET_CARDINALITY_SUM`](#op-agg_set_cardinality_sum) when you want the total number of selections.<br>[`AGG_SET_FREQUENCY`](#op-agg_set_frequency) when you want which options were chosen. |
 | [`AGG_SET_CARDINALITY_SUM`](#op-agg_set_cardinality_sum) | For a multi-select field, the total number of options chosen across all rows. | How many brand mentions did the survey collect in total? | basic | [`AGG_SET_CARDINALITY_AVG`](#op-agg_set_cardinality_avg) when you want the number per row.<br>[`AGG_SET_FREQUENCY`](#op-agg_set_frequency) when you want the count for each option. |
 | [`AGG_SET_DISTINCT_VALUES`](#op-agg_set_distinct_values) | For a multi-select field, how many different combinations of options appear. | How many different combinations of channels do customers use? | basic | [`AGG_SET_FREQUENCY`](#op-agg_set_frequency) when you want the count of each single option.<br>[`AGG_SET_UNION`](#op-agg_set_union) when you want every option chosen by anyone.<br>[`GROUP_SET_VALUE`](grouper.md#op-group_set_value) when you want how common each combination is: a count alone cannot show whether one dominates. |
@@ -308,6 +311,77 @@ How heavy a numeric field's tails are next to a normal distribution: positive wh
 **Glossary:** [`kurtosis`](../glossary.md#term-kurtosis), [`normal-distribution`](../glossary.md#term-normal-distribution), [`outlier`](../glossary.md#term-outlier)
 
 **Skill:** [`op-agg-kurtosis`](../skills/op-agg-kurtosis.md)
+
+<a id="op-agg_mae"></a>
+
+### `AGG_MAE`
+
+Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row.
+
+**Level:** intermediate
+
+**Also known as:** `mean absolute error`
+
+**Questions it answers:**
+
+- On average, how many units off is the sales model on the held-out weeks?
+- Is the forecast miss larger for some stores than for others?
+
+**Use cases by domain:**
+
+- *survey:* Average miss of a predicted score against the observed score, in scale points.
+- *ops:* Average holdout miss of a demand forecast, in units.
+- *science:* Average absolute error of a calibration model on the validation samples.
+
+**Assumptions:**
+
+- A row is used only when both the actual and the prediction have a value.
+- Train and holdout rows are separated with a filter or a range grouper; the operator itself never splits rows.
+
+**Use something else:**
+
+- [`AGG_RMSE`](#op-agg_rmse) when large misses should count for more than small ones.
+- [`AGG_MAPE`](#op-agg_mape) when you want the miss as a share of the actual value.
+
+**Glossary:** [`residual`](../glossary.md#term-residual), [`overfitting`](../glossary.md#term-overfitting), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-agg-mae`](../skills/op-agg-mae.md)
+
+<a id="op-agg_mape"></a>
+
+### `AGG_MAPE`
+
+Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row.
+
+**Level:** intermediate
+
+**Also known as:** `mean absolute percentage error`
+
+**Questions it answers:**
+
+- On the held-out weeks, how far off is the sales model, as a share of actual sales?
+- Is the forecast's percentage miss larger in some regions than in others?
+
+**Use cases by domain:**
+
+- *survey:* Percentage miss of a model-predicted response rate against the observed rate per wave.
+- *ops:* Holdout forecast accuracy of weekly sales, as a share of actual sales.
+- *science:* Relative error of a calibration model on the validation samples.
+
+**Assumptions:**
+
+- A row is used only when both the actual and the prediction have a value; a row whose actual is exactly 0 is left out and counted in components n_zero_actual.
+- The result is a fraction (0.12 means 12%), not a percentage.
+- Train and holdout rows are separated with a filter or a range grouper; the operator itself never splits rows.
+
+**Use something else:**
+
+- [`AGG_MAE`](#op-agg_mae) when actual values can be 0 or close to 0, where a share is undefined or explodes.
+- [`AGG_RMSE`](#op-agg_rmse) when large misses should count for more than small ones.
+
+**Glossary:** [`residual`](../glossary.md#term-residual), [`overfitting`](../glossary.md#term-overfitting), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-agg-mape`](../skills/op-agg-mape.md)
 
 <a id="op-agg_max"></a>
 
@@ -616,6 +690,42 @@ Total of one field divided by the total of another, over all rows or per group, 
 **Glossary:** [`mean`](../glossary.md#term-mean)
 
 **Skill:** [`op-agg-ratio`](../skills/op-agg-ratio.md)
+
+<a id="op-agg_rmse"></a>
+
+### `AGG_RMSE`
+
+Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss.
+
+**Level:** intermediate
+
+**Also known as:** `root mean squared error`
+
+**Questions it answers:**
+
+- How many units off is the sales model on the held-out weeks, with big misses weighing more?
+- Which of two models misses less on the same rows?
+
+**Use cases by domain:**
+
+- *survey:* Error of a predicted satisfaction score against the observed score, in scale points.
+- *ops:* Holdout error of a handling-time model, in minutes.
+- *science:* Prediction error of a dose-response model on the validation subjects.
+
+**Assumptions:**
+
+- A row is used only when both the actual and the prediction have a value.
+- Each miss is squared before averaging, so a few large misses can dominate it.
+- Train and holdout rows are separated with a filter or a range grouper; the operator itself never splits rows.
+
+**Use something else:**
+
+- [`AGG_MAE`](#op-agg_mae) when every unit of miss should count the same, so a few large misses do not dominate.
+- [`AGG_MAPE`](#op-agg_mape) when you want the miss as a share of the actual value.
+
+**Glossary:** [`residual`](../glossary.md#term-residual), [`overfitting`](../glossary.md#term-overfitting), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-agg-rmse`](../skills/op-agg-rmse.md)
 
 <a id="op-agg_set_cardinality_avg"></a>
 
