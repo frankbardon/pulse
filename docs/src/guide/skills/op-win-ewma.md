@@ -31,7 +31,7 @@ Use something else:
 | `alpha` | float | — | Smoothing factor in `(0, 1]`; higher = more weight on recent. |
 | `decay` | float | — | Carry-over share in `[0, 1)` (adstock decay); `alpha = 1 − decay`. |
 
-Give EXACTLY ONE of `alpha` / `decay`.
+Give EXACTLY ONE of `alpha` / `decay` (manifest `exactly_one_of: smoothing`; a Recommend draft names `alpha`).
 
 `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (REQUIRED `{mode: "rows"}`; ignored by the recurrence). `field` (required, numeric).
 

@@ -83,6 +83,9 @@ type OperatorParamMeta struct {
 	JSONType    string `json:"json_type"`
 	Required    bool   `json:"required,omitempty"`
 	Default     any    `json:"default,omitempty"`
+	// ExactlyOneOf is the mutually-exclusive group name, mirroring
+	// Param.ExactlyOneOf: a request supplies exactly one member.
+	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
 }
 
 // ExprFunctionMeta is the manifest projection of an embedder-

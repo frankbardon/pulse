@@ -74,12 +74,15 @@ type opInfo struct {
 
 // param is one required, default-less param. typ and fieldFilter are
 // the manifest's: a "field" param names a schema field, so bound mode
-// fills it from the schema instead of asking the caller.
+// fills it from the schema instead of asking the caller. A param drafted
+// for an exactly_one_of group carries the group's other members in
+// alternatives.
 type param struct {
-	name        string
-	list        bool
-	typ         string
-	fieldFilter string
+	name         string
+	list         bool
+	typ          string
+	fieldFilter  string
+	alternatives []string
 }
 
 // catalog indexes the instance manifest's operator entries by name. A
@@ -127,9 +130,10 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 					info.category = catPostTest
 				}
 			}
+			groups := oneOfMembers(len(o.Params), func(i int) (string, string) { return o.Params[i].Name, o.Params[i].ExactlyOneOf })
 			for _, p := range o.Params {
-				if p.Required && p.Default == nil {
-					info.params = append(info.params, param{name: p.Name, list: p.JSONType == "array", typ: p.JSONType})
+				if alts, first := groups.first(p.Name, p.ExactlyOneOf); (p.Required && p.Default == nil) || first {
+					info.params = append(info.params, param{name: p.Name, list: p.JSONType == "array", typ: p.JSONType, alternatives: alts})
 				}
 			}
 			out[o.Name] = info
@@ -139,13 +143,44 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 }
 
 // requiredParams keeps the params a draft must name: required and with
-// no default.
+// no default, plus the first member (in Params order) of each
+// exactly_one_of group — no member is required alone, but a request
+// without one is refused, so the draft names the first and lists the
+// others as alternatives.
 func requiredParams(ps []descriptor.Param) []param {
+	groups := oneOfMembers(len(ps), func(i int) (string, string) { return ps[i].Name, ps[i].ExactlyOneOf })
 	var out []param
 	for _, p := range ps {
-		if p.Required && p.Default == nil {
-			out = append(out, param{name: p.Name, list: p.Type == "list" || p.Type == "array", typ: p.Type, fieldFilter: p.FieldFilter})
+		if alts, first := groups.first(p.Name, p.ExactlyOneOf); (p.Required && p.Default == nil) || first {
+			out = append(out, param{name: p.Name, list: p.Type == "list" || p.Type == "array", typ: p.Type, fieldFilter: p.FieldFilter, alternatives: alts})
 		}
 	}
 	return out
+}
+
+// oneOfGroups maps an exactly_one_of group name to its members in
+// Params order.
+type oneOfGroups map[string][]string
+
+// oneOfMembers collects the exactly_one_of groups of n params, read
+// through at (name, group).
+func oneOfMembers(n int, at func(int) (name, group string)) oneOfGroups {
+	g := oneOfGroups{}
+	for i := range n {
+		name, group := at(i)
+		if group != "" {
+			g[group] = append(g[group], name)
+		}
+	}
+	return g
+}
+
+// first reports whether name is the first member of its group, and the
+// other members when it is.
+func (g oneOfGroups) first(name, group string) (alternatives []string, ok bool) {
+	ms := g[group]
+	if group == "" || len(ms) == 0 || ms[0] != name {
+		return nil, false
+	}
+	return ms[1:], true
 }

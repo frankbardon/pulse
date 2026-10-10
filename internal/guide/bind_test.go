@@ -145,8 +145,6 @@ var unmappedOnFixture = map[[2]string]string{
 	{"benchmark", "ATTR_REG_RESIDUAL"}:          "regression attributes take target and predictors the manifest does not declare",
 	{"data_quality", "ATTR_REG_RESIDUAL"}:       "regression attributes take target and predictors the manifest does not declare",
 	{"data_quality", "ATTR_REG_LEVERAGE"}:       "regression attributes take target and predictors the manifest does not declare",
-	{"segment", "FEAT_BUCKETIZE"}:               "needs boundaries or quantiles, neither declared required",
-	{"change_over_time", "WIN_EWMA"}:            "needs alpha or decay, neither declared required",
 	{"compare_groups", "GROUP_DATE_RANGES"}:     "compare_groups takes no date field",
 	{"compare_groups", "GROUP_SET_PER_ELEMENT"}: "compare_groups takes no set field",
 }
@@ -200,6 +198,9 @@ func TestRecommendBound_NeedsOperators(t *testing.T) {
 		{descx.IntentDrivers, "REG_GLM", []string{"family"}},
 		{descx.IntentDescribe, "AGG_PERCENTILE", []string{"percentile"}},
 		{descx.IntentCompareGroups, "TEST_TUKEY_HSD", []string{"ms_within", "df_within"}},
+		// exactly_one_of groups: the first member is the need.
+		{descx.IntentChangeOverTime, "WIN_EWMA", []string{"frame", "alpha"}},
+		{descx.IntentSegment, "FEAT_BUCKETIZE", []string{"boundaries"}},
 	}
 	for _, w := range want {
 		res := boundAll(t, nil, w.intent)
@@ -490,6 +491,9 @@ func TestRecommend_NeedsWhyLint(t *testing.T) {
 	for _, in := range descx.Intents() {
 		for _, r := range boundAll(t, nil, in.ID).Recommendations {
 			lint(r.Operator+" why", r.Why)
+			for _, n := range r.Needs {
+				lint(r.Operator+" need "+n.Param, n.Why)
+			}
 			if r.Bound && !strings.Contains(r.Why, " It uses ") {
 				t.Errorf("%s: why names no field: %q", r.Operator, r.Why)
 			}

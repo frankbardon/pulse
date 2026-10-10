@@ -63,6 +63,9 @@ type bneed struct {
 	key  string
 	loc  slotLoc
 	list bool
+	// alternatives are the other members of key's exactly_one_of
+	// group: the caller may give one of them instead.
+	alternatives []string
 }
 
 // fieldNameParams are required params whose manifest type is a plain
@@ -98,6 +101,7 @@ var needWhy = map[string]string{
 	"codes":      "List the codes to look for.",
 	"label":      "Name the option to look for.",
 	"ratios":     "Give the split ratios.",
+	"boundaries": "List the cutpoints that split the values into buckets.",
 	"frame":      "Choose the window frame: which rows around each row it covers.",
 }
 
@@ -105,11 +109,15 @@ var needWhy = map[string]string{
 // an extension operator's.
 const needWhyDefault = "Choose this value yourself; the schema cannot supply it."
 
-func whyNeed(param string) string {
-	if w, ok := needWhy[param]; ok {
-		return w
+func whyNeed(n bneed) string {
+	w, ok := needWhy[n.key]
+	if !ok {
+		w = needWhyDefault
 	}
-	return needWhyDefault
+	if len(n.alternatives) > 0 {
+		w += " Or give " + strings.Join(n.alternatives, " or ") + " instead; give only one."
+	}
+	return w
 }
 
 // kindOf is the coarse kind of f; ok is false for an unknown type.
@@ -265,7 +273,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 					return 1
 				}})
 		default:
-			needs = append(needs, bneed{key: p.name, loc: loc, list: p.list})
+			needs = append(needs, bneed{key: p.name, loc: loc, list: p.list, alternatives: p.alternatives})
 		}
 	}
 	return slots, needs, true

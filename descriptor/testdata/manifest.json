@@ -4069,13 +4069,15 @@
               "name": "alpha",
               "type": "float",
               "required": false,
-              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay."
+              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay.",
+              "exactly_one_of": "smoothing"
             },
             {
               "name": "decay",
               "type": "float",
               "required": false,
-              "description": "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal. Exactly one of alpha or decay."
+              "description": "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal. Exactly one of alpha or decay.",
+              "exactly_one_of": "smoothing"
             }
           ],
           "accepts_types": [
@@ -4374,13 +4376,15 @@
               "name": "boundaries",
               "type": "list",
               "required": false,
-              "description": "Sorted ascending list of bucket cutpoints (mutually exclusive with quantiles)."
+              "description": "Sorted ascending list of bucket cutpoints (mutually exclusive with quantiles).",
+              "exactly_one_of": "cutpoints"
             },
             {
               "name": "quantiles",
               "type": "int",
               "required": false,
-              "description": "Number of equal-population buckets (mutually exclusive with boundaries)."
+              "description": "Number of equal-population buckets (mutually exclusive with boundaries).",
+              "exactly_one_of": "cutpoints"
             }
           ],
           "accepts_types": [
@@ -13301,4 +13305,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a71c465e957eba821a310cd6a291aa30e4a624af4b3612bf0f37f231cc720964
+// golden-hash: 6a9b51f4482e92f75f01e324bc1ee2099d9afefe680b58868f6f83c89333eace

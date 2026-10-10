@@ -233,11 +233,12 @@ func paramMetaSnapshot(in []ParamMeta) []descriptor.OperatorParamMeta {
 	out := make([]descriptor.OperatorParamMeta, len(in))
 	for i, p := range in {
 		out[i] = descriptor.OperatorParamMeta{
-			Name:        p.Name,
-			Description: p.Description,
-			JSONType:    p.JSONType,
-			Required:    p.Required,
-			Default:     p.Default,
+			Name:         p.Name,
+			Description:  p.Description,
+			JSONType:     p.JSONType,
+			Required:     p.Required,
+			Default:      p.Default,
+			ExactlyOneOf: p.ExactlyOneOf,
 		}
 	}
 	return out

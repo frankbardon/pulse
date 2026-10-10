@@ -833,7 +833,8 @@ const (
 
 	// PULSE_EXTENSION_PARAM_INVALID indicates a ParamMeta entry on a
 	// registration has missing or contradictory fields (empty name,
-	// unknown JSONType, Required=true with a non-nil Default).
+	// unknown JSONType, Required=true with a non-nil Default, an
+	// ExactlyOneOf group with one member or a Required / defaulted member).
 	PULSE_EXTENSION_PARAM_INVALID Code = "PULSE_EXTENSION_PARAM_INVALID"
 
 	// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH indicates an extension

@@ -664,6 +664,7 @@ pulse: type Options field TemplateDirs []string
 pulse: type ParamMeta struct
 pulse: type ParamMeta field Default any "json:\"default,omitempty\""
 pulse: type ParamMeta field Description string "json:\"description,omitempty\""
+pulse: type ParamMeta field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
@@ -1580,6 +1581,7 @@ pulse/descriptor: type OperatorMeta field WeightAware bool "json:\"weight_aware,
 pulse/descriptor: type OperatorParamMeta struct
 pulse/descriptor: type OperatorParamMeta field Default any "json:\"default,omitempty\""
 pulse/descriptor: type OperatorParamMeta field Description string "json:\"description,omitempty\""
+pulse/descriptor: type OperatorParamMeta field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse/descriptor: type OperatorParamMeta field JSONType string "json:\"json_type\""
 pulse/descriptor: type OperatorParamMeta field Name string "json:\"name\""
 pulse/descriptor: type OperatorParamMeta field Required bool "json:\"required,omitempty\""
@@ -1614,6 +1616,7 @@ pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
 pulse/descriptor: type Param field EnumValues []string "json:\"enum_values,omitempty\""
+pulse/descriptor: type Param field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse/descriptor: type Param field FieldFilter string "json:\"field_filter,omitempty\""
 pulse/descriptor: type Param field Name string "json:\"name\""
 pulse/descriptor: type Param field Required bool "json:\"required\""
@@ -4646,4 +4649,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3ec365a2f96e02b03b65201ad3e038db3fe27145809974ccffdfde4e2f94710b
+// golden-hash: ba9582ecc58546dba2a1b1c51ffdc6bba3ea2875b64ab831648d611be871d4cf

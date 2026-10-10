@@ -148,6 +148,14 @@ type Param struct {
 	// FieldFilter constrains acceptable field types when Type=="field".
 	// One of: "numeric", "categorical", "date", "any".
 	FieldFilter string `json:"field_filter,omitempty"`
+
+	// ExactlyOneOf names the group of mutually exclusive params this
+	// one belongs to: of the params sharing a group name, a request
+	// must supply exactly one (WIN_EWMA's alpha / decay). Each member is
+	// Required=false with no Default, since no single member is
+	// required on its own. The first member in Params order is the
+	// one a drafted request names. Omitted for an ungrouped param.
+	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
 }
 
 // TestMeta describes a statistical test entry in the manifest. Tier-1 and
