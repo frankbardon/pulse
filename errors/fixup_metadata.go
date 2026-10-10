@@ -1447,7 +1447,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_RANK_PATH: {
-		Message: "The sweep `rank.by` path does not parse, or does not resolve to one number in a slot's response. The rank reads each sweep slot's unshaped response at that path; the path is under `by` and the slot under `label`.",
+		Message: "The sweep `rank.by` path does not parse, or does not resolve to one number in a slot's response. The rank reads each sweep slot's unshaped response JSON at that path: dotted segments, where a segment on an object is a key and a segment on a list selects the one element whose `name` or `label` equals it (never an index). The batch is refused when the path ends on a non-number, is ambiguous (two elements match, or the match's name and label differ) or resolves in no sweep slot (reason `syntax`, `not_number`, `ambiguous` or `missing`). As a WARNING on a slot's own response it means that slot is left out of the ranking: its value is null (undefined) or the path is missing there only. The path is under `by`, the slot under `label`, the failing segment under `segment`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

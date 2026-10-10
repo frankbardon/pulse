@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -178,6 +179,68 @@ func TestAPICompose_SweepFaultsKeepTheirCodes(t *testing.T) {
 					t.Fatalf("errors = %+v, want %s first\n%s", env.Errors, tc.code, out)
 				}
 			})
+		}
+	}
+}
+
+// TestAPICompose_SweepRankingSurfaces: a ranked sweep returns `ranking`
+// in the --json envelope (sequential and --parallel 0 alike) and, under
+// --stream, ends with exactly one {"ranking":[...]} record after the
+// last slot's rows; a rank-free sweep streams no such record.
+func TestAPICompose_SweepRankingSurfaces(t *testing.T) {
+	_, write, unranked := sweepCLIFixture(t)
+	// Rank by each sweep slot's aggregation floor `n` (components, a
+	// list element selected by its label): every slot ties, so the
+	// ranking is expansion order.
+	ranked := strings.Replace(unranked, `"request":`,
+		`"label":"{{op}}","rank":{"by":"components.aggregations.t.n","order":"desc"},"request":`, 1)
+	path := write("ranked.json", ranked)
+
+	wantRanking := `[{"label":"AGG_SUM","value":3,"rank":1},{"label":"AGG_MAX","value":3,"rank":2},{"label":"AGG_MIN","value":3,"rank":3}]`
+	for _, args := range [][]string{nil, {"--parallel", "0"}} {
+		out, err := runAPI(t, append([]string{"compose", "--json", "-r", path}, args...)...)
+		if err != nil {
+			t.Fatalf("compose %v: %v\n%s", args, err, out)
+		}
+		var env struct {
+			Data struct {
+				Responses []json.RawMessage `json:"responses"`
+				Ranking   json.RawMessage   `json:"ranking"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(out), &env); err != nil {
+			t.Fatal(err)
+		}
+		var compact bytes.Buffer
+		if err := json.Compact(&compact, env.Data.Ranking); err != nil {
+			t.Fatalf("compose %v: ranking %q: %v", args, env.Data.Ranking, err)
+		}
+		if len(env.Data.Responses) != 4 || compact.String() != wantRanking {
+			t.Fatalf("compose %v: %d responses, ranking %s\nwant %s", args, len(env.Data.Responses), env.Data.Ranking, wantRanking)
+		}
+	}
+
+	streamLines := func(p string) []string {
+		t.Helper()
+		out, err := runAPI(t, "compose", "--stream", "-r", p)
+		if err != nil {
+			t.Fatalf("--stream: %v\n%s", err, out)
+		}
+		return strings.Split(strings.TrimSpace(out), "\n")
+	}
+	lines := streamLines(path)
+	last := lines[len(lines)-1]
+	if last != `{"ranking":`+wantRanking+`}` {
+		t.Fatalf("last stream line %q, want the ranking record", last)
+	}
+	for _, l := range lines[:len(lines)-1] {
+		if strings.Contains(l, `"ranking"`) {
+			t.Fatalf("ranking record before the last line: %q", l)
+		}
+	}
+	for _, l := range streamLines(write("unranked.json", unranked)) {
+		if strings.Contains(l, `"ranking"`) {
+			t.Fatalf("rank-free sweep streamed a ranking record: %q", l)
 		}
 	}
 }

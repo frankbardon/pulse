@@ -1103,7 +1103,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// The sweep expands first, so every check below — the slot limit,
 	// the hidden-slot refusal, multiplicity, labels, the overlay fold —
 	// reads the effective request (explicit slots, then sweep slots).
-	composed, err := s.expandCompose(composed)
+	composed, rank, err := s.expandCompose(composed)
 	if err != nil {
 		return nil, err
 	}
@@ -1148,7 +1148,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	ei.Lap(observe.PhasePlan)
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		slotCtx, end := startChild(composeSlotContext(ctx, vetoes, multPlan, i), i, req)
+		slotCtx, end := startChild(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), i, req)
 		resp, err := s.Process(slotCtx, req)
 		end(err)
 		if err != nil {
@@ -1203,6 +1203,10 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// each slot's own families correct inside the slot. Shared with the
 	// other orchestrator, so serial and parallel answer identically.
 	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+		return nil, err
+	}
+	// The sweep rank reads the finished, folded, still-unshaped slots.
+	if err := applyComposeRank(rank, requests, out); err != nil {
 		return nil, err
 	}
 

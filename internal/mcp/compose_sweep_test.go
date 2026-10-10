@@ -139,3 +139,33 @@ func TestPulseCompose_SweepFaultsKeepTheirCodes(t *testing.T) {
 		})
 	}
 }
+
+// TestPulseCompose_SweepRanking: pulse_compose returns the sweep
+// `ranking` — read off each slot before the MCP `return` default shapes
+// it — ordered, 1-based and trimmed by `top`, every response kept.
+func TestPulseCompose_SweepRanking(t *testing.T) {
+	p, _ := newImportTestPulse(t)
+	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+	body := `{"cohort":{"filename":"imports/data.pulse"},"tests":[{"type":"TEST_T","field":"amount","label":"t","params":{"mu":{"$var":"mu"}}}]}`
+	args := `{"sweep":{"axes":[{"name":"mu","values":[40,0,20]}],"label":"mu{{mu}}","request":` + body +
+		`,"rank":{"by":"tests.t.statistic","order":"desc","top":2}}}`
+	out, err := invokeSweepTool(t, p, Config{}, toolmeta.ToolCompose, args)
+	if err != nil {
+		t.Fatalf("pulse_compose ranked sweep: %v", err)
+	}
+	if resps, _ := out["responses"].([]any); len(resps) != 3 {
+		t.Fatalf("%d responses, want every slot (3): %v", len(resps), out)
+	}
+	ranking, _ := out["ranking"].([]any)
+	if len(ranking) != 2 {
+		t.Fatalf("ranking %v, want the top 2", out["ranking"])
+	}
+	for i, want := range []string{"mu0", "mu20"} {
+		e := ranking[i].(map[string]any)
+		if e["label"] != want || e["rank"] != float64(i+1) {
+			t.Fatalf("ranking[%d] = %v, want %s at rank %d", i, e, want, i+1)
+		}
+	}
+}

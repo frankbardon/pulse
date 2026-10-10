@@ -126,8 +126,10 @@ func AllSweepRankOrders() []SweepRankOrder {
 }
 
 // RankEntry is one ranked sweep slot in ComposedResponse.Ranking: the
-// slot's Label, the ranked Value (NaN — written as JSON null — when the
-// slot has no finite value at the rank path) and its 1-based Rank.
+// slot's Label, the ranked Value and its 1-based Rank. A slot whose
+// value at the rank path is null (undefined) has no entry — it is left
+// out with a PULSE_SWEEP_RANK_PATH warning on its own response — so
+// Value is always finite.
 type RankEntry struct {
 	// Label is the ranked slot's final label.
 	Label string `json:"label"`

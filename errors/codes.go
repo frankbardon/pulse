@@ -937,8 +937,13 @@ const (
 	PULSE_SWEEP_INVALID Code = "PULSE_SWEEP_INVALID"
 
 	// PULSE_SWEEP_RANK_PATH indicates a sweep rank whose `by` path does
-	// not parse, or does not resolve to one number in a slot's response.
-	// Details carry "by" and the offending slot "label".
+	// not parse, or does not resolve to one number in a slot's response:
+	// it ends on a non-number, is ambiguous (a list segment matching two
+	// elements, or one whose name and label differ) or resolves in no
+	// sweep slot. Details carry "by", "reason", the offending slot
+	// "label" and the failing "segment". Also the code of the warning a
+	// slot left out of the ranking (null value, or path missing in that
+	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
 
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where

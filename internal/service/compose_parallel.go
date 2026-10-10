@@ -91,7 +91,7 @@ func (s *Service) composeParallel(
 ) (*types.ComposedResponse, error) {
 	// The sweep expands before the worker pool starts, exactly as on
 	// the serial path.
-	composed, err := s.expandCompose(composed)
+	composed, rank, err := s.expandCompose(composed)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func (s *Service) composeParallel(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			reqCtx := composeSlotContext(runCtx, vetoes, multPlan, i)
+			reqCtx := rankSlotContext(composeSlotContext(runCtx, vetoes, multPlan, i), rank, i)
 			if o.PerRequestTimeout > 0 {
 				var reqCancel context.CancelFunc
 				reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)
@@ -273,6 +273,10 @@ func (s *Service) composeParallel(
 	// each slot's own families correct inside the slot. Shared with the
 	// other orchestrator, so serial and parallel answer identically.
 	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+		return nil, err
+	}
+	// The sweep rank reads the finished, folded, still-unshaped slots.
+	if err := applyComposeRank(rank, requests, out); err != nil {
 		return nil, err
 	}
 

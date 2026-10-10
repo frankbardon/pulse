@@ -19,11 +19,14 @@
 //     boolean; null, objects and arrays are refused;
 //   - mode is empty, grid or zip; zip needs every axis the same length;
 //   - request is a JSON object; overlays, when set, is a JSON array;
-//   - rank, when set, names a non-empty `by`; order is empty, asc or
-//     desc; top, when set, is at least 1.
+//   - rank, when set, names a non-empty `by` of dotted segments with
+//     none empty; order is empty, asc or desc; top, when set, is at
+//     least 1.
 //
 // Checks run in that order, axes in declared order, and the first fault
-// is returned as PULSE_SWEEP_INVALID with details `field` (the sweep-
+// is returned — a malformed non-empty `by` as PULSE_SWEEP_RANK_PATH
+// (reason syntax, see ParseRankPath), every other fault as
+// PULSE_SWEEP_INVALID with details `field` (the sweep-
 // rooted path of the offending value), `reason`, `axis` (the axis name)
 // where one is involved and, where they apply, `value` / `valid`.
 // Whether every axis is referenced and every placeholder names an axis
@@ -58,7 +61,8 @@ const (
 )
 
 // Validate reports the first structural fault of spec as a
-// PULSE_SWEEP_INVALID *errors.CodedError, or nil. A nil spec is valid
+// *errors.CodedError (PULSE_SWEEP_INVALID, or PULSE_SWEEP_RANK_PATH for
+// a malformed rank path), or nil. A nil spec is valid
 // (no sweep).
 func Validate(spec *types.SweepSpec) *errors.CodedError {
 	if spec == nil {
@@ -134,6 +138,9 @@ func Validate(spec *types.SweepSpec) *errors.CodedError {
 		if r.By == "" {
 			return invalid("sweep.rank.by", "", ReasonRankByEmpty,
 				"sweep rank needs `by`, the path of the ranked number in each slot's response", nil)
+		}
+		if _, err := ParseRankPath(r.By); err != nil {
+			return err
 		}
 		switch r.Order {
 		case "", types.SweepRankAsc, types.SweepRankDesc:
