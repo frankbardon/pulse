@@ -247,7 +247,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#255** `PredictCompose` / `PredictFacet` / `PredictChain` and `pulse api predict-compose` / `-facet` / `-chain` ignore Strict and EchoRequest (the validators read neither); wire them, then add `--strict` / `--echo-request` · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#256** Bare MCP `pulse_predict` returns no `errors` / `warnings`, so `valid: false` carries no reason (the alternative roots do carry them); additive fix · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#257** `pulse_predict` description keeps the generic "send exactly one alternative root alone" sentence on profiles hiding compose, facet and process_chain (the per-root sentences are scrubbed) · [U32](units/U32-docs-audit.md)
-- [ ] **#258** `MAT_RELIABILITY` (Cronbach's alpha) needs `Purpose.KnownAs` aliases ("cronbach's alpha") when the operator lands, so the U23 synonym tier finds it · [U24](units/U24-matrix-operators.md)
+- [x] **#258** `MAT_RELIABILITY` (Cronbach's alpha) needs `Purpose.KnownAs` aliases ("cronbach's alpha") when the operator lands, so the U23 synonym tier finds it · [U24](units/U24-matrix-operators.md)
 - [ ] **#259** The engine accepts `weight` on a facet overlay and silently ignores it (facets are never weighted); refuse it · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#260** Bound `joins` field-name enums in the MCP input schemas cover only the left cohort; right-side and joined field names fall outside them (the description says so, predict resolves them); widen the enums from the join target's schema · [U35](units/U35-predict-runtime-parity.md)
 
@@ -324,13 +324,26 @@ Theme documents: see the [roadmap index](README.md).
 ## 10. Vector & matrix — operators
 
 ### E3 — Core matrix operators
-- [ ] **#124** `MAT_CORRELATION` Spearman / Kendall · [U24](units/U24-matrix-operators.md)
-- [ ] **#125** `MAT_PARTIAL_CORRELATION` · [U24](units/U24-matrix-operators.md)
-- [ ] **#126** `MAT_RELIABILITY` (α, standardized α, ω, item-total, α-if-deleted, reverse scoring) · [U24](units/U24-matrix-operators.md)
-- [ ] **#127** `MAT_PCA` (loadings, eigenvalues, explained variance, KMO, Bartlett) · [U24](units/U24-matrix-operators.md)
-- [ ] **#128** `MAT_COLLINEARITY` (VIF, tolerance, condition indices) · [U24](units/U24-matrix-operators.md)
-- [ ] **#129** `RegressionResult.Vcov` and `.Correlation` · [U24](units/U24-matrix-operators.md)
-- [ ] **#130** Topical skill `multivariate-design.md` · [U24](units/U24-matrix-operators.md)
+- [x] **#124** `MAT_CORRELATION` Spearman / Kendall · [U24](units/U24-matrix-operators.md)
+- [x] **#125** `MAT_PARTIAL_CORRELATION` · [U24](units/U24-matrix-operators.md)
+- [x] **#126** `MAT_RELIABILITY` (α, standardized α, ω, item-total, α-if-deleted, reverse scoring) · [U24](units/U24-matrix-operators.md)
+- [x] **#127** `MAT_PCA` (loadings, eigenvalues, explained variance, KMO, Bartlett) · [U24](units/U24-matrix-operators.md)
+- [x] **#128** `MAT_COLLINEARITY` (VIF, tolerance, condition indices) · [U24](units/U24-matrix-operators.md)
+- [x] **#129** `RegressionResult.Vcov` and `.Correlation` · [U24](units/U24-matrix-operators.md)
+- [x] **#130** Topical skill `multivariate-design.md` · [U24](units/U24-matrix-operators.md)
+
+#### Follow-ups from U24
+- [ ] **#261** Raw p-values and confidence intervals on `MAT_CORRELATION` `params.method` `spearman` / `kendall` (the `cor.test` analogues, exact Kendall with ties), as `auxiliary.p` / interval matrices; U24 ships the figures only · [U28](units/U28-matrix-overlays.md)
+- [ ] **#262** `MAT_FACTOR`: multi-factor minres factor analysis, reusing `minresOneFactor`, the `PULSE_MATRIX_HEYWOOD` / `_NOT_IDENTIFIED` / `_NOT_CONVERGED` warnings (add it as an owner) and the PSD guard · [U25](units/U25-multivariate-tests-segmentation.md)
+- [ ] **#263** Factor rotation (varimax, promax) for `MAT_FACTOR`, including a varimax option on `MAT_PCA` loadings (U24 ships unrotated components) · [U25](units/U25-multivariate-tests-segmentation.md)
+- [ ] **#264** Link the `factor` glossary entry to `MAT_FACTOR` and add it as the third `measure_construct` declarer, clearing both exemption-ledger entries (`factor`, `measure_construct`) in `guidance_exemptions_test.go` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [ ] **#265** Partial-correlation statistic and p-value (df = n − 2 − g; the `ppcor` values already sit in `mv_partial_correlation.json`) as `auxiliary.p` beside the multiplicity core · [U28](units/U28-matrix-overlays.md)
+- [ ] **#266** Matrix oracle gaps: regenerate the `mv_pca.json` pairwise case with `cor(use = "pairwise")`; add weighted pairwise PCA, collinearity and reliability `item_sd` cases; regenerate `mv_vcov.json` at converged IRLS weights so the GLM tolerance drops from 1e-6 to about 1e-10 (needs `make reference`) · [U36](units/U36-reference-oracles.md)
+- [ ] **#267** Predict `row_buffer_bytes` is an upper bound for ordinary groupers only: a fan-out grouper (`GROUP_SET_PER_ELEMENT` and kin) copies a row into every label bucket, so the true buffer can exceed it; add the fan-out multiplicity, and confirm `limits.MatrixStateBytes` counts the buffered rank-method row store · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#268** Trim the soft-budget overruns in the `op-mat-*` atomic skills (`op-mat-correlation` body 1970 B against 1200) with the other over-budget atomic bodies · [U32](units/U32-docs-audit.md)
+- [ ] **#269** A rating-battery demo cohort (Likert items on one latent trait) so `MAT_RELIABILITY` and `MAT_PCA` examples show a defined omega and real loadings; `08_reliability.json` runs on `experiment.pulse` and shows a Heywood null omega · [U31](units/U31-guidance-guides.md)
+- [ ] **#270** Matrix hardening: a deterministic test for the `MAT_COLLINEARITY` not-positive-definite Belsley warning path (intercept collinearity past double precision), and a per-pair Σw² for probability-weighted pairwise `item_sd` in the co-moment state · [U30](units/U30-matrix-extensions-hardening.md)
+- [ ] **#271** `REG_GLM` gamma: Pulse fixes dispersion at 1 for standard errors and `vcov`; R estimates it. Decide, align, and add a gamma oracle case · [U36](units/U36-reference-oracles.md)
 
 ### E4 — Multivariate tests, fitted attributes, segmentation
 - [ ] **#131** `TEST_HOTELLING_T2` · [U25](units/U25-multivariate-tests-segmentation.md)
@@ -392,14 +405,14 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#169** Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library · [U33](units/U33-v1-release.md)
 - [ ] **#170** `v1.0.0` tagged · [U33](units/U33-v1-release.md)
 - [ ] **#220** Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze; adding it changes the public-API golden and `STABILITY.md` · [U33](units/U33-v1-release.md)
-- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) and the [U12 weighted-inference review](reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
+- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) the [U12 weighted-inference review](reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula) and the [U24 matrix-operators review](reviews/U24-matrix-operators-review.md) (findings MR-01 to MR-08 and the open owner calls), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference AND the U24 multivariate guidance, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
 
 ---
 
 ## 13. Cross-cutting (applies throughout; tick when verified for the whole release)
 
 - [ ] **#171** Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values · [U33](units/U33-v1-release.md)
-- [x] **#172** Missing-data modes documented and tested; PSD refusal / `repair: "nearest"` · [U16](units/U16-matrix-result.md) (modes + `NOT_PSD` detection; `repair: "nearest"` and the refusal → [U24](units/U24-matrix-operators.md))
+- [x] **#172** Missing-data modes documented and tested; PSD refusal / `repair: "nearest"` · [U16](units/U16-matrix-result.md) (modes + `NOT_PSD` detection; `repair: "nearest"` and the refusal landed in [U24](units/U24-matrix-operators.md))
 - [ ] **#173** New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups · [U33](units/U33-v1-release.md)
 - [ ] **#174** Every new operator has `Purpose`, `Interpretation` (if inferential), `Since`, dependency edges and an atomic skill · [U33](units/U33-v1-release.md)
 - [ ] **#175** Every new gate is listed by name in CLAUDE.md "Non-Skippable CI Gates" · [U33](units/U33-v1-release.md)

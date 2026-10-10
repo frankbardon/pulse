@@ -397,6 +397,26 @@ Landed in U20 (`v1.0.0-alpha.6`, with the `contrib/otelpulse` and `contrib/promp
 
 Not shipped, by decision: `pulse_cache_hits_total`; a `PULSE_*` environment variable for logging; recovery of a panic raised inside an operation (hook panics are recovered; the rest is [TODO #231](../TODO.md)).
 
+## Changes from U24 (matrix operators)
+
+Complete for U24 (no release tag cut by the unit). Contract: `.claude/reference/matrix-and-vectors.md`; guides `multivariate-design`, `regression-inference`, `docs/src/library/matrices.md`. Additive: a request without the new params or `vcov` is byte-identical, and `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `types.AllMatrixTypes()` listed `MAT_COVARIANCE`, `MAT_CORRELATION` | adds `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY`, `MAT_PCA`, `MAT_COLLINEARITY` | added | none; a profile that lists matrix operators by name opts the new ones in | U24 |
+| `MatrixKind` was `square_symmetric` only | adds `types.MatrixKindRectangular` (`MAT_PCA` loadings and eigenvectors, `MAT_COLLINEARITY` variance decomposition) | added | a consumer switching on `kind` handles `rectangular` (`row_keys` the members, `column_keys` the columns) | U24 |
+| `MatrixSpec.Streamable()` was a property of the operator type | streamability and mergeability are per spec: `MatrixSpec.Mergeable()` added; a `MAT_CORRELATION` spec with `params.method` `spearman` / `kendall` is buffered and not mergeable | added / behaviour | none for built-ins; the request routes buffered and serial automatically | U24 |
+| `descriptor.MatrixPredict` had no buffer figures | `Mergeable bool` (`mergeable`) and `RowBufferBytes *int64` (`row_buffer_bytes`, omitted when not buffered) | added | none | U24 |
+| `TEST_KENDALL_TAU` classified pairs in an O(n^2) loop | runs the shared Knight O(n log n) kernel (`kendallCounts`), also used by `MAT_CORRELATION` `method: "kendall"` | behaviour (performance, internal) | outputs are unchanged (property-tested against the old loop on tied, zero-weighted data); a caller comparing Kendall bits against stored values on a different architecture is unaffected, the counts are integer-exact | U24 |
+| `PULSE_MATRIX_NOT_PSD` was a per-matrix warning everywhere | a warning on `MAT_COVARIANCE` / `MAT_CORRELATION`; FATAL on `MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_COLLINEARITY` unless `params.repair: "nearest"` (a warning then, with `frobenius_adjustment`); `MAT_RELIABILITY` keeps alpha and nulls omega | behaviour | add `params.repair: "nearest"`, or use listwise deletion; `details.repair_options` names the fix | U24 |
+| `PULSE_MATRIX_SINGULAR` details were `pivot`, `reason`, `n` | adds `rank`, `condition_number`, `dependent_indices`, and `matrix` + `dependent_fields` from a matrix operator | added | none | U24 |
+| no iterative-solver or identification warnings | `errors.PULSE_MATRIX_NOT_CONVERGED`, `PULSE_MATRIX_HEYWOOD`, `PULSE_MATRIX_NOT_IDENTIFIED`, `PULSE_MATRIX_PAIRWISE_N_STAR` (warnings), `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (fatal, `details.reason` `penalty` / `resample` / `selection`) | added | `pulse errors lookup CODE`; the manifest error list and golden changed | U24 |
+| `RegressionSpec` and `RegressionResult` carried no covariance | `RegressionSpec.Vcov bool` (`vcov`, flat on the slot) and `RegressionResult.Vcov` / `.Correlation` (`*MatrixValues`, keyed `(intercept)` then the predictors); absent when off | added | opt in with `"vcov": true` on `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR`; `regressions[*].vcov` / `.correlation` ride the `standard` return preset (the MCP default), not `minimal` | U24 |
+| a matrices-hidden profile removed `MatrixValues` from the payload schema | `MatrixValues` stays in the schema of a matrices-hidden instance, because the ungated `regressions` slot can now return it | behaviour (schema) | none; regenerate any stored payload-schema snapshot | U24 |
+| `MAT_CORRELATION` `KnownAs` | the matrix carries "rank correlation", "spearman correlation matrix", "kendall correlation matrix"; the bare `spearman` / `kendall` aliases stay on `TEST_SPEARMAN_R` / `TEST_KENDALL_TAU` | behaviour (search) | none; an owner call may move them (see the U24 review record) | U24 |
+
+Not shipped, by decision: p-values and intervals on rank and partial correlation (U28), `MAT_FACTOR` and rotation (U25), `vcov` for lasso, elastic net, resample and selection fits.
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

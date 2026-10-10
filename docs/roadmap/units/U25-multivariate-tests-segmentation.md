@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U24]
 soft_depends_on: []
 blocks: [U30]
-todo_items: [131, 132, 133, 134, 135, 136]
+todo_items: [131, 132, 133, 134, 135, 136, 262, 263, 264]
 branch: multivariate-tests-segmentation
 ---
 
@@ -36,6 +36,9 @@ branch: multivariate-tests-segmentation
 - [ ] **#134** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_MAHALANOBIS`
 - [ ] **#135** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_PC_SCORE` (two-pass, `fit_on`)
 - [ ] **#136** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `GROUP_KMEANS` (seeded k-means++, Euclidean-only, size-ordered labels)
+- [ ] **#262** (10. Vector & matrix — operators › Follow-ups from U24) `MAT_FACTOR`: multi-factor minres factor analysis, reusing `minresOneFactor`, the `PULSE_MATRIX_HEYWOOD` / `_NOT_IDENTIFIED` / `_NOT_CONVERGED` warnings (add it as an owner) and the PSD guard
+- [ ] **#263** (10. Vector & matrix — operators › Follow-ups from U24) Factor rotation (varimax, promax) for `MAT_FACTOR`, including a varimax option on `MAT_PCA` loadings (U24 ships unrotated components)
+- [ ] **#264** (10. Vector & matrix — operators › Follow-ups from U24) Link the `factor` glossary entry to `MAT_FACTOR` and add it as the third `measure_construct` declarer, clearing both exemption-ledger entries (`factor`, `measure_construct`) in `guidance_exemptions_test.go`
 
 ## Scope
 
