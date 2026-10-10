@@ -1605,6 +1605,13 @@ type ComposedRequest struct {
 	// responses. Nil leaves the overlays whole; no instance default
 	// applies at this level. See Return.
 	Return *Return `json:"return,omitempty"`
+
+	// Sweep is the optional parameter sweep: one request body expanded
+	// over its axes into compose slots appended after Requests, before
+	// any slot runs. Gated by capability:compose_sweep. Nil is absent —
+	// the slot is `omitempty`, so a sweep-free request is byte-identical
+	// on the wire and under Hash. See SweepSpec.
+	Sweep *SweepSpec `json:"sweep,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -1642,6 +1649,19 @@ type ComposedResponse struct {
 	// shaped by a non-identity ComposedRequest.Return. Nil (absent) for
 	// an unshaped one; each slot carries its own Response.Returned.
 	Returned *ReturnedMarker `json:"returned,omitempty"`
+
+	// Ranking is the sweep rank: one entry per ranked sweep slot in rank
+	// order (ComposedRequest.Sweep.Rank). Omitted when the request set no
+	// rank. Gated by capability:compose_sweep with the `sweep` slot.
+	Ranking []RankEntry `json:"ranking,omitempty"`
+
+	// NormalizedRequest is the effective request the batch ran: a
+	// sweep's expanded `requests` (explicit slots, then one labelled
+	// slot per combination) with the sweep overlays appended and no
+	// `sweep`; a sweep-free request as passed. Populated only when
+	// pulse.Options.EchoRequest is true, nil otherwise. Never on the
+	// wire: the CLI publishes it as the envelope's `request` echo.
+	NormalizedRequest *ComposedRequest `json:"-"`
 
 	// plan is the resolved Compose-level selection; MarshalJSON honours
 	// it. Set only by the facade.

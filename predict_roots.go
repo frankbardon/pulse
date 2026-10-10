@@ -34,6 +34,12 @@ type (
 // the sidecar-fed ones included — every slot cohort's SPSS sidecar is
 // read for its measure levels and weight variable.
 //
+// A sweep is expanded exactly as Compose expands it: the result's Sweep
+// reports its axes, mode, expanded slot count and labels, every
+// expanded slot is predicted like a hand-written one, and a batch whose
+// explicit plus expanded slots exceed Options.Limits.MaxComposeSlots is
+// refused with PULSE_LIMIT_EXCEEDED, as the runtime refuses it.
+//
 // The returned envelope is whole: its Data is a *ComposePredictResult
 // whose Valid mirrors env.Errors emptiness, and each refusal is a coded
 // env.Errors entry. A returned error is a cancelled ctx. Under a
@@ -50,9 +56,11 @@ func (p *Pulse) predictCompose(ctx context.Context, req *ComposedRequest) (*desc
 		return nil, err
 	}
 	opts := p.composePredictOptions(ctx)
-	env := descx.ValidateComposeWithOptions(req, &opts)
-	if req != nil {
-		for _, slot := range req.Requests {
+	// The effective request: a sweep's expanded slots are touched like
+	// the explicit ones.
+	env, effective := descx.ValidateComposeExpanded(req, &opts)
+	if effective != nil {
+		for _, slot := range effective.Requests {
 			if slot != nil && slot.Cohort != nil {
 				p.touchManaged(ctx, resolveCohortPath(slot.Cohort))
 			}

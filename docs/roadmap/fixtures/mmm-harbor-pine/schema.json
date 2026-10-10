@@ -1,0 +1,16 @@
+[
+  {"name": "week", "type": "date", "description": "Monday that starts the ISO week the row covers."},
+  {"name": "region", "type": "categorical_u8", "description": "Harbor & Pine US sales region (8 regions)."},
+  {"name": "week_index", "type": "u8", "description": "Weeks since 2024-01-01, 0 to 103; the linear trend term."},
+  {"name": "revenue_k", "type": "f64", "description": "Online revenue for the region-week in thousands of USD; the MMM target."},
+  {"name": "tv_spend_k", "type": "f64", "description": "Linear TV media spend allocated to the region-week, thousands of USD."},
+  {"name": "search_spend_k", "type": "f64", "description": "Paid search spend for the region-week, thousands of USD."},
+  {"name": "social_spend_k", "type": "f64", "description": "Paid social spend for the region-week, thousands of USD."},
+  {"name": "display_spend_k", "type": "f64", "description": "Programmatic display spend for the region-week, thousands of USD."},
+  {"name": "email_ksends", "type": "f64", "description": "Marketing emails delivered in the region-week, thousands of sends."},
+  {"name": "discount_pct", "type": "f64", "description": "Average sitewide discount depth for the week, percent off list."},
+  {"name": "promo", "type": "packed_bool", "description": "True when a named sitewide promotion ran that week."},
+  {"name": "holiday", "type": "packed_bool", "description": "True for weeks containing a US retail holiday."},
+  {"name": "competitor_sov", "type": "f64", "description": "Competitor share of voice in the category, 0 to 1, from an ad-intelligence vendor."},
+  {"name": "category_demand", "type": "f64", "description": "Category search-demand index for the region, 100 = Jan 2024 national level."}
+]

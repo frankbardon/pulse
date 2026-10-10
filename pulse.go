@@ -487,7 +487,10 @@ type Options struct {
 	// EchoRequest causes execution paths and descriptor operations to
 	// populate descriptor.Envelope.Request with the *normalized* request
 	// that was executed — smart defaults resolved, per-stage forms
-	// captured for ProcessChain. Off by default to keep wire size
+	// captured for ProcessChain (ChainResponse.NormalizedRequest), and
+	// for Compose / ComposeParallel the effective request with any
+	// sweep expanded into its slots (ComposedResponse.NormalizedRequest,
+	// never on the wire). Off by default to keep wire size
 	// unchanged for hot paths and existing callers. The streaming
 	// process / compose paths skip the echo unconditionally (NDJSON
 	// emit per row, no envelope construction). Predict / inspect /

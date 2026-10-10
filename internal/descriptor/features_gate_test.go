@@ -21,7 +21,7 @@ import (
 // decision "Capability inventory"). A capability is authored, not
 // discovered, so the gate pins the exact list.
 var wantCapabilities = []string{
-	"process", "stream", "watch", "compose", "process_chain", "facet",
+	"process", "stream", "watch", "compose", "compose_sweep", "process_chain", "facet",
 	"sample", "joins", "crosstab", "lookup", "index", "shard", "import",
 	"export", "filter_to_file", "dedup", "widen", "templates", "synth",
 	"labels", "range_tables", "weighting", "multiplicity", "matrices",

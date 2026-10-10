@@ -98,6 +98,7 @@ func op(name string) Feature {
 var (
 	featProcess      = FeatureName(FeatureKindCapability, "process")
 	featCompose      = FeatureName(FeatureKindCapability, "compose")
+	featComposeSweep = FeatureName(FeatureKindCapability, "compose_sweep")
 	featProcessChain = FeatureName(FeatureKindCapability, "process_chain")
 	featFacet        = FeatureName(FeatureKindCapability, "facet")
 	featSample       = FeatureName(FeatureKindCapability, "sample")
@@ -149,6 +150,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("stream"),         // ProcessStream, ProcessStreamResult
 	capability("watch"),          // Watch*
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
+	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
 	capability("process_chain"),  // ProcessChain
 	capability("facet"),          // Facet, FacetSchema
 	capability("sample"),         // Sample, SampleWithRequest
@@ -447,6 +449,9 @@ var slotTokens = map[string]slotTokenSet{
 	featCompose:      {},
 	featProcessChain: {},
 	featFacet:        {},
+	// `sweep` and `ranking` are everyday English; no guidance sentence
+	// names the slot yet.
+	featComposeSweep: {},
 	// pulse_explain's `sample` root slot: "sample" is everyday English
 	// (a sample of rows, sample size).
 	featSample: {},
@@ -592,6 +597,10 @@ var hardEdges = map[string][]string{
 	"MAT_PARTIAL_CORRELATION":               {featMatrices},
 	"MAT_PCA":                               {featMatrices},
 	"MAT_RELIABILITY":                       {featMatrices},
+
+	// A sweep expands into Compose slots: without Compose there is
+	// nothing to expand into.
+	featComposeSweep: {featCompose},
 }
 
 // RequestHostCapabilities returns the request-executing host

@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U24]
 soft_depends_on: []
 blocks: [U30]
-todo_items: [131, 132, 133, 134, 135, 136, 262, 263, 264]
+todo_items: [131, 132, 133, 134, 135, 136, 262, 263, 264, 295]
 branch: multivariate-tests-segmentation
 ---
 
@@ -39,6 +39,7 @@ branch: multivariate-tests-segmentation
 - [ ] **#262** (10. Vector & matrix — operators › Follow-ups from U24) `MAT_FACTOR`: multi-factor minres factor analysis, reusing `minresOneFactor`, the `PULSE_MATRIX_HEYWOOD` / `_NOT_IDENTIFIED` / `_NOT_CONVERGED` warnings (add it as an owner) and the PSD guard
 - [ ] **#263** (10. Vector & matrix — operators › Follow-ups from U24) Factor rotation (varimax, promax) for `MAT_FACTOR`, including a varimax option on `MAT_PCA` loadings (U24 ships unrotated components)
 - [ ] **#264** (10. Vector & matrix — operators › Follow-ups from U24) Link the `factor` glossary entry to `MAT_FACTOR` and add it as the third `measure_construct` declarer, clearing both exemption-ledger entries (`factor`, `measure_construct`) in `guidance_exemptions_test.go`
+- [ ] **#295** (Follow-ups from U40) Clustered and HAC covariance options on `REG_OLS` `Vcov`, so standard errors can allow for correlation across groups and over time (U24 ships the plain `vcov`); the worked example's standard errors are a stated lower bound without it
 
 ## Scope
 

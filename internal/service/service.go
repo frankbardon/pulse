@@ -73,8 +73,10 @@ type Service struct {
 	autoLabels []*types.LabelBinding
 
 	// echoRequest causes ProcessChain to capture per-stage normalized
-	// requests into ChainResponse.NormalizedRequest so the CLI / MCP
-	// boundary can publish them on the envelope. Other execution paths
+	// requests into ChainResponse.NormalizedRequest, and Compose the
+	// effective (sweep-expanded) request into
+	// ComposedResponse.NormalizedRequest, so the CLI / MCP boundary can
+	// publish them on the envelope. Other execution paths
 	// (Process, Compose, Facet, Sample) keep the in-place defaults
 	// mutation behavior — the boundary clones for echo purposes itself.
 	// Matches pulse.Options.EchoRequest.
@@ -1098,10 +1100,11 @@ func (s *Service) ComposeResolved(ctx context.Context, composed *types.ComposedR
 }
 
 func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, slots *[]*types.Request) (*types.ComposedResponse, error) {
-	if composed == nil || len(composed.Requests) == 0 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
-	}
-	if err := s.composeSlotsPreflight(composed); err != nil {
+	// The sweep expands first, so every check below — the slot limit,
+	// the hidden-slot refusal, multiplicity, labels, the overlay fold —
+	// reads the effective request (explicit slots, then sweep slots).
+	composed, rank, err := s.expandCompose(composed)
+	if err != nil {
 		return nil, err
 	}
 	// Hidden slots — the composed root's own, then every slot's — are
@@ -1145,7 +1148,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	ei.Lap(observe.PhasePlan)
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		slotCtx, end := startChild(composeSlotContext(ctx, vetoes, multPlan, i), i, req)
+		slotCtx, end := startChild(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), i, req)
 		resp, err := s.Process(slotCtx, req)
 		end(err)
 		if err != nil {
@@ -1183,6 +1186,9 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
 	out := &types.ComposedResponse{Responses: responses}
+	if s.echoRequest {
+		out.NormalizedRequest = composed
+	}
 	if len(layers) > 0 {
 		// distributeComposeWarnings (internal/service/compose_overlay.go) folds
 		// the flat warnings slice into each layer's `Warnings` slot via
@@ -1197,6 +1203,10 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// each slot's own families correct inside the slot. Shared with the
 	// other orchestrator, so serial and parallel answer identically.
 	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+		return nil, err
+	}
+	// The sweep rank reads the finished, folded, still-unshaped slots.
+	if err := applyComposeRank(rank, requests, out); err != nil {
 		return nil, err
 	}
 
