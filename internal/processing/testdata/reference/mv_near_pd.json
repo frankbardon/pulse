@@ -1,0 +1,248 @@
+{
+  "generator": "scripts/reference/gen_multivariate.R (via gen_reference.R)",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0",
+    "Matrix": "1.7.5",
+    "psych": "2.6.9",
+    "car": "3.1.5",
+    "ppcor": "1.1",
+    "perturb": "2.10",
+    "corpcor": "1.6.10"
+  },
+  "primitive": "nearest correlation matrix",
+  "r_function": "Matrix::nearPD(R, corr = TRUE, do2eigen = TRUE | FALSE) with the default tolerances",
+  "note": "Higham (2002) alternating projections with Dykstra's correction. do2eigen = TRUE adds a final posdefify step; the do2eigen = FALSE case is the bare Higham fixed point. repaired_covariance = D * nearest * D with D = sqrt(diag(pairwise covariance)) (a covariance input is repaired via its correlation and scaled back). frobenius_adjustment = ||nearest - input||_F. nearest_eigenvalues are eigen(nearest); r_eigenvalues is nearPD's own $eigenvalues, which under do2eigen = FALSE belong to the last iterate before the unit-diagonal projection, not to nearest.",
+  "cases": [
+    {
+      "fixture": "nonpsd_pairwise",
+      "fields": ["x", "y", "z"],
+      "missing": "pairwise",
+      "do2eigen": true,
+      "conv_tol": 9.9999999999999995e-08,
+      "eig_tol": 9.9999999999999995e-07,
+      "posd_tol": 1e-08,
+      "maxit": 100,
+      "pair_n": [
+        [
+          40,
+          20,
+          20
+        ],
+        [
+          20,
+          40,
+          20
+        ],
+        [
+          20,
+          20,
+          40
+        ]
+      ],
+      "input_correlation": [
+        [
+          1,
+          0.9301128956454906,
+          -0.97880544168230055
+        ],
+        [
+          0.9301128956454906,
+          1,
+          0.93973108770483071
+        ],
+        [
+          -0.97880544168230055,
+          0.93973108770483071,
+          0.99999999999999978
+        ]
+      ],
+      "input_eigenvalues": [
+        1.9793397016097689,
+        1.9199169397653142,
+        -0.89925664137508443
+      ],
+      "nearest": [
+        [
+          1,
+          0.48497700233967145,
+          -0.5223062703400474
+        ],
+        [
+          0.48497700233967145,
+          1,
+          0.492453238121564
+        ],
+        [
+          -0.5223062703400474,
+          0.492453238121564,
+          1
+        ]
+      ],
+      "nearest_eigenvalues": [
+        1.5227320713123602,
+        1.4772679134603193,
+        1.5227320544813412e-08
+      ],
+      "r_eigenvalues": [
+        1.5227321127060165,
+        1.4772679523880023,
+        1.5227321127060164e-08
+      ],
+      "frobenius_adjustment": 1.1014489835422836,
+      "norm_f": 1.1014489835422836,
+      "iterations": 15,
+      "converged": true,
+      "input_covariance": [
+        [
+          1.2724433223471738,
+          0.60209705752898157,
+          -1.9692029921859737
+        ],
+        [
+          0.60209705752898157,
+          0.55044807206725888,
+          0.3658673331897368
+        ],
+        [
+          -1.9692029921859737,
+          0.3658673331897368,
+          1.2604131512387171
+        ]
+      ],
+      "repaired_covariance": [
+        [
+          1.2724433223471738,
+          0.4058808355472468,
+          -0.6614559479493255
+        ],
+        [
+          0.4058808355472468,
+          0.55044807206725888,
+          0.41018487088587852
+        ],
+        [
+          -0.6614559479493255,
+          0.41018487088587852,
+          1.2604131512387173
+        ]
+      ]
+    },
+    {
+      "fixture": "nonpsd_pairwise",
+      "fields": ["x", "y", "z"],
+      "missing": "pairwise",
+      "do2eigen": false,
+      "conv_tol": 9.9999999999999995e-08,
+      "eig_tol": 9.9999999999999995e-07,
+      "posd_tol": 1e-08,
+      "maxit": 100,
+      "pair_n": [
+        [
+          40,
+          20,
+          20
+        ],
+        [
+          20,
+          40,
+          20
+        ],
+        [
+          20,
+          20,
+          40
+        ]
+      ],
+      "input_correlation": [
+        [
+          1,
+          0.9301128956454906,
+          -0.97880544168230055
+        ],
+        [
+          0.9301128956454906,
+          1,
+          0.93973108770483071
+        ],
+        [
+          -0.97880544168230055,
+          0.93973108770483071,
+          0.99999999999999978
+        ]
+      ],
+      "input_eigenvalues": [
+        1.9793397016097689,
+        1.9199169397653142,
+        -0.89925664137508443
+      ],
+      "nearest": [
+        [
+          1,
+          0.48497704169573252,
+          -0.5223063117127128
+        ],
+        [
+          0.48497704169573252,
+          1,
+          0.4924532778675611
+        ],
+        [
+          -0.5223063117127128,
+          0.4924532778675611,
+          1
+        ]
+      ],
+      "nearest_eigenvalues": [
+        1.5227321127060167,
+        1.4772679523880021,
+        -6.5094018986038809e-08
+      ],
+      "r_eigenvalues": [
+        1.5227321868832515,
+        1.4772680075335449,
+        -1.349152852273265
+      ],
+      "frobenius_adjustment": 1.1014488851575417,
+      "norm_f": 1.1014488851575417,
+      "iterations": 15,
+      "converged": true,
+      "input_covariance": [
+        [
+          1.2724433223471738,
+          0.60209705752898157,
+          -1.9692029921859737
+        ],
+        [
+          0.60209705752898157,
+          0.55044807206725888,
+          0.3658673331897368
+        ],
+        [
+          -1.9692029921859737,
+          0.3658673331897368,
+          1.2604131512387171
+        ]
+      ],
+      "repaired_covariance": [
+        [
+          1.2724433223471738,
+          0.40588086848462501,
+          -0.66145600034424623
+        ],
+        [
+          0.40588086848462501,
+          0.55044807206725888,
+          0.4101849039919796
+        ],
+        [
+          -0.66145600034424623,
+          0.4101849039919796,
+          1.2604131512387173
+        ]
+      ]
+    }
+  ]
+}
+// golden-hash: fed87ac4d56bec1240ddc374b93bf8a46b004b47c10ac8730c6e74635f9803da

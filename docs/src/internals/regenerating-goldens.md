@@ -162,3 +162,36 @@ script, run `make reference`, commit script and goldens together). The
 studentized-range and Student-t quantile references are refined in R
 beyond the stock `ptukey()` / `qtukey()` / `qt()` because those are less
 accurate than the oracle needs; the script's header explains why.
+
+### Multivariate goldens and their fixtures
+
+The same `make reference` run also sources
+`scripts/reference/gen_multivariate.R`, which writes the matrix-operator
+oracle as `mv_*.json` beside the primitives: rank correlation
+(Spearman, Kendall τ-b), partial correlation (`ppcor::pcor`,
+`corpcor::cor2pcor`), reliability (`psych::alpha`, ω from
+`psych::fa(nfactors = 1, fm = "minres")`), the one-factor minres solve,
+PCA (`eigen` / `prcomp`) with `psych::KMO` and `psych::cortest.bartlett`,
+collinearity (`car::vif`, `perturb::colldiag` uncentered-with-intercept
+and centered), `vcov(lm)` / `vcov(glm)` (binomial, poisson) and
+`Matrix::nearPD(corr = TRUE)`. Each case is unweighted and, where the
+method admits it, frequency- and probability-weighted under Pulse's one
+weighting rule (`stats::cov.wt`, frequency asserted equal to the
+`rep()`-expanded rows). Eigenvectors carry the `linalg` sign convention.
+
+Extra packages, PINNED — the script refuses any other version, so a CRAN
+update cannot move a golden silently: `psych`, `car`, `ppcor`,
+`perturb`, `corpcor` and `Matrix` (exact versions and the install line
+are in the script header).
+
+Fixtures live in `internal/processing/testdata/reference/fixtures/` as a
+CSV (citation header, `%.17g` cells, empty = null) plus a `.pulse` twin
+that `make reference` writes with `go run ./internal/tools/refcohorts`:
+the vendored `attitude` (Chatterjee & Price 1977) and `mtcars`
+(Henderson & Velleman 1981) from R's `datasets` package, each with two
+seeded weight columns appended, and seeded synthetic fixtures
+`likert_ties`, `nulls` (listwise vs pairwise), `weighted` (zero-weight
+rows), `nonpsd_pairwise`, `heywood` and `reversed_items`. No
+GPL-package data. `mv_fixtures.json` records each fixture's source,
+citation, seed and CSV md5; the `internal/tools/refcohorts` tests fail
+when a CSV drifts from that record or a `.pulse` drifts from its CSV.
