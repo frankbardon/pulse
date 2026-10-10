@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U21, U24, U28]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [100, 101, 102, 103, 250, 251, 252, 269]
+todo_items: [100, 101, 102, 103, 250, 251, 252, 269, 377]
 branch: guidance-guides
 ---
 
@@ -81,3 +81,9 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-guides/E
 ## Human inputs & decisions
 
 - Review for plain-language clarity (a non-statistician reader is ideal)
+
+## Inherited from U41
+
+Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#377** — Recommend drafts a materialise step: an intent route (e.g. a derived column a later model reads) that proposes `pulse_materialize` before the step-2 request. Found in U41 (E2-S2).

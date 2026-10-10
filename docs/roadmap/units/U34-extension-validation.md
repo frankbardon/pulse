@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U02b]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [194, 195, 196, 197, 216, 231]
+todo_items: [194, 195, 196, 197, 216, 231, 374]
 branch: extension-validation
 ---
 
@@ -116,3 +116,9 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 ## Inherited from U20
 
 - **Operation panic recovery** (#231). U20's hooks are panic-safe (a panicking hook is recovered and counted in `pulse_hook_panics_total`), but a panic raised INSIDE an operation, most plausibly a faulty `extend` operator or expr function, still unwinds through the facade and crashes the host. Recover at the instrumented facade boundary (`observeOn`), turn it into a coded error (a new `PROCESSING_*` or `SERVICE_*` code with `codeMetadata` + owner), end the observed operation with that code so logs, hooks and metrics report it, and keep the off path allocation-identical. Decide first whether the engine's own panics (not just extensions') are recovered or left to crash. Companions: `.claude/reference/observability.md`, `docs/src/library/observability.md`, `docs/src/internals/extension-points.md`, the error-code row in the Update Demand table.
+
+## Inherited from U41
+
+Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#374** — `LateKeyRefuser` on the public `io` facade, so an embedder's keyed reader can arm the late-key refusal (`PULSE_IMPORT_SCHEMA_KEY_LATE`) like the built-in NDJSON and JSON-array readers. Found in U41 (E1-S1).

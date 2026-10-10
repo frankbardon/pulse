@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U32]
-todo_items: [301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311]
+todo_items: [301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 375]
 branch: strict-input
 ---
 
@@ -107,3 +107,9 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(strict-input/E<n>
 
 - **Open:** strict by default, or strict only under `--strict` with a warning otherwise. A silent wrong answer argues for strict by default before v1 freezes the surface.
 - **Open:** the import / export / shard envelope key rename (`RowsImported` → `rows_imported`) is a shape change. Either bump `format_version` once before v1 or add snake_case keys beside the old ones and deprecate.
+
+## Inherited from U41
+
+Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#375** — `pulse import auto` (managed import) takes `--float`, `--schema` and `--ignore-extra` like `import <fmt>`; today they reach the managed import only through `ImportSpec` and MCP `pulse_import`. Found in U41 (E1-S2).
