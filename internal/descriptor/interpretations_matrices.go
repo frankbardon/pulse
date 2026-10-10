@@ -111,7 +111,7 @@ var interpMatReliability = []descriptor.Interpretation{
 		Means: "McDonald's omega: the share of the summed score's spread due to the one shared quality, from a one-factor fit that lets each item's tie to it differ. Read on the same 0 to 1 scale as alpha; it is usually at least as high.",
 		Caveats: []string{
 			"No published convention bands omega; it is not read against the alpha bands.",
-			"Null with a warning when the battery has 2 items, when the fit puts an item's leftover spread at or below zero (a Heywood case), or when a pairwise table is inconsistent and params.repair is not set.",
+			"Null with a warning when the battery has 2 items, when the fit puts an item's leftover spread at or below zero (a Heywood case), or when a pairwise table is inconsistent and params.repair is not set. When the fit does not converge, omega is kept as the last iterate's value and a warning says so; treat it as provisional.",
 			"The fit assumes one shared quality; when the items reflect several, omega from one factor misstates reliability.",
 		},
 	},

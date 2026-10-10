@@ -104,14 +104,14 @@ Merged without a release (rolls into v1.0.0); `format_version` stays `"1.1"`. `M
 | `MAT_FACTOR` (multi-factor minres, reusing the one-factor solver and warnings) | [U25](U25-multivariate-tests-segmentation.md) #262 |
 | Factor rotation (varimax, promax), including PCA varimax | [U25](U25-multivariate-tests-segmentation.md) #263 |
 | `factor` glossary link and a third `measure_construct` declarer; clears both exemption-ledger entries | [U25](U25-multivariate-tests-segmentation.md) #264 |
-| Oracle gaps: weighted pairwise cases, `mv_vcov.json` at converged weights (GLM tolerance 1e-6 → ~1e-10) | [U36](U36-reference-oracles.md) #266 |
+| Oracle gaps: weighted pairwise cases (`mv_vcov.json` at converged weights landed with the owner calls; GLM tolerance 1e-11) | [U36](U36-reference-oracles.md) #266 |
 | `REG_GLM` gamma dispersion (Pulse 1, R estimated) | [U36](U36-reference-oracles.md) #271 |
 | Predict `row_buffer_bytes` under fan-out groupers; `MatrixStateBytes` and the buffered row store | [U35](U35-predict-runtime-parity.md) #267 |
 | `op-mat-*` soft-budget overruns (`op-mat-correlation` 1970 B against 1200) | [U32](U32-docs-audit.md) #268 |
 | Rating-battery demo cohort for the reliability / PCA examples | [U31](U31-guidance-guides.md) #269 |
 | Per-pair Σw² for probability-weighted pairwise `item_sd` | [U30](U30-matrix-extensions-hardening.md) #270 |
 | Statistics review: findings MR-01 to MR-08, omega form, Heywood handling | [U33](U33-v1-release.md) #206 |
-| Owner calls: bare `spearman` / `kendall` aliases; `read-only-analyst.json` edited in place; non-converged minres keeps ω; `MAT_COLLINEARITY` wire shape; vcov refused for resample / selection; converged-weights `mv_vcov.json` | maintainer, recorded in the [review record](../reviews/U24-matrix-operators-review.md) |
+| Owner calls (decided 2026-10-10): aliases kept; `read-only-analyst.json` edit accepted; non-converged minres keeps ω (MR-05 aligned); `MAT_COLLINEARITY` shape confirmed; vcov under resample / selection reversed (now reported); converged-weights `mv_vcov.json` done | maintainer, recorded in the [review record](../reviews/U24-matrix-operators-review.md) |
 
 ## Human inputs & decisions
 

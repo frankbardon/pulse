@@ -134,7 +134,7 @@ U12 made the significance tests, regressions, CI bounds, scores, quantile bucket
 
 U24 shipped the multivariate matrix operators without a human reviewer: an external R oracle (psych, car, ppcor, perturb, corpcor, Matrix) pins every output at the tolerance in the record, plus a one-pass advisory LLM panel on the new guidance text.
 
-- **Open items.** Work the "Open items for the U33 human reviewer (U24)" list in [`reviews/U24-matrix-operators-review.md`](../reviews/U24-matrix-operators-review.md): findings MR-01 to MR-08, the omega form, Heywood handling, and owner calls (a) to (f) (bare rank aliases, the profile example edited in place, non-converged minres, the collinearity wire shape, the vcov refusal for resample / selection, the converged-weights vcov oracle).
+- **Open items.** Work the "Open items for the U33 human reviewer (U24)" list in [`reviews/U24-matrix-operators-review.md`](../reviews/U24-matrix-operators-review.md): findings MR-01 to MR-08, the omega form and Heywood handling. The owner calls (a) to (f) were decided 2026-10-10 and are recorded there.
 - **CODEOWNERS.** Add `internal/processing/matrix_*.go` and the `mv_*.json` goldens under `internal/processing/testdata/reference/` to the reviewer's entries.
 
 ## Inherited from U17
