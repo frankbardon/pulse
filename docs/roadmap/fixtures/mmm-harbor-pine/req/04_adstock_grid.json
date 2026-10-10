@@ -284,5 +284,13 @@
         "decay": 0.3
       }
     }
+  ],
+  "sort": [
+    {
+      "field": "region"
+    },
+    {
+      "field": "week"
+    }
   ]
 }
