@@ -1,0 +1,256 @@
+{
+  "requests": [
+    {
+      "label": "BLR_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Asia/Kolkata",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "BLR"
+          ]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_DATE",
+            "field": "delivered_at",
+            "params": {
+              "component": "day_of_week"
+            }
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      }
+    },
+    {
+      "label": "LAX_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/Los_Angeles",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "LAX"
+          ]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_DATE",
+            "field": "delivered_at",
+            "params": {
+              "component": "day_of_week"
+            }
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      }
+    },
+    {
+      "label": "LON_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Europe/London",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "LON"
+          ]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_DATE",
+            "field": "delivered_at",
+            "params": {
+              "component": "day_of_week"
+            }
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      }
+    },
+    {
+      "label": "NYC_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/New_York",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "NYC"
+          ]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_DATE",
+            "field": "delivered_at",
+            "params": {
+              "component": "day_of_week"
+            }
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      }
+    },
+    {
+      "label": "ORD_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/Chicago",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "ORD"
+          ]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_DATE",
+            "field": "delivered_at",
+            "params": {
+              "component": "day_of_week"
+            }
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      }
+    },
+    {
+      "label": "SYD_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Australia/Sydney",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "SYD"
+          ]
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_DATE",
+            "field": "delivered_at",
+            "params": {
+              "component": "day_of_week"
+            }
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      }
+    }
+  ]
+}

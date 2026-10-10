@@ -1,0 +1,31 @@
+{
+  "label": "syd_daily_trend_sydney_days",
+  "cohort": {"filename": "deliveries.pulse", "data_dir": "."},
+  "time_zone": "Australia/Sydney",
+  "filterers": [
+    {"type": "FILTER_INCLUDE", "field": "warehouse", "values": ["SYD"]}
+  ],
+  "groups": [
+    {"type": "GROUP_DATE", "field": "delivered_at", "params": {"component": "day"}}
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "duration_min", "label": "avg_duration_min"},
+    {"type": "AGG_AVERAGE", "field": "on_time", "label": "on_time_rate"},
+    {"type": "AGG_COUNT", "field": "delivery_id", "label": "deliveries"}
+  ],
+  "windows": [
+    {"type": "WIN_MOVING_AVG", "field": "on_time_rate", "label": "on_time_ma6",
+     "order_by": [{"field": "delivered_at"}], "frame": {"mode": "rows", "preceding": 5, "following": 0}},
+    {"type": "WIN_LAG", "field": "on_time_rate", "label": "on_time_prev_day",
+     "order_by": [{"field": "delivered_at"}], "params": {"offset": 1}},
+    {"type": "WIN_PCT_CHANGE", "field": "avg_duration_min", "label": "duration_pct_change",
+     "order_by": [{"field": "delivered_at"}], "params": {"periods": 1}}
+  ],
+  "overlays": [
+    {"name": "duration_rolling_z", "kind": "OVERLAY_ZSCORE_VS_ROLLING", "scope": "group",
+     "ref": {"rolling_mean": {}}, "params": {"window": 28}},
+    {"name": "duration_rolling_index", "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN", "scope": "group",
+     "ref": {"rolling_mean": {}}, "params": {"window": 28}}
+  ],
+  "sort": [{"field": "delivered_at"}]
+}

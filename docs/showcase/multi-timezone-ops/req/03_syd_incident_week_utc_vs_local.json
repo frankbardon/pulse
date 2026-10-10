@@ -1,0 +1,126 @@
+{
+  "requests": [
+    {
+      "label": "syd_week_utc_days",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "UTC",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "SYD"
+          ]
+        },
+        {
+          "type": "FILTER_DATE_RANGES",
+          "field": "delivered_at",
+          "params": {
+            "ranges": [
+              {
+                "label": "incident_week",
+                "start": "2026-05-11",
+                "end": "2026-05-17"
+              }
+            ]
+          }
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "duration_min",
+          "label": "avg_duration_min"
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    },
+    {
+      "label": "syd_week_sydney_days",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Australia/Sydney",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "SYD"
+          ]
+        },
+        {
+          "type": "FILTER_DATE_RANGES",
+          "field": "delivered_at",
+          "params": {
+            "ranges": [
+              {
+                "label": "incident_week",
+                "start": "2026-05-11",
+                "end": "2026-05-17"
+              }
+            ]
+          }
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "duration_min",
+          "label": "avg_duration_min"
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    }
+  ]
+}

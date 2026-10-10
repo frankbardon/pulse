@@ -1,0 +1,406 @@
+{
+  "requests": [
+    {
+      "label": "BLR_daily_screen",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Asia/Kolkata",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "BLR"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "overlays": [
+        {
+          "name": "on_time_rolling_z",
+          "kind": "OVERLAY_ZSCORE_VS_ROLLING",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        },
+        {
+          "name": "on_time_rolling_index",
+          "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    },
+    {
+      "label": "LAX_daily_screen",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/Los_Angeles",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "LAX"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "overlays": [
+        {
+          "name": "on_time_rolling_z",
+          "kind": "OVERLAY_ZSCORE_VS_ROLLING",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        },
+        {
+          "name": "on_time_rolling_index",
+          "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    },
+    {
+      "label": "LON_daily_screen",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Europe/London",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "LON"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "overlays": [
+        {
+          "name": "on_time_rolling_z",
+          "kind": "OVERLAY_ZSCORE_VS_ROLLING",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        },
+        {
+          "name": "on_time_rolling_index",
+          "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    },
+    {
+      "label": "NYC_daily_screen",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/New_York",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "NYC"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "overlays": [
+        {
+          "name": "on_time_rolling_z",
+          "kind": "OVERLAY_ZSCORE_VS_ROLLING",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        },
+        {
+          "name": "on_time_rolling_index",
+          "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    },
+    {
+      "label": "ORD_daily_screen",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/Chicago",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "ORD"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "overlays": [
+        {
+          "name": "on_time_rolling_z",
+          "kind": "OVERLAY_ZSCORE_VS_ROLLING",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        },
+        {
+          "name": "on_time_rolling_index",
+          "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    },
+    {
+      "label": "SYD_daily_screen",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Australia/Sydney",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "SYD"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "overlays": [
+        {
+          "name": "on_time_rolling_z",
+          "kind": "OVERLAY_ZSCORE_VS_ROLLING",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        },
+        {
+          "name": "on_time_rolling_index",
+          "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN",
+          "scope": "group",
+          "ref": {
+            "rolling_mean": {}
+          },
+          "params": {
+            "window": 28
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    }
+  ]
+}

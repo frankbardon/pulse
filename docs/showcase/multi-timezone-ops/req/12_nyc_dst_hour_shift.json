@@ -1,0 +1,186 @@
+{
+  "requests": [
+    {
+      "label": "nyc_hour_share_utc",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "UTC",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "NYC"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_DATE_PART",
+          "field": "delivered_at",
+          "label": "hour_of_day",
+          "params": {
+            "part": "hour"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_DATE_RANGES",
+            "field": "delivered_at",
+            "tz": "America/New_York",
+            "params": {
+              "ranges": [
+                {
+                  "label": "1 EST (Feb 2 - Mar 7)",
+                  "start": "2026-02-02",
+                  "end": "2026-03-07"
+                },
+                {
+                  "label": "2 EDT (Mar 8 - Aug 2)",
+                  "start": "2026-03-08",
+                  "end": "2026-08-02"
+                }
+              ]
+            }
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "hour_of_day",
+            "include": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23"
+            ]
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        },
+        "normalize": "row"
+      }
+    },
+    {
+      "label": "nyc_hour_share_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/New_York",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "NYC"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_DATE_PART",
+          "field": "delivered_at",
+          "label": "hour_of_day",
+          "params": {
+            "part": "hour"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_DATE_RANGES",
+            "field": "delivered_at",
+            "tz": "America/New_York",
+            "params": {
+              "ranges": [
+                {
+                  "label": "1 EST (Feb 2 - Mar 7)",
+                  "start": "2026-02-02",
+                  "end": "2026-03-07"
+                },
+                {
+                  "label": "2 EDT (Mar 8 - Aug 2)",
+                  "start": "2026-03-08",
+                  "end": "2026-08-02"
+                }
+              ]
+            }
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "hour_of_day",
+            "include": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23"
+            ]
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        },
+        "normalize": "row"
+      }
+    }
+  ]
+}

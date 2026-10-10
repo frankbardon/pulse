@@ -1,0 +1,11 @@
+{
+  "label": "weekday_volume_utc",
+  "cohort": {"filename": "deliveries.pulse", "data_dir": "."},
+  "time_zone": "UTC",
+  "crosstab": {
+    "rows":    [{"type": "GROUP_CATEGORY", "field": "warehouse"}],
+    "columns": [{"type": "GROUP_DATE", "field": "delivered_at", "params": {"component": "day_of_week"}}],
+    "cell":    {"type": "AGG_COUNT", "field": "delivery_id", "label": "deliveries"},
+    "margins": {"rows": true, "columns": true, "grand": true}
+  }
+}

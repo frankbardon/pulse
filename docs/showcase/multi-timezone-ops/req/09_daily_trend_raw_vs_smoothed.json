@@ -1,0 +1,274 @@
+{
+  "requests": [
+    {
+      "label": "BLR_daily_raw",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Asia/Kolkata",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "BLR"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "post_tests": [
+        {
+          "type": "TEST_TREND",
+          "field": "on_time_rate",
+          "label": "on_time_trend",
+          "alpha": 0.05,
+          "order_by": [
+            {
+              "field": "delivered_at"
+            }
+          ],
+          "params": {
+            "variant": "mann_kendall"
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    },
+    {
+      "label": "BLR_daily_ma6",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Asia/Kolkata",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "BLR"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "post_tests": [
+        {
+          "type": "TEST_TREND",
+          "field": "on_time_ma6",
+          "label": "on_time_trend",
+          "alpha": 0.05,
+          "order_by": [
+            {
+              "field": "delivered_at"
+            }
+          ],
+          "params": {
+            "variant": "mann_kendall"
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ],
+      "windows": [
+        {
+          "type": "WIN_MOVING_AVG",
+          "field": "on_time_rate",
+          "label": "on_time_ma6",
+          "order_by": [
+            {
+              "field": "delivered_at"
+            }
+          ],
+          "frame": {
+            "mode": "rows",
+            "preceding": 5,
+            "following": 0
+          }
+        }
+      ]
+    },
+    {
+      "label": "LON_daily_raw",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Europe/London",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "LON"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "post_tests": [
+        {
+          "type": "TEST_TREND",
+          "field": "on_time_rate",
+          "label": "on_time_trend",
+          "alpha": 0.05,
+          "order_by": [
+            {
+              "field": "delivered_at"
+            }
+          ],
+          "params": {
+            "variant": "mann_kendall"
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ]
+    },
+    {
+      "label": "LON_daily_ma6",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Europe/London",
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "LON"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "delivered_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "on_time",
+          "label": "on_time_rate"
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        }
+      ],
+      "post_tests": [
+        {
+          "type": "TEST_TREND",
+          "field": "on_time_ma6",
+          "label": "on_time_trend",
+          "alpha": 0.05,
+          "order_by": [
+            {
+              "field": "delivered_at"
+            }
+          ],
+          "params": {
+            "variant": "mann_kendall"
+          }
+        }
+      ],
+      "sort": [
+        {
+          "field": "delivered_at"
+        }
+      ],
+      "windows": [
+        {
+          "type": "WIN_MOVING_AVG",
+          "field": "on_time_rate",
+          "label": "on_time_ma6",
+          "order_by": [
+            {
+              "field": "delivered_at"
+            }
+          ],
+          "frame": {
+            "mode": "rows",
+            "preceding": 5,
+            "following": 0
+          }
+        }
+      ]
+    }
+  ]
+}
