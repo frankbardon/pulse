@@ -1,0 +1,100 @@
+{
+  "generator": "scripts/reference/gen_multivariate.R (via gen_reference.R)",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0",
+    "Matrix": "1.7.5",
+    "psych": "2.6.9",
+    "car": "3.1.5",
+    "ppcor": "1.1",
+    "perturb": "2.10",
+    "corpcor": "1.6.10"
+  },
+  "primitive": "fixtures",
+  "r_function": "datasets::attitude, datasets::mtcars, set.seed() draws",
+  "note": "Every fixture the multivariate goldens reference. csv_md5 pins the committed CSV; the .pulse twin is written from it by internal/tools/refcohorts.",
+  "cases": [
+    {
+      "name": "attitude",
+      "source": "datasets::attitude (R)",
+      "citation": "Chatterjee, S. & Price, B. (1977) Regression Analysis by Example. New York: Wiley.",
+      "seed": 101,
+      "rows": 30,
+      "columns": ["rating", "complaints", "privileges", "learning", "raises", "critical", "advance", "w_freq", "w_prob"],
+      "note": "30 x 7 as shipped with R; w_freq / w_prob are SEEDED weights appended by the generator, not part of the data.",
+      "csv_md5": "b37673a338dd6b5daf77146c59f82355"
+    },
+    {
+      "name": "mtcars",
+      "source": "datasets::mtcars (R)",
+      "citation": "Henderson, H. V. & Velleman, P. F. (1981) Building multiple regression models interactively. Biometrics 37, 391-411.",
+      "seed": 102,
+      "rows": 32,
+      "columns": ["mpg", "cyl", "disp", "hp", "drat", "wt", "qsec", "vs", "am", "gear", "carb", "w_freq", "w_prob"],
+      "note": "32 x 11 as shipped with R (row names dropped); w_freq / w_prob are SEEDED weights appended by the generator, not part of the data.",
+      "csv_md5": "3dba8cbd23c56f05437379ca36dcf1fa"
+    },
+    {
+      "name": "likert_ties",
+      "source": "synthetic",
+      "citation": "none (seeded)",
+      "seed": 201,
+      "rows": 60,
+      "columns": ["q1", "q2", "q3", "q4", "q5", "q6", "w_freq", "w_prob"],
+      "note": "six 1-5 Likert items on one latent factor; heavy ties for rank methods and alpha.",
+      "csv_md5": "f091da7c7c4729d1c3c3ece6e3d16e2f"
+    },
+    {
+      "name": "nulls",
+      "source": "synthetic",
+      "citation": "none (seeded)",
+      "seed": 301,
+      "rows": 48,
+      "columns": ["x1", "x2", "x3", "x4", "w_freq", "w_prob"],
+      "note": "four correlated continuous fields, 6 nulls each at seeded rows: listwise and pairwise differ.",
+      "csv_md5": "3651713ffc63d5d55dc642a0d487ce35"
+    },
+    {
+      "name": "weighted",
+      "source": "synthetic",
+      "citation": "none (seeded)",
+      "seed": 401,
+      "rows": 40,
+      "columns": ["x1", "x2", "x3", "x4", "y", "y_bin", "y_count", "w_freq", "w_prob"],
+      "note": "four predictors, a continuous / binary / count response, integer frequency weights and fractional probability weights, both with zero-weight rows.",
+      "csv_md5": "b7bb72371d7b12298885bd574258afe5"
+    },
+    {
+      "name": "nonpsd_pairwise",
+      "source": "synthetic",
+      "citation": "none (seeded)",
+      "seed": 501,
+      "rows": 60,
+      "columns": ["x", "y", "z"],
+      "note": "three blocks each observing one pair: r(x,y) ~ +1, r(y,z) ~ +1, r(x,z) ~ -1, so the pairwise Pearson matrix has a negative eigenvalue.",
+      "csv_md5": "64b02904a9e8ee5273c8805f8a534ddc"
+    },
+    {
+      "name": "heywood",
+      "source": "synthetic",
+      "citation": "none (seeded)",
+      "seed": 601,
+      "rows": 150,
+      "columns": ["h1", "h2", "h3"],
+      "note": "draws from a correlation matrix whose one-factor solution needs lambda_1^2 = .8*.8/.5 = 1.28 > 1: a Heywood case under minres.",
+      "csv_md5": "5be389798a495b3a58f51abfbf98e6dc"
+    },
+    {
+      "name": "reversed_items",
+      "source": "synthetic",
+      "citation": "none (seeded)",
+      "seed": 701,
+      "rows": 60,
+      "columns": ["r1", "r2", "r3", "r4", "r5", "w_freq", "w_prob"],
+      "note": "five 1-5 Likert items, r2 and r4 reverse-keyed as stored (x' = 1 + 5 - x restores them).",
+      "csv_md5": "83e84517071a1f2614997a7e5a8368fe"
+    }
+  ]
+}
+// golden-hash: b41346eb61b84e5078cff234f7b597e757dddadc76c45ec9a39cf223f80d780b

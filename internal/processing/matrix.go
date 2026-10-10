@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"math"
 	"slices"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -33,7 +34,19 @@ type matrixSlot struct {
 	plan   vectors.Matrix
 	weight *types.WeightSpec
 	state  *BlockCoMoments
-	x      []float64
+	// cols are the folded fields (plan.Columns(): the members, then
+	// any MAT_PARTIAL_CORRELATION control outside them), the co-moment
+	// axis.
+	cols []string
+	x    []float64
+	// rows is a BUFFERED slot's admitted rows (the plan is not
+	// Streamable: a finalizer that needs the whole row set, e.g. a
+	// rank method); nil on a co-moment slot. A buffered slot still
+	// folds its co-moments, which carry the floor counts and the
+	// data-quality warnings, so both kinds render them alike. Rows do
+	// not merge: a buffered spec is never Mergeable, so the merge gate
+	// keeps its request serial.
+	rows *matrixRows
 	// dropped counts the filter-passing rows listwise deletion dropped
 	// (a null member). An integer, summed across partitions at Merge,
 	// so it is worker-invariant like the blocks. Always 0 under
@@ -91,8 +104,11 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	if req == nil || len(req.Matrices) == 0 || !compute.AccumulatesMatrices() {
 		return nil, nil
 	}
+	// Every built-in type the instance offers resolves, streamable or
+	// not: a buffered spec (vectors.Matrix.Streamable false) gets a row
+	// buffer, never an unknown_type refusal.
 	plans, verr := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
-		return t.Streamable() && !exts.isHidden(string(t))
+		return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
 	})
 	if verr != nil {
 		return nil, verr
@@ -113,7 +129,8 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 		if plan.Pairwise {
 			mode = linalg.Pairwise
 		}
-		st, err := NewBlockCoMoments(len(plan.Members.Members), mode)
+		cols := plan.Columns()
+		st, err := NewBlockCoMoments(len(cols), mode)
 		if err != nil {
 			return nil, err
 		}
@@ -121,8 +138,12 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			plan:    plan,
 			weight:  s.weights[i],
 			state:   st,
-			x:       make([]float64, len(plan.Members.Members)),
+			cols:    cols,
+			x:       make([]float64, len(cols)),
 			compute: s.compute,
+		}
+		if !plan.Streamable {
+			slots[i].rows = newMatrixRows(len(cols), plan.Pairwise)
 		}
 		workMatrixAccumulators.Add(1)
 	}
@@ -138,7 +159,7 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 // and adds no mass. The field argument is ignored (BlockMerger shape).
 func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 	null, all := false, true
-	for i, f := range m.plan.Members.Members {
+	for i, f := range m.cols {
 		v, ok := r.NumericValue(f)
 		if !ok {
 			v = math.NaN()
@@ -147,6 +168,11 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 		null = null || isNaN
 		all = all && isNaN
 		m.x[i] = v
+	}
+	if m.plan.HasScale {
+		if err := m.scoreReliability(); err != nil {
+			return err
+		}
 	}
 	if null && !m.plan.Pairwise {
 		m.dropped++
@@ -162,7 +188,34 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 		}
 		w = wv
 	}
+	if m.rows != nil {
+		m.rows.add(m.x, w)
+	}
 	return m.state.Add(r, m.x, w)
+}
+
+// scoreReliability applies MAT_RELIABILITY's declared scale range to
+// the row in m.x: every present member must lie in [scale_min,
+// scale_max] — a value outside it is PROCESSING_CONFIG (never clamped:
+// a reversal of an out-of-range value would be silently wrong) — and
+// each reverse-keyed member is flipped x' = min + max − x before the
+// fold, so the co-moment (and every merge) sees the keyed battery.
+func (m *matrixSlot) scoreReliability() error {
+	lo, hi := m.plan.ScaleMin, m.plan.ScaleMax
+	for i, v := range m.x {
+		if !math.IsNaN(v) && (v < lo || v > hi) {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				"matrix "+m.plan.Name+": item "+m.cols[i]+" holds "+strconv.FormatFloat(v, 'g', -1, 64)+
+					", outside the declared scale range ["+strconv.FormatFloat(lo, 'g', -1, 64)+", "+strconv.FormatFloat(hi, 'g', -1, 64)+"]; fix params.scale_min / scale_max or the data (values are never clamped)",
+				map[string]any{"matrix": m.plan.Name, "field": m.cols[i], "value": v, "scale_min": lo, "scale_max": hi})
+		}
+	}
+	for _, i := range m.plan.Reverse {
+		if v := m.x[i]; !math.IsNaN(v) {
+			m.x[i] = lo + hi - v
+		}
+	}
+	return nil
 }
 
 // Finalize satisfies OnlineAggregator for the BlockMerger opt-in; a
@@ -184,47 +237,77 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 		return types.MatrixResult{}, nil, err
 	}
 	var res types.MatrixResult
+	var op map[string]any
 	if m.compute.MatricesSlot {
-		if res, err = m.render(cm); err != nil {
+		if res, op, err = m.render(cm); err != nil {
 			return types.MatrixResult{}, nil, err
 		}
 	}
 	if !m.compute.Matrices {
 		return res, nil, nil
 	}
-	return res, m.components(cm), nil
+	if !m.compute.MatricesSlot && finalizerComponents[m.plan.Type] {
+		// Components kept, the slot skipped: the operator keys still
+		// need the finalizer (its result parts are all off in the
+		// plan, so none is built).
+		out, ferr := matrixFinalizers[m.plan.Type](&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+		if ferr != nil {
+			return types.MatrixResult{}, nil, ferr
+		}
+		op = out.Operator
+	}
+	c := m.components(cm)
+	if len(op) > 0 {
+		if c.Operator == nil {
+			c.Operator = make(map[string]any, len(op))
+		}
+		for k, v := range op {
+			c.Operator[k] = v
+		}
+	}
+	return res, c, nil
 }
 
-// render is the slot's MatrixResult off the merged state cm.
-func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, error) {
+// render is the slot's MatrixResult off the merged state cm: the
+// operator's finalizer (matrixFinalizers) builds every part, and render
+// assembles them. A finalizer's error — a coded refusal such as
+// PULSE_MATRIX_SINGULAR — is returned as is. A part the run's plan
+// skips is dropped even if a finalizer built it, so the plan, not the
+// operator, decides what is on the wire.
+func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, map[string]any, error) {
 	workMatrixResultBuilds.Add(1)
 	fin, ok := matrixFinalizers[m.plan.Type]
 	if !ok {
-		return types.MatrixResult{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return types.MatrixResult{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
 	}
-	primary := fin(cm, m.plan)
+	out, err := fin(&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+	if err != nil {
+		return types.MatrixResult{}, nil, err
+	}
+	if out.Primary == nil {
+		return types.MatrixResult{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"matrix finalizer returned no primary matrix", map[string]any{"type": string(m.plan.Type)})
+	}
 	res := types.MatrixResult{
 		Name:     m.plan.Name,
 		Type:     m.plan.Type,
-		Primary:  m.values(primary.At),
-		Warnings: m.warnings(cm, primary),
+		Primary:  out.Primary,
+		Warnings: out.Warnings,
 	}
-	if m.compute.MatrixScalars {
+	if m.compute.MatrixScalars && out.Scalars != nil {
 		workMatrixScalarBuilds.Add(1)
-		res.Scalars = map[string]float64{"determinant": determinantSPD(primary)}
+		res.Scalars = out.Scalars
 	}
-	if m.plan.Pairwise && m.compute.MatrixAuxiliary {
+	if m.compute.MatrixAuxiliary && out.Auxiliary != nil {
 		workMatrixAuxiliaryBuilds.Add(1)
-		res.Auxiliary = map[string]*types.MatrixValues{
-			"n": m.values(func(i, j int) float64 { return float64(cm.PairN(i, j)) }),
-		}
+		res.Auxiliary = out.Auxiliary
 	}
-	if m.plan.TopPairs > 0 && m.compute.MatrixVectors {
+	if m.compute.MatrixVectors && out.Vectors != nil {
 		workMatrixVectorBuilds.Add(1)
-		res.Vectors = map[string]any{"top_pairs": topPairs(primary, cm.PairN, m.plan.Members.Members, m.plan.TopPairs)}
+		res.Vectors = out.Vectors
 	}
-	return res, nil
+	return res, out.Operator, nil
 }
 
 // components renders the slot's Response.Components.Matrices entry off
@@ -240,7 +323,7 @@ func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
 	}
 	if m.plan.Pairwise {
 		c.NNull = int(m.allNull)
-		p := len(m.plan.Members.Members)
+		p := len(m.cols)
 		if p > 0 {
 			lo, hi := cm.PairN(0, 0), cm.PairN(0, 0)
 			for i := 0; i < p; i++ {
@@ -269,47 +352,62 @@ func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
 	return c
 }
 
-// matrixFinalizer turns a slot's merged co-moment state into the
-// operator's primary matrix.
-type matrixFinalizer func(cm *linalg.CoMoment, plan vectors.Matrix) *linalg.Sym
-
 // matrixFinalizers is the built-in MAT_* registry: one finalizer per
 // types.AllMatrixTypes() entry (there is no extension MAT_* category).
+// The contract is matrixFinalizer (matrix_finalize.go).
 var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
-	types.MAT_COVARIANCE:  finalizeCovariance,
-	types.MAT_CORRELATION: finalizeCorrelation,
+	types.MAT_COVARIANCE:          finalizeCovariance,
+	types.MAT_CORRELATION:         finalizeCorrelation,
+	types.MAT_PARTIAL_CORRELATION: finalizePartialCorrelation,
+	types.MAT_RELIABILITY:         finalizeReliability,
+	types.MAT_PCA:                 finalizePCA,
+	types.MAT_COLLINEARITY:        finalizeCollinearity,
 }
 
 // finalizeCovariance is MAT_COVARIANCE: M2 / (W − ddof), NaN where
-// W − ddof ≤ 0 or a member has no mass.
-func finalizeCovariance(cm *linalg.CoMoment, plan vectors.Matrix) *linalg.Sym {
-	return cm.Cov(plan.DDOF)
+// W − ddof ≤ 0 or a member has no mass, with the shared co-moment
+// outputs (coMomentOutput).
+func finalizeCovariance(in *matrixFinalizeInput) (matrixOutput, error) {
+	return in.coMomentOutput(in.CM.Cov(in.Plan().DDOF)), nil
 }
 
-// finalizeCorrelation is MAT_CORRELATION (Pearson): C_ij / √(M2_ii·M2_jj)
-// clamped to [−1, 1] — CoMoment.Corr, whose one-root form is
-// TEST_PEARSON_R's arithmetic. A member with zero spread (constant, a
-// single massed row, no rows) has no defined correlation: its whole
-// row and column, diagonal included, are NaN.
-func finalizeCorrelation(cm *linalg.CoMoment, _ vectors.Matrix) *linalg.Sym {
-	return cm.Corr()
+// finalizeCorrelation is MAT_CORRELATION. Pearson (the default):
+// C_ij / √(M2_ii·M2_jj) clamped to [−1, 1] — CoMoment.Corr, whose
+// one-root form is TEST_PEARSON_R's arithmetic. A member with zero
+// spread (constant, a single massed row, no rows) has no defined
+// correlation: its whole row and column, diagonal included, are NaN.
+// A rank method (params.method "spearman" / "kendall") reads the
+// buffered rows instead (rankCorrelation, matrix_rank.go); every other
+// output — warnings, determinant, auxiliary.n, top_pairs — is the
+// shared co-moment set over that primary.
+func finalizeCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
+	if vectors.IsRankMethod(in.Plan().Method) {
+		r, err := rankCorrelation(in)
+		if err != nil {
+			return matrixOutput{}, err
+		}
+		return in.coMomentOutput(r), nil
+	}
+	return in.coMomentOutput(in.CM.Corr()), nil
 }
 
-// values renders a square symmetric matrix over the slot's members in
-// its encoding: full rows, or the upper triangle (row r from column r).
-// at reads cell (r, c).
+// values renders a square symmetric matrix over the slot's OUTPUT
+// axis (plan.OutputMembers: every member, or a
+// MAT_PARTIAL_CORRELATION's non-control members) in its encoding: full
+// rows, or the upper triangle (row r from column r). at reads cell
+// (r, c) in output-axis coordinates.
 func (m *matrixSlot) values(at func(r, c int) float64) *types.MatrixValues {
-	members := m.plan.Members.Members
+	members, labels := m.plan.OutputMembers()
 	p := len(members)
 	out := &types.MatrixValues{
 		Kind:       types.MatrixKindSquareSymmetric,
 		Encoding:   m.plan.Encoding,
-		RowKeys:    append([]string(nil), members...),
+		RowKeys:    members,
 		ColumnKeys: append([]string(nil), members...),
 		Values:     make([][]float64, p),
 	}
 	if m.plan.ExplicitLabels {
-		out.Labels = append([]string(nil), m.plan.Members.Labels...)
+		out.Labels = labels
 	}
 	for r := 0; r < p; r++ {
 		start := 0

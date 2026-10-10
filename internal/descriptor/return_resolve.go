@@ -70,6 +70,7 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 		"regressions[*].deviance", "regressions[*].null_deviance", "regressions[*].pseudo_r2",
 		"regressions[*].n_obs", "regressions[*].sum_weights", "regressions[*].n_eff",
 		"regressions[*].residual_std_err", "regressions[*].converged_iters", "regressions[*].selected_features",
+		"regressions[*].vcov", "regressions[*].correlation",
 		"overlays",
 	},
 	// minimal: the primary result of every slot; no metadata, no

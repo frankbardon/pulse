@@ -17,18 +17,26 @@ import (
 // is read.
 //
 // A diagonal pivot ≤ 0 is PULSE_MATRIX_SINGULAR (details "pivot", the
-// failing row). A NaN pivot is not ≤ 0 and propagates into L, exactly as
-// the comparison reads. A nil s is PULSE_MATRIX_SHAPE_MISMATCH; an empty
-// s factors to an empty L.
+// failing row, plus the singular diagnostics — "rank",
+// "condition_number" and, where identifiable, "dependent_indices"; see
+// singularDiagnostics). A NaN pivot is not ≤ 0 and propagates into L,
+// exactly as the comparison reads. A nil s is
+// PULSE_MATRIX_SHAPE_MISMATCH; an empty s factors to an empty L.
+//
+// The diagnostics run only on the failure path, through the
+// gonum-backed SymEigen; they never touch L, so the factor's bit
+// contract is unchanged.
 func Cholesky(s *Sym) (*Matrix, error) {
 	if s == nil {
 		return nil, nilOperand("symmetric")
 	}
 	L, pivot := cholesky(s)
 	if L == nil {
+		details := map[string]any{"pivot": pivot}
+		singularDiagnostics(s, details)
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_MATRIX_SINGULAR,
 			"linalg: matrix is not positive definite (non-positive Cholesky pivot)",
-			map[string]any{"pivot": pivot})
+			details)
 	}
 	return L, nil
 }

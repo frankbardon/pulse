@@ -25,10 +25,36 @@ func all(t *testing.T, inst *descx.InstanceSnapshot, intent string) *descriptor.
 }
 
 // noDraftIntents are the intents that must answer with routes, never
-// drafts: the non-analytic three and the two no operator serves yet.
+// drafts: the non-analytic three and the one no operator serves yet.
 var noDraftIntents = map[string]bool{
 	descx.IntentPrepare: true, descx.IntentSimulate: true, descx.IntentLookup: true,
-	descx.IntentMeasureConstruct: true, descx.IntentFlows: true,
+	descx.IntentFlows: true,
+}
+
+// TestRecommend_CronbachAlphaReachesReliability: a "cronbach's alpha"
+// question resolves through the KnownAs synonym tier to MAT_RELIABILITY,
+// whose intent is measure_construct, and recommending that intent
+// drafts MAT_RELIABILITY (no longer a routes-only intent).
+func TestRecommend_CronbachAlphaReachesReliability(t *testing.T) {
+	op, ok := descx.BuiltinKnownAs()[descx.FoldAlias("Cronbach's Alpha")]
+	if !ok || op != "MAT_RELIABILITY" {
+		t.Fatalf("alias \"cronbach's alpha\" resolves to %q (%v), want MAT_RELIABILITY", op, ok)
+	}
+	p, _ := descx.PurposeOf(op)
+	if !slices.Contains(p.Intents, descx.IntentMeasureConstruct) {
+		t.Fatalf("MAT_RELIABILITY intents %v lack measure_construct", p.Intents)
+	}
+	res := all(t, nil, descx.IntentMeasureConstruct)
+	found := false
+	for _, r := range res.Recommendations {
+		found = found || r.Operator == "MAT_RELIABILITY"
+	}
+	if !found || len(res.RoutesTo) != 0 {
+		t.Errorf("measure_construct: recommendations %+v, routes %+v; want a MAT_RELIABILITY draft and no routes", res.Recommendations, res.RoutesTo)
+	}
+	if rs := Routes(descx.IntentMeasureConstruct); len(rs) != 1 || rs[0].Use != "MAT_RELIABILITY" {
+		t.Errorf("measure_construct fallback route = %+v, want MAT_RELIABILITY", rs)
+	}
 }
 
 func TestRecommend_UnboundEveryIntent(t *testing.T) {

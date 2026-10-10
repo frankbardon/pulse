@@ -14,7 +14,7 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 	// Vector members: integer and float fields, plus packed_bool under
 	// the vector's coerce "binary" (internal/vectors.MemberTypeAllowed).
 	memberTypes := []string{"f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
-	// missing: the missing-data knobs both operators take
+	// missing: the missing-data knobs every operator takes
 	// (internal/vectors.decodeMissing).
 	missing := []descriptor.Param{
 		{Name: "missing", Type: "enum", Required: false, Default: vectors.MissingListwise, EnumValues: vectors.MissingModes(), Description: "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N)."},
@@ -23,9 +23,11 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 	return []descriptor.MatrixMeta{
 		{
 			Name:         string(types.MAT_CORRELATION),
-			Description:  "Pearson correlation matrix of a vector's members (listwise or pairwise), r clamped to [-1, 1]; a zero-spread member's row and column are null. Weighted under frequency and probability weights. No p-values.",
+			Description:  "Correlation matrix of a vector's members (listwise or pairwise): Pearson r by default, or Spearman rho / Kendall tau-b under params.method; a zero-spread member's row and column are null. Pearson is weighted under frequency and probability weights, a rank method under frequency weights only. No p-values.",
 			AcceptsTypes: memberTypes,
-			Params: append(append([]descriptor.Param(nil), missing...),
+			Params: append(append([]descriptor.Param{
+				{Name: "method", Type: "enum", Required: false, Default: vectors.CorrelationPearson, EnumValues: vectors.CorrelationMethods(), Description: "pearson (r over the co-moments; streamable, mergeable); spearman (rho, r on mid-ranks) or kendall (tau-b): each cell equals TEST_SPEARMAN_R / TEST_KENDALL_TAU over the pair's rows (pairwise re-ranks per pair); buffered and not mergeable, so the request runs serially; frequency weights only (a probability weight is PULSE_WEIGHT_UNSUPPORTED)."},
+			}, missing...),
 				descriptor.Param{Name: "summary", Type: "object", Required: false, Description: "{\"top_pairs\": k}, k a positive integer: list the k off-diagonal pairs with the largest |r| as vectors.top_pairs [{row, col, r, n}], ties in axis order; undefined pairs are skipped and k past the pair count lists every pair."},
 			),
 			OutputKeys: descriptor.MatrixOutputKeys{
@@ -36,6 +38,82 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			},
 			Streamable:      types.MAT_CORRELATION.Streamable(),
 			Mergeable:       types.MAT_CORRELATION.Mergeable(),
+			ComponentSchema: matrixSchema(),
+		},
+		{
+			Name:         string(types.MAT_PARTIAL_CORRELATION),
+			Description:  "Partial correlation matrix: each pair's Pearson correlation with other fields held fixed, from the precision matrix of the folded columns' correlation (listwise or pairwise). params.control \"all\" (default) controls each pair for every other member; a field list controls each pair for exactly those fields and drops any member it names from the output. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\", a singular one is PULSE_MATRIX_SINGULAR. Weighted under frequency and probability weights. No p-values.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "control", Type: "list", Required: false, Default: vectors.ControlAll, Description: "\"all\" (each pair controls for every other member: -P_ij/sqrt(P_ii*P_jj) of the precision matrix P) or a list of numeric field names: each output pair controls for exactly those fields. A listed member leaves the output axis; a listed field outside the members joins the co-moment and the missing-data mode."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: replace a non-PSD input correlation by its nearest correlation matrix (Higham alternating projections with Dykstra's correction, Matrix::nearPD corr = TRUE; at most 100 iterations, convergence 1e-7) and warn PULSE_MATRIX_NOT_PSD with frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD)."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "partial_correlation",
+				Auxiliary: []string{"n"},
+			},
+			Streamable:      types.MAT_PARTIAL_CORRELATION.Streamable(),
+			Mergeable:       types.MAT_PARTIAL_CORRELATION.Mergeable(),
+			ComponentSchema: matrixSchema(),
+		},
+		{
+			Name:         string(types.MAT_RELIABILITY),
+			Description:  "Scale reliability of a battery of items (listwise or pairwise): Cronbach's alpha and standardized alpha, McDonald's omega from a one-factor minres fit, the mean inter-item correlation, and per item the corrected item-total r, alpha if deleted, mean and sd; the primary is the inter-item correlation matrix. params.reverse flips reverse-keyed items x' = scale_min + scale_max - x before the fold. At least 2 items; omega needs 3 and is null with a warning on 2 items, on a Heywood fit, or on a non-PSD (pairwise) input without params.repair. Weighted under frequency and probability weights. No p-values.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "reverse", Type: "list", Required: false, Description: "Items (members of the matrix) that are reverse-keyed: each value is replaced by scale_min + scale_max - x before the fold. Requires scale_min and scale_max (PROCESSING_CONFIG otherwise)."},
+				{Name: "scale_min", Type: "float", Required: false, Description: "The battery's lowest possible response, with scale_max (both or neither; required with reverse). Every item value must lie in [scale_min, scale_max]: one outside is PROCESSING_CONFIG, never clamped, and the range is never inferred from the data."},
+				{Name: "scale_max", Type: "float", Required: false, Description: "The battery's highest possible response (see scale_min)."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: fit omega on the nearest correlation matrix when the (pairwise) inter-item correlation is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: omega is null with that warning. Alpha never needs it."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "inter_item_correlation",
+				Auxiliary: []string{"n"},
+				Vectors:   []string{"alpha_if_deleted", "item_mean", "item_sd", "item_total_r"},
+				Scalars:   []string{"alpha", "alpha_standardized", "mean_inter_item_r", "omega"},
+			},
+			Streamable: types.MAT_RELIABILITY.Streamable(),
+			Mergeable:  types.MAT_RELIABILITY.Mergeable(),
+			ComponentSchema: matrixSchema(
+				descriptor.ComponentKey{Name: "iterations", Type: "int", Optional: true, Description: "Coordinate sweeps the one-factor minres fit behind omega ran (cap 1000); absent when no fit ran (2 items, an undefined or unrepaired non-PSD input)."},
+				descriptor.ComponentKey{Name: "converged", Type: "bool", Optional: true, Description: "Whether the minres fit met its tolerance (1e-12) within the cap; false comes with PULSE_MATRIX_NOT_CONVERGED. Absent when no fit ran."},
+			),
+		},
+		{
+			Name:         string(types.MAT_PCA),
+			Description:  "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights. No rotation.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "on", Type: "enum", Required: false, Default: vectors.PCAOnCorrelation, EnumValues: vectors.PCAOnValues(), Description: "correlation: analyse the correlation matrix (every member on one scale); covariance: the covariance matrix (members in their own units, so a large-spread member dominates; params.components is then required)."},
+				{Name: "components", Type: "any", Required: false, Default: vectors.PCAComponentsKaiser, Description: "How many components to keep: a positive integer k (at most the member count); \"kaiser\" (every component whose eigenvalue exceeds 1; the default on a correlation, refused on a covariance); or {\"variance\": share}, the fewest leading components whose cumulative explained share reaches share (0 < share <= 1). Required on a covariance. Every eigenvalue is reported either way."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: decompose the nearest correlation matrix (scaled back to the covariance's variances on a covariance) when the (pairwise) input is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD)."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "loadings",
+				Auxiliary: []string{"eigenvectors", "n"},
+				Vectors:   []string{"communalities", "cumulative", "eigenvalues", "explained_variance", "kmo_msa"},
+				Scalars:   []string{"bartlett_chisq", "bartlett_df", "bartlett_p", "components_retained", "kmo"},
+			},
+			Streamable:      types.MAT_PCA.Streamable(),
+			Mergeable:       types.MAT_PCA.Mergeable(),
+			ComponentSchema: matrixSchema(),
+		},
+		{
+			Name:         string(types.MAT_COLLINEARITY),
+			Description:  "Collinearity check of a vector's members as regression predictors (listwise or pairwise; no response): each member's variance inflation factor VIF = diag(R^-1) and tolerance 1/VIF (car::vif), and Belsley's condition indices and variance-decomposition proportions (perturb::colldiag) on the scaled, uncentered predictors with an intercept (params.center true: the centered predictors). The primary is the predictors' correlation matrix R; auxiliary.variance_decomposition is rectangular (a row per variable, \"(intercept)\" first when uncentered; a column per dimension D1..Dq in condition-index order); scalars carry the largest condition index (condition_number) and the largest VIF (max_vif). A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\"; a singular R is PULSE_MATRIX_SINGULAR (dependent_fields). Weighted under frequency and probability weights. No p-values, no banding.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "center", Type: "bool", Required: false, Default: false, Description: "false: Belsley's diagnostics on the scaled, uncentered predictors with an intercept column (Belsley's recommendation; shows collinearity with the intercept), rebuilt from the co-moment as W(Sigma + mu mu^T); true: on the scaled, centered predictors (their correlation), no intercept. VIF and tolerance do not depend on it."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: read every figure off the nearest correlation matrix when the (pairwise) correlation is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD)."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "correlation",
+				Auxiliary: []string{"n", "variance_decomposition"},
+				Vectors:   []string{"condition_indices", "tolerance", "vif"},
+				Scalars:   []string{"condition_number", "max_vif"},
+			},
+			Streamable:      types.MAT_COLLINEARITY.Streamable(),
+			Mergeable:       types.MAT_COLLINEARITY.Mergeable(),
 			ComponentSchema: matrixSchema(),
 		},
 		{
@@ -147,6 +225,7 @@ func matrixCapability() descriptor.MatrixCapability {
 			"Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
 			"A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
 			"A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
+			"A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
 			"A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
 		},
 	}

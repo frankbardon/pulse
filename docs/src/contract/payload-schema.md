@@ -37,7 +37,8 @@ with a feature profile gets a narrower document:
   request root (a hidden `vectors` takes `VectorSpec` and `VectorCoerce`
   with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
   and `ResponseComponents.matrices` slots and `MatrixResult` /
-  `MatrixValues` / `MatrixComponents` with it); without
+  `MatrixComponents` with it — `MatrixValues` stays, shared with the
+  regression `vcov` / `correlation`); without
   `capability:weighting` no per-slot `weight` is a property either (so
   `SlotWeight` and `WeightSpec` are absent), and without
   `capability:multiplicity` no `multiplicity` block is a property of any
@@ -323,11 +324,16 @@ Predict echoes the resolved members as `data.resolved_vectors`
 scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
 `type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
-`MAT_CORRELATION`);
-`encoding` is `full` (default) or `upper`. Every matrix is a dedicated
-`MatrixValues` `{kind, encoding, row_keys, column_keys, labels?,
-values}` — not the crosstab `MatrixPayload` — whose `values` rows hold
-`p` cells (`full`) or `p − r` cells from the diagonal (`upper`).
+`MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`,
+`MAT_COLLINEARITY`, `MAT_RELIABILITY`); `encoding` is `full` (default) or `upper`. Every
+matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
+column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
+whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
+diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
+(`MAT_PCA`'s p × k loadings and eigenvectors: `row_keys` the members,
+`column_keys` `PC1` … `PCk`, k possibly 0, always written `full`;
+`MAT_COLLINEARITY`'s variance decomposition: a row per variable —
+`(intercept)` first unless `center` — and `column_keys` `D1` … `Dq`).
 Undefined cells and scalars (no mass, too few rows, a determinant of a
 matrix that is not positive definite) are `null`, keys kept. What the
 schema cannot say, predict and the runtime enforce identically before
@@ -336,20 +342,77 @@ any record is read: exactly one of `vector` / `fields`; a `vector` a
 follow the vector rules; result names are unique; `params` are the
 operator's own (`MAT_COVARIANCE`: `ddof` 0 or 1; both: `missing`
 `listwise` (default) or `pairwise`, `max_drop_share` in [0, 1],
-listwise only; `MAT_CORRELATION` only: `summary` `{top_pairs: k}`, k
-a positive integer). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+listwise only; `MAT_CORRELATION` only: `method` `pearson` (default),
+`spearman` or `kendall` — a rank method takes frequency weights only —
+and `summary` `{top_pairs: k}`, k a positive integer;
+`MAT_PARTIAL_CORRELATION` only: `control` `"all"` (default) or a list of
+numeric fields — a listed member leaves the output axis, so `row_keys`
+are the non-control members — and `repair` `"nearest"`;
+`MAT_RELIABILITY` only: `reverse` (item names), `scale_min` /
+`scale_max` (required with `reverse`; a missing range or an out-of-range
+value is `PROCESSING_CONFIG`) and `repair` `"nearest"`; at least 2
+items; `MAT_PCA` only: `on` `correlation` (default) or `covariance`,
+`components` an integer k ≤ p, `"kaiser"` (default on a correlation,
+refused on a covariance) or `{"variance": share}` — required on a
+covariance — and `repair` `"nearest"`; `MAT_COLLINEARITY` only:
+`center` (boolean, default `false`: Belsley uncentered with the
+intercept) and `repair` `"nearest"`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
-ties in axis order, undefined pairs skipped, `n` the pair's row count.
+ties in axis order, undefined pairs skipped, `n` the pair's row count;
+`MAT_RELIABILITY` adds `vectors.item_total_r` / `alpha_if_deleted` /
+`item_mean` / `item_sd` (one number per item, axis order) and `scalars`
+`alpha`, `alpha_standardized`, `mean_inter_item_r`, `omega`;
+`MAT_PCA` adds `auxiliary.eigenvectors`, `vectors.eigenvalues` /
+`explained_variance` / `cumulative` / `communalities` / `kmo_msa` (one
+number per member or component) and `scalars` `kmo`, `bartlett_chisq`,
+`bartlett_df`, `bartlett_p`, `components_retained` (the two integer
+scalars are never rounded by `return.precision`); `MAT_COLLINEARITY`
+adds `auxiliary.variance_decomposition` (rows sum to 1),
+`vectors.vif` / `tolerance` (one per member) and `condition_indices`
+(one per dimension, ascending) and `scalars` `condition_number`,
+`max_vif`.
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
-`_LISTWISE_HEAVY_DROP`, `_NOT_PSD`). `components.matrices` carries one
+`_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on
+`MAT_PARTIAL_CORRELATION` without `repair: "nearest"`; on
+`MAT_RELIABILITY` a warning that nulls `omega`, beside `_HEYWOOD` and
+`_NOT_IDENTIFIED`; `MAT_PCA` fatal like the partial correlation, plus
+`_PAIRWISE_N_STAR` and a `_SINGULAR` warning that nulls KMO and
+Bartlett; `MAT_COLLINEARITY` fatal like the partial correlation, and a
+singular correlation is a fatal `_SINGULAR` naming `dependent_fields`). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,
 group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
 sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and
-weighted keys only when they apply). Contract:
+weighted keys only when they apply; `MAT_RELIABILITY`'s `operator`
+carries the omega fit's `iterations` / `converged`). Contract:
 `.claude/reference/matrix-and-vectors.md`.
+
+## Regression coefficient covariance
+
+`RegressionSpec` takes an additive `vcov` boolean (default `false`) and
+`RegressionResult` two additive `omitempty` `MatrixValues` slots,
+`vcov` and `correlation`, present only when the spec set `vcov: true`
+(`format_version` stays `"1.1"`; a fit without it is byte-identical).
+Both are `square_symmetric`, `full`, with `row_keys` = `column_keys` =
+`(intercept)` then the predictors in spec order. `vcov` is the
+coefficient covariance — `REG_OLS` σ̂²·(XᵀX)⁻¹ (ridge: the sandwich),
+`REG_GLM` (XᵀWX)⁻¹ at the converged working weights (dispersion 1),
+whose square-rooted diagonal is exactly `std_errors`; `REG_BAYES_LINEAR`
+the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ (`null` cells when
+a_n ≤ 1), whose diagonal is `std_errors`²·a_n/(a_n−1). A weighted fit
+reads the inference size N* (Σw frequency, n_eff probability), as its
+standard errors do. `correlation` is `vcov` scaled to a unit diagonal
+(R's `cov2cor`); an entry with a zero or undefined variance is `null`.
+Under `resample` it is the replicate covariance (jackknife
+(n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ, bootstrap the B−1 sample covariance of the
+successful replicates), under `selection` the final refit's covariance
+keyed `(intercept)` + the selected predictors — so its diagonal is
+`std_errors`² there too. Lasso / elastic net refuse `vcov`, with or
+without a modifier, with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
+(`details.reason` `penalty`) in predict and at runtime alike. Both slots are in the `standard` preset (not
+`minimal`) and every float in them is rounded by `return.precision`.
 
 ## Per-group aggregation components
 
@@ -452,7 +515,7 @@ emitted. Every listed path must resolve against this schema
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `vcov` / `correlation` when asked for) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 

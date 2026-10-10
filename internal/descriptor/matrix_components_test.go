@@ -26,6 +26,13 @@ func TestManifestMatrixComponentSchemasComplete(t *testing.T) {
 	want := map[types.MatrixType][]string{
 		types.MAT_COVARIANCE:  {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid", "ddof"},
 		types.MAT_CORRELATION: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
+		// The floor counts the folded columns (members and outside
+		// controls).
+		types.MAT_PARTIAL_CORRELATION: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
+		types.MAT_PCA:                 {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
+		types.MAT_COLLINEARITY:        {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
+		// The minres fit behind omega: optional, absent when no fit ran.
+		types.MAT_RELIABILITY: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid", "iterations", "converged"},
 	}
 	if len(want) != len(types.AllMatrixTypes()) {
 		t.Fatalf("table covers %d matrix types, registry has %d", len(want), len(types.AllMatrixTypes()))

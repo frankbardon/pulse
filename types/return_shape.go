@@ -405,6 +405,10 @@ type planEncoder struct {
 var precisionExempt = []returnplan.Path{
 	// The pairwise N beside a matrix: integer counts in a MatrixValues.
 	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("auxiliary"), returnplan.Key("n")}},
+	// MAT_PCA's integer scalars: Bartlett's degrees of freedom and the
+	// number of components kept.
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("bartlett_df")}},
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("components_retained")}},
 }
 
 // marshalPlanned encodes v (the response root) under p.

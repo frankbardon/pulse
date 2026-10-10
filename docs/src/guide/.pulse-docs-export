@@ -45,6 +45,7 @@ skills/join-design.md
 skills/label-display.md
 skills/matrix-results.md
 skills/multiplicity-correction.md
+skills/multivariate-design.md
 skills/op-agg-average.md
 skills/op-agg-ci-lower.md
 skills/op-agg-ci-upper.md
@@ -116,8 +117,12 @@ skills/op-group-range.md
 skills/op-group-rounded.md
 skills/op-group-set-per-element.md
 skills/op-group-set-value.md
+skills/op-mat-collinearity.md
 skills/op-mat-correlation.md
 skills/op-mat-covariance.md
+skills/op-mat-partial-correlation.md
+skills/op-mat-pca.md
+skills/op-mat-reliability.md
 skills/op-overlay-chisq-col.md
 skills/op-overlay-chisq-matrix.md
 skills/op-overlay-chisq-row.md
@@ -218,6 +223,7 @@ skills/overlay-system.md
 skills/pairwise-n-sources.md
 skills/predict-advisories.md
 skills/process-chain.md
+skills/regression-inference.md
 skills/regression-modeling.md
 skills/request-envelope.md
 skills/request-templating.md

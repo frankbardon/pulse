@@ -110,15 +110,21 @@ tzdata:
 
 # reference regenerates the R oracle goldens for the shared statistical
 # primitives (Student t, chi-square, F, normal, Kolmogorov, studentized
-# range) into $(REFERENCE_DIR), then appends the `// golden-hash:`
-# footer TestGoldensNotHandEdited checks. Needs Rscript + jsonlite
-# (`Rscript -e 'install.packages("jsonlite")'`). Manual target: CI never
-# runs R, the goldens are committed. Consumed by
-# internal/processing/reference_oracle_test.go and
-# internal/statdist/reference_oracle_test.go.
+# range) and the multivariate matrix outputs (mv_*.json, written by
+# scripts/reference/gen_multivariate.R) into $(REFERENCE_DIR), writes
+# the fixture CSVs under $(REFERENCE_DIR)/fixtures and their .pulse
+# twins (internal/tools/refcohorts), then appends the `// golden-hash:`
+# footer TestGoldensNotHandEdited checks. Needs Rscript + jsonlite and
+# the pinned psych / car / ppcor / perturb / corpcor / Matrix (versions
+# and install line in gen_multivariate.R's header). Manual target: CI
+# never runs R, the goldens are committed. Consumed by
+# internal/processing/reference_oracle_test.go,
+# internal/statdist/reference_oracle_test.go and the matrix-operator
+# tests; internal/tools/refcohorts tests pin the fixtures.
 REFERENCE_DIR=internal/processing/testdata/reference
 reference:
 	Rscript scripts/reference/gen_reference.R $(REFERENCE_DIR)
+	go run ./internal/tools/refcohorts -dir $(REFERENCE_DIR)/fixtures
 	@for f in $(REFERENCE_DIR)/*.json; do \
 		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
 		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \

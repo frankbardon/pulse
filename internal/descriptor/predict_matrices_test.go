@@ -14,9 +14,9 @@ import (
 )
 
 // TestPredict_Matrices: predict reports each matrix's shape, axis,
-// labels, missing mode, encoding, accumulator estimate, streamability
-// and pairwise PSD risk, in request order, off the runtime's own
-// resolver.
+// labels, missing mode, encoding, accumulator estimate, streamability,
+// mergeability, a buffered spec's row store and pairwise PSD risk, in
+// request order, off the runtime's own resolver.
 func TestPredict_Matrices(t *testing.T) {
 	pairwise := json.RawMessage(`{"missing": "pairwise"}`)
 	req := &types.Request{
@@ -26,11 +26,23 @@ func TestPredict_Matrices(t *testing.T) {
 			{Name: "rp", Type: types.MAT_CORRELATION, Vector: "v", Params: pairwise, Encoding: types.MatrixEncodingUpper},
 			{Name: "r2", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: pairwise},
 			{Name: "c2", Type: types.MAT_COVARIANCE, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+			{Name: "rho", Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"method": "spearman"}`)},
+			{Name: "tau", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"method": "kendall", "missing": "pairwise"}`)},
+			{Name: "pear", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"method": "pearson"}`)},
+			{Name: "pv", Type: types.MAT_PARTIAL_CORRELATION, Vector: "v", Params: json.RawMessage(`{"control": ["q_1"]}`)},
+			{Name: "pc", Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_2", "q_3"}, Params: json.RawMessage(`{"control": ["q_1"], "missing": "pairwise"}`)},
+			{Name: "rel", Type: types.MAT_RELIABILITY, Vector: "v", Params: json.RawMessage(`{"reverse": ["q_1"], "scale_min": 0, "scale_max": 5, "missing": "pairwise"}`)},
+			{Name: "rel2", Type: types.MAT_RELIABILITY, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+			{Name: "pca", Type: types.MAT_PCA, Vector: "v", Params: json.RawMessage(`{"components": 2, "missing": "pairwise"}`)},
+			{Name: "pcak", Type: types.MAT_PCA, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+			{Name: "pcac", Type: types.MAT_PCA, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"on": "covariance", "components": {"variance": 0.9}, "missing": "pairwise"}`)},
+			{Name: "coll", Type: types.MAT_COLLINEARITY, Vector: "v", Params: json.RawMessage(`{"missing": "pairwise"}`)},
+			{Name: "coll2", Type: types.MAT_COLLINEARITY, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"center": true, "missing": "pairwise"}`)},
 		},
 	}
 	env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
 	if len(env.Errors) != 0 {
-		t.Fatalf("unexpected errors: %v", env.Errors)
+		t.Fatalf("unexpected errors: %+v", *env.Errors[0])
 	}
 	got := env.Data.(*descriptor.PredictResult).Matrices
 	want := []descriptor.MatrixPredict{
@@ -46,12 +58,62 @@ func TestPredict_Matrices(t *testing.T) {
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
 		{Name: "c2", Type: types.MAT_COVARIANCE, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
+		// A rank method is buffered and not mergeable, and keeps its
+		// admitted rows: 8·(p + 1) bytes per record.
+		{Name: "rho", Type: types.MAT_CORRELATION, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "listwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 8*(3+6), RowBufferBytes: i64(matrixFixtureRecords * 8 * 4)},
+		{Name: "tau", Type: types.MAT_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, RowBufferBytes: i64(matrixFixtureRecords * 8 * 3)},
+		// An explicit "pearson" is the default: streamable, mergeable.
+		{Name: "pear", Type: types.MAT_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "listwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 8*(2+3), Streamable: true},
+		// A partial correlation's axis drops a member control (q_1) and
+		// its label; an outside control (q_1 beside inline q_2, q_3)
+		// joins the fold, so the state and the PSD risk count three
+		// columns on a 2 × 2 result.
+		{Name: "pv", Type: types.MAT_PARTIAL_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_2", "q_3"},
+			Labels: []string{"Two", "Three"}, Missing: "listwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 8*(3+6), Streamable: true},
+		{Name: "pc", Type: types.MAT_PARTIAL_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_2", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		// Reliability reverses in the fold, so it stays streamable and
+		// mergeable; omega's decomposition carries the PSD risk at p ≥ 3
+		// only (a 2-item battery has no omega and an always-PSD r).
+		{Name: "rel", Type: types.MAT_RELIABILITY, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		{Name: "rel2", Type: types.MAT_RELIABILITY, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+		// PCA's primary is the p × k loadings: [p, k] for an integer k,
+		// the [p, p] bound when kaiser or a share picks k from the data.
+		// Its PSD risk follows the analysed matrix: a 2 × 2 pairwise
+		// correlation is always PSD, a 2 × 2 pairwise covariance need not be.
+		{Name: "pca", Type: types.MAT_PCA, Shape: [2]int{3, 2}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		{Name: "pcak", Type: types.MAT_PCA, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+		{Name: "pcac", Type: types.MAT_PCA, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
+		// Collinearity's primary is the predictors' correlation [p, p];
+		// its PSD risk is the correlation rule (p >= 3).
+		{Name: "coll", Type: types.MAT_COLLINEARITY, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		{Name: "coll2", Type: types.MAT_COLLINEARITY, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
 	}
 	// Ungrouped: one bucket, p² cells, one accumulator per merge block.
 	for i := range want {
 		p := int64(want[i].Shape[0])
 		want[i].BucketBasis = "ungrouped"
-		want[i].EstimatedBuckets, want[i].EstimatedCells, want[i].EstimatedBytes = i64(1), i64(p*p), i64(matrixFixtureBlocks*want[i].AccumulatorBytes)
+		bytes := matrixFixtureBlocks * want[i].AccumulatorBytes
+		if rb := want[i].RowBufferBytes; rb != nil {
+			bytes += *rb
+		}
+		want[i].EstimatedBuckets, want[i].EstimatedCells, want[i].EstimatedBytes = i64(1), i64(p*p), i64(bytes)
+		want[i].Mergeable = want[i].Streamable
 	}
 	if !reflect.DeepEqual(got, want) {
 		g, _ := json.Marshal(got)
@@ -102,7 +164,7 @@ func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
 		t.Helper()
 		env := predictFromBytes(data, req(), nil)
 		if len(env.Errors) != 0 {
-			t.Fatalf("unexpected errors: %v", env.Errors)
+			t.Fatalf("unexpected errors: %+v", *env.Errors[0])
 		}
 		ms := env.Data.(*descriptor.PredictResult).Matrices
 		if len(ms) != 1 {
@@ -170,7 +232,7 @@ func TestPredict_MatrixBucketEstimate(t *testing.T) {
 			req := &types.Request{Groups: c.groups, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}, Matrices: specs}
 			env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
 			if len(env.Errors) != 0 {
-				t.Fatalf("unexpected errors: %v", env.Errors)
+				t.Fatalf("unexpected errors: %+v", *env.Errors[0])
 			}
 			got := env.Data.(*descriptor.PredictResult).Matrices
 			if len(got) != len(specs) {

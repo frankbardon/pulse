@@ -113,6 +113,18 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			)
 		}
 
+		// vcov: true needs a coefficient covariance: refused on lasso /
+		// elastic net (under a Resample / Selection modifier too) — the
+		// runtime's regression.validateVcov rule, mirrored here (predict
+		// cannot import the engine).
+		if reason, value := vcovRefusal(reg); reason != "" {
+			env.AddError(
+				string(errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED),
+				string(reg.Type)+" with "+reason+"="+value+" has no coefficient covariance; drop vcov or fit without "+reason,
+				map[string]any{"reason": reason, reason: value, "type": string(reg.Type)},
+			)
+		}
+
 		// L1-penalized OLS fits (Penalty=="l1" or "elasticnet") produce
 		// analytical standard errors only as a coarse plug-in over the
 		// data-dependent active set. Warn callers so they treat the
@@ -141,6 +153,20 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			)
 		}
 	}
+}
+
+// vcovRefusal returns why reg's vcov: true cannot be honoured (the
+// blocking setting's name and value), or "" when it can or was not
+// asked for. Kept in step with internal/processing/regression
+// validateVcov by TestRegressionVcov_Refusals (internal/service).
+func vcovRefusal(reg *types.RegressionSpec) (reason, value string) {
+	if !reg.Vcov {
+		return "", ""
+	}
+	if reg.Type == types.REG_OLS && (reg.Penalty == "l1" || reg.Penalty == "elasticnet") {
+		return "penalty", reg.Penalty
+	}
+	return "", ""
 }
 
 // regressionAcceptsType reports whether a given encoding.FieldType is a

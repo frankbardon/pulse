@@ -10,7 +10,9 @@
 # footer TestGoldensNotHandEdited checks). CI never runs R: the goldens
 # are committed and read-only there.
 #
-# Requirements: base R + jsonlite.
+# Requirements: base R + jsonlite for the primitives; the multivariate
+# half (gen_multivariate.R, sourced at the end) pins psych, car, ppcor,
+# perturb, corpcor and Matrix — see its header for versions and install.
 #
 # Grid choices worth knowing:
 #   * Inputs are filtered to reference values >= 1e-300 (the smallest
@@ -323,3 +325,13 @@ write_golden("studentized_range_inverse", c(meta(
   "uniroot() on the oracle survival; qtukey(alpha, k, df, lower.tail = FALSE) as cross-check",
   "q solves P(Q > q) = alpha; r_qtukey is R's qtukey, accurate to ~1e-4."
 ), list(cases = tki_cases)))
+
+# ------------------------------------------------- multivariate (U24)
+# The matrix-operator goldens (mv_*.json) and their fixtures live in a
+# sibling script that reuses out_dir, num() and write_golden() above;
+# its header pins psych, car, ppcor, perturb, corpcor and Matrix.
+script_dir <- local({
+  f <- sub("^--file=", "", grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))
+  if (length(f) == 1) dirname(normalizePath(f)) else "scripts/reference"
+})
+source(file.path(script_dir, "gen_multivariate.R"), local = FALSE)

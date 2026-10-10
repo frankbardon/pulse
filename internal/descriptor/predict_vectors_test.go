@@ -131,7 +131,10 @@ func TestSlotRefusal_VectorsHidden(t *testing.T) {
 
 // TestPayloadSchema_MatricesHidden: the `vectors` slot and its defs are
 // absent from the payload schema of an instance without
-// capability:matrices.
+// capability:matrices. MatrixValues is not among them: it is a shared
+// value type that the ungated regressions slot also reaches
+// (RegressionResult.vcov / .correlation, the opt-in RegressionSpec
+// vcov param, which rides no feature row).
 func TestPayloadSchema_MatricesHidden(t *testing.T) {
 	base := []string{featProcess}
 	for _, c := range []struct {
@@ -149,8 +152,11 @@ func TestPayloadSchema_MatricesHidden(t *testing.T) {
 				t.Fatal(err)
 			}
 			s := string(b)
+			if !strings.Contains(s, `"MatrixValues"`) {
+				t.Errorf("MatrixValues absent; the regressions slot's vcov reaches it on every instance")
+			}
 			for _, tok := range []string{`"vectors"`, `"VectorSpec"`, `"VectorCoerce"`,
-				`"matrices"`, `"MatrixSpec"`, `"MatrixResult"`, `"MatrixValues"`, `"MatrixComponents"`, `"MatrixType"`, `"MAT_COVARIANCE"`} {
+				`"matrices"`, `"MatrixSpec"`, `"MatrixResult"`, `"MatrixComponents"`, `"MatrixType"`, `"MAT_COVARIANCE"`} {
 				if got := strings.Contains(s, tok); got != c.want {
 					t.Errorf("%s present = %v, want %v", tok, got, c.want)
 				}

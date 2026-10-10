@@ -41,7 +41,10 @@ type SPDFactor struct {
 //
 // A matrix that is not positive definite — a pivot that is ≤ 0 or NaN,
 // which covers a singular, indefinite or NaN-bearing matrix — is
-// PULSE_MATRIX_SINGULAR (details "reason" = "not_positive_definite").
+// PULSE_MATRIX_SINGULAR (details "reason" = "not_positive_definite",
+// "n", plus the singular diagnostics "rank", "condition_number" and,
+// where identifiable, "dependent_indices" — see singularDiagnostics;
+// none of them for a NaN-bearing matrix).
 // There is no separate finiteness pre-check: an infinite element is
 // handed to the factorisation as-is. A nil s is
 // PULSE_MATRIX_SHAPE_MISMATCH; an empty s factors to an empty factor.
@@ -61,9 +64,11 @@ func FactorSPD(s *Sym) (*SPDFactor, error) {
 		}
 	}
 	if !f.chol.Factorize(mat.NewSymDense(n, full)) {
+		details := map[string]any{"reason": "not_positive_definite", "n": n}
+		singularDiagnostics(s, details)
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_MATRIX_SINGULAR,
 			"linalg: matrix is not positive definite (Cholesky factorisation failed)",
-			map[string]any{"reason": "not_positive_definite", "n": n})
+			details)
 	}
 	return f, nil
 }

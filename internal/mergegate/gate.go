@@ -81,7 +81,7 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 	}
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
-			if !m.Type.Mergeable() {
+			if !m.Mergeable() { // spec-level: the type folded with its params
 				return fmt.Sprintf("matrix operator %s is not mergeable", m.Type)
 			}
 		}

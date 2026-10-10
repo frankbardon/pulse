@@ -632,6 +632,14 @@ Only the floor keys.
 
 ### Matrix operators
 
+<a id="op-mat_collinearity"></a>
+
+#### `MAT_COLLINEARITY`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_collinearity).
+
+Only the floor keys.
+
 <a id="op-mat_correlation"></a>
 
 #### `MAT_CORRELATION`
@@ -649,3 +657,30 @@ Only the floor keys.
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
 | `ddof` | int | always | The delta degrees of freedom the covariance used (params.ddof, default 1). |
+
+<a id="op-mat_partial_correlation"></a>
+
+#### `MAT_PARTIAL_CORRELATION`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_partial_correlation).
+
+Only the floor keys.
+
+<a id="op-mat_pca"></a>
+
+#### `MAT_PCA`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_pca).
+
+Only the floor keys.
+
+<a id="op-mat_reliability"></a>
+
+#### `MAT_RELIABILITY`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_reliability).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `iterations` | int | when its condition holds | Coordinate sweeps the one-factor minres fit behind omega ran (cap 1000); absent when no fit ran (2 items, an undefined or unrepaired non-PSD input). |
+| `converged` | bool | when its condition holds | Whether the minres fit met its tolerance (1e-12) within the cap; false comes with PULSE_MATRIX_NOT_CONVERGED. Absent when no fit ran. |

@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
+	"gonum.org/v1/gonum/mat"
 )
 
 // matrix_merge_invariance_test.go is the U16 E2 gate: the REAL
@@ -90,6 +91,26 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 			spec.Params = json.RawMessage(`{"missing": "pairwise", "summary": {"top_pairs": 3}}`)
 		}
 	}
+	// MAT_PARTIAL_CORRELATION is a decomposition operator: these
+	// pairwise correlations are not PSD, so its pairwise variant repairs
+	// them (the repair is a function of the merged bits, so it is as
+	// worker-invariant as they are).
+	// MAT_RELIABILITY's omega decomposes the same input, so its
+	// pairwise variant repairs too (and so runs the minres fit).
+	// MAT_COLLINEARITY inverts and decomposes the same input.
+	if (v.matrixType() == types.MAT_PARTIAL_CORRELATION || v.matrixType() == types.MAT_RELIABILITY || v.matrixType() == types.MAT_COLLINEARITY) && v.pairwise {
+		spec.Params = json.RawMessage(`{"missing": "pairwise", "repair": "nearest"}`)
+	}
+	// MAT_PCA keeps every component (so the eigenvectors and loadings
+	// are compared whole) and repairs its pairwise input like the other
+	// decomposition operators; its eigensolver is gonum-backed, so the
+	// bits are same-machine stable — which is what this gate compares.
+	if v.matrixType() == types.MAT_PCA {
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "components": 3}`)
+		if v.pairwise {
+			spec.Params = json.RawMessage(`{"missing": "pairwise", "components": 3, "repair": "nearest"}`)
+		}
+	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
 	}
@@ -107,15 +128,24 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 // bits (every cell and the determinant), the pairwise N (auxiliary.n),
 // the response and matrix warnings, and the run counters.
 type matrixRun struct {
-	words     []uint64
-	auxN      []uint64
-	pairs     []types.MatrixPair
-	pairBits  []uint64
+	words    []uint64
+	auxN     []uint64
+	pairs    []types.MatrixPair
+	pairBits []uint64
+	// relBits are MAT_RELIABILITY's / MAT_PCA's / MAT_COLLINEARITY's
+	// scalars and vectors (and PCA's eigenvectors, collinearity's
+	// variance decomposition), in a fixed key order.
+	relBits   []uint64
 	warnings  []*types.ResponseWarning
 	matWarns  []*types.ResponseWarning
 	run       types.RunComponents
 	comps     []types.MatrixComponents
 	instances int64
+	// anchorTol is the relative tolerance against the reference anchor:
+	// 1e-9, or 1e-6 for MAT_PARTIAL_CORRELATION, whose inversion of
+	// these near-collinear members (x2 ≈ x1 / 2, cond ≈ 1e8) amplifies
+	// the blocked-vs-straight co-moment rounding.
+	anchorTol float64
 }
 
 func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decodeWorkers, shardWorkers int) matrixRun {
@@ -155,7 +185,10 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 	if !pairwise && findWarning(m, errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP) == nil {
 		t.Fatalf("listwise variant carries no PULSE_MATRIX_LISTWISE_HEAVY_DROP (warnings %v)", matWarningCodes(m))
 	}
-	out := matrixRun{words: words, auxN: auxN, warnings: resp.Warnings, matWarns: m.Warnings, instances: stats.instancesWithRows.Load()}
+	out := matrixRun{words: words, auxN: auxN, warnings: resp.Warnings, matWarns: m.Warnings, instances: stats.instancesWithRows.Load(), anchorTol: 1e-9}
+	if req.Matrices[0].Type == types.MAT_PARTIAL_CORRELATION {
+		out.anchorTol = 1e-6
+	}
 	if req.Matrices[0].Type == types.MAT_CORRELATION {
 		pairs, ok := m.Vectors["top_pairs"].([]types.MatrixPair)
 		if !ok || len(pairs) != 3 {
@@ -165,8 +198,59 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 		for _, pr := range pairs {
 			out.pairBits = append(out.pairBits, math.Float64bits(pr.R))
 		}
+	} else if req.Matrices[0].Type == types.MAT_RELIABILITY {
+		for _, k := range []string{"alpha", "alpha_standardized", "mean_inter_item_r", "omega"} {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		for _, k := range []string{"item_total_r", "alpha_if_deleted", "item_mean", "item_sd"} {
+			vs, ok := m.Vectors[k].([]float64)
+			if !ok || len(vs) != 3 {
+				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
+			}
+			for _, x := range vs {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+	} else if req.Matrices[0].Type == types.MAT_PCA {
+		for _, k := range []string{"kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "components_retained"} {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		for _, k := range []string{"eigenvalues", "explained_variance", "cumulative", "communalities", "kmo_msa"} {
+			vs, ok := m.Vectors[k].([]float64)
+			if !ok || len(vs) != 3 {
+				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
+			}
+			for _, x := range vs {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+		for _, row := range m.Auxiliary["eigenvectors"].Values {
+			for _, x := range row {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+	} else if req.Matrices[0].Type == types.MAT_COLLINEARITY {
+		for _, k := range []string{"condition_number", "max_vif"} {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		for k, n := range map[string]int{"vif": 3, "tolerance": 3, "condition_indices": 4} {
+			vs, ok := m.Vectors[k].([]float64)
+			if !ok || len(vs) != n {
+				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
+			}
+		}
+		for _, k := range []string{"vif", "tolerance", "condition_indices"} {
+			for _, x := range m.Vectors[k].([]float64) {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+		for _, row := range m.Auxiliary["variance_decomposition"].Values {
+			for _, x := range row {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
 	} else if m.Vectors != nil {
-		t.Fatalf("MAT_COVARIANCE emitted vectors %v", m.Vectors)
+		t.Fatalf("%s emitted vectors %v", req.Matrices[0].Type, m.Vectors)
 	}
 	if resp.Components == nil || resp.Components.Run == nil {
 		t.Fatalf("Process(decode=%d, shard=%d): no Components.Run", decodeWorkers, shardWorkers)
@@ -194,6 +278,9 @@ func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
 	}
 	if i := firstWordDiff(got.pairBits, want.pairBits); i != -1 || len(got.pairBits) != len(want.pairBits) || !reflect.DeepEqual(got.pairs, want.pairs) {
 		t.Errorf("%s: top_pairs %+v, serial %+v", label, got.pairs, want.pairs)
+	}
+	if i := firstWordDiff(got.relBits, want.relBits); i != -1 || len(got.relBits) != len(want.relBits) {
+		t.Errorf("%s: operator scalars / vectors differ from serial at word %d", label, i)
 	}
 	if !reflect.DeepEqual(got.warnings, want.warnings) {
 		t.Errorf("%s: warnings %v, serial %v", label, got.warnings, want.warnings)
@@ -240,8 +327,21 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 		c.Add([]float64{read(r, 0), read(r, 1), read(r, 2)}, w)
 	}
 	cov := c.Cov(1)
-	if v.matrixType() == types.MAT_CORRELATION {
+	switch v.matrixType() {
+	case types.MAT_CORRELATION, types.MAT_RELIABILITY:
 		cov = c.Corr()
+	case types.MAT_PCA:
+		return nil // the loadings are an eigensolver's output: no FMA-free anchor
+	case types.MAT_COLLINEARITY:
+		if v.pairwise {
+			return nil // the repaired matrix has no independent anchor here
+		}
+		cov = c.Corr()
+	case types.MAT_PARTIAL_CORRELATION:
+		if v.pairwise {
+			return nil // the repaired matrix has no independent anchor here
+		}
+		cov = referencePartial(t, c.Corr())
 	}
 	var words []uint64
 	for i := 0; i < 3; i++ {
@@ -252,15 +352,44 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 	return words
 }
 
+// referencePartial is the control-"all" partial correlation of r
+// through gonum's general inverse — an anchor independent of the
+// engine's reference InverseSPD.
+func referencePartial(t *testing.T, r *linalg.Sym) *linalg.Sym {
+	t.Helper()
+	n := r.N()
+	d := mat.NewDense(n, n, nil)
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			d.Set(i, j, r.At(i, j))
+		}
+	}
+	var inv mat.Dense
+	if err := inv.Inverse(d); err != nil {
+		t.Fatalf("reference inverse: %v", err)
+	}
+	out, _ := linalg.NewSym(n, nil)
+	for i := 0; i < n; i++ {
+		out.Set(i, i, 1)
+		for j := i + 1; j < n; j++ {
+			out.Set(i, j, -inv.At(i, j)/math.Sqrt(inv.At(i, i)*inv.At(j, j)))
+		}
+	}
+	return out
+}
+
 func assertMatrixCloseToReference(t *testing.T, got matrixRun, ref []uint64) {
 	t.Helper()
+	if ref == nil {
+		return
+	}
 	cells := got.words[:len(got.words)-1] // drop the determinant
 	if len(cells) != len(ref) {
 		t.Fatalf("matrix has %d cells, reference %d", len(cells), len(ref))
 	}
 	for i := range ref {
 		x, y := math.Float64frombits(cells[i]), math.Float64frombits(ref[i])
-		if d := math.Abs(x - y); !(d <= 1e-9*math.Max(1, math.Max(math.Abs(x), math.Abs(y)))) {
+		if d := math.Abs(x - y); !(d <= got.anchorTol*math.Max(1, math.Max(math.Abs(x), math.Abs(y)))) {
 			t.Errorf("cell %d: %v, reference %v", i, x, y)
 		}
 	}

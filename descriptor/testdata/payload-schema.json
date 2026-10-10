@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:2079f61ff41eb586f7282bd739c1f9ac19f4ec26958d79409458918d91244e7a",
+  "$comment": "feature_set_digest: fs1:a605e613dfcb3db04408f39beec6c3cb1d4940a65bfa164fdff559353e1b6761",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -1856,6 +1856,7 @@
     },
     "MatrixKind": {
       "enum": [
+        "rectangular",
         "square_symmetric"
       ],
       "type": "string"
@@ -2046,8 +2047,12 @@
     },
     "MatrixType": {
       "enum": [
+        "MAT_COLLINEARITY",
         "MAT_CORRELATION",
-        "MAT_COVARIANCE"
+        "MAT_COVARIANCE",
+        "MAT_PARTIAL_CORRELATION",
+        "MAT_PCA",
+        "MAT_RELIABILITY"
       ],
       "type": "string"
     },
@@ -2827,6 +2832,9 @@
         "converged_iters": {
           "type": "integer"
         },
+        "correlation": {
+          "$ref": "#/$defs/MatrixValues"
+        },
         "credible_intervals": {
           "additionalProperties": {
             "items": {
@@ -2946,6 +2954,9 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "vcov": {
+          "$ref": "#/$defs/MatrixValues"
         }
       },
       "required": [
@@ -3033,6 +3044,9 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "vcov": {
+          "type": "boolean"
         },
         "weight": {
           "$ref": "#/$defs/SlotWeight"
@@ -3956,4 +3970,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 2cb080d8e9d6e342e3897268c83ed0c04ea2b0dfa86794ddab8c59ccd6fc3990
+// golden-hash: 8fa03f0b9eeffb23e81464fef216264fa876496e169f18fa35204a746247c3a1

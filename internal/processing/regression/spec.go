@@ -26,7 +26,39 @@ import (
 //   - Unknown Penalty values → reject. Descriptor's enum check normally
 //     catches this but ValidateRegression is also reachable from
 //     hand-built specs in tests.
+//
+// A spec that sets Vcov is then held to validateVcov.
 func ValidateRegression(spec *types.RegressionSpec) error {
+	if err := validateRegressionSpec(spec); err != nil {
+		return err
+	}
+	return validateVcov(spec)
+}
+
+// validateVcov refuses Vcov on a fit with no coefficient covariance to
+// report: lasso / elastic net (the l1 active set is data-dependent, so
+// no sampling covariance exists, and Pulse never approximates one) —
+// alone or under a Resample / Selection modifier. Every other fit
+// reports one: a Resample fit the replicate covariance its SEs are the
+// square roots of the diagonal of, a Selection fit the inner engine's
+// covariance from the final refit on the selected predictors. A nil or
+// Vcov-free spec passes.
+func validateVcov(spec *types.RegressionSpec) error {
+	if spec == nil || !spec.Vcov {
+		return nil
+	}
+	if spec.Type != types.REG_OLS || (spec.Penalty != "l1" && spec.Penalty != "elasticnet") {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(
+		errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
+		string(spec.Type)+" with penalty="+spec.Penalty+" has no coefficient covariance; drop vcov or fit without penalty",
+		map[string]any{"reason": "penalty", "penalty": spec.Penalty, "type": string(spec.Type)},
+	)
+}
+
+// validateRegressionSpec is ValidateRegression's per-type rule set.
+func validateRegressionSpec(spec *types.RegressionSpec) error {
 	if spec == nil {
 		return nil
 	}

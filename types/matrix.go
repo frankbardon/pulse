@@ -29,24 +29,84 @@ const (
 	// (diagonal included) are NaN (null on the wire). Weighted under frequency and probability weights
 	// (r is scale-free, so the two kinds agree). No p-values.
 	MAT_CORRELATION MatrixType = "MAT_CORRELATION"
+	// MAT_PARTIAL_CORRELATION is the partial correlation matrix: each
+	// pair's correlation with other fields held fixed, read off the
+	// precision matrix of the members' Pearson correlations.
+	// params.control "all" (default: each pair controls for every other
+	// member) or a list of numeric fields (members or not; each output
+	// pair controls for exactly those, and the output covers the
+	// non-control members). A decomposition operator: a non-PSD input
+	// (pairwise) is refused with PULSE_MATRIX_NOT_PSD unless
+	// params.repair "nearest"; a singular one is PULSE_MATRIX_SINGULAR.
+	// Weighted under frequency and probability weights. No p-values.
+	MAT_PARTIAL_CORRELATION MatrixType = "MAT_PARTIAL_CORRELATION"
+	// MAT_RELIABILITY is a battery's scale reliability: Cronbach's alpha
+	// (raw and standardized), McDonald's omega from a one-factor minres
+	// fit, the mean inter-item correlation and per-item diagnostics
+	// (corrected item-total r, alpha if deleted, mean, sd), with the
+	// inter-item correlation matrix as primary. params.reverse names
+	// reverse-keyed items, flipped x' = scale_min + scale_max − x per
+	// row before the fold (the range is required with it). At least 2
+	// items; omega needs 3 and a positive-semidefinite input (or
+	// params.repair "nearest"), and is null with a warning otherwise.
+	// Weighted under frequency and probability weights. No p-values.
+	MAT_RELIABILITY MatrixType = "MAT_RELIABILITY"
+	// MAT_PCA is a principal component analysis of the members'
+	// correlation (params.on "correlation", the default) or covariance
+	// ("covariance") matrix: the primary is the p × k loadings
+	// (eigenvector · √λ, MatrixKindRectangular, one column per retained
+	// component), auxiliary.eigenvectors the p × k unit eigenvectors;
+	// vectors carry every eigenvalue, the explained and cumulative
+	// variance shares, the communalities and per-member KMO (MSA);
+	// scalars KMO, Bartlett's sphericity test and the retained count.
+	// params.components: an integer k, "kaiser" (λ > 1; the default on
+	// a correlation, refused on a covariance) or {"variance": share};
+	// required on a covariance. A decomposition operator (the shared
+	// PSD guard, params.repair "nearest"). Sign and order follow
+	// linalg.SymEigen. Weighted under frequency and probability
+	// weights. No rotation.
+	MAT_PCA MatrixType = "MAT_PCA"
+	// MAT_COLLINEARITY is a collinearity check of the members as
+	// regression predictors (no response): the primary is their
+	// correlation matrix R; vectors carry each member's variance
+	// inflation factor VIF = diag(R⁻¹) and tolerance 1/VIF (car::vif),
+	// and Belsley's condition indices; auxiliary.variance_decomposition
+	// is Belsley's variance-decomposition proportions
+	// (MatrixKindRectangular: a row per variable, a column per
+	// dimension); scalars condition_number (the largest condition
+	// index) and max_vif (the largest VIF).
+	// Belsley runs on the scaled, uncentered predictors with an
+	// intercept by default (perturb::colldiag), rebuilt from the
+	// co-moment as W(Σ + μμᵀ); params.center true runs it on the
+	// centered predictors (R) instead. A decomposition operator (the
+	// shared PSD guard, params.repair "nearest"); a singular R is
+	// PULSE_MATRIX_SINGULAR. Weighted under frequency and probability
+	// weights. No p-values.
+	MAT_COLLINEARITY MatrixType = "MAT_COLLINEARITY"
 )
 
 // AllMatrixTypes returns every built-in matrix operator in alphabetical
 // order.
 func AllMatrixTypes() []MatrixType {
 	return []MatrixType{
+		MAT_COLLINEARITY,
 		MAT_CORRELATION,
 		MAT_COVARIANCE,
+		MAT_PARTIAL_CORRELATION,
+		MAT_PCA,
+		MAT_RELIABILITY,
 	}
 }
 
 // Streamable reports whether the operator folds row by row: every
 // built-in matrix operator does (its state is the per-block co-moment
 // set), so the result is emitted at finalize — on the streaming path,
-// at terminal flush. An unknown type is not streamable.
+// at terminal flush. An unknown type is not streamable. This is the
+// TYPE-level answer the manifest reports; routing reads the spec-level
+// MatrixSpec.Streamable, which its params may turn off.
 func (t MatrixType) Streamable() bool {
 	switch t {
-	case MAT_CORRELATION, MAT_COVARIANCE:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -57,10 +117,11 @@ func (t MatrixType) Streamable() bool {
 // DecodeWorkers / ShardWorkers. Every built-in matrix operator merges
 // through the blocked merge tree (per-block co-moments keyed by
 // absolute record position), so serial and every worker count return
-// the same bits. An unknown type is not mergeable.
+// the same bits. An unknown type is not mergeable. Type-level, like
+// Streamable: the merge gate reads MatrixSpec.Mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
-	case MAT_CORRELATION, MAT_COVARIANCE:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -92,11 +153,21 @@ const (
 	// columns are the same members in the same order, with
 	// Values[r][c] == Values[c][r].
 	MatrixKindSquareSymmetric MatrixKind = "square_symmetric"
+	// MatrixKindRectangular is a p × k matrix whose rows are the
+	// members (RowKeys) and whose columns are something else
+	// (ColumnKeys: MAT_PCA's components "PC1" … "PCk";
+	// MAT_COLLINEARITY's dimensions "D1" … "Dk", whose uncentered
+	// variance decomposition also leads its rows with the intercept,
+	// RowKeys "(intercept)" then the members). It is always
+	// written full — Values[r] has k entries — whatever the spec's
+	// Encoding asks (upper applies to a symmetric matrix only), and k
+	// may be 0 (Values rows empty).
+	MatrixKindRectangular MatrixKind = "rectangular"
 )
 
 // AllMatrixKinds returns every MatrixKind.
 func AllMatrixKinds() []MatrixKind {
-	return []MatrixKind{MatrixKindSquareSymmetric}
+	return []MatrixKind{MatrixKindSquareSymmetric, MatrixKindRectangular}
 }
 
 // MatrixSpec is one matrix operator entry in Request.Matrices.
@@ -123,7 +194,12 @@ type MatrixSpec struct {
 	// "ddof": 0 | 1; both: "missing": "listwise" | "pairwise",
 	// "max_drop_share": a share in [0, 1], listwise only, no default;
 	// MAT_CORRELATION only: "summary": {"top_pairs": k}, k a positive
-	// integer).
+	// integer, and "method"; MAT_PARTIAL_CORRELATION: "control": "all" |
+	// [fields], "repair": "nearest"; MAT_RELIABILITY: "reverse":
+	// [fields], "scale_min" / "scale_max": numbers, "repair":
+	// "nearest"; MAT_PCA: "on": "correlation" | "covariance",
+	// "components": k | "kaiser" | {"variance": share}, "repair":
+	// "nearest"; MAT_COLLINEARITY: "center": bool, "repair": "nearest").
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot
@@ -134,8 +210,41 @@ type MatrixSpec struct {
 	Encoding MatrixEncoding `json:"encoding,omitempty"`
 }
 
-// Streamable reports whether the spec's operator folds row by row.
-func (s MatrixSpec) Streamable() bool { return s.Type.Streamable() }
+// Streamable reports whether this concrete spec folds row by row, so a
+// request carrying it may run on the streaming path. It folds the
+// type-level answer (MatrixType.Streamable) with the spec's params: a
+// params choice that needs every row at once (a rank method on
+// MAT_CORRELATION — any params.method other than "pearson") makes the
+// spec buffered. This, not the type-level method, is what the runtime
+// streaming gate, predict and the engine's slot builder read, so they
+// cannot disagree. Malformed params read as the type's own answer; the
+// field-reference pass refuses them before any run.
+func (s MatrixSpec) Streamable() bool { return s.Type.Streamable() && !s.bufferedParams() }
+
+// Mergeable reports whether this concrete spec's running state combines
+// across input partitions, so a request carrying it may fan out over
+// DecodeWorkers / ShardWorkers. Like Streamable it folds the type-level
+// answer (MatrixType.Mergeable) with the spec's params: a buffered spec
+// keeps its rows, which do not merge, so it is never mergeable and the
+// request runs serially (internal/mergegate.MergeRefusal).
+func (s MatrixSpec) Mergeable() bool { return s.Type.Mergeable() && !s.bufferedParams() }
+
+// bufferedParams reports whether the spec's params select a computation
+// that needs the whole row set (a rank method). Only params.method on
+// MAT_CORRELATION does today: absent or "pearson" folds co-moments;
+// anything else ranks.
+func (s MatrixSpec) bufferedParams() bool {
+	if s.Type != MAT_CORRELATION || len(s.Params) == 0 {
+		return false
+	}
+	var p struct {
+		Method *string `json:"method"`
+	}
+	if err := json.Unmarshal(s.Params, &p); err != nil || p.Method == nil {
+		return false
+	}
+	return *p.Method != "pearson"
+}
 
 // EffectiveEncoding returns the spec's Encoding, MatrixEncodingFull
 // when empty.
@@ -160,8 +269,10 @@ func (s MatrixSpec) EffectiveName() string {
 
 // MatrixValues is one matrix of a MatrixResult. RowKeys and ColumnKeys
 // are the member field names in axis order (the vector's resolved
-// order); Labels, when the vector carried display labels, are their
-// labels in the same order. Values follows Encoding. An undefined cell
+// order) — on a MatrixKindRectangular matrix ColumnKeys name its
+// columns instead (MAT_PCA: "PC1" … "PCk"); Labels, when the vector
+// carried display labels, are the row members' labels in the same
+// order. Values follows Encoding. An undefined cell
 // (no mass, zero spread) is NaN in Go and null on the wire.
 type MatrixValues struct {
 	Kind       MatrixKind     `json:"kind"`

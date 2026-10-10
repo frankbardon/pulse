@@ -144,6 +144,14 @@ func mergeSlotSets(dst, src []*matrixSlot) error {
 			map[string]any{"slots": len(dst), "other_slots": len(src)})
 	}
 	for i, s := range dst {
+		// A buffered slot's rows do not merge; the merge gate keeps a
+		// buffered spec serial (MatrixSpec.Mergeable), so reaching here
+		// with one is a routing fault.
+		if s.rows != nil || src[i].rows != nil {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				"matrix merge: a buffered matrix slot is not mergeable",
+				map[string]any{"matrix": s.plan.Name, "type": string(s.plan.Type)})
+		}
 		if err := MergeBlockMerger(s, src[i]); err != nil {
 			return err
 		}

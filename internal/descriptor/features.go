@@ -317,8 +317,12 @@ var builtinFeatures = withDependencies([]Feature{
 	op("REG_GLM"),
 	op("REG_OLS"),
 	// Matrix operators — types.AllMatrixTypes().
+	op("MAT_COLLINEARITY"),
 	op("MAT_CORRELATION"),
 	op("MAT_COVARIANCE"),
+	op("MAT_PARTIAL_CORRELATION"),
+	op("MAT_PCA"),
+	op("MAT_RELIABILITY"),
 	// Overlay kinds — types.AllOverlayKinds().
 	op("OVERLAY_CHISQ_COL"),
 	op("OVERLAY_CHISQ_MATRIX"),
@@ -582,8 +586,12 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_RESIDUAL":                     {"REG_OLS"},
 	"OVERLAY_YOY":                           {"GROUP_DATE"},
 	featFilterToFile:                        {"FILTER_EXPRESSION"},
+	"MAT_COLLINEARITY":                      {featMatrices},
 	"MAT_CORRELATION":                       {featMatrices},
 	"MAT_COVARIANCE":                        {featMatrices},
+	"MAT_PARTIAL_CORRELATION":               {featMatrices},
+	"MAT_PCA":                               {featMatrices},
+	"MAT_RELIABILITY":                       {featMatrices},
 }
 
 // RequestHostCapabilities returns the request-executing host

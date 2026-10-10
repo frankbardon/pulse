@@ -279,6 +279,40 @@
         ]
       },
       {
+        "operator": "MAT_COLLINEARITY",
+        "category": "matrix",
+        "level": "intermediate",
+        "why": "Whether candidate predictors overlap so much that a regression on them would give unstable coefficients, and which ones are tangled. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "MAT_COLLINEARITY"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the fitted effects of the predictors on an outcome",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you only want to see which measures go together, pair by pair",
+            "use": "MAT_CORRELATION"
+          }
+        ]
+      },
+      {
         "operator": "FILTER_EXPRESSION",
         "category": "filterer",
         "level": "intermediate",
@@ -345,48 +379,12 @@
             "use": "REG_OLS"
           }
         ]
-      },
-      {
-        "operator": "ATTR_REG_RESIDUAL",
-        "category": "attribute",
-        "level": "advanced",
-        "why": "Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "attributes": [
-            {
-              "field": "\u003cfield\u003e",
-              "type": "ATTR_REG_RESIDUAL"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "field"
-        ],
-        "alternatives": [
-          {
-            "when": "you want the model's summary (coefficients, R-squared)",
-            "use": "REG_OLS"
-          },
-          {
-            "when": "you want how unusual each row's predictor values are",
-            "use": "ATTR_REG_LEVERAGE"
-          },
-          {
-            "when": "you want how far a value is from the mean, with no model",
-            "use": "ATTR_ZSCORE"
-          }
-        ]
       }
     ],
-    "truncated": false,
-    "candidates_considered": 10
+    "truncated": true,
+    "candidates_considered": 11
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: fe9e3a36336fc95416ad6174088c1267c987e67042904efe1cac8c03a841945e
+// golden-hash: d562bc6b72fb089d784f19acacb57e6d28a49f8f218fe07ceffb3188382930ac

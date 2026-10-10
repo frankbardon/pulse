@@ -799,6 +799,10 @@
         "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
+        "name": "regression-inference",
+        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
@@ -1111,7 +1115,6 @@
       "distribution_shape",
       "flows",
       "lookup",
-      "measure_construct",
       "segment"
     ],
     "return_presets": [
@@ -1178,6 +1181,8 @@
           "regressions[*].residual_std_err",
           "regressions[*].converged_iters",
           "regressions[*].selected_features",
+          "regressions[*].vcov",
+          "regressions[*].correlation",
           "overlays"
         ]
       },
@@ -1263,4 +1268,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cc76546f636d49e9e229a76626c2d20640add5ad35c47605da488b53adbf8abd
+// golden-hash: 6edeaf4ed3e19ac147cf7fa01df9c324771d7ff8d87c006547586a7a45f8784c

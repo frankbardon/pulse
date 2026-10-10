@@ -72,6 +72,15 @@ const (
 	// record set has fewer observations than predictors + 1 (the
 	// minimum for an identifiable fit).
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA Code = "PROCESSING_REGRESSION_INSUFFICIENT_DATA"
+
+	// PROCESSING_REGRESSION_VCOV_UNSUPPORTED indicates a regression set
+	// vcov: true on a fit with no coefficient covariance to report:
+	// lasso / elastic net (the l1 active set is data-dependent, so no
+	// sampling covariance exists — never approximated), alone or under a
+	// Resample / Selection modifier. details.reason is "penalty" and
+	// details.penalty names the penalty. The modifiers themselves report
+	// a covariance (the replicate one, or the final refit's).
+	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 )
 
 // SERVICE domain - HTTP/API layer and service operations
@@ -2553,7 +2562,13 @@ const (
 	// (not_positive_definite, ill_conditioned, backend_error, non_finite,
 	// no_convergence), "pivot" for a reference Cholesky failure,
 	// "attempts" / "ridge" when a ridge schedule was exhausted, and
-	// "condition_number" from the SPD solve / inverse.
+	// "condition_number" from the SPD solve / inverse. A failed
+	// Cholesky factorisation (reference Cholesky — so SolveSPD /
+	// InverseSPD — or FactorSPD) of a finite matrix also carries "rank",
+	// "condition_number" (+Inf when rank-deficient) and, when
+	// rank-deficient, "dependent_indices" (the axis indices in the
+	// linear dependency); a matrix operator adds "matrix" and the
+	// members' names as "dependent_fields".
 	PULSE_MATRIX_SINGULAR Code = "PULSE_MATRIX_SINGULAR"
 
 	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
@@ -2621,13 +2636,21 @@ const (
 	// predict and the runtime before the crosstab dispatch.
 	PULSE_MATRIX_HOST_CONFLICT Code = "PULSE_MATRIX_HOST_CONFLICT"
 
-	// PULSE_MATRIX_NOT_PSD is a per-matrix WARNING (MatrixResult.Warnings,
-	// params.missing "pairwise" only): the pairwise matrix, scaled by its
-	// diagonal, is not positive semidefinite — the reference Cholesky
-	// fails even with a 1e-10 diagonal tolerance, so no data set has
-	// these pairwise figures. Detection only; nothing is repaired.
-	// Details carry "pivot" (axis index), "member", "checked" (members
-	// judged) and "tolerance".
+	// PULSE_MATRIX_NOT_PSD: a pairwise matrix (params.missing "pairwise"
+	// only), scaled by its diagonal, is not positive semidefinite — the
+	// reference Cholesky fails even with a 1e-10 diagonal tolerance, so
+	// no data set has these pairwise figures. Details carry "matrix",
+	// "pivot" (axis index), "member", "checked" (members judged) and
+	// "tolerance". Severity depends on the operator:
+	//   - a per-matrix WARNING (MatrixResult.Warnings, detection only)
+	//     on MAT_COVARIANCE / MAT_CORRELATION;
+	//   - a FATAL refusal on a decomposition operator
+	//     (MAT_PARTIAL_CORRELATION), whose input must be PSD, unless
+	//     params.repair is "nearest" (details add "repair_options");
+	//   - under params.repair "nearest", a WARNING that the input was
+	//     replaced by its nearest correlation matrix (Higham), details
+	//     adding "repair", "frobenius_adjustment" (correlation scale),
+	//     "iterations" and "converged".
 	PULSE_MATRIX_NOT_PSD Code = "PULSE_MATRIX_NOT_PSD"
 
 	// PULSE_MATRIX_LISTWISE_HEAVY_DROP is a per-matrix WARNING: listwise
@@ -2640,7 +2663,9 @@ const (
 	// (scope "matrix": details "n", "sum_weights") or, under pairwise,
 	// one or more pairs (scope "pairs": details "pairs" [{row, col, n}])
 	// have fewer than 2 rows or no weight mass, so their cells are
-	// undefined (null) or degenerate.
+	// undefined (null) or degenerate; on MAT_PCA scope "bartlett"
+	// (details "n_star", "min_n_star"): the inference size is too small
+	// for Bartlett's test, whose chi-square and p are null.
 	PULSE_MATRIX_INSUFFICIENT_N Code = "PULSE_MATRIX_INSUFFICIENT_N"
 
 	// PULSE_MATRIX_ZERO_VARIANCE is a per-matrix WARNING: one or more
@@ -2648,6 +2673,39 @@ const (
 	// "members"), so every correlation touching them is null and their
 	// covariance row and column are 0.
 	PULSE_MATRIX_ZERO_VARIANCE Code = "PULSE_MATRIX_ZERO_VARIANCE"
+
+	// PULSE_MATRIX_NOT_CONVERGED is a per-matrix WARNING: an iterative
+	// matrix routine stopped at its documented iteration cap before
+	// meeting its convergence tolerance, so its figures are the last
+	// iterate rather than an optimum — never a silent best effort.
+	// Emitted by the one-factor minres fit (reliability ω) and by the
+	// nearest-correlation repair (params.repair "nearest"), beside its
+	// PULSE_MATRIX_NOT_PSD warning. Details carry "matrix", "solver",
+	// "iterations", "max_iterations" and "tolerance".
+	PULSE_MATRIX_NOT_CONVERGED Code = "PULSE_MATRIX_NOT_CONVERGED"
+
+	// PULSE_MATRIX_HEYWOOD is a per-matrix WARNING: a one-factor fit
+	// put a member's uniqueness at or below zero (|loading| ≥ its
+	// standard deviation — an impossible negative error variance), so
+	// the figures built on the fit are withheld: MAT_RELIABILITY's
+	// omega is null. Details carry "matrix", "output", "members" and
+	// "uniquenesses" (the offending members' ψ).
+	PULSE_MATRIX_HEYWOOD Code = "PULSE_MATRIX_HEYWOOD"
+
+	// PULSE_MATRIX_NOT_IDENTIFIED is a per-matrix WARNING: a model the
+	// operator fits is not identified on this many members, so the
+	// figure it would give is withheld: MAT_RELIABILITY's omega needs
+	// a one-factor fit, which needs at least 3 items (2 items have one
+	// correlation for two loadings), so with 2 it is null. Details
+	// carry "matrix", "output", "members" and "min_members".
+	PULSE_MATRIX_NOT_IDENTIFIED Code = "PULSE_MATRIX_NOT_IDENTIFIED"
+
+	// PULSE_MATRIX_PAIRWISE_N_STAR is a per-matrix WARNING: an
+	// inferential figure over a pairwise matrix needs one sample size
+	// while every cell rests on its own rows, so it uses the smallest
+	// pair's inference size (MAT_PCA's Bartlett test). Details carry
+	// "matrix", "outputs", "n_star", "row" and "col" (the pair).
+	PULSE_MATRIX_PAIRWISE_N_STAR Code = "PULSE_MATRIX_PAIRWISE_N_STAR"
 
 	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
 	// read: an unknown preset, a precision outside 1–17, or a malformed
@@ -2934,6 +2992,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INVALID_FAMILY,
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
+	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
 	// SERVICE
 	SERVICE_VALIDATION,
 	SERVICE_RESOURCE,
@@ -3209,6 +3268,10 @@ var allCodes = []Code{
 	PULSE_MATRIX_LISTWISE_HEAVY_DROP,
 	PULSE_MATRIX_INSUFFICIENT_N,
 	PULSE_MATRIX_ZERO_VARIANCE,
+	PULSE_MATRIX_NOT_CONVERGED,
+	PULSE_MATRIX_HEYWOOD,
+	PULSE_MATRIX_NOT_IDENTIFIED,
+	PULSE_MATRIX_PAIRWISE_N_STAR,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,

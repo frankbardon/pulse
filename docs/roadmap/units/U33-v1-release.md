@@ -34,7 +34,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#169** (12. Release v1.0.0) Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
 - [ ] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze
-- [ ] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) and the [U12 weighted-inference review](../reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference, and owns the statistical-review CODEOWNERS entries
+- [ ] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) the [U12 weighted-inference review](../reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula) and the [U24 matrix-operators review](../reviews/U24-matrix-operators-review.md) (findings MR-01 to MR-08 and the open owner calls), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference AND the U24 multivariate guidance, and owns the statistical-review CODEOWNERS entries
 - [ ] **#171** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values
 - [ ] **#173** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups
 - [ ] **#174** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator has `Purpose`, `Interpretation` (if inferential), `Since`, dependency edges and an atomic skill
@@ -75,7 +75,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 - [ ] Every TODO item is ticked, or explicitly moved to post-1.0 in the theme docs
 - [ ] The rc builds through the release pipeline, and the downstream library passes its own tests against it
 - [ ] The API-compat check is active against `v1.0.0`
-- [ ] A named statistics reviewer's sign-off is recorded in `docs/roadmap/reviews/U08-statistics-review.md` and `docs/roadmap/reviews/U12-weighting-review.md`, every open item there (U08, U09 and U12) resolved or deferred with a reason, and `.github/CODEOWNERS` routes the guidance registries to the reviewer
+- [ ] A named statistics reviewer's sign-off is recorded in `docs/roadmap/reviews/U08-statistics-review.md` and `docs/roadmap/reviews/U12-weighting-review.md` and `docs/roadmap/reviews/U24-matrix-operators-review.md`, every open item there (U08, U09, U12 and U24) resolved or deferred with a reason, and `.github/CODEOWNERS` routes the guidance registries to the reviewer
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
@@ -129,6 +129,13 @@ U12 made the significance tests, regressions, CI bounds, scores, quantile bucket
 - **Open items.** Work its "Open items for the U33 human reviewer (U12)" list — headed by WS-01 (one-way ANOVA F under between-group probability-weight variation) and the undefined-figure cases at tiny n_eff (WS-05 / WS-12). The docs story applied the documentation findings; the engine findings await owner triage.
 - **The method itself.** No external software implements Kish-w* inference, so the probability arm is verified for arithmetic and scale invariance only. Sign off (or not) the framing in `.claude/reference/weighting.md` (Weighted inference): unequal-weighting correction only, weights assumed unrelated to the outcome, not design-based, χ² first-order Kish not Rao-Scott.
 - **CODEOWNERS.** Add `internal/weighting/`, the weighted paths of `internal/processing/test_*.go` / `regression/` / `overlay*.go`, and `internal/service/testdata/weight_reference/` to the reviewer's entries.
+
+## Inherited from U24
+
+U24 shipped the multivariate matrix operators without a human reviewer: an external R oracle (psych, car, ppcor, perturb, corpcor, Matrix) pins every output at the tolerance in the record, plus a one-pass advisory LLM panel on the new guidance text.
+
+- **Open items.** Work the "Open items for the U33 human reviewer (U24)" list in [`reviews/U24-matrix-operators-review.md`](../reviews/U24-matrix-operators-review.md): findings MR-01 to MR-08, the omega form and Heywood handling. The owner calls (a) to (f) were decided 2026-10-10 and are recorded there.
+- **CODEOWNERS.** Add `internal/processing/matrix_*.go` and the `mv_*.json` goldens under `internal/processing/testdata/reference/` to the reviewer's entries.
 
 ## Inherited from U17
 

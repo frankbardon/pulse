@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "name": "scale_reliability",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "MAT_RELIABILITY"
+    ],
+    "description": "Scale reliability of a three-measure battery on experiment.pulse (revenue_before, revenue, session_minutes): Cronbach's alpha and standardized alpha, McDonald's omega from a one-factor minres fit, the mean inter-item correlation, and per item the corrected item-total r, alpha if deleted, mean and sd, with the inter-item correlation matrix as primary. On a rating battery, params.reverse with scale_min / scale_max flips reverse-worded items (x' = min + max - x) before the fold. Omega is null with a warning on 2 items, a Heywood fit or an unrepaired non-PSD pairwise input; here session_minutes does not belong with the two revenue measures (alpha if deleted jumps to 0.98), so the fit is a Heywood case and omega comes back null with PULSE_MATRIX_HEYWOOD. Streamable and mergeable; no p-values.",
+    "intents": [
+      "measure_construct"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_RELIABILITY",
+      "name": "battery",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ]
+}

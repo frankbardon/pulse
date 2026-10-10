@@ -313,7 +313,7 @@
         "operator": "MAT_CORRELATION",
         "category": "matrix",
         "level": "intermediate",
-        "why": "How closely every pair in a set of numeric fields follows a straight line together, as one square table of r values from -1 to 1. Fill in each placeholder in the draft before you run it.",
+        "why": "How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "cohort": {
@@ -342,8 +342,16 @@
             "use": "MAT_COVARIANCE"
           },
           {
-            "when": "the links are consistent but curved, or the values are ranks",
+            "when": "you need a p-value for one pair's rank correlation",
             "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you need a p-value for one pair's Kendall tau",
+            "use": "TEST_KENDALL_TAU"
+          },
+          {
+            "when": "you want each pair's link with other fields held fixed",
+            "use": "MAT_PARTIAL_CORRELATION"
           }
         ]
       },
@@ -465,9 +473,9 @@
       }
     ],
     "truncated": true,
-    "candidates_considered": 12
+    "candidates_considered": 13
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: bbaf41ccc3560b403559e0dc0a563f194d066efe65b4e8e9c40560c86cda03bf
+// golden-hash: fcf390c451c1977f6751418ddfd64b3cea1a1b39e8e1ad86cb110e19072eba9f

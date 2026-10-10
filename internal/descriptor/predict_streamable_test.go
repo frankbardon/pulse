@@ -491,6 +491,22 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			numericSchema,
 		},
 		{
+			// Spec-level streamability: params (a rank method) make a
+			// built-in type buffered; predict and the runtime read the
+			// one types.MatrixSpec.Streamable rule.
+			"MAT_CORRELATION with a rank method buffers",
+			&types.Request{Matrices: []types.MatrixSpec{
+				{Type: types.MAT_CORRELATION, Fields: []string{"score"}},
+				{Name: "rank", Type: types.MAT_CORRELATION, Fields: []string{"score"}, Params: json.RawMessage(`{"method":"kendall"}`)},
+			}},
+			numericSchema,
+		},
+		{
+			"MAT_CORRELATION with method pearson streams",
+			&types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"score"}, Params: json.RawMessage(`{"method":"pearson"}`)}}},
+			numericSchema,
+		},
+		{
 			"unknown matrix type buffers",
 			&types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_NOPE", Fields: []string{"score"}}}},
 			numericSchema,

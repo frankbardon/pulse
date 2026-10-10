@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268]
 branch: docs-audit
 ---
 
@@ -41,6 +41,7 @@ A deliberate final pass over every surface a human or agent reads (mdBook, READM
 - [ ] **#238** (7. Guided analysis › Follow-ups from U21) Hidden-capability prose residue the slot-token filter does not reach (matrices-hidden `pulse_examples_search` / `pulse_manifest` sentences, unscrubbed topical and tool skill bodies, weighted aggregator keys on the Components page of a weighting-hidden instance)
 - [ ] **#239** (7. Guided analysis › Follow-ups from U21) The Analysis Guide's search-index size (about 12 MB warning) and whether the PR-time `docs` job becomes a required check
 - [ ] **#257** (7. Guided analysis › Follow-ups from U23) `pulse_predict` description keeps the generic "send exactly one alternative root alone" sentence on profiles hiding compose, facet and process_chain (the per-root sentences are scrubbed)
+- [ ] **#268** (10. Vector & matrix — operators › Follow-ups from U24) Trim the soft-budget overruns in the `op-mat-*` atomic skills (`op-mat-correlation` body 1970 B against 1200) with the other over-budget atomic bodies
 
 ## Scope
 

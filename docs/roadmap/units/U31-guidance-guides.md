@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U21, U24, U28]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [100, 101, 102, 103, 250, 251, 252]
+todo_items: [100, 101, 102, 103, 250, 251, 252, 269]
 branch: guidance-guides
 ---
 
@@ -36,6 +36,7 @@ Hand-written prose around generated blocks: the "What can Pulse answer?" landing
 - [ ] **#250** (7. Guided analysis › Follow-ups from U23) Fuzzy (typo-tolerant) search over examples and skills: a final `matchTier` after the literal and `KnownAs`/Sound tiers (the seam in `internal/examples/search.go`), edit distance scaled by length, ranked below exact and synonym hits
 - [ ] **#251** (7. Guided analysis › Follow-ups from U23) Align the story-example metadata spelling: #102 says `_meta.intent`, examples carry `_meta.intents` (a list); pick one and make the item text, the harness and the docs agree
 - [ ] **#252** (7. Guided analysis › Follow-ups from U23) `pulse examples search` has no `--intent` flag (the MCP tool and the facade `ExamplesSearchWith` take one); add it and a `docs/src/cli/flags.md` row
+- [ ] **#269** (10. Vector & matrix — operators › Follow-ups from U24) A rating-battery demo cohort (Likert items on one latent trait) so `MAT_RELIABILITY` and `MAT_PCA` examples show a defined omega and real loadings; `08_reliability.json` runs on `experiment.pulse` and shows a Heywood null omega
 
 ## Scope
 

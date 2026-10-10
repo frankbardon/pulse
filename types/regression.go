@@ -148,6 +148,20 @@ type RegressionSpec struct {
 	// "aic" or "bic". Required when Selection is non-empty.
 	Criterion string `json:"criterion,omitempty"`
 
+	// Vcov opts this regression into the coefficient covariance matrix
+	// (RegressionResult.Vcov) and its diag-scaled correlation
+	// (RegressionResult.Correlation). Off by default, so a fit without
+	// it is byte-identical on the wire. REG_OLS (unpenalized: σ̂²·(XᵀX)⁻¹;
+	// ridge: the sandwich), REG_GLM ((XᵀWX)⁻¹ at the converged weights)
+	// and REG_BAYES_LINEAR (the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹)
+	// support it. Under Resample it is the replicate covariance (jackknife
+	// (n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ, bootstrap the B−1 sample covariance of
+	// the successful replicates); under Selection the final refit's
+	// covariance keyed by the selected predictors — so √diag always
+	// equals StdErrors. Lasso / elastic net refuse it, alone or under a
+	// modifier, with PROCESSING_REGRESSION_VCOV_UNSUPPORTED.
+	Vcov bool `json:"vcov,omitempty"`
+
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
 	// slot out (it runs unweighted); a field-name string or a
@@ -257,6 +271,21 @@ type RegressionResult struct {
 	// CredibleIntervals maps predictor name to its
 	// [lower, upper] posterior credible interval (REG_BAYES_LINEAR).
 	CredibleIntervals map[string][2]float64 `json:"credible_intervals,omitempty"`
+
+	// Vcov is the coefficient covariance matrix, present only when the
+	// spec set Vcov: square symmetric, full encoding, row / column keys
+	// "(intercept)" then the predictors in spec order. On REG_OLS and
+	// REG_GLM its diagonal is exactly StdErrors² (the variances the
+	// standard errors are the square roots of), on the same inference
+	// basis — N* (Σw under frequency, n_eff under probability) on a
+	// weighted fit. On REG_BAYES_LINEAR it is the posterior covariance
+	// b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), whereas StdErrors are the
+	// marginal-t scales √(b_n/a_n·(Λ_n⁻¹)_jj). An undefined entry is null.
+	Vcov *MatrixValues `json:"vcov,omitempty"`
+
+	// Correlation is Vcov scaled to unit diagonal (R's cov2cor), present
+	// exactly when Vcov is.
+	Correlation *MatrixValues `json:"correlation,omitempty"`
 }
 
 // Streamable reports whether a regression type can run via the

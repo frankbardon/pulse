@@ -186,6 +186,38 @@ var regressionClasses = map[types.RegressionType]Class{
 var matrixClasses = map[types.MatrixType]Class{
 	types.MAT_CORRELATION: ClassAware,
 	types.MAT_COVARIANCE:  ClassAware,
+	// MAT_PARTIAL_CORRELATION reads the same weighted correlation and
+	// inverts it (corpcor::cor2pcor on the weighted r): scale-free, so
+	// the two kinds agree, as for MAT_CORRELATION.
+	types.MAT_PARTIAL_CORRELATION: ClassAware,
+	// MAT_RELIABILITY reads the weighted co-moments: alpha is a ratio
+	// of the weighted covariance (scale-free), omega fits the weighted
+	// correlation; item_sd takes the kind's denominator (frequency
+	// Σw − 1, probability Σw − Σw²/Σw).
+	types.MAT_RELIABILITY: ClassAware,
+	// MAT_PCA decomposes the weighted correlation (scale-free, kind
+	// free) or the weighted covariance (the kind's denominator, as
+	// MAT_RELIABILITY's item_sd); Bartlett's test reads N* = Σw
+	// (frequency) or Kish n_eff (probability).
+	types.MAT_PCA: ClassAware,
+	// MAT_COLLINEARITY reads the weighted correlation (VIF, centered
+	// Belsley) and the weighted uncentered moments W(Σ + μμᵀ) scaled
+	// to unit diagonal (uncentered Belsley): scale-free ratios, so the
+	// two kinds agree.
+	types.MAT_COLLINEARITY: ClassAware,
+}
+
+// MatrixClassOf is a matrix spec's weight class: its type's
+// (matrixClasses) unless rankMethod — a MAT_CORRELATION params.method
+// of "spearman" or "kendall" — which is ClassFrequencyOnly: the rank
+// matrix is TEST_SPEARMAN_R / TEST_KENDALL_TAU per pair, whose weighted
+// form is the frequency expansion (weighted mid-ranks, pair masses
+// w_i·w_j) with no probability-weighted reference form.
+func MatrixClassOf(t types.MatrixType, rankMethod bool) Class {
+	if rankMethod && t == types.MAT_CORRELATION {
+		return ClassFrequencyOnly
+	}
+	return ClassOf(string(t))
 }
 
 // refusalReasons are the PERMANENT refusals: operators with no standard

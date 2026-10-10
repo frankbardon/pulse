@@ -27,7 +27,7 @@ const psdTolerance = 1e-10
 // primary matrix (nil when there is none).
 func (m *matrixSlot) warnings(cm *linalg.CoMoment, primary *linalg.Sym) []*types.ResponseWarning {
 	var out []*types.ResponseWarning
-	members := m.plan.Members.Members
+	members := m.cols
 	p := len(members)
 
 	// Matrix-level thinness: fewer than 2 rows or no mass. The member
@@ -82,8 +82,10 @@ func (m *matrixSlot) warnings(cm *linalg.CoMoment, primary *linalg.Sym) []*types
 	}
 
 	// Only the shapes predict reports pairwise_psd_risk for are judged
-	// (vectors.Matrix.PSDRisk — the one shared rule).
-	if m.plan.PSDRisk() {
+	// (vectors.Matrix.PSDRisk — the one shared rule). A decomposition
+	// operator judges its INPUT through the shared guard (guardPSD,
+	// matrix_psd.go) instead: fatal, or the repair warning.
+	if m.plan.PSDRisk() && !m.plan.Decomposition() {
 		if pivot, checked, bad := notPSD(primary); bad {
 			out = append(out, matrixWarning(errors.PULSE_MATRIX_NOT_PSD,
 				"pairwise matrix "+m.plan.Name+" is not positive semidefinite (reference Cholesky fails at member "+members[pivot]+")",

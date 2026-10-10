@@ -327,7 +327,10 @@ type MatrixPredict struct {
 	Name string `json:"name"`
 	// Type is the matrix operator.
 	Type types.MatrixType `json:"type"`
-	// Shape is [p, p]: rows × columns of every matrix in the result.
+	// Shape is [p, p]: rows × columns of every matrix in the result —
+	// on MAT_PCA the primary's [p, k] (the rectangular loadings) when
+	// params.components is an integer k, else [p, p], the upper bound
+	// (kaiser and a variance share choose k from the data).
 	Shape [2]int `json:"shape"`
 	// AxisKeys are the member field names in axis order — the result's
 	// row_keys and column_keys.
@@ -366,18 +369,37 @@ type MatrixPredict struct {
 	// ceil(records / merge_block_size) — per shard for an archive, whose
 	// block numbering restarts per shard. An upper bound (a bucket holds
 	// one state per block its rows touch). Omitted with the bucket count
-	// unknown. It is the matrix term of the MaxEstimatedMemory estimate.
+	// unknown. A buffered spec adds its RowBufferBytes. It is the matrix
+	// term of the MaxEstimatedMemory estimate.
 	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
-	// Streamable reports whether the operator folds row by row (its
-	// result is emitted at finalize — terminal flush when streamed).
-	// Request-level routing (groupers, two-pass attributes) is
-	// PredictResult.Streamable.
+	// Streamable reports whether this spec folds row by row (its
+	// result is emitted at finalize — terminal flush when streamed):
+	// the spec-level types.MatrixSpec.Streamable, the type folded with
+	// its params (a rank method is buffered). Request-level routing
+	// (groupers, two-pass attributes) is PredictResult.Streamable.
 	Streamable bool `json:"streamable"`
-	// PairwisePSDRisk reports whether the result can come back not
-	// positive semidefinite — pairwise MAT_COVARIANCE at p ≥ 2,
-	// pairwise MAT_CORRELATION at p ≥ 3 — the only shapes the runtime
-	// checks for PULSE_MATRIX_NOT_PSD. False guarantees the warning
-	// never fires; true says it can, depending on the data.
+	// Mergeable reports whether this spec's running state combines
+	// across partitions — the spec-level types.MatrixSpec.Mergeable (a
+	// rank method is not). A request carrying a non-mergeable spec runs
+	// serially: DecodeWorkers / ShardWorkers do not fan it out.
+	Mergeable bool `json:"mergeable"`
+	// RowBufferBytes estimates the row store a BUFFERED spec (not
+	// Streamable — a rank method) keeps until finalize: 8·(p + 1) bytes
+	// per admitted row (its member values and weight) times the
+	// cohort's record count, an upper bound. Omitted on a streamable
+	// spec or with the record count unknown; EstimatedBytes includes it.
+	RowBufferBytes *int64 `json:"row_buffer_bytes,omitempty"`
+	// PairwisePSDRisk reports whether the result (or a decomposition
+	// operator's input) can come back not positive semidefinite —
+	// pairwise MAT_COVARIANCE at p ≥ 2, pairwise MAT_CORRELATION,
+	// MAT_PARTIAL_CORRELATION (folded columns), MAT_RELIABILITY,
+	// MAT_COLLINEARITY and MAT_PCA on a correlation at p ≥ 3, MAT_PCA
+	// on a covariance at p ≥ 2 — the only shapes the runtime checks for
+	// PULSE_MATRIX_NOT_PSD. False guarantees the code never appears;
+	// true says it can, depending on the data: a warning, on
+	// MAT_PARTIAL_CORRELATION a refusal unless params.repair is
+	// "nearest" (MAT_PCA and MAT_COLLINEARITY alike), on
+	// MAT_RELIABILITY a null omega with the warning.
 	PairwisePSDRisk bool `json:"pairwise_psd_risk"`
 }
 

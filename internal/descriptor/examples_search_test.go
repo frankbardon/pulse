@@ -121,6 +121,10 @@ func TestExamplesSearch_Relevance(t *testing.T) {
 		{query: "aov", wantOp: "TEST_ANOVA_F"},
 		{query: "run an aov on spend", wantOp: "TEST_ANOVA_F"},
 		{query: "chisq.test", wantOp: "TEST_CHISQ"},
+		{query: "cronbach's alpha", wantOp: "MAT_RELIABILITY", wantIntent: IntentMeasureConstruct},
+		{query: "is this scale reliable? check internal consistency", wantOp: "MAT_RELIABILITY"},
+		{query: "principal components", wantOp: "MAT_PCA"},
+		{query: "variance inflation", wantOp: "MAT_COLLINEARITY"},
 	}
 	for _, c := range cases {
 		hits, err := snap.ExamplesSearch(examples.Query{Query: c.query})

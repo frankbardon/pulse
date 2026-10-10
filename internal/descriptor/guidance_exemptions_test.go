@@ -52,7 +52,7 @@ var interpretationExemptions = []guidanceExemption{}
 var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
 	{Key: IntentFlows, Owner: "U28", Why: "Flow analysis needs the matrix overlays (stochastic matrices, steady states) U28 ships."},
-	{Key: IntentMeasureConstruct, Owner: "U24", Why: "Construct measurement needs the reliability / PCA operators U24 ships."},
+	{Key: IntentMeasureConstruct, Owner: "U25", Why: "MAT_RELIABILITY and MAT_PCA declare it (two since U24 E3-S1; owner moved to U25 when U24 closed); the 3-declarer floor still wants a third (U25's MAT_FACTOR, TODO #262, is the natural one)."},
 }
 
 // intentExampleExemptions — intents no example's _meta.intents tags
@@ -60,7 +60,6 @@ var intentDeclarerExemptions = []guidanceExemption{
 var intentExampleExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent served by pulse_lookup; the example library holds request payloads, and a lookup is not one."},
 	{Key: IntentFlows, Owner: "U28", Why: "No flow operator exists to exemplify until U28 ships the matrix overlays."},
-	{Key: IntentMeasureConstruct, Owner: "U24", Why: "No construct-measurement operator exists to exemplify until U24 ships."},
 	{Key: IntentSimulate, Owner: ownerPermanent, Why: "Synth specs are a separate surface (pulse synth); the raw internal/examples/synth/*.synth.json specs sit outside the embedded library and carry no _meta, so no library example can carry simulate."},
 }
 
@@ -74,12 +73,7 @@ var exampleIntentExemptions = []guidanceExemption{}
 // (TestGlossary_OrphanReport). Key: the term ID.
 var glossaryOrphanExemptions = []guidanceExemption{
 	// Matrix operators (correlation matrix, reliability, PCA).
-	{Key: "pairwise-deletion", Owner: "U24", Why: "Every built-in correlation (TEST_PEARSON_R / _SPEARMAN_R / _KENDALL_TAU) takes exactly two fields and skips a row missing either, so pairwise and listwise deletion coincide; the choice first exists for the multi-field MAT_CORRELATION matrix U24 ships."},
-	{Key: "factor", Owner: "U24", Why: "Defined as a latent factor (factor analysis), not a categorical grouping field, so GROUP_CATEGORY does not link it; the factor-analysis operator U24 ships does."},
-	{Key: "eigenvalue", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
-	{Key: "loading", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
-	{Key: "principal-component", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
-	{Key: "reliability", Owner: "U24", Why: "Written ahead of the reliability operator U24 ships."},
+	{Key: "factor", Owner: "U25", Why: "Defined as a latent factor (factor analysis), not a categorical grouping field, so GROUP_CATEGORY does not link it; the MAT_FACTOR operator (roadmap TODO #262, U25: factor analysis and rotation) does."},
 	// Segmentation.
 	{Key: "centroid", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},
 	{Key: "distance", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},

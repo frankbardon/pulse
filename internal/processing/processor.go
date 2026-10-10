@@ -389,8 +389,11 @@ func (p *Processor) canStream(req *types.Request) bool {
 	// Matrix slots fold row by row on the streaming paths and emit at
 	// finalize — one set per spec ungrouped, one per spec per bucket on
 	// the grouped path. The two-pass attribute drive is not wired: that
-	// combination runs buffered. An unknown or hidden type routes
-	// buffered too, where the field-reference pass has refused it.
+	// combination runs buffered. A buffered spec — the spec-level
+	// types.MatrixSpec.Streamable, the type folded with its params (a
+	// rank method) — routes buffered, so ProcessStream runs it buffered
+	// too. An unknown or hidden type routes buffered, where the
+	// field-reference pass has refused it.
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
 			if !m.Streamable() || p.exts.isHidden(string(m.Type)) {

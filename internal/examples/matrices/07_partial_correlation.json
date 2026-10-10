@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "name": "partial_correlation_matrix",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis"
+    ],
+    "operators": [
+      "MAT_PARTIAL_CORRELATION"
+    ],
+    "description": "Partial correlation matrices on training_data.pulse: price, income and label with each pair held fixed for the third (params.control \"all\", the precision-matrix partials), and price against income with label held fixed through a control list (label sits outside the fields, so it joins the fold and the missing-data mode, and the output covers price and income only). A pairwise input that is not positive semidefinite is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\"; collinear fields are PULSE_MATRIX_SINGULAR. Streamable and mergeable; no p-values.",
+    "intents": [
+      "drivers",
+      "relationship"
+    ]
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_PARTIAL_CORRELATION",
+      "name": "partial_all",
+      "fields": ["price", "income", "label"]
+    },
+    {
+      "type": "MAT_PARTIAL_CORRELATION",
+      "name": "price_income_given_label",
+      "fields": ["price", "income"],
+      "params": {"control": ["label"], "repair": "nearest"}
+    }
+  ]
+}

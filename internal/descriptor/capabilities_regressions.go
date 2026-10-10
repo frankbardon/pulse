@@ -68,6 +68,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "rng_seed", Type: "int", Required: false, Description: "Seed for the bootstrap RNG."},
 				{Name: "selection", Type: "enum", Required: false, EnumValues: []string{"", "backward", "forward", "stepwise"}, Description: "Subset-selection wrapper; downgrades streaming."},
 				{Name: "criterion", Type: "enum", Required: false, EnumValues: []string{"aic", "bic"}, Description: "Information criterion driving selection."},
+				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; resample gives the replicate covariance, selection the final refit's; lasso / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."},
 			},
 			Modifiers: []descriptor.RegressionModifier{resampleModifier, selectionModifier},
 		},
@@ -90,6 +91,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "rng_seed", Type: "int", Required: false, Description: "Seed for the bootstrap RNG."},
 				{Name: "selection", Type: "enum", Required: false, EnumValues: []string{"", "backward", "forward", "stepwise"}, Description: "Subset-selection wrapper."},
 				{Name: "criterion", Type: "enum", Required: false, EnumValues: []string{"aic", "bic"}, Description: "Information criterion driving selection."},
+				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's."},
 			},
 			Modifiers: []descriptor.RegressionModifier{resampleModifier, selectionModifier},
 		},
@@ -109,6 +111,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "prior_shape", Type: "float", Required: false, Description: "Inverse-gamma shape parameter for residual variance."},
 				{Name: "prior_rate", Type: "float", Required: false, Description: "Inverse-gamma rate parameter for residual variance."},
 				{Name: "credible_level", Type: "float", Required: false, Default: 0.95, Description: "Posterior credible-interval mass."},
+				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales)."},
 			},
 			// No resample / selection modifiers: validateBayesLinearSpec
 			// refuses both with PROCESSING_CONFIG (the posterior already

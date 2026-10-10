@@ -25,17 +25,21 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 `matrices: [{name?, type, vector | fields, params?, weight?, encoding?}]`; the answer is `Response.matrices[]`, one `MatrixResult` per spec in request order.
 
 - `MAT_COVARIANCE` — covariance; `params.ddof` 0 or 1 (default 1).
-- `MAT_CORRELATION` — Pearson r, no p-values (run a test per pair for those); `params.summary.top_pairs: k` lists the k strongest pairs.
+- `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); no p-values; `params.summary.top_pairs: k` lists the k strongest pairs.
+- `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"` (a repair stopped at its iteration cap also warns `PULSE_MATRIX_NOT_CONVERGED`).
+- `MAT_COLLINEARITY` — VIF, tolerance, Belsley condition indices + variance decomposition; `params.center`.
+- `MAT_PCA` — loadings (rectangular p × k), eigenvalues, KMO, Bartlett; `params.components` k / `kaiser` / `{variance}`.
+- `MAT_RELIABILITY` — alpha, omega, item diagnostics; `params.reverse` + `scale_min` / `scale_max` flip reverse-keyed items.
 
-Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**
+Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `kind` is `square_symmetric` or `rectangular` (p × k); `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**
 
-`encoding`: `full` (default, p rows of p cells) or `upper` (row r holds the p − r cells from the diagonal, `values[r][k]` = cell (r, r + k)) — about half the bytes; both are symmetric.
+`encoding`: `full` (default, p rows of p cells) or `upper` (row r holds the p − r cells from the diagonal, `values[r][k]` = cell (r, r + k)) — about half the bytes.
 
 ## 3. Missing data and weights
 
 `params.missing`: `listwise` (default, drop a row if any member is null) or `pairwise` (each cell uses the rows where both members are present; `auxiliary.n` gives each pair's row count).
 
-- Pairwise matrices of three or more members can fail to be positive semi-definite (`PULSE_MATRIX_NOT_PSD`); do not feed them to anything that needs PSD.
+- Pairwise matrices of three or more members can fail to be positive semi-definite: a warning on covariance / correlation, FATAL on a decomposition unless `params.repair: "nearest"` (`PULSE_MATRIX_NOT_PSD`).
 - `max_drop_share` (listwise only) warns `PULSE_MATRIX_LISTWISE_HEAVY_DROP` when more than that share of rows was dropped.
 - `PULSE_MATRIX_INSUFFICIENT_N` (under two rows or no weight mass) and `PULSE_MATRIX_ZERO_VARIANCE` (a constant member: its correlation row and column are null; covariance keeps an exact 0).
 - Weights follow [`weighting`](weighting.md): frequency and probability both fold into a weighted covariance. A row of weight 0 counts toward `n` but adds no mass.
@@ -63,11 +67,12 @@ A range or date grouper is `unknown`: the three figures are omitted, never guess
 
 - `matrices` with `joins`, or on a chain stage after the first: `PULSE_MATRIX_UNSUPPORTED_SOURCE`.
 - `matrices` with `crosstab`: `PULSE_MATRIX_HOST_CONFLICT`.
-- Predict and the run refuse identically, before any record is read.
 - Matrices are not streamed row by row: they arrive at the final flush. `ProcessStream` rows carry no matrices.
 
 Serial, parallel-decode and sharded runs return bit-identical matrices on one cohort file; a multi-shard archive matches its single-file twin within rounding only.
 
+Streamability is per spec, not per type: a spec whose params need every row at once (a rank method) is buffered — predict `matrices[].streamable` / `mergeable` false — so the whole request runs buffered (`ProcessStream` too) and serially.
+
 ## See
 
-[`request-envelope`](request-envelope.md) · [`weighting`](weighting.md) · [`response-components`](response-components.md) · [`grouper-design`](grouper-design.md)
+[`multivariate-design`](multivariate-design.md) · [`request-envelope`](request-envelope.md) · [`weighting`](weighting.md) · [`response-components`](response-components.md) · [`grouper-design`](grouper-design.md)

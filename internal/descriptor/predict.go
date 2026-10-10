@@ -447,7 +447,16 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	} else if sizeIn.recordsKnown {
 		blocks = limits.MergeBlocks(sizeIn.records)
 	}
-	predictMatrices(result, req, schema, opts.Instance, blocks)
+	matrixRecords := int64(-1)
+	if len(shardRecords) > 0 {
+		matrixRecords = 0
+		for _, n := range shardRecords {
+			matrixRecords += n
+		}
+	} else if sizeIn.recordsKnown {
+		matrixRecords = sizeIn.records
+	}
+	predictMatrices(result, req, schema, opts.Instance, blocks, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight
 	// refuses with (LimitRefusal), on the defaults-resolved request over
 	// the schema it executes over. A certain finding is a predict error.
@@ -692,11 +701,15 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	}
 
 	// Matrix slots stream on the ungrouped and grouped paths (mirrors
-	// processing.canStream): an unknown or hidden type or a two-pass
-	// attribute route the request buffered.
+	// processing.canStream): an unknown or hidden type, a buffered spec
+	// (types.MatrixSpec.Streamable — the type folded with its params,
+	// e.g. a rank method) or a two-pass attribute route the request
+	// buffered.
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
-			if !opRoute(opts.instance(), m.Type).Streamable() {
+			routed := m
+			routed.Type = opRoute(opts.instance(), m.Type)
+			if !routed.Streamable() {
 				reasons = append(reasons, "matrix "+string(m.Type)+" requires the buffered path")
 			}
 		}

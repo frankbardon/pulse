@@ -98,6 +98,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_REGRESSION_INVALID_FAMILY:    own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INVALID_LINK:      own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA: ownAllRegs,
+	errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED:  own("REG_OLS"),
 	errors.SERVICE_VALIDATION:                      shared,
 	errors.SERVICE_RESOURCE:                        shared,
 	errors.SERVICE_REGISTRY:                        shared,
@@ -461,6 +462,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
 	errors.PULSE_MATRIX_INSUFFICIENT_N:      ownAllMats,
 	errors.PULSE_MATRIX_ZERO_VARIANCE:       ownAllMats,
+	errors.PULSE_MATRIX_NOT_CONVERGED:       ownAllMats,
+	// The one-factor fit's withheld-figure warnings: only the operator
+	// that fits it (MAT_RELIABILITY's omega) raises them.
+	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY"),
+	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY"),
+	// Bartlett's test over a pairwise matrix reads the smallest pair.
+	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA"),
 
 	// Response shaping: `return` is a plain request slot, not a feature.
 	errors.PULSE_RETURN_INVALID:        shared,

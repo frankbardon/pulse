@@ -1025,6 +1025,20 @@
       ],
       "type": "object"
     },
+    "MatrixEncoding": {
+      "enum": [
+        "full",
+        "upper"
+      ],
+      "type": "string"
+    },
+    "MatrixKind": {
+      "enum": [
+        "rectangular",
+        "square_symmetric"
+      ],
+      "type": "string"
+    },
     "MatrixPayload": {
       "additionalProperties": false,
       "properties": {
@@ -1112,6 +1126,70 @@
         "normalize_applied",
         "row_header",
         "row_keys"
+      ],
+      "type": "object"
+    },
+    "MatrixValues": {
+      "additionalProperties": false,
+      "properties": {
+        "column_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "encoding": {
+          "$ref": "#/$defs/MatrixEncoding"
+        },
+        "kind": {
+          "$ref": "#/$defs/MatrixKind"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "row_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "values": {
+          "items": {
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "column_keys",
+        "encoding",
+        "kind",
+        "row_keys",
+        "values"
       ],
       "type": "object"
     },
@@ -1524,6 +1602,9 @@
         "converged_iters": {
           "type": "integer"
         },
+        "correlation": {
+          "$ref": "#/$defs/MatrixValues"
+        },
         "credible_intervals": {
           "additionalProperties": {
             "items": {
@@ -1643,6 +1724,9 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "vcov": {
+          "$ref": "#/$defs/MatrixValues"
         }
       },
       "required": [
@@ -1730,6 +1814,9 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "vcov": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -2358,4 +2445,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 3e226dcf7b597e3ee7759299454d02fb58d0f452535f9bafdadc419744f9cf51
+// golden-hash: 55eeeaf636c920982af6eea5e262480982c309ef1f8ec1a657948459c08d5757

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -113,19 +115,53 @@ func TestMatrixPairwise_AuxiliaryNShape(t *testing.T) {
 						Matrices: []types.MatrixSpec{spec},
 					}).Matrices[0]
 				}
-				def, list, pair := mk(""), mk(`{"missing": "listwise"}`), mk(`{"missing": "pairwise"}`)
-				if def.Auxiliary != nil || list.Auxiliary != nil {
+				pairParams := `{"missing": "pairwise"}`
+				if vectors.IsDecomposition(typ) {
+					// These pairwise correlations are not PSD: a
+					// decomposition operator refuses them unrepaired.
+					pairParams = `{"missing": "pairwise", "repair": "nearest"}`
+				}
+				def, list, pair := mk(""), mk(`{"missing": "listwise"}`), mk(pairParams)
+				// The operator's own auxiliary matrices (MAT_PCA's
+				// eigenvectors, MAT_COLLINEARITY's variance
+				// decomposition) ride every mode; the rule here is about n.
+				shared := func(m types.MatrixResult) map[string]*types.MatrixValues {
+					out := map[string]*types.MatrixValues{}
+					for k, v := range m.Auxiliary {
+						if !slices.Contains(operatorAuxiliary[typ], k) {
+							out[k] = v
+						}
+					}
+					if len(out) == 0 {
+						return nil
+					}
+					return out
+				}
+				if shared(def) != nil || shared(list) != nil {
 					t.Fatalf("listwise carries auxiliary %v / %v", def.Auxiliary, list.Auxiliary)
 				}
 				a, b := mustJSON(t, def), mustJSON(t, list)
 				if a != b {
 					t.Errorf("explicit listwise differs from the default:\n%s\n%s", b, a)
 				}
-				n := pair.Auxiliary["n"]
-				if n == nil || len(pair.Auxiliary) != 1 {
+				n := shared(pair)["n"]
+				if n == nil || len(shared(pair)) != 1 {
 					t.Fatalf("pairwise auxiliary = %v, want exactly n", pair.Auxiliary)
 				}
+				// n is square over the members in the slot's encoding: the
+				// primary's header, or (a rectangular primary) its rows.
 				p := pair.Primary
+				if p.Kind == types.MatrixKindRectangular {
+					sq := &types.MatrixValues{Kind: types.MatrixKindSquareSymmetric, Encoding: enc, RowKeys: p.RowKeys, ColumnKeys: p.RowKeys, Labels: p.Labels}
+					for r := range p.RowKeys {
+						if enc == types.MatrixEncodingUpper {
+							sq.Values = append(sq.Values, make([]float64, len(p.RowKeys)-r))
+						} else {
+							sq.Values = append(sq.Values, make([]float64, len(p.RowKeys)))
+						}
+					}
+					p = sq
+				}
 				if n.Kind != p.Kind || n.Encoding != p.Encoding || !reflect.DeepEqual(n.RowKeys, p.RowKeys) ||
 					!reflect.DeepEqual(n.ColumnKeys, p.ColumnKeys) || !reflect.DeepEqual(n.Labels, p.Labels) {
 					t.Errorf("auxiliary.n header %+v differs from primary %+v", n, p)
@@ -139,12 +175,19 @@ func TestMatrixPairwise_AuxiliaryNShape(t *testing.T) {
 				if n.Values[0][0] != 11 || n.Values[0][1] != 10 {
 					t.Errorf("n row 0 = %v", n.Values[0])
 				}
-				if !strings.Contains(mustJSON(t, pair), `"auxiliary":{"n":{"kind":"square_symmetric"`) {
+				if !strings.Contains(mustJSON(t, pair), `"n":{"kind":"square_symmetric"`) {
 					t.Errorf("wire form lacks auxiliary.n: %s", mustJSON(t, pair))
 				}
 			})
 		}
 	}
+}
+
+// operatorAuxiliary are the auxiliary matrices an operator emits in
+// every missing-data mode (beside the pairwise n).
+var operatorAuxiliary = map[types.MatrixType][]string{
+	types.MAT_PCA:          {"eigenvectors"},
+	types.MAT_COLLINEARITY: {"variance_decomposition"},
 }
 
 func mustJSON(t *testing.T, v any) string {
@@ -174,6 +217,9 @@ func nonPSDRows() [][5]float64 {
 // (singular but PSD) pairwise matrix and the listwise mode are not.
 func TestMatrixWarnings_NotPSD(t *testing.T) {
 	for _, typ := range types.AllMatrixTypes() {
+		if vectors.IsDecomposition(typ) {
+			continue // fatal or repaired: TestMatrixPartialCorrelation_NotPSDGuard
+		}
 		t.Run(string(typ), func(t *testing.T) {
 			res := runOneMatrix(t, nonPSDRows(), missingSpec(typ, x123, "", `{"missing": "pairwise"}`))
 			w := findWarning(res, errors.PULSE_MATRIX_NOT_PSD)
@@ -301,6 +347,15 @@ func TestMatrixWarnings_InsufficientN(t *testing.T) {
 			if !reflect.DeepEqual(w.Details["pairs"], want) {
 				t.Errorf("pairs = %v, want %v", w.Details["pairs"], want)
 			}
+			if typ == types.MAT_PCA {
+				// A decomposition of a table with an undefined cell is
+				// undefined whole: no components (kaiser default), null
+				// eigenvalues.
+				if len(pw.Primary.ColumnKeys) != 0 || !math.IsNaN(pw.Vectors["eigenvalues"].([]float64)[0]) || pw.Auxiliary["n"].Values[0][2] != 1 {
+					t.Errorf("thin pair PCA = %v / %v (n %v), want undefined", pw.Primary.ColumnKeys, pw.Vectors["eigenvalues"], pw.Auxiliary["n"].Values[0][2])
+				}
+				return
+			}
 			if !math.IsNaN(pw.Primary.Values[0][2]) || pw.Auxiliary["n"].Values[0][2] != 1 {
 				t.Errorf("thin pair cell = %v (n %v), want null over 1 row", pw.Primary.Values[0][2], pw.Auxiliary["n"].Values[0][2])
 			}
@@ -323,6 +378,14 @@ func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 				w := findWarning(res, errors.PULSE_MATRIX_ZERO_VARIANCE)
 				if w == nil || !reflect.DeepEqual(w.Details["members"], []string{"x2"}) {
 					t.Fatalf("zero-variance warning = %v (warnings %v)", w, matWarningCodes(res))
+				}
+				if typ == types.MAT_PCA {
+					// No correlation for the constant member, so no
+					// decomposition: no components, null eigenvalues.
+					if len(res.Primary.ColumnKeys) != 0 || !math.IsNaN(res.Vectors["eigenvalues"].([]float64)[0]) {
+						t.Errorf("PCA over a constant member = %v / %v, want undefined", res.Primary.ColumnKeys, res.Vectors["eigenvalues"])
+					}
+					return
 				}
 				cell := res.Primary.Values[1][1]
 				if typ == types.MAT_CORRELATION && !math.IsNaN(cell) {

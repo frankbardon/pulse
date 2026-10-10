@@ -11,6 +11,11 @@ Whole-set matrix operators (`MAT_*`) over virtual vectors
 | `03_grouped_correlation.json` | `MAT_CORRELATION` + `GROUP_CATEGORY` | One correlation matrix per treatment arm (matrices follow `groups`), each with `group_key` / `group_header`; predict reports the estimated buckets, cells and bytes. |
 | `04_pairwise_correlation.json` | `MAT_CORRELATION` | Pairwise deletion (`params.missing: "pairwise"`): each cell over its own rows, plus `auxiliary.n`. |
 | `05_weighted_covariance.json` | `MAT_COVARIANCE` | A per-slot probability weight; the weighted floor (`sum_weights`, `n_eff`) in `Components.Matrices`. |
+| `06_rank_correlation.json` | `MAT_CORRELATION` | `params.method` `spearman` and `kendall` (tau-b): rank correlation matrices, buffered and serial, equal to the per-pair rank tests. |
+| `07_partial_correlation.json` | `MAT_PARTIAL_CORRELATION` | Partial correlations: every pair held fixed for the other members (`control: "all"`), and one pair held fixed for an outside field through a `control` list. |
+| `08_reliability.json` | `MAT_RELIABILITY` | Scale reliability of a battery: alpha, standardized alpha, omega, the mean inter-item r and per-item diagnostics (`reverse` + `scale_min` / `scale_max` key reverse-worded items). |
+| `09_pca.json` | `MAT_PCA` | Principal components of a battery: rectangular loadings and eigenvectors, eigenvalues with explained / cumulative shares, communalities, KMO and Bartlett's test (`components`: Kaiser default, integer k or a variance share). |
+| `10_collinearity.json` | `MAT_COLLINEARITY` | Collinearity diagnostics on candidate predictors (no response): VIF and tolerance, Belsley's condition indices and variance-decomposition proportions, uncentered with the intercept (default) and centered (`center: true`). |
 
 Run every example:
 

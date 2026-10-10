@@ -122,7 +122,8 @@ type MemoryInputs struct {
 	// payload.
 	JoinRightRows int64
 	// MatrixBytes is the matrices' merge-block state (MatrixStateBytes,
-	// summed over every matrix).
+	// summed over every matrix) plus a buffered matrix's row store
+	// (MatrixRowBufferBytes).
 	MatrixBytes int64
 }
 
@@ -207,6 +208,14 @@ func MergeBlocks(shardRecords ...int64) int64 {
 // per bucket, held until finalize. Saturating.
 func MatrixStateBytes(blocks, buckets, accumulatorBytes int64) int64 {
 	return mulSat(mulSat(blocks, buckets), accumulatorBytes)
+}
+
+// MatrixRowBufferBytes is a buffered matrix's row store: records x
+// rowBytes (vectors.Matrix.RowBytes) — every admitted row kept until
+// finalize, records being the upper bound on admitted rows. Saturating;
+// 0 for a streamable matrix (rowBytes 0).
+func MatrixRowBufferBytes(records, rowBytes int64) int64 {
+	return mulSat(records, rowBytes)
 }
 
 const maxInt64 = int64(^uint64(0) >> 1)

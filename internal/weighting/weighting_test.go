@@ -200,3 +200,17 @@ func TestClassify_MomentTestsAware(t *testing.T) {
 		t.Fatal("TEST_SHAPIRO_WILK has no weighted computation yet")
 	}
 }
+
+// TestMatrixClassOf: a MAT_CORRELATION rank method is frequency-only;
+// Pearson and MAT_COVARIANCE keep their type's class.
+func TestMatrixClassOf(t *testing.T) {
+	if got := MatrixClassOf(types.MAT_CORRELATION, true); got != ClassFrequencyOnly {
+		t.Errorf("rank MAT_CORRELATION class = %v, want ClassFrequencyOnly", got)
+	}
+	if got := MatrixClassOf(types.MAT_CORRELATION, false); got != ClassOf(string(types.MAT_CORRELATION)) || got != ClassAware {
+		t.Errorf("pearson MAT_CORRELATION class = %v, want ClassAware", got)
+	}
+	if got := MatrixClassOf(types.MAT_COVARIANCE, true); got != ClassAware {
+		t.Errorf("MAT_COVARIANCE class = %v, want ClassAware (no rank method)", got)
+	}
+}

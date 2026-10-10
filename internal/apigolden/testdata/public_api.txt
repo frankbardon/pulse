@@ -1479,9 +1479,11 @@ pulse/descriptor: type MatrixPredict field EstimatedBuckets *int64 "json:\"estim
 pulse/descriptor: type MatrixPredict field EstimatedBytes *int64 "json:\"estimated_bytes,omitempty\""
 pulse/descriptor: type MatrixPredict field EstimatedCells *int64 "json:\"estimated_cells,omitempty\""
 pulse/descriptor: type MatrixPredict field Labels []string "json:\"labels,omitempty\""
+pulse/descriptor: type MatrixPredict field Mergeable bool "json:\"mergeable\""
 pulse/descriptor: type MatrixPredict field Missing string "json:\"missing\""
 pulse/descriptor: type MatrixPredict field Name string "json:\"name\""
 pulse/descriptor: type MatrixPredict field PairwisePSDRisk bool "json:\"pairwise_psd_risk\""
+pulse/descriptor: type MatrixPredict field RowBufferBytes *int64 "json:\"row_buffer_bytes,omitempty\""
 pulse/descriptor: type MatrixPredict field Shape [2]int "json:\"shape\""
 pulse/descriptor: type MatrixPredict field Streamable bool "json:\"streamable\""
 pulse/descriptor: type MatrixPredict field Type pulse/types.MatrixType "json:\"type\""
@@ -2082,6 +2084,7 @@ pulse/errors: const PROCESSING_REGRESSION_NOT_IMPLEMENTED pulse/errors.Code = "P
 pulse/errors: const PROCESSING_REGRESSION_NO_CONVERGE pulse/errors.Code = "PROCESSING_REGRESSION_NO_CONVERGE"
 pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PROCESSING_REGRESSION_RANK_DEFICIENT"
 pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
+pulse/errors: const PROCESSING_REGRESSION_VCOV_UNSUPPORTED pulse/errors.Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
 pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
 pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
@@ -2194,10 +2197,14 @@ pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMB
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
+pulse/errors: const PULSE_MATRIX_HEYWOOD pulse/errors.Code = "PULSE_MATRIX_HEYWOOD"
 pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX_HOST_CONFLICT"
 pulse/errors: const PULSE_MATRIX_INSUFFICIENT_N pulse/errors.Code = "PULSE_MATRIX_INSUFFICIENT_N"
 pulse/errors: const PULSE_MATRIX_LISTWISE_HEAVY_DROP pulse/errors.Code = "PULSE_MATRIX_LISTWISE_HEAVY_DROP"
+pulse/errors: const PULSE_MATRIX_NOT_CONVERGED pulse/errors.Code = "PULSE_MATRIX_NOT_CONVERGED"
+pulse/errors: const PULSE_MATRIX_NOT_IDENTIFIED pulse/errors.Code = "PULSE_MATRIX_NOT_IDENTIFIED"
 pulse/errors: const PULSE_MATRIX_NOT_PSD pulse/errors.Code = "PULSE_MATRIX_NOT_PSD"
+pulse/errors: const PULSE_MATRIX_PAIRWISE_N_STAR pulse/errors.Code = "PULSE_MATRIX_PAIRWISE_N_STAR"
 pulse/errors: const PULSE_MATRIX_SHAPE_MISMATCH pulse/errors.Code = "PULSE_MATRIX_SHAPE_MISMATCH"
 pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SINGULAR"
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
@@ -3975,8 +3982,12 @@ pulse/types: type LookupRequest method (*LookupRequest) KeyComponents() []pulse/
 pulse/types: type LookupResult struct
 pulse/types: type LookupResult field Rows []map[string]any "json:\"rows\""
 pulse/types: type LookupResult field Warnings []string "json:\"warnings,omitempty\""
+pulse/types: const MAT_COLLINEARITY pulse/types.MatrixType = "MAT_COLLINEARITY"
 pulse/types: const MAT_CORRELATION pulse/types.MatrixType = "MAT_CORRELATION"
 pulse/types: const MAT_COVARIANCE pulse/types.MatrixType = "MAT_COVARIANCE"
+pulse/types: const MAT_PARTIAL_CORRELATION pulse/types.MatrixType = "MAT_PARTIAL_CORRELATION"
+pulse/types: const MAT_PCA pulse/types.MatrixType = "MAT_PCA"
+pulse/types: const MAT_RELIABILITY pulse/types.MatrixType = "MAT_RELIABILITY"
 pulse/types: type MarginAggregationFault struct
 pulse/types: type MarginAggregationFault field Details map[string]any
 pulse/types: type MarginAggregationFault field Kind pulse/types.MarginAggregationFaultKind
@@ -4021,6 +4032,7 @@ pulse/types: type MatrixEncoding string
 pulse/types: const MatrixEncodingFull pulse/types.MatrixEncoding = "full"
 pulse/types: const MatrixEncodingUpper pulse/types.MatrixEncoding = "upper"
 pulse/types: type MatrixKind string
+pulse/types: const MatrixKindRectangular pulse/types.MatrixKind = "rectangular"
 pulse/types: const MatrixKindSquareSymmetric pulse/types.MatrixKind = "square_symmetric"
 pulse/types: type MatrixPair struct
 pulse/types: type MatrixPair field Col string "json:\"col\""
@@ -4060,6 +4072,7 @@ pulse/types: type MatrixSpec field Vector string "json:\"vector,omitempty\""
 pulse/types: type MatrixSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type MatrixSpec method (MatrixSpec) EffectiveEncoding() pulse/types.MatrixEncoding
 pulse/types: type MatrixSpec method (MatrixSpec) EffectiveName() string
+pulse/types: type MatrixSpec method (MatrixSpec) Mergeable() bool
 pulse/types: type MatrixSpec method (MatrixSpec) Streamable() bool
 pulse/types: type MatrixType string
 pulse/types: type MatrixType method (MatrixType) Mergeable() bool
@@ -4298,6 +4311,7 @@ pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\"coefficients,omitempty\""
 pulse/types: type RegressionResult field ConvergedIters int "json:\"converged_iters,omitempty\""
+pulse/types: type RegressionResult field Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
 pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64 "json:\"credible_intervals,omitempty\""
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
@@ -4320,6 +4334,7 @@ pulse/types: type RegressionResult field Selection string "json:\"selection,omit
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
+pulse/types: type RegressionResult field Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
 pulse/types: type RegressionResult method (RegressionResult) MarshalJSON() ([]byte, error)
 pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
@@ -4344,6 +4359,7 @@ pulse/types: type RegressionSpec field Selection string "json:\"selection,omitem
 pulse/types: type RegressionSpec field Target string "json:\"target\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
+pulse/types: type RegressionSpec field Vcov bool "json:\"vcov,omitempty\""
 pulse/types: type RegressionSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type RegressionSpec method (RegressionSpec) Streamable() bool
 pulse/types: type RegressionType string
@@ -4540,4 +4556,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bd768a506f569a7c0f5c20b1e95f2e156b62b7e288aeb519113c91d485f317b1
+// golden-hash: c62f4cfd2e665ec0f9bac67101e75a3154edc9f29e63cdc8219536cfbec2290a

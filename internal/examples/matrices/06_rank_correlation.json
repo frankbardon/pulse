@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "name": "rank_correlation_matrix",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis",
+      "nonparametric"
+    ],
+    "operators": [
+      "MAT_CORRELATION"
+    ],
+    "description": "Spearman and Kendall tau-b correlation matrices of price, income and label on training_data.pulse via params.method: each member is ranked first, so a cell reads any steady rise or fall, not only a straight line, and equals TEST_SPEARMAN_R / TEST_KENDALL_TAU over the pair's rows. Rank methods are buffered and not mergeable (predict reports streamable and mergeable false), take frequency weights only, and report no p-values.",
+    "intents": [
+      "relationship"
+    ]
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_CORRELATION",
+      "name": "spearman",
+      "fields": ["price", "income", "label"],
+      "params": {"method": "spearman", "summary": {"top_pairs": 2}}
+    },
+    {
+      "type": "MAT_CORRELATION",
+      "name": "kendall",
+      "fields": ["price", "income", "label"],
+      "params": {"method": "kendall", "missing": "pairwise"}
+    }
+  ]
+}

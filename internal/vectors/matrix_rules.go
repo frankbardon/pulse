@@ -14,22 +14,51 @@ import (
 // semidefinite — the only shapes the engine runs its
 // PULSE_MATRIX_NOT_PSD check on, so a false here is a guarantee the
 // warning never fires. Listwise matrices are Gram matrices over one row
-// set and always PSD. Under pairwise each cell rests on its own rows:
+// set and always PSD. Under pairwise each cell rests on its own rows,
+// and the risk is decided PER TYPE — a type this switch does not name
+// carries none (an operator that assembles a pairwise matrix and can
+// come back non-PSD must add its own case):
 //
 //   - MAT_COVARIANCE at p ≥ 2 — a variance and a covariance over
 //     different rows need not satisfy |C_ij| ≤ √(V_i·V_j);
 //   - MAT_CORRELATION at p ≥ 3 — a 2 × 2 correlation is clamped to
 //     [−1, 1] with a unit diagonal, which is always PSD, but three
-//     pairwise r's need not be mutually consistent.
+//     pairwise r's need not be mutually consistent;
+//   - MAT_PARTIAL_CORRELATION at p ≥ 3 folded columns (members plus
+//     outside controls) — its input is the pairwise correlation over
+//     every column. A decomposition operator (Decomposition): there the
+//     risk is a FATAL PULSE_MATRIX_NOT_PSD, or the repair warning under
+//     params.repair "nearest", never the detection-only warning;
+//   - MAT_RELIABILITY at p ≥ 3 — omega factors the pairwise inter-item
+//     correlation (a decomposition operator); there an unrepaired
+//     non-PSD input nulls omega with a PULSE_MATRIX_NOT_PSD warning
+//     (alpha needs no PSD input and still computes);
+//   - MAT_PCA — a decomposition operator over the pairwise correlation
+//     at p ≥ 3 (params.on "correlation") or the pairwise covariance at
+//     p ≥ 2 ("covariance", the MAT_COVARIANCE rule); the risk is the
+//     fatal refusal or the repair warning;
+//   - MAT_COLLINEARITY at p ≥ 3 — a decomposition operator over the
+//     pairwise correlation (VIF inverts it; Belsley's diagnostics
+//     decompose it, or the uncentered moment matrix rebuilt from it,
+//     which is PSD whenever it is); the risk is the fatal refusal or
+//     the repair warning.
 func (m Matrix) PSDRisk() bool {
 	if !m.Pairwise {
 		return false
 	}
-	p := len(m.Members.Members)
-	if m.Type == types.MAT_CORRELATION {
+	p := len(m.Columns())
+	switch m.Type {
+	case types.MAT_COVARIANCE:
+		return p >= 2
+	case types.MAT_PCA:
+		if m.On == PCAOnCovariance {
+			return p >= 2
+		}
+		return p >= 3
+	case types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY, types.MAT_COLLINEARITY:
 		return p >= 3
 	}
-	return p >= 2
+	return false
 }
 
 // Accumulator byte layout (linalg.CoMoment): the shared header — n and
@@ -42,18 +71,32 @@ const (
 )
 
 // AccumulatorBytes estimates the payload bytes of one co-moment state
-// over the matrix's members: 32 + 8·(p + p(p+1)/2) listwise,
+// over the matrix's folded columns (Columns: the members plus any
+// outside control): 32 + 8·(p + p(p+1)/2) listwise,
 // 32 + 56·p(p+1)/2 pairwise. The engine holds one such state per
 // populated merge block (linalg.MergeBlockSize rows) until finalize, so
 // a run's matrix state is this times its block count. Go headers and
 // map overhead are not counted.
 func (m Matrix) AccumulatorBytes() int64 {
-	p := int64(len(m.Members.Members))
+	p := int64(len(m.Columns()))
 	cells := p * (p + 1) / 2
 	if m.Pairwise {
 		return coMomentHeaderBytes + pairMomentBytes*cells
 	}
 	return coMomentHeaderBytes + 8*(p+cells)
+}
+
+// RowBytes is the bytes a BUFFERED matrix (not Streamable — a rank
+// method) keeps per admitted row until finalize: the p member values
+// and the row weight, 8·(p + 1). 0 on a streamable matrix, which keeps
+// no rows. The row store is shared by every bucket of a grouped run
+// (each row lands in its own bucket's store), so a run's buffer is this
+// times the admitted rows, at most the record count.
+func (m Matrix) RowBytes() int64 {
+	if m.Streamable {
+		return 0
+	}
+	return 8 * (int64(len(m.Columns())) + 1)
 }
 
 // How a bucket estimate was derived (MatrixPredict.bucket_basis).

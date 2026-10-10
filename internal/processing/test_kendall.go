@@ -12,7 +12,9 @@ import (
 // kendallTauRow implements TEST_KENDALL_TAU (Kendall's τ-b) as a buffered
 // row test: concordance-based correlation between Field and Field2.
 //
-// Algorithm: buffer paired values, then for every i<j classify the pair:
+// Algorithm: buffer paired values, then classify every pair i<j
+// (kendallCounts — Knight's O(n log n) kernel, shared with
+// MAT_CORRELATION params.method "kendall"):
 //
 //	concordant: (x_i−x_j)·(y_i−y_j) > 0
 //	discordant: (x_i−x_j)·(y_i−y_j) < 0
@@ -31,9 +33,6 @@ import (
 //
 // p-value via the standard normal: z = (S − sign(S)) / √Var(S);
 // p = 2(1−Φ(|z|)).
-//
-// Baseline implementation is O(n²) — the plan documents that an
-// O(n log n) upgrade lands later if benchmarks demand it.
 //
 // Frequency-weighted (ClassFrequencyOnly), each pair stands for w
 // identical pairs: a row pair (i, j) counts w_i·w_j times in C, D, T_x
@@ -118,38 +117,16 @@ func (k *kendallTauRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"n": n, "min_required": 3})
 	}
 	xs, ws := k.xs.values, k.xs.weights
-	// Pair weights w_i·w_j (exactly 1 unweighted, so every sum is the
-	// integer pair count).
-	var c, d, tx, ty float64
-	for i := 0; i < n-1; i++ {
-		for j := i + 1; j < n; j++ {
-			dx := xs[i] - xs[j]
-			dy := k.ys[i] - k.ys[j]
-			pw := ws[i] * ws[j]
-			switch {
-			case dx == 0 && dy == 0:
-				// tied in both — excluded from all counts
-			case dx == 0:
-				tx += pw
-			case dy == 0:
-				ty += pw
-			case (dx > 0) == (dy > 0):
-				c += pw
-			default:
-				d += pw
-			}
-		}
-	}
+	// Pair masses Σ w_i·w_j (exactly the integer pair counts
+	// unweighted): the shared Knight kernel.
+	c, d, tx, ty := kendallCounts(xs, k.ys, ws)
 	S := c - d
-	denomA := (c + d) + tx
-	denomB := (c + d) + ty
-	denom := math.Sqrt(denomA * denomB)
-	if denom == 0 {
+	tau, ok := kendallTauB(c, d, tx, ty)
+	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_CORRELATION_UNDEFINED,
 			"TEST_KENDALL_TAU: degenerate input (all pairs tied)",
 			map[string]any{"n": n, "c": c, "d": d, "tx": tx, "ty": ty})
 	}
-	tau := S / denom
 	// Variance under the null. Compute the tie-group sizes by sorting
 	// and walking each column independently.
 	_, tiesX := weightedMidRanks(xs, ws)

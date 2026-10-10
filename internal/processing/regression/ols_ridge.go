@@ -141,11 +141,13 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 	}
 
 	stdErrors := make([]float64, p+1)
+	variances := make([]float64, p+1)
 	for j := 0; j < p; j++ {
 		v := sigma2Gram * sandwich.At(j, j)
 		if v < 0 {
 			v = 0
 		}
+		variances[j+1] = v
 		stdErrors[j+1] = sqrt(v)
 	}
 	// Intercept SE: σ² · (1/n + μ_xᵀ · Var(β)/σ² · μ_x)
@@ -169,9 +171,20 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 	if seInt < 0 {
 		seInt = 0
 	}
+	variances[0] = seInt
 	stdErrors[0] = sqrt(seInt)
 
+	// The dense product can differ from symmetric in the last ulp;
+	// the covariance reads the upper triangle (olsVcov mirrors it).
 	return &olsSolveResult{
+		slopeCov: func(i, j int) float64 {
+			if i > j {
+				i, j = j, i
+			}
+			return sandwich.At(i, j)
+		},
+		sigma2Gram:     sigma2Gram,
+		variances:      variances,
 		Coefficients:   coeffs,
 		Intercept:      intercept,
 		StdErrors:      stdErrors,

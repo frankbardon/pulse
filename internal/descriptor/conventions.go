@@ -68,6 +68,12 @@ const (
 	ConventionCohenW    = "cohen1988_w"
 	ConventionCohenOR   = "cohen1988_or"
 	ConventionCohenR2   = "cohen1988_r2"
+	// ConventionGeorgeMalleryAlpha is George & Mallery's (2003) rule of
+	// thumb for Cronbach's alpha.
+	ConventionGeorgeMalleryAlpha = "georgemallery2003_alpha"
+	// ConventionKaiserKMO is Kaiser's (1974) labelling of the
+	// Kaiser-Meyer-Olkin measure of sampling adequacy.
+	ConventionKaiserKMO = "kaiser1974_kmo"
 )
 
 // cohenLabels names Cohen's three benchmarks plus the region below
@@ -128,6 +134,28 @@ var builtinConventions = map[string]effectConvention{
 	// .2593, conventionally rounded (R effectsize interpret_r2, rule
 	// cohen1988). Not for adjusted R^2, a Bayesian posterior-mean R^2 or
 	// a GLM pseudo-R^2: all three are excluded in testdata/conventions.json.
+	// Cronbach's alpha (raw and standardized), George & Mallery (2003,
+	// p. 231): >= .9 excellent, >= .8 good, >= .7 acceptable, >= .6
+	// questionable, >= .5 poor, below .5 unacceptable. Signed: a
+	// negative alpha reads "unacceptable". Not for omega (no verified
+	// omega convention; excluded in testdata/conventions.json).
+	// The Kaiser-Meyer-Olkin measure of sampling adequacy, Kaiser (1974,
+	// "An index of factorial simplicity", Psychometrika 39, 31-36):
+	// >= .9 marvelous, the .80s meritorious, .70s middling, .60s
+	// mediocre, .50s miserable, below .5 unacceptable. Signed (KMO lies
+	// in [0, 1]).
+	ConventionKaiserKMO: {
+		ID: ConventionKaiserKMO, Citation: "Kaiser (1974)",
+		Statistics: []string{"kmo"},
+		Thresholds: []float64{0.5, 0.6, 0.7, 0.8, 0.9},
+		Labels:     []string{"unacceptable", "miserable", "mediocre", "middling", "meritorious", "marvelous"},
+	},
+	ConventionGeorgeMalleryAlpha: {
+		ID: ConventionGeorgeMalleryAlpha, Citation: "George & Mallery (2003)",
+		Statistics: []string{"cronbach_alpha"},
+		Thresholds: []float64{0.5, 0.6, 0.7, 0.8, 0.9},
+		Labels:     []string{"unacceptable", "poor", "questionable", "acceptable", "good", "excellent"},
+	},
 	ConventionCohenR2: {
 		ID: ConventionCohenR2, Citation: "Cohen (1988) f-squared benchmarks converted via R2 = f2/(1+f2)",
 		Statistics: []string{"r_squared"},

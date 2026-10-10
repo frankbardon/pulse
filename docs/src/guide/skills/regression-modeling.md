@@ -100,4 +100,5 @@ Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, plug-in SE ove
 - [`feature-engineering`](feature-engineering.md) — polynomial parameter table + column naming.
 - [`statistical-testing`](statistical-testing.md) — Wald-z vs Student-t.
 - [`request-envelope`](request-envelope.md) — slot keys, streamability.
+- [`regression-inference`](regression-inference.md) — vcov
 - `pulse_errors_lookup` — `PROCESSING_REGRESSION_*` recovery.
