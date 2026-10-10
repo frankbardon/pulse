@@ -52,7 +52,7 @@ var interpretationExemptions = []guidanceExemption{}
 var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
 	{Key: IntentFlows, Owner: "U28", Why: "Flow analysis needs the matrix overlays (stochastic matrices, steady states) U28 ships."},
-	{Key: IntentMeasureConstruct, Owner: "U24", Why: "MAT_RELIABILITY and MAT_PCA declare it (two since U24 E3-S1); the 3-declarer floor still wants a third (U25's MAT_FACTOR, TODO #262, is the natural one)."},
+	{Key: IntentMeasureConstruct, Owner: "U25", Why: "MAT_RELIABILITY and MAT_PCA declare it (two since U24 E3-S1; owner moved to U25 when U24 closed); the 3-declarer floor still wants a third (U25's MAT_FACTOR, TODO #262, is the natural one)."},
 }
 
 // intentExampleExemptions — intents no example's _meta.intents tags
