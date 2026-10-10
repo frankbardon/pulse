@@ -5,10 +5,10 @@ title: "Pulse goes live with the most helpful, current and comprehensive documen
 track: API & release
 size: L
 status: not-started
-depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40]
+depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371]
 branch: docs-audit
 ---
 
@@ -16,7 +16,7 @@ branch: docs-audit
 
 **Outcome:** Pulse goes live with the most helpful, current and comprehensive documentation we can produce.
 
-**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md), [U38](U38-skill-sync.md), [U40](U40-compose-sweep.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
+**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md), [U38](U38-skill-sync.md), [U40](U40-compose-sweep.md), [U41](U41-derived-cohort.md), [U42](U42-fit-scoring.md), [U43](U43-post-aggregation-ratios.md), [U44](U44-strict-input.md), [U45](U45-binary-and-decimal.md), [U46](U46-grouped-analysis.md), [U47](U47-survey-tables.md), [U48](U48-experiment-readout.md), [U49](U49-model-workbench.md), [U50](U50-local-time.md), [U51](U51-archive-scale.md), [U52](U52-synth-realism.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
 
 ## Summary
 
@@ -42,6 +42,7 @@ A deliberate final pass over every surface a human or agent reads (mdBook, READM
 - [ ] **#239** (7. Guided analysis › Follow-ups from U21) The Analysis Guide's search-index size (about 12 MB warning) and whether the PR-time `docs` job becomes a required check
 - [ ] **#257** (7. Guided analysis › Follow-ups from U23) `pulse_predict` description keeps the generic "send exactly one alternative root alone" sentence on profiles hiding compose, facet and process_chain (the per-root sentences are scrubbed)
 - [ ] **#268** (10. Vector & matrix — operators › Follow-ups from U24) Trim the soft-budget overruns in the `op-mat-*` atomic skills (`op-mat-correlation` body 1970 B against 1200) with the other over-budget atomic bodies
+- [ ] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent (the retail example measured no gain on 15 fields of 53 bytes); the showcase READMEs are re-verified after the units that simplify them land
 
 ## Scope
 

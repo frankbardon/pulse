@@ -1,6 +1,6 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **45 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **54 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and are post-U40 units whose v1.0.0 membership is an owner call. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](../../showcase/)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -81,6 +81,15 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U41 | [derived-cohort](U41-derived-cohort.md): A request's derived columns become a new cohort with the schema carried over, and the import that follows cannot mislabel a column | API & release | L | U40 | 279, 280, 281, 282, 283, 284, 285 |
 | U42 | [fit-scoring](U42-fit-scoring.md): A fitted model is applied to rows by name, its error is an aggregator, and its interval bounds pass through | API & release | L | U41 | 286, 287, 288, 289 |
 | U43 | [post-aggregation-ratios](U43-post-aggregation-ratios.md): A ratio of two aggregates and a scalar derived from an aggregate are native, so ROI and a scenario scale factor need no hand arithmetic | API & release | M | U42 | 290, 291, 292 |
+| U44 | [strict-input](U44-strict-input.md): Pulse never silently ignores what it is given: a misspelled key, a dropped row or a failed run is always visible | API & release | M | — (U35 soft) | 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311 |
+| U45 | [binary-and-decimal](U45-binary-and-decimal.md): A 0/1 flag and an exact decimal work wherever a category or a number does, and a formula can say what it means | API & release | M | — (U35 soft) | 312, 313, 314, 315, 316, 317 |
+| U46 | [grouped-analysis](U46-grouped-analysis.md): Grouped analysis is one request: composite keys, overlays that pick their measure and partition, and tests per group | API & release | L | — (U35 soft) | 318, 319, 320, 321, 322, 323 |
+| U47 | [survey-tables](U47-survey-tables.md): A weighted banner table with significance letters is one request, and Pulse can compute the weights | Statistical integrity | L | — (U46, U11, U12 soft) | 324, 325, 326, 327, 328, 329, 330, 331 |
+| U48 | [experiment-readout](U48-experiment-readout.md): An experiment readout is one request: sample-ratio check, a named reference arm, an adjusted effect with its interval, all in one correction family | Statistical integrity | M | — (U43, U46 soft) | 332, 333, 334, 335, 336, 337, 338 |
+| U49 | [model-workbench](U49-model-workbench.md): Models fit reliably and are validated with standard metrics, and leakage-safe encoding is one parameter | Statistical integrity | L | — (U42 soft) | 339, 340, 341, 342, 343, 344, 345, 346, 347 |
+| U50 | [local-time](U50-local-time.md): Every row is read in its own local time, and calendar parts sort and filter the way a calendar does | Time zones | M | — (U46 soft) | 348, 349, 350, 351, 352, 353 |
+| U51 | [archive-scale](U51-archive-scale.md): A 50-million-row shard archive runs on a 16 GB machine: header-only operations read headers, and appending costs only the new shard | Embedder operations | L | — (U19 soft) | 354, 355, 356, 357, 358, 359, 360, 361 |
+| U52 | [synth-realism](U52-synth-realism.md): Pulse can synthesize time series, outcomes drawn from a model, and privacy-checked twins without outside tooling | API & release | L | — (U50 soft) | 362, 363, 364, 365, 366, 367, 368, 369, 370 |
 
 ## Dependency graph
 
@@ -131,6 +140,15 @@ graph TD
   U41["U41 derived-cohort"]
   U42["U42 fit-scoring"]
   U43["U43 post-aggregation-ratios"]
+  U44["U44 strict-input"]
+  U45["U45 binary-and-decimal"]
+  U46["U46 grouped-analysis"]
+  U47["U47 survey-tables"]
+  U48["U48 experiment-readout"]
+  U49["U49 model-workbench"]
+  U50["U50 local-time"]
+  U51["U51 archive-scale"]
+  U52["U52 synth-realism"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -200,9 +218,33 @@ graph TD
   U21 --> U38
   U38 --> U32
   U40 --> U32
+  U41 --> U32
+  U42 --> U32
+  U43 --> U32
   U40 --> U41
   U41 --> U42
   U42 --> U43
+  U44 --> U32
+  U45 --> U32
+  U46 --> U32
+  U47 --> U32
+  U48 --> U32
+  U49 --> U32
+  U50 --> U32
+  U51 --> U32
+  U52 --> U32
+  U35 -.-> U44
+  U35 -.-> U45
+  U35 -.-> U46
+  U46 -.-> U47
+  U11 -.-> U47
+  U12 -.-> U47
+  U43 -.-> U48
+  U46 -.-> U48
+  U42 -.-> U49
+  U46 -.-> U50
+  U19 -.-> U51
+  U50 -.-> U52
 ```
 
 ## Human inputs that gate units
