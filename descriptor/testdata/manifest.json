@@ -4,8 +4,8 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:69a32b23066436df2587fd6c16671c659e773785444efb25c80b7ae4fab7292c",
-    "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
+    "feature_set_digest": "fs1:f851ca4127599792e148701605b8ba72c2be9e27dc59de14d29010f297488994",
+    "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
         "name": "process",
@@ -7006,7 +7006,7 @@
         ]
       }
     ],
-    "error_codes_count": 312,
+    "error_codes_count": 313,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7103,6 +7103,7 @@
       "PULSE_FEATURE_PROFILE_UNKNOWN",
       "PULSE_FEAT_TARGET_LEAKAGE_RISK",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_FOR_EACH_INVALID",
       "PULSE_GROUP_DECLARATION_INVALID",
       "PULSE_GROUP_ENTRIES_EXHAUSTED",
       "PULSE_GROUP_FIELD_CONFLICT",
@@ -8661,6 +8662,10 @@
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
+        "name": "item-fan-out",
+        "description": "for_each on a window, feature or attribute item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, a derived-column limit and predict parity."
+      },
+      {
         "name": "join-design",
         "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validating a join before running it."
       },
@@ -9749,7 +9754,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 186,
+    "examples_count": 187,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13284,10 +13289,16 @@
         "value": 100000000,
         "default": 100000000,
         "unit": "count"
+      },
+      {
+        "name": "max_derived_columns",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 07faf05cb22f70d0a96cbc21e3a8e38969da8a17e3469af16d29769d7314e86b
+// golden-hash: a71c465e957eba821a310cd6a291aa30e4a624af4b3612bf0f37f231cc720964

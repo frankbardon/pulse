@@ -1032,6 +1032,21 @@ const (
 	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
 
+	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
+	// window, feature or attribute item: no axes, an axis name that is
+	// not a unique identifier, an empty or non-scalar values list, an
+	// unknown mode, unequal axis lengths under mode zip, an axis no
+	// placeholder in the item names or a placeholder naming no axis,
+	// placeholder syntax the substitution refuses, a substituted item
+	// that does not decode strictly, or a `for_each` inside a compose
+	// sweep body (which a sweep cannot expand twice). Refused
+	// identically by predict and the runtime before any other check of
+	// the request. Details carry "field" (the request-rooted path, e.g.
+	// `windows[0].for_each.axes[1]`), "reason", "axis" where one is
+	// involved and, where they apply, "value" / "valid", the faulting
+	// combination "index" and its axis "values", and "unknown_field".
+	PULSE_FOR_EACH_INVALID Code = "PULSE_FOR_EACH_INVALID"
+
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
 	// the left field's schema type differs from the right field's
 	// (e.g. left is u32, right is categorical_u8). Hash join requires
@@ -3247,6 +3262,7 @@ var allCodes = []Code{
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
+	PULSE_FOR_EACH_INVALID,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
 	PULSE_JOIN_FIELD_UNKNOWN,

@@ -278,6 +278,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
+	// nested_in_sweep is raised by a sweep body, so either surface lists it.
+	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
 
 	errors.PULSE_JOIN_TYPE_MISMATCH:        own(featJoins),
 	errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED: own(featJoins),

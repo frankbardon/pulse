@@ -153,6 +153,7 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 		MaxComposeSlots:    pulse.DefaultMaxComposeSlots,
 		MaxChainStages:     pulse.DefaultMaxChainStages,
 		MaxJoinBuildRows:   pulse.DefaultMaxJoinBuildRows,
+		MaxDerivedColumns:  pulse.DefaultMaxDerivedColumns,
 	}
 	if got := p.Limits(); got != want {
 		t.Fatalf("effective limits %+v, want the built-in defaults %+v", got, want)

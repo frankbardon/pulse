@@ -332,6 +332,13 @@ func parityCases(f *limitsFixture) []parityCase {
 		}
 		return out
 	}
+	// Three derived columns from ONE for_each item: the count the
+	// expansion's preflight checks before rendering.
+	fanOut := func() *types.Request {
+		return &types.Request{Cohort: wideCohort(f), Aggregations: paritySum,
+			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "weight", Label: "w{{k}}", Expression: "weight * {{k}}",
+				ForEach: &types.ForEach{Axes: []types.SweepAxis{{Name: "k", Values: []any{1, 2, 3}}}}}}}
+	}
 	facet := func() *types.FacetRequest {
 		return &types.FacetRequest{Cohort: wideCohort(f), Fields: []string{"brand", "weight"}}
 	}
@@ -437,6 +444,9 @@ func parityCases(f *limitsFixture) []parityCase {
 				return err
 			},
 			limits: maxGroups(8), wantTrip: limits.MaxGroups},
+		{name: "derived columns", site: "derived columns", setup: serialArm,
+			requests: one(fanOut), run: processRun(fanOut),
+			limits: func(l *limits.Limits) { l.MaxDerivedColumns = 2 }, wantTrip: limits.MaxDerivedColumns},
 		{name: "facet groups", host: hostFacet, site: "facet", setup: serialArm, facet: facet,
 			run: func(ctx context.Context, svc *Service) error {
 				_, err := svc.FacetSchema(ctx, facet())
@@ -579,7 +589,8 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 		})
 	}
 	for _, s := range []string{"serial", "buffered", "parallel decode reducer", "parallel shard reducer", "merge",
-		"buffered crosstab", "fused crosstab", "join", "matrix", "compose", "compose (parallel)", "chain", "facet", "timeout"} {
+		"buffered crosstab", "fused crosstab", "join", "matrix", "compose", "compose (parallel)", "chain", "facet", "timeout",
+		"derived columns"} {
 		if !sites[s] {
 			t.Errorf("runtime site %q never tripped", s)
 		}

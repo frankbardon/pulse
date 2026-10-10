@@ -25,6 +25,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `09_ewma.json` | `WIN_EWMA` | Exponentially weighted moving average (`alpha=0.3`) |
 | `10_pct_change.json` | `WIN_PCT_CHANGE` | Percent change vs `params.periods` rows ago |
 | `11_delta.json` | `WIN_DELTA` | Point difference vs `params.periods` rows ago (same units as the field) |
+| `12_ewma_for_each.json` | `WIN_EWMA` | One item fanned out by `for_each` (zip of a label axis and a `decay` axis) into three EWMA columns |
 
 ## Frame requirements
 

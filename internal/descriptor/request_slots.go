@@ -36,6 +36,8 @@ import (
 //   - every `multiplicity` block (Request, Test, OverlaySpec — so also
 //     a FacetRequest's overlays —, ComposeOverlaySpec, ComposedRequest)
 //     — capability:multiplicity
+//   - every item `for_each` (Window, Feature, Attribute) —
+//     capability:for_each
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
@@ -86,6 +88,13 @@ const multiplicityKey = "multiplicity"
 // multiplicitySlotGate is the one gate every `multiplicity` key shares.
 var multiplicitySlotGate = gatedSlot{key: multiplicityKey, visible: capabilityGate(featMultiplicity)}
 
+// forEachKey is the JSON key of the item fan-out on a window, feature
+// or attribute; every one rides capability:for_each.
+const forEachKey = "for_each"
+
+// forEachSlotGate is the one gate every `for_each` key shares.
+var forEachSlotGate = gatedSlot{key: forEachKey, visible: capabilityGate(featForEach)}
+
 // gatedSlots maps each request root (by its Go type) to its gated
 // slots, plus the nested slot objects that carry a gated key of their
 // own (the per-slot `weight`). The nested entries are what the payload
@@ -105,7 +114,9 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate},
 	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate},
-	reflect.TypeOf(types.Attribute{}):          {weightSlotGate},
+	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
+	reflect.TypeOf(types.Window{}):             {forEachSlotGate},
+	reflect.TypeOf(types.Feature{}):            {forEachSlotGate},
 	reflect.TypeOf(types.OverlaySpec{}):        {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Group{}):              {weightSlotGate},
 	reflect.TypeOf(types.ComposeOverlaySpec{}): {multiplicitySlotGate},
@@ -534,8 +545,38 @@ func composeOverlayMultiplicityRefusal(overlays []types.ComposeOverlaySpec, inst
 	return nil
 }
 
+// nestedForEachRefusal refuses the first item `for_each` set inside req
+// when inst hides capability:for_each, in expansion order: features,
+// attributes, windows. The refusal is PULSE_REQUEST_UNKNOWN_FIELD at that
+// item (details.path), valid_keys over its visible keys.
+func nestedForEachRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
+	if req == nil || inst.Enabled(featForEach) {
+		return nil
+	}
+	at := func(path string, sample any) *errors.CodedError {
+		return unknownFieldErrorAt(path, []string{forEachKey}, VisibleSlotKeys(sample, inst))
+	}
+	for i, f := range req.Features {
+		if f != nil && f.ForEach != nil {
+			return at(fmt.Sprintf("features[%d]", i), f)
+		}
+	}
+	for i, a := range req.Attributes {
+		if a != nil && a.ForEach != nil {
+			return at(fmt.Sprintf("attributes[%d]", i), a)
+		}
+	}
+	for i, w := range req.Windows {
+		if w != nil && w.ForEach != nil {
+			return at(fmt.Sprintf("windows[%d]", i), w)
+		}
+	}
+	return nil
+}
+
 // requestSlotRefusal gates one Request: its own top-level slots, then
-// every nested slot `weight`, then every nested `multiplicity`.
+// every nested slot `weight`, then every nested `multiplicity`, then
+// every item `for_each`.
 func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
 	if ce := rootSlotRefusal(req, inst); ce != nil {
 		return ce
@@ -543,7 +584,10 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 	if ce := nestedWeightRefusal(req, inst); ce != nil {
 		return ce
 	}
-	return nestedMultiplicityRefusal(req, inst)
+	if ce := nestedMultiplicityRefusal(req, inst); ce != nil {
+		return ce
+	}
+	return nestedForEachRefusal(req, inst)
 }
 
 // SlotRefusal is the request-slot gate. v is a *types.Request,
@@ -579,6 +623,9 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 			return ce
 		}
 		if ce := nestedMultiplicityRefusal(r, inst); ce != nil {
+			return ce
+		}
+		if ce := nestedForEachRefusal(r, inst); ce != nil {
 			return ce
 		}
 	case *types.FacetRequest:

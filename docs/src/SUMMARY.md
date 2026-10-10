@@ -54,6 +54,7 @@
     - [glossary](guide/skills/glossary.md)
     - [grouper-design](guide/skills/grouper-design.md)
     - [intents](guide/skills/intents.md)
+    - [item-fan-out](guide/skills/item-fan-out.md)
     - [join-design](guide/skills/join-design.md)
     - [label-display](guide/skills/label-display.md)
     - [matrix-results](guide/skills/matrix-results.md)

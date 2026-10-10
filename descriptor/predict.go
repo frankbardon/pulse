@@ -253,6 +253,15 @@ type PredictResult struct {
 	// limit.
 	LimitFindings []LimitFinding `json:"limit_findings,omitempty"`
 
+	// ForEach lists every item `for_each` the request carries, in
+	// expansion order (features, attributes, windows): where the item
+	// sits, its axes, the resolved mode and how many items it expands
+	// to. Every other section judges the EXPANDED request — the item
+	// lists the runtime runs — while Request stays as written. Omitted
+	// when no item carries a for_each or the expansion is refused (the
+	// refusal is the predict error).
+	ForEach []ForEachSummary `json:"for_each,omitempty"`
+
 	// Return is the resolved `return` plan — the expanded selection the
 	// runtime will apply, computed by the same resolver it calls.
 	// Omitted when the request carries no `return` block or the block is
@@ -874,6 +883,23 @@ type SweepSummary struct {
 	// Labels are the sweep slots' labels in expansion order. Absent
 	// when expansion was refused before every slot rendered.
 	Labels []string `json:"labels,omitempty"`
+}
+
+// ForEachSummary describes one window, feature or attribute item's
+// `for_each` fan-out: PredictResult.ForEach.
+type ForEachSummary struct {
+	// Path is the item's request-rooted path as written, e.g.
+	// `windows[0]`.
+	Path string `json:"path"`
+	// Axes are the item's axes in declared order.
+	Axes []SweepAxisSummary `json:"axes"`
+	// Mode is the resolved combination mode: grid (the default) or zip.
+	Mode types.SweepMode `json:"mode"`
+	// ExpandedCount is the number of items the for_each expands to — the
+	// axis product under grid, the common axis length under zip. Plain
+	// items plus every expanded count is what
+	// Options.Limits.MaxDerivedColumns bounds.
+	ExpandedCount int `json:"expanded_count"`
 }
 
 // SweepAxisSummary is one SweepSummary axis.

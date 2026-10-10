@@ -105,6 +105,8 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 
 **Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, not the legacy array; `--stream` bypasses the envelope with per-row NDJSON. Optional `sweep` expands into ordinary slots before any run, optional `rank` adds `ranking` (`skills/compose-sweeps.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
+**Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
+
 **Multiplicity outputs.** Opt-in `multiplicity` adds `p_adjusted` + `significant_adjusted` BESIDE the raw p, which never moves. Long form: `execution-modes.md` (Multiplicity).
 
 **Response shaping.** Opt-in `Request.Return {preset, include, exclude, precision}`; an excluded part is ABSENT on the wire (never `null`), output stamped `returned`. Long form: `update-demand.md` (`Request.Return` row), `skills/response-shaping.md`.

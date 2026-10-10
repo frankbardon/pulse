@@ -99,6 +99,7 @@ var (
 	featProcess      = FeatureName(FeatureKindCapability, "process")
 	featCompose      = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep = FeatureName(FeatureKindCapability, "compose_sweep")
+	featForEach      = FeatureForEach
 	featProcessChain = FeatureName(FeatureKindCapability, "process_chain")
 	featFacet        = FeatureName(FeatureKindCapability, "facet")
 	featSample       = FeatureName(FeatureKindCapability, "sample")
@@ -132,6 +133,11 @@ var (
 // (DefaultMultiplicity refusal) reads it too.
 const FeatureMultiplicity = "capability:multiplicity"
 
+// FeatureForEach is capability:for_each — the item fan-out: the
+// `for_each` key on Window, Feature and Attribute. Exported because the
+// MCP binder (nested for_each properties) reads it.
+const FeatureForEach = "capability:for_each"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -152,6 +158,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("watch"),          // Watch*
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
 	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
+	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
 	capability("process_chain"),  // ProcessChain
 	capability("facet"),          // Facet, FacetSchema
 	capability("sample"),         // Sample, SampleWithRequest
@@ -396,6 +403,7 @@ var requestSlotCapabilities = map[string]bool{
 	featCrosstab:  true,
 	featWeighting: true,
 	featMatrices:  true,
+	featForEach:   true,
 }
 
 // slotTokenSet is the prose vocabulary one slot-owning capability owns:
@@ -456,6 +464,8 @@ var slotTokens = map[string]slotTokenSet{
 	// `sweep` and `ranking` are everyday English; no guidance sentence
 	// names the slot yet.
 	featComposeSweep: {},
+	// `for_each` names the item key only; no guidance sentence names it.
+	featForEach: {},
 	// pulse_explain's `sample` root slot: "sample" is everyday English
 	// (a sample of rows, sample size).
 	featSample: {},

@@ -53,6 +53,11 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if err := s.slotRefusal(req); err != nil {
 		return markLocated(err)
 	}
+	// Every item for_each expands before the materialize gates read
+	// the item lists, so every expanded item becomes a column.
+	if err := s.expandItems(req); err != nil {
+		return markLocated(err)
+	}
 	if err := descx.MaterializeSlotRefusal(req); err != nil {
 		return err
 	}

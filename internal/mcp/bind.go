@@ -643,6 +643,11 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	attr["alpha"] = map[string]any{"type": "number", "description": "Penalty strength (> 0) when penalty is set."}
 	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
 	itemProps("windows")["frame"] = frameSchema()
+	if inst.Enabled(descx.FeatureForEach) {
+		for _, slot := range []string{"features", "attributes", "windows"} {
+			itemProps(slot)["for_each"] = forEachSchema()
+		}
+	}
 
 	if ct, ok := props["crosstab"].(map[string]any); ok {
 		ctProps, _ := ct["properties"].(map[string]any)
@@ -1324,6 +1329,38 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
 	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
+}
+
+// forEachSchema describes an item `for_each` (types.ForEach): the item
+// fanned out over parameter axes before validation. Bound only when
+// capability:for_each is enabled.
+func forEachSchema() map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. Counts toward Limits.MaxDerivedColumns. Not allowed inside a pulse_compose sweep body.",
+		"properties": map[string]any{
+			"axes": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "The fanned-out parameters.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{"type": "string", "description": "Placeholder name: an identifier, unique within this for_each."},
+						"values": map[string]any{
+							"type":        "array",
+							"minItems":    1,
+							"description": "The scalar values the axis takes, in expansion order.",
+							"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
+						},
+					},
+					"required": []string{"name", "values"},
+				},
+			},
+			"mode": enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths) — e.g. a label axis beside a parameter axis."),
+		},
+		"required": []string{"axes"},
+	}
 }
 
 // sweepSchema describes the ComposedRequest `sweep` block (types.SweepSpec):

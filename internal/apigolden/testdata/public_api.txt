@@ -204,6 +204,7 @@ pulse: type DedupResult method (*DedupResult) Warnings() []*pulse/errors.CodedEr
 pulse: const DefaultMaxChainStages int64 = 1000
 pulse: const DefaultMaxComposeSlots int64 = 1000
 pulse: const DefaultMaxCrosstabCells int64 = 10000000
+pulse: const DefaultMaxDerivedColumns int64 = 1000
 pulse: const DefaultMaxEstimatedMemory int64 = -1
 pulse: const DefaultMaxGroups int64 = 10000000
 pulse: const DefaultMaxJoinBuildRows int64 = 100000000
@@ -390,6 +391,7 @@ pulse: type FeatureProfileLimits struct
 pulse: type FeatureProfileLimits field MaxChainStages int64 "json:\"max_chain_stages,omitempty\""
 pulse: type FeatureProfileLimits field MaxComposeSlots int64 "json:\"max_compose_slots,omitempty\""
 pulse: type FeatureProfileLimits field MaxCrosstabCells int64 "json:\"max_crosstab_cells,omitempty\""
+pulse: type FeatureProfileLimits field MaxDerivedColumns int64 "json:\"max_derived_columns,omitempty\""
 pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_estimated_memory,omitempty\""
 pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
 pulse: type FeatureProfileLimits field MaxJoinBuildRows int64 "json:\"max_join_build_rows,omitempty\""
@@ -574,6 +576,7 @@ pulse: type Limits underlying struct
 pulse: type Limits field MaxChainStages int64
 pulse: type Limits field MaxComposeSlots int64
 pulse: type Limits field MaxCrosstabCells int64
+pulse: type Limits field MaxDerivedColumns int64
 pulse: type Limits field MaxEstimatedMemory int64
 pulse: type Limits field MaxGroups int64
 pulse: type Limits field MaxJoinBuildRows int64
@@ -1311,6 +1314,11 @@ pulse/descriptor: type FiltererPredict field BufferedComponents bool "json:\"buf
 pulse/descriptor: type FiltererPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type FiltererPredict field Field string "json:\"field,omitempty\""
 pulse/descriptor: type FiltererPredict field Type pulse/types.FiltererType "json:\"type\""
+pulse/descriptor: type ForEachSummary struct
+pulse/descriptor: type ForEachSummary field Axes []pulse/descriptor.SweepAxisSummary "json:\"axes\""
+pulse/descriptor: type ForEachSummary field ExpandedCount int "json:\"expanded_count\""
+pulse/descriptor: type ForEachSummary field Mode pulse/types.SweepMode "json:\"mode\""
+pulse/descriptor: type ForEachSummary field Path string "json:\"path\""
 pulse/descriptor: type GroupPredict struct
 pulse/descriptor: type GroupPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type GroupPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
@@ -1618,6 +1626,7 @@ pulse/descriptor: type PredictResult field CrosstabFusable *bool "json:\"crossta
 pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:\"crosstab_fusion_reasons,omitempty\""
 pulse/descriptor: type PredictResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
 pulse/descriptor: type PredictResult field Filterers []pulse/descriptor.FiltererPredict "json:\"filterers\""
+pulse/descriptor: type PredictResult field ForEach []pulse/descriptor.ForEachSummary "json:\"for_each,omitempty\""
 pulse/descriptor: type PredictResult field Groups []pulse/descriptor.GroupPredict "json:\"groups\""
 pulse/descriptor: type PredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse/descriptor: type PredictResult field Matrices []pulse/descriptor.MatrixPredict "json:\"matrices,omitempty\""
@@ -2173,6 +2182,7 @@ pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEA
 pulse/errors: const PULSE_FEATURE_PROFILE_UNKNOWN pulse/errors.Code = "PULSE_FEATURE_PROFILE_UNKNOWN"
 pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
+pulse/errors: const PULSE_FOR_EACH_INVALID pulse/errors.Code = "PULSE_FOR_EACH_INVALID"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
 pulse/errors: const PULSE_GROUP_ENTRIES_EXHAUSTED pulse/errors.Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
 pulse/errors: const PULSE_GROUP_FIELD_CONFLICT pulse/errors.Code = "PULSE_GROUP_FIELD_CONFLICT"
@@ -3723,6 +3733,7 @@ pulse/types: type Attribute struct
 pulse/types: type Attribute field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Attribute field Expression string "json:\"expression,omitempty\""
 pulse/types: type Attribute field Field string "json:\"field\""
+pulse/types: type Attribute field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type Attribute field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type Attribute field Label string "json:\"label,omitempty\""
 pulse/types: type Attribute field Params encoding/json.RawMessage "json:\"params,omitempty\""
@@ -3935,6 +3946,7 @@ pulse/types: type FacetValueCount field Count int64 "json:\"count\""
 pulse/types: type FacetValueCount field Value string "json:\"value\""
 pulse/types: type Feature struct
 pulse/types: type Feature field Field string "json:\"field,omitempty\""
+pulse/types: type Feature field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type Feature field Label string "json:\"label,omitempty\""
 pulse/types: type Feature field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Feature field TimeZone string "json:\"tz,omitempty\""
@@ -3962,6 +3974,9 @@ pulse/types: type FiltererComponents field NNullInput int "json:\"n_null_input\"
 pulse/types: type FiltererComponents field NOut int "json:\"n_out\""
 pulse/types: type FiltererType string
 pulse/types: type FiltererType method (FiltererType) Streamable() bool
+pulse/types: type ForEach struct
+pulse/types: type ForEach field Axes []pulse/types.SweepAxis "json:\"axes\""
+pulse/types: type ForEach field Mode pulse/types.SweepMode "json:\"mode,omitempty\""
 pulse/types: func FormulaNamespace(shape pulse/types.OverlayShape) []string
 pulse/types: type FrameSpec struct
 pulse/types: type FrameSpec field Following *int "json:\"following,omitempty\""
@@ -4621,6 +4636,7 @@ pulse/types: type WeightSpec field Kind pulse/types.WeightKind "json:\"kind,omit
 pulse/types: type WeightSpec method (WeightSpec) EffectiveKind() pulse/types.WeightKind
 pulse/types: type Window struct
 pulse/types: type Window field Field string "json:\"field,omitempty\""
+pulse/types: type Window field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type Window field Frame *pulse/types.FrameSpec "json:\"frame,omitempty\""
 pulse/types: type Window field Label string "json:\"label,omitempty\""
 pulse/types: type Window field OrderBy []pulse/types.OrderKey "json:\"order_by\""
@@ -4630,4 +4646,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 89cdb1155e7eecaa0818d43d229240f353bf1883d5d32224f448aade342992b7
+// golden-hash: 3ec365a2f96e02b03b65201ad3e038db3fe27145809974ccffdfde4e2f94710b

@@ -134,6 +134,17 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		result.Valid = false
 		return env
 	}
+	// Then every stage's item for_each expands (the runtime's order,
+	// before the cohort opens); a refusal is located by details.stage.
+	// Every pass below judges the expanded stages; result.Request stays
+	// as written.
+	expanded, xerr := ExpandChainItems(req, opts.instance().Limits())
+	if xerr != nil {
+		addCodedError(env, xerr)
+		result.Valid = false
+		return env
+	}
+	req = expanded
 	// Multiplicity per stage — each stage is a standalone Request with
 	// its own `request` family (ResolveMultiplicity), located by stage.
 	for i, st := range req.Stages {

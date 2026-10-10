@@ -352,6 +352,23 @@ func (s *Service) ExtensionsSnapshot() *descx.ExtensionsSnapshot {
 	return s.instance.Extensions()
 }
 
+// expandItems expands every item for_each of req IN PLACE — its
+// Features, Attributes and Windows become the expanded lists, as smart
+// defaults resolve in place — through descx.ExpandRequestItems against
+// this service's limits. A for_each-free request is untouched (after
+// the same MaxDerivedColumns check over its plain items); expanding an
+// already-expanded request is a no-op.
+func (s *Service) expandItems(req *types.Request) error {
+	out, _, _, err := descx.ExpandRequestItems(req, s.Limits())
+	if err != nil {
+		return err
+	}
+	if out != req {
+		req.Features, req.Attributes, req.Windows = out.Features, out.Attributes, out.Windows
+	}
+	return nil
+}
+
 // applyDefaults runs descriptor.ResolveDefaults against the cohort schema
 // unless defaults are disabled on this Service. Mutates req in place.
 func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
@@ -601,6 +618,13 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// join-count rule and the crosstab / joins dispatch below, so a
 	// hidden slot never reaches the code that would execute it.
 	if err := s.slotRefusal(req); err != nil {
+		return nil, markLocated(err)
+	}
+	// Every item for_each expands next, before any other check reads
+	// the item lists (descx.ExpandRequestItems — the expansion predict
+	// runs, with the MaxDerivedColumns preflight before any item
+	// renders).
+	if err := s.expandItems(req); err != nil {
 		return nil, markLocated(err)
 	}
 

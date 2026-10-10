@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:1c5ad020df10845fc4a72a0ad875b6c85250697c5f3e62ad646609c1d61b105d",
-    "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
+    "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
         "name": "inspect",
@@ -750,10 +750,16 @@
         "value": 100000000,
         "default": 100000000,
         "unit": "count"
+      },
+      {
+        "name": "max_derived_columns",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: dc059c1302fd116c76daf18bc5be5a7adec06cae2b2ff52e0fc5c9fcc6c5468d
+// golden-hash: da98817831041ef6c4d3920713e0767afc583c323bc432524bac711246b847fd

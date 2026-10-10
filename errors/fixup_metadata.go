@@ -1587,6 +1587,27 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FOR_EACH_INVALID: {
+		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"windows", "*", "for_each", "axes"},
+				Hint:   "Give every axis a unique identifier `name` and at least one scalar value; under `mode: zip` give every axis the same number of values.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"windows", "*", "for_each", "mode"},
+				Hint:     "Set `mode` to one of the values under `valid`, or drop it for grid.",
+				Examples: []any{"grid", "zip"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"windows", "*", "label"},
+				Hint:   "Reference every axis with `{{axis}}` in a string (label, field) or `{\"$var\": \"axis\"}` inside params, name only declared axes, and correct the key under `unknown_field`. A for_each item works the same under `features` and `attributes`.",
+			},
+		},
+	},
 	PULSE_SWEEP_RANK_PATH: {
 		Message: "The sweep `rank.by` path does not parse, or does not resolve to one number in a slot's response. The rank reads each sweep slot's unshaped response JSON at that path: dotted segments, where a segment on an object is a key and a segment on a list selects the one element whose `name` or `label` equals it (never an index). The batch is refused when the path ends on a non-number, is ambiguous (two elements match, or the match's name and label differ) or resolves in no sweep slot (reason `syntax`, `not_number`, `ambiguous` or `missing`). As a WARNING on a slot's own response it means that slot is left out of the ranking: its value is null (undefined) or the path is missing there only. The path is under `by`, the slot under `label`, the failing segment under `segment`.",
 		Fixups: []Fixup{

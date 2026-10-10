@@ -57,6 +57,13 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
 	}
+	// Then every stage's item for_each expands in place (the expansion
+	// ValidateChain runs), before the cohort opens.
+	for i, st := range req.Stages {
+		if err := s.expandItems(st.Request); err != nil {
+			return nil, locate(markLocated(err), "stage", i)
+		}
+	}
 	// Every stage's multiplicity blocks resolve before the cohort opens
 	// — each stage a standalone Request with its own `request` family,
 	// the order ValidateChain reports in. plans is index-aligned with

@@ -44,6 +44,9 @@ type FeatureProfileLimits struct {
 
 	// MaxJoinBuildRows is Options.Limits.MaxJoinBuildRows' profile twin.
 	MaxJoinBuildRows int64 `json:"max_join_build_rows,omitempty"`
+
+	// MaxDerivedColumns is Options.Limits.MaxDerivedColumns' profile twin.
+	MaxDerivedColumns int64 `json:"max_derived_columns,omitempty"`
 }
 
 // featureProfileLimitsValue converts a profile `limits` section into the
@@ -66,6 +69,7 @@ func featureProfileLimitsValue(fl *FeatureProfileLimits) (l limits.Limits, bad l
 	l.MaxComposeSlots = fl.MaxComposeSlots
 	l.MaxChainStages = fl.MaxChainStages
 	l.MaxJoinBuildRows = fl.MaxJoinBuildRows
+	l.MaxDerivedColumns = fl.MaxDerivedColumns
 	for _, n := range limits.Names() {
 		if v := limits.Value(l, n); v < limits.Unlimited {
 			if n == limits.RequestTimeout {

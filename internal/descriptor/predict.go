@@ -289,10 +289,28 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		addCodedError(env, serr)
 		return env
 	}
-	if data, ok := sniffArchive(fileData); ok {
-		return predictArchive(data, req, opts)
+	// Then every item for_each expands (ExpandRequestItems — the
+	// runtime's expansion, with the MaxDerivedColumns preflight before
+	// any item renders); everything below judges the expanded request,
+	// while PredictResult.Request stays as written.
+	written := req
+	expanded, fan, finding, xerr := ExpandRequestItems(req, opts.instance().Limits())
+	if xerr != nil {
+		return predictForEachRefusal(req, xerr, finding)
 	}
-	return predictSingle(fileData, req, opts, nil, nil)
+	var env *descriptor.Envelope
+	if data, ok := sniffArchive(fileData); ok {
+		env = predictArchive(data, expanded, opts)
+	} else {
+		env = predictSingle(fileData, expanded, opts, nil, nil)
+	}
+	if len(fan) > 0 {
+		if result, ok := env.Data.(*descriptor.PredictResult); ok {
+			result.Request = written
+			result.ForEach = forEachSummaries(fan)
+		}
+	}
+	return env
 }
 
 // predictSingle is Predict over one header + schema. records is the

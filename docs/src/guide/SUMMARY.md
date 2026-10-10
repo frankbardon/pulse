@@ -42,6 +42,7 @@
     - [glossary](skills/glossary.md)
     - [grouper-design](skills/grouper-design.md)
     - [intents](skills/intents.md)
+    - [item-fan-out](skills/item-fan-out.md)
     - [join-design](skills/join-design.md)
     - [label-display](skills/label-display.md)
     - [matrix-results](skills/matrix-results.md)
