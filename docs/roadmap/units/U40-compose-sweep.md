@@ -4,7 +4,7 @@ slug: compose-sweep
 title: "A parameter grid is one compose request: Pulse expands it, runs every combination and ranks the results"
 track: API & release
 size: M
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U41]
@@ -42,13 +42,13 @@ Numbering note: appended as U40 after U39, not renumbered. This unit was not in 
 
 **TODO items delivered by this unit** (#297 and #298 are optional follow-ups filed from the worked example) (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#272** (Compose parameter sweeps) `ComposedRequest.Sweep`: one request body + named axes + a label pattern, expanded before execution into ordinary slots; `grid` (Cartesian, default) and `zip` (paired) modes; deterministic order and labels
-- [ ] **#273** (Compose parameter sweeps) Substitution reuses the request-template engine (`{"$var": "axis"}` type-preserving slot markers and `{{axis}}` string sugar); no second placeholder syntax
-- [ ] **#274** (Compose parameter sweeps) The expanded slot count, plus any explicit `requests`, is bounded by the existing `Options.Limits.MaxComposeSlots` (default 1,000) and refused with `PULSE_LIMIT_EXCEEDED` before any slot runs; predict reports `axes`, `mode` and `expanded_count`
-- [ ] **#275** (Compose parameter sweeps) `sweep.rank {by, order, top}` ranks finished slot responses by one scalar path; `ComposedResponse.Ranking` lists `{label, value, rank}`
-- [ ] **#276** (Compose parameter sweeps) New codes with `codeMetadata` and owners: `PULSE_SWEEP_INVALID` (spec faults) and `PULSE_SWEEP_RANK_PATH` (a rank path that does not resolve to exactly one number per slot)
-- [ ] **#277** (Compose parameter sweeps) Companions: payload-schema golden, `update-demand.md` row, `features.go` capability row, `compose-requests` / `tool-compose` skills, an examples-library entry, CLAUDE.md Compose-envelope note, `docs/src/library/` page
-- [ ] **#278** (Compose parameter sweeps) Acceptance: the MMM fixture's 256-slot grid is reproduced bit-for-bit by one sweep, and its ranking matches
+- [x] **#272** (Compose parameter sweeps) `ComposedRequest.Sweep`: one request body + named axes + a label pattern, expanded before execution into ordinary slots; `grid` (Cartesian, default) and `zip` (paired) modes; deterministic order and labels
+- [x] **#273** (Compose parameter sweeps) Substitution reuses the request-template engine (`{"$var": "axis"}` type-preserving slot markers and `{{axis}}` string sugar); no second placeholder syntax
+- [x] **#274** (Compose parameter sweeps) The expanded slot count, plus any explicit `requests`, is bounded by the existing `Options.Limits.MaxComposeSlots` (default 1,000) and refused with `PULSE_LIMIT_EXCEEDED` before any slot runs; predict reports `axes`, `mode` and `expanded_count`
+- [x] **#275** (Compose parameter sweeps) `sweep.rank {by, order, top}` ranks finished slot responses by one scalar path; `ComposedResponse.Ranking` lists `{label, value, rank}`
+- [x] **#276** (Compose parameter sweeps) New codes with `codeMetadata` and owners: `PULSE_SWEEP_INVALID` (spec faults) and `PULSE_SWEEP_RANK_PATH` (a rank path that does not resolve to exactly one number per slot)
+- [x] **#277** (Compose parameter sweeps) Companions: payload-schema golden, `update-demand.md` row, `features.go` capability row, `compose-requests` / `tool-compose` skills, an examples-library entry, CLAUDE.md Compose-envelope note, `docs/src/library/` page
+- [x] **#278** (Compose parameter sweeps) Acceptance: the MMM fixture's 256-slot grid is reproduced bit-for-bit by one sweep, and its ranking matches
 - [ ] **#297** (Follow-ups from U40) Let a following request reference a sweep winner (`rank.top`) instead of typing the winning axis values by hand (worked-example gap 14); decide whether it is a named alias or a ranking reference
 - [ ] **#298** (Follow-ups from U40) Per-axis profile in the ranking output (the minimum of the metric over the other axes, per axis value), so "how identifiable is each axis" is a response field, not an eyeball of the grid (worked-example gap 15)
 
@@ -112,12 +112,12 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(compose-sweep/E<n
 
 ## Acceptance criteria
 
-- [ ] The fixture-README sweep produces 256 slots labelled `tv<λ>_se<λ>_so<λ>_di<λ>`, each with a `residual_std_err` bit-identical to the same label in `fixtures/mmm-harbor-pine/req/06_decay_grid.json`
-- [ ] Its ranking (`asc`, `top: 3`) is `tv70_se10_so30_di70` (14.004354530446564), `tv70_se10_so50_di70`, `tv70_se30_so50_di70`
-- [ ] A 7 × 4 × 4 × 4 = 448-slot sweep runs under the default limits; a sweep expanding past `MaxComposeSlots` is refused by predict and runtime with `PULSE_LIMIT_EXCEEDED` before any slot runs
-- [ ] A compose request without `sweep` is byte-identical on the wire and in `CanonicalHash` to today
-- [ ] `format_version` stays `"1.1"`; every change is additive
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] The fixture-README sweep produces 256 slots labelled `tv<λ>_se<λ>_so<λ>_di<λ>`, each with a `residual_std_err` bit-identical to the same label in the old explicit 256-slot `req/06_decay_grid.json` (`d2e640bf`), run on the same build (manual fixture run)
+- [x] Its ranking (`asc`, `top: 3`) is `tv70_se10_so30_di70` (14.0043545304 to 12 significant digits on darwin/arm64; amd64 may differ in the last digits), `tv70_se10_so50_di70`, `tv70_se30_so50_di70`
+- [x] A 7 × 4 × 4 × 4 = 448-slot sweep runs under the default limits; a sweep expanding past `MaxComposeSlots` is refused by predict and runtime with `PULSE_LIMIT_EXCEEDED` before any slot runs
+- [x] A compose request without `sweep` is byte-identical on the wire and in `CanonicalHash` to today
+- [x] `format_version` stays `"1.1"`; every change is additive
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -137,10 +137,10 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(compose-sweep/E<n
 
 ## Human inputs & decisions
 
-- **Open:** may `sweep` be combined with explicit `requests` (sweep slots appended after them), or are the two mutually exclusive? Combining lets a baseline sit beside the grid for a Compose overlay.
-- **Open:** can Compose overlays address sweep slots by label (e.g. `OVERLAY_DELTA_VS_REF` of every sweep slot against one explicit baseline)? Falls out naturally if the two are combinable.
-- **Open:** the rank-path grammar. It becomes a stable public contract; consider reusing the `Request.Return` path vocabulary rather than inventing one.
-- **Open:** with `rank.top`, are the non-top slot responses dropped from `responses` (smaller payload, but `responses[i]` no longer answers expanded slot `i`) or kept (only `ranking` is trimmed)?
+- **Decided:** `sweep` combines with explicit `requests`: explicit slots run first with their indices unchanged, sweep slots follow.
+- **Decided:** Compose overlays address sweep slots by their expanded labels, and `sweep.overlays` emits one overlay per expanded slot.
+- **Decided:** the rank path is a dot path into each slot's unshaped response. A segment is an object key or, on a list, the element whose `name` or `label` equals it (never an index), and the path ends on a number (`skills/compose-sweeps.md`).
+- **Decided:** `rank.top` trims only `ranking`. Every expanded slot keeps its place in `responses`.
 - **Decided:** U40 ships in v1.0.0, so it is in U32's `depends_on` and the docs audit covers it. U41 to U43 build on it and carry their own v1 membership call.
 
 ## Handed on

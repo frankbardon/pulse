@@ -268,13 +268,13 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#245** Optional: move the `ATTR_CODE_IN` parse and accept rules into a neutral shared package instead of the predict copy pinned by `TestCodeIn_PredictRefusalsMatchRuntime` · [U39](units/U39-attr-code-in.md)
 
 ### Compose parameter sweeps — added after the plan ([U40](units/U40-compose-sweep.md); inspired by the [MMM worked example](fixtures/mmm-harbor-pine/README.md))
-- [ ] **#272** `ComposedRequest.Sweep`: one request body + named axes + a label pattern, expanded before execution into ordinary slots; `grid` (Cartesian, default) and `zip` (paired) modes; deterministic order and labels · [U40](units/U40-compose-sweep.md)
-- [ ] **#273** Substitution reuses the request-template engine (`$var` slot markers and `{{}}` string sugar); no second placeholder syntax · [U40](units/U40-compose-sweep.md)
-- [ ] **#274** Expanded slots count against the existing `Options.Limits.MaxComposeSlots` and are refused with `PULSE_LIMIT_EXCEEDED` before any slot runs; predict reports `axes`, `mode`, `expanded_count` · [U40](units/U40-compose-sweep.md)
-- [ ] **#275** `sweep.rank {by, order, top}` ranks finished slot responses by one scalar path; `ComposedResponse.Ranking` · [U40](units/U40-compose-sweep.md)
-- [ ] **#276** `PULSE_SWEEP_INVALID` and `PULSE_SWEEP_RANK_PATH` with `codeMetadata` and owners · [U40](units/U40-compose-sweep.md)
-- [ ] **#277** Companions: payload-schema golden, `update-demand.md` row, `features.go` capability row, `compose-requests` / `tool-compose` skills, an examples-library entry, CLAUDE.md Compose-envelope note, a `docs/src/library/` page · [U40](units/U40-compose-sweep.md)
-- [ ] **#278** Acceptance: the MMM fixture's 256-slot grid is reproduced by one sweep, and its ranking matches (a manual fixture run, not a Go test) · [U40](units/U40-compose-sweep.md)
+- [x] **#272** `ComposedRequest.Sweep`: one request body + named axes + a label pattern, expanded before execution into ordinary slots; `grid` (Cartesian, default) and `zip` (paired) modes; deterministic order and labels · [U40](units/U40-compose-sweep.md)
+- [x] **#273** Substitution reuses the request-template engine (`$var` slot markers and `{{}}` string sugar); no second placeholder syntax · [U40](units/U40-compose-sweep.md)
+- [x] **#274** Expanded slots count against the existing `Options.Limits.MaxComposeSlots` and are refused with `PULSE_LIMIT_EXCEEDED` before any slot runs; predict reports `axes`, `mode`, `expanded_count` · [U40](units/U40-compose-sweep.md)
+- [x] **#275** `sweep.rank {by, order, top}` ranks finished slot responses by one scalar path; `ComposedResponse.Ranking` · [U40](units/U40-compose-sweep.md)
+- [x] **#276** `PULSE_SWEEP_INVALID` and `PULSE_SWEEP_RANK_PATH` with `codeMetadata` and owners · [U40](units/U40-compose-sweep.md)
+- [x] **#277** Companions: payload-schema golden, `update-demand.md` row, `features.go` capability row, `compose-requests` / `tool-compose` skills, an examples-library entry, CLAUDE.md Compose-envelope note, a `docs/src/library/` page · [U40](units/U40-compose-sweep.md)
+- [x] **#278** Acceptance: the MMM fixture's 256-slot grid is reproduced by one sweep, and its ranking matches (a manual fixture run, not a Go test) · [U40](units/U40-compose-sweep.md)
 
 #### Follow-ups from U40
 - [ ] **#297** A later request references a sweep winner (`rank.top`) instead of typing the winning axis values by hand (worked-example gap 14) · [U40](units/U40-compose-sweep.md)
