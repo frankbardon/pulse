@@ -145,6 +145,7 @@ pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"ov
 pulse: type ComposePredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
 pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse: type ComposePredictResult field Request *pulse/types.ComposedRequest "json:\"request\""
+pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "json:\"sweep,omitempty\""
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
@@ -1754,6 +1755,14 @@ pulse/descriptor: type Suggestion field Current any "json:\"current,omitempty\""
 pulse/descriptor: type Suggestion field Path []string "json:\"path\""
 pulse/descriptor: type Suggestion field Proposed []any "json:\"proposed,omitempty\""
 pulse/descriptor: type Suggestion field Reason string "json:\"reason\""
+pulse/descriptor: type SweepAxisSummary struct
+pulse/descriptor: type SweepAxisSummary field Count int "json:\"count\""
+pulse/descriptor: type SweepAxisSummary field Name string "json:\"name\""
+pulse/descriptor: type SweepSummary struct
+pulse/descriptor: type SweepSummary field Axes []pulse/descriptor.SweepAxisSummary "json:\"axes\""
+pulse/descriptor: type SweepSummary field ExpandedCount int "json:\"expanded_count\""
+pulse/descriptor: type SweepSummary field Labels []string "json:\"labels,omitempty\""
+pulse/descriptor: type SweepSummary field Mode pulse/types.SweepMode "json:\"mode\""
 pulse/descriptor: type Term struct
 pulse/descriptor: type Term field Forms []string "json:\"forms,omitempty\""
 pulse/descriptor: type Term field ID string "json:\"id\""
@@ -4589,4 +4598,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 471952c991c9c547104ec87b4706bbedaf08841dadee24ce90554630c22525e1
+// golden-hash: 4541d01c79d06917da851e426462477d7f53c4546bde890191f5e17404f9c3a7

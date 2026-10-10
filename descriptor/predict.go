@@ -854,3 +854,32 @@ type LimitFinding struct {
 	Estimated  int64      `json:"estimated"`
 	Grade      LimitGrade `json:"grade"`
 }
+
+// SweepSummary is ComposeValidationResult.Sweep: what a Compose
+// request's `sweep` block expands to, reported by predict without
+// running a slot. It is set whenever the sweep is structurally valid —
+// also when the batch is then refused (over MaxComposeSlots, a
+// placeholder fault, a label collision), so a caller sees the size of
+// the grid it must shrink.
+type SweepSummary struct {
+	// Axes are the sweep's axes in declared order.
+	Axes []SweepAxisSummary `json:"axes"`
+	// Mode is the resolved combination mode: grid (the default) or zip.
+	Mode types.SweepMode `json:"mode"`
+	// ExpandedCount is the number of slots the sweep adds — the axis
+	// product under grid, the common axis length under zip — excluding
+	// the explicit requests. Explicit plus expanded is what
+	// MaxComposeSlots bounds.
+	ExpandedCount int `json:"expanded_count"`
+	// Labels are the sweep slots' labels in expansion order. Absent
+	// when expansion was refused before every slot rendered.
+	Labels []string `json:"labels,omitempty"`
+}
+
+// SweepAxisSummary is one SweepSummary axis.
+type SweepAxisSummary struct {
+	// Name is the axis's placeholder name.
+	Name string `json:"name"`
+	// Count is how many values the axis carries.
+	Count int `json:"count"`
+}
