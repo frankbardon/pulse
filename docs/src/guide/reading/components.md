@@ -658,6 +658,14 @@ Only the floor keys.
 
 Only the floor keys.
 
+<a id="op-mat_pca"></a>
+
+#### `MAT_PCA`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_pca).
+
+Only the floor keys.
+
 <a id="op-mat_reliability"></a>
 
 #### `MAT_RELIABILITY`

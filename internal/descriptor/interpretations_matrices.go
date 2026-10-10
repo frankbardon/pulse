@@ -12,6 +12,46 @@ var matrixInterpretations = map[string][]descriptor.Interpretation{
 	"MAT_CORRELATION":         interpMatCorrelation,
 	"MAT_PARTIAL_CORRELATION": interpMatPartialCorrelation,
 	"MAT_RELIABILITY":         interpMatReliability,
+	"MAT_PCA":                 interpMatPCA,
+}
+
+// interpMatPCA bands the overall KMO by Kaiser (1974); the loadings
+// carry rules of thumb only (excluded in testdata/conventions.json),
+// and Bartlett's p follows the shared p-value rule set.
+var interpMatPCA = []descriptor.Interpretation{
+	{
+		Field: "primary.values",
+		Means: "Each cell is a loading: how strongly the row's measure is tied to the column's component, the correlation between the two on a correlation input. A component is named by the measures with the largest loadings; components are listed from the one that summarises the most spread down.",
+		Sign: map[string]string{
+			"+": "the measure rises with the component",
+			"-": "the measure falls as the component rises; a component's overall sign is a convention (its largest loading is made positive)",
+		},
+		Caveats: []string{
+			"Components are not rotated; a measure loading on several components at once is common and does not mean it measures several things.",
+			"Components summarise shared spread; they do not show that an underlying cause exists.",
+			"On a covariance input the loadings are in the measures' own units, so they are not comparable across measures.",
+		},
+	},
+	bandedBy(ConventionKaiserKMO, descriptor.Interpretation{
+		Field: "scalars.kmo",
+		Means: "The Kaiser-Meyer-Olkin measure of sampling adequacy: how much of the measures' correlation is shared across the whole set rather than tied to single pairs, from 0 to 1. Higher means a component summary is more worthwhile.",
+		Caveats: []string{
+			"Null when the correlation table is singular (a measure is an exact combination of others).",
+			"The per-measure version of this reading is also reported; a measure with a low value fits the set poorly.",
+		},
+	}),
+	{
+		Field:  "scalars.bartlett_p",
+		Shared: SharedPValue,
+	},
+	{
+		Field: "scalars.bartlett_chisq",
+		Means: "Bartlett's test statistic: how far the correlation table is from one in which no measure is related to any other. Large values mean the measures are related enough to summarise.",
+		Caveats: []string{
+			"With many rows it is almost always large; read KMO for how worthwhile a summary is.",
+			"It rests on the inference size: the rows (listwise), the summed weight or the effective sample size under a weight, or the smallest pair under pairwise deletion.",
+		},
+	},
 }
 
 // interpMatReliability bands alpha by George & Mallery (2003) and

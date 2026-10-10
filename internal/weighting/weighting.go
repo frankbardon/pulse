@@ -195,6 +195,11 @@ var matrixClasses = map[types.MatrixType]Class{
 	// correlation; item_sd takes the kind's denominator (frequency
 	// Σw − 1, probability Σw − Σw²/Σw).
 	types.MAT_RELIABILITY: ClassAware,
+	// MAT_PCA decomposes the weighted correlation (scale-free, kind
+	// free) or the weighted covariance (the kind's denominator, as
+	// MAT_RELIABILITY's item_sd); Bartlett's test reads N* = Σw
+	// (frequency) or Kish n_eff (probability).
+	types.MAT_PCA: ClassAware,
 }
 
 // MatrixClassOf is a matrix spec's weight class: its type's

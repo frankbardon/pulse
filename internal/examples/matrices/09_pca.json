@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "name": "principal_components",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "MAT_PCA"
+    ],
+    "description": "Principal component analysis of three measures on experiment.pulse (revenue_before, revenue, session_minutes) on their correlation matrix: the loadings of the components kept by the Kaiser rule (eigenvalue above 1) as a rectangular members x components primary, the eigenvectors as auxiliary, every eigenvalue with its explained and cumulative variance share, the communalities, the KMO measure of sampling adequacy (overall and per measure) and Bartlett's sphericity test. Set params.components to an integer k or {\"variance\": share} to keep a fixed number or a share of the spread; params.on \"covariance\" decomposes the covariance instead (components then required). Here one component (the two revenue measures) clears the Kaiser rule and KMO is about 0.49, unacceptable by Kaiser (1974): session_minutes shares almost nothing with the revenue pair. Streamable and mergeable; no rotation.",
+    "intents": [
+      "measure_construct",
+      "describe"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_PCA",
+      "name": "dimensions",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ]
+}

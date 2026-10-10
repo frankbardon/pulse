@@ -49,12 +49,44 @@
             "use": "TEST_PEARSON_R"
           }
         ]
+      },
+      {
+        "operator": "MAT_PCA",
+        "category": "matrix",
+        "level": "advanced",
+        "why": "How many underlying dimensions a set of related measures covers and which measures belong to each, so a few summaries can stand in for many. It uses revenue (f64), seats (u16) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "revenue",
+                "seats",
+                "score"
+              ],
+              "type": "MAT_PCA"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want to check that one set of items measures a single quality reliably",
+            "use": "MAT_RELIABILITY"
+          },
+          {
+            "when": "you only want to see which measures go together, pair by pair",
+            "use": "MAT_CORRELATION"
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 1
+    "candidates_considered": 2
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7f18bc2cd169acff592dfeb53232325e6fbef94c686775e8ddb8ad2f2f512232
+// golden-hash: a7fe71c062e62ac28eeb425b29476a50d9985dcaf03937c97dd809df106210c5

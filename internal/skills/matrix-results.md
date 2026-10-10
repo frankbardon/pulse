@@ -33,6 +33,9 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 <!-- feature: MAT_PARTIAL_CORRELATION -->
 - `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"` (a repair stopped at its iteration cap also warns `PULSE_MATRIX_NOT_CONVERGED`).
 <!-- /feature -->
+<!-- feature: MAT_PCA -->
+- `MAT_PCA` — loadings (rectangular p × k), eigenvalues, KMO, Bartlett; `params.components` k / `kaiser` / `{variance}`.
+<!-- /feature -->
 <!-- feature: MAT_RELIABILITY -->
 - `MAT_RELIABILITY` — alpha, omega, item diagnostics; `params.reverse` + `scale_min` / `scale_max` flip reverse-keyed items.
 <!-- /feature -->

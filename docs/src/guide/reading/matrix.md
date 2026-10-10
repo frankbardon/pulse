@@ -77,6 +77,60 @@ Each off-diagonal cell is the correlation of its row and column members once the
 - Under params.repair the cells come from the nearest consistent correlation table, not the observed one; the PULSE_MATRIX_NOT_PSD warning says how far it moved.
 - The matrix reports no p-values.
 
+<a id="op-mat_pca"></a>
+
+### `MAT_PCA`
+
+How many underlying dimensions a set of related measures covers and which measures belong to each, so a few summaries can stand in for many. See its [catalog entry](../catalog/matrix.md#op-mat_pca).
+
+#### `primary.values`
+
+Each cell is a loading: how strongly the row's measure is tied to the column's component, the correlation between the two on a correlation input. A component is named by the measures with the largest loadings; components are listed from the one that summarises the most spread down.
+
+**Sign:**
+
+- `+`: the measure rises with the component
+- `-`: the measure falls as the component rises; a component's overall sign is a convention (its largest loading is made positive)
+
+**Caveats:**
+
+- Components are not rotated; a measure loading on several components at once is common and does not mean it measures several things.
+- Components summarise shared spread; they do not show that an underlying cause exists.
+- On a covariance input the loadings are in the measures' own units, so they are not comparable across measures.
+
+#### `scalars.kmo`
+
+The Kaiser-Meyer-Olkin measure of sampling adequacy: how much of the measures' correlation is shared across the whole set rather than tied to single pairs, from 0 to 1. Higher means a component summary is more worthwhile.
+
+**Bands** (convention: Kaiser (1974); a labelled convention, not a rule):
+
+| Value | Label |
+|---|---|
+| below 0.5 | unacceptable |
+| from 0.5 to below 0.6 | miserable |
+| from 0.6 to below 0.7 | mediocre |
+| from 0.7 to below 0.8 | middling |
+| from 0.8 to below 0.9 | meritorious |
+| 0.9 and above | marvelous |
+
+**Caveats:**
+
+- Null when the correlation table is singular (a measure is an exact combination of others).
+- The per-measure version of this reading is also reported; a measure with a low value fits the set poorly.
+
+#### `scalars.bartlett_p`
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `scalars.bartlett_chisq`
+
+Bartlett's test statistic: how far the correlation table is from one in which no measure is related to any other. Large values mean the measures are related enough to summarise.
+
+**Caveats:**
+
+- With many rows it is almost always large; read KMO for how worthwhile a summary is.
+- It rests on the inference size: the rows (listwise), the summed weight or the effective sample size under a weight, or the smallest pair under pairwise deletion.
+
 <a id="op-mat_reliability"></a>
 
 ### `MAT_RELIABILITY`

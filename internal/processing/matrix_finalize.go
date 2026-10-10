@@ -82,6 +82,33 @@ func (in *matrixFinalizeInput) Square(at func(r, c int) float64) *types.MatrixVa
 	return in.slot.values(at)
 }
 
+// Rect renders a rectangular matrix (types.MatrixKindRectangular):
+// rows are the output-axis members (their labels when explicit),
+// columns the given keys; at reads cell (r, c). Always written full —
+// the slot's upper encoding applies to a symmetric matrix only.
+func (in *matrixFinalizeInput) Rect(columns []string, at func(r, c int) float64) *types.MatrixValues {
+	m := in.slot
+	members, labels := m.plan.OutputMembers()
+	out := &types.MatrixValues{
+		Kind:       types.MatrixKindRectangular,
+		Encoding:   types.MatrixEncodingFull,
+		RowKeys:    members,
+		ColumnKeys: append([]string(nil), columns...),
+		Values:     make([][]float64, len(members)),
+	}
+	if m.plan.ExplicitLabels {
+		out.Labels = labels
+	}
+	for r := range members {
+		row := make([]float64, len(columns))
+		for c := range columns {
+			row[c] = at(r, c)
+		}
+		out.Values[r] = row
+	}
+	return out
+}
+
 // coMomentOutput is the U16 output set over a co-moment primary: the
 // primary in the slot's encoding, the co-moment data-quality warnings,
 // scalars.determinant (reference Cholesky), auxiliary.n under pairwise

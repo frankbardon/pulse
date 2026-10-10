@@ -323,11 +323,14 @@ Predict echoes the resolved members as `data.resolved_vectors`
 scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
 `type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
-`MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY`);
-`encoding` is `full` (default) or `upper`. Every matrix is a dedicated
-`MatrixValues` `{kind, encoding, row_keys, column_keys, labels?,
-values}` — not the crosstab `MatrixPayload` — whose `values` rows hold
-`p` cells (`full`) or `p − r` cells from the diagonal (`upper`).
+`MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`,
+`MAT_RELIABILITY`); `encoding` is `full` (default) or `upper`. Every
+matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
+column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
+whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
+diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
+(`MAT_PCA`'s p × k loadings and eigenvectors: `row_keys` the members,
+`column_keys` `PC1` … `PCk`, k possibly 0, always written `full`).
 Undefined cells and scalars (no mass, too few rows, a determinant of a
 matrix that is not positive definite) are `null`, keys kept. What the
 schema cannot say, predict and the runtime enforce identically before
@@ -345,20 +348,30 @@ are the non-control members — and `repair` `"nearest"`;
 `MAT_RELIABILITY` only: `reverse` (item names), `scale_min` /
 `scale_max` (required with `reverse`; a missing range or an out-of-range
 value is `PROCESSING_CONFIG`) and `repair` `"nearest"`; at least 2
-items). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+items; `MAT_PCA` only: `on` `correlation` (default) or `covariance`,
+`components` an integer k ≤ p, `"kaiser"` (default on a correlation,
+refused on a covariance) or `{"variance": share}` — required on a
+covariance — and `repair` `"nearest"`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
 ties in axis order, undefined pairs skipped, `n` the pair's row count;
 `MAT_RELIABILITY` adds `vectors.item_total_r` / `alpha_if_deleted` /
 `item_mean` / `item_sd` (one number per item, axis order) and `scalars`
-`alpha`, `alpha_standardized`, `mean_inter_item_r`, `omega`.
+`alpha`, `alpha_standardized`, `mean_inter_item_r`, `omega`;
+`MAT_PCA` adds `auxiliary.eigenvectors`, `vectors.eigenvalues` /
+`explained_variance` / `cumulative` / `communalities` / `kmo_msa` (one
+number per member or component) and `scalars` `kmo`, `bartlett_chisq`,
+`bartlett_df`, `bartlett_p`, `components_retained` (the two integer
+scalars are never rounded by `return.precision`).
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
 `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on
 `MAT_PARTIAL_CORRELATION` without `repair: "nearest"`; on
 `MAT_RELIABILITY` a warning that nulls `omega`, beside `_HEYWOOD` and
-`_NOT_IDENTIFIED`). `components.matrices` carries one
+`_NOT_IDENTIFIED`; `MAT_PCA` fatal like the partial correlation, plus
+`_PAIRWISE_N_STAR` and a `_SINGULAR` warning that nulls KMO and
+Bartlett). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,
 group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
 sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and

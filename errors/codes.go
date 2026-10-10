@@ -2654,7 +2654,9 @@ const (
 	// (scope "matrix": details "n", "sum_weights") or, under pairwise,
 	// one or more pairs (scope "pairs": details "pairs" [{row, col, n}])
 	// have fewer than 2 rows or no weight mass, so their cells are
-	// undefined (null) or degenerate.
+	// undefined (null) or degenerate; on MAT_PCA scope "bartlett"
+	// (details "n_star", "min_n_star"): the inference size is too small
+	// for Bartlett's test, whose chi-square and p are null.
 	PULSE_MATRIX_INSUFFICIENT_N Code = "PULSE_MATRIX_INSUFFICIENT_N"
 
 	// PULSE_MATRIX_ZERO_VARIANCE is a per-matrix WARNING: one or more
@@ -2688,6 +2690,13 @@ const (
 	// correlation for two loadings), so with 2 it is null. Details
 	// carry "matrix", "output", "members" and "min_members".
 	PULSE_MATRIX_NOT_IDENTIFIED Code = "PULSE_MATRIX_NOT_IDENTIFIED"
+
+	// PULSE_MATRIX_PAIRWISE_N_STAR is a per-matrix WARNING: an
+	// inferential figure over a pairwise matrix needs one sample size
+	// while every cell rests on its own rows, so it uses the smallest
+	// pair's inference size (MAT_PCA's Bartlett test). Details carry
+	// "matrix", "outputs", "n_star", "row" and "col" (the pair).
+	PULSE_MATRIX_PAIRWISE_N_STAR Code = "PULSE_MATRIX_PAIRWISE_N_STAR"
 
 	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
 	// read: an unknown preset, a precision outside 1–17, or a malformed
@@ -3252,6 +3261,7 @@ var allCodes = []Code{
 	PULSE_MATRIX_NOT_CONVERGED,
 	PULSE_MATRIX_HEYWOOD,
 	PULSE_MATRIX_NOT_IDENTIFIED,
+	PULSE_MATRIX_PAIRWISE_N_STAR,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,

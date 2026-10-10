@@ -77,6 +77,12 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			PairwisePSDRisk:  m.PSDRisk(),
 			BucketBasis:      basis,
 		}
+		if m.Type == types.MAT_PCA && m.Components.Rule == vectors.PCAComponentsFixed {
+			// The p × k loadings: k is known before the run only for an
+			// integer params.components; a data-driven rule keeps the
+			// upper bound [p, p].
+			mp.Shape[1] = m.Components.K
+		}
 		var rowBytes int64
 		if m.RowBytes() > 0 && records >= 0 {
 			rowBytes = limits.MatrixRowBufferBytes(records, m.RowBytes())

@@ -32,7 +32,11 @@ import (
 //   - MAT_RELIABILITY at p ≥ 3 — omega factors the pairwise inter-item
 //     correlation (a decomposition operator); there an unrepaired
 //     non-PSD input nulls omega with a PULSE_MATRIX_NOT_PSD warning
-//     (alpha needs no PSD input and still computes).
+//     (alpha needs no PSD input and still computes);
+//   - MAT_PCA — a decomposition operator over the pairwise correlation
+//     at p ≥ 3 (params.on "correlation") or the pairwise covariance at
+//     p ≥ 2 ("covariance", the MAT_COVARIANCE rule); the risk is the
+//     fatal refusal or the repair warning.
 func (m Matrix) PSDRisk() bool {
 	if !m.Pairwise {
 		return false
@@ -41,6 +45,11 @@ func (m Matrix) PSDRisk() bool {
 	switch m.Type {
 	case types.MAT_COVARIANCE:
 		return p >= 2
+	case types.MAT_PCA:
+		if m.On == PCAOnCovariance {
+			return p >= 2
+		}
+		return p >= 3
 	case types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY:
 		return p >= 3
 	}

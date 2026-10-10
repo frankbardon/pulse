@@ -71,6 +71,9 @@ const (
 	// ConventionGeorgeMalleryAlpha is George & Mallery's (2003) rule of
 	// thumb for Cronbach's alpha.
 	ConventionGeorgeMalleryAlpha = "georgemallery2003_alpha"
+	// ConventionKaiserKMO is Kaiser's (1974) labelling of the
+	// Kaiser-Meyer-Olkin measure of sampling adequacy.
+	ConventionKaiserKMO = "kaiser1974_kmo"
 )
 
 // cohenLabels names Cohen's three benchmarks plus the region below
@@ -136,6 +139,17 @@ var builtinConventions = map[string]effectConvention{
 	// questionable, >= .5 poor, below .5 unacceptable. Signed: a
 	// negative alpha reads "unacceptable". Not for omega (no verified
 	// omega convention; excluded in testdata/conventions.json).
+	// The Kaiser-Meyer-Olkin measure of sampling adequacy, Kaiser (1974,
+	// "An index of factorial simplicity", Psychometrika 39, 31-36):
+	// >= .9 marvelous, the .80s meritorious, .70s middling, .60s
+	// mediocre, .50s miserable, below .5 unacceptable. Signed (KMO lies
+	// in [0, 1]).
+	ConventionKaiserKMO: {
+		ID: ConventionKaiserKMO, Citation: "Kaiser (1974)",
+		Statistics: []string{"kmo"},
+		Thresholds: []float64{0.5, 0.6, 0.7, 0.8, 0.9},
+		Labels:     []string{"unacceptable", "miserable", "mediocre", "middling", "meritorious", "marvelous"},
+	},
 	ConventionGeorgeMalleryAlpha: {
 		ID: ConventionGeorgeMalleryAlpha, Citation: "George & Mallery (2003)",
 		Statistics: []string{"cronbach_alpha"},

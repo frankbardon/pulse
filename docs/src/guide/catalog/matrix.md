@@ -7,6 +7,7 @@ The matrix operators this instance offers: what each is for, the questions it an
 | [`MAT_CORRELATION`](#op-mat_correlation) | How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1. | Which of these ten rating items go together most strongly? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value or confidence interval for one pair.<br>[`MAT_COVARIANCE`](#op-mat_covariance) when you want the joint spread in the fields' own units.<br>[`TEST_SPEARMAN_R`](test.md#op-test_spearman_r) when you need a p-value for one pair's rank correlation.<br>[`TEST_KENDALL_TAU`](test.md#op-test_kendall_tau) when you need a p-value for one pair's Kendall tau.<br>[`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) when you want each pair's link with other fields held fixed. |
 | [`MAT_COVARIANCE`](#op-mat_covariance) | How every pair in a set of numeric fields varies together, as one square table with each field's variance on the diagonal. | How do these five rating scales vary together across respondents? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want how closely two numeric fields follow a straight line together, on a scale from -1 to 1.<br>[`AGG_WELFORD`](aggregator.md#op-agg_welford) when you want the spread of one field on its own. |
 | [`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) | How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. | Does satisfaction still track price once delivery time is held fixed? | advanced | [`MAT_CORRELATION`](#op-mat_correlation) when you want each pair's link with nothing held fixed.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want how much each field moves the outcome, in its own units.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value for one pair. |
+| [`MAT_PCA`](#op-mat_pca) | How many underlying dimensions a set of related measures covers and which measures belong to each, so a few summaries can stand in for many. | How many distinct things do these twelve rating questions actually measure? | advanced | [`MAT_RELIABILITY`](#op-mat_reliability) when you want to check that one set of items measures a single quality reliably.<br>[`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which measures go together, pair by pair. |
 | [`MAT_RELIABILITY`](#op-mat_reliability) | How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest. | Are these five satisfaction questions reliable enough to average into one score? | intermediate | [`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which items go together, pair by pair.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want a p-value for one pair of items. |
 
 ## Operators
@@ -124,6 +125,42 @@ How closely each pair of numeric fields moves together once other fields are hel
 **Glossary:** [`partial-correlation`](../glossary.md#term-partial-correlation), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion), [`multicollinearity`](../glossary.md#term-multicollinearity)
 
 **Skill:** [`op-mat-partial-correlation`](../skills/op-mat-partial-correlation.md)
+
+<a id="op-mat_pca"></a>
+
+### `MAT_PCA`
+
+How many underlying dimensions a set of related measures covers and which measures belong to each, so a few summaries can stand in for many.
+
+**Level:** advanced
+
+**Also known as:** `principal components`, `dimension reduction`, `kmo`, `bartlett's test`
+
+**Questions it answers:**
+
+- How many distinct things do these twelve rating questions actually measure?
+- Is this set of measures correlated enough to be worth summarising into components?
+
+**Use cases by domain:**
+
+- *survey:* Checking how many themes a long attitude battery covers, and which questions load on each, before building scale scores.
+- *science:* Reducing many correlated measurements of the same specimens to a few summary dimensions.
+
+**Assumptions:**
+
+- The measures are numeric and related by straight-line links; components summarise shared spread, they are not proven causes.
+- On a covariance the measures with the largest spread dominate; use the correlation unless the units are shared and comparable.
+- KMO and Bartlett's test say whether the correlations are strong enough to summarise; read them before the components.
+- A row with any measure missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.
+
+**Use something else:**
+
+- [`MAT_RELIABILITY`](#op-mat_reliability) when you want to check that one set of items measures a single quality reliably.
+- [`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which measures go together, pair by pair.
+
+**Glossary:** [`principal-component`](../glossary.md#term-principal-component), [`eigenvalue`](../glossary.md#term-eigenvalue), [`loading`](../glossary.md#term-loading), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
+
+**Skill:** [`op-mat-pca`](../skills/op-mat-pca.md)
 
 <a id="op-mat_reliability"></a>
 

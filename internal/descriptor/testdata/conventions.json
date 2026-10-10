@@ -95,17 +95,32 @@
         {"url": "https://scholarworks.indianapolis.iu.edu/bitstreams/976cec6a-914f-4e49-84b2-f658d5b26ff9/download", "locator": "Gliem, J. A. & Gliem, R. R. (2003) Calculating, Interpreting, and Reporting Cronbach's Alpha Reliability Coefficient for Likert-Type Scales, Midwest Research-to-Practice Conference, p. 87, quoting George & Mallery (2003, SPSS for Windows step by step, 4th ed., p. 231): '> .9 Excellent, > .8 Good, > .7 Acceptable, > .6 Questionable, > .5 Poor, < .5 Unacceptable'. The book itself could not be fetched; transcribed via this secondary quotation (verified 2026-10-09 via search snippet). The source's '>' boundaries are rendered as Pulse's inclusive band minimums (a value of exactly .9 reads 'excellent')"},
         {"url": "https://www.academia.edu/4185662/Gliem_and_Gliem", "locator": "Same paper (mirror), p. 87"}
       ]
+    },
+    {
+      "id": "kaiser1974_kmo",
+      "citation": "Kaiser (1974)",
+      "statistics": ["kmo"],
+      "thresholds": [0.5, 0.6, 0.7, 0.8, 0.9],
+      "labels": ["unacceptable", "miserable", "mediocre", "middling", "meritorious", "marvelous"],
+      "abs": false,
+      "symmetric_log": false,
+      "sources": [
+        {"url": "https://www.rdocumentation.org/packages/psych/versions/2.4.3/topics/KMO", "locator": "psych::KMO help, Details: 'Kaiser (1974) suggested that KMO > .9 were marvelous, in the .80s, mertitourious, in the .70s, middling, in the .60s, medicore, in the 50s, miserable, and less than .5, unacceptable' (sic), citing H. F. Kaiser (1974) An index of factor simplicity, Psychometrika 39(1), 31-36. Fetched 2026-10-09; the paper itself was not fetched. The decade boundaries are rendered as Pulse's inclusive band minimums (exactly .9 reads 'marvelous', exactly .5 'miserable')"},
+        {"url": "https://doi.org/10.1007/BF02291575", "locator": "Kaiser, H. F. (1974) An index of factorial simplicity. Psychometrika 39(1), 31-36 (the cited source; not fetched)"}
+      ]
     }
   ],
   "statistic_bindings": {
     "MAT_CORRELATION": "pearson_r",
     "MAT_PARTIAL_CORRELATION": "pearson_r",
+    "MAT_PCA": "kmo",
     "MAT_RELIABILITY": "cronbach_alpha",
     "REG_OLS": "r_squared",
     "TEST_FISHER_EXACT": "odds_ratio",
     "TEST_PEARSON_R": "pearson_r"
   },
   "excluded": [
+    {"operator": "MAT_PCA", "field": "primary.values", "reason": "Loadings have rules of thumb (|loading| >= .3 or .4 'salient') but no single verified published convention; the reading depends on the sample size and the number of members. Means plus caveat only (U24 E3-S1)."},
     {"operator": "MAT_RELIABILITY", "field": "scalars.omega", "reason": "No published convention for McDonald's omega was verified, and George & Mallery's bands were stated for alpha; omega (model-based, usually at least alpha) is not read against them. Means plus caveat only (U24 E2-S2)."},
     {"operator": "REG_OLS", "field": "adj_r2", "reason": "Cohen's R^2 benchmarks (Cohen 1992 Table 1 row 8) are stated for R^2 itself; adjusted R^2 is a corrected estimate on a different scale (it can fall below 0) and no adjusted-R^2 convention was verified. Means plus caveat only (U08 E4-S3)."},
     {"operator": "REG_BAYES_LINEAR", "field": "r2", "reason": "Pulse computes it from the posterior-mean coefficients, which the prior pulls away from the least-squares fit, so it can sit below the least-squares R^2 and even below 0; Cohen's R^2 benchmarks were set for least-squares multiple regression. Means plus caveat only (U08 E4-S3)."},

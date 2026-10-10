@@ -123,6 +123,7 @@ func TestExamplesSearch_Relevance(t *testing.T) {
 		{query: "chisq.test", wantOp: "TEST_CHISQ"},
 		{query: "cronbach's alpha", wantOp: "MAT_RELIABILITY", wantIntent: IntentMeasureConstruct},
 		{query: "is this scale reliable? check internal consistency", wantOp: "MAT_RELIABILITY"},
+		{query: "principal components", wantOp: "MAT_PCA"},
 	}
 	for _, c := range cases {
 		hits, err := snap.ExamplesSearch(examples.Query{Query: c.query})

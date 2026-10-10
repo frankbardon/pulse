@@ -46,7 +46,7 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 		rows  [][5]float64
 		fires map[string]bool // "<type>/<p>" pairwise shapes that must warn
 	}{
-		{"three-way", nonPSDRows(), map[string]bool{"MAT_COVARIANCE/3": true, "MAT_CORRELATION/3": true, "MAT_PARTIAL_CORRELATION/3": true}},
+		{"three-way", nonPSDRows(), map[string]bool{"MAT_COVARIANCE/3": true, "MAT_CORRELATION/3": true, "MAT_PARTIAL_CORRELATION/3": true, "MAT_PCA/3": true}},
 		{"pair-cov", pairCovNotPSDRows(), map[string]bool{"MAT_COVARIANCE/2": true}},
 		{"reference", matrixRows(500), nil},
 	}
@@ -65,6 +65,10 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 						// A decomposition operator refuses a non-PSD
 						// input unrepaired; repaired, it warns.
 						params = `{"missing": "` + mode + `", "repair": "nearest"}`
+					}
+					if typ == types.MAT_PCA {
+						// An integer k: predict knows the [p, k] shape.
+						params = fmt.Sprintf(`{"missing": %q, "repair": "nearest", "components": %d}`, mode, len(members))
 					}
 					spec := types.MatrixSpec{Name: "m", Type: typ, Vector: "v", Params: json.RawMessage(params)}
 					req := &types.Request{
@@ -100,7 +104,8 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 					if got := [2]int{len(res.Primary.RowKeys), len(res.Primary.ColumnKeys)}; got != mp.Shape {
 						t.Errorf("%s: predict shape %v, runtime %v", label, mp.Shape, got)
 					}
-					if !reflect.DeepEqual(mp.AxisKeys, res.Primary.RowKeys) || !reflect.DeepEqual(res.Primary.RowKeys, res.Primary.ColumnKeys) {
+					square := res.Primary.Kind == types.MatrixKindSquareSymmetric
+					if !reflect.DeepEqual(mp.AxisKeys, res.Primary.RowKeys) || (square && !reflect.DeepEqual(res.Primary.RowKeys, res.Primary.ColumnKeys)) {
 						t.Errorf("%s: predict axis %v, runtime rows %v cols %v", label, mp.AxisKeys, res.Primary.RowKeys, res.Primary.ColumnKeys)
 					}
 					if mp.Missing != mode || (res.Auxiliary["n"] != nil) != (mode == "pairwise") {

@@ -90,6 +90,43 @@ type Matrix struct {
 	// reverseNames carries params.reverse from decode to
 	// resolveReliability (members resolve in between).
 	reverseNames []string
+	// On is MAT_PCA's params.on: PCAOnCorrelation (the default) or
+	// PCAOnCovariance; "" on every other type.
+	On string
+	// Components is MAT_PCA's retention rule (params.components).
+	Components PCAComponents
+}
+
+// MAT_PCA params.on values.
+const (
+	PCAOnCorrelation = "correlation"
+	PCAOnCovariance  = "covariance"
+)
+
+// PCAOnValues returns the params.on values, default first.
+func PCAOnValues() []string { return []string{PCAOnCorrelation, PCAOnCovariance} }
+
+// MAT_PCA retention rules (PCAComponents.Rule).
+const (
+	// PCAComponentsFixed keeps exactly K components (an integer
+	// params.components, 1 ≤ K ≤ p).
+	PCAComponentsFixed = "fixed"
+	// PCAComponentsKaiser keeps the components whose eigenvalue
+	// exceeds 1 (params.components "kaiser"; the default on a
+	// correlation, refused on a covariance, whose eigenvalues are in
+	// the members' units).
+	PCAComponentsKaiser = "kaiser"
+	// PCAComponentsVariance keeps the fewest leading components whose
+	// cumulative explained-variance share reaches Share
+	// (params.components {"variance": share}, 0 < share ≤ 1).
+	PCAComponentsVariance = "variance"
+)
+
+// PCAComponents is MAT_PCA's resolved params.components.
+type PCAComponents struct {
+	Rule  string
+	K     int
+	Share float64
 }
 
 // RepairNearest is params.repair "nearest": a non-PSD input matrix is
@@ -152,12 +189,13 @@ func (m Matrix) OutputMembers() (members, labels []string) {
 func (m Matrix) Decomposition() bool { return IsDecomposition(m.Type) }
 
 // IsDecomposition reports whether t is a decomposition operator (see
-// Matrix.Decomposition): MAT_PARTIAL_CORRELATION, and MAT_RELIABILITY,
+// Matrix.Decomposition): MAT_PARTIAL_CORRELATION, MAT_PCA (it
+// eigen-decomposes its correlation or covariance), and MAT_RELIABILITY,
 // whose McDonald's omega factors the inter-item correlation (there the
 // guard's refusal nulls omega with a warning instead of failing the
 // matrix: alpha needs no PSD input).
 func IsDecomposition(t types.MatrixType) bool {
-	return t == types.MAT_PARTIAL_CORRELATION || t == types.MAT_RELIABILITY
+	return t == types.MAT_PARTIAL_CORRELATION || t == types.MAT_RELIABILITY || t == types.MAT_PCA
 }
 
 // Missing-data modes (params.missing).
@@ -245,6 +283,17 @@ type reliabilityParams struct {
 	ScaleMin *float64 `json:"scale_min"`
 	ScaleMax *float64 `json:"scale_max"`
 	Repair   *string  `json:"repair"`
+	missingParams
+}
+
+// pcaParams is MAT_PCA's params object: the input matrix, the
+// retention rule (an integer, "kaiser" or {"variance": share}, decoded
+// by decodeComponents), the repair choice and the missing-data knobs;
+// any other key is refused.
+type pcaParams struct {
+	On         *string         `json:"on"`
+	Components json.RawMessage `json:"components"`
+	Repair     *string         `json:"repair"`
 	missingParams
 }
 
@@ -351,6 +400,9 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 		if err := resolveReliability(at, spec, &m); err != nil {
 			return nil, err
 		}
+		if err := resolvePCA(at, &m); err != nil {
+			return nil, err
+		}
 		out = append(out, m)
 	}
 	return out, nil
@@ -366,6 +418,9 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		m.DDOF = 1
 	case types.MAT_CORRELATION:
 		m.Method = CorrelationPearson
+	case types.MAT_PCA:
+		m.On = PCAOnCorrelation
+		m.Components = PCAComponents{Rule: PCAComponentsKaiser}
 	}
 	if empty {
 		return nil
@@ -442,8 +497,95 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			return err
 		}
 		miss = p.missingParams
+	case types.MAT_PCA:
+		var p pcaParams
+		if err := decodeStrict(raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if err := decodePCA(at, p, m); err != nil {
+			return err
+		}
+		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		miss = p.missingParams
 	}
 	return decodeMissing(at, miss, m)
+}
+
+// decodePCA applies MAT_PCA's params.on and params.components: on
+// "correlation" (default) or "covariance"; components an integer k ≥ 1
+// (checked against p in resolvePCA), "kaiser" (the correlation
+// default) or {"variance": share} with 0 < share ≤ 1. On a covariance
+// components is required and "kaiser" is refused — λ > 1 has no
+// meaning in the members' units. Every refusal is bad_params.
+func decodePCA(at string, p pcaParams, m *Matrix) *errors.CodedError {
+	m.On = PCAOnCorrelation
+	if p.On != nil {
+		switch *p.On {
+		case PCAOnCorrelation, PCAOnCovariance:
+			m.On = *p.On
+		default:
+			return matrixInvalid(at, "bad_params", at+" params.on must be \"correlation\" or \"covariance\"",
+				map[string]any{"param": "on", "value": *p.On, "valid": PCAOnValues()})
+		}
+	}
+	raw := bytes.TrimSpace(p.Components)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		if m.On == PCAOnCovariance {
+			return matrixInvalid(at, "bad_params", at+" params.components is required on a covariance (an integer k or {\"variance\": share}); \"kaiser\" applies to a correlation only",
+				map[string]any{"param": "components", "on": m.On})
+		}
+		m.Components = PCAComponents{Rule: PCAComponentsKaiser}
+		return nil
+	}
+	bad := func(msg string, value any) *errors.CodedError {
+		return matrixInvalid(at, "bad_params", at+" params.components "+msg,
+			map[string]any{"param": "components", "value": value, "valid": []string{"a positive integer", PCAComponentsKaiser, "{\"variance\": share}"}})
+	}
+	switch raw[0] {
+	case '"':
+		var str string
+		if err := json.Unmarshal(raw, &str); err != nil || str != PCAComponentsKaiser {
+			return bad("must be a positive integer, \"kaiser\" or {\"variance\": share}", string(raw))
+		}
+		if m.On == PCAOnCovariance {
+			return matrixInvalid(at, "bad_params", at+" params.components \"kaiser\" (eigenvalue > 1) applies to a correlation only: a covariance's eigenvalues are in the members' units; set an integer k or {\"variance\": share}",
+				map[string]any{"param": "components", "value": PCAComponentsKaiser, "on": m.On})
+		}
+		m.Components = PCAComponents{Rule: PCAComponentsKaiser}
+	case '{':
+		var v struct {
+			Variance *float64 `json:"variance"`
+		}
+		if err := decodeStrict(raw, &v); err != nil || v.Variance == nil {
+			return bad("object must be {\"variance\": share}", string(raw))
+		}
+		if s := *v.Variance; !(s > 0 && s <= 1) {
+			return bad("variance share must be in (0, 1]", s)
+		}
+		m.Components = PCAComponents{Rule: PCAComponentsVariance, Share: *v.Variance}
+	default:
+		var f float64
+		if err := json.Unmarshal(raw, &f); err != nil || f != math.Trunc(f) || f < 1 || f > math.MaxInt32 {
+			return bad("must be a positive integer, \"kaiser\" or {\"variance\": share}", string(raw))
+		}
+		m.Components = PCAComponents{Rule: PCAComponentsFixed, K: int(f)}
+	}
+	return nil
+}
+
+// resolvePCA refuses a MAT_PCA integer params.components above the
+// member count (bad_params): a p-member battery has p components.
+func resolvePCA(at string, m *Matrix) *errors.CodedError {
+	if m.Type != types.MAT_PCA || m.Components.Rule != PCAComponentsFixed {
+		return nil
+	}
+	if p := len(m.Members.Members); m.Components.K > p {
+		return matrixInvalid(at, "bad_params", at+" params.components "+strconv.Itoa(m.Components.K)+" exceeds the "+strconv.Itoa(p)+" members (a battery has as many components as members)",
+			map[string]any{"param": "components", "value": m.Components.K, "members": p})
+	}
+	return nil
 }
 
 // decodeRepair applies a decomposition operator's params.repair: absent

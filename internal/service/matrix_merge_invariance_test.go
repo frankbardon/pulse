@@ -100,6 +100,16 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 	if (v.matrixType() == types.MAT_PARTIAL_CORRELATION || v.matrixType() == types.MAT_RELIABILITY) && v.pairwise {
 		spec.Params = json.RawMessage(`{"missing": "pairwise", "repair": "nearest"}`)
 	}
+	// MAT_PCA keeps every component (so the eigenvectors and loadings
+	// are compared whole) and repairs its pairwise input like the other
+	// decomposition operators; its eigensolver is gonum-backed, so the
+	// bits are same-machine stable — which is what this gate compares.
+	if v.matrixType() == types.MAT_PCA {
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "components": 3}`)
+		if v.pairwise {
+			spec.Params = json.RawMessage(`{"missing": "pairwise", "components": 3, "repair": "nearest"}`)
+		}
+	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
 	}
@@ -121,8 +131,8 @@ type matrixRun struct {
 	auxN     []uint64
 	pairs    []types.MatrixPair
 	pairBits []uint64
-	// relBits are MAT_RELIABILITY's scalars and vectors, in a fixed
-	// key order.
+	// relBits are MAT_RELIABILITY's / MAT_PCA's scalars and vectors
+	// (and PCA's eigenvectors), in a fixed key order.
 	relBits   []uint64
 	warnings  []*types.ResponseWarning
 	matWarns  []*types.ResponseWarning
@@ -199,6 +209,24 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 				out.relBits = append(out.relBits, math.Float64bits(x))
 			}
 		}
+	} else if req.Matrices[0].Type == types.MAT_PCA {
+		for _, k := range []string{"kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "components_retained"} {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		for _, k := range []string{"eigenvalues", "explained_variance", "cumulative", "communalities", "kmo_msa"} {
+			vs, ok := m.Vectors[k].([]float64)
+			if !ok || len(vs) != 3 {
+				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
+			}
+			for _, x := range vs {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+		for _, row := range m.Auxiliary["eigenvectors"].Values {
+			for _, x := range row {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
 	} else if m.Vectors != nil {
 		t.Fatalf("%s emitted vectors %v", req.Matrices[0].Type, m.Vectors)
 	}
@@ -230,7 +258,7 @@ func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
 		t.Errorf("%s: top_pairs %+v, serial %+v", label, got.pairs, want.pairs)
 	}
 	if i := firstWordDiff(got.relBits, want.relBits); i != -1 || len(got.relBits) != len(want.relBits) {
-		t.Errorf("%s: reliability scalars / vectors differ from serial at word %d", label, i)
+		t.Errorf("%s: operator scalars / vectors differ from serial at word %d", label, i)
 	}
 	if !reflect.DeepEqual(got.warnings, want.warnings) {
 		t.Errorf("%s: warnings %v, serial %v", label, got.warnings, want.warnings)
@@ -280,6 +308,8 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 	switch v.matrixType() {
 	case types.MAT_CORRELATION, types.MAT_RELIABILITY:
 		cov = c.Corr()
+	case types.MAT_PCA:
+		return nil // the loadings are an eigensolver's output: no FMA-free anchor
 	case types.MAT_PARTIAL_CORRELATION:
 		if v.pairwise {
 			return nil // the repaired matrix has no independent anchor here

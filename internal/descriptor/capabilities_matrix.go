@@ -80,6 +80,25 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			),
 		},
 		{
+			Name:         string(types.MAT_PCA),
+			Description:  "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights. No rotation.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "on", Type: "enum", Required: false, Default: vectors.PCAOnCorrelation, EnumValues: vectors.PCAOnValues(), Description: "correlation: analyse the correlation matrix (every member on one scale); covariance: the covariance matrix (members in their own units, so a large-spread member dominates; params.components is then required)."},
+				{Name: "components", Type: "any", Required: false, Default: vectors.PCAComponentsKaiser, Description: "How many components to keep: a positive integer k (at most the member count); \"kaiser\" (every component whose eigenvalue exceeds 1; the default on a correlation, refused on a covariance); or {\"variance\": share}, the fewest leading components whose cumulative explained share reaches share (0 < share <= 1). Required on a covariance. Every eigenvalue is reported either way."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: decompose the nearest correlation matrix (scaled back to the covariance's variances on a covariance) when the (pairwise) input is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD)."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "loadings",
+				Auxiliary: []string{"eigenvectors", "n"},
+				Vectors:   []string{"communalities", "cumulative", "eigenvalues", "explained_variance", "kmo_msa"},
+				Scalars:   []string{"bartlett_chisq", "bartlett_df", "bartlett_p", "components_retained", "kmo"},
+			},
+			Streamable:      types.MAT_PCA.Streamable(),
+			Mergeable:       types.MAT_PCA.Mergeable(),
+			ComponentSchema: matrixSchema(),
+		},
+		{
 			Name:         string(types.MAT_COVARIANCE),
 			Description:  "Covariance matrix of a vector's members (listwise or pairwise): sample covariance by default, weighted under frequency and probability weights.",
 			AcceptsTypes: memberTypes,
@@ -188,6 +207,7 @@ func matrixCapability() descriptor.MatrixCapability {
 			"Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
 			"A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
 			"A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
+			"A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors) has the members as rows and its own column keys, and is always written full whatever the spec's encoding.",
 			"A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
 		},
 	}

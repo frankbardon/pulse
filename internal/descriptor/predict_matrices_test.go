@@ -33,6 +33,9 @@ func TestPredict_Matrices(t *testing.T) {
 			{Name: "pc", Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_2", "q_3"}, Params: json.RawMessage(`{"control": ["q_1"], "missing": "pairwise"}`)},
 			{Name: "rel", Type: types.MAT_RELIABILITY, Vector: "v", Params: json.RawMessage(`{"reverse": ["q_1"], "scale_min": 0, "scale_max": 5, "missing": "pairwise"}`)},
 			{Name: "rel2", Type: types.MAT_RELIABILITY, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+			{Name: "pca", Type: types.MAT_PCA, Vector: "v", Params: json.RawMessage(`{"components": 2, "missing": "pairwise"}`)},
+			{Name: "pcak", Type: types.MAT_PCA, Fields: []string{"q_1", "q_3"}, Params: pairwise},
+			{Name: "pcac", Type: types.MAT_PCA, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"on": "covariance", "components": {"variance": 0.9}, "missing": "pairwise"}`)},
 		},
 	}
 	env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
@@ -80,6 +83,17 @@ func TestPredict_Matrices(t *testing.T) {
 			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
 		{Name: "rel2", Type: types.MAT_RELIABILITY, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+		// PCA's primary is the p × k loadings: [p, k] for an integer k,
+		// the [p, p] bound when kaiser or a share picks k from the data.
+		// Its PSD risk follows the analysed matrix: a 2 × 2 pairwise
+		// correlation is always PSD, a 2 × 2 pairwise covariance need not be.
+		{Name: "pca", Type: types.MAT_PCA, Shape: [2]int{3, 2}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		{Name: "pcak", Type: types.MAT_PCA, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+		{Name: "pcac", Type: types.MAT_PCA, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
 	}
 	// Ungrouped: one bucket, p² cells, one accumulator per merge block.
 	for i := range want {

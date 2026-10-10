@@ -29,6 +29,7 @@ func TestManifestMatrixComponentSchemasComplete(t *testing.T) {
 		// The floor counts the folded columns (members and outside
 		// controls).
 		types.MAT_PARTIAL_CORRELATION: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
+		types.MAT_PCA:                 {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
 		// The minres fit behind omega: optional, absent when no fit ran.
 		types.MAT_RELIABILITY: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid", "iterations", "converged"},
 	}

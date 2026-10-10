@@ -3040,7 +3040,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_SINGULAR: {
-		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`, `backend_error`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse. A failed Cholesky factorisation (reference or SPD) of a finite matrix also carries `rank` (under the rank tolerance), `condition_number` (null when rank-deficient) and, when the matrix is rank-deficient, `dependent_indices` — the axis positions in the linear dependency; a matrix operator adds `matrix` and names those members as `dependent_fields`.",
+		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`, `backend_error`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse. A failed Cholesky factorisation (reference or SPD) of a finite matrix also carries `rank` (under the rank tolerance), `condition_number` (null when rank-deficient) and, when the matrix is rank-deficient, `dependent_indices` — the axis positions in the linear dependency; a matrix operator adds `matrix` and names those members as `dependent_fields`. An operator whose other outputs stay defined may raise it as a per-matrix WARNING instead, naming the figures it nulls under `outputs`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -3263,6 +3263,16 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"vectors", "*", "fields"},
 				Hint:   "Add a third item to the vector to get omega; with two items, read `alpha` (Spearman-Brown for two items) instead.",
+			},
+		},
+	},
+	PULSE_MATRIX_PAIRWISE_N_STAR: {
+		Message: "An inferential figure over a pairwise matrix needs one sample size, but under pairwise deletion every cell rests on its own rows, so the figure uses the smallest pair's inference size (pair N unweighted, pair sum of weights under frequency weights, scaled to Kish n_eff under probability weights) — the conservative choice: MAT_PCA's Bartlett test. Details carry `matrix`, `outputs`, `n_star` and the pair as `row` / `col`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"matrices", "*", "params", "missing"},
+				Hint:   "Set params.missing \"listwise\" to test on the complete rows, one N for every cell; keep pairwise when the smallest pair is large enough for the test to be read.",
 			},
 		},
 	},

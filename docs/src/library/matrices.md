@@ -1,10 +1,11 @@
 # Vectors and Matrices
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
-turns a vector into a square result in which every member is compared
-with every member. Four operators ship: `MAT_COVARIANCE`,
+turns a vector into a result in which every member is compared with
+every member. Five operators ship: `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
-`params.method`), `MAT_PARTIAL_CORRELATION` and `MAT_RELIABILITY`. All are additive: a request without
+`params.method`), `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY` and
+`MAT_PCA`. All are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -132,6 +133,40 @@ semi-definite and `params.repair` is not `"nearest"`
 (`PULSE_MATRIX_NOT_PSD` as a warning — alpha needs no such input and is
 always reported). Alpha is read against George & Mallery's (2003) bands;
 omega is not banded.
+
+## Principal components
+
+`MAT_PCA` decomposes the members' correlation (`params.on`
+`"correlation"`, the default) or covariance (`"covariance"`). Its
+`primary` is the loadings — eigenvector × √eigenvalue — as a
+**rectangular** matrix (`kind: "rectangular"`): `row_keys` are the
+members, `column_keys` the kept components `PC1` … `PCk`, always written
+in full. `auxiliary.eigenvectors` has the same shape. `vectors` carry
+every `eigenvalue` (descending), its `explained_variance` share and the
+`cumulative` share, the `communalities` (each member's summed squared
+loadings over the kept components) and `kmo_msa`; `scalars` carry the
+overall `kmo`, Bartlett's sphericity test (`bartlett_chisq`,
+`bartlett_df`, `bartlett_p`) and `components_retained`.
+
+`params.components` chooses k: an integer (at most the member count),
+`"kaiser"` (every eigenvalue above 1 — the default on a correlation,
+refused on a covariance, whose eigenvalues are in the members' units),
+or `{"variance": share}` (the fewest leading components whose cumulative
+share reaches it). On a covariance it is required. Sign and order follow
+`linalg.SymEigen`: eigenvalues descending, each eigenvector's
+largest-magnitude entry positive — portable across architectures, with
+values agreeing to the eigensolver's last digits.
+
+KMO (`psych::KMO`) and Bartlett (`psych::cortest.bartlett`) always read
+the correlation. Bartlett's sample size follows the weighted-inference
+rule: the rows listwise, Σw under frequency weights, Kish n_eff under
+probability weights, and under pairwise deletion the smallest pair's
+(`PULSE_MATRIX_PAIRWISE_N_STAR` says so). A singular correlation nulls
+KMO and Bartlett with a `PULSE_MATRIX_SINGULAR` warning, the components
+still reported. Like the partial correlation, a non-PSD pairwise input
+is refused unless `params.repair` is `"nearest"`. KMO is read against
+Kaiser's (1974) bands. No rotation (factor analysis and rotation are a
+later operator).
 
 ## Groups, cost and refusals
 

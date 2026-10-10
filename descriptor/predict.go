@@ -327,7 +327,10 @@ type MatrixPredict struct {
 	Name string `json:"name"`
 	// Type is the matrix operator.
 	Type types.MatrixType `json:"type"`
-	// Shape is [p, p]: rows × columns of every matrix in the result.
+	// Shape is [p, p]: rows × columns of every matrix in the result —
+	// on MAT_PCA the primary's [p, k] (the rectangular loadings) when
+	// params.components is an integer k, else [p, p], the upper bound
+	// (kaiser and a variance share choose k from the data).
 	Shape [2]int `json:"shape"`
 	// AxisKeys are the member field names in axis order — the result's
 	// row_keys and column_keys.
@@ -389,12 +392,14 @@ type MatrixPredict struct {
 	// PairwisePSDRisk reports whether the result (or a decomposition
 	// operator's input) can come back not positive semidefinite —
 	// pairwise MAT_COVARIANCE at p ≥ 2, pairwise MAT_CORRELATION,
-	// MAT_PARTIAL_CORRELATION (folded columns) and MAT_RELIABILITY at
-	// p ≥ 3 — the only shapes the runtime checks for
+	// MAT_PARTIAL_CORRELATION (folded columns), MAT_RELIABILITY and
+	// MAT_PCA on a correlation at p ≥ 3, MAT_PCA on a covariance at
+	// p ≥ 2 — the only shapes the runtime checks for
 	// PULSE_MATRIX_NOT_PSD. False guarantees the code never appears;
 	// true says it can, depending on the data: a warning, on
 	// MAT_PARTIAL_CORRELATION a refusal unless params.repair is
-	// "nearest", on MAT_RELIABILITY a null omega with the warning.
+	// "nearest" (MAT_PCA alike), on MAT_RELIABILITY a null omega with
+	// the warning.
 	PairwisePSDRisk bool `json:"pairwise_psd_risk"`
 }
 

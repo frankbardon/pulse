@@ -90,7 +90,7 @@ var precisionClass = map[string]string{
 	// N, integer counts) is exempt, any future companion rounds.
 	"matrices[*].primary.values[*][*]":     "round",
 	"matrices[*].auxiliary.*.values[*][*]": "keyed",
-	"matrices[*].scalars.*":                "round",
+	"matrices[*].scalars.*":                "keyed",
 	"overlays[*].payload.scalar":           "round",
 	"overlays[*].summary.min":              "round", "overlays[*].summary.max": "round",
 	"overlays[*].summary.baseline": "round", "overlays[*].summary.statistic": "round",
@@ -113,7 +113,7 @@ var precisionClass = map[string]string{
 
 // wantPrecisionExempt is the exact precisionExempt registry: removing an
 // entry (so a count starts rounding) fails here.
-var wantPrecisionExempt = []string{"matrices[*].auxiliary.n"}
+var wantPrecisionExempt = []string{"matrices[*].auxiliary.n", "matrices[*].scalars.bartlett_df", "matrices[*].scalars.components_retained"}
 
 func TestPrecision_FloatLeavesClassified(t *testing.T) {
 	got := map[string]bool{}
@@ -198,7 +198,7 @@ func precisionResponse() *Response {
 				RowKeys: []string{"a", "b"}, ColumnKeys: []string{"a", "b"},
 				Values: [][]float64{{1234567, 1234567}, {1234567}}}},
 			Vectors: map[string]any{"top_pairs": []MatrixPair{{Row: "a", Col: "b", R: 0.123456789, N: 1234567}}},
-			Scalars: map[string]float64{"determinant": det},
+			Scalars: map[string]float64{"determinant": det, "bartlett_df": 1234567, "components_retained": 1234567, "kmo": 0.123456789},
 		}},
 		Overlays: []OverlayLayer{{Name: "o", Payload: OverlayPayload{Scalar: &det}}},
 		Components: &ResponseComponents{Aggregations: []AggregationComponents{{
@@ -230,6 +230,7 @@ func TestPrecision_SlotFamilies(t *testing.T) {
 		`"values":[[1,0.1235],[1]]`,              // primary, upper encoding keeps its ragged rows
 		`"values":[[1234567,1234567],[1234567]]`, // auxiliary.n exempt
 		`"r":0.1235`, `"n":1234567`, `"determinant":0.0001235`,
+		`"bartlett_df":1234567`, `"components_retained":1234567`, `"kmo":0.1235`, // integer scalars exempt
 		`"scalar":0.0001235`,
 		`"operator":{"count":1234567,"mean":0.1235}`,
 	} {

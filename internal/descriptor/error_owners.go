@@ -466,6 +466,8 @@ var errorOwners = map[errors.Code][]string{
 	// that fits it (MAT_RELIABILITY's omega) raises them.
 	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY"),
 	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY"),
+	// Bartlett's test over a pairwise matrix reads the smallest pair.
+	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA"),
 
 	// Response shaping: `return` is a plain request slot, not a feature.
 	errors.PULSE_RETURN_INVALID:        shared,

@@ -320,6 +320,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("MAT_CORRELATION"),
 	op("MAT_COVARIANCE"),
 	op("MAT_PARTIAL_CORRELATION"),
+	op("MAT_PCA"),
 	op("MAT_RELIABILITY"),
 	// Overlay kinds — types.AllOverlayKinds().
 	op("OVERLAY_CHISQ_COL"),
@@ -587,6 +588,7 @@ var hardEdges = map[string][]string{
 	"MAT_CORRELATION":                       {featMatrices},
 	"MAT_COVARIANCE":                        {featMatrices},
 	"MAT_PARTIAL_CORRELATION":               {featMatrices},
+	"MAT_PCA":                               {featMatrices},
 	"MAT_RELIABILITY":                       {featMatrices},
 }
 

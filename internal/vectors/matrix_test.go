@@ -383,3 +383,76 @@ func TestResolveMatrices_Reliability(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveMatrices_PCA: MAT_PCA's params.on (correlation default),
+// params.components (kaiser default on a correlation; an integer ≤ p;
+// {"variance": share}) and their refusals — covariance needs an
+// explicit k or share and refuses kaiser; every refusal bad_params. A
+// decomposition operator: pairwise PSD risk from 3 members on a
+// correlation, from 2 on a covariance.
+func TestResolveMatrices_PCA(t *testing.T) {
+	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
+		spec := types.MatrixSpec{Type: types.MAT_PCA, Fields: fields}
+		if params != "" {
+			spec.Params = json.RawMessage(params)
+		}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	items := []string{"q_1", "q_2", "q_3"}
+	for _, c := range []struct {
+		params string
+		on     string
+		want   PCAComponents
+	}{
+		{"", PCAOnCorrelation, PCAComponents{Rule: PCAComponentsKaiser}},
+		{`{"components": "kaiser"}`, PCAOnCorrelation, PCAComponents{Rule: PCAComponentsKaiser}},
+		{`{"components": 2}`, PCAOnCorrelation, PCAComponents{Rule: PCAComponentsFixed, K: 2}},
+		{`{"on": "covariance", "components": 3}`, PCAOnCovariance, PCAComponents{Rule: PCAComponentsFixed, K: 3}},
+		{`{"on": "covariance", "components": {"variance": 0.8}}`, PCAOnCovariance, PCAComponents{Rule: PCAComponentsVariance, Share: 0.8}},
+	} {
+		m, err := resolve(items, c.params)
+		if err != nil {
+			t.Fatalf("%s: %v", c.params, err)
+		}
+		if m.On != c.on || m.Components != c.want {
+			t.Errorf("%s: on %q components %+v, want %q %+v", c.params, m.On, m.Components, c.on, c.want)
+		}
+		if !m.Decomposition() || !m.Streamable || !m.Mergeable {
+			t.Errorf("%s: decomposition %v streamable %v mergeable %v", c.params, m.Decomposition(), m.Streamable, m.Mergeable)
+		}
+	}
+	if m, _ := resolve(items, `{"missing": "pairwise"}`); !m.PSDRisk() {
+		t.Error("3-member pairwise correlation PCA carries no PSD risk")
+	}
+	if m, _ := resolve(items[:2], `{"missing": "pairwise"}`); m.PSDRisk() {
+		t.Error("2-member pairwise correlation PCA carries PSD risk")
+	}
+	if m, _ := resolve(items[:2], `{"missing": "pairwise", "on": "covariance", "components": 1}`); !m.PSDRisk() {
+		t.Error("2-member pairwise covariance PCA carries no PSD risk")
+	}
+	for _, params := range []string{
+		`{"on": "covariance"}`,
+		`{"on": "covariance", "components": "kaiser"}`,
+		`{"on": "rank"}`,
+		`{"components": 0}`,
+		`{"components": -1}`,
+		`{"components": 1.5}`,
+		`{"components": 4}`,
+		`{"components": "two"}`,
+		`{"components": {"variance": 0}}`,
+		`{"components": {"variance": 1.01}}`,
+		`{"components": {"variance": 0.5, "k": 1}}`,
+		`{"components": {}}`,
+		`{"components": [2]}`,
+		`{"repair": "clip"}`,
+		`{"reverse": ["q_1"]}`,
+	} {
+		if _, err := resolve(items, params); err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "bad_params" {
+			t.Errorf("%s: error %v, want bad_params", params, err)
+		}
+	}
+}

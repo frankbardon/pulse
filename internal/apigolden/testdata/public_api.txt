@@ -2203,6 +2203,7 @@ pulse/errors: const PULSE_MATRIX_LISTWISE_HEAVY_DROP pulse/errors.Code = "PULSE_
 pulse/errors: const PULSE_MATRIX_NOT_CONVERGED pulse/errors.Code = "PULSE_MATRIX_NOT_CONVERGED"
 pulse/errors: const PULSE_MATRIX_NOT_IDENTIFIED pulse/errors.Code = "PULSE_MATRIX_NOT_IDENTIFIED"
 pulse/errors: const PULSE_MATRIX_NOT_PSD pulse/errors.Code = "PULSE_MATRIX_NOT_PSD"
+pulse/errors: const PULSE_MATRIX_PAIRWISE_N_STAR pulse/errors.Code = "PULSE_MATRIX_PAIRWISE_N_STAR"
 pulse/errors: const PULSE_MATRIX_SHAPE_MISMATCH pulse/errors.Code = "PULSE_MATRIX_SHAPE_MISMATCH"
 pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SINGULAR"
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
@@ -3983,6 +3984,7 @@ pulse/types: type LookupResult field Warnings []string "json:\"warnings,omitempt
 pulse/types: const MAT_CORRELATION pulse/types.MatrixType = "MAT_CORRELATION"
 pulse/types: const MAT_COVARIANCE pulse/types.MatrixType = "MAT_COVARIANCE"
 pulse/types: const MAT_PARTIAL_CORRELATION pulse/types.MatrixType = "MAT_PARTIAL_CORRELATION"
+pulse/types: const MAT_PCA pulse/types.MatrixType = "MAT_PCA"
 pulse/types: const MAT_RELIABILITY pulse/types.MatrixType = "MAT_RELIABILITY"
 pulse/types: type MarginAggregationFault struct
 pulse/types: type MarginAggregationFault field Details map[string]any
@@ -4028,6 +4030,7 @@ pulse/types: type MatrixEncoding string
 pulse/types: const MatrixEncodingFull pulse/types.MatrixEncoding = "full"
 pulse/types: const MatrixEncodingUpper pulse/types.MatrixEncoding = "upper"
 pulse/types: type MatrixKind string
+pulse/types: const MatrixKindRectangular pulse/types.MatrixKind = "rectangular"
 pulse/types: const MatrixKindSquareSymmetric pulse/types.MatrixKind = "square_symmetric"
 pulse/types: type MatrixPair struct
 pulse/types: type MatrixPair field Col string "json:\"col\""
@@ -4548,4 +4551,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5a7f06b66bd0db0726eae1edc56579673cd74623de1b49db28db0f7ff17a00b2
+// golden-hash: ed191c18f1580c67a23485ede18bcfc9a8d972d8b13c82a8de79f7030e559b68

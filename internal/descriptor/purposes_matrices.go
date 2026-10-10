@@ -13,6 +13,33 @@ var matrixPurposes = map[string]descriptor.Purpose{
 	"MAT_COVARIANCE":          purposeMatCovariance,
 	"MAT_PARTIAL_CORRELATION": purposeMatPartialCorrelation,
 	"MAT_RELIABILITY":         purposeMatReliability,
+	"MAT_PCA":                 purposeMatPCA,
+}
+
+var purposeMatPCA = descriptor.Purpose{
+	Plain:   "How many underlying dimensions a set of related measures covers and which measures belong to each, so a few summaries can stand in for many.",
+	KnownAs: []string{"principal components", "dimension reduction", "kmo", "bartlett's test"},
+	Intents: []string{IntentMeasureConstruct, IntentDescribe},
+	Questions: []string{
+		"How many distinct things do these twelve rating questions actually measure?",
+		"Is this set of measures correlated enough to be worth summarising into components?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey:  "Checking how many themes a long attitude battery covers, and which questions load on each, before building scale scores.",
+		descriptor.DomainScience: "Reducing many correlated measurements of the same specimens to a few summary dimensions.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you want to check that one set of items measures a single quality reliably", Use: "MAT_RELIABILITY"},
+		{When: "you only want to see which measures go together, pair by pair", Use: "MAT_CORRELATION"},
+	},
+	Assumptions: []string{
+		"The measures are numeric and related by straight-line links; components summarise shared spread, they are not proven causes.",
+		"On a covariance the measures with the largest spread dominate; use the correlation unless the units are shared and comparable.",
+		"KMO and Bartlett's test say whether the correlations are strong enough to summarise; read them before the components.",
+		"A row with any measure missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.",
+	},
+	Level:    descriptor.LevelAdvanced,
+	Glossary: []string{"principal-component", "eigenvalue", "loading", "correlation", "listwise-deletion", "pairwise-deletion"},
 }
 
 var purposeMatReliability = descriptor.Purpose{

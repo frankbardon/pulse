@@ -51,6 +51,21 @@ const (
 	// params.repair "nearest"), and is null with a warning otherwise.
 	// Weighted under frequency and probability weights. No p-values.
 	MAT_RELIABILITY MatrixType = "MAT_RELIABILITY"
+	// MAT_PCA is a principal component analysis of the members'
+	// correlation (params.on "correlation", the default) or covariance
+	// ("covariance") matrix: the primary is the p × k loadings
+	// (eigenvector · √λ, MatrixKindRectangular, one column per retained
+	// component), auxiliary.eigenvectors the p × k unit eigenvectors;
+	// vectors carry every eigenvalue, the explained and cumulative
+	// variance shares, the communalities and per-member KMO (MSA);
+	// scalars KMO, Bartlett's sphericity test and the retained count.
+	// params.components: an integer k, "kaiser" (λ > 1; the default on
+	// a correlation, refused on a covariance) or {"variance": share};
+	// required on a covariance. A decomposition operator (the shared
+	// PSD guard, params.repair "nearest"). Sign and order follow
+	// linalg.SymEigen. Weighted under frequency and probability
+	// weights. No rotation.
+	MAT_PCA MatrixType = "MAT_PCA"
 )
 
 // AllMatrixTypes returns every built-in matrix operator in alphabetical
@@ -60,6 +75,7 @@ func AllMatrixTypes() []MatrixType {
 		MAT_CORRELATION,
 		MAT_COVARIANCE,
 		MAT_PARTIAL_CORRELATION,
+		MAT_PCA,
 		MAT_RELIABILITY,
 	}
 }
@@ -72,7 +88,7 @@ func AllMatrixTypes() []MatrixType {
 // MatrixSpec.Streamable, which its params may turn off.
 func (t MatrixType) Streamable() bool {
 	switch t {
-	case MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_RELIABILITY:
+	case MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -87,7 +103,7 @@ func (t MatrixType) Streamable() bool {
 // Streamable: the merge gate reads MatrixSpec.Mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
-	case MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_RELIABILITY:
+	case MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -119,11 +135,18 @@ const (
 	// columns are the same members in the same order, with
 	// Values[r][c] == Values[c][r].
 	MatrixKindSquareSymmetric MatrixKind = "square_symmetric"
+	// MatrixKindRectangular is a p × k matrix whose rows are the
+	// members (RowKeys) and whose columns are something else
+	// (ColumnKeys: MAT_PCA's components "PC1" … "PCk"). It is always
+	// written full — Values[r] has k entries — whatever the spec's
+	// Encoding asks (upper applies to a symmetric matrix only), and k
+	// may be 0 (Values rows empty).
+	MatrixKindRectangular MatrixKind = "rectangular"
 )
 
 // AllMatrixKinds returns every MatrixKind.
 func AllMatrixKinds() []MatrixKind {
-	return []MatrixKind{MatrixKindSquareSymmetric}
+	return []MatrixKind{MatrixKindSquareSymmetric, MatrixKindRectangular}
 }
 
 // MatrixSpec is one matrix operator entry in Request.Matrices.
@@ -153,6 +176,8 @@ type MatrixSpec struct {
 	// integer, and "method"; MAT_PARTIAL_CORRELATION: "control": "all" |
 	// [fields], "repair": "nearest"; MAT_RELIABILITY: "reverse":
 	// [fields], "scale_min" / "scale_max": numbers, "repair":
+	// "nearest"; MAT_PCA: "on": "correlation" | "covariance",
+	// "components": k | "kaiser" | {"variance": share}, "repair":
 	// "nearest").
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
@@ -223,8 +248,10 @@ func (s MatrixSpec) EffectiveName() string {
 
 // MatrixValues is one matrix of a MatrixResult. RowKeys and ColumnKeys
 // are the member field names in axis order (the vector's resolved
-// order); Labels, when the vector carried display labels, are their
-// labels in the same order. Values follows Encoding. An undefined cell
+// order) — on a MatrixKindRectangular matrix ColumnKeys name its
+// columns instead (MAT_PCA: "PC1" … "PCk"); Labels, when the vector
+// carried display labels, are the row members' labels in the same
+// order. Values follows Encoding. An undefined cell
 // (no mass, zero spread) is NaN in Go and null on the wire.
 type MatrixValues struct {
 	Kind       MatrixKind     `json:"kind"`
