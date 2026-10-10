@@ -1477,6 +1477,11 @@ func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc,
 		if aware, ok := builder.(ExtensionAware); ok {
 			aware.SetExtensions(p.exts)
 		}
+		if mb, ok := builder.(modelBinder); ok {
+			if err := mb.bindModels(p.models); err != nil {
+				return nil, err
+			}
+		}
 		fn, err := builder.Build(f, p.schema)
 		if err != nil {
 			return nil, err

@@ -41,7 +41,8 @@ A **fit** is a named regression that a Compose batch runs ONCE, before any slot,
 - `name` is required and unique. Fits share ONE name namespace; a duplicate is `PULSE_MODEL_NAME_COLLISION`, and a reference to a name nothing binds is `PULSE_MODEL_UNKNOWN` (`details.available` lists the bound names).
 - Every slot receives every fit — explicit slots and sweep-expanded slots alike — so a sweep axis can vary the slot while the model stays fixed.
 - The model's predictor list is authoritative. A slot that scores against it supplies those columns itself (its own features); a one-hot column left out of `predictors` is the reference level, never inferred.
-- A slot scores a fit per row with `ATTR_REG_PREDICT` (`params: {fit: "<name>"}`, optional `terms` / `scale`): no refit, full precision, null on a null predictor; see [`op-attr-reg-predict`](op-attr-reg-predict.md).
+- A slot scores a fit per row with `ATTR_REG_PREDICT` (`params: {fit: "<name>"}`, optional `terms` / `scale` / `bound`): no refit, full precision, null on a null predictor; see [`op-attr-reg-predict`](op-attr-reg-predict.md).
+- A slot's formula or filter expression reads a fit's figure with `coef("<name>", "<term>"[, "point|lower|upper|se"])`; see [`expression-language`](expression-language.md).
 
 ## Response
 

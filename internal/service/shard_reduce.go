@@ -304,7 +304,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 
 	// Pre-build per-shard operators. Each shard worker gets its own
 	// instance set so there's no shared mutable state across workers.
-	filterFns, err := processing.BuildFilters(req.Filterers, schema, s.extensions)
+	filterFns, err := processing.BuildFiltersWithModels(req.Filterers, schema, s.extensions, model.SetFrom(ctx))
 	if err != nil {
 		return nil, err
 	}

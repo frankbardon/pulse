@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -262,6 +263,15 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 
 type expressionFilterer struct {
 	exts *ExtensionRegistry
+	// models are the request's bound models coef() reads (nil: none).
+	models *model.Set
+}
+
+// bindModels satisfies modelBinder: coef() reads the request's bound
+// models (injected before Build).
+func (f *expressionFilterer) bindModels(models *model.Set) error {
+	f.models = models
+	return nil
 }
 
 func newExpressionFilterer() FiltererBuilder {
@@ -284,14 +294,17 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	// Compile once, here, against the schema prototype (or on the first
 	// record when the expression names a non-schema column) — never per
 	// row. See expr_program.go for the null semantics.
-	prog, err := newExprProgram(filter.Expression, "filter", schema, f.exts.ExprOptions())
+	if err := f.exts.coefStaticRefusal(filter.Expression, f.models); err != nil {
+		return nil, err
+	}
+	prog, err := newExprProgram(filter.Expression, "filter", schema, f.exts.exprOptionsWithModels(f.models))
 	if err != nil {
 		return nil, err
 	}
 	return func(record *Record) (bool, error) {
 		output, nullInput, err := prog.runRecord(record)
 		if err != nil {
-			if nullInput {
+			if nullInput && modelRefusal(err) == nil {
 				// A null operand made the predicate UNKNOWN: drop the
 				// row, as SQL WHERE does.
 				return false, nil

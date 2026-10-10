@@ -151,6 +151,10 @@ func (p *exprProgram) compileError(err error) error {
 }
 
 func (p *exprProgram) evalError(err error) error {
+	if mr := modelRefusal(err); mr != nil {
+		// A coef() refusal is the request's, under its own code.
+		return mr
+	}
 	return errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
 		fmt.Sprintf("evaluating %s expression: %s", p.what, p.src))
 }

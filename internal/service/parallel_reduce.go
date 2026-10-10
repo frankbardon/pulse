@@ -151,7 +151,7 @@ func (s *Service) reduceParallelBuffered(
 			ungroupedAggs []processing.OnlineAggregator
 		)
 
-		filterFns, buildErr = processing.BuildFilters(req.Filterers, schema, s.extensions)
+		filterFns, buildErr = processing.BuildFiltersWithModels(req.Filterers, schema, s.extensions, model.SetFrom(ctx))
 		if buildErr == nil {
 			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx))
 		}

@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -210,6 +211,9 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			continue
 		}
 		w.checkInputs("filterer", string(fil.Type), nil, "filter")
+		if opRoute(inst, fil.Type) == types.FILTER_EXPRESSION {
+			w.checkCoef(fil.Expression, models)
+		}
 		if fil.Field == "" && !filterFieldRequired(opRoute(inst, fil.Type)) {
 			continue
 		}
@@ -256,6 +260,9 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 				}
 			}
 		default:
+			if attrRoute == types.ATTR_FORMULA {
+				w.checkCoef(attr.Expression, models)
+			}
 			if attrRoute != types.ATTR_FORMULA || attr.Field != "" {
 				w.check(attr.Field, func() *errors.CodedError {
 					return refusal("attribute references unknown field: "+attr.Field,
@@ -716,4 +723,21 @@ func isBuiltinMatrixType(t types.MatrixType) bool {
 		}
 	}
 	return false
+}
+
+// checkCoef records the first refusal of expr's all-literal coef()
+// calls against models (internal/model/coefcall.StaticRefusal — the
+// check the engine's build runs too), unless an embedder ExprFunction
+// named coef owns the name.
+func (w *fieldRefWalk) checkCoef(expr string, models model.Catalog) {
+	if w.snap != nil {
+		for _, fn := range w.snap.ExprFunctions {
+			if fn.Name == model.CoefFunc {
+				return
+			}
+		}
+	}
+	if cerr := coefcall.StaticRefusal(expr, models); cerr != nil {
+		w.out = append(w.out, cerr)
+	}
 }

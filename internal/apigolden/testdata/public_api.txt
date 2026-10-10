@@ -2271,10 +2271,12 @@ pulse/errors: const PULSE_MATRIX_SHAPE_MISMATCH pulse/errors.Code = "PULSE_MATRI
 pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SINGULAR"
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
+pulse/errors: const PULSE_MODEL_INTERVALS_UNAVAILABLE pulse/errors.Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
 pulse/errors: const PULSE_MODEL_NAME_COLLISION pulse/errors.Code = "PULSE_MODEL_NAME_COLLISION"
 pulse/errors: const PULSE_MODEL_PREDICTOR_MISSING pulse/errors.Code = "PULSE_MODEL_PREDICTOR_MISSING"
 pulse/errors: const PULSE_MODEL_PREDICTOR_NOT_NUMERIC pulse/errors.Code = "PULSE_MODEL_PREDICTOR_NOT_NUMERIC"
 pulse/errors: const PULSE_MODEL_SCORE_INVALID pulse/errors.Code = "PULSE_MODEL_SCORE_INVALID"
+pulse/errors: const PULSE_MODEL_STAT_UNKNOWN pulse/errors.Code = "PULSE_MODEL_STAT_UNKNOWN"
 pulse/errors: const PULSE_MODEL_TERM_UNKNOWN pulse/errors.Code = "PULSE_MODEL_TERM_UNKNOWN"
 pulse/errors: const PULSE_MODEL_UNKNOWN pulse/errors.Code = "PULSE_MODEL_UNKNOWN"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
@@ -4682,4 +4684,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c2ee1707569c428464e48c79b45289a631a6ef0db3adfa5cf7ca46fa156dcd6a
+// golden-hash: 22915f77b87da4b6300b536042eac3d383cb968b44792e237a430d4c5b5547f6

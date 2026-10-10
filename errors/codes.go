@@ -1056,23 +1056,40 @@ const (
 
 	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot whose
 	// scoring parameters do not fit: params that are not an object of
-	// {fit, terms, scale} (reason "params_invalid"), no params.fit
+	// {fit, terms, scale, bound} (reason "params_invalid"), no params.fit
 	// ("fit_missing"), a field / target / predictors / penalty set on the
 	// slot ("slot_fields" — the bound model supplies them), an empty
 	// terms list ("terms_empty") or one naming a term twice
 	// ("term_duplicate"), a scale other than response|link
 	// ("scale_unknown") or a scale on a non-GLM fit ("scale_not_glm"),
-	// or a fit of a regression type it cannot score
-	// ("type_unsupported"). Refused identically by predict and the
+	// a fit of a regression type it cannot score ("type_unsupported"),
+	// a bound other than point|lower|upper ("bound_unknown") or a
+	// lower / upper bound without exactly one predictor term
+	// ("bound_terms"). Refused identically by predict and the
 	// runtime before any record is read. Details carry "attribute",
 	// "reason" and, when known, "fit".
 	PULSE_MODEL_SCORE_INVALID Code = "PULSE_MODEL_SCORE_INVALID"
 
 	// PULSE_MODEL_TERM_UNKNOWN indicates a reference to a term a bound
-	// model does not have: an ATTR_REG_PREDICT params.terms entry that
-	// is neither one of the fit's predictors nor "(intercept)". Details
-	// carry "fit", "term" and "available" (the terms it may name).
+	// model does not have: an ATTR_REG_PREDICT params.terms entry or a
+	// coef() term that is neither one of the fit's predictors nor
+	// "(intercept)". Details carry "fit", "term" and "available" (the
+	// terms it may name).
 	PULSE_MODEL_TERM_UNKNOWN Code = "PULSE_MODEL_TERM_UNKNOWN"
+
+	// PULSE_MODEL_STAT_UNKNOWN indicates a coef(fit, term, stat) call
+	// whose stat is not one of point, lower, upper, se. Refused by
+	// predict for an all-literal call and at evaluation otherwise.
+	// Details carry "fit", "stat" and "valid".
+	PULSE_MODEL_STAT_UNKNOWN Code = "PULSE_MODEL_STAT_UNKNOWN"
+
+	// PULSE_MODEL_INTERVALS_UNAVAILABLE indicates a reference that reads
+	// a coefficient interval or standard error from a bound model that
+	// reports none (a degenerate intercept-only GLM): a coef() stat
+	// lower / upper / se, or an ATTR_REG_PREDICT params.bound lower /
+	// upper. Runtime only — predict cannot see a fit's numbers. Details
+	// carry "fit" and "stat" or "bound".
+	PULSE_MODEL_INTERVALS_UNAVAILABLE Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
 
 	// PULSE_MODEL_PREDICTOR_MISSING indicates a scoring frame without a
 	// column for one of a bound model's predictors: no schema field,
@@ -3334,6 +3351,8 @@ var allCodes = []Code{
 	PULSE_MODEL_UNKNOWN,
 	PULSE_MODEL_SCORE_INVALID,
 	PULSE_MODEL_TERM_UNKNOWN,
+	PULSE_MODEL_STAT_UNKNOWN,
+	PULSE_MODEL_INTERVALS_UNAVAILABLE,
 	PULSE_MODEL_PREDICTOR_MISSING,
 	PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
 	PULSE_FOR_EACH_INVALID,

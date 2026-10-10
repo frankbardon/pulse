@@ -99,7 +99,14 @@ func reflectiveExprTrampoline(fn any) func(args ...any) (any, error) {
 // PULSE_LOOKUP_TABLE_UNKNOWN at evaluation time. The compile-time
 // typecheck catches static misuse.
 func (r *ExtensionRegistry) ExprOptions() []expr.Option {
-	out := setExprOptions()
+	return append(setExprOptions(), r.embedderExprOptions()...)
+}
+
+// embedderExprOptions are the registry's own contributions: one
+// expr.Function per ExprFunctions entry and, with any LookupTable, the
+// lookup builtin. Nil-receiver-safe.
+func (r *ExtensionRegistry) embedderExprOptions() []expr.Option {
+	var out []expr.Option
 	if r == nil {
 		return out
 	}

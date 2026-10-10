@@ -238,6 +238,9 @@ type formulaAttribute struct {
 	expression string
 	schema     *encoding.Schema
 	exts       *ExtensionRegistry
+	// models are the request's bound models coef() reads (nil: none),
+	// set by bindModels before prepare compiles.
+	models *model.Set
 
 	once    sync.Once
 	prog    *exprProgram
@@ -271,9 +274,19 @@ func (a *formulaAttribute) SetExtensions(r *ExtensionRegistry) {
 // and Compute call it too, for any caller that skips that step.
 func (a *formulaAttribute) prepare() error {
 	a.once.Do(func() {
-		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.exts.ExprOptions())
+		if a.progErr = a.exts.coefStaticRefusal(a.expression, a.models); a.progErr != nil {
+			return
+		}
+		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.exts.exprOptionsWithModels(a.models))
 	})
 	return a.progErr
+}
+
+// bindModels satisfies modelBinder: coef() reads the request's bound
+// models. Its static rule runs in prepare, after the binding.
+func (a *formulaAttribute) bindModels(models *model.Set) error {
+	a.models = models
+	return nil
 }
 
 func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, error) {

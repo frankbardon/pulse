@@ -4,7 +4,7 @@ description: The per-row expression environment shared by the formula attribute 
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [expression, expr-lang, formula, set-helpers, lookup, ExprFunctions]
+covers: [expression, expr-lang, formula, set-helpers, lookup, ExprFunctions, coef]
 ```
 
 # Expression language
@@ -46,6 +46,10 @@ The program compiles once per request: bad syntax or a type error is `PROCESSING
 ## Embedder extensions
 
 `pulse.Options.Extensions.ExprFunctions` merges custom functions into the environment; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`. Both hosts see them. Recipe: `docs/src/internals/extension-points.md`.
+
+## Bound models
+
+`coef(fit, term[, stat])` reads a compose fit's figure at full precision: `term` is a predictor or `"(intercept)"`; `stat` is `point` (default), `lower` / `upper` (interval at the fit's `conf_level`) or `se`. Marginal return: `coef("mmm", "tv_sat") * tv / (1 + tv)`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (predict checks literal arguments), `_INTERVALS_UNAVAILABLE` (fit has no standard errors). A figure the fit lacks for one term is NaN, never 0. An embedder `coef` shadows it.
 
 ## Patterns
 

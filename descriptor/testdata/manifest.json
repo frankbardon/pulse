@@ -3094,6 +3094,18 @@
                 "response",
                 "link"
               ]
+            },
+            {
+              "name": "bound",
+              "type": "enum",
+              "required": false,
+              "default": "point",
+              "description": "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null.",
+              "enum_values": [
+                "point",
+                "lower",
+                "upper"
+              ]
             }
           ],
           "accepts_types": [
@@ -7374,7 +7386,7 @@
         ]
       }
     ],
-    "error_codes_count": 321,
+    "error_codes_count": 323,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7546,10 +7558,12 @@
       "PULSE_MATRIX_SINGULAR",
       "PULSE_MATRIX_UNSUPPORTED_SOURCE",
       "PULSE_MATRIX_ZERO_VARIANCE",
+      "PULSE_MODEL_INTERVALS_UNAVAILABLE",
       "PULSE_MODEL_NAME_COLLISION",
       "PULSE_MODEL_PREDICTOR_MISSING",
       "PULSE_MODEL_PREDICTOR_NOT_NUMERIC",
       "PULSE_MODEL_SCORE_INVALID",
+      "PULSE_MODEL_STAT_UNKNOWN",
       "PULSE_MODEL_TERM_UNKNOWN",
       "PULSE_MODEL_UNKNOWN",
       "PULSE_MULTIPLICITY_CONFLICT",
@@ -13920,4 +13934,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: bc60053ab2ac95052351fc6e4b729479ba4f5a9cc6ebfdd562091ad8ec41dc3e
+// golden-hash: d70a78dc9fc4840473552a88029c8c8eaa0a1ff0f26431e5b683d1ffdc03a2d7

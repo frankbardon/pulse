@@ -20,7 +20,7 @@ import (
 // expression ATTR_REG_FITTED and the GLM engine's own η use), so a
 // training row's score equals the fit's own fitted value bit for bit.
 //
-// The scoring rule — params shape, fit name, terms, scale — is
+// The scoring rule — params shape, fit name, terms, scale, bound — is
 // internal/model.CheckScore, the one the field-reference pass (predict
 // and runtime) runs first; bind re-runs it so a processor driven without
 // the service refuses the same way. A null in any column the score reads
@@ -74,7 +74,7 @@ func (a *regPredictAttribute) bindModels(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	scorer, err := regression.NewScorer(b, p.Terms, p.Scale)
+	scorer, err := regression.NewScorer(b, p)
 	if err != nil {
 		return err
 	}

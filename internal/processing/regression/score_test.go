@@ -47,7 +47,7 @@ func mustBind(t *testing.T, spec *types.RegressionSpec, res *types.RegressionRes
 
 func mustScorer(t *testing.T, b *model.Bound, terms []string, scale string) *Scorer {
 	t.Helper()
-	s, err := NewScorer(b, terms, scale)
+	s, err := NewScorer(b, model.ScoreParams{Terms: terms, Scale: scale})
 	if err != nil {
 		t.Fatalf("NewScorer: %v", err)
 	}

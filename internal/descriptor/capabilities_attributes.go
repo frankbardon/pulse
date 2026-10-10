@@ -142,6 +142,13 @@ func attributeCapabilities() []descriptor.Operator {
 					EnumValues:  []string{"response", "link"},
 					Description: "REG_GLM only: response applies the inverse link (the fit's fitted means); link returns the linear predictor.",
 				},
+				{
+					Name:        "bound",
+					Type:        "enum",
+					Default:     "point",
+					EnumValues:  []string{"point", "lower", "upper"},
+					Description: "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null.",
+				},
 			},
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "f64",

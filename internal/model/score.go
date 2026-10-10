@@ -29,6 +29,21 @@ const (
 	ReasonScaleUnknown    = "scale_unknown"
 	ReasonScaleNotGLM     = "scale_not_glm"
 	ReasonTypeUnsupported = "type_unsupported"
+	ReasonBoundUnknown    = "bound_unknown"
+	ReasonBoundTerms      = "bound_terms"
+)
+
+// Bound values of ATTR_REG_PREDICT's params.bound: which coefficient
+// figure a single-term score multiplies its column by.
+const (
+	// BoundPoint scores with the coefficient itself. The default.
+	BoundPoint = "point"
+	// BoundLower scores with the coefficient's lower confidence bound
+	// (RegressionResult.CILower) — single-term only.
+	BoundLower = "lower"
+	// BoundUpper scores with the coefficient's upper confidence bound
+	// (RegressionResult.CIUpper) — single-term only.
+	BoundUpper = "upper"
 )
 
 // ScoreParams is ATTR_REG_PREDICT's params block, decoded by the one
@@ -42,6 +57,11 @@ type ScoreParams struct {
 	Terms []string `json:"terms,omitempty"`
 	// Scale is ScaleResponse (default) or ScaleLink; REG_GLM only.
 	Scale string `json:"scale,omitempty"`
+	// Bound is BoundPoint (default), BoundLower or BoundUpper. A
+	// non-point bound needs Terms to list exactly one predictor: it is
+	// that term's coefficient-interval contribution (bound × column),
+	// never a prediction interval.
+	Bound string `json:"bound,omitempty"`
 }
 
 // Signature is the static face of a bound model: what a scoring
@@ -144,8 +164,9 @@ func ScorableType(t types.RegressionType) bool {
 // attribute's own bind and predict alike: params decode, the slot
 // carries none of the refit attributes' fields, the fit name resolves in
 // cat, the fit type is scorable, `terms` lists distinct names of the
-// fit's terms (InterceptKey included) and `scale` is a GLM-only
-// response|link. The first fault wins. It does not judge the scoring
+// fit's terms (InterceptKey included), `scale` is a GLM-only
+// response|link and `bound` is point|lower|upper, a non-point one with
+// exactly one predictor term. The first fault wins. It does not judge the scoring
 // frame's columns — the caller's field-reference walk does, with
 // PredictorMissing / PredictorNotNumeric over Signature.Terms.
 func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *errors.CodedError) {
@@ -155,7 +176,7 @@ func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *er
 	}
 	if attr.Field != "" || attr.Target != "" || len(attr.Predictors) > 0 || attr.Penalty != "" {
 		return p, Signature{}, scoreInvalid(p.Fit, ReasonSlotFields,
-			"takes no field, target, predictors or penalty — the bound model supplies them; name the fit under params.fit and the output under label", nil)
+			"takes no field, target, predictors or penalty — the fitted model supplies them; name the fit under params.fit and the output under label", nil)
 	}
 	if p.Fit == "" {
 		return p, Signature{}, scoreInvalid("", ReasonFitMissing, "requires params.fit, the name of a bound model", nil)
@@ -201,6 +222,23 @@ func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *er
 			fmt.Sprintf("params.scale applies to a generalized-linear fit only; %q is %s, whose scores are on the target's scale", p.Fit, sig.Type),
 			map[string]any{"scale": p.Scale, "type": string(sig.Type)})
 	}
+	switch p.Bound {
+	case "", BoundPoint:
+	case BoundLower, BoundUpper:
+		if len(p.Terms) != 1 || p.Terms[0] == InterceptKey {
+			terms := p.Terms
+			if terms == nil {
+				terms = []string{}
+			}
+			return p, sig, scoreInvalid(p.Fit, ReasonBoundTerms,
+				fmt.Sprintf("params.bound %q needs params.terms to list exactly one predictor — a coefficient bound is not a prediction interval", p.Bound),
+				map[string]any{"bound": p.Bound, "terms": terms})
+		}
+	default:
+		return p, sig, scoreInvalid(p.Fit, ReasonBoundUnknown,
+			fmt.Sprintf("params.bound %q is not one of point, lower, upper", p.Bound),
+			map[string]any{"bound": p.Bound, "valid": []string{BoundPoint, BoundLower, BoundUpper}})
+	}
 	return p, sig, nil
 }
 
@@ -217,7 +255,7 @@ func DecodeScoreParams(raw json.RawMessage) (ScoreParams, *errors.CodedError) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&p); err != nil {
 		return ScoreParams{}, scoreInvalid("", ReasonParamsInvalid,
-			"params must be an object {fit, terms?, scale?}: "+err.Error(), nil)
+			"params must be an object {fit, terms?, scale?, bound?}: "+err.Error(), nil)
 	}
 	return p, nil
 }

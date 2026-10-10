@@ -1623,7 +1623,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "An ATTR_REG_PREDICT slot's scoring parameters do not fit, so nothing runs — predict refuses it identically. Params are an object `{fit, terms?, scale?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`). The slot takes no `field`, `target`, `predictors` or `penalty` (`slot_fields`) — the bound model supplies them. Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`). Any other params shape is `params_invalid`. The rule is under `reason`, the fit under `fit`.",
+		Message: "An ATTR_REG_PREDICT slot's scoring parameters do not fit, so nothing runs — predict refuses it identically. Params are an object `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`). The slot takes no `field`, `target`, `predictors` or `penalty` (`slot_fields`) — the bound model supplies them. Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`). `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. Any other params shape is `params_invalid`. The rule is under `reason`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1638,12 +1638,37 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_TERM_UNKNOWN: {
-		Message: "A reference names a term the bound model does not have. ATTR_REG_PREDICT params.terms may list the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`.",
+		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"attributes", "*", "params", "terms"},
 				Hint:   "List only names under `available`; add `(intercept)` to include the intercept.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass coef() a term under `available` as its second argument.",
+			},
+		},
+	},
+	PULSE_MODEL_STAT_UNKNOWN: {
+		Message: "A coef(fit, term, stat) call names a stat it cannot read. The stat is `point` (the coefficient, the default when omitted), `lower` / `upper` (its confidence bounds at the fit's conf_level) or `se` (its standard error). An all-literal call is refused by predict; a computed one when it evaluates. The fit is under `fit`, the stat under `stat`, the accepted stats under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass one of `valid` as coef()'s third argument, or drop it for the coefficient.",
+			},
+		},
+	},
+	PULSE_MODEL_INTERVALS_UNAVAILABLE: {
+		Message: "A reference reads a coefficient interval or standard error from a bound model that reports none (a degenerate fit, such as an intercept-only generalized-linear model, carries no standard errors and so no intervals): a coef() stat `lower` / `upper` / `se`, or a scoring attribute's `bound` `lower` / `upper`. Raised when the fit is bound — predict cannot see a fit's numbers. A single term's missing figure (a lasso-dropped predictor's interval) is not this refusal: it reads as null. The fit is under `fit`, the setting under `stat` or `bound`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "bound"},
+				Hint:   "Score the point coefficient (drop params.bound), or fit a model with predictors so it reports intervals.",
 			},
 		},
 	},

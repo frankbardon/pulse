@@ -2,6 +2,7 @@ package regression
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/frankbardon/pulse/errors"
@@ -51,19 +52,29 @@ type Scorer struct {
 	// inverse is the GLM inverse link on the response scale; nil is the
 	// identity (OLS, Bayes, a GLM on the link scale).
 	inverse func(float64) float64
+	// null marks a bound score whose term has no bound in the fit:
+	// every row scores null.
+	null bool
 }
 
 // scorerStackTerms is the predictor count Score evaluates without a heap
 // allocation.
 const scorerStackTerms = 16
 
-// NewScorer builds b's scorer: every term with terms nil, else exactly
-// the listed terms (model.InterceptKey for the intercept; a candidate
-// predictor the fit's selection dropped scores 0 and reads no column),
-// on scale (model.ScaleResponse — the default — or model.ScaleLink;
-// REG_GLM only). The caller has run model.CheckScore; a GLM whose
-// family / link has no inverse surfaces the engine's own refusal.
-func NewScorer(b *model.Bound, terms []string, scale string) (*Scorer, error) {
+// NewScorer builds b's scorer for p: every term with p.Terms nil, else
+// exactly the listed terms (model.InterceptKey for the intercept; a
+// candidate predictor the fit's selection dropped scores 0 and reads no
+// column), on p.Scale (model.ScaleResponse — the default — or
+// model.ScaleLink; REG_GLM only). A p.Bound of model.BoundLower /
+// BoundUpper (one predictor term, model.CheckScore's rule) multiplies
+// that term's column by its confidence bound instead of its
+// coefficient; a bound the fit lacks for the term (a lasso-dropped
+// predictor, a selection-dropped candidate, df ≤ 0) scores null on
+// every row, and a fit with no intervals at all is
+// PULSE_MODEL_INTERVALS_UNAVAILABLE. The caller has run
+// model.CheckScore; a GLM whose family / link has no inverse surfaces
+// the engine's own refusal.
+func NewScorer(b *model.Bound, p model.ScoreParams) (*Scorer, error) {
 	if b == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL, "NewScorer called with a nil model")
 	}
@@ -72,18 +83,33 @@ func NewScorer(b *model.Bound, terms []string, scale string) (*Scorer, error) {
 			fmt.Sprintf("model %q has %d coefficients for %d predictors", b.Name, len(b.Coefficients), len(b.Predictors)),
 			map[string]any{"name": b.Name})
 	}
+	coefs := b.Coefficients
+	bounded := p.Bound == model.BoundLower || p.Bound == model.BoundUpper
+	if bounded {
+		if !b.ReportsIntervals() {
+			return nil, model.IntervalsUnavailable(b.Name, "bound", p.Bound)
+		}
+		coefs = b.CILower
+		if p.Bound == model.BoundUpper {
+			coefs = b.CIUpper
+		}
+	}
+	terms := p.Terms
 	s := &Scorer{}
 	keep := func(term string) bool { return terms == nil || slices.Contains(terms, term) }
 	if keep(model.InterceptKey) {
 		s.intercept = b.Intercept
 	}
-	for i, p := range b.Predictors {
-		if keep(p) {
-			s.coefs = append(s.coefs, b.Coefficients[i])
-			s.columns = append(s.columns, p)
+	for i, pred := range b.Predictors {
+		if keep(pred) {
+			s.coefs = append(s.coefs, coefs[i])
+			s.columns = append(s.columns, pred)
 		}
 	}
-	if b.Type == types.REG_GLM && scale != model.ScaleLink {
+	if bounded && (len(s.coefs) == 0 || math.IsNaN(s.coefs[0])) {
+		s.null = true
+	}
+	if b.Type == types.REG_GLM && p.Scale != model.ScaleLink {
 		inv, err := InverseLink(b.Family, b.Link)
 		if err != nil {
 			return nil, err
@@ -99,6 +125,9 @@ func (s *Scorer) Columns() []string { return append([]string(nil), s.columns...)
 // Score is rec's score; ok=false (a null score) when any column it
 // reads is null or absent on rec.
 func (s *Scorer) Score(rec Record) (float64, bool) {
+	if s.null {
+		return 0, false
+	}
 	var buf [scorerStackTerms]float64
 	x := buf[:0]
 	if len(s.columns) > scorerStackTerms {
