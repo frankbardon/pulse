@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"encoding/json"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -85,11 +86,45 @@ func withReturnDefault[In any](cfg Config, decode decodeFunc[In], fill func(*In,
 func fillRequestReturn(in *types.Request, def *types.Return) { fillReturn(in, def) }
 
 // fillComposeReturn fills each slot; the Compose-level `return` shapes
-// only the top-level overlays and is left to the caller.
+// only the top-level overlays and is left to the caller. A sweep's body
+// is a slot too: it receives the same default, so an expanded slot is
+// shaped exactly as an explicit one sent without a `return`.
 func fillComposeReturn(in *types.ComposedRequest, def *types.Return) {
 	for _, slot := range in.Requests {
 		fillReturn(slot, def)
 	}
+	if in.Sweep != nil {
+		in.Sweep.Request = fillRawReturn(in.Sweep.Request, def)
+	}
+}
+
+// fillRawReturn adds def as the `return` key of a raw request body that
+// carries none (a sweep body, still holding its axis placeholders). A
+// body that is not a JSON object is returned untouched — the sweep's
+// own validation refuses it with its coded error.
+func fillRawReturn(body json.RawMessage, def *types.Return) json.RawMessage {
+	if def == nil {
+		return body
+	}
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(body, &obj) != nil || obj == nil {
+		return body
+	}
+	if _, set := obj["return"]; set {
+		return body
+	}
+	ret, err := json.Marshal(def)
+	if err != nil {
+		return body
+	}
+	obj["return"] = ret
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if enc.Encode(obj) != nil {
+		return body
+	}
+	return json.RawMessage(bytes.TrimRight(buf.Bytes(), "\n"))
 }
 
 func fillChainReturn(in *types.ChainRequest, def *types.Return) {

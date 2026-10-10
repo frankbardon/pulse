@@ -161,7 +161,8 @@ func TestComposeSweep_OverlayPerSlot(t *testing.T) {
 
 // TestComposeSweep_LimitBeforeAnySlot: MaxComposeSlots counts explicit
 // + expanded slots and refuses before a single slot runs, on both entry
-// points and on predict.
+// points. Predict's parity on the same limit is
+// TestPredictCompose_SlotLimitParity.
 func TestComposeSweep_LimitBeforeAnySlot(t *testing.T) {
 	var slotsRun atomic.Int64
 	hooks := &observe.Hooks{OnOperationStart: func(ctx context.Context, info observe.OperationInfo) context.Context {
