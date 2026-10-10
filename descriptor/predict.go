@@ -392,14 +392,14 @@ type MatrixPredict struct {
 	// PairwisePSDRisk reports whether the result (or a decomposition
 	// operator's input) can come back not positive semidefinite —
 	// pairwise MAT_COVARIANCE at p ≥ 2, pairwise MAT_CORRELATION,
-	// MAT_PARTIAL_CORRELATION (folded columns), MAT_RELIABILITY and
-	// MAT_PCA on a correlation at p ≥ 3, MAT_PCA on a covariance at
-	// p ≥ 2 — the only shapes the runtime checks for
+	// MAT_PARTIAL_CORRELATION (folded columns), MAT_RELIABILITY,
+	// MAT_COLLINEARITY and MAT_PCA on a correlation at p ≥ 3, MAT_PCA
+	// on a covariance at p ≥ 2 — the only shapes the runtime checks for
 	// PULSE_MATRIX_NOT_PSD. False guarantees the code never appears;
 	// true says it can, depending on the data: a warning, on
 	// MAT_PARTIAL_CORRELATION a refusal unless params.repair is
-	// "nearest" (MAT_PCA alike), on MAT_RELIABILITY a null omega with
-	// the warning.
+	// "nearest" (MAT_PCA and MAT_COLLINEARITY alike), on
+	// MAT_RELIABILITY a null omega with the warning.
 	PairwisePSDRisk bool `json:"pairwise_psd_risk"`
 }
 

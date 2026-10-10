@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "name": "collinearity_diagnostics",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "MAT_COLLINEARITY"
+    ],
+    "description": "Collinearity diagnostics for three candidate predictors on experiment.pulse (revenue_before, revenue, session_minutes), with no response: each predictor's variance inflation factor (VIF = diag of the inverse correlation) and tolerance (1/VIF), Belsley's condition indices and the variance-decomposition proportions (a rectangular variable x dimension auxiliary, each row summing to 1), the largest VIF and condition index as scalars, and the predictors' correlation as primary. The first spec runs Belsley on the scaled, uncentered predictors with an intercept (the default, perturb::colldiag); the second sets params.center true. Here the two revenue measures each have a VIF of about 23 and put about 99% of their variance on the last dimension (condition index about 24 uncentered, 9.5 centered): they are near-duplicates, while session_minutes (VIF about 1.03) is not. VIF is not banded; cut-offs of 5 or 10 are rules of thumb only (O'Brien 2007). A pairwise input that is not positive semidefinite is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\"; an exactly collinear set is PULSE_MATRIX_SINGULAR naming the dependent fields. Streamable and mergeable; no p-values.",
+    "intents": [
+      "drivers",
+      "data_quality"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_COLLINEARITY",
+      "name": "predictors",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    },
+    {
+      "type": "MAT_COLLINEARITY",
+      "name": "predictors_centered",
+      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "params": {"center": true}
+    }
+  ]
+}

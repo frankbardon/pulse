@@ -2,10 +2,10 @@
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a result in which every member is compared with
-every member. Five operators ship: `MAT_COVARIANCE`,
+every member. Six operators ship: `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
-`params.method`), `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY` and
-`MAT_PCA`. All are additive: a request without
+`params.method`), `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY`,
+`MAT_PCA` and `MAT_COLLINEARITY`. All are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -167,6 +167,40 @@ still reported. Like the partial correlation, a non-PSD pairwise input
 is refused unless `params.repair` is `"nearest"`. KMO is read against
 Kaiser's (1974) bands. No rotation (factor analysis and rotation are a
 later operator).
+
+## Collinearity
+
+`MAT_COLLINEARITY` checks candidate regression predictors before a
+model is fitted. Its members are the predictors only — there is no
+response, so the figures are the same whatever outcome is later
+modelled. `vectors.vif` is each predictor's variance inflation factor,
+the diagonal of the inverse correlation matrix (`car::vif` on an `lm`
+over the same predictors), and `vectors.tolerance` its reciprocal; the
+`primary` is the predictors' correlation matrix and `scalars.max_vif`
+the largest VIF.
+
+Belsley's diagnostics (`perturb::colldiag`) ride beside them:
+`vectors.condition_indices` (ascending, the first exactly 1),
+`scalars.condition_number` (the largest) and
+`auxiliary.variance_decomposition`, a **rectangular** matrix with a row
+per variable and a column per dimension `D1` … `Dq` in condition-index
+order — each row is that variable's coefficient variance split across
+the dimensions, summing to 1. By default they are computed on the
+scaled, **uncentered** predictors with an intercept column (Belsley's
+recommendation, which also shows collinearity with the intercept; the
+first row is `(intercept)`), rebuilt from the slot's co-moments as
+W(Σ + μμᵀ), so the operator stays streamable and mergeable.
+`params.center: true` computes them on the centered predictors (their
+correlation) instead.
+
+An exactly collinear set has no inverse and is refused with
+`PULSE_MATRIX_SINGULAR`, whose `dependent_fields` name the members in
+the dependency. Like the partial correlation, a non-PSD pairwise input
+is refused unless `params.repair` is `"nearest"`. Weighted under
+frequency and probability weights (the figures are scale-free, so the
+two kinds agree). Neither VIF nor the condition index is banded: 5 or 10
+for VIF and 30 for the condition index are rules of thumb only
+(O'Brien 2007).
 
 ## Groups, cost and refusals
 

@@ -46,7 +46,7 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 		rows  [][5]float64
 		fires map[string]bool // "<type>/<p>" pairwise shapes that must warn
 	}{
-		{"three-way", nonPSDRows(), map[string]bool{"MAT_COVARIANCE/3": true, "MAT_CORRELATION/3": true, "MAT_PARTIAL_CORRELATION/3": true, "MAT_PCA/3": true}},
+		{"three-way", nonPSDRows(), map[string]bool{"MAT_COVARIANCE/3": true, "MAT_CORRELATION/3": true, "MAT_PARTIAL_CORRELATION/3": true, "MAT_PCA/3": true, "MAT_COLLINEARITY/3": true}},
 		{"pair-cov", pairCovNotPSDRows(), map[string]bool{"MAT_COVARIANCE/2": true}},
 		{"reference", matrixRows(500), nil},
 	}

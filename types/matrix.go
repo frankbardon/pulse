@@ -66,12 +66,30 @@ const (
 	// linalg.SymEigen. Weighted under frequency and probability
 	// weights. No rotation.
 	MAT_PCA MatrixType = "MAT_PCA"
+	// MAT_COLLINEARITY is a collinearity check of the members as
+	// regression predictors (no response): the primary is their
+	// correlation matrix R; vectors carry each member's variance
+	// inflation factor VIF = diag(R⁻¹) and tolerance 1/VIF (car::vif),
+	// and Belsley's condition indices; auxiliary.variance_decomposition
+	// is Belsley's variance-decomposition proportions
+	// (MatrixKindRectangular: a row per variable, a column per
+	// dimension); scalars condition_number (the largest condition
+	// index) and max_vif (the largest VIF).
+	// Belsley runs on the scaled, uncentered predictors with an
+	// intercept by default (perturb::colldiag), rebuilt from the
+	// co-moment as W(Σ + μμᵀ); params.center true runs it on the
+	// centered predictors (R) instead. A decomposition operator (the
+	// shared PSD guard, params.repair "nearest"); a singular R is
+	// PULSE_MATRIX_SINGULAR. Weighted under frequency and probability
+	// weights. No p-values.
+	MAT_COLLINEARITY MatrixType = "MAT_COLLINEARITY"
 )
 
 // AllMatrixTypes returns every built-in matrix operator in alphabetical
 // order.
 func AllMatrixTypes() []MatrixType {
 	return []MatrixType{
+		MAT_COLLINEARITY,
 		MAT_CORRELATION,
 		MAT_COVARIANCE,
 		MAT_PARTIAL_CORRELATION,
@@ -88,7 +106,7 @@ func AllMatrixTypes() []MatrixType {
 // MatrixSpec.Streamable, which its params may turn off.
 func (t MatrixType) Streamable() bool {
 	switch t {
-	case MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -103,7 +121,7 @@ func (t MatrixType) Streamable() bool {
 // Streamable: the merge gate reads MatrixSpec.Mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
-	case MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -137,7 +155,10 @@ const (
 	MatrixKindSquareSymmetric MatrixKind = "square_symmetric"
 	// MatrixKindRectangular is a p × k matrix whose rows are the
 	// members (RowKeys) and whose columns are something else
-	// (ColumnKeys: MAT_PCA's components "PC1" … "PCk"). It is always
+	// (ColumnKeys: MAT_PCA's components "PC1" … "PCk";
+	// MAT_COLLINEARITY's dimensions "D1" … "Dk", whose uncentered
+	// variance decomposition also leads its rows with the intercept,
+	// RowKeys "(intercept)" then the members). It is always
 	// written full — Values[r] has k entries — whatever the spec's
 	// Encoding asks (upper applies to a symmetric matrix only), and k
 	// may be 0 (Values rows empty).
@@ -178,7 +199,7 @@ type MatrixSpec struct {
 	// [fields], "scale_min" / "scale_max": numbers, "repair":
 	// "nearest"; MAT_PCA: "on": "correlation" | "covariance",
 	// "components": k | "kaiser" | {"variance": share}, "repair":
-	// "nearest").
+	// "nearest"; MAT_COLLINEARITY: "center": bool, "repair": "nearest").
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot

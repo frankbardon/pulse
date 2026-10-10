@@ -95,6 +95,11 @@ type Matrix struct {
 	On string
 	// Components is MAT_PCA's retention rule (params.components).
 	Components PCAComponents
+	// Center is MAT_COLLINEARITY's params.center: false (the default)
+	// runs Belsley's diagnostics on the scaled, UNCENTERED predictors
+	// with an intercept column; true on the scaled, centered ones (the
+	// predictors' correlation, no intercept).
+	Center bool
 }
 
 // MAT_PCA params.on values.
@@ -190,12 +195,18 @@ func (m Matrix) Decomposition() bool { return IsDecomposition(m.Type) }
 
 // IsDecomposition reports whether t is a decomposition operator (see
 // Matrix.Decomposition): MAT_PARTIAL_CORRELATION, MAT_PCA (it
-// eigen-decomposes its correlation or covariance), and MAT_RELIABILITY,
+// eigen-decomposes its correlation or covariance), MAT_COLLINEARITY (it
+// inverts and eigen-decomposes the predictors' correlation), and
+// MAT_RELIABILITY,
 // whose McDonald's omega factors the inter-item correlation (there the
 // guard's refusal nulls omega with a warning instead of failing the
 // matrix: alpha needs no PSD input).
 func IsDecomposition(t types.MatrixType) bool {
-	return t == types.MAT_PARTIAL_CORRELATION || t == types.MAT_RELIABILITY || t == types.MAT_PCA
+	switch t {
+	case types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY, types.MAT_PCA, types.MAT_COLLINEARITY:
+		return true
+	}
+	return false
 }
 
 // Missing-data modes (params.missing).
@@ -294,6 +305,16 @@ type pcaParams struct {
 	On         *string         `json:"on"`
 	Components json.RawMessage `json:"components"`
 	Repair     *string         `json:"repair"`
+	missingParams
+}
+
+// collinearityParams is MAT_COLLINEARITY's params object: the Belsley
+// variant (center), the repair choice and the missing-data knobs; any
+// other key is refused. The members are the predictors only — there is
+// no response key.
+type collinearityParams struct {
+	Center *bool   `json:"center"`
+	Repair *string `json:"repair"`
 	missingParams
 }
 
@@ -504,6 +525,18 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		}
 		if err := decodePCA(at, p, m); err != nil {
 			return err
+		}
+		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		miss = p.missingParams
+	case types.MAT_COLLINEARITY:
+		var p collinearityParams
+		if err := decodeStrict(raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if p.Center != nil {
+			m.Center = *p.Center
 		}
 		if err := decodeRepair(at, p.Repair, m); err != nil {
 			return err

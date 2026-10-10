@@ -4,6 +4,44 @@ How to read the standardised results of the matrix operators this instance offer
 
 ## Matrix operators
 
+<a id="op-mat_collinearity"></a>
+
+### `MAT_COLLINEARITY`
+
+Whether candidate predictors overlap so much that a regression on them would give unstable coefficients, and which ones are tangled. See its [catalog entry](../catalog/matrix.md#op-mat_collinearity).
+
+#### `scalars.max_vif`
+
+The largest variance inflation factor among the predictors (each one's is also listed): how many times larger that predictor's coefficient variance is than it would be if it were unrelated to the other predictors. 1 means no overlap; tolerance, its reciprocal, is the share of the predictor's spread the others do not explain.
+
+**Caveats:**
+
+- No convention bands it. Cut-offs of 5 or 10 are rules of thumb only: O'Brien (2007) shows they are arbitrary, and a large sample can make a high value harmless while a small one can make a modest value matter.
+- It depends only on the predictors, not on any outcome; it says how unstable coefficients would be, not whether a predictor matters.
+- Under params.repair it is read off the nearest consistent correlation table, not the observed one.
+
+#### `scalars.condition_number`
+
+The largest of Belsley's condition indices: how close the predictors (with the intercept, unless params.center is true) come to an exact straight-line dependency. 1 means none; large values mean some combination of predictors nearly cancels out.
+
+**Caveats:**
+
+- No convention bands it. Belsley, Kuh and Welsch's guideline (an index above about 30 where two or more variables put a large share of their variance on that dimension) is a rule of thumb; read the variance-decomposition proportions to see which variables are involved.
+- With the intercept included (the default) a predictor whose values sit far from zero relative to their spread raises it even when the predictors are unrelated; params.center true removes that part.
+
+#### `primary.values`
+
+The predictors' correlation table that the variance inflation factors and the centered diagnostics are read from: each off-diagonal cell is the correlation of its row and column predictors, from -1 to +1.
+
+**Sign:**
+
+- `+`: the two fields tend to rise together
+- `-`: one field tends to fall as the other rises
+
+**Caveats:**
+
+- A predictor can be heavily inflated with no single large pairwise correlation, when it is close to a combination of several others; read the variance inflation factors, not just this table.
+
 <a id="op-mat_correlation"></a>
 
 ### `MAT_CORRELATION`

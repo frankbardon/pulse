@@ -123,7 +123,8 @@ func TestMatrixPairwise_AuxiliaryNShape(t *testing.T) {
 				}
 				def, list, pair := mk(""), mk(`{"missing": "listwise"}`), mk(pairParams)
 				// The operator's own auxiliary matrices (MAT_PCA's
-				// eigenvectors) ride every mode; the rule here is about n.
+				// eigenvectors, MAT_COLLINEARITY's variance
+				// decomposition) ride every mode; the rule here is about n.
 				shared := func(m types.MatrixResult) map[string]*types.MatrixValues {
 					out := map[string]*types.MatrixValues{}
 					for k, v := range m.Auxiliary {
@@ -184,7 +185,10 @@ func TestMatrixPairwise_AuxiliaryNShape(t *testing.T) {
 
 // operatorAuxiliary are the auxiliary matrices an operator emits in
 // every missing-data mode (beside the pairwise n).
-var operatorAuxiliary = map[types.MatrixType][]string{types.MAT_PCA: {"eigenvectors"}}
+var operatorAuxiliary = map[types.MatrixType][]string{
+	types.MAT_PCA:          {"eigenvectors"},
+	types.MAT_COLLINEARITY: {"variance_decomposition"},
+}
 
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()

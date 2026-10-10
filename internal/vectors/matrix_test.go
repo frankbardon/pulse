@@ -456,3 +456,53 @@ func TestResolveMatrices_PCA(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveMatrices_Collinearity: MAT_COLLINEARITY's params.center
+// (false by default — Belsley uncentered with the intercept), repair
+// and the missing-data knobs; every other key (a response included:
+// the members are the predictors) is refused bad_params. A
+// decomposition operator: pairwise PSD risk from 3 members, the
+// correlation rule.
+func TestResolveMatrices_Collinearity(t *testing.T) {
+	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
+		spec := types.MatrixSpec{Type: types.MAT_COLLINEARITY, Fields: fields}
+		if params != "" {
+			spec.Params = json.RawMessage(params)
+		}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	items := []string{"q_1", "q_2", "q_3"}
+	for params, center := range map[string]bool{"": false, `{"center": false}`: false, `{"center": true, "repair": "nearest"}`: true} {
+		m, err := resolve(items, params)
+		if err != nil {
+			t.Fatalf("%s: %v", params, err)
+		}
+		if m.Center != center || !m.Decomposition() || !m.Streamable || !m.Mergeable {
+			t.Errorf("%s: center %v decomposition %v streamable %v mergeable %v", params, m.Center, m.Decomposition(), m.Streamable, m.Mergeable)
+		}
+	}
+	if m, _ := resolve(items, `{"missing": "pairwise"}`); !m.PSDRisk() {
+		t.Error("3-member pairwise collinearity carries no PSD risk")
+	}
+	if m, _ := resolve(items[:2], `{"missing": "pairwise"}`); m.PSDRisk() {
+		t.Error("2-member pairwise collinearity carries PSD risk")
+	}
+	if m, _ := resolve(items, ""); m.PSDRisk() {
+		t.Error("listwise collinearity carries PSD risk")
+	}
+	for _, params := range []string{
+		`{"center": "yes"}`,
+		`{"repair": "clip"}`,
+		`{"response": "q_1"}`,
+		`{"on": "covariance"}`,
+		`{"reverse": ["q_1"]}`,
+	} {
+		if _, err := resolve(items, params); err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "bad_params" {
+			t.Errorf("%s: error %v, want bad_params", params, err)
+		}
+	}
+}

@@ -200,6 +200,11 @@ var matrixClasses = map[types.MatrixType]Class{
 	// MAT_RELIABILITY's item_sd); Bartlett's test reads N* = Σw
 	// (frequency) or Kish n_eff (probability).
 	types.MAT_PCA: ClassAware,
+	// MAT_COLLINEARITY reads the weighted correlation (VIF, centered
+	// Belsley) and the weighted uncentered moments W(Σ + μμᵀ) scaled
+	// to unit diagonal (uncentered Belsley): scale-free ratios, so the
+	// two kinds agree.
+	types.MAT_COLLINEARITY: ClassAware,
 }
 
 // MatrixClassOf is a matrix spec's weight class: its type's

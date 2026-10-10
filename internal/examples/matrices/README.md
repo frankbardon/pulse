@@ -15,6 +15,7 @@ Whole-set matrix operators (`MAT_*`) over virtual vectors
 | `07_partial_correlation.json` | `MAT_PARTIAL_CORRELATION` | Partial correlations: every pair held fixed for the other members (`control: "all"`), and one pair held fixed for an outside field through a `control` list. |
 | `08_reliability.json` | `MAT_RELIABILITY` | Scale reliability of a battery: alpha, standardized alpha, omega, the mean inter-item r and per-item diagnostics (`reverse` + `scale_min` / `scale_max` key reverse-worded items). |
 | `09_pca.json` | `MAT_PCA` | Principal components of a battery: rectangular loadings and eigenvectors, eigenvalues with explained / cumulative shares, communalities, KMO and Bartlett's test (`components`: Kaiser default, integer k or a variance share). |
+| `10_collinearity.json` | `MAT_COLLINEARITY` | Collinearity diagnostics on candidate predictors (no response): VIF and tolerance, Belsley's condition indices and variance-decomposition proportions, uncentered with the intercept (default) and centered (`center: true`). |
 
 Run every example:
 

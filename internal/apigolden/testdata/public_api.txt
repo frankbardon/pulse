@@ -3981,6 +3981,7 @@ pulse/types: type LookupRequest method (*LookupRequest) KeyComponents() []pulse/
 pulse/types: type LookupResult struct
 pulse/types: type LookupResult field Rows []map[string]any "json:\"rows\""
 pulse/types: type LookupResult field Warnings []string "json:\"warnings,omitempty\""
+pulse/types: const MAT_COLLINEARITY pulse/types.MatrixType = "MAT_COLLINEARITY"
 pulse/types: const MAT_CORRELATION pulse/types.MatrixType = "MAT_CORRELATION"
 pulse/types: const MAT_COVARIANCE pulse/types.MatrixType = "MAT_COVARIANCE"
 pulse/types: const MAT_PARTIAL_CORRELATION pulse/types.MatrixType = "MAT_PARTIAL_CORRELATION"
@@ -4551,4 +4552,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ed191c18f1580c67a23485ede18bcfc9a8d972d8b13c82a8de79f7030e559b68
+// golden-hash: d3a792f71eaa8bd5a5a7d45cabef89c2806ccdb7cbed1f19ade1b7f0be7749af

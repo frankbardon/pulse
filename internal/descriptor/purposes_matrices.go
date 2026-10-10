@@ -14,6 +14,33 @@ var matrixPurposes = map[string]descriptor.Purpose{
 	"MAT_PARTIAL_CORRELATION": purposeMatPartialCorrelation,
 	"MAT_RELIABILITY":         purposeMatReliability,
 	"MAT_PCA":                 purposeMatPCA,
+	"MAT_COLLINEARITY":        purposeMatCollinearity,
+}
+
+var purposeMatCollinearity = descriptor.Purpose{
+	Plain:   "Whether candidate predictors overlap so much that a regression on them would give unstable coefficients, and which ones are tangled.",
+	KnownAs: []string{"vif", "variance inflation", "multicollinearity", "condition index"},
+	Intents: []string{IntentDrivers, IntentDataQuality},
+	Questions: []string{
+		"Before I model satisfaction on these eight ratings, are any of them so related that their effects cannot be told apart?",
+		"Which of these predictors are near-duplicates of the others?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey:  "Screening a driver-analysis battery for questions that say almost the same thing before regressing the overall score on them.",
+		descriptor.DomainScience: "Checking that measured covariates are not near-linear combinations of each other before fitting a model.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you want the fitted effects of the predictors on an outcome", Use: "REG_OLS"},
+		{When: "you only want to see which measures go together, pair by pair", Use: "MAT_CORRELATION"},
+	},
+	Assumptions: []string{
+		"The fields are the predictors only; the outcome plays no part, so the check is the same whatever you later model.",
+		"It reads straight-line overlap among the predictors; it does not test any relationship with the outcome.",
+		"A predictor that is an exact combination of others is refused, naming the fields involved.",
+		"A row with any predictor missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.",
+	},
+	Level:    descriptor.LevelIntermediate,
+	Glossary: []string{"multicollinearity", "correlation", "regression-coefficient", "listwise-deletion", "pairwise-deletion"},
 }
 
 var purposeMatPCA = descriptor.Purpose{

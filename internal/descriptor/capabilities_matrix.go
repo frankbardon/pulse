@@ -99,6 +99,24 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			ComponentSchema: matrixSchema(),
 		},
 		{
+			Name:         string(types.MAT_COLLINEARITY),
+			Description:  "Collinearity check of a vector's members as regression predictors (listwise or pairwise; no response): each member's variance inflation factor VIF = diag(R^-1) and tolerance 1/VIF (car::vif), and Belsley's condition indices and variance-decomposition proportions (perturb::colldiag) on the scaled, uncentered predictors with an intercept (params.center true: the centered predictors). The primary is the predictors' correlation matrix R; auxiliary.variance_decomposition is rectangular (a row per variable, \"(intercept)\" first when uncentered; a column per dimension D1..Dq in condition-index order); scalars carry the largest condition index (condition_number) and the largest VIF (max_vif). A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\"; a singular R is PULSE_MATRIX_SINGULAR (dependent_fields). Weighted under frequency and probability weights. No p-values, no banding.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "center", Type: "bool", Required: false, Default: false, Description: "false: Belsley's diagnostics on the scaled, uncentered predictors with an intercept column (Belsley's recommendation; shows collinearity with the intercept), rebuilt from the co-moment as W(Sigma + mu mu^T); true: on the scaled, centered predictors (their correlation), no intercept. VIF and tolerance do not depend on it."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: read every figure off the nearest correlation matrix when the (pairwise) correlation is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD)."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "correlation",
+				Auxiliary: []string{"n", "variance_decomposition"},
+				Vectors:   []string{"condition_indices", "tolerance", "vif"},
+				Scalars:   []string{"condition_number", "max_vif"},
+			},
+			Streamable:      types.MAT_COLLINEARITY.Streamable(),
+			Mergeable:       types.MAT_COLLINEARITY.Mergeable(),
+			ComponentSchema: matrixSchema(),
+		},
+		{
 			Name:         string(types.MAT_COVARIANCE),
 			Description:  "Covariance matrix of a vector's members (listwise or pairwise): sample covariance by default, weighted under frequency and probability weights.",
 			AcceptsTypes: memberTypes,
@@ -207,7 +225,7 @@ func matrixCapability() descriptor.MatrixCapability {
 			"Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
 			"A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
 			"A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
-			"A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors) has the members as rows and its own column keys, and is always written full whatever the spec's encoding.",
+			"A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
 			"A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
 		},
 	}

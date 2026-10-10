@@ -632,6 +632,14 @@ Only the floor keys.
 
 ### Matrix operators
 
+<a id="op-mat_collinearity"></a>
+
+#### `MAT_COLLINEARITY`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_collinearity).
+
+Only the floor keys.
+
 <a id="op-mat_correlation"></a>
 
 #### `MAT_CORRELATION`

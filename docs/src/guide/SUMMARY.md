@@ -115,6 +115,7 @@
     - [op-group-rounded](skills/op-group-rounded.md)
     - [op-group-set-per-element](skills/op-group-set-per-element.md)
     - [op-group-set-value](skills/op-group-set-value.md)
+    - [op-mat-collinearity](skills/op-mat-collinearity.md)
     - [op-mat-correlation](skills/op-mat-correlation.md)
     - [op-mat-covariance](skills/op-mat-covariance.md)
     - [op-mat-partial-correlation](skills/op-mat-partial-correlation.md)

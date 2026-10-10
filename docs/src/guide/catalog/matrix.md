@@ -4,6 +4,7 @@ The matrix operators this instance offers: what each is for, the questions it an
 
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
+| [`MAT_COLLINEARITY`](#op-mat_collinearity) | Whether candidate predictors overlap so much that a regression on them would give unstable coefficients, and which ones are tangled. | Before I model satisfaction on these eight ratings, are any of them so related that their effects cannot be told apart? | intermediate | [`REG_OLS`](regression.md#op-reg_ols) when you want the fitted effects of the predictors on an outcome.<br>[`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which measures go together, pair by pair. |
 | [`MAT_CORRELATION`](#op-mat_correlation) | How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1. | Which of these ten rating items go together most strongly? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value or confidence interval for one pair.<br>[`MAT_COVARIANCE`](#op-mat_covariance) when you want the joint spread in the fields' own units.<br>[`TEST_SPEARMAN_R`](test.md#op-test_spearman_r) when you need a p-value for one pair's rank correlation.<br>[`TEST_KENDALL_TAU`](test.md#op-test_kendall_tau) when you need a p-value for one pair's Kendall tau.<br>[`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) when you want each pair's link with other fields held fixed. |
 | [`MAT_COVARIANCE`](#op-mat_covariance) | How every pair in a set of numeric fields varies together, as one square table with each field's variance on the diagonal. | How do these five rating scales vary together across respondents? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want how closely two numeric fields follow a straight line together, on a scale from -1 to 1.<br>[`AGG_WELFORD`](aggregator.md#op-agg_welford) when you want the spread of one field on its own. |
 | [`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) | How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. | Does satisfaction still track price once delivery time is held fixed? | advanced | [`MAT_CORRELATION`](#op-mat_correlation) when you want each pair's link with nothing held fixed.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want how much each field moves the outcome, in its own units.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value for one pair. |
@@ -11,6 +12,42 @@ The matrix operators this instance offers: what each is for, the questions it an
 | [`MAT_RELIABILITY`](#op-mat_reliability) | How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest. | Are these five satisfaction questions reliable enough to average into one score? | intermediate | [`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which items go together, pair by pair.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want a p-value for one pair of items. |
 
 ## Operators
+
+<a id="op-mat_collinearity"></a>
+
+### `MAT_COLLINEARITY`
+
+Whether candidate predictors overlap so much that a regression on them would give unstable coefficients, and which ones are tangled.
+
+**Level:** intermediate
+
+**Also known as:** `vif`, `variance inflation`, `multicollinearity`, `condition index`
+
+**Questions it answers:**
+
+- Before I model satisfaction on these eight ratings, are any of them so related that their effects cannot be told apart?
+- Which of these predictors are near-duplicates of the others?
+
+**Use cases by domain:**
+
+- *survey:* Screening a driver-analysis battery for questions that say almost the same thing before regressing the overall score on them.
+- *science:* Checking that measured covariates are not near-linear combinations of each other before fitting a model.
+
+**Assumptions:**
+
+- The fields are the predictors only; the outcome plays no part, so the check is the same whatever you later model.
+- It reads straight-line overlap among the predictors; it does not test any relationship with the outcome.
+- A predictor that is an exact combination of others is refused, naming the fields involved.
+- A row with any predictor missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.
+
+**Use something else:**
+
+- [`REG_OLS`](regression.md#op-reg_ols) when you want the fitted effects of the predictors on an outcome.
+- [`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which measures go together, pair by pair.
+
+**Glossary:** [`multicollinearity`](../glossary.md#term-multicollinearity), [`correlation`](../glossary.md#term-correlation), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
+
+**Skill:** [`op-mat-collinearity`](../skills/op-mat-collinearity.md)
 
 <a id="op-mat_correlation"></a>
 

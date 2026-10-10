@@ -79,6 +79,40 @@
         ]
       },
       {
+        "operator": "MAT_COLLINEARITY",
+        "category": "matrix",
+        "level": "intermediate",
+        "why": "Whether candidate predictors overlap so much that a regression on them would give unstable coefficients, and which ones are tangled. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "MAT_COLLINEARITY"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the fitted effects of the predictors on an outcome",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you only want to see which measures go together, pair by pair",
+            "use": "MAT_CORRELATION"
+          }
+        ]
+      },
+      {
         "operator": "REG_BAYES_LINEAR",
         "category": "regression",
         "level": "advanced",
@@ -200,9 +234,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 4
+    "candidates_considered": 5
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4558ad75a1e093f65edeb604751ab0ce0cd5aca4d0373b3ba8bc829a64969c96
+// golden-hash: 95c0d7bd64df8d8b227d6d3be1b79b0b53061e47e829a82635ac3f11f81aa11f

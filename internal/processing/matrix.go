@@ -361,6 +361,7 @@ var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
 	types.MAT_PARTIAL_CORRELATION: finalizePartialCorrelation,
 	types.MAT_RELIABILITY:         finalizeReliability,
 	types.MAT_PCA:                 finalizePCA,
+	types.MAT_COLLINEARITY:        finalizeCollinearity,
 }
 
 // finalizeCovariance is MAT_COVARIANCE: M2 / (W − ddof), NaN where

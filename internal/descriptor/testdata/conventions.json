@@ -120,6 +120,8 @@
     "TEST_PEARSON_R": "pearson_r"
   },
   "excluded": [
+    {"operator": "MAT_COLLINEARITY", "field": "scalars.max_vif", "reason": "VIF cut-offs of 5 or 10 are rules of thumb with no verified published convention; O'Brien, R. M. (2007) A Caution Regarding Rules of Thumb for Variance Inflation Factors, Quality & Quantity 41, 673-690 (doi:10.1007/s11135-006-9018-6) argues they are arbitrary and must be read with the sample size and the other influences on a coefficient's variance. Means plus caveat only (U24 E3-S2)."},
+    {"operator": "MAT_COLLINEARITY", "field": "scalars.condition_number", "reason": "Belsley, Kuh & Welsch's (1980) condition-index guideline (about 30, with two or more large variance-decomposition proportions) is a diagnostic rule of thumb, not a banding convention; no verified convention bands the index on its own. Means plus caveat only (U24 E3-S2)."},
     {"operator": "MAT_PCA", "field": "primary.values", "reason": "Loadings have rules of thumb (|loading| >= .3 or .4 'salient') but no single verified published convention; the reading depends on the sample size and the number of members. Means plus caveat only (U24 E3-S1)."},
     {"operator": "MAT_RELIABILITY", "field": "scalars.omega", "reason": "No published convention for McDonald's omega was verified, and George & Mallery's bands were stated for alpha; omega (model-based, usually at least alpha) is not read against them. Means plus caveat only (U24 E2-S2)."},
     {"operator": "REG_OLS", "field": "adj_r2", "reason": "Cohen's R^2 benchmarks (Cohen 1992 Table 1 row 8) are stated for R^2 itself; adjusted R^2 is a corrected estimate on a different scale (it can fall below 0) and no adjusted-R^2 convention was verified. Means plus caveat only (U08 E4-S3)."},

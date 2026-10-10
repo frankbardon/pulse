@@ -13,6 +13,38 @@ var matrixInterpretations = map[string][]descriptor.Interpretation{
 	"MAT_PARTIAL_CORRELATION": interpMatPartialCorrelation,
 	"MAT_RELIABILITY":         interpMatReliability,
 	"MAT_PCA":                 interpMatPCA,
+	"MAT_COLLINEARITY":        interpMatCollinearity,
+}
+
+// interpMatCollinearity leaves every figure unbanded: VIF's 5 / 10 and
+// Belsley's 30 are rules of thumb, not verified conventions (O'Brien
+// 2007; excluded in testdata/conventions.json).
+var interpMatCollinearity = []descriptor.Interpretation{
+	{
+		Field: "scalars.max_vif",
+		Means: "The largest variance inflation factor among the predictors (each one's is also listed): how many times larger that predictor's coefficient variance is than it would be if it were unrelated to the other predictors. 1 means no overlap; tolerance, its reciprocal, is the share of the predictor's spread the others do not explain.",
+		Caveats: []string{
+			"No convention bands it. Cut-offs of 5 or 10 are rules of thumb only: O'Brien (2007) shows they are arbitrary, and a large sample can make a high value harmless while a small one can make a modest value matter.",
+			"It depends only on the predictors, not on any outcome; it says how unstable coefficients would be, not whether a predictor matters.",
+			"Under params.repair it is read off the nearest consistent correlation table, not the observed one.",
+		},
+	},
+	{
+		Field: "scalars.condition_number",
+		Means: "The largest of Belsley's condition indices: how close the predictors (with the intercept, unless params.center is true) come to an exact straight-line dependency. 1 means none; large values mean some combination of predictors nearly cancels out.",
+		Caveats: []string{
+			"No convention bands it. Belsley, Kuh and Welsch's guideline (an index above about 30 where two or more variables put a large share of their variance on that dimension) is a rule of thumb; read the variance-decomposition proportions to see which variables are involved.",
+			"With the intercept included (the default) a predictor whose values sit far from zero relative to their spread raises it even when the predictors are unrelated; params.center true removes that part.",
+		},
+	},
+	{
+		Field: "primary.values",
+		Means: "The predictors' correlation table that the variance inflation factors and the centered diagnostics are read from: each off-diagonal cell is the correlation of its row and column predictors, from -1 to +1.",
+		Sign:  correlationSign,
+		Caveats: []string{
+			"A predictor can be heavily inflated with no single large pairwise correlation, when it is close to a combination of several others; read the variance inflation factors, not just this table.",
+		},
+	},
 }
 
 // interpMatPCA bands the overall KMO by Kaiser (1974); the loadings

@@ -36,6 +36,8 @@ func TestPredict_Matrices(t *testing.T) {
 			{Name: "pca", Type: types.MAT_PCA, Vector: "v", Params: json.RawMessage(`{"components": 2, "missing": "pairwise"}`)},
 			{Name: "pcak", Type: types.MAT_PCA, Fields: []string{"q_1", "q_3"}, Params: pairwise},
 			{Name: "pcac", Type: types.MAT_PCA, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"on": "covariance", "components": {"variance": 0.9}, "missing": "pairwise"}`)},
+			{Name: "coll", Type: types.MAT_COLLINEARITY, Vector: "v", Params: json.RawMessage(`{"missing": "pairwise"}`)},
+			{Name: "coll2", Type: types.MAT_COLLINEARITY, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"center": true, "missing": "pairwise"}`)},
 		},
 	}
 	env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
@@ -94,6 +96,13 @@ func TestPredict_Matrices(t *testing.T) {
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
 		{Name: "pcac", Type: types.MAT_PCA, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
+		// Collinearity's primary is the predictors' correlation [p, p];
+		// its PSD risk is the correlation rule (p >= 3).
+		{Name: "coll", Type: types.MAT_COLLINEARITY, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		{Name: "coll2", Type: types.MAT_COLLINEARITY, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
 	}
 	// Ungrouped: one bucket, p² cells, one accumulator per merge block.
 	for i := range want {
