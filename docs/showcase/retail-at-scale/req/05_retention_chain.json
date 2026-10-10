@@ -1,0 +1,277 @@
+{
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": "."
+  },
+  "stages": [
+    {
+      "name": "per_customer",
+      "request": {
+        "filterers": [
+          {
+            "type": "FILTER_EXPRESSION",
+            "expression": "customer_id % 10 == 0"
+          }
+        ],
+        "attributes": [
+          {
+            "type": "ATTR_DATE_PART",
+            "field": "order_date",
+            "label": "month",
+            "params": {
+              "part": "year_month"
+            }
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m01",
+            "expression": "order_date >= 20089 && order_date < 20120 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m02",
+            "expression": "order_date >= 20120 && order_date < 20148 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m03",
+            "expression": "order_date >= 20148 && order_date < 20179 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m04",
+            "expression": "order_date >= 20179 && order_date < 20209 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m05",
+            "expression": "order_date >= 20209 && order_date < 20240 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m06",
+            "expression": "order_date >= 20240 && order_date < 20270 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m07",
+            "expression": "order_date >= 20270 && order_date < 20301 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m08",
+            "expression": "order_date >= 20301 && order_date < 20332 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m09",
+            "expression": "order_date >= 20332 && order_date < 20362 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m10",
+            "expression": "order_date >= 20362 && order_date < 20393 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m11",
+            "expression": "order_date >= 20393 && order_date < 20423 ? 1 : 0"
+          },
+          {
+            "type": "ATTR_FORMULA",
+            "field": "order_date",
+            "label": "in_m12",
+            "expression": "order_date >= 20423 && order_date < 20454 ? 1 : 0"
+          }
+        ],
+        "groups": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "customer_id"
+          }
+        ],
+        "aggregations": [
+          {
+            "type": "AGG_SUM",
+            "field": "net_amount",
+            "label": "spend"
+          },
+          {
+            "type": "AGG_DISTINCT_COUNT",
+            "field": "order_id",
+            "label": "orders"
+          },
+          {
+            "type": "AGG_MIN",
+            "field": "month",
+            "label": "first_month"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m01",
+            "label": "active_m01"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m02",
+            "label": "active_m02"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m03",
+            "label": "active_m03"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m04",
+            "label": "active_m04"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m05",
+            "label": "active_m05"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m06",
+            "label": "active_m06"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m07",
+            "label": "active_m07"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m08",
+            "label": "active_m08"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m09",
+            "label": "active_m09"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m10",
+            "label": "active_m10"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m11",
+            "label": "active_m11"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "in_m12",
+            "label": "active_m12"
+          }
+        ]
+      }
+    },
+    {
+      "name": "by_first_month",
+      "request": {
+        "groups": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "first_month"
+          }
+        ],
+        "aggregations": [
+          {
+            "type": "AGG_COUNT",
+            "field": "spend",
+            "label": "customers"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "spend",
+            "label": "avg_spend"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "orders",
+            "label": "avg_orders"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m01",
+            "label": "m01"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m02",
+            "label": "m02"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m03",
+            "label": "m03"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m04",
+            "label": "m04"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m05",
+            "label": "m05"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m06",
+            "label": "m06"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m07",
+            "label": "m07"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m08",
+            "label": "m08"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m09",
+            "label": "m09"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m10",
+            "label": "m10"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m11",
+            "label": "m11"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "active_m12",
+            "label": "m12"
+          }
+        ],
+        "sort": [
+          {
+            "field": "first_month"
+          }
+        ]
+      }
+    }
+  ]
+}

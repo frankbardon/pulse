@@ -1,0 +1,241 @@
+{
+  "row_count": 2050000,
+  "fields": [
+    {
+      "name": "line_id",
+      "type": "u64",
+      "distribution": "monotonic_from",
+      "params": {
+        "start": 800000001
+      },
+      "description": "Unique order-line id; month M lines start at M*100,000,000+1 (M = 1..13)"
+    },
+    {
+      "name": "order_id",
+      "type": "u64",
+      "distribution": "constant",
+      "params": {
+        "value": 0
+      },
+      "description": "Order id: customer_id*100000 + order_date (one order per customer per day)"
+    },
+    {
+      "name": "customer_id",
+      "type": "u32",
+      "distribution": "uniform",
+      "params": {
+        "min": 575001,
+        "max": 2125000
+      },
+      "description": "Customer id; 1..50,000 is the loyalty-member pool, newer customers have higher ids"
+    },
+    {
+      "name": "store_id",
+      "type": "u16",
+      "distribution": "constant",
+      "params": {
+        "value": 0
+      },
+      "description": "Fulfilling store 1..600 (home store of the customer); 0 = online fulfilment centre"
+    },
+    {
+      "name": "order_date",
+      "type": "date",
+      "distribution": "uniform_date",
+      "params": {
+        "start": "2025-08-01",
+        "end": "2025-08-31"
+      },
+      "description": "Order date"
+    },
+    {
+      "name": "region",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "Northeast",
+          "Southeast",
+          "Midwest",
+          "Southwest",
+          "West"
+        ]
+      },
+      "description": "Customer home region (derived from customer_id)"
+    },
+    {
+      "name": "channel",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "store",
+          "online",
+          "curbside"
+        ],
+        "weights": [
+          0.586,
+          0.32,
+          0.094
+        ]
+      },
+      "description": "Sales channel"
+    },
+    {
+      "name": "category",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "Grocery",
+          "Household",
+          "Health & Beauty",
+          "Apparel",
+          "Home & Garden",
+          "Toys",
+          "Sporting Goods",
+          "Electronics",
+          "Pet",
+          "Seasonal"
+        ],
+        "weights": [
+          0.27,
+          0.12,
+          0.10,
+          0.16,
+          0.07,
+          0.05,
+          0.05,
+          0.07,
+          0.06,
+          0.05
+        ]
+      },
+      "description": "Merchandise category"
+    },
+    {
+      "name": "sku",
+      "type": "u32",
+      "distribution": "uniform",
+      "params": {
+        "min": 1,
+        "max": 4000
+      },
+      "description": "SKU; category k (0-based) owns 100000*(k+1)+1..+4000"
+    },
+    {
+      "name": "quantity",
+      "type": "u8",
+      "distribution": "discrete",
+      "params": {
+        "values": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          12
+        ],
+        "weights": [
+          0.62,
+          0.2,
+          0.08,
+          0.05,
+          0.03,
+          0.02
+        ]
+      },
+      "description": "Units on the line"
+    },
+    {
+      "name": "unit_price",
+      "type": "f64",
+      "distribution": "lognormal",
+      "params": {
+        "mu": 2.3,
+        "sigma": 0.55
+      },
+      "description": "Shelf price per unit, USD"
+    },
+    {
+      "name": "discount_pct",
+      "type": "u8",
+      "distribution": "discrete",
+      "params": {
+        "values": [
+          0,
+          10,
+          20,
+          30,
+          50
+        ],
+        "weights": [
+          0.70,
+          0.12,
+          0.10,
+          0.05,
+          0.03
+        ]
+      },
+      "description": "Line discount, percent"
+    },
+    {
+      "name": "net_amount",
+      "type": "f64",
+      "distribution": "constant",
+      "params": {
+        "value": 0
+      },
+      "description": "Line revenue after discount, USD = quantity * unit_price * (1 - discount_pct/100)"
+    },
+    {
+      "name": "loyalty_member",
+      "type": "packed_bool",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.22
+      },
+      "description": "Line placed by a loyalty-programme member"
+    },
+    {
+      "name": "returned",
+      "type": "packed_bool",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.045
+      },
+      "description": "Line was later returned"
+    }
+  ],
+  "rules": [
+    {
+      "set_expr": {
+        "customer_id": "round(customer_id)"
+      }
+    },
+    {
+      "when": "loyalty_member == 1",
+      "set_expr": {
+        "customer_id": "int(customer_id) % 50000 + 1"
+      }
+    },
+    {
+      "set_expr": {
+        "order_id": "customer_id * 100000 + order_date",
+        "store_id": "channel == \"online\" ? 0 : int(customer_id) % 600 + 1",
+        "region": "int(customer_id) % 20 < 4 ? \"Northeast\" : int(customer_id) % 20 < 9 ? \"Southeast\" : int(customer_id) % 20 < 13 ? \"Midwest\" : int(customer_id) % 20 < 16 ? \"Southwest\" : \"West\""
+      }
+    },
+    {
+      "set_expr": {
+        "unit_price": "round(unit_price * (category == \"Grocery\" ? 0.45 : category == \"Household\" ? 0.9 : category == \"Health & Beauty\" ? 1.2 : category == \"Apparel\" ? 2.6 : category == \"Home & Garden\" ? 3.5 : category == \"Toys\" ? 2.2 : category == \"Sporting Goods\" ? 4.0 : category == \"Electronics\" ? 7.0 : category == \"Pet\" ? 1.8 : 2.0) * 100) / 100",
+        "sku": "round(sku) + 100000 * (category == \"Grocery\" ? 1 : category == \"Household\" ? 2 : category == \"Health & Beauty\" ? 3 : category == \"Apparel\" ? 4 : category == \"Home & Garden\" ? 5 : category == \"Toys\" ? 6 : category == \"Sporting Goods\" ? 7 : category == \"Electronics\" ? 8 : category == \"Pet\" ? 9 : 10)"
+      }
+    },
+    {
+      "set_expr": {
+        "net_amount": "round(quantity * unit_price * (100 - discount_pct)) / 100"
+      }
+    }
+  ]
+}

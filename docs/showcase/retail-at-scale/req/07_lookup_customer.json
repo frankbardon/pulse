@@ -1,0 +1,7 @@
+{
+  "cohort": {"data_dir": "."},
+  "field": "customer_id",
+  "value": "4242",
+  "multiplicity": "all",
+  "return_columns": ["line_id", "order_id", "order_date", "channel", "store_id", "category", "quantity", "net_amount", "returned"]
+}

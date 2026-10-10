@@ -1,0 +1,12 @@
+{
+  "cohort": {"filename": "orders.pulse", "data_dir": "."},
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "customer_id", "values": ["4242"]}],
+  "attributes": [{"type": "ATTR_DATE_PART", "field": "order_date", "label": "month", "params": {"part": "year_month"}}],
+  "groups": [{"type": "GROUP_CATEGORY", "field": "month"}],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "line_id", "label": "lines"},
+    {"type": "AGG_DISTINCT_COUNT", "field": "order_id", "label": "orders"},
+    {"type": "AGG_SUM", "field": "net_amount", "label": "spend"}
+  ],
+  "sort": [{"field": "month"}]
+}
