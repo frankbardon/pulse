@@ -73,7 +73,10 @@ func MaterializeSlotRefusal(req *types.Request) *errors.CodedError {
 // declaration order within each, a multi-output feature contributing
 // every output (featureOutputLabels) — each with a generated
 // description naming the operator, its source, its params and source
-// (the cohort path the run reads; only its base name is used).
+// (the cohort path the run reads; only its base name is used). An
+// operator whose capability declares ReadsExpression is named by its
+// Expression verbatim ("ATTR_FORMULA = a * 0.9") instead of its unread
+// Field; a regression attribute adds its slot-level penalty.
 //
 // Refusals: PULSE_MATERIALIZE_NO_DERIVED when req carries no feature,
 // attribute or window; PULSE_MATERIALIZE_OUTPUT_UNDECLARED for an
@@ -121,16 +124,22 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 		if label == "" {
 			label = attributeDefaultLabel(attr, inst)
 		}
-		field := attr.Field
-		switch attr.Type {
-		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		op, field := string(attr.Type), attr.Field
+		var extra []string
+		switch route := opRoute(inst, attr.Type); {
+		case attributeReadsExpression(route):
+			// The formula IS the column: quote it verbatim. Its Field is
+			// never read, so it is not named as the input.
+			op, field = op+" = "+attr.Expression, ""
+		case route == types.ATTR_REG_FITTED, route == types.ATTR_REG_RESIDUAL, route == types.ATTR_REG_LEVERAGE:
 			field = attr.Target
 			if len(attr.Predictors) > 0 {
 				field += " on " + strings.Join(attr.Predictors, ", ")
 			}
+			extra = regPenaltyClauses(attr)
 		}
 		out = append(out, MaterializeColumn{Name: label,
-			Description: derivedDescription(operatorPhrase(string(attr.Type), field, attr.Params, nil), from)})
+			Description: derivedDescription(operatorPhrase(op, field, attr.Params, extra), from)})
 	}
 	for _, w := range req.Windows {
 		if w == nil {
@@ -184,6 +193,34 @@ func windowIgnoresFrame(t types.WindowType) bool {
 		}
 	}
 	return false
+}
+
+// attributeReadsExpression reports whether built-in attribute t
+// declares ReadsExpression in its capability entry — its defining input
+// is Attribute.Expression, outside Params. An extension attribute (not
+// in the table) is taken to read Params only.
+func attributeReadsExpression(t types.AttributeType) bool {
+	for _, op := range attributeCapabilities() {
+		if op.Name == string(t) {
+			return op.ReadsExpression
+		}
+	}
+	return false
+}
+
+// regPenaltyClauses renders a regression attribute's penalty, which —
+// like its target and predictors — lives on the slot, not in Params:
+// "penalty l2; alpha 0.5" (+ "l1_ratio" for elasticnet). Unpenalized
+// fits get none.
+func regPenaltyClauses(attr *types.Attribute) []string {
+	if attr.Penalty == "" {
+		return nil
+	}
+	out := []string{"penalty " + attr.Penalty, "alpha " + strconv.FormatFloat(attr.Alpha, 'g', -1, 64)}
+	if attr.Penalty == "elasticnet" {
+		out = append(out, "l1_ratio "+strconv.FormatFloat(attr.L1Ratio, 'g', -1, 64))
+	}
+	return out
 }
 
 func undeclaredFeature(i int, feat *types.Feature, why string) *errors.CodedError {

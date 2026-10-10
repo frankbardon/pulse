@@ -1559,6 +1559,7 @@ pulse/descriptor: type Operator field IgnoresFrame bool "json:\"ignores_frame,om
 pulse/descriptor: type Operator field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type Operator field Name string "json:\"name\""
 pulse/descriptor: type Operator field Params []pulse/descriptor.Param "json:\"params\""
+pulse/descriptor: type Operator field ReadsExpression bool "json:\"reads_expression,omitempty\""
 pulse/descriptor: type Operator field Streamable bool "json:\"streamable\""
 pulse/descriptor: type Operator field StreamableHint string "json:\"streamable_hint,omitempty\""
 pulse/descriptor: type Operator field WeightAware bool "json:\"weight_aware,omitempty\""
@@ -4651,4 +4652,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: dcbe91c634e2d2aca5ea730cf6918607a67ca913f3ddf85b28e54d3803eeb590
+// golden-hash: c792d1288a6857668bfa815486c13dd0856fe264e482e1c3d5cdae50138242a3

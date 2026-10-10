@@ -135,3 +135,48 @@ func TestMaterializeColumns_FrameClauseOnlyWhereRead(t *testing.T) {
 		t.Error("windowIgnoresFrame disagrees with the capability table")
 	}
 }
+
+// TestMaterializeColumns_ExpressionQuotedVerbatim: an operator whose
+// defining input is the slot's Expression (manifest reads_expression —
+// ATTR_FORMULA) is described by that expression, verbatim, with its
+// ignored Field left out; a long one is cut on a rune boundary with an
+// ellipsis, inside the cap, and still passes the quality check. A
+// regression attribute names its slot-level penalty. Every other
+// description is unchanged.
+func TestMaterializeColumns_ExpressionQuotedVerbatim(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "tv_ad70", Type: encoding.FieldTypeF64},
+		{Name: "radio_ad50", Type: encoding.FieldTypeF64},
+	}}
+	long := "tv_ad70 * 0.9 + " + strings.Repeat("ü", 600)
+	req := &types.Request{Attributes: []*types.Attribute{
+		{Type: types.ATTR_FORMULA, Label: "f", Field: "tv_ad70", Expression: "tv_ad70 * 0.9 + radio_ad50"},
+		{Type: types.ATTR_FORMULA, Label: "long", Expression: long},
+		{Type: types.ATTR_ZSCORE, Field: "tv_ad70", Label: "z", Expression: "ignored by zscore"},
+		{Type: types.ATTR_REG_FITTED, Label: "fit", Target: "tv_ad70", Predictors: []string{"radio_ad50"},
+			Penalty: "elasticnet", Alpha: 0.5, L1Ratio: 0.25},
+		{Type: types.ATTR_REG_RESIDUAL, Label: "res", Target: "tv_ad70", Predictors: []string{"radio_ad50"}},
+	}}
+	cols, err := MaterializeColumns(req, schema, nil, "data/panel.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"f":   "ATTR_FORMULA = tv_ad70 * 0.9 + radio_ad50 — derived from panel.pulse",
+		"z":   "ATTR_ZSCORE of tv_ad70 — derived from panel.pulse",
+		"fit": "ATTR_REG_FITTED of tv_ad70 on radio_ad50 (penalty elasticnet; alpha 0.5; l1_ratio 0.25) — derived from panel.pulse",
+		"res": "ATTR_REG_RESIDUAL of tv_ad70 on radio_ad50 — derived from panel.pulse",
+	}
+	for _, c := range cols {
+		if encx.IsLowQualityDescription(c.Description) || len(c.Description) > materializeDescriptionMax || !utf8.ValidString(c.Description) {
+			t.Errorf("%s description %q", c.Name, c.Description)
+		}
+		if w, ok := want[c.Name]; ok && c.Description != w {
+			t.Errorf("%s description = %q, want %q", c.Name, c.Description, w)
+		}
+	}
+	got := cols[1].Description
+	if !strings.HasPrefix(got, "ATTR_FORMULA = tv_ad70 * 0.9 + üü") || !strings.HasSuffix(got, "ü… — derived from panel.pulse") {
+		t.Errorf("long formula description = %q", got)
+	}
+}

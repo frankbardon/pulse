@@ -60,6 +60,8 @@ func attributeCapabilities() []descriptor.Operator {
 			EmitsType:     "f64",
 			EmitsTypeNote: "one float per record (booleans coerce to 0/1)",
 			Streamable:    true,
+			// The formula is Attribute.Expression, outside Params.
+			ReadsExpression: true,
 		},
 		{
 			Name:           string(types.ATTR_PERCENTILE),

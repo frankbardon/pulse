@@ -58,6 +58,15 @@ type Operator struct {
 	// output exactly when this flag is set.
 	IgnoresFrame bool `json:"ignores_frame,omitempty"`
 
+	// ReadsExpression marks an operator whose defining input is the
+	// request slot's own Expression string — not a Params entry
+	// (ATTR_FORMULA, FILTER_EXPRESSION). The operator refuses an empty
+	// Expression; every other operator never reads the slot. Generated
+	// text that names what a column computes (a materialized column's
+	// description) quotes the expression for a flagged operator. Held at
+	// runtime by processing's TestOperators_ReadsExpressionMatchesRuntime.
+	ReadsExpression bool `json:"reads_expression,omitempty"`
+
 	// EmitsType is the field type produced for single-output operators.
 	// Empty when the operator's emit type is conditional on input or
 	// when it does not emit a typed column (e.g. an aggregator emits a

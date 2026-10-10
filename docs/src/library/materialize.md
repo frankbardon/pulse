@@ -51,7 +51,12 @@ res, err := p.Materialize(ctx, &pulse.Request{
   — derived from sales.pulse`. A window's frame is stated only when the
   operator reads it: `WIN_EWMA` is cumulative whatever its required
   frame says (manifest `ignores_frame`), so its description has no
-  frame clause. Integer window outputs (row number,
+  frame clause. An operator whose input is the slot's `expression`
+  (manifest `reads_expression`) is described by that expression,
+  verbatim — `ATTR_FORMULA = tv_spend_k * 0.80866 — derived from
+  panel.pulse` — and a regression attribute names its `penalty` /
+  `alpha` / `l1_ratio`. Every description is capped at 1,000 bytes,
+  cut on a rune boundary with an ellipsis. Integer window outputs (row number,
   rank) are stored as `f64`; a non-numeric value (a lag copying a
   categorical label) fails the run with
   `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.

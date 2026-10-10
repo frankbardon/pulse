@@ -2653,6 +2653,7 @@
             "u64",
             "u8"
           ],
+          "reads_expression": true,
           "emits_type": "f64",
           "emits_type_note": "one float per record (booleans coerce to 0/1)",
           "streamable": true,
@@ -3038,6 +3039,7 @@
             "u64",
             "u8"
           ],
+          "reads_expression": true,
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
@@ -13307,4 +13309,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e57d17b3cdcf4ffb9a1a3ed4a2c98c2d423e6a0e053825c0c9d22434ef676fce
+// golden-hash: 1681d48e1d94e9940a80b881b12eddb6e6b32f8d05bff14e9fdbf335231707e1
