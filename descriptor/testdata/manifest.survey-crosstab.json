@@ -1408,6 +1408,10 @@
         "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
+        "name": "regression-inference",
+        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
@@ -2214,4 +2218,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9328aa766822eb875680545a94a85ff026bb7caeccdb1d86e2777812f4187410
+// golden-hash: 3747c36fb7f82eb9098f800987cf65ed58535e4684d08edd40ba151deee64f9e

@@ -233,6 +233,7 @@
     - [pairwise-n-sources](guide/skills/pairwise-n-sources.md)
     - [predict-advisories](guide/skills/predict-advisories.md)
     - [process-chain](guide/skills/process-chain.md)
+    - [regression-inference](guide/skills/regression-inference.md)
     - [regression-modeling](guide/skills/regression-modeling.md)
     - [request-envelope](guide/skills/request-envelope.md)
     - [request-templating](guide/skills/request-templating.md)
