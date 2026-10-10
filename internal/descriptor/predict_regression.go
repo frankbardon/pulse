@@ -114,9 +114,9 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		}
 
 		// vcov: true needs a coefficient covariance: refused on lasso /
-		// elastic net and under Resample / Selection — the runtime's
-		// regression.validateVcov rule, mirrored here (predict cannot
-		// import the engine).
+		// elastic net (under a Resample / Selection modifier too) — the
+		// runtime's regression.validateVcov rule, mirrored here (predict
+		// cannot import the engine).
 		if reason, value := vcovRefusal(reg); reason != "" {
 			env.AddError(
 				string(errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED),
@@ -163,13 +163,8 @@ func vcovRefusal(reg *types.RegressionSpec) (reason, value string) {
 	if !reg.Vcov {
 		return "", ""
 	}
-	switch {
-	case reg.Type == types.REG_OLS && (reg.Penalty == "l1" || reg.Penalty == "elasticnet"):
+	if reg.Type == types.REG_OLS && (reg.Penalty == "l1" || reg.Penalty == "elasticnet") {
 		return "penalty", reg.Penalty
-	case reg.Resample != "":
-		return "resample", reg.Resample
-	case reg.Selection != "":
-		return "selection", reg.Selection
 	}
 	return "", ""
 }

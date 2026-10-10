@@ -318,7 +318,7 @@ func (e *modifierEngine) fitOLSInterceptOnly(records []Record) (*types.Regressio
 	if sigma2 > 0 {
 		residualStdErr = math.Sqrt(sigma2)
 	}
-	return &types.RegressionResult{
+	res := &types.RegressionResult{
 		Name:           e.spec.Name,
 		Type:           types.REG_OLS,
 		Penalty:        e.spec.Penalty,
@@ -329,7 +329,16 @@ func (e *modifierEngine) fitOLSInterceptOnly(records []Record) (*types.Regressio
 		PValues:        pMap,
 		NObs:           n,
 		ResidualStdErr: residualStdErr,
-	}, nil
+	}
+	if e.spec.Vcov {
+		// The 1×1 covariance of β₀ = ȳ: the variance se0 is the root of.
+		v0 := 0.0
+		if sigma2 > 0 {
+			v0 = sigma2 / float64(n)
+		}
+		attachVcov(res, nil, [][]float64{{v0}})
+	}
+	return res, nil
 }
 
 // fitGLMInterceptOnly produces the degenerate intercept-only GLM fit.

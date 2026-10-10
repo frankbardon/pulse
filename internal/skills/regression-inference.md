@@ -1,6 +1,6 @@
 ---
 name: regression-inference
-description: Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills.
+description: Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
@@ -19,7 +19,7 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 
 ## Shape
 
-`Response.Regressions[i].Vcov` and `.Correlation` are square-symmetric tables in the full encoding, keyed `(intercept)` first, then the predictors in spec order. `Correlation` is cov2cor (unit diagonal); a zero or undefined variance gives `null` in that row and column. Selected-out predictors do not exist here: selection is refused.
+`Response.Regressions[i].Vcov` and `.Correlation` are square-symmetric tables in the full encoding, keyed `(intercept)` first, then the predictors in spec order. `Correlation` is cov2cor (unit diagonal); a zero or undefined variance gives `null` in that row and column. Under selection the keys are `(intercept)` + the retained predictors in `selected_features` order; selected-out predictors are absent.
 
 ## Where the matrix comes from
 
@@ -30,7 +30,11 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 | GLM | (XᵀWX)⁻¹ at the converged IRLS weights, dispersion fixed at 1 |
 | Bayesian linear | the posterior covariance b_N/(a_N−1)·Λ⁻¹; `null` when a_N ≤ 1 |
 
-For OLS, ridge and GLM, √diag(Vcov) equals `StdErrors` exactly. The Bayesian diagonal is `StdErrors`² · a_N/(a_N−1), not equal: `StdErrors` there is the scale of the marginal t, not the posterior variance.
+| Resample `jackknife` | (n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ over the leave-one-out refits |
+| Resample `bootstrap` | sample covariance (B−1 divisor) of the successful replicates; seeded = deterministic |
+| Selection | the engine's matrix from the final refit on the selected predictors |
+
+For OLS, ridge, GLM and both modifiers, √diag(Vcov) equals `StdErrors` exactly; selection + resample follows the resample SEs over the selected set. The Bayesian diagonal is `StdErrors`² · a_N/(a_N−1), not equal: `StdErrors` there is the scale of the marginal t, not the posterior variance.
 
 <!-- feature: capability:weighting -->
 Weighted fits (frequency or probability) use the N* basis the weighted SE uses; see `weighting`.
@@ -38,20 +42,14 @@ Weighted fits (frequency or probability) use the N* basis the weighted SE uses; 
 
 ## Refusals
 
-`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` one of:
-
-| reason | Cause |
-|---|---|
-| `penalty` | `l1` / `elasticnet`: no closed-form covariance |
-| `resample` | jackknife / bootstrap rewrite the SE, so the matrix would disagree with it |
-| `selection` | the active set is data-dependent |
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too.
 
 Predict and runtime apply the same rule, so predict reports it before any fit. `pulse_errors_lookup` carries the recovery.
 
 ## Against R
 
 - `vcov(lm)` and `vcov(ridge)` agree to rounding.
-- `vcov(glm)` uses weights one IRLS iteration behind its coefficients, so Pulse (the converged fixed point) matches it to about 1e-6, not exactly.
+- `vcov(glm)` uses weights one IRLS iteration behind its coefficients; Pulse inverts at the converged fixed point, matching R refined to that point to 1e-11 (raw `vcov(glm)` only to about 1e-6).
 - Gamma GLM: Pulse fixes dispersion at 1, R estimates it, so the covariances differ by that factor. No oracle case covers gamma.
 
 ## Response shaping

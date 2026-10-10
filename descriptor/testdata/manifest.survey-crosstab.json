@@ -1409,7 +1409,7 @@
       },
       {
         "name": "regression-inference",
-        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -2218,4 +2218,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3747c36fb7f82eb9098f800987cf65ed58535e4684d08edd40ba151deee64f9e
+// golden-hash: 44c64b80c7e2a46099a75e2c0ee7788b45e2d568477f58d438a0a8a7668e6829

@@ -37,28 +37,23 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 
 // validateVcov refuses Vcov on a fit with no coefficient covariance to
 // report: lasso / elastic net (the l1 active set is data-dependent, so
-// no sampling covariance exists, and Pulse never approximates one) and
-// the Resample / Selection modifiers (their standard errors come from
-// refits). A nil or Vcov-free spec passes.
+// no sampling covariance exists, and Pulse never approximates one) —
+// alone or under a Resample / Selection modifier. Every other fit
+// reports one: a Resample fit the replicate covariance its SEs are the
+// square roots of the diagonal of, a Selection fit the inner engine's
+// covariance from the final refit on the selected predictors. A nil or
+// Vcov-free spec passes.
 func validateVcov(spec *types.RegressionSpec) error {
 	if spec == nil || !spec.Vcov {
 		return nil
 	}
-	reason, value := "", ""
-	switch {
-	case spec.Type == types.REG_OLS && (spec.Penalty == "l1" || spec.Penalty == "elasticnet"):
-		reason, value = "penalty", spec.Penalty
-	case spec.Resample != "":
-		reason, value = "resample", spec.Resample
-	case spec.Selection != "":
-		reason, value = "selection", spec.Selection
-	default:
+	if spec.Type != types.REG_OLS || (spec.Penalty != "l1" && spec.Penalty != "elasticnet") {
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(
 		errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
-		string(spec.Type)+" with "+reason+"="+value+" has no coefficient covariance; drop vcov or fit without "+reason,
-		map[string]any{"reason": reason, reason: value, "type": string(spec.Type)},
+		string(spec.Type)+" with penalty="+spec.Penalty+" has no coefficient covariance; drop vcov or fit without penalty",
+		map[string]any{"reason": "penalty", "penalty": spec.Penalty, "type": string(spec.Type)},
 	)
 }
 

@@ -5664,7 +5664,7 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
+            "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's."
           }
         ],
         "modifiers": [
@@ -5814,7 +5814,7 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; lasso / elasticnet / resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
+            "description": "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; resample gives the replicate covariance, selection the final refit's; lasso / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
           }
         ],
         "modifiers": [
@@ -9349,7 +9349,7 @@
       },
       {
         "name": "regression-inference",
-        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -13244,4 +13244,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2f30fe9bf9ceab4d2eaf13afdce9e1be495cf66814336057c03eb0a76e7cb13c
+// golden-hash: fe223801e344b8d40dcc73a43c6d47a50e97a5a90a7a57c3d4d05b7a41a64118

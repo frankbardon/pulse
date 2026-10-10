@@ -76,10 +76,10 @@ const (
 	// PROCESSING_REGRESSION_VCOV_UNSUPPORTED indicates a regression set
 	// vcov: true on a fit with no coefficient covariance to report:
 	// lasso / elastic net (the l1 active set is data-dependent, so no
-	// sampling covariance exists — never approximated) or a Resample /
-	// Selection modifier (their standard errors come from refits, not a
-	// covariance). details.reason names which ("penalty" / "resample" /
-	// "selection").
+	// sampling covariance exists — never approximated), alone or under a
+	// Resample / Selection modifier. details.reason is "penalty" and
+	// details.penalty names the penalty. The modifiers themselves report
+	// a covariance (the replicate one, or the final refit's).
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 )
 

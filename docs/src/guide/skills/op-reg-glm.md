@@ -34,7 +34,7 @@ Use something else:
 | `link` | enum | family default | `binomial→logit`, `poisson→log`, `gamma→inverse`. `identity`, `probit`, `cloglog`, `sqrt` reserved. |
 | `max_iters` / `tol` | int / float | engine | IRLS caps. |
 | `weight` | slot weight | inherited | `null` opts out; both kinds. IRLS prior weights w* (R `glm(weights = w*)`); SEs, deviances on w*. |
-| `vcov` | bool | `false` | Adds `Vcov` = (XᵀWX)⁻¹ at the converged weights (dispersion 1) + `Correlation`; √diag = `StdErrors`. Modifiers → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. |
+| `vcov` | bool | `false` | Adds `Vcov` = (XᵀWX)⁻¹ at the converged weights (dispersion 1) + `Correlation`; √diag = `StdErrors`. Resample: replicate covariance; selection: final refit's. |
 
 `resample` / `selection` are top-level modifiers — see [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md).
 

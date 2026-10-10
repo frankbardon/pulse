@@ -137,20 +137,55 @@ func runJackknife(
 	for j := 0; j < p+1; j++ {
 		mean[j] /= float64(len(replicates))
 	}
-	// Jackknife SE.
-	se := make([]float64, p+1)
-	for _, r := range replicates {
-		for j := 0; j < p+1; j++ {
-			d := r[j] - mean[j]
-			se[j] += d * d
-		}
-	}
+	// Jackknife covariance (n − 1)/n · Σᵢ (β_(i) − β̄)(β_(i) − β̄)ᵀ; the
+	// SE is the square root of its diagonal, so √diag(Vcov) == SE
+	// exactly. The off-diagonal is only formed when Vcov is asked for.
 	scale := float64(len(replicates)-1) / float64(len(replicates))
+	cov := replicateCov(replicates, mean, spec.Vcov, func(s float64) float64 { return scale * s })
+	se := make([]float64, p+1)
 	for j := 0; j < p+1; j++ {
-		se[j] = math.Sqrt(scale * se[j])
+		se[j] = math.Sqrt(cov[j][j])
 	}
 
-	return packageResampleResult(spec, baseResult, predictors, se, pValueFn, len(replicates), nil), nil
+	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, len(replicates), nil), nil
+}
+
+// replicateCov returns the (q×q) scaled cross-product of the centred
+// replicate rows: out[i][j] = finish(Σ_r (r[i] − mean[i])·(r[j] −
+// mean[j])). Only the diagonal is formed unless full is set (Vcov), so
+// a Vcov-free fit does no extra work; the diagonal is accumulated and
+// finished by exactly the expression the resample SE has always used,
+// so its square root is the reported standard error bit for bit. The
+// replicate set is the one the SE sums over — a skipped bootstrap
+// replicate is absent from both.
+func replicateCov(replicates [][]float64, mean []float64, full bool, finish func(float64) float64) [][]float64 {
+	q := len(mean)
+	out := make([][]float64, q)
+	for i := range out {
+		out[i] = make([]float64, q)
+	}
+	for _, r := range replicates {
+		for i := 0; i < q; i++ {
+			di := r[i] - mean[i]
+			if !full {
+				out[i][i] += di * di
+				continue
+			}
+			for j := i; j < q; j++ {
+				out[i][j] += di * (r[j] - mean[j])
+			}
+		}
+	}
+	for i := 0; i < q; i++ {
+		for j := i; j < q; j++ {
+			if i != j && !full {
+				break
+			}
+			out[i][j] = finish(out[i][j])
+			out[j][i] = out[i][j]
+		}
+	}
+	return out
 }
 
 // runBootstrap implements non-parametric bootstrap resampling. For each
@@ -246,16 +281,14 @@ func runBootstrap(
 	for j := 0; j < p+1; j++ {
 		bm[j] /= float64(len(replicates))
 	}
-	// Sample SD (unbiased, n − 1 divisor).
+	// Sample covariance (unbiased, B − 1 divisor) of the successful
+	// replicates; the SE is the square root of its diagonal (the sample
+	// SD), so √diag(Vcov) == SE exactly.
+	div := float64(len(replicates) - 1)
+	cov := replicateCov(replicates, bm, spec.Vcov, func(s float64) float64 { return s / div })
 	se := make([]float64, p+1)
-	for _, r := range replicates {
-		for j := 0; j < p+1; j++ {
-			d := r[j] - bm[j]
-			se[j] += d * d
-		}
-	}
 	for j := 0; j < p+1; j++ {
-		se[j] = math.Sqrt(se[j] / float64(len(replicates)-1))
+		se[j] = math.Sqrt(cov[j][j])
 	}
 
 	// Percentile p-values: fraction crossing zero (relative to the
@@ -287,7 +320,7 @@ func runBootstrap(
 		bootP[j] = pTwoSided
 	}
 
-	return packageResampleResult(spec, baseResult, predictors, se, pValueFn, len(replicates), bootP), nil
+	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, len(replicates), bootP), nil
 }
 
 // packageResampleResult writes the resample-derived SE / p-values onto
@@ -298,11 +331,16 @@ func runBootstrap(
 // [intercept, slope_1, …]); when nil the analytical pValueFn is
 // applied to (β, SE) instead — this is the jackknife path which uses
 // the t-distribution / Wald-z form.
+//
+// cov is the replicate covariance (keys (intercept) then predictors);
+// when spec.Vcov is set it REPLACES the analytical covariance the base
+// fit carried, so Vcov always describes the reported StdErrors.
 func packageResampleResult(
 	spec *types.RegressionSpec,
 	baseResult *types.RegressionResult,
 	predictors []string,
 	se []float64,
+	cov [][]float64,
 	pValueFn func(coef, se float64) float64,
 	replicates int,
 	bootstrapP []float64,
@@ -331,6 +369,10 @@ func packageResampleResult(
 	out.StdErrors = seMap
 	out.PValues = pMap
 	out.Resample = spec.Resample
+	out.Vcov, out.Correlation = nil, nil
+	if spec.Vcov {
+		attachVcov(&out, predictors, cov)
+	}
 	_ = replicates // future: surface as RegressionResult field; not in v1
 	return &out
 }

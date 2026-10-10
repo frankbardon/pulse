@@ -405,10 +405,13 @@ a_n ≤ 1), whose diagonal is `std_errors`²·a_n/(a_n−1). A weighted fit
 reads the inference size N* (Σw frequency, n_eff probability), as its
 standard errors do. `correlation` is `vcov` scaled to a unit diagonal
 (R's `cov2cor`); an entry with a zero or undefined variance is `null`.
-Lasso / elastic net and the `resample` / `selection` modifiers refuse
-`vcov` with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
-(`details.reason` `penalty` / `resample` / `selection`) in predict and
-at runtime alike. Both slots are in the `standard` preset (not
+Under `resample` it is the replicate covariance (jackknife
+(n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ, bootstrap the B−1 sample covariance of the
+successful replicates), under `selection` the final refit's covariance
+keyed `(intercept)` + the selected predictors — so its diagonal is
+`std_errors`² there too. Lasso / elastic net refuse `vcov`, with or
+without a modifier, with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
+(`details.reason` `penalty`) in predict and at runtime alike. Both slots are in the `standard` preset (not
 `minimal`) and every float in them is rounded by `return.precision`.
 
 ## Per-group aggregation components

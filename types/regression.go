@@ -154,8 +154,12 @@ type RegressionSpec struct {
 	// it is byte-identical on the wire. REG_OLS (unpenalized: σ̂²·(XᵀX)⁻¹;
 	// ridge: the sandwich), REG_GLM ((XᵀWX)⁻¹ at the converged weights)
 	// and REG_BAYES_LINEAR (the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹)
-	// support it; lasso / elastic net and the Resample / Selection
-	// modifiers refuse it with PROCESSING_REGRESSION_VCOV_UNSUPPORTED.
+	// support it. Under Resample it is the replicate covariance (jackknife
+	// (n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ, bootstrap the B−1 sample covariance of
+	// the successful replicates); under Selection the final refit's
+	// covariance keyed by the selected predictors — so √diag always
+	// equals StdErrors. Lasso / elastic net refuse it, alone or under a
+	// modifier, with PROCESSING_REGRESSION_VCOV_UNSUPPORTED.
 	Vcov bool `json:"vcov,omitempty"`
 
 	// Weight is the per-slot weight override: absent inherits

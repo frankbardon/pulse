@@ -254,10 +254,12 @@ func TestRegressionVcov_RidgeAndBayes(t *testing.T) {
 	}
 }
 
-// TestRegressionVcov_Refusals: vcov on lasso / elastic net and under
-// Resample / Selection is refused with PROCESSING_REGRESSION_VCOV_
-// UNSUPPORTED naming the blocking setting — never approximated, never
-// silently omitted — and predict reports the same code (one rule).
+// TestRegressionVcov_Refusals: vcov on lasso / elastic net — alone or
+// under a Resample / Selection modifier — is refused with
+// PROCESSING_REGRESSION_VCOV_UNSUPPORTED naming the blocking setting —
+// never approximated, never silently omitted — and predict reports the
+// same code (one rule). The modifiers alone are not refused
+// (TestRegressionVcov_Modifiers*).
 func TestRegressionVcov_Refusals(t *testing.T) {
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
@@ -271,10 +273,9 @@ func TestRegressionVcov_Refusals(t *testing.T) {
 	}{
 		{"lasso", "penalty", func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l1", 0.1 }},
 		{"elasticnet", "penalty", func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.L1Ratio = "elasticnet", 0.1, 0.5 }},
-		{"resample", "resample", func(s *types.RegressionSpec) { s.Resample = "jackknife" }},
-		{"selection", "selection", func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" }},
-		{"glm-selection", "selection", func(s *types.RegressionSpec) {
-			s.Type, s.Family, s.Target, s.Selection, s.Criterion = types.REG_GLM, "poisson", "carb", "backward", "aic"
+		{"lasso+resample", "penalty", func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Resample = "l1", 0.1, "jackknife" }},
+		{"elasticnet+selection", "penalty", func(s *types.RegressionSpec) {
+			s.Penalty, s.Alpha, s.L1Ratio, s.Selection, s.Criterion = "elasticnet", 0.1, 0.5, "forward", "aic"
 		}},
 	}
 	for _, c := range cases {
@@ -353,5 +354,63 @@ func TestRegressionVcov_GLMAtConvergedWeights(t *testing.T) {
 				t.Errorf("vcov[%d][%d] = %.17g, R at converged weights %.17g", i, j, got[i][j], want[i][j])
 			}
 		}
+	}
+}
+
+// TestRegressionVcov_ModifiersGLM: REG_GLM under each modifier reports
+// a vcov whose √diag is its standard errors exactly — the replicate
+// covariance under Resample, the final IRLS refit's (XᵀWX)⁻¹ under
+// Selection — and predict raises no refusal.
+func TestRegressionVcov_ModifiersGLM(t *testing.T) {
+	var golden struct {
+		Cases []vcovOracle `json:"cases"`
+	}
+	dir := loadMV(t, "mv_vcov.json", &golden)
+	cfg := fixtureFS(t, dir)
+	base := types.RegressionSpec{Name: "fit", Type: types.REG_GLM, Family: "poisson", Target: "carb", Predictors: []string{"wt", "hp", "qsec"}, Vcov: true}
+	cases := map[string]func(*types.RegressionSpec){
+		"jackknife": func(s *types.RegressionSpec) { s.Resample = "jackknife" },
+		"bootstrap": func(s *types.RegressionSpec) { s.Resample, s.RNGSeed = "bootstrap", 5 },
+		"backward":  func(s *types.RegressionSpec) { s.Selection, s.Criterion = "backward", "aic" },
+	}
+	for name, mut := range cases {
+		t.Run(name, func(t *testing.T) {
+			spec := base
+			mut(&spec)
+			req := &types.Request{
+				Cohort:      &types.Cohort{Filename: filepath.Join(dir, "mtcars.pulse")},
+				Regressions: []*types.RegressionSpec{&spec},
+			}
+			resp, err := New(cfg).Process(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			res := resp.Regressions[0]
+			preds := spec.Predictors
+			if spec.Selection != "" {
+				preds = res.SelectedFeatures
+			}
+			if res.Vcov == nil {
+				t.Fatal("no vcov")
+			}
+			keys := append([]string{"(intercept)"}, preds...)
+			if !reflect.DeepEqual(res.Vcov.RowKeys, keys) {
+				t.Fatalf("keys %v, want %v", res.Vcov.RowKeys, keys)
+			}
+			for i, k := range keys {
+				if math.Sqrt(res.Vcov.Values[i][i]) != res.StdErrors[k] {
+					t.Errorf("√vcov[%s] = %.17g, std_error %.17g", k, math.Sqrt(res.Vcov.Values[i][i]), res.StdErrors[k])
+				}
+			}
+			data, err := os.ReadFile(filepath.Join(dir, "mtcars.pulse"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, e := range descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{}).Errors {
+				if e.Code == string(errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED) {
+					t.Errorf("predict refuses vcov under %s: %+v", name, e)
+				}
+			}
+		})
 	}
 }
