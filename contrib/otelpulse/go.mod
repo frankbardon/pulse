@@ -3,7 +3,7 @@ module github.com/frankbardon/pulse/contrib/otelpulse
 go 1.26.1
 
 require (
-	github.com/frankbardon/pulse v0.0.0
+	github.com/frankbardon/pulse v1.0.0-alpha.9
 	github.com/spf13/afero v1.15.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/metric v1.46.0
