@@ -63,11 +63,12 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 	return in, nil
 }
 
-// composeSlotsPreflight refuses a Compose call carrying more requests
-// than MaxComposeSlots — the whole call, before any slot runs (FailFast
-// does not apply).
-func (s *Service) composeSlotsPreflight(composed *types.ComposedRequest) error {
-	if err := limits.CheckComposeSlots(s.Limits(), len(composed.Requests)); err != nil {
+// composeSlotsPreflight refuses a Compose call carrying more than
+// MaxComposeSlots slots — explicit plus sweep-expanded — the whole call,
+// before any slot runs (FailFast does not apply). sweep.Expand calls it
+// with the total before rendering a single sweep slot.
+func (s *Service) composeSlotsPreflight(slots int) error {
+	if err := limits.CheckComposeSlots(s.Limits(), slots); err != nil {
 		return err
 	}
 	return nil

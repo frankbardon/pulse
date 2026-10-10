@@ -1098,10 +1098,11 @@ func (s *Service) ComposeResolved(ctx context.Context, composed *types.ComposedR
 }
 
 func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, slots *[]*types.Request) (*types.ComposedResponse, error) {
-	if composed == nil || len(composed.Requests) == 0 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
-	}
-	if err := s.composeSlotsPreflight(composed); err != nil {
+	// The sweep expands first, so every check below — the slot limit,
+	// the hidden-slot refusal, multiplicity, labels, the overlay fold —
+	// reads the effective request (explicit slots, then sweep slots).
+	composed, err := s.expandCompose(composed)
+	if err != nil {
 		return nil, err
 	}
 	// Hidden slots — the composed root's own, then every slot's — are

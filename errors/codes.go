@@ -928,7 +928,9 @@ const (
 	// empty or non-scalar values list, an unknown mode, unequal axis
 	// lengths under mode zip, a request body that is not a JSON object,
 	// overlays that are not a JSON array, or a malformed rank (empty
-	// `by`, unknown order, top below 1). Refused identically by predict
+	// `by`, unknown order, top below 1), an axis no placeholder names or
+	// a placeholder naming no axis, or a substituted request that does
+	// not decode strictly or sets `label`. Refused identically by predict
 	// and the runtime before any slot runs. Details carry "field" (the
 	// sweep-rooted path), "reason", "axis" where one is involved and,
 	// where they apply, "value" / "valid".

@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/returnshape"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
 )
@@ -285,10 +286,16 @@ func apiComposeCmd() *cli.Command {
 			if jsonOut {
 				var echoed any
 				if echoRequest {
-					// Each sub-request was mutated in place by service
-					// during execution. Echo the composed request as a
-					// whole — each slot is the post-defaults form.
+					// Echo the effective request the slots ran: a sweep
+					// shows as its expanded `requests` (explicit slots,
+					// then sweep slots) with the sweep overlays appended
+					// — the shared expansion Compose itself ran, which
+					// already succeeded. A sweep-free request echoes as
+					// written.
 					echoed = composed
+					if exp, xerr := sweep.Expand(composed, nil); xerr == nil {
+						echoed = exp.Composed
+					}
 				}
 				return writeEnvelopeWithRequest(cmd.Writer, resp, echoed)
 			}

@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -145,6 +146,36 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		result.Valid = false
 		return env
 	}
+	// The sweep expands into its slots — the runtime's shared expansion
+	// (sweep.Expand) — and every pass below judges the effective
+	// request: explicit slots, then sweep slots, one label namespace.
+	// result.Request keeps the request as written.
+	if req.Sweep != nil {
+		exp, xerr := sweep.Expand(req, nil)
+		if xerr != nil {
+			addCodedError(env, xerr)
+			result.Valid = false
+			return env
+		}
+		req = exp.Composed
+		// A sweep slot carrying a slot the instance hides is refused
+		// as on an explicit slot (details.request locates it).
+		if serr := SlotRefusal(req, opts.instance()); serr != nil {
+			addCodedError(env, serr)
+			result.Valid = false
+			return env
+		}
+		// One label namespace across explicit and sweep slots, checked
+		// whether or not the batch declares overlays — the runtime
+		// refuses a collision before any slot runs.
+		if len(req.Overlays) == 0 {
+			if _, collision := composeBuildLabelIndex(req); collision != "" {
+				addLabelCollision(env, collision)
+				result.Valid = false
+				return env
+			}
+		}
+	}
 	// Multiplicity over the whole batch — the pass Compose runs before
 	// any slot starts (ResolveComposeMultiplicity).
 	multPlan, merr := ResolveComposeMultiplicity(req, opts.defaultMultiplicity(), opts.instance())
@@ -190,9 +221,7 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 	// descriptor surface stays parity-true.
 	byLabel, labelCollision := composeBuildLabelIndex(req)
 	if labelCollision != "" {
-		env.AddError(string(errors.PULSE_COMPOSE_LABEL_COLLISION),
-			"compose request has two slots resolving to the same label: "+labelCollision,
-			map[string]any{"label": labelCollision})
+		addLabelCollision(env, labelCollision)
 		// Continue — label collisions do not block the overlay
 		// walk from surfacing other failures the caller would
 		// otherwise have to round-trip to discover.
@@ -226,6 +255,13 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		result.Valid = false
 	}
 	return env
+}
+
+// addLabelCollision reports PULSE_COMPOSE_LABEL_COLLISION for label.
+func addLabelCollision(env *descriptor.Envelope, label string) {
+	env.AddError(string(errors.PULSE_COMPOSE_LABEL_COLLISION),
+		"compose request has two slots resolving to the same label: "+label,
+		map[string]any{"label": label})
 }
 
 // composeOverlayDescriptorName resolves the renderer-facing label for one

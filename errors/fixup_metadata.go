@@ -1426,7 +1426,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_INVALID: {
-		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays, and every placeholder must name an axis. Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1438,6 +1438,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"sweep", "mode"},
 				Hint:     "Set `mode` to one of the values under `valid`, or drop it for grid.",
 				Examples: []any{"grid", "zip"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"sweep", "request"},
+				Hint:   "Reference every axis with `{{axis}}` (inside a string) or `{\"$var\": \"axis\"}` (a whole value), name only declared axes, correct the key under `unknown_field`, and move any `label` into sweep.label.",
 			},
 		},
 	},

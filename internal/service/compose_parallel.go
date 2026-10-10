@@ -89,11 +89,10 @@ func (s *Service) composeParallel(
 	opts ComposeOptions,
 	slots *[]*types.Request,
 ) (*types.ComposedResponse, error) {
-	if composed == nil || len(composed.Requests) == 0 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
-			"composed request must contain at least one request")
-	}
-	if err := s.composeSlotsPreflight(composed); err != nil {
+	// The sweep expands before the worker pool starts, exactly as on
+	// the serial path.
+	composed, err := s.expandCompose(composed)
+	if err != nil {
 		return nil, err
 	}
 	// Hidden slots are refused before the worker pool starts, exactly
