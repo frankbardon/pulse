@@ -80,7 +80,7 @@ Left for the maintainer; none was decided by the docs story. Each changes behavi
 - **MR-01 to MR-08** above, and owner calls (a) to (f).
 - **Omega form.** `MAT_RELIABILITY` uses the model form (Σλ)² / ((Σλ)² + Σψ); `psych::omega`'s `omega.tot` uses the observed sum of R and diverges on misfit data (up to about 0.24 on `reversed_items`). Confirm the model form as the documented choice.
 - **Heywood handling.** Pulse returns the unconstrained minres optimum and flags `ψ ≤ 0` (omega null with `PULSE_MATRIX_HEYWOOD`); psych bounds ψ and stops on an optimiser-path artefact. Confirm withholding omega is the right behaviour.
-- **Pairwise PCA basis.** PCA on `cor(use = "pairwise")` with the smallest pair's N* for Bartlett (`PULSE_MATRIX_PAIRWISE_N_STAR`) has no external oracle (TODO #266).
+- **Pairwise PCA basis.** PCA on `cor(use = "pairwise")` with the smallest pair's N* for Bartlett (`PULSE_MATRIX_PAIRWISE_N_STAR`) is pinned against R on the unweighted `nulls` fixture (`mv_pca.json`, `cor(use = "pairwise.complete.obs")`); weighted pairwise has no oracle (TODO #266).
 - **Probability-weighted `item_sd` under pairwise deletion** uses the slot-wide n_eff factor (no per-pair Σw² in the co-moment state); no oracle case covers it (TODO #270).
 - **REG_GLM gamma `vcov`** uses dispersion 1 as the standard errors do; R's `vcov(glm, gamma)` estimates it (TODO #271).
 - **Alpha bands and the Kendall ratio** against their primary sources (MR-03, MR-08).

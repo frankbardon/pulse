@@ -33,7 +33,7 @@ branch: matrix-extensions-hardening
 - [ ] **#156** (10. Vector & matrix — operators › E10 — Extensions & hardening (committed part)) `MatrixOpRegistration` and the `MAT` naming-policy namespace; probe validation
 - [ ] **#157** (10. Vector & matrix — operators › E10 — Extensions & hardening (committed part)) Benchmarks: p = 50 / 256 at 1M and 10M rows; peak heap; shard scaling
 - [ ] **#158** (10. Vector & matrix — operators › E10 — Extensions & hardening (committed part)) Examples-library entries for every new operator
-- [ ] **#270** (10. Vector & matrix — operators › Follow-ups from U24) Matrix hardening: a deterministic test for the `MAT_COLLINEARITY` not-positive-definite Belsley warning path (intercept collinearity past double precision), and a per-pair Σw² for probability-weighted pairwise `item_sd` in the co-moment state
+- [ ] **#270** (10. Vector & matrix — operators › Follow-ups from U24) Matrix hardening: a per-pair Σw² for probability-weighted pairwise `item_sd` in the co-moment state
 
 ## Scope
 
