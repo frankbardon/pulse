@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
@@ -39,10 +40,32 @@ type SchemaFileField struct {
 // and byte-aligned fields yields exactly the schema inference builds for
 // the same fields. CsvColumnIdx is the array position, a placeholder the
 // by-name resolver overwrites before any row is read.
+//
+// A document that is not a JSON array of field objects, or that lists no
+// field, is PULSE_IMPORT_SCHEMA_INVALID (details: reason "malformed" /
+// "empty").
 func ParseSchemaJSON(data []byte) (*encoding.Schema, error) {
 	var defs []SchemaFileField
 	if err := json.Unmarshal(data, &defs); err != nil {
-		return nil, fmt.Errorf("parsing schema JSON: %w", err)
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_IMPORT_SCHEMA_INVALID,
+			"parsing schema JSON: "+err.Error()+"; a schema is a JSON array of {name, type, nullable, description} objects",
+			map[string]any{"reason": "malformed", "error": err.Error()})
+	}
+	return SchemaFromFields(defs)
+}
+
+// SchemaFromFields builds the encoding.Schema an explicit schema
+// document's decoded entries describe — the step ParseSchemaJSON runs
+// after decoding, exposed for callers that already hold the entries
+// (MCP pulse_import's `schema` argument), so every surface resolves type
+// names and lays fields out through this one routine. An empty list is
+// PULSE_IMPORT_SCHEMA_INVALID (details: reason "empty"): no cohort can
+// be written from it, and "no schema" is spelled by passing none.
+func SchemaFromFields(defs []SchemaFileField) (*encoding.Schema, error) {
+	if len(defs) == 0 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_IMPORT_SCHEMA_INVALID,
+			"explicit schema lists no fields; omit the schema to infer one",
+			map[string]any{"reason": "empty"})
 	}
 	fields := make([]encoding.Field, len(defs))
 	for i, d := range defs {

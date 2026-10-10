@@ -214,6 +214,14 @@ const (
 	// back to f64 silently, so a typo stored a column in the wrong type.
 	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN Code = "PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN"
 
+	// PULSE_IMPORT_SCHEMA_INVALID indicates an explicit import schema
+	// document cannot be used as written: it is not a JSON array of
+	// field objects, an entry carries a key the field shape does not
+	// have (MCP pulse_import), it lists no fields, or it was supplied for
+	// a source no conversion runs over (a .pulse passthrough). Details
+	// carry reason, plus error / key / index where they apply.
+	PULSE_IMPORT_SCHEMA_INVALID Code = "PULSE_IMPORT_SCHEMA_INVALID"
+
 	// PULSE_IMPORT_FLOAT_WIDTH_INVALID indicates an import's float-width
 	// knob (ImportJob.FloatWidth / InferOptions.FloatWidth, CLI
 	// `--float`) is neither "f64" (the default, also spelled "") nor
@@ -3086,6 +3094,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_SCHEMA_DUPLICATE,
 	PULSE_IMPORT_SCHEMA_KEY_LATE,
 	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN,
+	PULSE_IMPORT_SCHEMA_INVALID,
 	PULSE_IMPORT_FLOAT_WIDTH_INVALID,
 	PULSE_IMPORT_DST_AMBIGUOUS,
 	PULSE_IMPORT_DST_NONEXISTENT,

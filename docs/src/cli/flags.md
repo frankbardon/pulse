@@ -238,12 +238,18 @@ refused before a row is read, under its own code:
 | `PULSE_IMPORT_SCHEMA_DUPLICATE` | a field name declared twice, or a repeated header name | `field` or `column`, `side` |
 | `PULSE_IMPORT_SCHEMA_KEY_LATE` | an NDJSON / JSON-array key first seen after the first object | `column`, `row`, `columns` |
 | `PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN` | a field's `type` is not a registered field type (never read as `f64`) | `field`, `type`, `valid` |
+| `PULSE_IMPORT_SCHEMA_INVALID` | the file is not a JSON array of field objects, or lists no field | `reason`, `error` |
 
 `--ignore-extra` drops source columns, and late keys, that the schema
 does not name instead of refusing (library: `ImportJob.IgnoreExtra` /
 `ConvertJob.IgnoreExtra`). A schema field with no column is still
 refused. Without `--schema` the flag is inert and inference is
 unchanged.
+
+The MCP `pulse_import` tool takes the same document inline as its
+`schema` argument, with `ignore_extra` and `float` beside it, and
+refuses with the same codes (plus `PULSE_IMPORT_SCHEMA_INVALID` for an
+unknown entry key or a schema on a `.pulse` source).
 
 ### `--float`
 

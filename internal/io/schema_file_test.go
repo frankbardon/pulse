@@ -199,3 +199,59 @@ func TestSchemaFileTemplate_RoundTrips(t *testing.T) {
 		t.Errorf("non-decimal field carries precision: %v", raw[0])
 	}
 }
+
+// TestParseSchemaJSON_MalformedIsCoded: a document that is not an array
+// of field objects is PULSE_IMPORT_SCHEMA_INVALID (reason malformed), not
+// an uncoded error an envelope can only report under a placeholder.
+func TestParseSchemaJSON_MalformedIsCoded(t *testing.T) {
+	for _, doc := range []string{`{"name":"a"}`, `[{"name":"a","type":"u8"`, `"u8"`} {
+		_, err := ParseSchemaJSON([]byte(doc))
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_IMPORT_SCHEMA_INVALID {
+			t.Fatalf("ParseSchemaJSON(%s) err = %v, want PULSE_IMPORT_SCHEMA_INVALID", doc, err)
+		}
+		if ce.Details["reason"] != "malformed" {
+			t.Errorf("ParseSchemaJSON(%s) reason = %v, want malformed", doc, ce.Details["reason"])
+		}
+	}
+}
+
+// TestSchemaFromFields_EmptyRefused: an explicit schema with no fields
+// cannot describe a cohort; it is refused rather than read as "infer".
+func TestSchemaFromFields_EmptyRefused(t *testing.T) {
+	for _, run := range []func() error{
+		func() error { _, err := SchemaFromFields(nil); return err },
+		func() error { _, err := ParseSchemaJSON([]byte(`[]`)); return err },
+	} {
+		err := run()
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_IMPORT_SCHEMA_INVALID || ce.Details["reason"] != "empty" {
+			t.Fatalf("err = %v, want PULSE_IMPORT_SCHEMA_INVALID reason empty", err)
+		}
+	}
+}
+
+// TestSchemaFromFields_MatchesParseSchemaJSON: the entry-level builder
+// and the document decoder lay a schema out identically.
+func TestSchemaFromFields_MatchesParseSchemaJSON(t *testing.T) {
+	defs := []SchemaFileField{
+		{Name: "flag", Type: "packed_bool", Nullable: true},
+		{Name: "n", Type: "u16", Description: "count"},
+		{Name: "amt", Type: "decimal128", Precision: 12, Scale: 2},
+	}
+	raw, err := json.Marshal(defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromDoc, err := ParseSchemaJSON(raw)
+	if err != nil {
+		t.Fatalf("ParseSchemaJSON: %v", err)
+	}
+	fromDefs, err := SchemaFromFields(defs)
+	if err != nil {
+		t.Fatalf("SchemaFromFields: %v", err)
+	}
+	if !reflect.DeepEqual(fromDoc, fromDefs) {
+		t.Errorf("SchemaFromFields = %+v, ParseSchemaJSON = %+v", fromDefs, fromDoc)
+	}
+}

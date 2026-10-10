@@ -10,6 +10,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/imports"
+	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/jsonfinite"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -304,6 +305,22 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 		SourceTZ:       in.SourceTZ,
 		ColumnSourceTZ: in.ColumnSourceTZ,
 		DSTPolicy:      pio.DSTPolicy(in.DSTPolicy),
+		IgnoreExtra:    in.IgnoreExtra,
+		FloatWidth:     in.Float,
+	}
+	// A present schema (even an empty array, which SchemaFromFields
+	// refuses) goes through the CLI's own decoder; nil infers.
+	if in.Schema != nil {
+		defs := make([]iio.SchemaFileField, len(in.Schema))
+		for i, f := range in.Schema {
+			defs[i] = iio.SchemaFileField{Name: f.Name, Type: f.Type, Nullable: f.Nullable,
+				Description: f.Description, Precision: f.Precision, Scale: f.Scale}
+		}
+		schema, err := iio.SchemaFromFields(defs)
+		if err != nil {
+			return ImportOut{}, err
+		}
+		spec.Schema = schema
 	}
 	if in.TTL != "" {
 		d, err := imports.ParseTTL(in.TTL)

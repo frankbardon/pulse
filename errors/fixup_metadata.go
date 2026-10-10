@@ -402,6 +402,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_SCHEMA_INVALID: {
+		Message: "An explicit import schema (--schema file, ImportSpec.Schema, an MCP import `schema` argument) cannot be used as written, so the import is refused before any row is read and nothing is written. The document must be a JSON array of field objects {name, type, nullable, description, precision, scale} listing at least one field; over MCP an entry key outside that shape is refused rather than silently dropped (a misspelled `nullable` would otherwise import the field non-nullable). A schema is also refused on a .pulse source, which is used as-is and never re-encoded. Details carry `reason` (malformed, unknown_key, empty, passthrough) plus `error`, `key` or `index` where they apply.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "*"},
+				Hint:   "Write the schema as a JSON array of {\"name\", \"type\", \"nullable\", \"description\"} objects (precision / scale for decimal128 only), spelling each key exactly; `pulse import schema-template INPUT` emits a valid document to edit.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Schema"},
+				Hint:   "For a .pulse source drop the schema: the cohort already carries its own. Omit the schema entirely to let inference type the columns.",
+			},
+		},
+	},
 	PULSE_IMPORT_FLOAT_WIDTH_INVALID: {
 		Message: "The import float-width knob names neither f64 nor f32, so the import is refused before the source is read. It chooses the width inference gives an all-float column: f64 (the default; the empty string means the same) keeps every decimal exact to ~15-17 significant digits, f32 halves the bytes but rounds to ~7. Details carry `value` (as given) and `valid`.",
 		Fixups: []Fixup{

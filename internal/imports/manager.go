@@ -293,6 +293,11 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	//     rooted fs. Sidecar written so the copy participates in the
 	//     normal TTL lifecycle.
 	if format == string(pio.FormatPulse) {
+		if spec.Schema != nil {
+			return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SCHEMA_INVALID,
+				"an explicit schema applies only when a source is converted; a .pulse source carries its own schema and is never re-encoded",
+				map[string]any{"reason": "passthrough", "source_path": spec.SourcePath, "format": format})
+		}
 		if len(spec.Groups) > 0 {
 			return nil, perr.NewCodedErrorWithDetails(perr.PULSE_GROUP_DECLARATION_INVALID,
 				"parent groups apply only when a source is converted; a .pulse source is used as-is and never re-encoded",
@@ -613,6 +618,9 @@ func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, erro
 	job.SourceTZ = spec.SourceTZ
 	job.ColumnSourceTZ = spec.ColumnSourceTZ
 	job.DSTPolicy = spec.DSTPolicy
+	job.Schema = spec.Schema
+	job.IgnoreExtra = spec.IgnoreExtra
+	job.FloatWidth = spec.FloatWidth
 	return job, nil
 }
 

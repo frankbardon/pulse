@@ -110,6 +110,27 @@ type ImportIn struct {
 	// slot beside them.
 	Groups        []pio.GroupDecl `json:"groups,omitempty" jsonschema:"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]}. Each distinct member tuple is stored ONCE and every row carries a 4-byte index instead — use it when the source is a denormalized join, where a parent's attributes (members) repeat on every child row and are determined by the parent's ID (key). The import FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT if a member varies within its key; omit key for a plain tuple group with no such check. Take declarations from suggest_groups candidates (their key/members are this exact shape) rather than guessing. Weak groups are reported, not refused: group_warnings carries PULSE_GROUP_TOO_NARROW (dropped) or PULSE_DEDUP_LOW_RATIO (written, under 2 rows per distinct tuple or no smaller). Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID. Writes format 0x02, which older pulse binaries cannot read. Not allowed on a .pulse passthrough."`
 	SuggestGroups bool            `json:"suggest_groups,omitempty" jsonschema:"Also detect candidate parent groups and return them as group_candidates, each measured over every row (ratio, resident dictionary bytes, projected file size, verdict) with key/members ready to pass back as a groups entry. Suggests only: the import still writes exactly what groups declares. Costs one extra full pass over the source. The loop is: import with suggest_groups, read group_candidates (the suggested list is the non-overlapping viable set), then re-import with groups and overwrite=true."`
+	// Schema / IgnoreExtra / Float are io.ImportJob's explicit-schema and
+	// float-width options, the CLI's --schema / --ignore-extra / --float.
+	// None is persisted on the sidecar (see imports.Spec.Schema).
+	Schema      []ImportSchemaField `json:"schema,omitempty" jsonschema:"Explicit schema: an array of field objects {name, type, nullable, description} (precision / scale for decimal128) — the same document pulse import --schema reads. Omit it to infer the schema (unchanged behaviour). Fields are matched to source columns BY NAME (exact spelling), never position; the array order is the cohort's field order. Refused before any row is read: a field with no column PULSE_IMPORT_SCHEMA_FIELD_MISSING, a column no field names PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED (unless ignore_extra), a repeated name PULSE_IMPORT_SCHEMA_DUPLICATE, an NDJSON / JSON-array key first seen after the first object PULSE_IMPORT_SCHEMA_KEY_LATE, an unknown type name PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN, an unknown entry key, an empty array or a schema on a .pulse source PULSE_IMPORT_SCHEMA_INVALID. A null in a non-nullable field is PULSE_IMPORT_ROW_ERROR."`
+	IgnoreExtra bool                `json:"ignore_extra,omitempty" jsonschema:"With schema: drop source columns (and late NDJSON / JSON-array keys) the schema does not name instead of refusing with PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED / PULSE_IMPORT_SCHEMA_KEY_LATE. A schema field with no column is still refused. Inert without schema. Default false."`
+	Float       string              `json:"float,omitempty" jsonschema:"Width an inferred all-float column takes: 'f64' (default; exact decimals) or 'f32' (half the bytes, rounds to ~7 significant digits). Any other value is PULSE_IMPORT_FLOAT_WIDTH_INVALID. Steers inference only: inert for fields an explicit schema types."`
+}
+
+// ImportSchemaField is one entry of pulse_import's `schema` argument —
+// the CLI --schema document's field shape (io.SchemaFileField), with
+// nullable and description optional as they are in a schema file
+// (absent = false / empty). HandleImport converts the entries and hands
+// them to the CLI's own decoder, io.SchemaFromFields, so type names and
+// layout resolve identically on both surfaces.
+type ImportSchemaField struct {
+	Name        string `json:"name" jsonschema:"Field name; must equal a source column header exactly (case and whitespace included). Matched BY NAME, never position."`
+	Type        string `json:"type" jsonschema:"Field type name as pulse import schema-template emits it: u4, u8, u16, u32, u64, f32, f64, date, datetime, packed_bool, categorical_u8/u16/u32, decimal128, set_u8/u16/u32/u64/u128/u256. An unknown name is PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN, never coerced."`
+	Nullable    bool   `json:"nullable,omitempty" jsonschema:"Whether the field may hold null. Default false: a null in it is PULSE_IMPORT_ROW_ERROR, never a silent widening."`
+	Description string `json:"description,omitempty" jsonschema:"Field description stored in the cohort header (max 1000 bytes)."`
+	Precision   uint8  `json:"precision,omitempty" jsonschema:"decimal128 only: total significant digits."`
+	Scale       uint8  `json:"scale,omitempty" jsonschema:"decimal128 only: digits after the decimal point."`
 }
 
 // There is deliberately no spss_missing slot on ImportIn. The mode's default

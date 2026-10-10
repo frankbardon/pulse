@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse"
@@ -92,11 +93,54 @@ func strictRequestDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (typ
 // "members": [...]}` would decode as a KEYLESS tuple group, which skips
 // the member-constancy check and writes a differently-encoded cohort
 // without a word. An unknown key there is PULSE_GROUP_DECLARATION_INVALID.
+//
+// Each `schema` entry is held to the ImportSchemaField shape for the same
+// reason: a misspelled `nullable` would otherwise import the field
+// non-nullable without a word. An unknown key there (or a `schema` that
+// is not an array of objects) is PULSE_IMPORT_SCHEMA_INVALID.
 func strictImportDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (ImportIn, error) {
 	if err := checkGroupsShape(raw, "pulse_import"); err != nil {
 		return ImportIn{}, err
 	}
+	if err := checkSchemaShape(raw); err != nil {
+		return ImportIn{}, err
+	}
 	return lenientDecode[ImportIn](raw, inst)
+}
+
+// checkSchemaShape rejects a pulse_import `schema` that is not an array
+// of objects, or whose entry carries a key outside ImportSchemaField, with
+// PULSE_IMPORT_SCHEMA_INVALID (details: reason, index, error).
+func checkSchemaShape(raw json.RawMessage) error {
+	var top map[string]json.RawMessage
+	if json.Unmarshal(raw, &top) != nil {
+		return nil
+	}
+	body, ok := top["schema"]
+	if !ok || bytes.Equal(bytes.TrimSpace(body), []byte("null")) {
+		return nil
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(body, &entries); err != nil {
+		return perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SCHEMA_INVALID,
+			"pulse_import schema: must be an array of {name, type, nullable, description} objects: "+err.Error(),
+			map[string]any{"slot": "schema", "reason": "malformed", "error": err.Error()})
+	}
+	for i, entry := range entries {
+		dec := json.NewDecoder(bytes.NewReader(entry))
+		dec.DisallowUnknownFields()
+		var f ImportSchemaField
+		if err := dec.Decode(&f); err != nil {
+			reason := "malformed"
+			if strings.HasPrefix(err.Error(), "json: unknown field") {
+				reason = "unknown_key"
+			}
+			return perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SCHEMA_INVALID,
+				"pulse_import schema["+strconv.Itoa(i)+`]: each entry is {"name", "type", "nullable", "description", "precision", "scale"} with no other keys: `+err.Error(),
+				map[string]any{"slot": "schema", "reason": reason, "index": i, "error": err.Error()})
+		}
+	}
+	return nil
 }
 
 // strictDedupDecode is strictImportDecode's twin for pulse_dedup: the

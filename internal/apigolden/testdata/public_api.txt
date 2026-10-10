@@ -522,11 +522,14 @@ pulse: type ImportSpec field Charset string
 pulse: type ImportSpec field ColumnSourceTZ map[string]string
 pulse: type ImportSpec field ColumnTypeOverrides map[string]string
 pulse: type ImportSpec field DSTPolicy pulse/io.DSTPolicy
+pulse: type ImportSpec field FloatWidth string
 pulse: type ImportSpec field Format string
 pulse: type ImportSpec field Groups []pulse/io.GroupDecl
 pulse: type ImportSpec field Handle string
+pulse: type ImportSpec field IgnoreExtra bool
 pulse: type ImportSpec field InlineBytes []byte
 pulse: type ImportSpec field Overwrite bool
+pulse: type ImportSpec field Schema *pulse/encoding.Schema
 pulse: type ImportSpec field SetInferenceMinPct int
 pulse: type ImportSpec field Sheet string
 pulse: type ImportSpec field SourcePath string
@@ -2182,6 +2185,7 @@ pulse/errors: const PULSE_IMPORT_SCHEMA_AMBIGUOUS pulse/errors.Code = "PULSE_IMP
 pulse/errors: const PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED pulse/errors.Code = "PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED"
 pulse/errors: const PULSE_IMPORT_SCHEMA_DUPLICATE pulse/errors.Code = "PULSE_IMPORT_SCHEMA_DUPLICATE"
 pulse/errors: const PULSE_IMPORT_SCHEMA_FIELD_MISSING pulse/errors.Code = "PULSE_IMPORT_SCHEMA_FIELD_MISSING"
+pulse/errors: const PULSE_IMPORT_SCHEMA_INVALID pulse/errors.Code = "PULSE_IMPORT_SCHEMA_INVALID"
 pulse/errors: const PULSE_IMPORT_SCHEMA_KEY_LATE pulse/errors.Code = "PULSE_IMPORT_SCHEMA_KEY_LATE"
 pulse/errors: const PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN pulse/errors.Code = "PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN"
 pulse/errors: const PULSE_IMPORT_SET_OVERFLOW pulse/errors.Code = "PULSE_IMPORT_SET_OVERFLOW"
@@ -4610,4 +4614,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b9660c7b7374e93830e7add993b5437f2821de8139bb60dd28d535b2cbc9bfce
+// golden-hash: 5a228827007fc88bee95cdfa4cbdd70349fc8954e686f32f4e84b24a3d54cc7b
