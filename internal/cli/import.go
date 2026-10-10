@@ -24,11 +24,16 @@ const charsetFlagUsage = "Character encoding override for SPSS .sav input (e.g. 
 // every leaf a `.sav` can arrive through so the wording cannot drift.
 const spssMissingFlagUsage = "How SPSS numeric user-missing values are represented: auto (default — null plus a <var>_missing sibling carrying the reason) or null (plain null, reason not preserved)"
 
+// ignoreExtraFlagUsage is the one-line help for --ignore-extra, shared by
+// every leaf that takes --schema so the wording cannot drift.
+const ignoreExtraFlagUsage = "With --schema: drop source columns (and NDJSON / JSON-array keys first seen after the first object) the schema does not name, instead of refusing with PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED / PULSE_IMPORT_SCHEMA_KEY_LATE. Schema fields always match columns by exact name"
+
 // importFlags are the common flags for all import format subcommands.
 var importFlags = []cli.Flag{
 	&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
 	&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
 	&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
+	&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 	&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
@@ -147,6 +152,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.ElideConstants = cmd.Bool("elide-constants")
 	job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 	job.StrictDedup = cmd.Bool("strict")
+	job.IgnoreExtra = cmd.Bool("ignore-extra")
 	for _, decl := range cmd.StringSlice("group") {
 		g, err := iio.ParseGroupDecl(decl)
 		if err != nil {
@@ -227,6 +233,7 @@ func importPredictCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
+			&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
@@ -275,6 +282,7 @@ func importPredictCmd() *cli.Command {
 			job.ElideConstants = cmd.Bool("elide-constants")
 			job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 			job.StrictDedup = cmd.Bool("strict")
+			job.IgnoreExtra = cmd.Bool("ignore-extra")
 			for _, decl := range cmd.StringSlice("group") {
 				g, gerr := iio.ParseGroupDecl(decl)
 				if gerr != nil {

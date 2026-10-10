@@ -210,6 +210,35 @@ high-continuation fields and a one-line advice; pairs never span a shard
 boundary. Absent the flag the document is byte-identical. See
 [profile create](profile-create.md).
 
+### `--schema` / `--ignore-extra`
+
+Available on: `import csv`, `import tsv`, `import ndjson`,
+`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
+`import spss`, `import predict`, `convert`.
+
+`--schema FILE` supplies an explicit schema (a JSON array of
+`{name, type, description, nullable}`; `import schema-template INPUT`
+emits an editable one). Its fields are matched to the source's columns
+**by exact name** — case and whitespace included — never by position, so
+the schema may list them in any order and that order is the cohort's
+field order. For NDJSON and JSON-array sources the columns are the keys
+of the first object. Arrow, Parquet and SPSS sources, whose own schema
+an explicit one overrides, are matched the same way. Every mismatch is
+refused before a row is read, under its own code:
+
+| Code | When | Details |
+|---|---|---|
+| `PULSE_IMPORT_SCHEMA_FIELD_MISSING` | a schema field has no column of that name | `field`, `columns` |
+| `PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED` | a source column no schema field names | `column`, `fields` |
+| `PULSE_IMPORT_SCHEMA_DUPLICATE` | a field name declared twice, or a repeated header name | `field` or `column`, `side` |
+| `PULSE_IMPORT_SCHEMA_KEY_LATE` | an NDJSON / JSON-array key first seen after the first object | `column`, `row`, `columns` |
+
+`--ignore-extra` drops source columns, and late keys, that the schema
+does not name instead of refusing (library: `ImportJob.IgnoreExtra` /
+`ConvertJob.IgnoreExtra`). A schema field with no column is still
+refused. Without `--schema` the flag is inert and inference is
+unchanged.
+
 ### `--elide-constants`
 
 Available on: `import csv`, `import tsv`, `import ndjson`,

@@ -226,6 +226,9 @@ func TestImportSourceTZ_ExplicitSchema(t *testing.T) {
 	}}
 	j := zoneJob(fs, repeatRows(zoneTuples[:2], 4))
 	j.Schema = schema
+	// The schema imports one of the source's columns; the rest are
+	// dropped on purpose (by-name matching refuses them otherwise).
+	j.IgnoreExtra = true
 	j.SourceTZ = "Asia/Kolkata"
 	if _, err := j.Run(context.Background()); err != nil {
 		t.Fatal(err)

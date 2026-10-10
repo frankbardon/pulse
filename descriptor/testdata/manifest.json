@@ -6991,7 +6991,7 @@
         ]
       }
     ],
-    "error_codes_count": 300,
+    "error_codes_count": 304,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7106,6 +7106,10 @@
       "PULSE_IMPORT_OVERRIDE_INVALID",
       "PULSE_IMPORT_ROW_ERROR",
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
+      "PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED",
+      "PULSE_IMPORT_SCHEMA_DUPLICATE",
+      "PULSE_IMPORT_SCHEMA_FIELD_MISSING",
+      "PULSE_IMPORT_SCHEMA_KEY_LATE",
       "PULSE_IMPORT_SET_OVERFLOW",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
@@ -13251,4 +13255,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7fdf904fc1e1b487265b78ed29bd1ce91e6ae7e6d6447bb010f248dc16e27ea3
+// golden-hash: 21ea3c73ad5857d69ad9c918bcfd817f04b4842fb7fa0b73b73010e1f9ccf124

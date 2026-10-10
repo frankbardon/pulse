@@ -74,6 +74,13 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		if err := checkSchemaDescriptions(j.Schema); err != nil {
 			return nil, err
 		}
+		// A user-authored schema is matched to the source's columns by
+		// NAME (explicit_schema.go), on a copy — never by position.
+		resolved, err := resolveExplicitSchema(j.Source, j.Schema, j.IgnoreExtra)
+		if err != nil {
+			return nil, err
+		}
+		schema = resolved
 	}
 
 	// Infer schema if not provided.
@@ -468,6 +475,16 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 
 	if err := refuseOverridesWithoutInference(j.ColumnTypeOverrides, j.Schema != nil, authoritative); err != nil {
 		return nil, err
+	}
+
+	// The same by-name resolution Run performs, so a predict refuses
+	// exactly what the import would and reports the resolved columns.
+	if j.Schema != nil && !j.InferredSchema {
+		resolved, err := resolveExplicitSchema(j.Source, j.Schema, j.IgnoreExtra)
+		if err != nil {
+			return nil, err
+		}
+		schema = resolved
 	}
 
 	var inferredDelims map[string]string

@@ -21,6 +21,7 @@ func ConvertCommand() *cli.Command {
 			&cli.StringFlag{Name: "from", Usage: "Source format override"},
 			&cli.StringFlag{Name: "to", Usage: "Target format override"},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
+			&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
@@ -106,6 +107,7 @@ func ConvertCommand() *cli.Command {
 			job.FS = fs
 			job.SampleRows = sampleRows
 			job.KeepPulseAt = keepPulse
+			job.IgnoreExtra = cmd.Bool("ignore-extra")
 			if zerr := applyConvertZoneFlags(cmd, job); zerr != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", zerr)

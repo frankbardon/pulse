@@ -73,6 +73,16 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	// a null in a field the source declares non-nullable stays a row error.
 	inferredSchema := !authoritative && j.Schema == nil
 
+	// A caller-authored schema is matched to the source's columns by
+	// NAME, on a copy — the resolver ImportJob runs (explicit_schema.go).
+	if j.Schema != nil {
+		resolved, err := resolveExplicitSchema(j.Source, j.Schema, j.IgnoreExtra)
+		if err != nil {
+			return nil, err
+		}
+		schema = resolved
+	}
+
 	// Infer schema if not provided.
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
@@ -179,6 +189,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			SampleRows:     j.SampleRows,
 			FS:             fs,
 			InferredSchema: inferredSchema,
+			IgnoreExtra:    j.IgnoreExtra,
 			SourceTZ:       j.SourceTZ,
 			ColumnSourceTZ: j.ColumnSourceTZ,
 			DSTPolicy:      j.DSTPolicy,
@@ -351,8 +362,15 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 	var warnings []InferenceWarning
 
 	// Mirror Run's schema resolution so a predicted convert reports the
-	// schema Run would actually use — an authoritative source schema
-	// bypasses inference here too.
+	// schema Run would actually use — an explicit schema is matched by
+	// name, and an authoritative source schema bypasses inference here too.
+	if j.Schema != nil {
+		resolved, err := resolveExplicitSchema(j.Source, j.Schema, j.IgnoreExtra)
+		if err != nil {
+			return nil, err
+		}
+		schema = resolved
+	}
 	if schema == nil {
 		src, err := j.sourceSchema()
 		if err != nil {

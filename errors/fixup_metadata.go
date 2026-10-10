@@ -336,6 +336,63 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_SCHEMA_FIELD_MISSING: {
+		Message: "An explicit import schema (--schema / ImportJob.Schema / ConvertJob.Schema) names a field the source has no column for, so the import is refused before any row is read and nothing is written. An explicit schema is matched to the source's columns BY NAME — exact spelling, case and whitespace included — never by position; the order of the schema's fields is the cohort's field order and need not match the source. For NDJSON and JSON-array sources the columns are the keys of the FIRST object. Details carry `field` (the schema field) and `columns` (the source header).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "Fields", "*", "Name"},
+				Hint:   "Rename the schema field to the exact column spelling listed in details.columns, or remove the field from the schema. `pulse import schema-template INPUT` emits a schema whose names are the source header verbatim.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For an NDJSON / JSON-array source whose first object omits an optional key, write that key (as JSON null) on the first object, so the column set the first object declares covers every schema field.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED: {
+		Message: "The source carries a column that no field of the explicit import schema names, so the import is refused before any row is read rather than silently dropping that column's data. Columns are matched to schema fields by exact name. Details carry `column` (the unmapped source column) and `fields` (the schema's field names). The opt-out --ignore-extra (ImportJob.IgnoreExtra / ConvertJob.IgnoreExtra) drops every unmapped column instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "Fields"},
+				Hint:   "Add a field for the column to the schema (its name exactly as in details.column), or correct a schema field whose name was meant to match it.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"IgnoreExtra"},
+				Hint:   "Pass --ignore-extra (IgnoreExtra: true) to import only the schema's fields and drop every other source column on purpose.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_DUPLICATE: {
+		Message: "By-name matching of an explicit import schema found a name it cannot resolve to exactly one column, so the import is refused before any row is read. Either the schema declares the same field name twice (details: `field`, `side` = \"schema\"), or the source header repeats a column name (details: `column`, `side` = \"header\"). A repeated header name is refused when the schema names it, or when extra columns are not being ignored.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "Fields", "*", "Name"},
+				Hint:   "Remove or rename the repeated schema field so every field name is unique.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Rename the repeated source column so every header name is unique, then name the one you want in the schema. A repeated column the schema does not name is tolerated under --ignore-extra.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_KEY_LATE: {
+		Message: "Under an explicit import schema, an NDJSON or JSON-array source carries a key in a later object that the first object did not, so the import is refused at that row. The first object's keys are the source's column set; a key first seen later has no column, and importing past it would silently drop its values. Details carry `column` (the key), `row` (the 1-based data row it first appears on) and `columns` (the first object's keys). The opt-out --ignore-extra (IgnoreExtra) drops such keys instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Write every key on every object (a missing value as JSON null) so the first object declares the full column set, then name the key in the schema.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"IgnoreExtra"},
+				Hint:   "Pass --ignore-extra (IgnoreExtra: true) when the late key is not wanted in the cohort.",
+			},
+		},
+	},
 	PULSE_IMPORT_DST_AMBIGUOUS: {
 		Message: "A naive datetime literal (no `Z`, no ±HH:MM offset) in a column read in an import source zone names a wall-clock time that zone shows twice — the repeated hour of a DST fall-back — and the DST policy is the default \"error\", so the import is refused at the first such row and nothing is written. Details carry `row` (the 1-based source data row), `column`, `value` and `zone`. A literal that carries its own `Z` or offset is never ambiguous: it names its instant and the source zone is not consulted.",
 		Fixups: []Fixup{

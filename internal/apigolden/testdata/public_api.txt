@@ -2178,6 +2178,10 @@ pulse/errors: const PULSE_IMPORT_NULL_PROMOTED pulse/errors.Code = "PULSE_IMPORT
 pulse/errors: const PULSE_IMPORT_OVERRIDE_INVALID pulse/errors.Code = "PULSE_IMPORT_OVERRIDE_INVALID"
 pulse/errors: const PULSE_IMPORT_ROW_ERROR pulse/errors.Code = "PULSE_IMPORT_ROW_ERROR"
 pulse/errors: const PULSE_IMPORT_SCHEMA_AMBIGUOUS pulse/errors.Code = "PULSE_IMPORT_SCHEMA_AMBIGUOUS"
+pulse/errors: const PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED pulse/errors.Code = "PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED"
+pulse/errors: const PULSE_IMPORT_SCHEMA_DUPLICATE pulse/errors.Code = "PULSE_IMPORT_SCHEMA_DUPLICATE"
+pulse/errors: const PULSE_IMPORT_SCHEMA_FIELD_MISSING pulse/errors.Code = "PULSE_IMPORT_SCHEMA_FIELD_MISSING"
+pulse/errors: const PULSE_IMPORT_SCHEMA_KEY_LATE pulse/errors.Code = "PULSE_IMPORT_SCHEMA_KEY_LATE"
 pulse/errors: const PULSE_IMPORT_SET_OVERFLOW pulse/errors.Code = "PULSE_IMPORT_SET_OVERFLOW"
 pulse/errors: const PULSE_IMPORT_SOURCE_FORBIDDEN pulse/errors.Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
 pulse/errors: const PULSE_IMPORT_SOURCE_MISSING pulse/errors.Code = "PULSE_IMPORT_SOURCE_MISSING"
@@ -2476,6 +2480,7 @@ pulse/io: type ConvertJob underlying struct
 pulse/io: type ConvertJob field ColumnSourceTZ map[string]string
 pulse/io: type ConvertJob field DSTPolicy pulse/internal/io.DSTPolicy
 pulse/io: type ConvertJob field FS github.com/spf13/afero.Fs
+pulse/io: type ConvertJob field IgnoreExtra bool
 pulse/io: type ConvertJob field IncludeOverlays *bool
 pulse/io: type ConvertJob field Includes []string
 pulse/io: type ConvertJob field KeepPulseAt string
@@ -2646,6 +2651,7 @@ pulse/io: type ImportJob field DedupRatioFloor float64
 pulse/io: type ImportJob field ElideConstants bool
 pulse/io: type ImportJob field FS github.com/spf13/afero.Fs
 pulse/io: type ImportJob field Groups []pulse/internal/io.GroupDecl
+pulse/io: type ImportJob field IgnoreExtra bool
 pulse/io: type ImportJob field InferredSchema bool
 pulse/io: type ImportJob field SampleRows int
 pulse/io: type ImportJob field Schema *pulse/encoding.Schema
@@ -4600,4 +4606,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d2d06b17578bfcb1b6f8ff964ab1aac2863dc5071c43a893bb62a9d55045ebc3
+// golden-hash: bc3f5d64ab533fddbd395dc23c524b1ae3dc4b3dd61e5c102e68a7f34610e558

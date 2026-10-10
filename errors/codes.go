@@ -177,6 +177,36 @@ const (
 	// silently dropped, narrowed or partially imported.
 	PULSE_IMPORT_OVERRIDE_INVALID Code = "PULSE_IMPORT_OVERRIDE_INVALID"
 
+	// PULSE_IMPORT_SCHEMA_FIELD_MISSING indicates an explicit import
+	// schema names a field the source header does not carry. An explicit
+	// schema is matched to the source's columns BY NAME (exact spelling,
+	// case and whitespace included), never by position, so a field with
+	// no column of that name refuses the import before any row is read
+	// (details: field, columns — the source header).
+	PULSE_IMPORT_SCHEMA_FIELD_MISSING Code = "PULSE_IMPORT_SCHEMA_FIELD_MISSING"
+
+	// PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED indicates the source header
+	// carries a column no field of the explicit import schema names
+	// (details: column, fields — the schema's field names). Suppressed by
+	// ImportJob.IgnoreExtra / ConvertJob.IgnoreExtra (`--ignore-extra`),
+	// which drops such columns instead.
+	PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED Code = "PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED"
+
+	// PULSE_IMPORT_SCHEMA_DUPLICATE indicates a name that by-name schema
+	// matching cannot resolve to one column: the explicit schema declares
+	// the same field name twice (details: field, side "schema"), or the
+	// source header repeats a column name (details: column, side
+	// "header").
+	PULSE_IMPORT_SCHEMA_DUPLICATE Code = "PULSE_IMPORT_SCHEMA_DUPLICATE"
+
+	// PULSE_IMPORT_SCHEMA_KEY_LATE indicates a keyed source (NDJSON, a
+	// JSON array of objects) whose column set is the first object's keys
+	// carries, in a later object, a key the first object did not — under
+	// an explicit schema that key's values would otherwise be dropped
+	// silently (details: column, row — the 1-based data row — and
+	// columns). Suppressed by IgnoreExtra / `--ignore-extra`.
+	PULSE_IMPORT_SCHEMA_KEY_LATE Code = "PULSE_IMPORT_SCHEMA_KEY_LATE"
+
 	// PULSE_IMPORT_DST_AMBIGUOUS indicates a naive datetime literal read
 	// in an import source zone (ImportJob.SourceTZ / ColumnSourceTZ)
 	// names a wall-clock time the zone shows TWICE — a DST fall-back
@@ -3038,6 +3068,10 @@ var allCodes = []Code{
 	PULSE_IMPORT_NULL_PROMOTED,
 	PULSE_IMPORT_WIDTH_PROMOTED,
 	PULSE_IMPORT_OVERRIDE_INVALID,
+	PULSE_IMPORT_SCHEMA_FIELD_MISSING,
+	PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED,
+	PULSE_IMPORT_SCHEMA_DUPLICATE,
+	PULSE_IMPORT_SCHEMA_KEY_LATE,
 	PULSE_IMPORT_DST_AMBIGUOUS,
 	PULSE_IMPORT_DST_NONEXISTENT,
 	PULSE_IMPORT_DST_RESOLVED,

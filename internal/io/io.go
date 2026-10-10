@@ -274,6 +274,17 @@ type ImportJob struct {
 	// so its declared nullability is a contract: an unexpected null is
 	// a row error, never a silent widening. See SchemaAwareReader.
 	InferredSchema bool
+	// IgnoreExtra relaxes by-name matching of a user-authored Schema:
+	// a source column no schema field names is DROPPED instead of
+	// refusing the import with PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED, and a
+	// keyed source's (NDJSON, JSON array) key first seen after the first
+	// object is dropped instead of refused with
+	// PULSE_IMPORT_SCHEMA_KEY_LATE. A schema field with no column is
+	// still PULSE_IMPORT_SCHEMA_FIELD_MISSING. An explicit Schema is
+	// always matched to the source header by exact name, never by
+	// position. Inert without a user-authored Schema. CLI
+	// `--ignore-extra`. Default false.
+	IgnoreExtra bool
 	// ElideConstants stores every field that holds exactly one value
 	// (or is null) on EVERY imported row once, in the schema block, and
 	// drops it from each record — a format 0x02 cohort, which binaries
@@ -450,12 +461,18 @@ func NewExportJob(source string, target Writer) *ExportJob {
 // ConvertJob chains import and export with no intermediate file on disk
 // (unless KeepPulseAt is set).
 type ConvertJob struct {
-	Source      Reader
-	Target      Writer
+	Source Reader
+	Target Writer
+	// Schema is the caller-authored schema, matched to the source's
+	// columns by exact name exactly as ImportJob.Schema is.
 	Schema      *encoding.Schema
 	KeepPulseAt string // optional: also write intermediate .pulse
 	SampleRows  int
 	FS          afero.Fs
+	// IgnoreExtra drops source columns (and late NDJSON / JSON-array
+	// keys) the explicit Schema does not name, instead of refusing; see
+	// ImportJob.IgnoreExtra.
+	IgnoreExtra bool
 	// Includes restricts the export half to the named schema fields,
 	// in schema order. Nil / empty means write every field. The
 	// intermediate .pulse file (when KeepPulseAt is set) always

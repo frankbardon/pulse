@@ -50,7 +50,20 @@ type Reader struct {
 	// spelled "" and one spelled null both re-import as null. Rebuilt
 	// in place by emitObj; valid only inside the callback.
 	nulls []bool
+
+	// rowNum counts data rows handed to the ReadRows callback (the
+	// buffered first object is row 1); lateKeys is the
+	// iocore.LateKeyRefuser state, armed by an explicit-schema import.
+	rowNum   int
+	lateKeys jsonshared.LateKeys
 }
+
+// RefuseLateKeys implements iocore.LateKeyRefuser: when on, a key first
+// seen after the first object fails ReadRows with
+// PULSE_IMPORT_SCHEMA_KEY_LATE instead of being dropped. Survives Reset.
+func (r *Reader) RefuseLateKeys(on bool) { r.lateKeys.Set(on) }
+
+var _ iocore.LateKeyRefuser = (*Reader)(nil)
 
 // RowNulls implements iocore.NullAwareReader. Entry i is true when the
 // current row's column i was JSON null — or absent from the object
@@ -92,6 +105,8 @@ func (r *Reader) init() error {
 	r.started = false
 	r.header = nil
 	r.lineNum = 0
+	r.rowNum = 0
+	r.lateKeys.Forget()
 	r.pending = nil
 	r.hasPending = false
 	return nil
@@ -261,6 +276,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	if r.hasPending {
 		obj := r.pending
 		r.pending, r.hasPending = nil, false
+		r.rowNum++
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -287,13 +303,17 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			continue
 		}
 
-		obj, _, err := decodeLine(line)
+		obj, keys, err := decodeLine(line)
 		if err != nil {
 			return errors.NewCodedErrorWithDetails(
 				errors.PULSE_IMPORT_ROW_ERROR,
 				fmt.Sprintf("line %d: %v", r.lineNum, err),
 				map[string]any{"line": r.lineNum},
 			)
+		}
+		r.rowNum++
+		if err := r.lateKeys.Check(keys, r.header, r.rowNum, map[string]any{"line": r.lineNum}); err != nil {
+			return err
 		}
 
 		if err := r.emitObj(obj, fn); err != nil {
@@ -329,6 +349,8 @@ func (r *Reader) Reset() error {
 	r.header = nil
 	r.started = false
 	r.lineNum = 0
+	r.rowNum = 0
+	r.lateKeys.Forget()
 	r.pending = nil
 	r.hasPending = false
 	return nil

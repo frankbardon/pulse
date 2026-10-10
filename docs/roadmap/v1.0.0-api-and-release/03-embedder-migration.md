@@ -417,6 +417,16 @@ Complete for U24 (no release tag cut by the unit). Contract: `.claude/reference/
 
 Not shipped, by decision: p-values and intervals on rank and partial correlation (U28), `MAT_FACTOR` and rotation (U25), `vcov` for lasso and elastic net fits (resample fits report the replicate covariance, selection fits the final refit's).
 
+## Changes from U41 (derived cohort)
+
+In progress. Contract: `docs/src/cli/flags.md` (`--schema` / `--ignore-extra`), `skills/tool-import.md`. `format_version` stays `"1.1"`; no `.pulse` byte changes.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| an explicit `ImportJob.Schema` / `ConvertJob.Schema` mapped to source columns by POSITION (`CsvColumnIdx` = schema array index), so a reordered schema silently swapped same-typed columns | matched by exact header NAME on every adapter (Arrow / Parquet / SPSS included when the explicit schema overrides the source's), on a copy of the schema; any order works. A field with no column, a column no field names, a repeated name, or an NDJSON / JSON-array key first seen after the first object is refused before any row | behaviour change | give every schema field the exact source column name; set `IgnoreExtra` when the schema deliberately names a subset of the columns (previously such columns were silently ignored) | U41 |
+| (none) | `io.ImportJob.IgnoreExtra`, `io.ConvertJob.IgnoreExtra` (CLI `--ignore-extra` on `import <fmt>`, `import predict`, `convert`) | added | set it to drop unnamed source columns and late keys instead of refusing | U41 |
+| (none) | `errors.PULSE_IMPORT_SCHEMA_FIELD_MISSING`, `PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED`, `PULSE_IMPORT_SCHEMA_DUPLICATE`, `PULSE_IMPORT_SCHEMA_KEY_LATE` | added | `pulse errors lookup CODE`; the manifest error list changed | U41 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.
