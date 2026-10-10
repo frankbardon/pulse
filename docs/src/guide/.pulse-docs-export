@@ -35,6 +35,7 @@ skills/compose-requests.md
 skills/compose-sweeps.md
 skills/crosstab-guide.md
 skills/crosstab-margin-aggregations.md
+skills/derived-cohorts.md
 skills/expression-language.md
 skills/facet-design.md
 skills/feature-engineering.md
@@ -283,6 +284,7 @@ skills/tool-label-resolve.md
 skills/tool-label-tables.md
 skills/tool-lookup.md
 skills/tool-manifest.md
+skills/tool-materialize.md
 skills/tool-predict.md
 skills/tool-process-chain.md
 skills/tool-process.md

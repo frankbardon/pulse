@@ -34,6 +34,7 @@ func commands() []descriptor.Command {
 		{Name: "process-chain", Description: "Execute a source-rooted linear chain of mergeable processing stages", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 		{Name: "sample", Description: "Return sample rows from a cohort", Annotations: descriptor.CommandAnnotations{Streamable: true, Deterministic: false, Expensive: false}},
 		{Name: "facet", Description: "Return distinct values for a field", Annotations: descriptor.CommandAnnotations{Streamable: true, Deterministic: true, Expensive: false}},
+		{Name: "materialize", Description: "Write a new cohort holding a request's filter-passing source records plus one f64 column per derived output (features, attributes, windows), so later requests read them as ordinary fields (non-interactive, atomic)", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 		{Name: "lookup", Description: "Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "inspect", Description: "Inspect a .pulse file header and schema", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "predict", Description: "Validate a request without executing", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},

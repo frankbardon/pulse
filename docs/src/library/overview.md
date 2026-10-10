@@ -78,7 +78,7 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `Sample(ctx, path, n) ([]Record, error)` | Up to n rows |
 | `Facet(ctx, path, field) ([]string, error)` | Distinct values of a field |
 | `Synth(ctx, spec, out, opts) (*SynthResult, error)` | Generate a synthetic cohort |
-| `Materialize(ctx, req, out, opts) (*MaterializeResult, error)` | Write a new cohort: the filtered source records plus one nullable `f64` column per derived output (features, attributes, windows) — see [Reading & Building Cohorts](cohort-reader.md#materializing-derived-columns) |
+| `Materialize(ctx, req, out, opts) (*MaterializeResult, error)` | Write a new cohort: the filtered source records plus one nullable `f64` column per derived output (features, attributes, windows) — see [Materializing Derived Columns](materialize.md) |
 | `Profile(ctx, path, opts) (*Profile, error)` | Statistical summary suitable for `from-profile` synthesis |
 | `Manifest(ctx) *Manifest` | Deterministic root self-description |
 | `Fs() afero.Fs` | The underlying filesystem (used by `pulse mcp` and other embedders) |

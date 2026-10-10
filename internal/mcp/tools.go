@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -175,6 +176,57 @@ func checkGroupsShape(raw json.RawMessage, tool string) error {
 	return nil
 }
 
+// materializeKeys are pulse_materialize's top-level argument keys.
+var materializeKeys = []string{"out", "overwrite", "request"}
+
+// strictMaterializeDecode decodes pulse_materialize's input. An unknown
+// top-level key is PULSE_REQUEST_UNKNOWN_FIELD over the tool's own keys
+// — a request spread at the root (`windows` beside `out`) is refused
+// with a pointer at `request`, never decoded as an empty request — and
+// the nested `request` gets pulse_process's strict check.
+func strictMaterializeDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (MaterializeIn, error) {
+	var top map[string]json.RawMessage
+	if json.Unmarshal(raw, &top) == nil {
+		var unknown []string
+		for k := range top {
+			if !slices.Contains(materializeKeys, k) {
+				unknown = append(unknown, k)
+			}
+		}
+		if len(unknown) > 0 {
+			return MaterializeIn{}, unknownMaterializeKeys(unknown)
+		}
+		if body, ok := top["request"]; ok {
+			if ce := checkUnknownRequestKeys(body, inst); ce != nil {
+				return MaterializeIn{}, ce
+			}
+		}
+	}
+	return lenientDecode[MaterializeIn](raw, inst)
+}
+
+// unknownMaterializeKeys is pulse_materialize's unknown-argument
+// refusal: PULSE_REQUEST_UNKNOWN_FIELD with the request-slot refusal's
+// details (unknown_keys, suggestions, valid_keys) over the tool's own
+// keys, its message saying where a request slot belongs.
+func unknownMaterializeKeys(unknown []string) *perr.CodedError {
+	sort.Strings(unknown)
+	suggestions := make(map[string]any, len(unknown))
+	for _, k := range unknown {
+		if near := descx.NearestKey(k, materializeKeys); near != "" {
+			suggestions[k] = near
+		}
+	}
+	return perr.NewCodedErrorWithDetails(perr.PULSE_REQUEST_UNKNOWN_FIELD,
+		"pulse_materialize arguments contain unrecognized key(s): "+strings.Join(unknown, ", ")+
+			". The arguments are request, out and overwrite; every request slot (cohort, features, windows, ...) goes INSIDE request.",
+		map[string]any{
+			"unknown_keys": unknown,
+			"suggestions":  suggestions,
+			"valid_keys":   append([]string(nil), materializeKeys...),
+		})
+}
+
 // strictComposedDecode applies the per-request strict check across a
 // ComposedRequest's Requests slot.
 func strictComposedDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (types.ComposedRequest, error) {
@@ -321,6 +373,7 @@ func invokers(cfg Config) map[string]InvokeFunc {
 		toolmeta.ToolErrorsLookup:   makeInvoke(lenientDecode[ErrorsLookupIn], HandleErrorsLookup),
 		toolmeta.ToolImport:         makeInvoke(strictImportDecode, HandleImport),
 		toolmeta.ToolDedup:          makeInvoke(strictDedupDecode, HandleDedup),
+		toolmeta.ToolMaterialize:    makeInvoke(strictMaterializeDecode, HandleMaterialize),
 		toolmeta.ToolDrop:           makeInvoke(lenientDecode[DropIn], HandleDrop),
 		toolmeta.ToolImportsList:    makeInvoke(lenientDecode[ImportsListIn], HandleImportsList),
 		toolmeta.ToolLabelTables:    makeInvoke(lenientDecode[LabelTablesIn], HandleLabelTables),

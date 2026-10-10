@@ -353,6 +353,24 @@ func HandleDedup(ctx context.Context, p *pulse.Pulse, in DedupIn) (DedupOut, err
 	return *res, nil
 }
 
+// HandleMaterialize runs pulse_materialize: the request's derived
+// columns written as ordinary fields of a new cohort at in.Out. All
+// behaviour — the slot gate, every refusal, the atomic write — is
+// pulse.Materialize; coded errors pass through verbatim.
+func HandleMaterialize(ctx context.Context, p *pulse.Pulse, in MaterializeIn) (MaterializeOut, error) {
+	if in.Request == nil {
+		return MaterializeOut{}, errMissingArg("request")
+	}
+	if in.Out == "" {
+		return MaterializeOut{}, errMissingArg("out")
+	}
+	res, err := p.Materialize(ctx, in.Request, in.Out, pulse.MaterializeOptions{Overwrite: in.Overwrite})
+	if err != nil {
+		return MaterializeOut{}, err
+	}
+	return *res, nil
+}
+
 // HandleRecommend runs pulse_recommend: an intent becomes ranked draft
 // requests, bound to a cohort's fields when one is given. All behaviour
 // is pulse.Recommend: an empty intent is PULSE_RECOMMEND_INTENT_UNKNOWN,

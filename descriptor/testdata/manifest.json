@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:6fcbfc58f534e07cfdcdd0f923a3860d4542eca9e1329b61ec28380f2f6211c6",
+    "feature_set_digest": "fs1:69a32b23066436df2587fd6c16671c659e773785444efb25c80b7ae4fab7292c",
     "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
     "commands": [
       {
@@ -50,6 +50,15 @@
           "streamable": true,
           "deterministic": true,
           "expensive": false
+        }
+      },
+      {
+        "name": "materialize",
+        "description": "Write a new cohort holding a request's filter-passing source records plus one f64 column per derived output (features, attributes, windows), so later requests read them as ordinary fields (non-interactive, atomic)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
         }
       },
       {
@@ -7380,6 +7389,10 @@
         "description": "CALL FIRST IN EVERY SESSION. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, matrix operators (`matrices`, used through the request's `vectors` / `matrices` slots, plus the `matrix` capability block), synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
+        "name": "pulse_materialize",
+        "description": "CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD. Write a NEW single-file .pulse cohort (`out`, relative to PULSE_DATA_DIR) holding every filter-passing record of `request`'s cohort: the source columns verbatim, then one nullable f64 column per derived output of the request (features, attributes, windows) in pipeline order, each with a generated description. Derived values exist only inside the request that computes them, so a regression, grouper, filter or join over one needs this step first; then point the next request at `out`. `request` takes the pulse_process body but only the cohort, label, features, filterers, attributes, windows, weight, time_zone and disable_components slots: any other slot is PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot), a request with no derived column PULSE_MATERIALIZE_NO_DERIVED, and an unknown key PULSE_REQUEST_UNKNOWN_FIELD. Every refusal happens before anything is written; the write is atomic. An existing `out` is refused with SERVICE_VALIDATION unless `overwrite: true`, which lists each sidecar it invalidated under `invalidated_sidecars` (with its rebuild command) beside a PULSE_MATERIALIZE_SIDECARS_INVALIDATED warning. Returns target, records, derived_columns, warnings."
+      },
+      {
         "name": "pulse_predict",
         "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Cheap: it reads only the cohort header + schema. To predict another request shape, send exactly one alternative root alone; its verdict comes back under the same key beside `errors` / `warnings`, and a root beside any other key is SERVICE_VALIDATION. `composed` takes a pulse_compose body. `facet` takes a pulse_facet_schema body. `chain` takes a pulse_process_chain body."
       },
@@ -8610,6 +8623,10 @@
         "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
       },
       {
+        "name": "derived-cohorts",
+        "description": "Materialise a request's derived columns (features, attributes, windows) into a new cohort so a later request can regress, group, filter or join on them — when to, the two-step recipe, what the output holds."
+      },
+      {
         "name": "expression-language",
         "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
       },
@@ -9600,6 +9617,10 @@
       {
         "name": "tool-manifest",
         "description": "Bootstrap blob — call once per session for the operator + capability catalog."
+      },
+      {
+        "name": "tool-materialize",
+        "description": "Write a request's derived columns (features, attributes, windows) as ordinary fields of a new cohort that later requests read."
       },
       {
         "name": "tool-predict",
@@ -13263,4 +13284,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2eba56d0cb384c2683403ee07e3307bb437fc2c075c261033994319e85616a46
+// golden-hash: 1a03efd8986808c7ed4e0abd6ff0b4c2329c541d49b8607b167cf4d8fec69acd

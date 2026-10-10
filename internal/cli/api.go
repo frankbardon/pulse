@@ -31,6 +31,7 @@ func APICommand() *cli.Command {
 			apiPredictFacetCmd(),
 			apiPredictChainCmd(),
 			apiLookupCmd(),
+			apiMaterializeCmd(),
 		},
 	}
 }
@@ -710,6 +711,65 @@ func apiLookupCmd() *cli.Command {
 			}
 			return writeJSON(cmd.Writer, result)
 		},
+	}
+}
+
+// apiMaterializeCmd is `pulse api materialize`: write a request's
+// derived columns (features, attributes, windows) as ordinary fields of
+// a new cohort. All behaviour is pulse.Materialize; the leaf parses
+// flags, calls it once and formats the result. Every refusal carries
+// its own code (PULSE_MATERIALIZE_*, SERVICE_VALIDATION for an existing
+// target, the request's own pre-flight codes); MATERIALIZE_ERROR is
+// reached only by an uncoded error.
+func apiMaterializeCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "materialize",
+		Usage: "Write a new cohort holding the request's filter-passing source records plus one f64 column per derived output (features, attributes, windows), so later requests read them as ordinary fields (atomic)",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path (cohort, label, features, filterers, attributes, windows, weight, time_zone, disable_components only)", Required: true},
+			&cli.StringFlag{Name: "out", Aliases: []string{"o"}, Usage: "Path of the new .pulse cohort to write", Required: true},
+			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing cohort at --out (atomic); its now-stale sidecars are listed, never rebuilt"},
+			&cli.BoolFlag{Name: "strict", Usage: "Fail with PULSE_FIELD_DESCRIPTION_LOW_QUALITY (nothing written) when an output field's description is weak, instead of warning"},
+			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			jsonOut := cmd.Bool("json")
+			req, err := loadRequest(cmd.String("request"))
+			if err != nil {
+				return cliErrorFrom(cmd, jsonOut, "CLI_INPUT", err)
+			}
+			p, err := newPulse(ctx)
+			if err != nil {
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
+			}
+			res, err := p.Materialize(ctx, req, cmd.String("out"), pulse.MaterializeOptions{
+				Overwrite: cmd.Bool("overwrite"),
+				Strict:    cmd.Bool("strict"),
+			})
+			if err != nil {
+				return cliCodedError(cmd, jsonOut, "MATERIALIZE_ERROR", err)
+			}
+			if jsonOut {
+				return writeEnvelopeWithWarnings(cmd.Writer, res, res.Warnings)
+			}
+			writeMaterializeText(cmd, res)
+			return nil
+		},
+	}
+}
+
+// writeMaterializeText is the human-readable report of a materialize run.
+func writeMaterializeText(cmd *cli.Command, res *pulse.MaterializeResult) {
+	w := cmd.Writer
+	writeText(w, "Materialized %d record(s) to %s; derived columns: %s\n",
+		res.Records, res.Target, strings.Join(res.DerivedColumns, ", "))
+	writeSourceWarnings(w, res.Warnings)
+	if len(res.InvalidatedSidecars) > 0 {
+		writeText(w, "Invalidated sidecars (not rebuilt — rebuilding is yours to schedule):\n")
+		for _, sc := range res.InvalidatedSidecars {
+			writeText(w, "  %s  [%s]\n", sc.Path, sc.Kind)
+			writeText(w, "    %s\n", sc.Rebuild)
+		}
 	}
 }
 

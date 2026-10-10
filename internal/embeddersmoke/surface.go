@@ -71,6 +71,14 @@ var (
 	_                                                                                                                        = pulse.CohortBuildResult{Target: "", Records: 0, FormatVersion: encoding.FormatVersionV1, Schema: (*encoding.Schema)(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil)}
 )
 
+// Derived-column materialization: Pulse.Materialize and the options and
+// result it names.
+var (
+	_ func(*pulse.Pulse, context.Context, *pulse.Request, string, pulse.MaterializeOptions) (*pulse.MaterializeResult, error) = (*pulse.Pulse).Materialize
+	_                                                                                                                         = pulse.MaterializeOptions{Overwrite: true, Strict: true}
+	_                                                                                                                         = pulse.MaterializeResult{Target: "", Records: 0, DerivedColumns: []string(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil)}
+)
+
 // Options carries the crosstab-fusion switch that replaced mutating the
 // service, alongside the filesystem an embedder supplies.
 var _ = pulse.Options{

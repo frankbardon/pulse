@@ -14,6 +14,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`compose-sweeps`](skills/compose-sweeps.md): ComposedRequest.sweep — one request body with axis placeholders expands into many ordinary Compose slots (grid or zip), with a label pattern, per-slot overlays, limit counting and predict parity.
 - [`crosstab-guide`](skills/crosstab-guide.md): Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics.
 - [`crosstab-margin-aggregations`](skills/crosstab-margin-aggregations.md): Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate
+- [`derived-cohorts`](skills/derived-cohorts.md): Materialise a request's derived columns (features, attributes, windows) into a new cohort so a later request can regress, group, filter or join on them — when to, the two-step recipe, what the output holds.
 - [`expression-language`](skills/expression-language.md): The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating.
 - [`facet-design`](skills/facet-design.md): FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics.
 - [`feature-engineering`](skills/feature-engineering.md): Feature slot semantics — choosing a transform, pre-filter ordering (features run before filters), per-row vs global-pass cost, target-leakage trap, train/test split. Topical design; per-feature detail lives in atomic op-feat-* skills.
@@ -262,6 +263,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-label-tables`](skills/tool-label-tables.md): List registered label tables — ID→display-name dictionaries for categorical fields.
 - [`tool-lookup`](skills/tool-lookup.md): Resolve a point lookup against a cohort's prebuilt sidecar index.
 - [`tool-manifest`](skills/tool-manifest.md): Bootstrap blob — call once per session for the operator + capability catalog.
+- [`tool-materialize`](skills/tool-materialize.md): Write a request's derived columns (features, attributes, windows) as ordinary fields of a new cohort that later requests read.
 - [`tool-predict`](skills/tool-predict.md): Validate a request against a cohort schema without executing.
 - [`tool-process`](skills/tool-process.md): Execute one pre-built processing request against a cohort.
 - [`tool-process-chain`](skills/tool-process-chain.md): Linear chain of stages; stage N+1 consumes stage N's output rows.

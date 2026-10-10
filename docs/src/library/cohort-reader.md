@@ -277,47 +277,9 @@ res, err := b.Close() // runs Pulse.AddShard once; res.Shards == ["2026-10.pulse
 
 ## Materializing derived columns
 
-`Pulse.Materialize(ctx, req, out, opts)` turns a request's derived
-columns into ordinary fields of a NEW single-file cohort, so later
-requests can filter, group or join on them:
-
-```go
-res, err := p.Materialize(ctx, &pulse.Request{
-    Cohort:   &types.Cohort{Filename: "sales.pulse"},
-    Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "spend"}},
-    Windows: []*types.Window{{Type: types.WIN_LAG, Field: "spend",
-        PartitionBy: []string{"region"}, OrderBy: []types.OrderKey{{Field: "week"}}}},
-}, "sales_derived.pulse", pulse.MaterializeOptions{})
-// res.Records, res.DerivedColumns ("LOG_spend", "WIN_LAG_spend")
-```
-
-- **Accepted slots.** Features, filterers, attributes, windows, weight
-  and `time_zone`. Any other slot is refused with
-  `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` (`details.slot`); a request with
-  no feature, attribute or window with `PULSE_MATERIALIZE_NO_DERIVED`;
-  an embedder-registered feature (its outputs are unknown before it
-  runs) with `PULSE_MATERIALIZE_OUTPUT_UNDECLARED`. Process's own
-  pre-flight runs first, so a request `Process` refuses is refused with
-  the same error. Every refusal happens before anything is created.
-- **Rows.** One per filter-passing source record, in source order (an
-  archive's shards concatenated in archive order). Features see every
-  record, attributes and windows the survivors — exactly as `Process`
-  computes them. Source cells are the exact stored values
-  (`CohortReader.RecordAt`).
-- **Schema.** The source's logical schema verbatim (order, types,
-  nullability, dictionaries, descriptions), then one nullable `f64` per
-  derived output in pipeline order — features (every output of a
-  multi-output feature), attributes, windows — each with a generated
-  description such as `WIN_LAG of spend (partition region; order week)
-  — derived from sales.pulse`. Integer window outputs (row number,
-  rank) are stored as `f64`; a non-numeric value (a lag copying a
-  categorical label) fails the run with
-  `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
-- **Writing.** Always an ungrouped (`0x01`) single file, written
-  atomically through `NewCohortBuilder`; source sidecars are not
-  carried. An existing target needs `Overwrite`; replacing one reports
-  its stale sidecars in `InvalidatedSidecars` plus a
-  `PULSE_MATERIALIZE_SIDECARS_INVALIDATED` warning. `Strict` escalates
-  a weak description on the output schema (the generated ones always
-  pass; an undescribed source field does not). A limit breach, a
-  refusal or a write failure leaves nothing at the target.
+`Pulse.Materialize` writes a request's derived columns (features,
+attributes, windows) as ordinary fields of a new cohort, through
+`NewCohortBuilder` and with source cells read by `CohortReader.RecordAt`.
+The full contract — accepted slots, rows, schema, refusals, the CLI
+leaf and the MCP tool — is on its own page:
+[Materializing Derived Columns](materialize.md).

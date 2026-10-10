@@ -109,6 +109,9 @@ func TestRegister_ProseNamesNoHiddenFeature(t *testing.T) {
 		// pulse_dedup's reflected input schema points at pulse_import,
 		// which this profile hides: the registration-time schema scrub.
 		"dedup": {Features: []string{"capability:dedup"}},
+		// pulse_materialize's description and nested request schema
+		// name request slots and other tools this profile hides.
+		"materialize": {Features: []string{"capability:process", "capability:materialize"}},
 	}
 	for name, fp := range profiles {
 		t.Run(name, func(t *testing.T) {

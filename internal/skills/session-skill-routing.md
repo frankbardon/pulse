@@ -40,6 +40,9 @@ Lowercase the operator family prefix and map through this table.
 <!-- feature: capability:dedup -->
 | a join-shaped cohort already on disk — `pulse_dedup` (`suggest_groups` alone is read-only; `groups` + `out` converts without touching the original) / `pulse dedup COHORT --group KEY:MEMBER,… [--out P] [--suggest-groups]` | `tool-dedup`, `cohort-parent-groups` |
 <!-- /feature -->
+<!-- feature: capability:materialize -->
+| a window, feature or attribute column a later request must regress, group, filter or join on — `pulse_materialize` / `pulse api materialize -r REQ -o OUT [--overwrite]` writes it as a field of a new cohort | `tool-materialize`, `derived-cohorts` |
+<!-- /feature -->
 <!-- feature: capability:widen -->
 | a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | `cohort-schema-design` (set rungs), `cohort-sharding` (archives auto-widen) |
 <!-- /feature -->
