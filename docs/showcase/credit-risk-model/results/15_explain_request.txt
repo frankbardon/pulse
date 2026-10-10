@@ -1,0 +1,29 @@
+This request reads `loans.pulse` and runs 1 filter, 6 feature columns, 10 attribute columns, 5 aggregations and 4 tests.
+valid: true
+
+- filterers[0]: Filter 1 runs FILTER_INCLUDE on `split` with 1 listed value. Keeps only the rows whose field holds one of the listed values, such as two regions or three product codes.
+- features[0]: Feature 1 runs FEAT_TRAIN_TEST_SPLIT. Labels every record train (0), validation (1) or test (2) by a seeded shuffle, so a model can be checked on records it never learned from.
+- features[1]: Feature 2 runs FEAT_LOG on `annual_income`. Adds a column holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model.
+- features[2]: Feature 3 runs FEAT_LOG on `loan_amount`. Adds a column holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model.
+- features[3]: Feature 4 runs FEAT_ONE_HOT on `credit_band`. Turns a category field into one 0/1 column per category, so a model or a sum can treat each category as its own yes/no.
+- features[4]: Feature 5 runs FEAT_ONE_HOT on `home_ownership`. Turns a category field into one 0/1 column per category, so a model or a sum can treat each category as its own yes/no.
+- features[5]: Feature 6 runs FEAT_FREQUENCY_ENCODE on `purpose`. Replaces each category with the share of records that carry it, one number that says how common the category is.
+- attributes[0]: Attribute 1 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[1]: Attribute 2 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[2]: Attribute 3 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[3]: Attribute 4 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[4]: Attribute 5 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[5]: Attribute 6 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[6]: Attribute 7 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[7]: Attribute 8 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[8]: Attribute 9 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- attributes[9]: Attribute 10 runs ATTR_FORMULA. Adds a number to every row computed from the row's own fields with an expression, such as price * qty.
+- aggregations[0]: Aggregation 1 runs AGG_COUNT on `loan_id`. Number of rows that have a value in a field, over all rows or per group.
+- aggregations[1]: Aggregation 2 runs AGG_AVERAGE on `default_12m`. Average of a numeric field, over all rows or per group.
+- aggregations[2]: Aggregation 3 runs AGG_AVERAGE on `pd_score`. Average of a numeric field, over all rows or per group.
+- aggregations[3]: Aggregation 4 runs AGG_AVERAGE on `gt_true_pd`. Average of a numeric field, over all rows or per group.
+- aggregations[4]: Aggregation 5 runs AGG_SUM on `loan_amount`. Total of a numeric field, over all rows or per group.
+- tests[0]: Test 1 runs TEST_KS on `pd_score` split by `outcome`. Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape.
+- tests[1]: Test 2 runs TEST_KS on `pd_all22` split by `outcome`. Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape.
+- tests[2]: Test 3 runs TEST_KS on `gt_true_pd` split by `outcome`. Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape.
+- tests[3]: Test 4 runs TEST_KS on `pd_leaky` split by `outcome`. Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape.

@@ -1,0 +1,159 @@
+{
+  "cohort": {
+    "filename": "loans.pulse",
+    "data_dir": "."
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "label": "split",
+      "params": {
+        "ratios": [
+          0.7,
+          0.3
+        ],
+        "seed": 42,
+        "stratify": "outcome"
+      }
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "annual_income",
+      "label": "log_income"
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "loan_amount",
+      "label": "log_loan"
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "credit_band",
+      "label": "band"
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "home_ownership",
+      "label": "home"
+    },
+    {
+      "type": "FEAT_FREQUENCY_ENCODE",
+      "field": "purpose",
+      "label": "purpose_freq"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "lti",
+      "expression": "2.718281828459045 ** (log_loan - log_income)"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "term60",
+      "expression": "term_months == 60 ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "emp_missing",
+      "expression": "emp_length_years == nil ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "emp_years",
+      "expression": "emp_length_years ?? 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "revol_missing",
+      "expression": "revol_util == nil ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "revol_util_filled",
+      "expression": "revol_util ?? 50"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "purpose_te_train",
+      "expression": "(({\"adoption\": 8, \"appliances\": 20, \"boat\": 18, \"business_equipment\": 15, \"car\": 73, \"computer\": 15, \"credit_card\": 983, \"debt_consolidation\": 2273, \"dental\": 20, \"educational\": 15, \"engagement_ring\": 6, \"fertility\": 9, \"franchise_fee\": 8, \"funeral\": 13, \"furniture\": 18, \"hobby_equipment\": 15, \"home_improvement\": 300, \"home_security\": 1, \"house\": 36, \"hvac\": 16, \"inventory\": 12, \"legal_fees\": 28, \"major_purchase\": 150, \"medical\": 180, \"military_relocation\": 4, \"motorcycle\": 19, \"moving\": 75, \"musical_instrument\": 4, \"other\": 292, \"pool\": 13, \"renewable_energy\": 28, \"roof_repair\": 7, \"rv\": 4, \"small_business\": 175, \"solar_panels\": 11, \"tax_bill\": 19, \"timeshare\": 12, \"vacation\": 75, \"vet_bills\": 12, \"wedding\": 31}[purpose] ?? 0) + 20 * 0.11935714285714286) / (({\"adoption\": 52, \"appliances\": 137, \"boat\": 132, \"business_equipment\": 131, \"car\": 865, \"computer\": 135, \"credit_card\": 8938, \"debt_consolidation\": 18663, \"dental\": 170, \"educational\": 154, \"engagement_ring\": 85, \"fertility\": 87, \"franchise_fee\": 51, \"funeral\": 96, \"furniture\": 126, \"hobby_equipment\": 91, \"home_improvement\": 3164, \"home_security\": 40, \"house\": 412, \"hvac\": 153, \"inventory\": 89, \"legal_fees\": 134, \"major_purchase\": 1406, \"medical\": 1113, \"military_relocation\": 35, \"motorcycle\": 114, \"moving\": 547, \"musical_instrument\": 41, \"other\": 2274, \"pool\": 96, \"renewable_energy\": 144, \"roof_repair\": 126, \"rv\": 36, \"small_business\": 899, \"solar_panels\": 123, \"tax_bill\": 178, \"timeshare\": 49, \"vacation\": 455, \"vet_bills\": 95, \"wedding\": 364}[purpose] ?? 0) + 20)"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "pd_score",
+      "expression": "1 / (1 + 2.718281828459045 ** (-(-2.014235306835319 + -0.20475349054207204 * band_B + -0.29262903393155737 * band_G + 0.3181732153052332 * delinq_2yrs + 0.032499543538777334 * dti + 0.3109739440527712 * emp_missing + -0.029471446004756447 * emp_years + -0.005944138631784686 * fico_score + 0.23338756205678332 * home_RENT + 0.07649277527560447 * interest_rate + 2.080671151133085 * lti + 9.809227904531932 * purpose_te_train + 0.008372042677839406 * revol_util_filled + 0.23126671622685363 * term60)))"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "pd_all22",
+      "expression": "1 / (1 + 2.718281828459045 ** (-(-7.236727595531753 + 0.6323427758161322 * band_B + 1.3587254655412424 * band_C + 1.8793221714901525 * band_D + 2.2875472600127034 * band_E + 2.74402049321649 * band_F + 2.997972086953641 * band_G + 0.3136049764699088 * delinq_2yrs + 0.03255596749076214 * dti + 0.3124787062964165 * emp_missing + -0.028807009362846747 * emp_years + 0.001398852609880017 * fico_score + -0.09355345544497812 * home_OTHER + -0.014026846454179969 * home_OWN + 0.22465730388124347 * home_RENT + 0.0015032149159095022 * interest_rate + 0.12621974226458435 * log_income + -0.06098593796287414 * log_loan + 2.5303728017962417 * lti + -0.02396621343619605 * purpose_freq + -0.00726159266198234 * revol_missing + 0.008299170158915301 * revol_util_filled + 0.3641314799083219 * term60)))"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "pd_leaky",
+      "expression": "1 / (1 + 2.718281828459045 ** (-(-8.305734802526135 + 0.6690378451555383 * band_B + 1.3259306911052158 * band_C + 1.7484794191590676 * band_D + 2.1658808845001887 * band_E + 2.614402248081293 * band_F + 2.8772186872595986 * band_G + 0.2912910719144164 * delinq_2yrs + 0.03476298560541276 * dti + 0.1582992792983983 * emp_missing + -0.03848146123338032 * emp_years + -0.091421881650281 * fico_at_month_12 + 0.0914849830937083 * fico_score + -0.03273059588705893 * home_OTHER + -0.09625658913997044 * home_OWN + 0.21408630598789768 * home_RENT + -0.007334130929565608 * interest_rate + 0.15900918491217933 * log_income + -0.05059896988029208 * log_loan + 2.760434487139317 * lti + -0.08305184898288649 * purpose_freq + 0.056118387545985644 * revol_missing + 0.00851457988271576 * revol_util_filled + 0.3074593795303329 * term60)))"
+    }
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "split",
+      "values": [
+        "1"
+      ]
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "loan_id",
+      "label": "holdout_loans"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "default_12m",
+      "label": "observed_default_rate"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "pd_score",
+      "label": "mean_predicted_pd"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "gt_true_pd",
+      "label": "mean_true_pd"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "loan_amount",
+      "label": "holdout_principal_usd"
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_KS",
+      "field": "pd_score",
+      "split_by": "outcome",
+      "label": "ks_final_model"
+    },
+    {
+      "type": "TEST_KS",
+      "field": "pd_all22",
+      "split_by": "outcome",
+      "label": "ks_all_22_candidates"
+    },
+    {
+      "type": "TEST_KS",
+      "field": "gt_true_pd",
+      "split_by": "outcome",
+      "label": "ks_true_pd_ceiling"
+    },
+    {
+      "type": "TEST_KS",
+      "field": "pd_leaky",
+      "split_by": "outcome",
+      "label": "ks_leaky_model"
+    }
+  ]
+}

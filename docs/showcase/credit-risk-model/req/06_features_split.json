@@ -1,0 +1,21 @@
+{
+  "cohort": {"filename": "loans.pulse", "data_dir": "."},
+  "features": [
+    {"type": "FEAT_TRAIN_TEST_SPLIT", "label": "split", "params": {"ratios": [0.7, 0.3], "seed": 42, "stratify": "outcome"}},
+    {"type": "FEAT_LOG", "field": "annual_income", "label": "log_income"},
+    {"type": "FEAT_LOG", "field": "loan_amount", "label": "log_loan"},
+    {"type": "FEAT_BUCKETIZE", "field": "dti", "label": "dti_bucket", "params": {"boundaries": [10, 20, 30]}},
+    {"type": "FEAT_ONE_HOT", "field": "credit_band", "label": "band"},
+    {"type": "FEAT_ONE_HOT", "field": "home_ownership", "label": "home"},
+    {"type": "FEAT_FREQUENCY_ENCODE", "field": "purpose", "label": "purpose_freq"}
+  ],
+  "groups": [{"type": "GROUP_CATEGORY", "field": "split"}],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "loan_id", "label": "applications"},
+    {"type": "AGG_AVERAGE", "field": "default_12m", "label": "default_rate"},
+    {"type": "AGG_SUM", "field": "loan_amount", "label": "principal_usd"},
+    {"type": "AGG_AVERAGE", "field": "log_income", "label": "mean_log_income"},
+    {"type": "AGG_AVERAGE", "field": "band_G", "label": "share_band_G"},
+    {"type": "AGG_AVERAGE", "field": "purpose_freq", "label": "mean_purpose_freq"}
+  ]
+}

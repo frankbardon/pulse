@@ -1,0 +1,207 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "applications": 9496,
+        "default_rate": 0.08213984835720303,
+        "dti_bucket": "0",
+        "mean_dti_pct": 6.0196335299073285
+      },
+      {
+        "applications": 26398,
+        "default_rate": 0.11099325706492916,
+        "dti_bucket": "1",
+        "mean_dti_pct": 15.386730434123823
+      },
+      {
+        "applications": 20140,
+        "default_rate": 0.13634558093346574,
+        "dti_bucket": "2",
+        "mean_dti_pct": 24.123075471698172
+      },
+      {
+        "applications": 3966,
+        "default_rate": 0.17801311144730206,
+        "dti_bucket": "3",
+        "mean_dti_pct": 33.535595057992936
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 60000,
+      "cohort_file": "./loans.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "applications",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 9496,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 26398,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "2"
+              ],
+              "n": 20140,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "3"
+              ],
+              "n": 3966,
+              "n_null": 0
+            }
+          ]
+        },
+        {
+          "label": "default_rate",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 9496,
+              "n_null": 0,
+              "operator": {
+                "sum": 780
+              }
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 26398,
+              "n_null": 0,
+              "operator": {
+                "sum": 2930
+              }
+            },
+            {
+              "group_key": [
+                "2"
+              ],
+              "n": 20140,
+              "n_null": 0,
+              "operator": {
+                "sum": 2746
+              }
+            },
+            {
+              "group_key": [
+                "3"
+              ],
+              "n": 3966,
+              "n_null": 0,
+              "operator": {
+                "sum": 706
+              }
+            }
+          ]
+        },
+        {
+          "label": "mean_dti_pct",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 9496,
+              "n_null": 0,
+              "operator": {
+                "sum": 57162.439999999995
+              }
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 26398,
+              "n_null": 0,
+              "operator": {
+                "sum": 406178.9100000007
+              }
+            },
+            {
+              "group_key": [
+                "2"
+              ],
+              "n": 20140,
+              "n_null": 0,
+              "operator": {
+                "sum": 485838.74000000115
+              }
+            },
+            {
+              "group_key": [
+                "3"
+              ],
+              "n": 3966,
+              "n_null": 0,
+              "operator": {
+                "sum": 133002.16999999998
+              }
+            }
+          ]
+        }
+      ],
+      "groupers": [
+        {
+          "field": "dti_bucket",
+          "total_n": 60000,
+          "operator": {
+            "buckets": [
+              {
+                "count": 9496,
+                "key": "0",
+                "label": "0"
+              },
+              {
+                "count": 26398,
+                "key": "1",
+                "label": "1"
+              },
+              {
+                "count": 20140,
+                "key": "2",
+                "label": "2"
+              },
+              {
+                "count": 3966,
+                "key": "3",
+                "label": "3"
+              }
+            ],
+            "dict_size": 0
+          }
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 60000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

@@ -1,0 +1,144 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "applications": 60000,
+        "collections_rate": 0.1098,
+        "default_rate": 0.11936666666666666,
+        "defaults": 7162,
+        "distinct_purposes": 40,
+        "max_principal_usd": "39995.70",
+        "mean_dti_pct": 18.036371000000187,
+        "mean_income_usd": "72283.7685",
+        "mean_principal_usd": "12078.8351",
+        "mean_rate_pct": 15.616547833333266,
+        "median_fico": 694,
+        "min_principal_usd": "1292.14",
+        "nonnull_recovery_amount": "7162",
+        "null_emp_length": 3603,
+        "null_revol_util": 1798,
+        "total_principal_usd": "724730103.82"
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 60000,
+      "cohort_file": "./loans.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "applications",
+          "n": 60000,
+          "n_null": 0
+        },
+        {
+          "label": "default_rate",
+          "n": 60000,
+          "n_null": 0,
+          "operator": {
+            "sum": 7162
+          }
+        },
+        {
+          "label": "defaults",
+          "n": 60000,
+          "n_null": 0,
+          "operator": {
+            "sum": 7162
+          }
+        },
+        {
+          "label": "total_principal_usd",
+          "n": 60000,
+          "n_null": 0
+        },
+        {
+          "label": "mean_principal_usd",
+          "n": 60000,
+          "n_null": 0
+        },
+        {
+          "label": "min_principal_usd",
+          "n": 60000,
+          "n_null": 0
+        },
+        {
+          "label": "max_principal_usd",
+          "n": 60000,
+          "n_null": 0
+        },
+        {
+          "label": "mean_income_usd",
+          "n": 60000,
+          "n_null": 0
+        },
+        {
+          "label": "median_fico",
+          "n": 60000,
+          "n_null": 0,
+          "operator": {
+            "median": 694,
+            "position_high": 30000,
+            "position_low": 29999
+          }
+        },
+        {
+          "label": "mean_rate_pct",
+          "n": 60000,
+          "n_null": 0,
+          "operator": {
+            "sum": 936992.8699999959
+          }
+        },
+        {
+          "label": "mean_dti_pct",
+          "n": 60000,
+          "n_null": 0,
+          "operator": {
+            "sum": 1082182.2600000112
+          }
+        },
+        {
+          "label": "null_revol_util",
+          "n": 58202,
+          "n_null": 1798
+        },
+        {
+          "label": "null_emp_length",
+          "n": 56397,
+          "n_null": 3603
+        },
+        {
+          "label": "nonnull_recovery_amount",
+          "n": 7162,
+          "n_null": 52838
+        },
+        {
+          "label": "distinct_purposes",
+          "n": 60000,
+          "n_null": 0,
+          "operator": {
+            "cardinality": 40
+          }
+        },
+        {
+          "label": "collections_rate",
+          "n": 60000,
+          "n_null": 0,
+          "operator": {
+            "sum": 6588
+          }
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 60000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

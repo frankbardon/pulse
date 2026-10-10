@@ -1,0 +1,48 @@
+{
+  "cohort": {
+    "filename": "loans.pulse",
+    "data_dir": "."
+  },
+  "features": [
+    {
+      "type": "FEAT_BUCKETIZE",
+      "field": "dti",
+      "label": "dti_bucket",
+      "params": {
+        "boundaries": [
+          10,
+          20,
+          30
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "dti_bucket"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "loan_id",
+      "label": "applications"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "default_12m",
+      "label": "default_rate"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "dti",
+      "label": "mean_dti_pct"
+    }
+  ],
+  "sort": [
+    {
+      "field": "dti_bucket"
+    }
+  ]
+}

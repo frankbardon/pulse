@@ -1,0 +1,21 @@
+{
+  "cohort": {"filename": "loans.pulse", "data_dir": "."},
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "loan_id", "label": "applications"},
+    {"type": "AGG_AVERAGE", "field": "default_12m", "label": "default_rate"},
+    {"type": "AGG_SUM", "field": "default_12m", "label": "defaults"},
+    {"type": "AGG_SUM", "field": "loan_amount", "label": "total_principal_usd"},
+    {"type": "AGG_AVERAGE", "field": "loan_amount", "label": "mean_principal_usd"},
+    {"type": "AGG_MIN", "field": "loan_amount", "label": "min_principal_usd"},
+    {"type": "AGG_MAX", "field": "loan_amount", "label": "max_principal_usd"},
+    {"type": "AGG_AVERAGE", "field": "annual_income", "label": "mean_income_usd"},
+    {"type": "AGG_MEDIAN", "field": "fico_score", "label": "median_fico"},
+    {"type": "AGG_AVERAGE", "field": "interest_rate", "label": "mean_rate_pct"},
+    {"type": "AGG_AVERAGE", "field": "dti", "label": "mean_dti_pct"},
+    {"type": "AGG_NULL_COUNT", "field": "revol_util", "label": "null_revol_util"},
+    {"type": "AGG_NULL_COUNT", "field": "emp_length_years", "label": "null_emp_length"},
+    {"type": "AGG_COUNT", "field": "recovery_amount", "label": "nonnull_recovery_amount"},
+    {"type": "AGG_DISTINCT_COUNT", "field": "purpose", "label": "distinct_purposes"},
+    {"type": "AGG_AVERAGE", "field": "collections_flag", "label": "collections_rate"}
+  ]
+}

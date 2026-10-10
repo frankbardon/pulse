@@ -1,0 +1,170 @@
+{
+  "cohort": {
+    "filename": "loans.pulse",
+    "data_dir": "."
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "label": "split",
+      "params": {
+        "ratios": [
+          0.7,
+          0.3
+        ],
+        "seed": 42,
+        "stratify": "outcome"
+      }
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "annual_income",
+      "label": "log_income"
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "loan_amount",
+      "label": "log_loan"
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "credit_band",
+      "label": "band"
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "home_ownership",
+      "label": "home"
+    },
+    {
+      "type": "FEAT_FREQUENCY_ENCODE",
+      "field": "purpose",
+      "label": "purpose_freq"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "lti",
+      "expression": "2.718281828459045 ** (log_loan - log_income)"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "term60",
+      "expression": "term_months == 60 ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "emp_missing",
+      "expression": "emp_length_years == nil ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "emp_years",
+      "expression": "emp_length_years ?? 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "revol_missing",
+      "expression": "revol_util == nil ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "revol_util_filled",
+      "expression": "revol_util ?? 50"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "pd_leaky",
+      "expression": "1 / (1 + 2.718281828459045 ** (-(-8.305734802526135 + 0.6690378451555383 * band_B + 1.3259306911052158 * band_C + 1.7484794191590676 * band_D + 2.1658808845001887 * band_E + 2.614402248081293 * band_F + 2.8772186872595986 * band_G + 0.2912910719144164 * delinq_2yrs + 0.03476298560541276 * dti + 0.1582992792983983 * emp_missing + -0.03848146123338032 * emp_years + -0.091421881650281 * fico_at_month_12 + 0.0914849830937083 * fico_score + -0.03273059588705893 * home_OTHER + -0.09625658913997044 * home_OWN + 0.21408630598789768 * home_RENT + -0.007334130929565608 * interest_rate + 0.15900918491217933 * log_income + -0.05059896988029208 * log_loan + 2.760434487139317 * lti + -0.08305184898288649 * purpose_freq + 0.056118387545985644 * revol_missing + 0.00851457988271576 * revol_util_filled + 0.3074593795303329 * term60)))"
+    }
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "split",
+      "values": [
+        "1"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_QUANTILE",
+      "field": "pd_leaky",
+      "interval": 10
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "loan_id",
+      "label": "loans"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "default_12m",
+      "label": "defaults"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "default_12m",
+      "label": "observed_rate"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "pd_leaky",
+      "label": "mean_pd"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "gt_true_pd",
+      "label": "mean_true_pd"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "loan_amount",
+      "label": "principal_usd"
+    }
+  ],
+  "windows": [
+    {
+      "type": "WIN_RUNNING_SUM",
+      "field": "defaults",
+      "label": "cum_defaults",
+      "order_by": [
+        {
+          "field": "mean_pd",
+          "desc": true
+        }
+      ],
+      "frame": {
+        "mode": "rows",
+        "preceding": null,
+        "following": 0
+      }
+    },
+    {
+      "type": "WIN_RUNNING_SUM",
+      "field": "loans",
+      "label": "cum_loans",
+      "order_by": [
+        {
+          "field": "mean_pd",
+          "desc": true
+        }
+      ],
+      "frame": {
+        "mode": "rows",
+        "preceding": null,
+        "following": 0
+      }
+    }
+  ],
+  "sort": [
+    {
+      "field": "mean_pd",
+      "desc": true
+    }
+  ]
+}

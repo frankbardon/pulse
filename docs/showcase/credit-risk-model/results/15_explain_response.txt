@@ -1,0 +1,13 @@
+This response reports 4 tests and 5 aggregations from 18000 of 60000 records; 4 of 4 inferential findings show evidence at their alpha.
+
+- tests[0]: `pd_score` split by `outcome` [evidence_of_difference]
+- tests[1]: `pd_all22` split by `outcome` [evidence_of_difference]
+- tests[2]: `gt_true_pd` split by `outcome` [evidence_of_difference]
+- tests[3]: `pd_leaky` split by `outcome` [evidence_of_difference]
+- aggregations[0]: holdout_loans [descriptive]
+- aggregations[1]: observed_default_rate [descriptive]
+- aggregations[2]: mean_predicted_pd [descriptive]
+- aggregations[3]: mean_true_pd [descriptive]
+- aggregations[4]: holdout_principal_usd [descriptive]
+caveat: 4 p-values here carry no adjustment for multiple comparisons, so some may fall below alpha by chance alone; this is the concern the PULSE_ADVISORY_MANY_TESTS advisory raises.
+caveat: Adding a multiplicity block (for example holm) adjusts them for multiple comparisons; then read p_adjusted beside each raw p-value.

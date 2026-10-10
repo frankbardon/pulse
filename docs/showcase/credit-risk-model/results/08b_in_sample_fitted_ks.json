@@ -1,0 +1,66 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 42000,
+      "cohort_file": "./loans.pulse"
+    },
+    "tests": [
+      {
+        "label": "ks_clean_in_sample",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.3313387787259654,
+        "p_value": 0,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "defaulted",
+            "performing"
+          ],
+          "n": [
+            5013,
+            36987
+          ]
+        }
+      },
+      {
+        "label": "ks_leaky_in_sample",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.768786328714294,
+        "p_value": 0,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "defaulted",
+            "performing"
+          ],
+          "n": [
+            5013,
+            36987
+          ]
+        }
+      }
+    ],
+    "components": {
+      "filterers": [
+        {
+          "n_in": 60000,
+          "n_out": 42000,
+          "n_null_input": 0
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 42000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

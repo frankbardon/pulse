@@ -1,0 +1,104 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 42000,
+      "cohort_file": "./loans.pulse"
+    },
+    "regressions": [
+      {
+        "name": "pd_stepwise_bic_te",
+        "type": "REG_GLM",
+        "family": "binomial",
+        "link": "logit",
+        "selection": "stepwise",
+        "criterion": "bic",
+        "coefficients": {
+          "(intercept)": -2.014235306835319,
+          "band_B": -0.20475349054207204,
+          "band_G": -0.29262903393155737,
+          "delinq_2yrs": 0.3181732153052332,
+          "dti": 0.032499543538777334,
+          "emp_missing": 0.3109739440527712,
+          "emp_years": -0.029471446004756447,
+          "fico_score": -0.005944138631784686,
+          "home_RENT": 0.23338756205678332,
+          "interest_rate": 0.07649277527560447,
+          "lti": 2.080671151133085,
+          "purpose_te_train": 9.809227904531932,
+          "revol_util_filled": 0.008372042677839406,
+          "term60": 0.23126671622685363
+        },
+        "std_errors": {
+          "(intercept)": 0.9563997004490992,
+          "band_B": 0.061708405382081784,
+          "band_G": 0.06809991033335895,
+          "delinq_2yrs": 0.026004306189210052,
+          "dti": 0.002004018321985167,
+          "emp_missing": 0.06413236062920406,
+          "emp_years": 0.0043888426648358144,
+          "fico_score": 0.0011475256158612816,
+          "home_RENT": 0.031830321239379324,
+          "interest_rate": 0.010714073768412555,
+          "lti": 0.13855438864825906,
+          "purpose_te_train": 0.7377015346597703,
+          "revol_util_filled": 0.0007354331184837057,
+          "term60": 0.03863031834736443
+        },
+        "p_values": {
+          "(intercept)": 0.03519912686792486,
+          "band_B": 0.0009063817963884545,
+          "band_G": 0.000017308256241684478,
+          "delinq_2yrs": 2.0109952664277003e-34,
+          "dti": 3.812495134616888e-59,
+          "emp_missing": 0.000001241231953060876,
+          "emp_years": 1.8795825027060648e-11,
+          "fico_score": 2.2193157411350874e-7,
+          "home_RENT": 2.2633689467818914e-13,
+          "interest_rate": 9.369356073990627e-13,
+          "lti": 5.68224249813206e-51,
+          "purpose_te_train": 2.4089702257618076e-40,
+          "revol_util_filled": 5.034162846422552e-30,
+          "term60": 2.141892906429447e-9
+        },
+        "deviance": 27364.96599765024,
+        "null_deviance": 30713.94341691641,
+        "pseudo_r2": 0.10903768929331437,
+        "n_obs": 42000,
+        "converged_iters": 6,
+        "selected_features": [
+          "interest_rate",
+          "dti",
+          "lti",
+          "purpose_te_train",
+          "delinq_2yrs",
+          "revol_util_filled",
+          "emp_years",
+          "home_RENT",
+          "band_G",
+          "emp_missing",
+          "term60",
+          "fico_score",
+          "band_B"
+        ]
+      }
+    ],
+    "components": {
+      "filterers": [
+        {
+          "n_in": 60000,
+          "n_out": 42000,
+          "n_null_input": 0
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 42000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

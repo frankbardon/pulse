@@ -1,0 +1,9 @@
+{
+  "cohort": {"filename": "loans.pulse", "data_dir": "."},
+  "groups": [{"type": "GROUP_CATEGORY", "field": "purpose"}],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "loan_id", "label": "applications"},
+    {"type": "AGG_AVERAGE", "field": "default_12m", "label": "default_rate"}
+  ],
+  "sort": [{"field": "applications", "desc": true}]
+}

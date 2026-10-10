@@ -1,0 +1,11 @@
+{
+  "cohort": {"filename": "loans.pulse", "data_dir": "."},
+  "features": [
+    {"type": "FEAT_TRAIN_TEST_SPLIT", "label": "split", "params": {"ratios": [0.7, 0.3], "seed": 42, "stratify": "outcome"}},
+    {"type": "FEAT_TARGET_ENCODE", "field": "purpose", "label": "purpose_te", "params": {"target": "default_12m", "smoothing": 20}}
+  ],
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "split", "values": ["0"]}],
+  "regressions": [
+    {"type": "REG_GLM", "name": "te_logit", "target": "default_12m", "predictors": ["purpose_te", "fico_score", "dti"], "family": "binomial", "link": "logit"}
+  ]
+}

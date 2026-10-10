@@ -1,0 +1,12 @@
+{
+  "cohort": {"filename": "loans.pulse", "data_dir": "."},
+  "filterers": [
+    {"type": "FILTER_NULL", "field": "emp_length_years", "values": ["is_not_null"]}
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "loan_id", "label": "applications"},
+    {"type": "AGG_AVERAGE", "field": "default_12m", "label": "default_rate"},
+    {"type": "AGG_AVERAGE", "field": "annual_income", "label": "mean_income_usd"},
+    {"type": "AGG_AVERAGE", "field": "fico_score", "label": "mean_fico"}
+  ]
+}

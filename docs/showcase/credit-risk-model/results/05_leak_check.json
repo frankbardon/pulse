@@ -1,0 +1,206 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "applications": 7162,
+        "collections_rate": 0.8485060039095225,
+        "loans_with_recovery": "7162",
+        "mean_fico_at_application": 662.2189332588663,
+        "mean_fico_at_month_12": 607.3321697849763,
+        "outcome": "defaulted",
+        "recovered_usd": "25360579.68"
+      },
+      {
+        "applications": 52838,
+        "collections_rate": 0.009671070063212082,
+        "loans_with_recovery": "0",
+        "mean_fico_at_application": 699.1295658427647,
+        "mean_fico_at_month_12": 704.0479389833075,
+        "outcome": "performing",
+        "recovered_usd": "0.00"
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 60000,
+      "cohort_file": "./loans.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "applications",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "defaulted"
+              ],
+              "n": 7162,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "performing"
+              ],
+              "n": 52838,
+              "n_null": 0
+            }
+          ]
+        },
+        {
+          "label": "mean_fico_at_application",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "defaulted"
+              ],
+              "n": 7162,
+              "n_null": 0,
+              "operator": {
+                "sum": 4742812
+              }
+            },
+            {
+              "group_key": [
+                "performing"
+              ],
+              "n": 52838,
+              "n_null": 0,
+              "operator": {
+                "sum": 36940608
+              }
+            }
+          ]
+        },
+        {
+          "label": "mean_fico_at_month_12",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "defaulted"
+              ],
+              "n": 7162,
+              "n_null": 0,
+              "operator": {
+                "sum": 4349713
+              }
+            },
+            {
+              "group_key": [
+                "performing"
+              ],
+              "n": 52838,
+              "n_null": 0,
+              "operator": {
+                "sum": 37200485
+              }
+            }
+          ]
+        },
+        {
+          "label": "collections_rate",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "defaulted"
+              ],
+              "n": 7162,
+              "n_null": 0,
+              "operator": {
+                "sum": 6077
+              }
+            },
+            {
+              "group_key": [
+                "performing"
+              ],
+              "n": 52838,
+              "n_null": 0,
+              "operator": {
+                "sum": 511
+              }
+            }
+          ]
+        },
+        {
+          "label": "loans_with_recovery",
+          "n": 7162,
+          "n_null": 52838,
+          "groups": [
+            {
+              "group_key": [
+                "defaulted"
+              ],
+              "n": 7162,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "performing"
+              ],
+              "n": 0,
+              "n_null": 52838
+            }
+          ]
+        },
+        {
+          "label": "recovered_usd",
+          "n": 7162,
+          "n_null": 52838,
+          "groups": [
+            {
+              "group_key": [
+                "defaulted"
+              ],
+              "n": 7162,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "performing"
+              ],
+              "n": 0,
+              "n_null": 52838
+            }
+          ]
+        }
+      ],
+      "groupers": [
+        {
+          "field": "outcome",
+          "total_n": 60000,
+          "operator": {
+            "buckets": [
+              {
+                "count": 7162,
+                "key": "defaulted",
+                "label": "defaulted"
+              },
+              {
+                "count": 52838,
+                "key": "performing",
+                "label": "performing"
+              }
+            ],
+            "dict_size": 2
+          }
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 60000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

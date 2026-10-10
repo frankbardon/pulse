@@ -1,0 +1,164 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "valid": true,
+    "request": {
+      "cohort": {
+        "filename": "loans.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "split",
+          "values": [
+            "0"
+          ]
+        }
+      ],
+      "features": [
+        {
+          "type": "FEAT_TRAIN_TEST_SPLIT",
+          "label": "split",
+          "params": {
+            "ratios": [
+              0.7,
+              0.3
+            ],
+            "seed": 42,
+            "stratify": "outcome"
+          }
+        },
+        {
+          "type": "FEAT_TARGET_ENCODE",
+          "field": "purpose",
+          "label": "purpose_te",
+          "params": {
+            "target": "default_12m",
+            "smoothing": 20
+          }
+        }
+      ],
+      "regressions": [
+        {
+          "type": "REG_GLM",
+          "name": "te_logit",
+          "target": "default_12m",
+          "predictors": [
+            "purpose_te",
+            "fico_score",
+            "dti"
+          ],
+          "family": "binomial",
+          "link": "logit"
+        }
+      ]
+    },
+    "schema_info": {
+      "field_count": 22,
+      "fields": [
+        "loan_id",
+        "application_date",
+        "state",
+        "purpose",
+        "fico_score",
+        "credit_band",
+        "term_months",
+        "interest_rate",
+        "annual_income",
+        "loan_amount",
+        "dti",
+        "revol_util",
+        "emp_length_years",
+        "home_ownership",
+        "delinq_2yrs",
+        "gt_true_pd",
+        "gt_uniform_draw",
+        "default_12m",
+        "outcome",
+        "fico_at_month_12",
+        "collections_flag",
+        "recovery_amount"
+      ]
+    },
+    "record_count": 0,
+    "shards": [],
+    "streamable": false,
+    "streamable_reasons": [
+      "regression REG_GLM requires the buffered path under the current spec",
+      "regression with features runs via the buffered path",
+      "no aggregations: streaming path requires at least one OnlineAggregator"
+    ],
+    "suggestions": [],
+    "defaults_applied": [],
+    "aggregations": [],
+    "groups": [],
+    "filterers": [
+      {
+        "type": "FILTER_INCLUDE",
+        "field": "split",
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      }
+    ],
+    "overlays_applied": [],
+    "overlays_schema_divergence": [],
+    "overlay_cost": {},
+    "time_zones": [],
+    "sizes": [
+      {
+        "section": "data",
+        "full_bytes": 38940010,
+        "shaped_bytes": 38940010,
+        "basis": "upper_bound"
+      },
+      {
+        "section": "metadata",
+        "full_bytes": 116,
+        "shaped_bytes": 116,
+        "basis": "heuristic"
+      },
+      {
+        "section": "regressions",
+        "full_bytes": 536,
+        "shaped_bytes": 536,
+        "basis": "heuristic"
+      },
+      {
+        "section": "components",
+        "full_bytes": 200,
+        "shaped_bytes": 200,
+        "basis": "heuristic"
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": [
+    {
+      "code": "PULSE_FEAT_TARGET_LEAKAGE_RISK",
+      "message": "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding FEAT_TRAIN_TEST_SPLIT does not change that",
+      "details": {
+        "feature": "FEAT_TARGET_ENCODE",
+        "feature_index": 1
+      }
+    }
+  ]
+}
