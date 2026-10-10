@@ -17,7 +17,10 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | (required) | Smoothing factor in `(0, 1]`; higher = more weight on recent. |
+| `alpha` | float | — | Smoothing factor in `(0, 1]`; higher = more weight on recent. |
+| `decay` | float | — | Carry-over share in `[0, 1)` (adstock decay); `alpha = 1 − decay`. |
+
+Give EXACTLY ONE of `alpha` / `decay`.
 
 `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (REQUIRED `{mode: "rows"}`; ignored by the recurrence). `field` (required, numeric).
 
@@ -36,7 +39,8 @@ One `float64` per row written to `Label` (default `WIN_EWMA_<field>`). Recurrenc
 ## Gotchas
 
 - Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
-- `alpha` REQUIRED — missing or out of `(0, 1]` → `PULSE_WINDOW_INVALID`.
+- Exactly one of `alpha` / `decay` — both, neither, `alpha` outside `(0, 1]` or `decay` outside `[0, 1)` → `PULSE_WINDOW_INVALID` (runtime `PROCESSING_CONFIG`).
+- `alpha = 1 − decay` from the decay's EXACT decimal: `decay: 0.7` smooths bit-identically to `alpha: 0.3` (not float `1 − 0.7`). `decay: 0` is `alpha: 1` (identity).
 - Rows preceding the first non-null emit `null` (no seed).
 - Null values emit `null` but state survives through to the next non-null row.
 - Result rows are NOT reordered — use `Request.Sort`.

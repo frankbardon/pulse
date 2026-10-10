@@ -311,7 +311,12 @@ func TestPredictWindow_EwmaAlphaBounds(t *testing.T) {
 		params json.RawMessage
 		expect string
 	}{
-		{"missing alpha", json.RawMessage(`{}`), "alpha is required"},
+		{"missing alpha", json.RawMessage(`{}`), "exactly one of params.alpha or params.decay is required"},
+		{"alpha and decay", json.RawMessage(`{"alpha": 0.3, "decay": 0.7}`), "mutually exclusive"},
+		{"decay = 1", json.RawMessage(`{"decay": 1}`), "params.decay must be in [0, 1)"},
+		{"decay < 0", json.RawMessage(`{"decay": -0.5}`), "params.decay must be in [0, 1)"},
+		{"decay not a number", json.RawMessage(`{"decay": "0.7"}`), "params.decay must be a number"},
+		{"malformed", json.RawMessage(`{"alpha": "0.3"}`), "malformed params"},
 		{"alpha = 0", json.RawMessage(`{"alpha": 0}`), "alpha must be in (0, 1]"},
 		{"alpha > 1", json.RawMessage(`{"alpha": 1.5}`), "alpha must be in (0, 1]"},
 		{"alpha < 0", json.RawMessage(`{"alpha": -0.1}`), "alpha must be in (0, 1]"},

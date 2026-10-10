@@ -2,11 +2,13 @@ package descriptor
 
 import (
 	"encoding/json"
+	"maps"
 	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/ewmaparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -259,32 +261,15 @@ func validateWindowParams(env *descriptor.Envelope, i int, w *types.Window) {
 	idx := strconv.Itoa(i)
 	switch w.Type {
 	case types.WIN_EWMA:
-		var p struct {
-			Alpha *float64 `json:"alpha"`
-		}
-		if len(w.Params) > 0 {
-			if err := json.Unmarshal(w.Params, &p); err != nil {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"] (WIN_EWMA): malformed params: "+err.Error(),
-					map[string]any{"window_index": i},
-				)
-				return
-			}
-		}
-		if p.Alpha == nil {
+		// One params reading with the runtime factory (internal/ewmaparams):
+		// exactly one of alpha / decay, each in range.
+		if _, ref := ewmaparams.Resolve(w.Params); ref != nil {
+			details := map[string]any{"window_index": i}
+			maps.Copy(details, ref.Details)
 			env.AddError(
 				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] (WIN_EWMA): params.alpha is required",
-				map[string]any{"window_index": i},
-			)
-			return
-		}
-		if *p.Alpha <= 0 || *p.Alpha > 1 {
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] (WIN_EWMA): params.alpha must be in (0, 1]",
-				map[string]any{"window_index": i, "alpha": *p.Alpha},
+				"window["+idx+"] (WIN_EWMA): "+ref.Message,
+				details,
 			)
 		}
 

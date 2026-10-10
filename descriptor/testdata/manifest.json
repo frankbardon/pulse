@@ -4063,13 +4063,19 @@
         {
           "name": "WIN_EWMA",
           "category": "window",
-          "description": "Exponentially weighted moving average; current = α·value + (1−α)·previous.",
+          "description": "Exponentially weighted moving average; current = α·value + (1−α)·previous. Give exactly one of alpha or decay; alpha = 1 − decay.",
           "params": [
             {
               "name": "alpha",
               "type": "float",
-              "required": true,
-              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more."
+              "required": false,
+              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay."
+            },
+            {
+              "name": "decay",
+              "type": "float",
+              "required": false,
+              "description": "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal. Exactly one of alpha or decay."
             }
           ],
           "accepts_types": [
@@ -13284,4 +13290,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1a03efd8986808c7ed4e0abd6ff0b4c2329c541d49b8607b167cf4d8fec69acd
+// golden-hash: 07faf05cb22f70d0a96cbc21e3a8e38969da8a17e3469af16d29769d7314e86b

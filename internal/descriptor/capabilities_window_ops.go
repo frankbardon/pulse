@@ -94,9 +94,10 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.WIN_EWMA),
 			Category:    "window",
-			Description: "Exponentially weighted moving average; current = α·value + (1−α)·previous.",
+			Description: "Exponentially weighted moving average; current = α·value + (1−α)·previous. Give exactly one of alpha or decay; alpha = 1 − decay.",
 			Params: []descriptor.Param{
-				{Name: "alpha", Type: "float", Required: true, Description: "Smoothing factor in (0, 1]; higher values weight recent observations more."},
+				{Name: "alpha", Type: "float", Required: false, Description: "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay."},
+				{Name: "decay", Type: "float", Required: false, Description: "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal. Exactly one of alpha or decay."},
 			},
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "f64",

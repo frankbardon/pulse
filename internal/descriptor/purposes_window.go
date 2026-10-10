@@ -289,7 +289,7 @@ var (
 			winOnResultRows,
 			winPerPartition,
 			winRowsNotTime,
-			"The share w is set directly (params.alpha, above 0 and at most 1); it seeds from the partition's first value present.",
+			"The share w is set directly (params.alpha, above 0 and at most 1) or as its complement (params.decay = 1 - w, at least 0 and below 1); it seeds from the partition's first value present.",
 			"A missing value reads null and the smoothing carries over it.",
 		},
 		Level:    descriptor.LevelIntermediate,

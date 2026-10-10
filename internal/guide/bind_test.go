@@ -146,6 +146,7 @@ var unmappedOnFixture = map[[2]string]string{
 	{"data_quality", "ATTR_REG_RESIDUAL"}:       "regression attributes take target and predictors the manifest does not declare",
 	{"data_quality", "ATTR_REG_LEVERAGE"}:       "regression attributes take target and predictors the manifest does not declare",
 	{"segment", "FEAT_BUCKETIZE"}:               "needs boundaries or quantiles, neither declared required",
+	{"change_over_time", "WIN_EWMA"}:            "needs alpha or decay, neither declared required",
 	{"compare_groups", "GROUP_DATE_RANGES"}:     "compare_groups takes no date field",
 	{"compare_groups", "GROUP_SET_PER_ELEMENT"}: "compare_groups takes no set field",
 }
