@@ -1,0 +1,384 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "applications": 7204,
+        "credit_band": "A",
+        "default_rate": 0.027623542476402,
+        "mean_rate_pct": 7.520377568017748,
+        "principal_usd": "86756547.77"
+      },
+      {
+        "applications": 12226,
+        "credit_band": "B",
+        "default_rate": 0.04858498282349092,
+        "mean_rate_pct": 10.508220186487815,
+        "principal_usd": "147549620.97"
+      },
+      {
+        "applications": 12737,
+        "credit_band": "C",
+        "default_rate": 0.09130878542827982,
+        "mean_rate_pct": 14.021441469733821,
+        "principal_usd": "154679143.74"
+      },
+      {
+        "applications": 12205,
+        "credit_band": "D",
+        "default_rate": 0.13740270380991396,
+        "mean_rate_pct": 17.504732486685867,
+        "principal_usd": "147427911.63"
+      },
+      {
+        "applications": 8511,
+        "credit_band": "E",
+        "default_rate": 0.1899894254494184,
+        "mean_rate_pct": 21.006832334625756,
+        "principal_usd": "102462670.34"
+      },
+      {
+        "applications": 4585,
+        "credit_band": "F",
+        "default_rate": 0.25321701199563795,
+        "mean_rate_pct": 24.5110359869138,
+        "principal_usd": "55732919.25"
+      },
+      {
+        "applications": 2532,
+        "credit_band": "G",
+        "default_rate": 0.29660347551342814,
+        "mean_rate_pct": 28.01499210110582,
+        "principal_usd": "30121290.12"
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 60000,
+      "cohort_file": "./loans.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "applications",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "A"
+              ],
+              "n": 7204,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "B"
+              ],
+              "n": 12226,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "C"
+              ],
+              "n": 12737,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "D"
+              ],
+              "n": 12205,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "E"
+              ],
+              "n": 8511,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "F"
+              ],
+              "n": 4585,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "G"
+              ],
+              "n": 2532,
+              "n_null": 0
+            }
+          ]
+        },
+        {
+          "label": "default_rate",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "A"
+              ],
+              "n": 7204,
+              "n_null": 0,
+              "operator": {
+                "sum": 199
+              }
+            },
+            {
+              "group_key": [
+                "B"
+              ],
+              "n": 12226,
+              "n_null": 0,
+              "operator": {
+                "sum": 594
+              }
+            },
+            {
+              "group_key": [
+                "C"
+              ],
+              "n": 12737,
+              "n_null": 0,
+              "operator": {
+                "sum": 1163
+              }
+            },
+            {
+              "group_key": [
+                "D"
+              ],
+              "n": 12205,
+              "n_null": 0,
+              "operator": {
+                "sum": 1677
+              }
+            },
+            {
+              "group_key": [
+                "E"
+              ],
+              "n": 8511,
+              "n_null": 0,
+              "operator": {
+                "sum": 1617
+              }
+            },
+            {
+              "group_key": [
+                "F"
+              ],
+              "n": 4585,
+              "n_null": 0,
+              "operator": {
+                "sum": 1161
+              }
+            },
+            {
+              "group_key": [
+                "G"
+              ],
+              "n": 2532,
+              "n_null": 0,
+              "operator": {
+                "sum": 751
+              }
+            }
+          ]
+        },
+        {
+          "label": "mean_rate_pct",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "A"
+              ],
+              "n": 7204,
+              "n_null": 0,
+              "operator": {
+                "sum": 54176.79999999986
+              }
+            },
+            {
+              "group_key": [
+                "B"
+              ],
+              "n": 12226,
+              "n_null": 0,
+              "operator": {
+                "sum": 128473.50000000003
+              }
+            },
+            {
+              "group_key": [
+                "C"
+              ],
+              "n": 12737,
+              "n_null": 0,
+              "operator": {
+                "sum": 178591.0999999997
+              }
+            },
+            {
+              "group_key": [
+                "D"
+              ],
+              "n": 12205,
+              "n_null": 0,
+              "operator": {
+                "sum": 213645.26000000103
+              }
+            },
+            {
+              "group_key": [
+                "E"
+              ],
+              "n": 8511,
+              "n_null": 0,
+              "operator": {
+                "sum": 178789.14999999982
+              }
+            },
+            {
+              "group_key": [
+                "F"
+              ],
+              "n": 4585,
+              "n_null": 0,
+              "operator": {
+                "sum": 112383.09999999977
+              }
+            },
+            {
+              "group_key": [
+                "G"
+              ],
+              "n": 2532,
+              "n_null": 0,
+              "operator": {
+                "sum": 70933.95999999993
+              }
+            }
+          ]
+        },
+        {
+          "label": "principal_usd",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "A"
+              ],
+              "n": 7204,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "B"
+              ],
+              "n": 12226,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "C"
+              ],
+              "n": 12737,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "D"
+              ],
+              "n": 12205,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "E"
+              ],
+              "n": 8511,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "F"
+              ],
+              "n": 4585,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "G"
+              ],
+              "n": 2532,
+              "n_null": 0
+            }
+          ]
+        }
+      ],
+      "groupers": [
+        {
+          "field": "credit_band",
+          "total_n": 60000,
+          "operator": {
+            "buckets": [
+              {
+                "count": 7204,
+                "key": "A",
+                "label": "A"
+              },
+              {
+                "count": 12226,
+                "key": "B",
+                "label": "B"
+              },
+              {
+                "count": 12737,
+                "key": "C",
+                "label": "C"
+              },
+              {
+                "count": 12205,
+                "key": "D",
+                "label": "D"
+              },
+              {
+                "count": 8511,
+                "key": "E",
+                "label": "E"
+              },
+              {
+                "count": 4585,
+                "key": "F",
+                "label": "F"
+              },
+              {
+                "count": 2532,
+                "key": "G",
+                "label": "G"
+              }
+            ],
+            "dict_size": 7
+          }
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 60000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

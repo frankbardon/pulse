@@ -1,0 +1,62 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "applications": 3603,
+        "default_rate": 0.16985845129059118,
+        "mean_fico": 695.5045795170691,
+        "mean_income_usd": "72394.3490"
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 3603,
+      "cohort_file": "./loans.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "applications",
+          "n": 3603,
+          "n_null": 0
+        },
+        {
+          "label": "default_rate",
+          "n": 3603,
+          "n_null": 0,
+          "operator": {
+            "sum": 612
+          }
+        },
+        {
+          "label": "mean_income_usd",
+          "n": 3603,
+          "n_null": 0
+        },
+        {
+          "label": "mean_fico",
+          "n": 3603,
+          "n_null": 0,
+          "operator": {
+            "sum": 2505903
+          }
+        }
+      ],
+      "filterers": [
+        {
+          "n_in": 60000,
+          "n_out": 3603,
+          "n_null_input": 3603
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 3603,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

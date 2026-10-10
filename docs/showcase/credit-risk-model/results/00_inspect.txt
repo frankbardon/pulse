@@ -1,0 +1,29 @@
+Records: 60000
+Fields: 22
+  loan_id                        u32                  Application identifier.
+  application_date               date                 Date the application was booked.
+  state                          categorical_u8       Borrower state of residence (two-letter code; OTHER pools the long tail).
+    dictionary: 16 entries
+  purpose                        categorical_u8       Stated loan purpose from the application form (40 levels, long tail).
+    dictionary: 40 entries
+  fico_score                     u16                  Bureau credit score at application.
+  credit_band                    categorical_u8       Internal risk band A (best) to G (worst), cut from fico_score.
+    dictionary: 7 entries
+  term_months                    u8                   Loan term in months (36 or 60).
+  interest_rate                  f64                  Annual interest rate in percent, priced off band and term.
+  annual_income                  decimal128           Self-reported gross annual income, USD.
+  loan_amount                    decimal128           Funded principal, USD.
+  dti                            f64                  Debt-to-income ratio in percent, excluding this loan.
+  revol_util                     f64                  Revolving credit utilisation in percent; null when the bureau file has no revolving lines.
+  emp_length_years               u8                   Years with current employer (10 = 10 or more); null when not stated.
+  home_ownership                 categorical_u8       Housing status.
+    dictionary: 4 entries
+  delinq_2yrs                    u8                   30+ day delinquencies on the bureau file in the prior 24 months.
+  gt_true_pd                     f64                  GROUND TRUTH (simulation only): the true 12-month default probability used to draw the outcome. Never a model input.
+  gt_uniform_draw                f64                  GROUND TRUTH (simulation only): the uniform draw compared against gt_true_pd. Never a model input.
+  default_12m                    packed_bool          Outcome: 1 if the loan went 90+ days past due or charged off within 12 months of booking.
+  outcome                        categorical_u8       Outcome as a label (performing / defaulted); mirrors default_12m so it can stratify a split and split a two-sample test.
+    dictionary: 2 entries
+  fico_at_month_12               u16                  POST-OUTCOME: bureau score re-pulled 12 months after booking (account monitoring). Reflects any delinquency on this loan; not known at application.
+  collections_flag               packed_bool          POST-OUTCOME: account was referred to collections. Set after the outcome window; not known at application.
+  recovery_amount                decimal128           POST-OUTCOME: USD recovered after charge-off; null for loans that did not default.

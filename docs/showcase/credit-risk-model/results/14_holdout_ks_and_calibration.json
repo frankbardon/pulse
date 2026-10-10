@@ -1,0 +1,149 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "holdout_loans": 18000,
+        "holdout_principal_usd": "216619624.62",
+        "mean_predicted_pd": 0.11864497974511932,
+        "mean_true_pd": 0.11943334804092251,
+        "observed_default_rate": 0.11938888888888889
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 18000,
+      "cohort_file": "./loans.pulse"
+    },
+    "tests": [
+      {
+        "label": "ks_final_model",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.3654370435898826,
+        "p_value": 3.546794605380079e-221,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "defaulted",
+            "performing"
+          ],
+          "n": [
+            2149,
+            15851
+          ]
+        }
+      },
+      {
+        "label": "ks_all_22_candidates",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.3562847761049787,
+        "p_value": 2.9422194908080934e-210,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "defaulted",
+            "performing"
+          ],
+          "n": [
+            2149,
+            15851
+          ]
+        }
+      },
+      {
+        "label": "ks_true_pd_ceiling",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.36846524370344014,
+        "p_value": 7.51901601827192e-225,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "defaulted",
+            "performing"
+          ],
+          "n": [
+            2149,
+            15851
+          ]
+        }
+      },
+      {
+        "label": "ks_leaky_model",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.7669595220427411,
+        "p_value": 0,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "defaulted",
+            "performing"
+          ],
+          "n": [
+            2149,
+            15851
+          ]
+        }
+      }
+    ],
+    "components": {
+      "aggregations": [
+        {
+          "label": "holdout_loans",
+          "n": 18000,
+          "n_null": 0
+        },
+        {
+          "label": "observed_default_rate",
+          "n": 18000,
+          "n_null": 0,
+          "operator": {
+            "sum": 2149
+          }
+        },
+        {
+          "label": "mean_predicted_pd",
+          "n": 18000,
+          "n_null": 0,
+          "operator": {
+            "sum": 2135.609635412148
+          }
+        },
+        {
+          "label": "mean_true_pd",
+          "n": 18000,
+          "n_null": 0,
+          "operator": {
+            "sum": 2149.800264736605
+          }
+        },
+        {
+          "label": "holdout_principal_usd",
+          "n": 18000,
+          "n_null": 0
+        }
+      ],
+      "filterers": [
+        {
+          "n_in": 60000,
+          "n_out": 18000,
+          "n_null_input": 0
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 18000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

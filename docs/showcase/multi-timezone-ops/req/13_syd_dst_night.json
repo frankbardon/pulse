@@ -1,0 +1,203 @@
+{
+  "requests": [
+    {
+      "label": "sydney_hours_earlier",
+      "cohort": {
+        "filename": "syd_night_sort_earlier.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Australia/Sydney",
+      "filterers": [
+        {
+          "type": "FILTER_DATE_RANGES",
+          "field": "batch_closed_at",
+          "tz": "Australia/Sydney",
+          "params": {
+            "ranges": [
+              {
+                "label": "dst_night",
+                "start": "2026-04-05",
+                "end": "2026-04-05"
+              }
+            ]
+          }
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "batch_closed_at",
+          "params": {
+            "component": "hour"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "parcels",
+          "label": "batches"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "parcels",
+          "label": "parcels"
+        }
+      ],
+      "sort": [
+        {
+          "field": "batch_closed_at"
+        }
+      ]
+    },
+    {
+      "label": "utc_hours_earlier",
+      "cohort": {
+        "filename": "syd_night_sort_earlier.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "UTC",
+      "filterers": [
+        {
+          "type": "FILTER_DATE_RANGES",
+          "field": "batch_closed_at",
+          "tz": "Australia/Sydney",
+          "params": {
+            "ranges": [
+              {
+                "label": "dst_night",
+                "start": "2026-04-05",
+                "end": "2026-04-05"
+              }
+            ]
+          }
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "batch_closed_at",
+          "params": {
+            "component": "hour"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "parcels",
+          "label": "batches"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "parcels",
+          "label": "parcels"
+        }
+      ],
+      "sort": [
+        {
+          "field": "batch_closed_at"
+        }
+      ]
+    },
+    {
+      "label": "utc_hours_later",
+      "cohort": {
+        "filename": "syd_night_sort_later.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "UTC",
+      "filterers": [
+        {
+          "type": "FILTER_DATE_RANGES",
+          "field": "batch_closed_at",
+          "tz": "Australia/Sydney",
+          "params": {
+            "ranges": [
+              {
+                "label": "dst_night",
+                "start": "2026-04-05",
+                "end": "2026-04-05"
+              }
+            ]
+          }
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "batch_closed_at",
+          "params": {
+            "component": "hour"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "parcels",
+          "label": "batches"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "parcels",
+          "label": "parcels"
+        }
+      ],
+      "sort": [
+        {
+          "field": "batch_closed_at"
+        }
+      ]
+    },
+    {
+      "label": "sydney_nights_earlier",
+      "cohort": {
+        "filename": "syd_night_sort_earlier.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Australia/Sydney",
+      "filterers": [
+        {
+          "type": "FILTER_DATE_RANGES",
+          "field": "batch_closed_at",
+          "params": {
+            "ranges": [
+              {
+                "label": "dst_week",
+                "start": "2026-04-02",
+                "end": "2026-04-08"
+              }
+            ]
+          }
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_DATE",
+          "field": "batch_closed_at",
+          "params": {
+            "component": "day"
+          }
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "parcels",
+          "label": "batches"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "parcels",
+          "label": "parcels"
+        }
+      ],
+      "sort": [
+        {
+          "field": "batch_closed_at"
+        }
+      ]
+    }
+  ]
+}

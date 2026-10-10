@@ -1,0 +1,148 @@
+{
+  "requests": [
+    {
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_NULL",
+          "field": "nps",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "field": "nps",
+          "label": "nps_score",
+          "expression": "nps >= 9 ? 100 : (nps <= 6 ? -100 : 0)"
+        }
+      ],
+      "label": "total",
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "respondents",
+          "weight": null
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "nps_score",
+          "label": "nps_unweighted",
+          "weight": null
+        },
+        {
+          "type": "AGG_CI_LOWER",
+          "field": "nps_score",
+          "label": "nps_ci_low_unweighted",
+          "weight": null
+        },
+        {
+          "type": "AGG_CI_UPPER",
+          "field": "nps_score",
+          "label": "nps_ci_high_unweighted",
+          "weight": null
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "nps_score",
+          "label": "nps_weighted"
+        },
+        {
+          "type": "AGG_CI_LOWER",
+          "field": "nps_score",
+          "label": "nps_ci_low_weighted"
+        },
+        {
+          "type": "AGG_CI_UPPER",
+          "field": "nps_score",
+          "label": "nps_ci_high_weighted"
+        }
+      ]
+    },
+    {
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_NULL",
+          "field": "nps",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "field": "nps",
+          "label": "nps_score",
+          "expression": "nps >= 9 ? 100 : (nps <= 6 ? -100 : 0)"
+        }
+      ],
+      "label": "by_age",
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "age_band"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "respondents",
+          "weight": null
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "nps_score",
+          "label": "nps_unweighted",
+          "weight": null
+        },
+        {
+          "type": "AGG_CI_LOWER",
+          "field": "nps_score",
+          "label": "nps_ci_low_unweighted",
+          "weight": null
+        },
+        {
+          "type": "AGG_CI_UPPER",
+          "field": "nps_score",
+          "label": "nps_ci_high_unweighted",
+          "weight": null
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "nps_score",
+          "label": "nps_weighted"
+        },
+        {
+          "type": "AGG_CI_LOWER",
+          "field": "nps_score",
+          "label": "nps_ci_low_weighted"
+        },
+        {
+          "type": "AGG_CI_UPPER",
+          "field": "nps_score",
+          "label": "nps_ci_high_weighted"
+        }
+      ]
+    }
+  ]
+}

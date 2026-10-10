@@ -1,0 +1,57 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 42000,
+      "cohort_file": "./loans.pulse"
+    },
+    "regressions": [
+      {
+        "name": "te_logit",
+        "type": "REG_GLM",
+        "family": "binomial",
+        "link": "logit",
+        "coefficients": {
+          "(intercept)": 5.4070636220487795,
+          "dti": 0.031360431818204346,
+          "fico_score": -0.013367626079233672,
+          "purpose_te": 9.136330664572457
+        },
+        "std_errors": {
+          "(intercept)": 0.2234211618807505,
+          "dti": 0.001976435387680099,
+          "fico_score": 0.0003074658861062174,
+          "purpose_te": 0.7205656141868944
+        },
+        "p_values": {
+          "(intercept)": 2.1601415302032802e-129,
+          "dti": 1.069597665378799e-56,
+          "fico_score": 0,
+          "purpose_te": 7.69306323520865e-37
+        },
+        "deviance": 28234.748569445776,
+        "null_deviance": 30713.94341691641,
+        "pseudo_r2": 0.08071887135486355,
+        "n_obs": 42000,
+        "converged_iters": 6
+      }
+    ],
+    "components": {
+      "filterers": [
+        {
+          "n_in": 60000,
+          "n_out": 42000,
+          "n_null_input": 0
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 42000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

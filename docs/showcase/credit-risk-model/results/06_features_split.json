@@ -1,0 +1,212 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "applications": 42000,
+        "default_rate": 0.11935714285714286,
+        "mean_log_income": 11.096128015732006,
+        "mean_purpose_freq": 0.25521941706341705,
+        "principal_usd": "508110479.20",
+        "share_band_G": 0.04173809523809524,
+        "split": "0"
+      },
+      {
+        "applications": 18000,
+        "default_rate": 0.11938888888888889,
+        "mean_log_income": 11.096864596766721,
+        "mean_purpose_freq": 0.2569298750000181,
+        "principal_usd": "216619624.62",
+        "share_band_G": 0.043277777777777776,
+        "split": "1"
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 60000,
+      "cohort_file": "./loans.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "applications",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 42000,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 18000,
+              "n_null": 0
+            }
+          ]
+        },
+        {
+          "label": "default_rate",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 42000,
+              "n_null": 0,
+              "operator": {
+                "sum": 5013
+              }
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 18000,
+              "n_null": 0,
+              "operator": {
+                "sum": 2149
+              }
+            }
+          ]
+        },
+        {
+          "label": "principal_usd",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 42000,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 18000,
+              "n_null": 0
+            }
+          ]
+        },
+        {
+          "label": "mean_log_income",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 42000,
+              "n_null": 0,
+              "operator": {
+                "sum": 466037.37666074425
+              }
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 18000,
+              "n_null": 0,
+              "operator": {
+                "sum": 199743.562741801
+              }
+            }
+          ]
+        },
+        {
+          "label": "share_band_G",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 42000,
+              "n_null": 0,
+              "operator": {
+                "sum": 1753
+              }
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 18000,
+              "n_null": 0,
+              "operator": {
+                "sum": 779
+              }
+            }
+          ]
+        },
+        {
+          "label": "mean_purpose_freq",
+          "n": 60000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "0"
+              ],
+              "n": 42000,
+              "n_null": 0,
+              "operator": {
+                "sum": 10719.215516663517
+              }
+            },
+            {
+              "group_key": [
+                "1"
+              ],
+              "n": 18000,
+              "n_null": 0,
+              "operator": {
+                "sum": 4624.737750000327
+              }
+            }
+          ]
+        }
+      ],
+      "groupers": [
+        {
+          "field": "split",
+          "total_n": 60000,
+          "operator": {
+            "buckets": [
+              {
+                "count": 42000,
+                "key": "0",
+                "label": "0"
+              },
+              {
+                "count": 18000,
+                "key": "1",
+                "label": "1"
+              }
+            ],
+            "dict_size": 0
+          }
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 60000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

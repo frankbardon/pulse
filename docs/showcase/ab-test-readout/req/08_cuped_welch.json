@@ -1,0 +1,12 @@
+{
+  "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+  "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+  "attributes": [
+    {"type": "ATTR_FORMULA", "field": "pages_viewed", "label": "pages_cuped",
+     "expression": "pages_viewed - 0.7601 * (prior_sessions - 10.0076)"}
+  ],
+  "tests": [
+    {"type": "TEST_WELCH", "field": "pages_viewed", "split_by": "arm", "label": "pages_raw"},
+    {"type": "TEST_WELCH", "field": "pages_cuped", "split_by": "arm", "label": "pages_cuped"}
+  ]
+}

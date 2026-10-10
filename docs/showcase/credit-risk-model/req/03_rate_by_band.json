@@ -1,0 +1,11 @@
+{
+  "cohort": {"filename": "loans.pulse", "data_dir": "."},
+  "groups": [{"type": "GROUP_CATEGORY", "field": "credit_band"}],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "loan_id", "label": "applications"},
+    {"type": "AGG_AVERAGE", "field": "default_12m", "label": "default_rate"},
+    {"type": "AGG_AVERAGE", "field": "interest_rate", "label": "mean_rate_pct"},
+    {"type": "AGG_SUM", "field": "loan_amount", "label": "principal_usd"}
+  ],
+  "sort": [{"field": "credit_band"}]
+}

@@ -1,0 +1,151 @@
+{
+  "cohort": {
+    "filename": "loans.pulse",
+    "data_dir": "."
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "label": "split",
+      "params": {
+        "ratios": [
+          0.7,
+          0.3
+        ],
+        "seed": 42,
+        "stratify": "outcome"
+      }
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "annual_income",
+      "label": "log_income"
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "loan_amount",
+      "label": "log_loan"
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "credit_band",
+      "label": "band"
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "home_ownership",
+      "label": "home"
+    },
+    {
+      "type": "FEAT_FREQUENCY_ENCODE",
+      "field": "purpose",
+      "label": "purpose_freq"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "lti",
+      "expression": "2.718281828459045 ** (log_loan - log_income)"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "term60",
+      "expression": "term_months == 60 ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "emp_missing",
+      "expression": "emp_length_years == nil ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "emp_years",
+      "expression": "emp_length_years ?? 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "revol_missing",
+      "expression": "revol_util == nil ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "revol_util_filled",
+      "expression": "revol_util ?? 50"
+    }
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "split",
+      "values": [
+        "0"
+      ]
+    }
+  ],
+  "regressions": [
+    {
+      "type": "REG_GLM",
+      "name": "clean_all_candidates",
+      "target": "default_12m",
+      "predictors": [
+        "fico_score",
+        "band_B",
+        "band_C",
+        "band_D",
+        "band_E",
+        "band_F",
+        "band_G",
+        "interest_rate",
+        "term60",
+        "dti",
+        "lti",
+        "log_income",
+        "log_loan",
+        "delinq_2yrs",
+        "emp_missing",
+        "emp_years",
+        "revol_missing",
+        "revol_util_filled",
+        "home_RENT",
+        "home_OWN",
+        "home_OTHER",
+        "purpose_freq"
+      ],
+      "family": "binomial",
+      "link": "logit"
+    },
+    {
+      "type": "REG_GLM",
+      "name": "with_fico_at_month_12",
+      "target": "default_12m",
+      "predictors": [
+        "fico_score",
+        "band_B",
+        "band_C",
+        "band_D",
+        "band_E",
+        "band_F",
+        "band_G",
+        "interest_rate",
+        "term60",
+        "dti",
+        "lti",
+        "log_income",
+        "log_loan",
+        "delinq_2yrs",
+        "emp_missing",
+        "emp_years",
+        "revol_missing",
+        "revol_util_filled",
+        "home_RENT",
+        "home_OWN",
+        "home_OTHER",
+        "purpose_freq",
+        "fico_at_month_12"
+      ],
+      "family": "binomial",
+      "link": "logit"
+    }
+  ]
+}

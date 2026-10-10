@@ -93,6 +93,6 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(post-aggregation-
 
 ## Human inputs & decisions
 
-- **Open:** v1 membership: owner call. This unit is written as a post-U40 unit; the owner decides whether it ships in v1.0.0 (then add it to U32's `depends_on`) or after.
+- **Decided (2026-10-10):** ships in v1.0.0. The owner wants Pulse as self-sufficient as possible at v1; this unit is in U32's `depends_on`.
 - **Open:** ratio as an aggregator type, a post-aggregation formula slot, or both.
 - **Open:** the grammar of the cohort-total term in `ATTR_FORMULA` (function form versus reserved name).

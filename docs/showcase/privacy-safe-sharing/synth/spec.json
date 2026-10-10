@@ -1,0 +1,1695 @@
+{
+  "row_count": 40000,
+  "fields": [
+    {
+      "name": "region",
+      "type": "categorical_u8",
+      "description": "Sales region of the customer's billing address (North, South, East, West, Central)",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "South",
+          "West",
+          "North",
+          "East",
+          "Central"
+        ],
+        "weights": [
+          0.264675,
+          0.2387,
+          0.21905,
+          0.178275,
+          0.0993
+        ]
+      }
+    },
+    {
+      "name": "age",
+      "type": "u8",
+      "description": "Account holder age in completed years at the snapshot date (18-85)",
+      "distribution": "mixture",
+      "params": {
+        "means": [
+          35.7139100902814,
+          52.041154954592315
+        ],
+        "stds": [
+          10.19509424329663,
+          11.373816404956322
+        ],
+        "weights": [
+          0.4748538420918485,
+          0.5251461579081533
+        ]
+      }
+    },
+    {
+      "name": "plan",
+      "type": "categorical_u8",
+      "description": "Mobile price plan tier: Basic, Standard, Premium or Unlimited",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "Standard",
+          "Basic",
+          "Premium",
+          "Unlimited"
+        ],
+        "weights": [
+          0.3742,
+          0.2939,
+          0.2227,
+          0.1092
+        ]
+      }
+    },
+    {
+      "name": "contract",
+      "type": "categorical_u8",
+      "description": "Contract term: Monthly (rolling), One-Year or Two-Year commitment",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "Monthly",
+          "One-Year",
+          "Two-Year"
+        ],
+        "weights": [
+          0.44465,
+          0.304825,
+          0.250525
+        ]
+      }
+    },
+    {
+      "name": "tenure_months",
+      "type": "u16",
+      "description": "Whole months between start_date and end_date (churned) or the 2026-06-30 snapshot (active)",
+      "distribution": "mixture",
+      "params": {
+        "means": [
+          10.596380020363087,
+          52.97201573530769
+        ],
+        "stds": [
+          7.857198565137569,
+          31.979702663565366
+        ],
+        "weights": [
+          0.6087959578671215,
+          0.39120404213286614
+        ]
+      }
+    },
+    {
+      "name": "products_held",
+      "type": "set_u8",
+      "description": "Products on the account (multi-select): mobile, broadband, tv, landline, protection; empty means a dormant account",
+      "distribution": "set_bernoulli",
+      "params": {
+        "frequencies": [
+          0.880125,
+          0.47165,
+          0.2439,
+          0.125525,
+          0.249325
+        ],
+        "options": [
+          "mobile",
+          "broadband",
+          "tv",
+          "landline",
+          "protection"
+        ]
+      }
+    },
+    {
+      "name": "monthly_spend",
+      "type": "f64",
+      "description": "Average monthly bill in USD over the last three billed months; 0 for dormant accounts with no products",
+      "distribution": "mixture",
+      "params": {
+        "means": [
+          42.16369546620011,
+          93.42403567076852
+        ],
+        "stds": [
+          20.79840242689143,
+          28.526242230517706
+        ],
+        "weights": [
+          0.43886346795575565,
+          0.5611365320442452
+        ]
+      }
+    },
+    {
+      "name": "support_contacts",
+      "type": "u4",
+      "description": "Support calls and chats logged in the last 12 months, capped at 15",
+      "distribution": "discrete",
+      "params": {
+        "values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "weights": [
+          14725,
+          14048,
+          7259,
+          2821,
+          865,
+          223,
+          49,
+          8,
+          2
+        ]
+      }
+    },
+    {
+      "name": "frequent_caller",
+      "type": "packed_bool",
+      "description": "Operational flag set when support_contacts is 4 or more",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.028675
+      }
+    },
+    {
+      "name": "autopay",
+      "type": "packed_bool",
+      "description": "1 when the bill is paid by automatic card or bank debit",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.555775
+      }
+    },
+    {
+      "name": "start_date",
+      "type": "date",
+      "description": "Date the customer's current account was opened",
+      "distribution": "uniform_date",
+      "params": {
+        "end": "2026-06-30",
+        "start": "2014-08-11"
+      }
+    },
+    {
+      "name": "end_date",
+      "type": "date",
+      "nullable": true,
+      "description": "Date the account was closed; null while the account is active",
+      "distribution": "uniform_date",
+      "params": {
+        "end": "2026-06-30",
+        "start": "2024-07-01"
+      },
+      "null_rate": 0.809175
+    },
+    {
+      "name": "churned",
+      "type": "packed_bool",
+      "description": "1 when the account closed between 2024-07-01 and the 2026-06-30 snapshot",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.190825
+      }
+    }
+  ],
+  "correlations": [
+    {
+      "a": "support_contacts",
+      "b": "frequent_caller",
+      "correlation": 0.5183207540004394
+    },
+    {
+      "a": "tenure_months",
+      "b": "churned",
+      "correlation": -0.21821837665073204
+    },
+    {
+      "a": "autopay",
+      "b": "churned",
+      "correlation": -0.19987697457537382
+    },
+    {
+      "a": "tenure_months",
+      "b": "autopay",
+      "correlation": 0.14868678389026835
+    },
+    {
+      "a": "support_contacts",
+      "b": "churned",
+      "correlation": 0.12839705010141805
+    },
+    {
+      "a": "monthly_spend",
+      "b": "support_contacts",
+      "correlation": 0.1074260812775196
+    },
+    {
+      "a": "monthly_spend",
+      "b": "churned",
+      "correlation": -0.10552663499600559
+    },
+    {
+      "a": "frequent_caller",
+      "b": "churned",
+      "correlation": 0.09231102657608853
+    },
+    {
+      "a": "age",
+      "b": "tenure_months",
+      "correlation": 0.07833330716388365
+    },
+    {
+      "a": "age",
+      "b": "monthly_spend",
+      "correlation": -0.07824217974829961
+    },
+    {
+      "a": "monthly_spend",
+      "b": "frequent_caller",
+      "correlation": 0.055306493230207227
+    },
+    {
+      "a": "age",
+      "b": "autopay",
+      "correlation": 0.05288672691395373
+    },
+    {
+      "a": "age",
+      "b": "churned",
+      "correlation": -0.038057088563846986
+    },
+    {
+      "a": "age",
+      "b": "support_contacts",
+      "correlation": 0.023566567586536108
+    },
+    {
+      "a": "tenure_months",
+      "b": "monthly_spend",
+      "correlation": -0.016112439665082447
+    },
+    {
+      "a": "tenure_months",
+      "b": "support_contacts",
+      "correlation": 0.014752017186991859
+    }
+  ],
+  "categorical_pairs": [
+    {
+      "a": "region",
+      "b": "plan",
+      "cells": [
+        {
+          "a_value": "South",
+          "b_value": "Standard",
+          "count": 971
+        },
+        {
+          "a_value": "West",
+          "b_value": "Standard",
+          "count": 899
+        },
+        {
+          "a_value": "North",
+          "b_value": "Standard",
+          "count": 836
+        },
+        {
+          "a_value": "West",
+          "b_value": "Basic",
+          "count": 732
+        },
+        {
+          "a_value": "South",
+          "b_value": "Basic",
+          "count": 716
+        },
+        {
+          "a_value": "East",
+          "b_value": "Standard",
+          "count": 694
+        },
+        {
+          "a_value": "North",
+          "b_value": "Basic",
+          "count": 669
+        },
+        {
+          "a_value": "South",
+          "b_value": "Premium",
+          "count": 579
+        },
+        {
+          "a_value": "East",
+          "b_value": "Basic",
+          "count": 541
+        },
+        {
+          "a_value": "West",
+          "b_value": "Premium",
+          "count": 512
+        },
+        {
+          "a_value": "North",
+          "b_value": "Premium",
+          "count": 486
+        },
+        {
+          "a_value": "East",
+          "b_value": "Premium",
+          "count": 364
+        },
+        {
+          "a_value": "Central",
+          "b_value": "Standard",
+          "count": 357
+        },
+        {
+          "a_value": "South",
+          "b_value": "Unlimited",
+          "count": 303
+        },
+        {
+          "a_value": "West",
+          "b_value": "Unlimited",
+          "count": 285
+        },
+        {
+          "a_value": "Central",
+          "b_value": "Basic",
+          "count": 272
+        },
+        {
+          "a_value": "North",
+          "b_value": "Unlimited",
+          "count": 231
+        },
+        {
+          "a_value": "Central",
+          "b_value": "Premium",
+          "count": 228
+        },
+        {
+          "a_value": "East",
+          "b_value": "Unlimited",
+          "count": 208
+        },
+        {
+          "a_value": "Central",
+          "b_value": "Unlimited",
+          "count": 117
+        }
+      ]
+    },
+    {
+      "a": "region",
+      "b": "contract",
+      "cells": [
+        {
+          "a_value": "South",
+          "b_value": "Monthly",
+          "count": 1174
+        },
+        {
+          "a_value": "West",
+          "b_value": "Monthly",
+          "count": 1058
+        },
+        {
+          "a_value": "North",
+          "b_value": "Monthly",
+          "count": 999
+        },
+        {
+          "a_value": "East",
+          "b_value": "Monthly",
+          "count": 826
+        },
+        {
+          "a_value": "West",
+          "b_value": "One-Year",
+          "count": 758
+        },
+        {
+          "a_value": "South",
+          "b_value": "One-Year",
+          "count": 753
+        },
+        {
+          "a_value": "North",
+          "b_value": "One-Year",
+          "count": 691
+        },
+        {
+          "a_value": "South",
+          "b_value": "Two-Year",
+          "count": 642
+        },
+        {
+          "a_value": "West",
+          "b_value": "Two-Year",
+          "count": 612
+        },
+        {
+          "a_value": "East",
+          "b_value": "One-Year",
+          "count": 551
+        },
+        {
+          "a_value": "North",
+          "b_value": "Two-Year",
+          "count": 532
+        },
+        {
+          "a_value": "East",
+          "b_value": "Two-Year",
+          "count": 430
+        },
+        {
+          "a_value": "Central",
+          "b_value": "Monthly",
+          "count": 417
+        },
+        {
+          "a_value": "Central",
+          "b_value": "One-Year",
+          "count": 302
+        },
+        {
+          "a_value": "Central",
+          "b_value": "Two-Year",
+          "count": 255
+        }
+      ]
+    },
+    {
+      "a": "plan",
+      "b": "contract",
+      "cells": [
+        {
+          "a_value": "Standard",
+          "b_value": "Monthly",
+          "count": 1657
+        },
+        {
+          "a_value": "Basic",
+          "b_value": "Monthly",
+          "count": 1258
+        },
+        {
+          "a_value": "Standard",
+          "b_value": "One-Year",
+          "count": 1138
+        },
+        {
+          "a_value": "Premium",
+          "b_value": "Monthly",
+          "count": 981
+        },
+        {
+          "a_value": "Standard",
+          "b_value": "Two-Year",
+          "count": 962
+        },
+        {
+          "a_value": "Basic",
+          "b_value": "One-Year",
+          "count": 889
+        },
+        {
+          "a_value": "Basic",
+          "b_value": "Two-Year",
+          "count": 783
+        },
+        {
+          "a_value": "Premium",
+          "b_value": "One-Year",
+          "count": 703
+        },
+        {
+          "a_value": "Unlimited",
+          "b_value": "Monthly",
+          "count": 578
+        },
+        {
+          "a_value": "Premium",
+          "b_value": "Two-Year",
+          "count": 485
+        },
+        {
+          "a_value": "Unlimited",
+          "b_value": "One-Year",
+          "count": 325
+        },
+        {
+          "a_value": "Unlimited",
+          "b_value": "Two-Year",
+          "count": 241
+        }
+      ]
+    }
+  ],
+  "set_categorical_pairs": [
+    {
+      "set": "products_held",
+      "option": "mobile",
+      "categorical": "region",
+      "cells": [
+        {
+          "a_value": "selected",
+          "b_value": "South",
+          "count": 9279
+        },
+        {
+          "a_value": "selected",
+          "b_value": "West",
+          "count": 8370
+        },
+        {
+          "a_value": "selected",
+          "b_value": "North",
+          "count": 7723
+        },
+        {
+          "a_value": "selected",
+          "b_value": "East",
+          "count": 6277
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Central",
+          "count": 3556
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "South",
+          "count": 1308
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "West",
+          "count": 1178
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "North",
+          "count": 1039
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "East",
+          "count": 854
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Central",
+          "count": 416
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "mobile",
+      "categorical": "plan",
+      "cells": [
+        {
+          "a_value": "selected",
+          "b_value": "Standard",
+          "count": 13226
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Basic",
+          "count": 10419
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Premium",
+          "count": 7785
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Unlimited",
+          "count": 3775
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Standard",
+          "count": 1742
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Basic",
+          "count": 1337
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Premium",
+          "count": 1123
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Unlimited",
+          "count": 593
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "mobile",
+      "categorical": "contract",
+      "cells": [
+        {
+          "a_value": "selected",
+          "b_value": "Monthly",
+          "count": 15679
+        },
+        {
+          "a_value": "selected",
+          "b_value": "One-Year",
+          "count": 10703
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Two-Year",
+          "count": 8823
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Monthly",
+          "count": 2107
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "One-Year",
+          "count": 1490
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Two-Year",
+          "count": 1198
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "broadband",
+      "categorical": "region",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "South",
+          "count": 5417
+        },
+        {
+          "a_value": "selected",
+          "b_value": "South",
+          "count": 5170
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "West",
+          "count": 4916
+        },
+        {
+          "a_value": "selected",
+          "b_value": "West",
+          "count": 4632
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "North",
+          "count": 4511
+        },
+        {
+          "a_value": "selected",
+          "b_value": "North",
+          "count": 4251
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "East",
+          "count": 3665
+        },
+        {
+          "a_value": "selected",
+          "b_value": "East",
+          "count": 3466
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Central",
+          "count": 2625
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Central",
+          "count": 1347
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "broadband",
+      "categorical": "plan",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "Standard",
+          "count": 7954
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Standard",
+          "count": 7014
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Basic",
+          "count": 6143
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Basic",
+          "count": 5613
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Premium",
+          "count": 4707
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Premium",
+          "count": 4201
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Unlimited",
+          "count": 2330
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Unlimited",
+          "count": 2038
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "broadband",
+      "categorical": "contract",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "Monthly",
+          "count": 9319
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Monthly",
+          "count": 8467
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "One-Year",
+          "count": 6499
+        },
+        {
+          "a_value": "selected",
+          "b_value": "One-Year",
+          "count": 5694
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Two-Year",
+          "count": 5316
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Two-Year",
+          "count": 4705
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "tv",
+      "categorical": "region",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "South",
+          "count": 7881
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "West",
+          "count": 7218
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "North",
+          "count": 6572
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "East",
+          "count": 5305
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Central",
+          "count": 3268
+        },
+        {
+          "a_value": "selected",
+          "b_value": "South",
+          "count": 2706
+        },
+        {
+          "a_value": "selected",
+          "b_value": "West",
+          "count": 2330
+        },
+        {
+          "a_value": "selected",
+          "b_value": "North",
+          "count": 2190
+        },
+        {
+          "a_value": "selected",
+          "b_value": "East",
+          "count": 1826
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Central",
+          "count": 704
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "tv",
+      "categorical": "plan",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "Standard",
+          "count": 11289
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Basic",
+          "count": 8907
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Premium",
+          "count": 6730
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Standard",
+          "count": 3679
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Unlimited",
+          "count": 3318
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Basic",
+          "count": 2849
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Premium",
+          "count": 2178
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Unlimited",
+          "count": 1050
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "tv",
+      "categorical": "contract",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "Monthly",
+          "count": 13370
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "One-Year",
+          "count": 9270
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Two-Year",
+          "count": 7604
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Monthly",
+          "count": 4416
+        },
+        {
+          "a_value": "selected",
+          "b_value": "One-Year",
+          "count": 2923
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Two-Year",
+          "count": 2417
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "landline",
+      "categorical": "region",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "South",
+          "count": 9285
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "West",
+          "count": 8343
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "North",
+          "count": 7622
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "East",
+          "count": 6241
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Central",
+          "count": 3488
+        },
+        {
+          "a_value": "selected",
+          "b_value": "South",
+          "count": 1302
+        },
+        {
+          "a_value": "selected",
+          "b_value": "West",
+          "count": 1205
+        },
+        {
+          "a_value": "selected",
+          "b_value": "North",
+          "count": 1140
+        },
+        {
+          "a_value": "selected",
+          "b_value": "East",
+          "count": 890
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Central",
+          "count": 484
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "landline",
+      "categorical": "plan",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "Standard",
+          "count": 13103
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Basic",
+          "count": 10043
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Premium",
+          "count": 7911
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Unlimited",
+          "count": 3922
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Standard",
+          "count": 1865
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Basic",
+          "count": 1713
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Premium",
+          "count": 997
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Unlimited",
+          "count": 446
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "landline",
+      "categorical": "contract",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "Monthly",
+          "count": 15714
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "One-Year",
+          "count": 10656
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Two-Year",
+          "count": 8609
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Monthly",
+          "count": 2072
+        },
+        {
+          "a_value": "selected",
+          "b_value": "One-Year",
+          "count": 1537
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Two-Year",
+          "count": 1412
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "protection",
+      "categorical": "region",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "South",
+          "count": 7934
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "West",
+          "count": 7180
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "North",
+          "count": 6555
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "East",
+          "count": 5424
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Central",
+          "count": 2934
+        },
+        {
+          "a_value": "selected",
+          "b_value": "South",
+          "count": 2653
+        },
+        {
+          "a_value": "selected",
+          "b_value": "West",
+          "count": 2368
+        },
+        {
+          "a_value": "selected",
+          "b_value": "North",
+          "count": 2207
+        },
+        {
+          "a_value": "selected",
+          "b_value": "East",
+          "count": 1707
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Central",
+          "count": 1038
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "protection",
+      "categorical": "plan",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "Standard",
+          "count": 11722
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Basic",
+          "count": 10364
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Premium",
+          "count": 5503
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Premium",
+          "count": 3405
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Standard",
+          "count": 3246
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Unlimited",
+          "count": 2438
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Unlimited",
+          "count": 1930
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Basic",
+          "count": 1392
+        }
+      ]
+    },
+    {
+      "set": "products_held",
+      "option": "protection",
+      "categorical": "contract",
+      "cells": [
+        {
+          "a_value": "not_selected",
+          "b_value": "Monthly",
+          "count": 13263
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "One-Year",
+          "count": 9163
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "Two-Year",
+          "count": 7601
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Monthly",
+          "count": 4523
+        },
+        {
+          "a_value": "selected",
+          "b_value": "One-Year",
+          "count": 3030
+        },
+        {
+          "a_value": "selected",
+          "b_value": "Two-Year",
+          "count": 2420
+        }
+      ]
+    }
+  ],
+  "models": [
+    {
+      "field": "age",
+      "intercept": 41.56034070206134,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Premium",
+          "coefficient": -1.06104081132134
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Basic",
+          "coefficient": 2.349611908082837
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Unlimited",
+          "coefficient": -6.492572439153774
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "Two-Year",
+          "coefficient": 4.034508654464139
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "One-Year",
+          "coefficient": 2.644236670730835
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "mobile",
+          "coefficient": 0.3652130695809347
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "broadband",
+          "coefficient": -0.20022960173236068
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "tv",
+          "coefficient": -0.4575037730655325
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "landline",
+          "coefficient": 5.349914182327851
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "protection",
+          "coefficient": 0.47466940651552525
+        }
+      ],
+      "residual_std": 13.111805771055332,
+      "min": 18,
+      "max": 85,
+      "has_clamp": true
+    },
+    {
+      "field": "tenure_months",
+      "intercept": 14.082700044702737,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "Two-Year",
+          "coefficient": 33.92620323332234
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "One-Year",
+          "coefficient": 15.07572876053461
+        }
+      ],
+      "residual_std": 26.071524118622623,
+      "max": 120,
+      "has_clamp": true
+    },
+    {
+      "field": "monthly_spend",
+      "intercept": 26.268920068989246,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Premium",
+          "coefficient": 18.808131721828286
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Basic",
+          "coefficient": -14.406070860561611
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Unlimited",
+          "coefficient": 38.71337938117376
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "mobile",
+          "coefficient": 11.674562917644288
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "broadband",
+          "coefficient": 37.82545970298747
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "tv",
+          "coefficient": 30.680751535121477
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "landline",
+          "coefficient": 13.584933356356258
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "protection",
+          "coefficient": 11.537691099376461
+        }
+      ],
+      "residual_std": 10.637528414425278,
+      "max": 186.78,
+      "has_clamp": true
+    },
+    {
+      "field": "support_contacts",
+      "intercept": 0.7093157548403594,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Premium",
+          "coefficient": -0.027083743601329632
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Basic",
+          "coefficient": 0.40471887719243443
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Unlimited",
+          "coefficient": 0.003626430536218924
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "mobile",
+          "coefficient": -0.014731411577544717
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "broadband",
+          "coefficient": 0.5084462904068966
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "tv",
+          "coefficient": -0.018941417086478146
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "landline",
+          "coefficient": -0.04760401829978573
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "protection",
+          "coefficient": 0.044205523989225906
+        }
+      ],
+      "residual_std": 1.0228650509907067,
+      "max": 8,
+      "has_clamp": true
+    },
+    {
+      "field": "frequent_caller",
+      "intercept": 0.001323342410992732,
+      "predictors": [
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "mobile",
+          "coefficient": 0.012895198844629774
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "broadband",
+          "coefficient": 0.040523024062973693
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "tv",
+          "coefficient": -0.006965293601983387
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "landline",
+          "coefficient": -0.0009026010497168062
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "protection",
+          "coefficient": -0.009322965336262281
+        }
+      ],
+      "residual_std": 0.16303113482494586,
+      "max": 1,
+      "has_clamp": true
+    },
+    {
+      "field": "autopay",
+      "intercept": 0.3864550737595014,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "Two-Year",
+          "coefficient": 0.3646578359936369
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "One-Year",
+          "coefficient": 0.23744017992298905
+        }
+      ],
+      "residual_std": 0.47331610450665307,
+      "max": 1,
+      "has_clamp": true
+    },
+    {
+      "field": "churned",
+      "intercept": 0.3357174787662056,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "Two-Year",
+          "coefficient": -0.30172314448858417
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "One-Year",
+          "coefficient": -0.2296618322850268
+        }
+      ],
+      "residual_std": 0.3699926319532643,
+      "max": 1,
+      "has_clamp": true
+    }
+  ],
+  "residual_correlations": [
+    {
+      "a": "age",
+      "b": "autopay",
+      "correlation": 0.011458073286286898
+    },
+    {
+      "a": "age",
+      "b": "churned",
+      "correlation": -0.014565493207252759
+    },
+    {
+      "a": "age",
+      "b": "frequent_caller",
+      "correlation": 0.021141010839659368
+    },
+    {
+      "a": "age",
+      "b": "monthly_spend",
+      "correlation": -0.015283653611728105
+    },
+    {
+      "a": "age",
+      "b": "support_contacts",
+      "correlation": 0.01362475181272609
+    },
+    {
+      "a": "age",
+      "b": "tenure_months",
+      "correlation": 0.012556881153420345
+    },
+    {
+      "a": "autopay",
+      "b": "churned",
+      "correlation": -0.07522154833566819
+    },
+    {
+      "a": "autopay",
+      "b": "frequent_caller",
+      "correlation": 0.01687971746329949
+    },
+    {
+      "a": "autopay",
+      "b": "monthly_spend",
+      "correlation": -0.013582377999149969
+    },
+    {
+      "a": "autopay",
+      "b": "support_contacts",
+      "correlation": 0.01690758741296979
+    },
+    {
+      "a": "autopay",
+      "b": "tenure_months",
+      "correlation": 0.0013984813436806718
+    },
+    {
+      "a": "churned",
+      "b": "frequent_caller",
+      "correlation": 0.08246659124292252
+    },
+    {
+      "a": "churned",
+      "b": "monthly_spend",
+      "correlation": -0.05008573794444254
+    },
+    {
+      "a": "churned",
+      "b": "support_contacts",
+      "correlation": 0.15592149868271235
+    },
+    {
+      "a": "churned",
+      "b": "tenure_months",
+      "correlation": -0.08548139792342789
+    },
+    {
+      "a": "frequent_caller",
+      "b": "monthly_spend",
+      "correlation": -0.0019489137342159953
+    },
+    {
+      "a": "frequent_caller",
+      "b": "support_contacts",
+      "correlation": 0.49900403448602354
+    },
+    {
+      "a": "frequent_caller",
+      "b": "tenure_months",
+      "correlation": 0.014587587995022643
+    },
+    {
+      "a": "monthly_spend",
+      "b": "support_contacts",
+      "correlation": -0.010552302986108698
+    },
+    {
+      "a": "monthly_spend",
+      "b": "tenure_months",
+      "correlation": -0.014495537809715865
+    },
+    {
+      "a": "support_contacts",
+      "b": "tenure_months",
+      "correlation": 0.005204065686484066
+    }
+  ],
+  "rules": [
+    {
+      "when": "round(churned) == 0",
+      "set_null": [
+        "end_date"
+      ],
+      "owns_nulls": true
+    },
+    {
+      "set_expr": {
+        "frequent_caller": "round(support_contacts) \u003e= 4"
+      }
+    },
+    {
+      "set_expr": {
+        "tenure_months": "round(tenure_months)"
+      }
+    },
+    {
+      "set_expr": {
+        "start_date": "(round(churned) == 1 ? end_date : 20634) - round(tenure_months * 30.4375)"
+      }
+    },
+    {
+      "when": "!products_held[\"mobile\"] \u0026\u0026 !products_held[\"broadband\"] \u0026\u0026 !products_held[\"tv\"] \u0026\u0026 !products_held[\"landline\"] \u0026\u0026 !products_held[\"protection\"]",
+      "set": {
+        "monthly_spend": 0
+      }
+    }
+  ]
+}

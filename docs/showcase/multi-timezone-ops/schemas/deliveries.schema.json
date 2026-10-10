@@ -1,0 +1,20 @@
+[
+  {"name": "delivery_id", "type": "u32", "nullable": false,
+   "description": "Unique delivery identifier, assigned in UTC chronological order."},
+  {"name": "delivered_at", "type": "datetime", "nullable": false,
+   "description": "Instant the parcel was handed over, stored as UTC epoch seconds. Read it in the warehouse's own zone for business-day questions."},
+  {"name": "warehouse", "type": "categorical_u8", "nullable": false,
+   "description": "Dispatching warehouse code: LAX, ORD, NYC, LON, BLR or SYD."},
+  {"name": "zone", "type": "categorical_u8", "nullable": false,
+   "description": "IANA time zone of the dispatching warehouse, e.g. America/Chicago."},
+  {"name": "route", "type": "categorical_u8", "nullable": false,
+   "description": "Delivery route within the warehouse, e.g. ORD-R3 (eight routes per site)."},
+  {"name": "service_level", "type": "categorical_u8", "nullable": false,
+   "description": "Promised service tier for the parcel: standard or express."},
+  {"name": "duration_min", "type": "f64", "nullable": false,
+   "description": "Minutes from van departure to hand-over for this delivery."},
+  {"name": "on_time", "type": "packed_bool", "nullable": false,
+   "description": "True when the parcel was handed over inside its promised delivery window."},
+  {"name": "weight_kg", "type": "f64", "nullable": false,
+   "description": "Billed parcel weight in kilograms."}
+]

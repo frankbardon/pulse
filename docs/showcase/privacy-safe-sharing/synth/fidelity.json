@@ -1,0 +1,896 @@
+{
+  "source_rows": 40000,
+  "synthetic_rows": 40000,
+  "fields": [
+    {
+      "field": "region",
+      "test": "TEST_CHISQ",
+      "result": {
+        "label": "TEST_CHISQ",
+        "type": "TEST_CHISQ",
+        "variant": "independence",
+        "statistic": 1.9827199926992596,
+        "df": 4,
+        "p_value": 0.7389373223408155,
+        "alpha": 0.05,
+        "reject_null": false,
+        "details": {
+          "col_labels": [
+            "false",
+            "true"
+          ],
+          "col_totals": [
+            40000,
+            40000
+          ],
+          "contingency": [
+            [
+              10587,
+              10520
+            ],
+            [
+              9548,
+              9541
+            ],
+            [
+              3972,
+              3960
+            ],
+            [
+              8762,
+              8919
+            ],
+            [
+              7131,
+              7060
+            ]
+          ],
+          "effect_size": {
+            "cramers_v": 0.004978353132185457
+          },
+          "expected_min": 3966,
+          "n": 80000,
+          "row_labels": [
+            "South",
+            "West",
+            "Central",
+            "North",
+            "East"
+          ],
+          "row_totals": [
+            21107,
+            19089,
+            7932,
+            17681,
+            14191
+          ]
+        }
+      }
+    },
+    {
+      "field": "age",
+      "test": "TEST_KS",
+      "result": {
+        "label": "TEST_KS_age",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.013450000000000017,
+        "p_value": 0.0014225307667348308,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "false",
+            "true"
+          ],
+          "n": [
+            40000,
+            40000
+          ]
+        }
+      }
+    },
+    {
+      "field": "plan",
+      "test": "TEST_CHISQ",
+      "result": {
+        "label": "TEST_CHISQ",
+        "type": "TEST_CHISQ",
+        "variant": "independence",
+        "statistic": 5.5354594674729025,
+        "df": 3,
+        "p_value": 0.13653306457186393,
+        "alpha": 0.05,
+        "reject_null": false,
+        "details": {
+          "col_labels": [
+            "false",
+            "true"
+          ],
+          "col_totals": [
+            40000,
+            40000
+          ],
+          "contingency": [
+            [
+              14968,
+              14943
+            ],
+            [
+              8908,
+              8814
+            ],
+            [
+              11756,
+              11670
+            ],
+            [
+              4368,
+              4573
+            ]
+          ],
+          "effect_size": {
+            "cramers_v": 0.00831824761253302
+          },
+          "expected_min": 4470.5,
+          "n": 80000,
+          "row_labels": [
+            "Standard",
+            "Premium",
+            "Basic",
+            "Unlimited"
+          ],
+          "row_totals": [
+            29911,
+            17722,
+            23426,
+            8941
+          ]
+        }
+      }
+    },
+    {
+      "field": "contract",
+      "test": "TEST_CHISQ",
+      "result": {
+        "label": "TEST_CHISQ",
+        "type": "TEST_CHISQ",
+        "variant": "independence",
+        "statistic": 1.34509438329467,
+        "df": 2,
+        "p_value": 0.5104068165927936,
+        "alpha": 0.05,
+        "reject_null": false,
+        "details": {
+          "col_labels": [
+            "false",
+            "true"
+          ],
+          "col_totals": [
+            40000,
+            40000
+          ],
+          "contingency": [
+            [
+              17786,
+              17624
+            ],
+            [
+              10021,
+              10081
+            ],
+            [
+              12193,
+              12295
+            ]
+          ],
+          "effect_size": {
+            "cramers_v": 0.004100448730466383
+          },
+          "expected_min": 10051,
+          "n": 80000,
+          "row_labels": [
+            "Monthly",
+            "Two-Year",
+            "One-Year"
+          ],
+          "row_totals": [
+            35410,
+            20102,
+            24488
+          ]
+        }
+      }
+    },
+    {
+      "field": "tenure_months",
+      "test": "TEST_KS",
+      "result": {
+        "label": "TEST_KS_tenure_months",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.0555,
+        "p_value": 5.013843184250158e-54,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "false",
+            "true"
+          ],
+          "n": [
+            40000,
+            40000
+          ]
+        }
+      }
+    },
+    {
+      "field": "monthly_spend",
+      "test": "TEST_KS",
+      "result": {
+        "label": "TEST_KS_monthly_spend",
+        "type": "TEST_KS",
+        "variant": "two_sample",
+        "statistic": 0.02542500000000003,
+        "p_value": 1.1276927697704384e-11,
+        "alpha": 0.05,
+        "reject_null": true,
+        "details": {
+          "groups": [
+            "false",
+            "true"
+          ],
+          "n": [
+            40000,
+            40000
+          ]
+        }
+      }
+    }
+  ],
+  "categorical_pairwise": [
+    {
+      "a": "region",
+      "b": "plan",
+      "delta": 0.01182499999999999,
+      "n": 40000
+    },
+    {
+      "a": "region",
+      "b": "contract",
+      "delta": 0.010875000000000015,
+      "n": 40000
+    }
+  ],
+  "set_fields": [
+    {
+      "field": "products_held",
+      "options": [
+        {
+          "value": "mobile",
+          "source_frequency": 0.880125,
+          "synthetic_frequency": 0.881275,
+          "delta": 0.0011499999999999844,
+          "n": 40000
+        },
+        {
+          "value": "broadband",
+          "source_frequency": 0.47165,
+          "synthetic_frequency": 0.470975,
+          "delta": 0.0006750000000000367,
+          "n": 40000
+        },
+        {
+          "value": "tv",
+          "source_frequency": 0.2439,
+          "synthetic_frequency": 0.241725,
+          "delta": 0.0021750000000000103,
+          "n": 40000
+        },
+        {
+          "value": "landline",
+          "source_frequency": 0.125525,
+          "synthetic_frequency": 0.123375,
+          "delta": 0.002149999999999999,
+          "n": 40000
+        },
+        {
+          "value": "protection",
+          "source_frequency": 0.249325,
+          "synthetic_frequency": 0.250075,
+          "delta": 0.0007500000000000007,
+          "n": 40000
+        }
+      ]
+    }
+  ],
+  "set_categorical_pairwise": [
+    {
+      "set": "products_held",
+      "option": "mobile",
+      "categorical": "region",
+      "delta": 0.005250000000000021,
+      "n": 40000
+    },
+    {
+      "set": "products_held",
+      "option": "broadband",
+      "categorical": "region",
+      "delta": 0.005725000000000001,
+      "n": 40000
+    },
+    {
+      "set": "products_held",
+      "option": "tv",
+      "categorical": "region",
+      "delta": 0.005274999999999993,
+      "n": 40000
+    },
+    {
+      "set": "products_held",
+      "option": "landline",
+      "categorical": "region",
+      "delta": 0.005174999999999995,
+      "n": 40000
+    },
+    {
+      "set": "products_held",
+      "option": "protection",
+      "categorical": "region",
+      "delta": 0.00527499999999999,
+      "n": 40000
+    }
+  ],
+  "models": [
+    {
+      "field": "age",
+      "latent_scale": 13.556079757436821,
+      "captured_intercept": -0.20122036361154594,
+      "recovered_intercept": -0.19776702447351474,
+      "intercept_delta": 0.0034533391380311973,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Premium",
+          "captured_coefficient": -0.07827047570587334,
+          "recovered_coefficient": -0.07331553138903163,
+          "std_error": 0.025434463670203133,
+          "delta": 0.0049549443168417084,
+          "n_fired": 2196
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Basic",
+          "captured_coefficient": 0.1733253234065584,
+          "recovered_coefficient": 0.18119918984577452,
+          "std_error": 0.023340604305562087,
+          "delta": 0.007873866439216115,
+          "n_fired": 2929
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Unlimited",
+          "captured_coefficient": -0.47894174092565145,
+          "recovered_coefficient": -0.38845247584125936,
+          "std_error": 0.03212272271879221,
+          "delta": 0.09048926508439209,
+          "n_fired": 1129
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "Two-Year",
+          "captured_coefficient": 0.2976161786191041,
+          "recovered_coefficient": 0.2637334026236002,
+          "std_error": 0.02369394508754194,
+          "delta": 0.03388277599550393,
+          "n_fired": 2528
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "One-Year",
+          "captured_coefficient": 0.19505909658581166,
+          "recovered_coefficient": 0.20300622884156702,
+          "std_error": 0.022173433229636837,
+          "delta": 0.007947132255755357,
+          "n_fired": 3144
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "mobile",
+          "captured_coefficient": 0.02694090593414958,
+          "recovered_coefficient": 0.036170609079097145,
+          "std_error": 0.028829075231511434,
+          "delta": 0.009229703144947563,
+          "n_fired": 8772
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "broadband",
+          "captured_coefficient": -0.01477046501017489,
+          "recovered_coefficient": -0.035397255157087804,
+          "std_error": 0.018948513248241594,
+          "delta": 0.02062679014691291,
+          "n_fired": 4757
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "tv",
+          "captured_coefficient": -0.03374897324682288,
+          "recovered_coefficient": -0.03866582689276955,
+          "std_error": 0.02215459026436085,
+          "delta": 0.00491685364594667,
+          "n_fired": 2399
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "landline",
+          "captured_coefficient": 0.3946505389504591,
+          "recovered_coefficient": 0.35804617106067665,
+          "std_error": 0.02865377195864613,
+          "delta": 0.03660436788978244,
+          "n_fired": 1247
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "protection",
+          "captured_coefficient": 0.035015241501151775,
+          "recovered_coefficient": 0.047698527484200566,
+          "std_error": 0.02169855235483949,
+          "delta": 0.01268328598304879,
+          "n_fired": 2554
+        }
+      ],
+      "n_obs": 10000,
+      "r2": 0.05878832809827206,
+      "max_delta": 0.09048926508439209
+    },
+    {
+      "field": "tenure_months",
+      "latent_scale": 29.416628950135912,
+      "captured_intercept": -0.4450271979664158,
+      "recovered_intercept": -0.3908098771588894,
+      "intercept_delta": 0.05421732080752645,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "Two-Year",
+          "captured_coefficient": 1.1533001721859633,
+          "recovered_coefficient": 1.07369999833194,
+          "std_error": 0.020793045319580657,
+          "delta": 0.07960017385402329,
+          "n_fired": 2528
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "One-Year",
+          "captured_coefficient": 0.5124900200525851,
+          "recovered_coefficient": 0.4515028736292507,
+          "std_error": 0.01946473042666349,
+          "delta": 0.06098714642333447,
+          "n_fired": 3144
+        }
+      ],
+      "n_obs": 10000,
+      "r2": 0.21116284199969304,
+      "max_delta": 0.07960017385402329
+    },
+    {
+      "field": "monthly_spend",
+      "latent_scale": 35.965928755489685,
+      "captured_intercept": -1.241698086948304,
+      "recovered_intercept": -1.6211038084240421,
+      "intercept_delta": 0.37940572147573803,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Premium",
+          "captured_coefficient": 0.5229430289342241,
+          "recovered_coefficient": 0.5107854047822327,
+          "std_error": 0.009482168627709373,
+          "delta": 0.012157624151991397,
+          "n_fired": 2196
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Basic",
+          "captured_coefficient": -0.40054772277673295,
+          "recovered_coefficient": -0.37318036644279706,
+          "std_error": 0.008703281839510905,
+          "delta": 0.02736735633393589,
+          "n_fired": 2929
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Unlimited",
+          "captured_coefficient": 1.076390370574393,
+          "recovered_coefficient": 1.0506537591473282,
+          "std_error": 0.011976658656144577,
+          "delta": 0.025736611427064737,
+          "n_fired": 1129
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "mobile",
+          "captured_coefficient": 0.3246006240242672,
+          "recovered_coefficient": 0.6337808283943657,
+          "std_error": 0.010750659627815084,
+          "delta": 0.30918020437009847,
+          "n_fired": 8772,
+          "flagged": true
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "broadband",
+          "captured_coefficient": 1.051702569955571,
+          "recovered_coefficient": 1.1337976309214148,
+          "std_error": 0.0070657408327938894,
+          "delta": 0.08209506096584374,
+          "n_fired": 4757
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "tv",
+          "captured_coefficient": 0.8530504451504953,
+          "recovered_coefficient": 0.8906744225918671,
+          "std_error": 0.00826108683814547,
+          "delta": 0.0376239774413718,
+          "n_fired": 2399
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "landline",
+          "captured_coefficient": 0.3777167398821228,
+          "recovered_coefficient": 0.4150952566481245,
+          "std_error": 0.01068157155953474,
+          "delta": 0.037378516766001735,
+          "n_fired": 1247
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "protection",
+          "captured_coefficient": 0.3207950273664321,
+          "recovered_coefficient": 0.37321189458927273,
+          "std_error": 0.008091452166890912,
+          "delta": 0.05241686722284061,
+          "n_fired": 2554
+        }
+      ],
+      "n_obs": 10000,
+      "r2": 0.8626687478586316,
+      "max_delta": 0.30918020437009847,
+      "flagged": true
+    },
+    {
+      "field": "support_contacts",
+      "scale": "probit_score",
+      "latent_scale": 1.0739527166034826,
+      "captured_intercept": -0.31652626778088316,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Premium",
+          "captured_coefficient": -0.025218748630745635,
+          "recovered_coefficient": -0.04957710121519481,
+          "std_error": 0.028745200544628945,
+          "delta": 0.024358352584449176,
+          "score_retention": 0.7760097172753248,
+          "n_fired": 2196
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Basic",
+          "captured_coefficient": 0.37684980999201845,
+          "recovered_coefficient": 0.33653144886579456,
+          "std_error": 0.02473493151314278,
+          "delta": 0.04031836112622389,
+          "score_retention": 0.8277461385356019,
+          "n_fired": 2929
+        },
+        {
+          "kind": "categorical_level",
+          "field": "plan",
+          "level": "Unlimited",
+          "captured_coefficient": 0.003376713406608803,
+          "recovered_coefficient": -0.0016030723805978775,
+          "std_error": 0.03473199906351128,
+          "delta": 0.0049797857872066805,
+          "score_retention": 0.8112051879119407,
+          "n_fired": 1129
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "mobile",
+          "captured_coefficient": -0.013717002014888284,
+          "recovered_coefficient": -0.008361011803836374,
+          "std_error": 0.031357392234884075,
+          "delta": 0.00535599021105191,
+          "score_retention": 0.8065290259711454,
+          "n_fired": 8772
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "broadband",
+          "captured_coefficient": 0.4734345214144299,
+          "recovered_coefficient": 0.5013615909732061,
+          "std_error": 0.020453419989519474,
+          "delta": 0.02792706955877622,
+          "score_retention": 0.8126744304840346,
+          "n_fired": 4757
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "tv",
+          "captured_coefficient": -0.01763710524089262,
+          "recovered_coefficient": -0.016480208685825917,
+          "std_error": 0.02484064728229219,
+          "delta": 0.001156896555066702,
+          "score_retention": 0.7823464337450831,
+          "n_fired": 2399
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "landline",
+          "captured_coefficient": -0.044325990859578744,
+          "recovered_coefficient": 0.023271337102578536,
+          "std_error": 0.030918798838212806,
+          "delta": 0.06759732796215728,
+          "score_retention": 0.8127133031555468,
+          "n_fired": 1247
+        },
+        {
+          "kind": "set_option",
+          "field": "products_held",
+          "level": "protection",
+          "captured_coefficient": 0.0411615179195521,
+          "recovered_coefficient": 0.05359295082693665,
+          "std_error": 0.02353748776314374,
+          "delta": 0.012431432907384549,
+          "score_retention": 0.8087069807511887,
+          "n_fired": 2554
+        }
+      ],
+      "n_obs": 10000,
+      "max_delta": 0.06759732796215728
+    },
+    {
+      "field": "autopay",
+      "scale": "probit_score",
+      "latent_scale": 0.4968794113011728,
+      "captured_intercept": -0.3407666375169427,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "Two-Year",
+          "captured_coefficient": 0.7338960474106007,
+          "recovered_coefficient": 0.7372067000092914,
+          "std_error": 0.029880752832051945,
+          "delta": 0.0033106525986907887,
+          "score_retention": 0.5454452409707963,
+          "n_fired": 2528
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "One-Year",
+          "captured_coefficient": 0.4778627862668066,
+          "recovered_coefficient": 0.5165685801551736,
+          "std_error": 0.027205648867364495,
+          "delta": 0.03870579388836698,
+          "score_retention": 0.5608076081127822,
+          "n_fired": 3144
+        }
+      ],
+      "n_obs": 10000,
+      "max_delta": 0.03870579388836698
+    },
+    {
+      "field": "churned",
+      "scale": "probit_score",
+      "latent_scale": 0.3929514211387967,
+      "captured_intercept": 0.36872873075836843,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "Two-Year",
+          "captured_coefficient": -0.767838282946458,
+          "recovered_coefficient": -0.7932791671312317,
+          "std_error": 0.0349269186594219,
+          "delta": 0.02544088418477375,
+          "score_retention": 0.41861770762814987,
+          "n_fired": 2528
+        },
+        {
+          "kind": "categorical_level",
+          "field": "contract",
+          "level": "One-Year",
+          "captured_coefficient": -0.5844534971255558,
+          "recovered_coefficient": -0.61463295627958,
+          "std_error": 0.030000433059151788,
+          "delta": 0.030179459154024202,
+          "score_retention": 0.45622663615156517,
+          "n_fired": 3144
+        }
+      ],
+      "n_obs": 10000,
+      "max_delta": 0.030179459154024202
+    }
+  ],
+  "model_residual_correlations": {
+    "fields": [
+      "age",
+      "tenure_months",
+      "monthly_spend",
+      "support_contacts",
+      "autopay",
+      "churned"
+    ],
+    "compared": 3,
+    "mean_delta": 0.010086532625087845,
+    "max_delta": 0.01022240403587207,
+    "pairs": [
+      {
+        "a": "monthly_spend",
+        "b": "tenure_months",
+        "captured_rho": -0.014495537809715865,
+        "recovered_rho": -0.004273133773843795,
+        "delta": 0.01022240403587207,
+        "n": 10000
+      },
+      {
+        "a": "age",
+        "b": "monthly_spend",
+        "captured_rho": -0.015283653611728105,
+        "recovered_rho": -0.005098365258848234,
+        "delta": 0.010185288352879872,
+        "n": 10000
+      },
+      {
+        "a": "age",
+        "b": "tenure_months",
+        "captured_rho": 0.012556881153420345,
+        "recovered_rho": 0.0027049756669087523,
+        "delta": 0.009851905486511593,
+        "n": 10000
+      }
+    ],
+    "unmeasured": [
+      {
+        "a": "churned",
+        "b": "support_contacts",
+        "captured_rho": 0.15592149868271235,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "churned",
+        "b": "tenure_months",
+        "captured_rho": -0.08548139792342789,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "autopay",
+        "b": "churned",
+        "captured_rho": -0.07522154833566819,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "churned",
+        "b": "monthly_spend",
+        "captured_rho": -0.05008573794444254,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "autopay",
+        "b": "support_contacts",
+        "captured_rho": 0.01690758741296979,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "age",
+        "b": "churned",
+        "captured_rho": -0.014565493207252759,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "age",
+        "b": "support_contacts",
+        "captured_rho": 0.01362475181272609,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "autopay",
+        "b": "monthly_spend",
+        "captured_rho": -0.013582377999149969,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "age",
+        "b": "autopay",
+        "captured_rho": 0.011458073286286898,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "monthly_spend",
+        "b": "support_contacts",
+        "captured_rho": -0.010552302986108698,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "support_contacts",
+        "b": "tenure_months",
+        "captured_rho": 0.005204065686484066,
+        "n": 0,
+        "reason": "no_model_fit"
+      },
+      {
+        "a": "autopay",
+        "b": "tenure_months",
+        "captured_rho": 0.0013984813436806718,
+        "n": 0,
+        "reason": "no_model_fit"
+      }
+    ]
+  },
+  "warnings": [
+    "thin dependency level support_contacts x 1 target(s): only 2 supporting observation(s) (below 30) — the candidate still ships and carries its support; judge it on the mapping in its `_evidence`",
+    "conditional relationship conflict: field \"contract\" is already claimed by categorical pair (region -\u003e contract); dropping categorical pair (plan -\u003e contract)",
+    "conditional relationship conflict: field \"products_held\" option \"mobile\" is already claimed by set-categorical pair (products_held.mobile \u003c- region); dropping set-categorical pair (products_held.mobile \u003c- plan)",
+    "conditional relationship conflict: field \"products_held\" option \"mobile\" is already claimed by set-categorical pair (products_held.mobile \u003c- region); dropping set-categorical pair (products_held.mobile \u003c- contract)",
+    "conditional relationship conflict: field \"products_held\" option \"broadband\" is already claimed by set-categorical pair (products_held.broadband \u003c- region); dropping set-categorical pair (products_held.broadband \u003c- plan)",
+    "conditional relationship conflict: field \"products_held\" option \"broadband\" is already claimed by set-categorical pair (products_held.broadband \u003c- region); dropping set-categorical pair (products_held.broadband \u003c- contract)",
+    "conditional relationship conflict: field \"products_held\" option \"tv\" is already claimed by set-categorical pair (products_held.tv \u003c- region); dropping set-categorical pair (products_held.tv \u003c- plan)",
+    "conditional relationship conflict: field \"products_held\" option \"tv\" is already claimed by set-categorical pair (products_held.tv \u003c- region); dropping set-categorical pair (products_held.tv \u003c- contract)",
+    "conditional relationship conflict: field \"products_held\" option \"landline\" is already claimed by set-categorical pair (products_held.landline \u003c- region); dropping set-categorical pair (products_held.landline \u003c- plan)",
+    "conditional relationship conflict: field \"products_held\" option \"landline\" is already claimed by set-categorical pair (products_held.landline \u003c- region); dropping set-categorical pair (products_held.landline \u003c- contract)",
+    "conditional relationship conflict: field \"products_held\" option \"protection\" is already claimed by set-categorical pair (products_held.protection \u003c- region); dropping set-categorical pair (products_held.protection \u003c- plan)",
+    "conditional relationship conflict: field \"products_held\" option \"protection\" is already claimed by set-categorical pair (products_held.protection \u003c- region); dropping set-categorical pair (products_held.protection \u003c- contract)",
+    "pairwise correlation naming field \"support_contacts\" is not applied: the field is drawn from its linear model, which owns its value, and a value-scale correlation would double-count the predictors the two fields share; capture residual correlations (`profile create --residual-correlations`) to correlate a modelled field. The remaining participants still correlate",
+    "pairwise correlation naming field \"frequent_caller\" is not applied: the field is drawn from its linear model, which owns its value, and a value-scale correlation would double-count the predictors the two fields share; capture residual correlations (`profile create --residual-correlations`) to correlate a modelled field. The remaining participants still correlate",
+    "pairwise correlation naming field \"tenure_months\" is not applied: the field is drawn from its linear model, which owns its value, and a value-scale correlation would double-count the predictors the two fields share; capture residual correlations (`profile create --residual-correlations`) to correlate a modelled field. The remaining participants still correlate",
+    "pairwise correlation naming field \"churned\" is not applied: the field is drawn from its linear model, which owns its value, and a value-scale correlation would double-count the predictors the two fields share; capture residual correlations (`profile create --residual-correlations`) to correlate a modelled field. The remaining participants still correlate",
+    "pairwise correlation naming field \"autopay\" is not applied: the field is drawn from its linear model, which owns its value, and a value-scale correlation would double-count the predictors the two fields share; capture residual correlations (`profile create --residual-correlations`) to correlate a modelled field. The remaining participants still correlate",
+    "pairwise correlation naming field \"monthly_spend\" is not applied: the field is drawn from its linear model, which owns its value, and a value-scale correlation would double-count the predictors the two fields share; capture residual correlations (`profile create --residual-correlations`) to correlate a modelled field. The remaining participants still correlate",
+    "pairwise correlation naming field \"age\" is not applied: the field is drawn from its linear model, which owns its value, and a value-scale correlation would double-count the predictors the two fields share; capture residual correlations (`profile create --residual-correlations`) to correlate a modelled field. The remaining participants still correlate",
+    "conditional relationship conflict: field \"frequent_caller\" is already claimed by structural rule 1 (set_expr); dropping linear model",
+    "conditional relationship conflict: field \"frequent_caller\" is already claimed by structural rule 1 (set_expr); dropping pairwise correlation (excluding this field; remaining participants still correlate)",
+    "residual correlation(s) naming [frequent_caller] dropped: the field carries no surviving linear model, so it has no residual to correlate; the remaining participants still correlate"
+  ]
+}

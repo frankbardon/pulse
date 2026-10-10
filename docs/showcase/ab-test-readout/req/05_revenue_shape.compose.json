@@ -1,0 +1,25 @@
+{
+  "requests": [
+    {"label": "all_users",
+     "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+     "groups": [{"type": "GROUP_CATEGORY", "field": "arm"}],
+     "aggregations": [
+       {"type": "AGG_COUNT", "field": "user_id", "label": "users"},
+       {"type": "AGG_AVERAGE", "field": "revenue", "label": "revenue_per_user"},
+       {"type": "AGG_STDDEV", "field": "revenue", "label": "sd"},
+       {"type": "AGG_MEDIAN", "field": "revenue", "label": "median"},
+       {"type": "AGG_SKEWNESS", "field": "revenue", "label": "skewness"},
+       {"type": "AGG_MAX", "field": "revenue", "label": "max"}
+     ]},
+    {"label": "payers_only",
+     "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+     "filterers": [{"type": "FILTER_INCLUDE", "field": "paid_converted", "values": ["yes"]}],
+     "groups": [{"type": "GROUP_CATEGORY", "field": "arm"}],
+     "aggregations": [
+       {"type": "AGG_COUNT", "field": "user_id", "label": "payers"},
+       {"type": "AGG_AVERAGE", "field": "revenue", "label": "revenue_per_payer"},
+       {"type": "AGG_MEDIAN", "field": "revenue", "label": "median"},
+       {"type": "AGG_PERCENTILE", "field": "revenue", "label": "p95", "params": {"percentile": 95}}
+     ]}
+  ]
+}

@@ -1,0 +1,476 @@
+{
+  "row_count": 60000,
+  "fields": [
+    {
+      "name": "loan_id",
+      "type": "u32",
+      "description": "Application identifier.",
+      "distribution": "monotonic_from",
+      "params": {
+        "start": 100001
+      }
+    },
+    {
+      "name": "application_date",
+      "type": "date",
+      "description": "Date the application was booked.",
+      "distribution": "uniform_date",
+      "params": {
+        "start": "2022-01-01",
+        "end": "2024-06-30"
+      }
+    },
+    {
+      "name": "state",
+      "type": "categorical_u8",
+      "description": "Borrower state of residence (two-letter code; OTHER pools the long tail).",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "CA",
+          "TX",
+          "NY",
+          "FL",
+          "IL",
+          "PA",
+          "OH",
+          "GA",
+          "NC",
+          "MI",
+          "NJ",
+          "VA",
+          "WA",
+          "AZ",
+          "MA",
+          "OTHER"
+        ],
+        "weights": [
+          0.14,
+          0.09,
+          0.08,
+          0.07,
+          0.04,
+          0.04,
+          0.035,
+          0.035,
+          0.03,
+          0.03,
+          0.03,
+          0.03,
+          0.03,
+          0.025,
+          0.025,
+          0.29
+        ]
+      }
+    },
+    {
+      "name": "purpose",
+      "type": "categorical_u8",
+      "description": "Stated loan purpose from the application form (40 levels, long tail).",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "debt_consolidation",
+          "credit_card",
+          "home_improvement",
+          "other",
+          "major_purchase",
+          "medical",
+          "small_business",
+          "car",
+          "moving",
+          "vacation",
+          "house",
+          "wedding",
+          "renewable_energy",
+          "educational",
+          "boat",
+          "motorcycle",
+          "pool",
+          "solar_panels",
+          "hvac",
+          "roof_repair",
+          "dental",
+          "vet_bills",
+          "fertility",
+          "adoption",
+          "funeral",
+          "legal_fees",
+          "tax_bill",
+          "military_relocation",
+          "business_equipment",
+          "inventory",
+          "franchise_fee",
+          "musical_instrument",
+          "hobby_equipment",
+          "computer",
+          "furniture",
+          "appliances",
+          "engagement_ring",
+          "home_security",
+          "rv",
+          "timeshare"
+        ],
+        "weights": [
+          0.42,
+          0.2,
+          0.07,
+          0.05,
+          0.03,
+          0.025,
+          0.02,
+          0.02,
+          0.012,
+          0.01,
+          0.01,
+          0.008,
+          0.003,
+          0.003,
+          0.003,
+          0.003,
+          0.002,
+          0.003,
+          0.003,
+          0.003,
+          0.004,
+          0.002,
+          0.002,
+          0.001,
+          0.002,
+          0.003,
+          0.004,
+          0.001,
+          0.003,
+          0.002,
+          0.001,
+          0.001,
+          0.002,
+          0.003,
+          0.003,
+          0.003,
+          0.002,
+          0.001,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "name": "fico_score",
+      "type": "u16",
+      "description": "Bureau credit score at application.",
+      "distribution": "normal",
+      "params": {
+        "mean": 695,
+        "std": 55,
+        "min": 560,
+        "max": 850
+      }
+    },
+    {
+      "name": "credit_band",
+      "type": "categorical_u8",
+      "description": "Internal risk band A (best) to G (worst), cut from fico_score.",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G"
+        ]
+      }
+    },
+    {
+      "name": "term_months",
+      "type": "u8",
+      "description": "Loan term in months (36 or 60).",
+      "distribution": "discrete",
+      "params": {
+        "values": [
+          36,
+          60
+        ],
+        "weights": [
+          0.72,
+          0.28
+        ]
+      }
+    },
+    {
+      "name": "interest_rate",
+      "type": "f64",
+      "description": "Annual interest rate in percent, priced off band and term.",
+      "distribution": "normal",
+      "params": {
+        "mean": 0,
+        "std": 1
+      }
+    },
+    {
+      "name": "annual_income",
+      "type": "decimal128",
+      "precision": 18,
+      "scale": 2,
+      "description": "Self-reported gross annual income, USD.",
+      "distribution": "lognormal",
+      "params": {
+        "mu": 11.05,
+        "sigma": 0.45,
+        "scale": 2
+      }
+    },
+    {
+      "name": "loan_amount",
+      "type": "decimal128",
+      "precision": 18,
+      "scale": 2,
+      "description": "Funded principal, USD.",
+      "distribution": "lognormal",
+      "params": {
+        "mu": 9.35,
+        "sigma": 0.55,
+        "scale": 2
+      }
+    },
+    {
+      "name": "dti",
+      "type": "f64",
+      "description": "Debt-to-income ratio in percent, excluding this loan.",
+      "distribution": "normal",
+      "params": {
+        "mean": 18,
+        "std": 8,
+        "min": 0,
+        "max": 45
+      }
+    },
+    {
+      "name": "revol_util",
+      "type": "f64",
+      "nullable": true,
+      "null_rate": 0.03,
+      "description": "Revolving credit utilisation in percent; null when the bureau file has no revolving lines.",
+      "distribution": "normal",
+      "params": {
+        "mean": 52,
+        "std": 22,
+        "min": 0,
+        "max": 120
+      }
+    },
+    {
+      "name": "emp_length_years",
+      "type": "u8",
+      "nullable": true,
+      "null_rate": 0.06,
+      "description": "Years with current employer (10 = 10 or more); null when not stated.",
+      "distribution": "discrete",
+      "params": {
+        "values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "weights": [
+          8,
+          7,
+          9,
+          8,
+          6,
+          6,
+          5,
+          5,
+          4,
+          4,
+          38
+        ]
+      }
+    },
+    {
+      "name": "home_ownership",
+      "type": "categorical_u8",
+      "description": "Housing status.",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "MORTGAGE",
+          "RENT",
+          "OWN",
+          "OTHER"
+        ],
+        "weights": [
+          0.45,
+          0.4,
+          0.13,
+          0.02
+        ]
+      }
+    },
+    {
+      "name": "delinq_2yrs",
+      "type": "u8",
+      "description": "30+ day delinquencies on the bureau file in the prior 24 months.",
+      "distribution": "poisson",
+      "params": {
+        "lambda": 0.3
+      }
+    },
+    {
+      "name": "gt_true_pd",
+      "type": "f64",
+      "description": "GROUND TRUTH (simulation only): the true 12-month default probability used to draw the outcome. Never a model input.",
+      "distribution": "uniform",
+      "params": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "gt_uniform_draw",
+      "type": "f64",
+      "description": "GROUND TRUTH (simulation only): the uniform draw compared against gt_true_pd. Never a model input.",
+      "distribution": "uniform",
+      "params": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "default_12m",
+      "type": "packed_bool",
+      "description": "Outcome: 1 if the loan went 90+ days past due or charged off within 12 months of booking.",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.1
+      }
+    },
+    {
+      "name": "outcome",
+      "type": "categorical_u8",
+      "description": "Outcome as a label (performing / defaulted); mirrors default_12m so it can stratify a split and split a two-sample test.",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "performing",
+          "defaulted"
+        ]
+      }
+    },
+    {
+      "name": "fico_at_month_12",
+      "type": "u16",
+      "description": "POST-OUTCOME: bureau score re-pulled 12 months after booking (account monitoring). Reflects any delinquency on this loan; not known at application.",
+      "distribution": "normal",
+      "params": {
+        "mean": 0,
+        "std": 1
+      }
+    },
+    {
+      "name": "collections_flag",
+      "type": "packed_bool",
+      "description": "POST-OUTCOME: account was referred to collections. Set after the outcome window; not known at application.",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.0
+      }
+    },
+    {
+      "name": "recovery_amount",
+      "type": "decimal128",
+      "precision": 18,
+      "scale": 2,
+      "nullable": true,
+      "description": "POST-OUTCOME: USD recovered after charge-off; null for loans that did not default.",
+      "distribution": "uniform",
+      "params": {
+        "min": 0,
+        "max": 1,
+        "scale": 2
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "expr": "annual_income >= 15000"
+    },
+    {
+      "expr": "loan_amount >= 1000 && loan_amount <= 40000 && loan_amount <= annual_income * 0.5"
+    }
+  ],
+  "max_rejection_rate": 0.5,
+  "rules": [
+    {
+      "set_expr": {
+        "fico_score": "round(fico_score)",
+        "dti": "round(dti * 100) / 100"
+      }
+    },
+    {
+      "when": "!isnull(revol_util)",
+      "set_expr": {
+        "revol_util": "round(revol_util * 10) / 10"
+      }
+    },
+    {
+      "set_expr": {
+        "credit_band": "fico_score >= 760 ? \"A\" : fico_score >= 720 ? \"B\" : fico_score >= 690 ? \"C\" : fico_score >= 660 ? \"D\" : fico_score >= 630 ? \"E\" : fico_score >= 600 ? \"F\" : \"G\""
+      }
+    },
+    {
+      "set_expr": {
+        "interest_rate": "round(100 * (({\"A\": 7.0, \"B\": 10.0, \"C\": 13.5, \"D\": 17.0, \"E\": 20.5, \"F\": 24.0, \"G\": 27.5}[credit_band]) + (term_months >= 48 ? 1.8 : 0) + 0.9 * interest_rate)) / 100"
+      }
+    },
+    {
+      "set_expr": {
+        "gt_true_pd": "1 / (1 + 2.718281828459045 ** (-(-2.55 + ({\"A\": -1.3, \"B\": -0.7, \"C\": 0.0, \"D\": 0.45, \"E\": 0.85, \"F\": 1.2, \"G\": 1.5}[credit_band]) + 0.035 * (dti - 18) + (term_months >= 48 ? 0.4 : 0) + 0.3 * delinq_2yrs + (isnull(emp_length_years) ? 0.35 : -0.03 * emp_length_years) + (home_ownership == \"RENT\" ? 0.2 : home_ownership == \"OWN\" ? -0.05 : 0) + 2.0 * (loan_amount / annual_income - 0.2) + (isnull(revol_util) ? 0 : 0.008 * (revol_util - 50)) + ({\"small_business\": 0.7, \"franchise_fee\": 0.6, \"timeshare\": 0.5, \"tax_bill\": 0.45, \"legal_fees\": 0.4, \"medical\": 0.35, \"moving\": 0.3, \"funeral\": 0.2, \"vacation\": 0.15, \"other\": 0.15, \"debt_consolidation\": 0.1, \"credit_card\": -0.1, \"major_purchase\": -0.1, \"house\": -0.15, \"home_improvement\": -0.2, \"wedding\": -0.2, \"car\": -0.25}[purpose] ?? 0.0))))"
+      }
+    },
+    {
+      "set_expr": {
+        "default_12m": "gt_uniform_draw < gt_true_pd"
+      }
+    },
+    {
+      "set_expr": {
+        "outcome": "default_12m == 1 ? \"defaulted\" : \"performing\""
+      }
+    },
+    {
+      "set_expr": {
+        "fico_at_month_12": "max(300, min(850, round(fico_score + (default_12m == 1 ? -55 + 35 * fico_at_month_12 : 5 + 20 * fico_at_month_12))))"
+      }
+    },
+    {
+      "set_expr": {
+        "collections_flag": "default_12m == 1 ? gt_uniform_draw < 0.85 * gt_true_pd : gt_uniform_draw > 0.992"
+      }
+    },
+    {
+      "when": "default_12m == 0",
+      "set_null": [
+        "recovery_amount"
+      ]
+    },
+    {
+      "when": "default_12m == 1",
+      "set_expr": {
+        "recovery_amount": "round(loan_amount * (0.10 + 0.35 * gt_uniform_draw / gt_true_pd) * 100) / 100"
+      }
+    }
+  ]
+}

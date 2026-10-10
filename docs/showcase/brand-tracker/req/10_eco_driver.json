@@ -1,0 +1,184 @@
+{
+  "requests": [
+    {
+      "label": "eco_trend",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_eco",
+          "params": {
+            "label": "Eco-friendly"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "wave"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_eco",
+          "label": "eco_friendly"
+        }
+      },
+      "overlays": [
+        {
+          "name": "wave_vs_wave",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "row",
+          "params": {
+            "p_source": "cell_value"
+          },
+          "multiplicity": {
+            "method": "holm"
+          }
+        }
+      ]
+    },
+    {
+      "label": "eco_selectors",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_SET_CONTAINS_ANY",
+          "field": "attributes",
+          "values": [
+            "Eco-friendly"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "wave"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "respondents",
+          "weight": null
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "consider",
+          "label": "consider"
+        }
+      ]
+    },
+    {
+      "label": "eco_non_selectors",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        },
+        {
+          "type": "FILTER_SET_CONTAINS_NONE",
+          "field": "attributes",
+          "values": [
+            "Eco-friendly"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "wave"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "respondents",
+          "weight": null
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "consider",
+          "label": "consider"
+        }
+      ]
+    },
+    {
+      "label": "attribute_counts",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "wave"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SET_FREQUENCY",
+          "field": "attributes",
+          "label": "weighted_mentions"
+        }
+      ]
+    }
+  ]
+}

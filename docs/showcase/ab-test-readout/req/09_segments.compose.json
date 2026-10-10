@@ -1,0 +1,416 @@
+{
+  "multiplicity": {
+    "method": "holm",
+    "family": "compose"
+  },
+  "requests": [
+    {
+      "label": "device=desktop",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "device",
+          "values": [
+            "desktop"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "device=mobile",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "device",
+          "values": [
+            "mobile"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "device=tablet",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "device",
+          "values": [
+            "tablet"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "plan_tier=individual",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "plan_tier",
+          "values": [
+            "individual"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "plan_tier=team",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "plan_tier",
+          "values": [
+            "team"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "plan_tier=business",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "plan_tier",
+          "values": [
+            "business"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "region=NA",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "region",
+          "values": [
+            "NA"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "region=EMEA",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "region",
+          "values": [
+            "EMEA"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "region=APAC",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "region",
+          "values": [
+            "APAC"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "region=LATAM",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "region",
+          "values": [
+            "LATAM"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "user_type=new",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "user_type",
+          "values": [
+            "new"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    },
+    {
+      "label": "user_type=returning",
+      "cohort": {
+        "filename": "ab_test.pulse",
+        "data_dir": "."
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "user_type",
+          "values": [
+            "returning"
+          ]
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "user_id",
+          "label": "users"
+        }
+      ],
+      "tests": [
+        {
+          "type": "TEST_PROP_Z",
+          "field": "trial_started",
+          "split_by": "arm",
+          "label": "trial_start_lift",
+          "params": {
+            "success": "yes"
+          }
+        }
+      ]
+    }
+  ]
+}

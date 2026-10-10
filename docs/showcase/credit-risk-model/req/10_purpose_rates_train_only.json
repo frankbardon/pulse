@@ -1,0 +1,57 @@
+{
+  "cohort": {
+    "filename": "loans.pulse",
+    "data_dir": "."
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "label": "split",
+      "params": {
+        "ratios": [
+          0.7,
+          0.3
+        ],
+        "seed": 42,
+        "stratify": "outcome"
+      }
+    }
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "split",
+      "values": [
+        "0"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "purpose"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "loan_id",
+      "label": "train_n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "default_12m",
+      "label": "train_defaults"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "default_12m",
+      "label": "train_default_rate"
+    }
+  ],
+  "sort": [
+    {
+      "field": "purpose"
+    }
+  ]
+}

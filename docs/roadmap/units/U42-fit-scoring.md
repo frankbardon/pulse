@@ -96,7 +96,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(fit-scoring/E<n>-
 
 ## Human inputs & decisions
 
-- **Open:** v1 membership: owner call. This unit is written as a post-U40 unit; the owner decides whether it ships in v1.0.0 (then add it to U32's `depends_on`) or after.
+- **Decided (2026-10-10):** ships in v1.0.0. The owner wants Pulse as self-sufficient as possible at v1; this unit is in U32's `depends_on`.
 - **Open:** where a reusable model lives: inside one `ComposedRequest`, a stored artefact beside the cohort, or both.
 - **Open:** how a categorical predictor's reference level is expressed when scoring.
 - **Open:** gap 8's train/holdout split by index: a filter, a grouper or a slot param.

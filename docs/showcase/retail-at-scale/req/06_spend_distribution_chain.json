@@ -1,0 +1,95 @@
+{
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": "."
+  },
+  "stages": [
+    {
+      "name": "per_customer",
+      "request": {
+        "filterers": [
+          {
+            "type": "FILTER_EXPRESSION",
+            "expression": "customer_id % 10 == 0"
+          }
+        ],
+        "groups": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "customer_id"
+          }
+        ],
+        "aggregations": [
+          {
+            "type": "AGG_SUM",
+            "field": "net_amount",
+            "label": "spend"
+          },
+          {
+            "type": "AGG_DISTINCT_COUNT",
+            "field": "order_id",
+            "label": "orders"
+          },
+          {
+            "type": "AGG_MAX",
+            "field": "loyalty_member",
+            "label": "is_member"
+          }
+        ]
+      }
+    },
+    {
+      "name": "by_spend_band",
+      "request": {
+        "attributes": [
+          {
+            "type": "ATTR_FORMULA",
+            "field": "spend",
+            "label": "spend_band",
+            "expression": "spend < 50 ? 1 : spend < 100 ? 2 : spend < 250 ? 3 : spend < 500 ? 4 : spend < 1000 ? 5 : spend < 2500 ? 6 : 7"
+          }
+        ],
+        "groups": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "spend_band"
+          }
+        ],
+        "aggregations": [
+          {
+            "type": "AGG_SUM",
+            "field": "spend",
+            "label": "spend"
+          },
+          {
+            "type": "AGG_COUNT",
+            "field": "spend",
+            "label": "customers"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "orders",
+            "label": "avg_orders"
+          },
+          {
+            "type": "AGG_AVERAGE",
+            "field": "is_member",
+            "label": "member_share"
+          }
+        ],
+        "sort": [
+          {
+            "field": "spend_band"
+          }
+        ],
+        "overlays": [
+          {
+            "name": "share",
+            "kind": "OVERLAY_SHARE_OF_TOTAL",
+            "scope": "group"
+          }
+        ]
+      }
+    }
+  ]
+}

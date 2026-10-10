@@ -1,0 +1,80 @@
+{
+  "requests": [
+    {
+      "label": "source",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_ONE_HOT",
+          "field": "contract"
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "regressions": [
+        {
+          "type": "REG_GLM",
+          "name": "churn_logit",
+          "target": "churned",
+          "predictors": [
+            "contract_One-Year",
+            "contract_Two-Year",
+            "tenure_months",
+            "support_contacts",
+            "autopay",
+            "n_products",
+            "age"
+          ],
+          "family": "binomial",
+          "link": "logit"
+        }
+      ]
+    },
+    {
+      "label": "twin",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_ONE_HOT",
+          "field": "contract"
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "regressions": [
+        {
+          "type": "REG_GLM",
+          "name": "churn_logit",
+          "target": "churned",
+          "predictors": [
+            "contract_One-Year",
+            "contract_Two-Year",
+            "tenure_months",
+            "support_contacts",
+            "autopay",
+            "n_products",
+            "age"
+          ],
+          "family": "binomial",
+          "link": "logit"
+        }
+      ]
+    }
+  ]
+}

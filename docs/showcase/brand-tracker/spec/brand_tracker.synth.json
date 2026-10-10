@@ -1,0 +1,635 @@
+{
+  "row_count": 6000,
+  "fields": [
+    {
+      "name": "resp_id",
+      "type": "u32",
+      "distribution": "monotonic_from",
+      "params": {
+        "start": 100001
+      },
+      "description": "Respondent identifier, unique across all four waves."
+    },
+    {
+      "name": "market",
+      "type": "categorical_u8",
+      "distribution": "constant",
+      "params": {
+        "value": "US"
+      },
+      "description": "Survey market; a single market (US) in this tracker, used as the Total banner column."
+    },
+    {
+      "name": "wave",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "W1",
+          "W2",
+          "W3",
+          "W4"
+        ]
+      },
+      "description": "Survey wave code: W1 = 2025 Q1 through W4 = 2025 Q4 (label table wave_names)."
+    },
+    {
+      "name": "age_band",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "18-34",
+          "35-54",
+          "55+"
+        ],
+        "weights": [
+          0.445,
+          0.33,
+          0.225
+        ]
+      },
+      "description": "Respondent age band in years, one of 18-34, 35-54 or 55+."
+    },
+    {
+      "name": "gender",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "Female",
+          "Male"
+        ],
+        "weights": [
+          0.55,
+          0.45
+        ]
+      },
+      "description": "Respondent self-reported gender, Female or Male."
+    },
+    {
+      "name": "region",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": [
+          "NE",
+          "MW",
+          "SO",
+          "WE"
+        ],
+        "weights": [
+          0.2,
+          0.22,
+          0.36,
+          0.22
+        ]
+      },
+      "description": "US census region code NE, MW, SO or WE (label table region_names)."
+    },
+    {
+      "name": "weight",
+      "type": "f64",
+      "distribution": "constant",
+      "params": {
+        "value": 1.0
+      },
+      "description": "Post-stratification weight to census age x gender x region targets; mean is close to 1."
+    },
+    {
+      "name": "aware_unaided",
+      "type": "packed_bool",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.18
+      },
+      "description": "Unaided (spontaneous) awareness: 1 if the respondent named the brand without prompting."
+    },
+    {
+      "name": "aware_aided",
+      "type": "packed_bool",
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.62
+      },
+      "description": "Aided (prompted) awareness: 1 if the respondent recognised the brand from a list."
+    },
+    {
+      "name": "consider",
+      "type": "packed_bool",
+      "nullable": true,
+      "distribution": "bernoulli",
+      "params": {
+        "p": 0.3
+      },
+      "description": "Consideration: 1 if the respondent would consider the brand next purchase; asked only of aided-aware respondents."
+    },
+    {
+      "name": "intent",
+      "type": "u8",
+      "nullable": true,
+      "distribution": "discrete",
+      "params": {
+        "values": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "weights": [
+          15,
+          20,
+          33,
+          22,
+          10
+        ]
+      },
+      "description": "Purchase intent on a 1-5 scale (1 definitely not, 5 definitely will); asked only of aided-aware respondents."
+    },
+    {
+      "name": "nps",
+      "type": "u8",
+      "nullable": true,
+      "distribution": "discrete",
+      "params": {
+        "values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "weights": [
+          5,
+          3,
+          4,
+          5,
+          6,
+          10,
+          10,
+          13,
+          14,
+          12,
+          8
+        ]
+      },
+      "description": "Likelihood to recommend, 0-10 (Net Promoter question); asked only of aided-aware respondents."
+    },
+    {
+      "name": "attributes",
+      "type": "set_u8",
+      "nullable": true,
+      "distribution": "set_bernoulli",
+      "params": {
+        "options": [
+          "Good value",
+          "High quality",
+          "Innovative",
+          "Trustworthy",
+          "Stylish",
+          "Eco-friendly",
+          "For people like me",
+          "None of these"
+        ],
+        "frequencies": [
+          0.34,
+          0.41,
+          0.22,
+          0.36,
+          0.18,
+          0.15,
+          0.2,
+          0.0
+        ]
+      },
+      "description": "Brand image attributes the respondent associates with the brand (multi-select); asked only of aided-aware respondents."
+    }
+  ],
+  "categorical_pairs": [
+    {
+      "a": "wave",
+      "b": "age_band",
+      "cells": [
+        {
+          "a_value": "W1",
+          "b_value": "18-34",
+          "count": 400
+        },
+        {
+          "a_value": "W1",
+          "b_value": "35-54",
+          "count": 360
+        },
+        {
+          "a_value": "W1",
+          "b_value": "55+",
+          "count": 240
+        },
+        {
+          "a_value": "W2",
+          "b_value": "18-34",
+          "count": 400
+        },
+        {
+          "a_value": "W2",
+          "b_value": "35-54",
+          "count": 360
+        },
+        {
+          "a_value": "W2",
+          "b_value": "55+",
+          "count": 240
+        },
+        {
+          "a_value": "W3",
+          "b_value": "18-34",
+          "count": 400
+        },
+        {
+          "a_value": "W3",
+          "b_value": "35-54",
+          "count": 360
+        },
+        {
+          "a_value": "W3",
+          "b_value": "55+",
+          "count": 240
+        },
+        {
+          "a_value": "W4",
+          "b_value": "18-34",
+          "count": 580
+        },
+        {
+          "a_value": "W4",
+          "b_value": "35-54",
+          "count": 280
+        },
+        {
+          "a_value": "W4",
+          "b_value": "55+",
+          "count": 140
+        }
+      ]
+    }
+  ],
+  "set_categorical_pairs": [
+    {
+      "set": "attributes",
+      "option": "Innovative",
+      "categorical": "age_band",
+      "cells": [
+        {
+          "a_value": "selected",
+          "b_value": "18-34",
+          "count": 320
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "18-34",
+          "count": 680
+        },
+        {
+          "a_value": "selected",
+          "b_value": "35-54",
+          "count": 210
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "35-54",
+          "count": 790
+        },
+        {
+          "a_value": "selected",
+          "b_value": "55+",
+          "count": 140
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "55+",
+          "count": 860
+        }
+      ]
+    },
+    {
+      "set": "attributes",
+      "option": "Stylish",
+      "categorical": "age_band",
+      "cells": [
+        {
+          "a_value": "selected",
+          "b_value": "18-34",
+          "count": 270
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "18-34",
+          "count": 730
+        },
+        {
+          "a_value": "selected",
+          "b_value": "35-54",
+          "count": 160
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "35-54",
+          "count": 840
+        },
+        {
+          "a_value": "selected",
+          "b_value": "55+",
+          "count": 100
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "55+",
+          "count": 900
+        }
+      ]
+    },
+    {
+      "set": "attributes",
+      "option": "For people like me",
+      "categorical": "age_band",
+      "cells": [
+        {
+          "a_value": "selected",
+          "b_value": "18-34",
+          "count": 290
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "18-34",
+          "count": 710
+        },
+        {
+          "a_value": "selected",
+          "b_value": "35-54",
+          "count": 190
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "35-54",
+          "count": 810
+        },
+        {
+          "a_value": "selected",
+          "b_value": "55+",
+          "count": 130
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "55+",
+          "count": 870
+        }
+      ]
+    },
+    {
+      "set": "attributes",
+      "option": "Eco-friendly",
+      "categorical": "wave",
+      "cells": [
+        {
+          "a_value": "selected",
+          "b_value": "W1",
+          "count": 120
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "W1",
+          "count": 880
+        },
+        {
+          "a_value": "selected",
+          "b_value": "W2",
+          "count": 130
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "W2",
+          "count": 870
+        },
+        {
+          "a_value": "selected",
+          "b_value": "W3",
+          "count": 190
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "W3",
+          "count": 810
+        },
+        {
+          "a_value": "selected",
+          "b_value": "W4",
+          "count": 240
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "W4",
+          "count": 760
+        }
+      ]
+    },
+    {
+      "set": "attributes",
+      "option": "Trustworthy",
+      "categorical": "region",
+      "cells": [
+        {
+          "a_value": "selected",
+          "b_value": "NE",
+          "count": 350
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "NE",
+          "count": 650
+        },
+        {
+          "a_value": "selected",
+          "b_value": "MW",
+          "count": 420
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "MW",
+          "count": 580
+        },
+        {
+          "a_value": "selected",
+          "b_value": "SO",
+          "count": 350
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "SO",
+          "count": 650
+        },
+        {
+          "a_value": "selected",
+          "b_value": "WE",
+          "count": 350
+        },
+        {
+          "a_value": "not_selected",
+          "b_value": "WE",
+          "count": 650
+        }
+      ]
+    }
+  ],
+  "models": [
+    {
+      "field": "aware_unaided",
+      "intercept": 0.18,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "18-34",
+          "coefficient": 0.345769
+        },
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "35-54",
+          "coefficient": 0.153675
+        }
+      ],
+      "residual_std": 0.384187
+    },
+    {
+      "field": "aware_aided",
+      "intercept": 0.62,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "18-34",
+          "coefficient": 0.218424
+        },
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "35-54",
+          "coefficient": 0.097077
+        }
+      ],
+      "residual_std": 0.485386
+    },
+    {
+      "field": "consider",
+      "intercept": 0.3,
+      "predictors": [
+        {
+          "kind": "set_option",
+          "field": "attributes",
+          "level": "Eco-friendly",
+          "coefficient": 0.206216
+        },
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "18-34",
+          "coefficient": 0.091652
+        },
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "35-54",
+          "coefficient": 0.045826
+        },
+        {
+          "kind": "categorical_level",
+          "field": "wave",
+          "level": "W3",
+          "coefficient": 0.068739
+        },
+        {
+          "kind": "categorical_level",
+          "field": "wave",
+          "level": "W4",
+          "coefficient": 0.16039
+        }
+      ],
+      "residual_std": 0.458258
+    },
+    {
+      "field": "intent",
+      "intercept": 2.92,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "18-34",
+          "coefficient": 0.178342
+        },
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "35-54",
+          "coefficient": 0.059447
+        }
+      ],
+      "residual_std": 1.188949
+    },
+    {
+      "field": "nps",
+      "intercept": 6.122222,
+      "predictors": [
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "18-34",
+          "coefficient": 2.094122
+        },
+        {
+          "kind": "categorical_level",
+          "field": "age_band",
+          "level": "35-54",
+          "coefficient": 0.558433
+        }
+      ],
+      "residual_std": 2.792163
+    }
+  ],
+  "rules": [
+    {
+      "set_expr": {
+        "weight": "(wave == \"W4\" ? (age_band == \"18-34\" ? 0.5 : (age_band == \"35-54\" ? 1.178571 : 2.714286)) : (age_band == \"18-34\" ? 0.725 : (age_band == \"35-54\" ? 0.916667 : 1.583333))) * (gender == \"Female\" ? 0.927273 : 1.088889) * (region == \"NE\" ? 0.85 : (region == \"MW\" ? 0.954545 : (region == \"SO\" ? 1.055556 : 1.090909)))"
+      }
+    },
+    {
+      "when": "aware_unaided == 1",
+      "set": {
+        "aware_aided": 1
+      }
+    },
+    {
+      "when": "aware_aided == 0",
+      "set_null": [
+        "consider",
+        "intent",
+        "nps",
+        "attributes"
+      ]
+    },
+    {
+      "when": "!isnull(attributes) && !attributes[\"Good value\"] && !attributes[\"High quality\"] && !attributes[\"Innovative\"] && !attributes[\"Trustworthy\"] && !attributes[\"Stylish\"] && !attributes[\"Eco-friendly\"] && !attributes[\"For people like me\"]",
+      "set": {
+        "attributes": [
+          "None of these"
+        ]
+      }
+    }
+  ]
+}

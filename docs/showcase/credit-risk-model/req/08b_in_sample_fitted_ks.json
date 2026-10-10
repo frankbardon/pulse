@@ -1,0 +1,133 @@
+{
+  "cohort": {
+    "filename": "loans.pulse",
+    "data_dir": "."
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "label": "split",
+      "params": {
+        "ratios": [
+          0.7,
+          0.3
+        ],
+        "seed": 42,
+        "stratify": "outcome"
+      }
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "annual_income",
+      "label": "log_income"
+    },
+    {
+      "type": "FEAT_LOG",
+      "field": "loan_amount",
+      "label": "log_loan"
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "credit_band",
+      "label": "band"
+    },
+    {
+      "type": "FEAT_ONE_HOT",
+      "field": "home_ownership",
+      "label": "home"
+    },
+    {
+      "type": "FEAT_FREQUENCY_ENCODE",
+      "field": "purpose",
+      "label": "purpose_freq"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "lti",
+      "expression": "2.718281828459045 ** (log_loan - log_income)"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "term60",
+      "expression": "term_months == 60 ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "emp_missing",
+      "expression": "emp_length_years == nil ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "emp_years",
+      "expression": "emp_length_years ?? 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "revol_missing",
+      "expression": "revol_util == nil ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "revol_util_filled",
+      "expression": "revol_util ?? 50"
+    },
+    {
+      "type": "ATTR_REG_FITTED",
+      "label": "lpm_clean",
+      "target": "default_12m",
+      "predictors": [
+        "fico_score",
+        "dti",
+        "lti",
+        "delinq_2yrs",
+        "revol_util_filled",
+        "emp_years",
+        "emp_missing",
+        "term60",
+        "home_RENT"
+      ]
+    },
+    {
+      "type": "ATTR_REG_FITTED",
+      "label": "lpm_leaky",
+      "target": "default_12m",
+      "predictors": [
+        "fico_score",
+        "dti",
+        "lti",
+        "delinq_2yrs",
+        "revol_util_filled",
+        "emp_years",
+        "emp_missing",
+        "term60",
+        "home_RENT",
+        "fico_at_month_12"
+      ]
+    }
+  ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "split",
+      "values": [
+        "0"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_KS",
+      "field": "lpm_clean",
+      "split_by": "outcome",
+      "label": "ks_clean_in_sample"
+    },
+    {
+      "type": "TEST_KS",
+      "field": "lpm_leaky",
+      "split_by": "outcome",
+      "label": "ks_leaky_in_sample"
+    }
+  ]
+}

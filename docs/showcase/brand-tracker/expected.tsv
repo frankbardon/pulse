@@ -1,0 +1,24 @@
+# file	jq expression	expected (rounded to 3 decimals)	meaning
+out/00_synth.json	.data.rows_generated	6000	rows synthesised
+out/01_sample_vs_census.json	.data.responses[0].crosstab.matrix.cells[0][3].value	0.593	Q4 unweighted share aged 18-34
+out/01_sample_vs_census.json	.data.responses[4].crosstab.matrix.cells[0][3].value	0.301	Q4 weighted share aged 18-34
+out/01_sample_vs_census.json	.data.responses[5].crosstab.matrix.cells[2][0].value	0.38	weighted share aged 55+ (all waves)
+out/01_sample_vs_census.json	.data.responses[8].components.aggregations[3].groups[3].n_eff	925.788	Q4 Kish effective sample size
+out/02_funnel_by_wave.json	.data.data[3].unaided_unweighted	0.383	Q4 unaided awareness, unweighted
+out/02_funnel_by_wave.json	.data.data[3].unaided_weighted	0.288	Q4 unaided awareness, weighted
+out/03_unaided_phantom_gain.json	.data.responses[0].overlays[0].payload.matrix.cells[2][0].value	0.001	Q1 vs Q4 unaided p, unweighted
+out/03_unaided_phantom_gain.json	.data.responses[1].overlays[0].payload.matrix.cells[2][0].value	0.867	Q1 vs Q4 unaided p, weighted
+out/04_nps_reversal.json	.data.responses[0].data[0].nps_unweighted	5.604	NPS, unweighted
+out/04_nps_reversal.json	.data.responses[0].data[0].nps_weighted	-3.176	NPS, weighted
+out/05_kpi_tracker.json	.data.responses[5].overlays[0].payload.p_adjusted.cells[5][0].value	0.012	consideration Q3 vs Q4, Holm-adjusted p
+out/05_kpi_tracker.json	.data.responses[1].overlays[0].payload.matrix.cells[5][0].value	0.046	aided Q3 vs Q4, raw p
+out/05_kpi_tracker.json	.data.responses[1].overlays[0].payload.p_adjusted.cells[5][0].value	1	aided Q3 vs Q4, Holm-adjusted p
+out/06_q4_banner.json	.data.responses[11].overlays[0].payload.matrix.cells[0][2].value	0.046	Q4 top-2-box Midwest vs West, raw p
+out/06_q4_banner.json	.data.responses[11].overlays[0].payload.p_adjusted.cells[0][2].value	1	Q4 top-2-box Midwest vs West, Holm p
+out/07_image_banner_holm.json	.data.responses[7].overlays[0].payload.matrix.cells[0][1].value	0.003	Trustworthy Midwest vs South, raw p
+out/07_image_banner_holm.json	.data.responses[7].overlays[0].payload.p_adjusted.cells[0][1].value	0.172	Trustworthy Midwest vs South, Holm p
+out/08_image_banner_bh.json	.data.responses[7].overlays[0].payload.p_adjusted.cells[0][1].value	0.031	Trustworthy Midwest vs South, BH p
+out/09_image_by_wave.json	.data.crosstab.matrix.cells[0][3].value	0.236	Eco-friendly association, Q4 (weighted)
+out/10_eco_driver.json	.data.responses[0].overlays[0].payload.p_adjusted.cells[5][0].value	0.034	Eco-friendly Q3 vs Q4, Holm p
+out/11_export_spss.json	.data.RowsExported	6000	cases written to the .sav
+out/12_roundtrip_check.json	.data.data[3].unaided_weighted	0.288	Q4 unaided awareness, weighted, read back from the .sav

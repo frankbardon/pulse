@@ -1,0 +1,63 @@
+{
+  "requests": [
+    {
+      "label": "by_region",
+      "cohort": {"filename": "orders-2025-12.pulse", "data_dir": "."},
+      "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
+      "aggregations": [
+        {"type": "AGG_SUM", "field": "net_amount", "label": "revenue"},
+        {"type": "AGG_COUNT", "field": "line_id", "label": "lines"},
+        {"type": "AGG_DISTINCT_COUNT", "field": "customer_id", "label": "customers"}
+      ],
+      "sort": [{"field": "revenue", "desc": true}],
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+    },
+    {
+      "label": "by_category",
+      "cohort": {"filename": "orders-2025-12.pulse", "data_dir": "."},
+      "groups": [{"type": "GROUP_CATEGORY", "field": "category"}],
+      "aggregations": [
+        {"type": "AGG_SUM", "field": "net_amount", "label": "revenue"},
+        {"type": "AGG_AVERAGE", "field": "unit_price", "label": "avg_unit_price"},
+        {"type": "AGG_AVERAGE", "field": "returned", "label": "return_rate"}
+      ],
+      "sort": [{"field": "revenue", "desc": true}],
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+    },
+    {
+      "label": "by_channel",
+      "cohort": {"filename": "orders-2025-12.pulse", "data_dir": "."},
+      "groups": [{"type": "GROUP_CATEGORY", "field": "channel"}],
+      "aggregations": [
+        {"type": "AGG_SUM", "field": "net_amount", "label": "revenue"},
+        {"type": "AGG_AVERAGE", "field": "net_amount", "label": "avg_line_value"},
+        {"type": "AGG_AVERAGE", "field": "quantity", "label": "avg_units_per_line"}
+      ],
+      "sort": [{"field": "revenue", "desc": true}],
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+    },
+    {
+      "label": "loyalty_vs_not",
+      "cohort": {"filename": "orders-2025-12.pulse", "data_dir": "."},
+      "groups": [{"type": "GROUP_CATEGORY", "field": "loyalty_member"}],
+      "aggregations": [
+        {"type": "AGG_SUM", "field": "net_amount", "label": "revenue"},
+        {"type": "AGG_COUNT", "field": "line_id", "label": "lines"},
+        {"type": "AGG_DISTINCT_COUNT", "field": "customer_id", "label": "customers"},
+        {"type": "AGG_AVERAGE", "field": "net_amount", "label": "avg_line_value"}
+      ],
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+    },
+    {
+      "label": "by_discount",
+      "cohort": {"filename": "orders-2025-12.pulse", "data_dir": "."},
+      "groups": [{"type": "GROUP_CATEGORY", "field": "discount_pct"}],
+      "aggregations": [
+        {"type": "AGG_SUM", "field": "net_amount", "label": "revenue"},
+        {"type": "AGG_COUNT", "field": "line_id", "label": "lines"}
+      ],
+      "sort": [{"field": "discount_pct"}],
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "cohort": {"filename": "orders.pulse", "data_dir": "."},
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "line_id", "label": "lines"},
+    {"type": "AGG_SUM", "field": "net_amount", "label": "revenue"},
+    {"type": "AGG_SUM", "field": "quantity", "label": "units"},
+    {"type": "AGG_AVERAGE", "field": "net_amount", "label": "avg_line_value"},
+    {"type": "AGG_AVERAGE", "field": "returned", "label": "return_rate"}
+  ]
+}

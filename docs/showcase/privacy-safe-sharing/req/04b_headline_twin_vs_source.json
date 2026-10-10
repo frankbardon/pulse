@@ -1,0 +1,598 @@
+{
+  "requests": [
+    {
+      "label": "source_churn_rate",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "twin_churn_rate",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "source_avg_monthly_spend_usd",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "monthly_spend",
+          "label": "avg_monthly_spend_usd"
+        }
+      ]
+    },
+    {
+      "label": "twin_avg_monthly_spend_usd",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "monthly_spend",
+          "label": "avg_monthly_spend_usd"
+        }
+      ]
+    },
+    {
+      "label": "source_median_monthly_spend_usd",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_MEDIAN",
+          "field": "monthly_spend",
+          "label": "median_monthly_spend_usd"
+        }
+      ]
+    },
+    {
+      "label": "twin_median_monthly_spend_usd",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_MEDIAN",
+          "field": "monthly_spend",
+          "label": "median_monthly_spend_usd"
+        }
+      ]
+    },
+    {
+      "label": "source_avg_tenure_months",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "tenure_months",
+          "label": "avg_tenure_months"
+        }
+      ]
+    },
+    {
+      "label": "twin_avg_tenure_months",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "tenure_months",
+          "label": "avg_tenure_months"
+        }
+      ]
+    },
+    {
+      "label": "source_avg_age",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "age",
+          "label": "avg_age"
+        }
+      ]
+    },
+    {
+      "label": "twin_avg_age",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "age",
+          "label": "avg_age"
+        }
+      ]
+    },
+    {
+      "label": "source_avg_support_contacts",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "support_contacts",
+          "label": "avg_support_contacts"
+        }
+      ]
+    },
+    {
+      "label": "twin_avg_support_contacts",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "support_contacts",
+          "label": "avg_support_contacts"
+        }
+      ]
+    },
+    {
+      "label": "source_autopay_rate",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "autopay",
+          "label": "autopay_rate"
+        }
+      ]
+    },
+    {
+      "label": "twin_autopay_rate",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "autopay",
+          "label": "autopay_rate"
+        }
+      ]
+    },
+    {
+      "label": "source_avg_products",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "n_products",
+          "label": "avg_products"
+        }
+      ]
+    },
+    {
+      "label": "twin_avg_products",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "age",
+          "interval": 1000
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "n_products",
+          "label": "avg_products"
+        }
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "name": "churn_rate_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_churn_rate",
+      "targets": [
+        "twin_churn_rate"
+      ]
+    },
+    {
+      "name": "churn_rate_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_churn_rate",
+      "targets": [
+        "twin_churn_rate"
+      ]
+    },
+    {
+      "name": "avg_monthly_spend_usd_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_monthly_spend_usd",
+      "targets": [
+        "twin_avg_monthly_spend_usd"
+      ]
+    },
+    {
+      "name": "avg_monthly_spend_usd_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_monthly_spend_usd",
+      "targets": [
+        "twin_avg_monthly_spend_usd"
+      ]
+    },
+    {
+      "name": "median_monthly_spend_usd_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_median_monthly_spend_usd",
+      "targets": [
+        "twin_median_monthly_spend_usd"
+      ]
+    },
+    {
+      "name": "median_monthly_spend_usd_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_median_monthly_spend_usd",
+      "targets": [
+        "twin_median_monthly_spend_usd"
+      ]
+    },
+    {
+      "name": "avg_tenure_months_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_tenure_months",
+      "targets": [
+        "twin_avg_tenure_months"
+      ]
+    },
+    {
+      "name": "avg_tenure_months_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_tenure_months",
+      "targets": [
+        "twin_avg_tenure_months"
+      ]
+    },
+    {
+      "name": "avg_age_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_age",
+      "targets": [
+        "twin_avg_age"
+      ]
+    },
+    {
+      "name": "avg_age_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_age",
+      "targets": [
+        "twin_avg_age"
+      ]
+    },
+    {
+      "name": "avg_support_contacts_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_support_contacts",
+      "targets": [
+        "twin_avg_support_contacts"
+      ]
+    },
+    {
+      "name": "avg_support_contacts_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_support_contacts",
+      "targets": [
+        "twin_avg_support_contacts"
+      ]
+    },
+    {
+      "name": "autopay_rate_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_autopay_rate",
+      "targets": [
+        "twin_autopay_rate"
+      ]
+    },
+    {
+      "name": "autopay_rate_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_autopay_rate",
+      "targets": [
+        "twin_autopay_rate"
+      ]
+    },
+    {
+      "name": "avg_products_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_products",
+      "targets": [
+        "twin_avg_products"
+      ]
+    },
+    {
+      "name": "avg_products_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_avg_products",
+      "targets": [
+        "twin_avg_products"
+      ]
+    }
+  ]
+}

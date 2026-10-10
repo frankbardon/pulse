@@ -1,0 +1,13 @@
+{
+  "row_count": 2,
+  "fields": [
+    {"name": "slot", "type": "u8", "distribution": "monotonic_from", "params": {"start": 1},
+     "description": "Allocation slot in the experiment design."},
+    {"name": "arm", "type": "categorical_u8", "distribution": "weighted_categorical",
+     "params": {"values": ["old_page", "new_page"]},
+     "description": "Planned allocation: one slot per arm, i.e. the intended 50/50 split."}
+  ],
+  "rules": [
+    {"set_expr": {"arm": "slot == 1 ? \"old_page\" : \"new_page\""}}
+  ]
+}

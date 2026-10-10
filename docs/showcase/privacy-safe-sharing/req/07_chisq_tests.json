@@ -1,0 +1,384 @@
+{
+  "requests": [
+    {
+      "label": "source_contract",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "contract"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "contract_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "twin_contract",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "contract"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "contract_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "source_plan",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "plan"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "plan_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "twin_plan",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "plan"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "plan_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "source_autopay",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "autopay"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "autopay_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "twin_autopay",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "autopay"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "autopay_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "source_frequent_caller",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "frequent_caller"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "frequent_caller_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "twin_frequent_caller",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "frequent_caller"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "frequent_caller_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "source_region",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "region_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    },
+    {
+      "label": "twin_region",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "churned"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "region_x_churned_chisq",
+          "kind": "OVERLAY_CHISQ_MATRIX",
+          "scope": "matrix"
+        }
+      ]
+    }
+  ]
+}

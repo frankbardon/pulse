@@ -104,7 +104,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(derived-cohort/E<
 
 ## Human inputs & decisions
 
-- **Open:** v1 membership: owner call. This unit is written as a post-U40 unit; the owner decides whether it ships in v1.0.0 (then add it to U32's `depends_on`) or after.
+- **Decided (2026-10-10):** ships in v1.0.0. The owner wants Pulse as self-sufficient as possible at v1; this unit is in U32's `depends_on`.
 - **Open:** the shape of the materialise surface: a `Process` option, a new `Materialize` library call, or a new request root. Prefer the smallest public surface.
 - **Open:** whether the derived cohort carries a sidecar linking it to its source (lineage), or stays a plain cohort.
 - **Open:** gap 6: warn, or refuse, when a projected stream is destined for import.

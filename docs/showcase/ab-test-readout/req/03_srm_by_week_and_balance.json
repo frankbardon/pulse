@@ -1,0 +1,13 @@
+{
+  "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+  "multiplicity": {"method": "holm", "family": "request"},
+  "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+  "tests": [
+    {"type": "TEST_CHISQ", "rows": "arm", "cols": "assign_week", "label": "srm_by_week"},
+    {"type": "TEST_CHISQ", "rows": "arm", "cols": "device", "label": "balance_device"},
+    {"type": "TEST_CHISQ", "rows": "arm", "cols": "plan_tier", "label": "balance_plan_tier"},
+    {"type": "TEST_CHISQ", "rows": "arm", "cols": "region", "label": "balance_region"},
+    {"type": "TEST_CHISQ", "rows": "arm", "cols": "user_type", "label": "balance_user_type"},
+    {"type": "TEST_WELCH", "field": "prior_sessions", "split_by": "arm", "label": "balance_prior_sessions"}
+  ]
+}

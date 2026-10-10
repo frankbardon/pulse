@@ -1,0 +1,56 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "train_default_rate": 0.11935714285714286,
+        "train_defaults": 5013,
+        "train_n": 42000
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 42000,
+      "cohort_file": "./loans.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "train_n",
+          "n": 42000,
+          "n_null": 0
+        },
+        {
+          "label": "train_defaults",
+          "n": 42000,
+          "n_null": 0,
+          "operator": {
+            "sum": 5013
+          }
+        },
+        {
+          "label": "train_default_rate",
+          "n": 42000,
+          "n_null": 0,
+          "operator": {
+            "sum": 5013
+          }
+        }
+      ],
+      "filterers": [
+        {
+          "n_in": 60000,
+          "n_out": 42000,
+          "n_null_input": 0
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 42000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

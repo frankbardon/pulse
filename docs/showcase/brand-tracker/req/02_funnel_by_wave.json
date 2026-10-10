@@ -1,0 +1,64 @@
+{
+  "cohort": {
+    "filename": "brand_tracker.pulse",
+    "data_dir": "."
+  },
+  "weight": {
+    "field": "weight",
+    "kind": "probability"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "wave"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "resp_id",
+      "label": "respondents",
+      "weight": null
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "aware_aided",
+      "label": "aided_weighted"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "aware_aided",
+      "label": "aided_unweighted",
+      "weight": null
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "aware_unaided",
+      "label": "unaided_weighted"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "aware_unaided",
+      "label": "unaided_unweighted",
+      "weight": null
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "consider",
+      "label": "consider_weighted"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "consider",
+      "label": "consider_unweighted",
+      "weight": null
+    }
+  ],
+  "labels": [
+    {
+      "field": "wave",
+      "table": "wave_names",
+      "mode": "replace"
+    }
+  ]
+}

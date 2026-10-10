@@ -1,0 +1,1582 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "data": [
+      {
+        "purpose": "adoption",
+        "train_default_rate": 0.15384615384615385,
+        "train_defaults": 8,
+        "train_n": 52
+      },
+      {
+        "purpose": "appliances",
+        "train_default_rate": 0.145985401459854,
+        "train_defaults": 20,
+        "train_n": 137
+      },
+      {
+        "purpose": "boat",
+        "train_default_rate": 0.13636363636363635,
+        "train_defaults": 18,
+        "train_n": 132
+      },
+      {
+        "purpose": "business_equipment",
+        "train_default_rate": 0.11450381679389313,
+        "train_defaults": 15,
+        "train_n": 131
+      },
+      {
+        "purpose": "car",
+        "train_default_rate": 0.08439306358381503,
+        "train_defaults": 73,
+        "train_n": 865
+      },
+      {
+        "purpose": "computer",
+        "train_default_rate": 0.1111111111111111,
+        "train_defaults": 15,
+        "train_n": 135
+      },
+      {
+        "purpose": "credit_card",
+        "train_default_rate": 0.10997986126650257,
+        "train_defaults": 983,
+        "train_n": 8938
+      },
+      {
+        "purpose": "debt_consolidation",
+        "train_default_rate": 0.12179178052831806,
+        "train_defaults": 2273,
+        "train_n": 18663
+      },
+      {
+        "purpose": "dental",
+        "train_default_rate": 0.11764705882352941,
+        "train_defaults": 20,
+        "train_n": 170
+      },
+      {
+        "purpose": "educational",
+        "train_default_rate": 0.09740259740259741,
+        "train_defaults": 15,
+        "train_n": 154
+      },
+      {
+        "purpose": "engagement_ring",
+        "train_default_rate": 0.07058823529411765,
+        "train_defaults": 6,
+        "train_n": 85
+      },
+      {
+        "purpose": "fertility",
+        "train_default_rate": 0.10344827586206896,
+        "train_defaults": 9,
+        "train_n": 87
+      },
+      {
+        "purpose": "franchise_fee",
+        "train_default_rate": 0.1568627450980392,
+        "train_defaults": 8,
+        "train_n": 51
+      },
+      {
+        "purpose": "funeral",
+        "train_default_rate": 0.13541666666666666,
+        "train_defaults": 13,
+        "train_n": 96
+      },
+      {
+        "purpose": "furniture",
+        "train_default_rate": 0.14285714285714285,
+        "train_defaults": 18,
+        "train_n": 126
+      },
+      {
+        "purpose": "hobby_equipment",
+        "train_default_rate": 0.16483516483516483,
+        "train_defaults": 15,
+        "train_n": 91
+      },
+      {
+        "purpose": "home_improvement",
+        "train_default_rate": 0.09481668773704172,
+        "train_defaults": 300,
+        "train_n": 3164
+      },
+      {
+        "purpose": "home_security",
+        "train_default_rate": 0.025,
+        "train_defaults": 1,
+        "train_n": 40
+      },
+      {
+        "purpose": "house",
+        "train_default_rate": 0.08737864077669903,
+        "train_defaults": 36,
+        "train_n": 412
+      },
+      {
+        "purpose": "hvac",
+        "train_default_rate": 0.10457516339869281,
+        "train_defaults": 16,
+        "train_n": 153
+      },
+      {
+        "purpose": "inventory",
+        "train_default_rate": 0.1348314606741573,
+        "train_defaults": 12,
+        "train_n": 89
+      },
+      {
+        "purpose": "legal_fees",
+        "train_default_rate": 0.208955223880597,
+        "train_defaults": 28,
+        "train_n": 134
+      },
+      {
+        "purpose": "major_purchase",
+        "train_default_rate": 0.10668563300142248,
+        "train_defaults": 150,
+        "train_n": 1406
+      },
+      {
+        "purpose": "medical",
+        "train_default_rate": 0.16172506738544473,
+        "train_defaults": 180,
+        "train_n": 1113
+      },
+      {
+        "purpose": "military_relocation",
+        "train_default_rate": 0.11428571428571428,
+        "train_defaults": 4,
+        "train_n": 35
+      },
+      {
+        "purpose": "motorcycle",
+        "train_default_rate": 0.16666666666666666,
+        "train_defaults": 19,
+        "train_n": 114
+      },
+      {
+        "purpose": "moving",
+        "train_default_rate": 0.13711151736745886,
+        "train_defaults": 75,
+        "train_n": 547
+      },
+      {
+        "purpose": "musical_instrument",
+        "train_default_rate": 0.0975609756097561,
+        "train_defaults": 4,
+        "train_n": 41
+      },
+      {
+        "purpose": "other",
+        "train_default_rate": 0.1284080914687775,
+        "train_defaults": 292,
+        "train_n": 2274
+      },
+      {
+        "purpose": "pool",
+        "train_default_rate": 0.13541666666666666,
+        "train_defaults": 13,
+        "train_n": 96
+      },
+      {
+        "purpose": "renewable_energy",
+        "train_default_rate": 0.19444444444444445,
+        "train_defaults": 28,
+        "train_n": 144
+      },
+      {
+        "purpose": "roof_repair",
+        "train_default_rate": 0.05555555555555555,
+        "train_defaults": 7,
+        "train_n": 126
+      },
+      {
+        "purpose": "rv",
+        "train_default_rate": 0.1111111111111111,
+        "train_defaults": 4,
+        "train_n": 36
+      },
+      {
+        "purpose": "small_business",
+        "train_default_rate": 0.1946607341490545,
+        "train_defaults": 175,
+        "train_n": 899
+      },
+      {
+        "purpose": "solar_panels",
+        "train_default_rate": 0.08943089430894309,
+        "train_defaults": 11,
+        "train_n": 123
+      },
+      {
+        "purpose": "tax_bill",
+        "train_default_rate": 0.10674157303370786,
+        "train_defaults": 19,
+        "train_n": 178
+      },
+      {
+        "purpose": "timeshare",
+        "train_default_rate": 0.24489795918367346,
+        "train_defaults": 12,
+        "train_n": 49
+      },
+      {
+        "purpose": "vacation",
+        "train_default_rate": 0.16483516483516483,
+        "train_defaults": 75,
+        "train_n": 455
+      },
+      {
+        "purpose": "vet_bills",
+        "train_default_rate": 0.12631578947368421,
+        "train_defaults": 12,
+        "train_n": 95
+      },
+      {
+        "purpose": "wedding",
+        "train_default_rate": 0.08516483516483517,
+        "train_defaults": 31,
+        "train_n": 364
+      }
+    ],
+    "metadata": {
+      "total_rows": 60000,
+      "filtered_rows": 42000,
+      "cohort_file": "./loans.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "train_n",
+          "n": 42000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "adoption"
+              ],
+              "n": 52,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "appliances"
+              ],
+              "n": 137,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "boat"
+              ],
+              "n": 132,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "business_equipment"
+              ],
+              "n": 131,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "car"
+              ],
+              "n": 865,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "computer"
+              ],
+              "n": 135,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "credit_card"
+              ],
+              "n": 8938,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "debt_consolidation"
+              ],
+              "n": 18663,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "dental"
+              ],
+              "n": 170,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "educational"
+              ],
+              "n": 154,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "engagement_ring"
+              ],
+              "n": 85,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "fertility"
+              ],
+              "n": 87,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "franchise_fee"
+              ],
+              "n": 51,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "funeral"
+              ],
+              "n": 96,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "furniture"
+              ],
+              "n": 126,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "hobby_equipment"
+              ],
+              "n": 91,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "home_improvement"
+              ],
+              "n": 3164,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "home_security"
+              ],
+              "n": 40,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "house"
+              ],
+              "n": 412,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "hvac"
+              ],
+              "n": 153,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "inventory"
+              ],
+              "n": 89,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "legal_fees"
+              ],
+              "n": 134,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "major_purchase"
+              ],
+              "n": 1406,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "medical"
+              ],
+              "n": 1113,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "military_relocation"
+              ],
+              "n": 35,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "motorcycle"
+              ],
+              "n": 114,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "moving"
+              ],
+              "n": 547,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "musical_instrument"
+              ],
+              "n": 41,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "other"
+              ],
+              "n": 2274,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "pool"
+              ],
+              "n": 96,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "renewable_energy"
+              ],
+              "n": 144,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "roof_repair"
+              ],
+              "n": 126,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "rv"
+              ],
+              "n": 36,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "small_business"
+              ],
+              "n": 899,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "solar_panels"
+              ],
+              "n": 123,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "tax_bill"
+              ],
+              "n": 178,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "timeshare"
+              ],
+              "n": 49,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "vacation"
+              ],
+              "n": 455,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "vet_bills"
+              ],
+              "n": 95,
+              "n_null": 0
+            },
+            {
+              "group_key": [
+                "wedding"
+              ],
+              "n": 364,
+              "n_null": 0
+            }
+          ]
+        },
+        {
+          "label": "train_defaults",
+          "n": 42000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "adoption"
+              ],
+              "n": 52,
+              "n_null": 0,
+              "operator": {
+                "sum": 8
+              }
+            },
+            {
+              "group_key": [
+                "appliances"
+              ],
+              "n": 137,
+              "n_null": 0,
+              "operator": {
+                "sum": 20
+              }
+            },
+            {
+              "group_key": [
+                "boat"
+              ],
+              "n": 132,
+              "n_null": 0,
+              "operator": {
+                "sum": 18
+              }
+            },
+            {
+              "group_key": [
+                "business_equipment"
+              ],
+              "n": 131,
+              "n_null": 0,
+              "operator": {
+                "sum": 15
+              }
+            },
+            {
+              "group_key": [
+                "car"
+              ],
+              "n": 865,
+              "n_null": 0,
+              "operator": {
+                "sum": 73
+              }
+            },
+            {
+              "group_key": [
+                "computer"
+              ],
+              "n": 135,
+              "n_null": 0,
+              "operator": {
+                "sum": 15
+              }
+            },
+            {
+              "group_key": [
+                "credit_card"
+              ],
+              "n": 8938,
+              "n_null": 0,
+              "operator": {
+                "sum": 983
+              }
+            },
+            {
+              "group_key": [
+                "debt_consolidation"
+              ],
+              "n": 18663,
+              "n_null": 0,
+              "operator": {
+                "sum": 2273
+              }
+            },
+            {
+              "group_key": [
+                "dental"
+              ],
+              "n": 170,
+              "n_null": 0,
+              "operator": {
+                "sum": 20
+              }
+            },
+            {
+              "group_key": [
+                "educational"
+              ],
+              "n": 154,
+              "n_null": 0,
+              "operator": {
+                "sum": 15
+              }
+            },
+            {
+              "group_key": [
+                "engagement_ring"
+              ],
+              "n": 85,
+              "n_null": 0,
+              "operator": {
+                "sum": 6
+              }
+            },
+            {
+              "group_key": [
+                "fertility"
+              ],
+              "n": 87,
+              "n_null": 0,
+              "operator": {
+                "sum": 9
+              }
+            },
+            {
+              "group_key": [
+                "franchise_fee"
+              ],
+              "n": 51,
+              "n_null": 0,
+              "operator": {
+                "sum": 8
+              }
+            },
+            {
+              "group_key": [
+                "funeral"
+              ],
+              "n": 96,
+              "n_null": 0,
+              "operator": {
+                "sum": 13
+              }
+            },
+            {
+              "group_key": [
+                "furniture"
+              ],
+              "n": 126,
+              "n_null": 0,
+              "operator": {
+                "sum": 18
+              }
+            },
+            {
+              "group_key": [
+                "hobby_equipment"
+              ],
+              "n": 91,
+              "n_null": 0,
+              "operator": {
+                "sum": 15
+              }
+            },
+            {
+              "group_key": [
+                "home_improvement"
+              ],
+              "n": 3164,
+              "n_null": 0,
+              "operator": {
+                "sum": 300
+              }
+            },
+            {
+              "group_key": [
+                "home_security"
+              ],
+              "n": 40,
+              "n_null": 0,
+              "operator": {
+                "sum": 1
+              }
+            },
+            {
+              "group_key": [
+                "house"
+              ],
+              "n": 412,
+              "n_null": 0,
+              "operator": {
+                "sum": 36
+              }
+            },
+            {
+              "group_key": [
+                "hvac"
+              ],
+              "n": 153,
+              "n_null": 0,
+              "operator": {
+                "sum": 16
+              }
+            },
+            {
+              "group_key": [
+                "inventory"
+              ],
+              "n": 89,
+              "n_null": 0,
+              "operator": {
+                "sum": 12
+              }
+            },
+            {
+              "group_key": [
+                "legal_fees"
+              ],
+              "n": 134,
+              "n_null": 0,
+              "operator": {
+                "sum": 28
+              }
+            },
+            {
+              "group_key": [
+                "major_purchase"
+              ],
+              "n": 1406,
+              "n_null": 0,
+              "operator": {
+                "sum": 150
+              }
+            },
+            {
+              "group_key": [
+                "medical"
+              ],
+              "n": 1113,
+              "n_null": 0,
+              "operator": {
+                "sum": 180
+              }
+            },
+            {
+              "group_key": [
+                "military_relocation"
+              ],
+              "n": 35,
+              "n_null": 0,
+              "operator": {
+                "sum": 4
+              }
+            },
+            {
+              "group_key": [
+                "motorcycle"
+              ],
+              "n": 114,
+              "n_null": 0,
+              "operator": {
+                "sum": 19
+              }
+            },
+            {
+              "group_key": [
+                "moving"
+              ],
+              "n": 547,
+              "n_null": 0,
+              "operator": {
+                "sum": 75
+              }
+            },
+            {
+              "group_key": [
+                "musical_instrument"
+              ],
+              "n": 41,
+              "n_null": 0,
+              "operator": {
+                "sum": 4
+              }
+            },
+            {
+              "group_key": [
+                "other"
+              ],
+              "n": 2274,
+              "n_null": 0,
+              "operator": {
+                "sum": 292
+              }
+            },
+            {
+              "group_key": [
+                "pool"
+              ],
+              "n": 96,
+              "n_null": 0,
+              "operator": {
+                "sum": 13
+              }
+            },
+            {
+              "group_key": [
+                "renewable_energy"
+              ],
+              "n": 144,
+              "n_null": 0,
+              "operator": {
+                "sum": 28
+              }
+            },
+            {
+              "group_key": [
+                "roof_repair"
+              ],
+              "n": 126,
+              "n_null": 0,
+              "operator": {
+                "sum": 7
+              }
+            },
+            {
+              "group_key": [
+                "rv"
+              ],
+              "n": 36,
+              "n_null": 0,
+              "operator": {
+                "sum": 4
+              }
+            },
+            {
+              "group_key": [
+                "small_business"
+              ],
+              "n": 899,
+              "n_null": 0,
+              "operator": {
+                "sum": 175
+              }
+            },
+            {
+              "group_key": [
+                "solar_panels"
+              ],
+              "n": 123,
+              "n_null": 0,
+              "operator": {
+                "sum": 11
+              }
+            },
+            {
+              "group_key": [
+                "tax_bill"
+              ],
+              "n": 178,
+              "n_null": 0,
+              "operator": {
+                "sum": 19
+              }
+            },
+            {
+              "group_key": [
+                "timeshare"
+              ],
+              "n": 49,
+              "n_null": 0,
+              "operator": {
+                "sum": 12
+              }
+            },
+            {
+              "group_key": [
+                "vacation"
+              ],
+              "n": 455,
+              "n_null": 0,
+              "operator": {
+                "sum": 75
+              }
+            },
+            {
+              "group_key": [
+                "vet_bills"
+              ],
+              "n": 95,
+              "n_null": 0,
+              "operator": {
+                "sum": 12
+              }
+            },
+            {
+              "group_key": [
+                "wedding"
+              ],
+              "n": 364,
+              "n_null": 0,
+              "operator": {
+                "sum": 31
+              }
+            }
+          ]
+        },
+        {
+          "label": "train_default_rate",
+          "n": 42000,
+          "n_null": 0,
+          "groups": [
+            {
+              "group_key": [
+                "adoption"
+              ],
+              "n": 52,
+              "n_null": 0,
+              "operator": {
+                "sum": 8
+              }
+            },
+            {
+              "group_key": [
+                "appliances"
+              ],
+              "n": 137,
+              "n_null": 0,
+              "operator": {
+                "sum": 20
+              }
+            },
+            {
+              "group_key": [
+                "boat"
+              ],
+              "n": 132,
+              "n_null": 0,
+              "operator": {
+                "sum": 18
+              }
+            },
+            {
+              "group_key": [
+                "business_equipment"
+              ],
+              "n": 131,
+              "n_null": 0,
+              "operator": {
+                "sum": 15
+              }
+            },
+            {
+              "group_key": [
+                "car"
+              ],
+              "n": 865,
+              "n_null": 0,
+              "operator": {
+                "sum": 73
+              }
+            },
+            {
+              "group_key": [
+                "computer"
+              ],
+              "n": 135,
+              "n_null": 0,
+              "operator": {
+                "sum": 15
+              }
+            },
+            {
+              "group_key": [
+                "credit_card"
+              ],
+              "n": 8938,
+              "n_null": 0,
+              "operator": {
+                "sum": 983
+              }
+            },
+            {
+              "group_key": [
+                "debt_consolidation"
+              ],
+              "n": 18663,
+              "n_null": 0,
+              "operator": {
+                "sum": 2273
+              }
+            },
+            {
+              "group_key": [
+                "dental"
+              ],
+              "n": 170,
+              "n_null": 0,
+              "operator": {
+                "sum": 20
+              }
+            },
+            {
+              "group_key": [
+                "educational"
+              ],
+              "n": 154,
+              "n_null": 0,
+              "operator": {
+                "sum": 15
+              }
+            },
+            {
+              "group_key": [
+                "engagement_ring"
+              ],
+              "n": 85,
+              "n_null": 0,
+              "operator": {
+                "sum": 6
+              }
+            },
+            {
+              "group_key": [
+                "fertility"
+              ],
+              "n": 87,
+              "n_null": 0,
+              "operator": {
+                "sum": 9
+              }
+            },
+            {
+              "group_key": [
+                "franchise_fee"
+              ],
+              "n": 51,
+              "n_null": 0,
+              "operator": {
+                "sum": 8
+              }
+            },
+            {
+              "group_key": [
+                "funeral"
+              ],
+              "n": 96,
+              "n_null": 0,
+              "operator": {
+                "sum": 13
+              }
+            },
+            {
+              "group_key": [
+                "furniture"
+              ],
+              "n": 126,
+              "n_null": 0,
+              "operator": {
+                "sum": 18
+              }
+            },
+            {
+              "group_key": [
+                "hobby_equipment"
+              ],
+              "n": 91,
+              "n_null": 0,
+              "operator": {
+                "sum": 15
+              }
+            },
+            {
+              "group_key": [
+                "home_improvement"
+              ],
+              "n": 3164,
+              "n_null": 0,
+              "operator": {
+                "sum": 300
+              }
+            },
+            {
+              "group_key": [
+                "home_security"
+              ],
+              "n": 40,
+              "n_null": 0,
+              "operator": {
+                "sum": 1
+              }
+            },
+            {
+              "group_key": [
+                "house"
+              ],
+              "n": 412,
+              "n_null": 0,
+              "operator": {
+                "sum": 36
+              }
+            },
+            {
+              "group_key": [
+                "hvac"
+              ],
+              "n": 153,
+              "n_null": 0,
+              "operator": {
+                "sum": 16
+              }
+            },
+            {
+              "group_key": [
+                "inventory"
+              ],
+              "n": 89,
+              "n_null": 0,
+              "operator": {
+                "sum": 12
+              }
+            },
+            {
+              "group_key": [
+                "legal_fees"
+              ],
+              "n": 134,
+              "n_null": 0,
+              "operator": {
+                "sum": 28
+              }
+            },
+            {
+              "group_key": [
+                "major_purchase"
+              ],
+              "n": 1406,
+              "n_null": 0,
+              "operator": {
+                "sum": 150
+              }
+            },
+            {
+              "group_key": [
+                "medical"
+              ],
+              "n": 1113,
+              "n_null": 0,
+              "operator": {
+                "sum": 180
+              }
+            },
+            {
+              "group_key": [
+                "military_relocation"
+              ],
+              "n": 35,
+              "n_null": 0,
+              "operator": {
+                "sum": 4
+              }
+            },
+            {
+              "group_key": [
+                "motorcycle"
+              ],
+              "n": 114,
+              "n_null": 0,
+              "operator": {
+                "sum": 19
+              }
+            },
+            {
+              "group_key": [
+                "moving"
+              ],
+              "n": 547,
+              "n_null": 0,
+              "operator": {
+                "sum": 75
+              }
+            },
+            {
+              "group_key": [
+                "musical_instrument"
+              ],
+              "n": 41,
+              "n_null": 0,
+              "operator": {
+                "sum": 4
+              }
+            },
+            {
+              "group_key": [
+                "other"
+              ],
+              "n": 2274,
+              "n_null": 0,
+              "operator": {
+                "sum": 292
+              }
+            },
+            {
+              "group_key": [
+                "pool"
+              ],
+              "n": 96,
+              "n_null": 0,
+              "operator": {
+                "sum": 13
+              }
+            },
+            {
+              "group_key": [
+                "renewable_energy"
+              ],
+              "n": 144,
+              "n_null": 0,
+              "operator": {
+                "sum": 28
+              }
+            },
+            {
+              "group_key": [
+                "roof_repair"
+              ],
+              "n": 126,
+              "n_null": 0,
+              "operator": {
+                "sum": 7
+              }
+            },
+            {
+              "group_key": [
+                "rv"
+              ],
+              "n": 36,
+              "n_null": 0,
+              "operator": {
+                "sum": 4
+              }
+            },
+            {
+              "group_key": [
+                "small_business"
+              ],
+              "n": 899,
+              "n_null": 0,
+              "operator": {
+                "sum": 175
+              }
+            },
+            {
+              "group_key": [
+                "solar_panels"
+              ],
+              "n": 123,
+              "n_null": 0,
+              "operator": {
+                "sum": 11
+              }
+            },
+            {
+              "group_key": [
+                "tax_bill"
+              ],
+              "n": 178,
+              "n_null": 0,
+              "operator": {
+                "sum": 19
+              }
+            },
+            {
+              "group_key": [
+                "timeshare"
+              ],
+              "n": 49,
+              "n_null": 0,
+              "operator": {
+                "sum": 12
+              }
+            },
+            {
+              "group_key": [
+                "vacation"
+              ],
+              "n": 455,
+              "n_null": 0,
+              "operator": {
+                "sum": 75
+              }
+            },
+            {
+              "group_key": [
+                "vet_bills"
+              ],
+              "n": 95,
+              "n_null": 0,
+              "operator": {
+                "sum": 12
+              }
+            },
+            {
+              "group_key": [
+                "wedding"
+              ],
+              "n": 364,
+              "n_null": 0,
+              "operator": {
+                "sum": 31
+              }
+            }
+          ]
+        }
+      ],
+      "groupers": [
+        {
+          "field": "purpose",
+          "total_n": 42000,
+          "operator": {
+            "buckets": [
+              {
+                "count": 52,
+                "key": "adoption",
+                "label": "adoption"
+              },
+              {
+                "count": 137,
+                "key": "appliances",
+                "label": "appliances"
+              },
+              {
+                "count": 132,
+                "key": "boat",
+                "label": "boat"
+              },
+              {
+                "count": 131,
+                "key": "business_equipment",
+                "label": "business_equipment"
+              },
+              {
+                "count": 865,
+                "key": "car",
+                "label": "car"
+              },
+              {
+                "count": 135,
+                "key": "computer",
+                "label": "computer"
+              },
+              {
+                "count": 8938,
+                "key": "credit_card",
+                "label": "credit_card"
+              },
+              {
+                "count": 18663,
+                "key": "debt_consolidation",
+                "label": "debt_consolidation"
+              },
+              {
+                "count": 170,
+                "key": "dental",
+                "label": "dental"
+              },
+              {
+                "count": 154,
+                "key": "educational",
+                "label": "educational"
+              },
+              {
+                "count": 85,
+                "key": "engagement_ring",
+                "label": "engagement_ring"
+              },
+              {
+                "count": 87,
+                "key": "fertility",
+                "label": "fertility"
+              },
+              {
+                "count": 51,
+                "key": "franchise_fee",
+                "label": "franchise_fee"
+              },
+              {
+                "count": 96,
+                "key": "funeral",
+                "label": "funeral"
+              },
+              {
+                "count": 126,
+                "key": "furniture",
+                "label": "furniture"
+              },
+              {
+                "count": 91,
+                "key": "hobby_equipment",
+                "label": "hobby_equipment"
+              },
+              {
+                "count": 3164,
+                "key": "home_improvement",
+                "label": "home_improvement"
+              },
+              {
+                "count": 40,
+                "key": "home_security",
+                "label": "home_security"
+              },
+              {
+                "count": 412,
+                "key": "house",
+                "label": "house"
+              },
+              {
+                "count": 153,
+                "key": "hvac",
+                "label": "hvac"
+              },
+              {
+                "count": 89,
+                "key": "inventory",
+                "label": "inventory"
+              },
+              {
+                "count": 134,
+                "key": "legal_fees",
+                "label": "legal_fees"
+              },
+              {
+                "count": 1406,
+                "key": "major_purchase",
+                "label": "major_purchase"
+              },
+              {
+                "count": 1113,
+                "key": "medical",
+                "label": "medical"
+              },
+              {
+                "count": 35,
+                "key": "military_relocation",
+                "label": "military_relocation"
+              },
+              {
+                "count": 114,
+                "key": "motorcycle",
+                "label": "motorcycle"
+              },
+              {
+                "count": 547,
+                "key": "moving",
+                "label": "moving"
+              },
+              {
+                "count": 41,
+                "key": "musical_instrument",
+                "label": "musical_instrument"
+              },
+              {
+                "count": 2274,
+                "key": "other",
+                "label": "other"
+              },
+              {
+                "count": 96,
+                "key": "pool",
+                "label": "pool"
+              },
+              {
+                "count": 144,
+                "key": "renewable_energy",
+                "label": "renewable_energy"
+              },
+              {
+                "count": 126,
+                "key": "roof_repair",
+                "label": "roof_repair"
+              },
+              {
+                "count": 36,
+                "key": "rv",
+                "label": "rv"
+              },
+              {
+                "count": 899,
+                "key": "small_business",
+                "label": "small_business"
+              },
+              {
+                "count": 123,
+                "key": "solar_panels",
+                "label": "solar_panels"
+              },
+              {
+                "count": 178,
+                "key": "tax_bill",
+                "label": "tax_bill"
+              },
+              {
+                "count": 49,
+                "key": "timeshare",
+                "label": "timeshare"
+              },
+              {
+                "count": 455,
+                "key": "vacation",
+                "label": "vacation"
+              },
+              {
+                "count": 95,
+                "key": "vet_bills",
+                "label": "vet_bills"
+              },
+              {
+                "count": 364,
+                "key": "wedding",
+                "label": "wedding"
+              }
+            ],
+            "dict_size": 40
+          }
+        }
+      ],
+      "filterers": [
+        {
+          "n_in": 60000,
+          "n_out": 42000,
+          "n_null_input": 0
+        }
+      ],
+      "run": {
+        "total_records": 60000,
+        "filtered_records": 42000,
+        "null_records": 0
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

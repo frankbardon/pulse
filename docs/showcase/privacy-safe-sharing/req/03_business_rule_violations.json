@@ -1,0 +1,283 @@
+{
+  "requests": [
+    {
+      "label": "source",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_end_before_start",
+          "expression": "end_date != nil && end_date < start_date ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_active_with_end_date",
+          "expression": "churned == 0 && end_date != nil ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_churned_without_end_date",
+          "expression": "churned == 1 && end_date == nil ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_tenure_disagrees_with_dates",
+          "expression": "abs(((end_date ?? 20634) - start_date) - tenure_months * 30.4375) > 16 ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_no_products_but_spend",
+          "expression": "len(products_held) == 0 && monthly_spend > 0 ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_flag_disagrees_with_contacts",
+          "expression": "(support_contacts >= 4 ? 1 : 0) != frequent_caller ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_tv_without_broadband",
+          "expression": "\"tv\" in products_held && !(\"broadband\" in products_held) ? 1 : 0"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "start_date",
+          "label": "rows"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_end_before_start",
+          "label": "v_end_before_start"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_active_with_end_date",
+          "label": "v_active_with_end_date"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_churned_without_end_date",
+          "label": "v_churned_without_end_date"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_tenure_disagrees_with_dates",
+          "label": "v_tenure_disagrees_with_dates"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_no_products_but_spend",
+          "label": "v_no_products_but_spend"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_flag_disagrees_with_contacts",
+          "label": "v_flag_disagrees_with_contacts"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_tv_without_broadband",
+          "label": "v_tv_without_broadband"
+        }
+      ]
+    },
+    {
+      "label": "twin_without_rules",
+      "cohort": {
+        "filename": "twin_norules.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_end_before_start",
+          "expression": "end_date != nil && end_date < start_date ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_active_with_end_date",
+          "expression": "churned == 0 && end_date != nil ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_churned_without_end_date",
+          "expression": "churned == 1 && end_date == nil ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_tenure_disagrees_with_dates",
+          "expression": "abs(((end_date ?? 20634) - start_date) - tenure_months * 30.4375) > 16 ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_no_products_but_spend",
+          "expression": "len(products_held) == 0 && monthly_spend > 0 ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_flag_disagrees_with_contacts",
+          "expression": "(support_contacts >= 4 ? 1 : 0) != frequent_caller ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_tv_without_broadband",
+          "expression": "\"tv\" in products_held && !(\"broadband\" in products_held) ? 1 : 0"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "start_date",
+          "label": "rows"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_end_before_start",
+          "label": "v_end_before_start"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_active_with_end_date",
+          "label": "v_active_with_end_date"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_churned_without_end_date",
+          "label": "v_churned_without_end_date"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_tenure_disagrees_with_dates",
+          "label": "v_tenure_disagrees_with_dates"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_no_products_but_spend",
+          "label": "v_no_products_but_spend"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_flag_disagrees_with_contacts",
+          "label": "v_flag_disagrees_with_contacts"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_tv_without_broadband",
+          "label": "v_tv_without_broadband"
+        }
+      ]
+    },
+    {
+      "label": "twin_with_rules",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_end_before_start",
+          "expression": "end_date != nil && end_date < start_date ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_active_with_end_date",
+          "expression": "churned == 0 && end_date != nil ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_churned_without_end_date",
+          "expression": "churned == 1 && end_date == nil ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_tenure_disagrees_with_dates",
+          "expression": "abs(((end_date ?? 20634) - start_date) - tenure_months * 30.4375) > 16 ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_no_products_but_spend",
+          "expression": "len(products_held) == 0 && monthly_spend > 0 ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_flag_disagrees_with_contacts",
+          "expression": "(support_contacts >= 4 ? 1 : 0) != frequent_caller ? 1 : 0"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "start_date",
+          "label": "v_tv_without_broadband",
+          "expression": "\"tv\" in products_held && !(\"broadband\" in products_held) ? 1 : 0"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "start_date",
+          "label": "rows"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_end_before_start",
+          "label": "v_end_before_start"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_active_with_end_date",
+          "label": "v_active_with_end_date"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_churned_without_end_date",
+          "label": "v_churned_without_end_date"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_tenure_disagrees_with_dates",
+          "label": "v_tenure_disagrees_with_dates"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_no_products_but_spend",
+          "label": "v_no_products_but_spend"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_flag_disagrees_with_contacts",
+          "label": "v_flag_disagrees_with_contacts"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "v_tv_without_broadband",
+          "label": "v_tv_without_broadband"
+        }
+      ]
+    }
+  ]
+}

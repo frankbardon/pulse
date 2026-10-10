@@ -1,0 +1,454 @@
+{
+  "requests": [
+    {
+      "label": "BLR_peak_hours_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Asia/Kolkata",
+      "attributes": [
+        {
+          "type": "ATTR_DATE_PART",
+          "field": "delivered_at",
+          "label": "hour_of_day",
+          "params": {
+            "part": "hour"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "hour_of_day",
+            "include": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23"
+            ]
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "BLR"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "LAX_peak_hours_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/Los_Angeles",
+      "attributes": [
+        {
+          "type": "ATTR_DATE_PART",
+          "field": "delivered_at",
+          "label": "hour_of_day",
+          "params": {
+            "part": "hour"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "hour_of_day",
+            "include": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23"
+            ]
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "LAX"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "LON_peak_hours_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Europe/London",
+      "attributes": [
+        {
+          "type": "ATTR_DATE_PART",
+          "field": "delivered_at",
+          "label": "hour_of_day",
+          "params": {
+            "part": "hour"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "hour_of_day",
+            "include": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23"
+            ]
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "LON"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "NYC_peak_hours_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/New_York",
+      "attributes": [
+        {
+          "type": "ATTR_DATE_PART",
+          "field": "delivered_at",
+          "label": "hour_of_day",
+          "params": {
+            "part": "hour"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "hour_of_day",
+            "include": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23"
+            ]
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "NYC"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "ORD_peak_hours_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "America/Chicago",
+      "attributes": [
+        {
+          "type": "ATTR_DATE_PART",
+          "field": "delivered_at",
+          "label": "hour_of_day",
+          "params": {
+            "part": "hour"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "hour_of_day",
+            "include": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23"
+            ]
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "ORD"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "SYD_peak_hours_local",
+      "cohort": {
+        "filename": "deliveries.pulse",
+        "data_dir": "."
+      },
+      "time_zone": "Australia/Sydney",
+      "attributes": [
+        {
+          "type": "ATTR_DATE_PART",
+          "field": "delivered_at",
+          "label": "hour_of_day",
+          "params": {
+            "part": "hour"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "warehouse"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "hour_of_day",
+            "include": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23"
+            ]
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "delivery_id",
+          "label": "deliveries"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "warehouse",
+          "values": [
+            "SYD"
+          ]
+        }
+      ]
+    }
+  ]
+}

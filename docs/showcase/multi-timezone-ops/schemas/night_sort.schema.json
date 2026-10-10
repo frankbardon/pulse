@@ -1,0 +1,8 @@
+[
+  {"name": "batch_closed_at", "type": "datetime", "nullable": false,
+   "description": "Instant the overnight sorter closed this batch. The hub feed sends naive local wall-clock times; import converts them to UTC."},
+  {"name": "hub", "type": "categorical_u8", "nullable": false,
+   "description": "Sort hub that produced the batch: SYD or NYC."},
+  {"name": "parcels", "type": "u16", "nullable": false,
+   "description": "Number of parcels sorted in the batch."}
+]

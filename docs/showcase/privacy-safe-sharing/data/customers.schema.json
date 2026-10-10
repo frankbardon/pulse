@@ -1,0 +1,15 @@
+[
+  {"name": "region", "type": "categorical_u8", "description": "Sales region of the customer's billing address (North, South, East, West, Central)"},
+  {"name": "age", "type": "u8", "description": "Account holder age in completed years at the snapshot date (18-85)"},
+  {"name": "plan", "type": "categorical_u8", "description": "Mobile price plan tier: Basic, Standard, Premium or Unlimited"},
+  {"name": "contract", "type": "categorical_u8", "description": "Contract term: Monthly (rolling), One-Year or Two-Year commitment"},
+  {"name": "tenure_months", "type": "u16", "description": "Whole months between start_date and end_date (churned) or the 2026-06-30 snapshot (active)"},
+  {"name": "products_held", "type": "set_u8", "description": "Products on the account (multi-select): mobile, broadband, tv, landline, protection; empty means a dormant account"},
+  {"name": "monthly_spend", "type": "f64", "description": "Average monthly bill in USD over the last three billed months; 0 for dormant accounts with no products"},
+  {"name": "support_contacts", "type": "u4", "description": "Support calls and chats logged in the last 12 months, capped at 15"},
+  {"name": "frequent_caller", "type": "packed_bool", "description": "Operational flag set when support_contacts is 4 or more"},
+  {"name": "autopay", "type": "packed_bool", "description": "1 when the bill is paid by automatic card or bank debit"},
+  {"name": "start_date", "type": "date", "description": "Date the customer's current account was opened"},
+  {"name": "end_date", "type": "date", "nullable": true, "description": "Date the account was closed; null while the account is active"},
+  {"name": "churned", "type": "packed_bool", "description": "1 when the account closed between 2024-07-01 and the 2026-06-30 snapshot"}
+]
