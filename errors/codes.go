@@ -2663,6 +2663,16 @@ const (
 	// covariance row and column are 0.
 	PULSE_MATRIX_ZERO_VARIANCE Code = "PULSE_MATRIX_ZERO_VARIANCE"
 
+	// PULSE_MATRIX_NOT_CONVERGED is a per-matrix WARNING: an iterative
+	// matrix routine stopped at its documented iteration cap before
+	// meeting its convergence tolerance, so its figures are the last
+	// iterate rather than an optimum — never a silent best effort.
+	// Emitted by the one-factor minres fit (reliability ω) and by the
+	// nearest-correlation repair (params.repair "nearest"), beside its
+	// PULSE_MATRIX_NOT_PSD warning. Details carry "matrix", "solver",
+	// "iterations", "max_iterations" and "tolerance".
+	PULSE_MATRIX_NOT_CONVERGED Code = "PULSE_MATRIX_NOT_CONVERGED"
+
 	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
 	// read: an unknown preset, a precision outside 1–17, or a malformed
 	// include / exclude path (an empty segment, `*` anywhere but the end
@@ -3223,6 +3233,7 @@ var allCodes = []Code{
 	PULSE_MATRIX_LISTWISE_HEAVY_DROP,
 	PULSE_MATRIX_INSUFFICIENT_N,
 	PULSE_MATRIX_ZERO_VARIANCE,
+	PULSE_MATRIX_NOT_CONVERGED,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,

@@ -31,7 +31,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); no p-values (run a test per pair for those); `params.summary.top_pairs: k` lists the k strongest pairs.
 <!-- /feature -->
 <!-- feature: MAT_PARTIAL_CORRELATION -->
-- `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"`.
+- `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"` (a repair stopped at its iteration cap also warns `PULSE_MATRIX_NOT_CONVERGED`).
 <!-- /feature -->
 
 Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**

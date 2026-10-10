@@ -3231,6 +3231,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_NOT_CONVERGED: {
+		Message: "An iterative matrix routine stopped at its documented iteration cap before meeting its convergence tolerance, so the figures it returned are its last iterate, not an optimum. Raised as a per-matrix warning by the one-factor minres fit behind reliability ω and by the nearest-correlation repair (`params.repair` = `nearest`, beside its PULSE_MATRIX_NOT_PSD warning; the repaired matrix is still positive definite but may not be the nearest). Details carry `matrix`, `solver`, `iterations`, `max_iterations` and `tolerance`. The cap and tolerance are fixed constants, not request knobs.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Non-convergence usually means a member barely relates to the others or two members are near-duplicates: drop the weakest or redundant member from the vector and rerun.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"matrices", "*", "params", "missing"},
+				Hint:   "Under `missing: \"pairwise\"`, switch to `missing: \"listwise\"`: a listwise matrix is internally consistent, which removes the usual cause of a slow repair or fit.",
+			},
+		},
+	},
 	PULSE_RETURN_INVALID: {
 		Message: "The `return` block cannot be read, so the request is refused before any record is read — predict refuses it identically. `preset` must be full, standard or minimal; `precision` is significant digits from 1 to 17 (0 or absent means unlimited); every include / exclude path is JSON keys joined by `.`, with `[*]` stepping into every array element and a trailing `*` on a map-key segment as a prefix glob (`tests[*].details.effect_*`). The offending key is under `key`, its value under `value`, a path's position under `index`, the rule under `reason` and, for a preset, the accepted names under `valid`.",
 		Fixups: []Fixup{

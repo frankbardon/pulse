@@ -152,7 +152,7 @@ func nearestCorrelation(c *linalg.Sym) (nearestResult, error) {
 // (linalg.CoMoment.Corr: each pair over its own variances, R's
 // cor(use = "pairwise")), nil to derive it by scaling s by its own
 // diagonal (a correlation input is its own). It returns the matrix to
-// decompose — s itself, or its repair — and the warning to emit (nil
+// decompose — s itself, or its repair — and the warnings to emit (nil
 // when none):
 //
 //   - not judged (s returned as is): the plan carries no PSD risk
@@ -167,8 +167,10 @@ func nearestCorrelation(c *linalg.Sym) (nearestResult, error) {
 //     D·nearest·D with D = √diag(s) (a covariance input keeps its
 //     variances; Matrix::nearPD's repaired_covariance), with a
 //     PULSE_MATRIX_NOT_PSD warning adding repair, frobenius_adjustment
-//     (correlation scale), iterations and converged.
-func (in *matrixFinalizeInput) guardPSD(s, corr *linalg.Sym) (*linalg.Sym, *types.ResponseWarning, error) {
+//     (correlation scale), iterations and converged — plus
+//     PULSE_MATRIX_NOT_CONVERGED when the projection hit its cap
+//     (repairWarnings).
+func (in *matrixFinalizeInput) guardPSD(s, corr *linalg.Sym) (*linalg.Sym, []*types.ResponseWarning, error) {
 	plan := in.Plan()
 	if !plan.PSDRisk() || !judgeable(s) || (corr != nil && !judgeable(corr)) {
 		return s, nil, nil
@@ -217,16 +219,33 @@ func (in *matrixFinalizeInput) guardPSD(s, corr *linalg.Sym) (*linalg.Sym, *type
 			out.Set(i, j, float64(root[i]*rep.X.At(i, j))*root[j])
 		}
 	}
+	return out, repairWarnings(plan.Name, details, rep), nil
+}
+
+// repairWarnings is what a params.repair "nearest" repair emits for
+// matrix name: the PULSE_MATRIX_NOT_PSD warning (details — the
+// refusal's, plus repair, frobenius_adjustment, iterations, converged)
+// and, when the projection stopped at nearestMaxIter without meeting
+// nearestConvTol, PULSE_MATRIX_NOT_CONVERGED beside it (solver
+// "nearest_correlation"): the repaired matrix is positive definite
+// either way, but a non-converged one may not be the nearest.
+func repairWarnings(name string, details map[string]any, rep nearestResult) []*types.ResponseWarning {
 	details["repair"] = vectors.RepairNearest
 	details["frobenius_adjustment"] = rep.Adjustment
 	details["iterations"] = rep.Iterations
 	details["converged"] = rep.Converged
-	msg := "matrix " + plan.Name + ": the input matrix was not positive semidefinite and was replaced by its nearest correlation matrix (params.repair \"nearest\"; Frobenius adjustment " +
+	msg := "matrix " + name + ": the input matrix was not positive semidefinite and was replaced by its nearest correlation matrix (params.repair \"nearest\"; Frobenius adjustment " +
 		strconv.FormatFloat(rep.Adjustment, 'g', 6, 64) + " on the correlation scale)"
-	if !rep.Converged {
-		msg += "; the projection did not converge within " + strconv.Itoa(nearestMaxIter) + " iterations, so the repair is positive definite but may not be the nearest"
+	if rep.Converged {
+		return []*types.ResponseWarning{matrixWarning(errors.PULSE_MATRIX_NOT_PSD, msg, details)}
 	}
-	return out, matrixWarning(errors.PULSE_MATRIX_NOT_PSD, msg, details), nil
+	msg += "; the projection did not converge within " + strconv.Itoa(nearestMaxIter) + " iterations, so the repair is positive definite but may not be the nearest"
+	return []*types.ResponseWarning{
+		matrixWarning(errors.PULSE_MATRIX_NOT_PSD, msg, details),
+		notConvergedWarning(name, "nearest_correlation", rep.Iterations, nearestMaxIter, nearestConvTol,
+			"matrix "+name+": the nearest-correlation repair did not converge within "+strconv.Itoa(nearestMaxIter)+
+				" iterations (tolerance "+strconv.FormatFloat(nearestConvTol, 'g', -1, 64)+"); the repaired matrix is positive definite but may not be the nearest"),
+	}
 }
 
 // judgeable reports whether s can be judged and repaired: every cell

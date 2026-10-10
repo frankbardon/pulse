@@ -6555,7 +6555,7 @@
         ]
       }
     ],
-    "error_codes_count": 293,
+    "error_codes_count": 294,
     "error_domains": [
       "CLI",
       "DATA",
@@ -6703,6 +6703,7 @@
       "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_INSUFFICIENT_N",
       "PULSE_MATRIX_LISTWISE_HEAVY_DROP",
+      "PULSE_MATRIX_NOT_CONVERGED",
       "PULSE_MATRIX_NOT_PSD",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
@@ -12617,4 +12618,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4f19b04671198ee59b5d36ff7abdc0716641f97a2653bba475ee95cff88491bd
+// golden-hash: 1a38694e1b475f126f61fb73284386c5e6fde11872ab11a1ca63a435831f801f

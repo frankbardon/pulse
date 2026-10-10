@@ -181,10 +181,14 @@ func TestGuardPSD_RefusesOrRepairs(t *testing.T) {
 		{"correlation", corr, nil, full.Nearest},
 	} {
 		t.Run(input.name, func(t *testing.T) {
-			got, w, err := partialGuardInput(vectors.RepairNearest).guardPSD(input.s, input.corr)
+			got, ws, err := partialGuardInput(vectors.RepairNearest).guardPSD(input.s, input.corr)
 			if err != nil {
 				t.Fatalf("repair: %v", err)
 			}
+			if len(ws) != 1 {
+				t.Fatalf("converged repair warnings = %v, want the NOT_PSD warning alone", ws)
+			}
+			w := ws[0]
 			assertSymNear(t, "repaired", got, input.want, nearestOracleTol*4)
 			for i := 0; i < got.N(); i++ {
 				if got.At(i, i) != input.s.At(i, i) {
@@ -218,6 +222,30 @@ func TestGuardPSD_RefusesOrRepairs(t *testing.T) {
 	listwise.slot.plan.Pairwise = false
 	if got, w, err := listwise.guardPSD(cov, corr); err != nil || w != nil || got != cov {
 		t.Errorf("listwise (no PSD risk) input: %v %v %v", got, w, err)
+	}
+}
+
+// TestRepairWarnings_NotConvergedBesideNotPSD: a repair whose
+// projection hit nearestMaxIter emits PULSE_MATRIX_NOT_CONVERGED beside
+// the PULSE_MATRIX_NOT_PSD warning (which keeps converged false), with
+// the cap and tolerance; a converged one emits NOT_PSD alone.
+func TestRepairWarnings_NotConvergedBesideNotPSD(t *testing.T) {
+	rep := nearestResult{Iterations: nearestMaxIter, Converged: false, Adjustment: 0.25}
+	ws := repairWarnings("m", map[string]any{"matrix": "m"}, rep)
+	if len(ws) != 2 || ws[0].Code != string(errors.PULSE_MATRIX_NOT_PSD) || ws[1].Code != string(errors.PULSE_MATRIX_NOT_CONVERGED) {
+		t.Fatalf("non-converged repair warnings = %v", ws)
+	}
+	if ws[0].Details["converged"] != false || ws[0].Details["repair"] != vectors.RepairNearest {
+		t.Errorf("NOT_PSD details = %v", ws[0].Details)
+	}
+	d := ws[1].Details
+	if d["matrix"] != "m" || d["solver"] != "nearest_correlation" || d["iterations"] != nearestMaxIter ||
+		d["max_iterations"] != nearestMaxIter || d["tolerance"] != nearestConvTol {
+		t.Errorf("NOT_CONVERGED details = %v", d)
+	}
+	rep.Converged = true
+	if ws := repairWarnings("m", map[string]any{}, rep); len(ws) != 1 || ws[0].Code != string(errors.PULSE_MATRIX_NOT_PSD) {
+		t.Errorf("converged repair warnings = %v", ws)
 	}
 }
 

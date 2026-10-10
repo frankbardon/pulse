@@ -54,13 +54,11 @@ func finalizePartialCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
 		out.Primary = in.Square(func(int, int) float64 { return math.NaN() })
 		return out, nil
 	}
-	r, warn, err := in.guardPSD(r, nil)
+	r, warns, err := in.guardPSD(r, nil)
 	if err != nil {
 		return matrixOutput{}, err
 	}
-	if warn != nil {
-		out.Warnings = append(out.Warnings, warn)
-	}
+	out.Warnings = append(out.Warnings, warns...)
 	pc, err := partialCorrelation(r, axis, plan.Controls == nil)
 	if err != nil {
 		return matrixOutput{}, singularMatrixError(err, plan.Name, in.Members())

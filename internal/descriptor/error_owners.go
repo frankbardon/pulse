@@ -461,6 +461,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
 	errors.PULSE_MATRIX_INSUFFICIENT_N:      ownAllMats,
 	errors.PULSE_MATRIX_ZERO_VARIANCE:       ownAllMats,
+	errors.PULSE_MATRIX_NOT_CONVERGED:       ownAllMats,
 
 	// Response shaping: `return` is a plain request slot, not a feature.
 	errors.PULSE_RETURN_INVALID:        shared,
