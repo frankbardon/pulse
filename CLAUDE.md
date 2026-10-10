@@ -103,7 +103,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN; a result read back decodes `null` → NaN (`internal/jsonfinite`), never 0. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
 - `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; its shape follows the operation (one of the five request roots). Streaming skips the echo. Additive `omitempty`; no `format_version` bump.
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, not the legacy array; `--stream` bypasses the envelope with per-row NDJSON. Optional `sweep` expands into ordinary slots before any run (`skills/compose-sweeps.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, not the legacy array; `--stream` bypasses the envelope with per-row NDJSON. Optional `sweep` expands into ordinary slots before any run, optional `rank` adds `ranking` (`skills/compose-sweeps.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Multiplicity outputs.** Opt-in `multiplicity` adds `p_adjusted` + `significant_adjusted` BESIDE the raw p, which never moves. Long form: `execution-modes.md` (Multiplicity).
 

@@ -144,3 +144,4 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 ## Inherited from U40
 
 - [ ] **#299** — An empty Compose (no `requests`, no `sweep`) predicts valid but the runtime refuses it with `SERVICE_VALIDATION`; make predict refuse it with the same code. Found in U40 (E1-S3).
+- [ ] **#300** — A sweep rank cannot read a figure that serialises with `omitempty` when it is exactly 0 (e.g. `RegressionResult.residual_std_err`): the key vanishes, so the slot is excluded as `missing` instead of ranked first. Read the Go value, or drop `omitempty` on such figures. Found in U40 (E2-S2).

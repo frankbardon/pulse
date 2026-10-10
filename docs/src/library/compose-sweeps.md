@@ -77,6 +77,26 @@ adds a `sweep` summary to the result: `axes` (name and value count),
 sweep is `PULSE_SWEEP_INVALID` with `details.field` and
 `details.reason`.
 
+## Ranking
+
+`sweep.rank` is `{by, order, top}`. `by` is a dot path into each sweep
+slot's unshaped response (an object key, or on a list the element whose
+`name` or `label` equals the segment, never an index; for example
+`components.aggregations.rev.n`); `order` is `asc` (default) or `desc`; `top`
+keeps the first N. `ComposedResponse.Ranking` lists `{label, value, rank}`
+in rank order. Explicit slots are never ranked. A null value, or a path
+missing in one slot only, excludes that slot with a `PULSE_SWEEP_RANK_PATH`
+warning on its own response; a non-number, ambiguous or unresolved path
+refuses the batch with the same code (`details.reason` `syntax`, `missing`,
+`not_number`, `ambiguous`). A ranked slot always computes the ranked part
+even when its `return` excludes it, and `ranking` is never trimmed or
+rounded by the Compose `return`. Under `--stream` one trailing
+`{"ranking": [...]}` line follows the rows.
+
+Known gap: a figure serialised with `omitempty` disappears at exactly 0
+(for example `residual_std_err`), so that slot reads as missing and is
+excluded rather than ranked first (TODO #300).
+
 ## Echo and return shaping
 
 With `Options.EchoRequest` / `--echo-request` the echo carries the
