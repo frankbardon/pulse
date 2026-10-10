@@ -114,9 +114,13 @@ func finalizeCollinearity(in *matrixFinalizeInput) (matrixOutput, error) {
 	if err != nil {
 		return matrixOutput{}, singularMatrixError(err, plan.Name, in.Members())
 	}
-	condNumber := cond[q-1]
-	if !ok {
-		cond, prop, condNumber = nanVector(q), nanSquare(q), math.NaN()
+	// cond is nil when !ok: read the largest index only on the defined
+	// path.
+	condNumber := math.NaN()
+	if ok {
+		condNumber = cond[q-1]
+	} else {
+		cond, prop = nanVector(q), nanSquare(q)
 		out.Warnings = append(out.Warnings, matrixWarning(errors.PULSE_MATRIX_SINGULAR,
 			"matrix "+plan.Name+": the scaled cross-product behind Belsley's diagnostics has an eigenvalue at or below 0 in double precision (a collinearity, usually with the intercept, beyond about 16 "+
 				"significant digits), so the condition indices and variance-decomposition proportions are null; VIF and tolerance are still defined",
