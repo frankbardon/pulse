@@ -73,9 +73,12 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"nested overlay multiplicity enabled", scopedOnly(featProcess, featMultiplicity), &types.OverlaySpec{}, []string{"weight"}},
 		{"compose overlay multiplicity hidden", scopedOnly(featCompose), &types.ComposeOverlaySpec{}, []string{"multiplicity"}},
 		{"compose overlay multiplicity enabled", scopedOnly(featCompose, featMultiplicity), &types.ComposeOverlaySpec{}, nil},
-		{"composed multiplicity enabled", scopedOnly(featCompose, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, nil},
-		{"compose overlays", scopedOnly(featCompose, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"multiplicity"}},
-		{"compose overlays hidden", scopedOnly(featCompose, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.ComposedRequest{}, []string{"multiplicity", "overlays"}},
+		{"composed multiplicity enabled", scopedOnly(featCompose, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"sweep"}},
+		{"compose overlays", scopedOnly(featCompose, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"multiplicity", "sweep"}},
+		{"compose overlays hidden", scopedOnly(featCompose, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.ComposedRequest{}, []string{"multiplicity", "overlays", "sweep"}},
+		{"compose sweep enabled", scopedOnly(featCompose, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, nil},
+		{"compose ranking hidden", scopedOnly(featCompose), &types.ComposedResponse{}, []string{"ranking"}},
+		{"compose ranking enabled", scopedOnly(featCompose, featComposeSweep), &types.ComposedResponse{}, nil},
 		{"chain overlays", scopedOnly(featProcessChain, "OVERLAY_DELTA_VS_STAGE"), &types.ChainRequest{}, nil},
 		{"chain overlays hidden", scopedOnly(featProcessChain), &types.ChainRequest{}, []string{"overlays"}},
 		{"facet overlays", scopedOnly(featFacet, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, nil},
@@ -105,7 +108,7 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 func TestSlotRefusal_DefaultInstanceRefusesNothing(t *testing.T) {
 	roots := []any{
 		allSlotsRequest(),
-		&types.ComposedRequest{Requests: []*types.Request{allSlotsRequest()}, Overlays: []types.ComposeOverlaySpec{{}}},
+		&types.ComposedRequest{Requests: []*types.Request{allSlotsRequest()}, Overlays: []types.ComposeOverlaySpec{{}}, Sweep: &types.SweepSpec{}},
 		&types.ChainRequest{Stages: []*types.ChainStage{{Request: allSlotsRequest()}}, Overlays: []*types.ChainOverlaySpec{{}}},
 		&types.FacetRequest{Overlays: []types.OverlaySpec{{}}},
 	}

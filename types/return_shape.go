@@ -44,6 +44,18 @@ import (
 // whatever the plan says.
 const returnedKey = "returned"
 
+// rankingKey is the ComposedResponse.Ranking JSON key: like `returned`,
+// outside the plan's path space — a Compose-level `return` shapes the
+// top-level overlays only — so a set ranking is always emitted, at full
+// precision (its values are copies of the slots' unshaped figures).
+const rankingKey = "ranking"
+
+// pinnedRootKey reports whether name is a root key the plan never
+// prunes: the `returned` marker and the sweep `ranking`.
+func pinnedRootKey(name string) bool {
+	return name == returnedKey || name == rankingKey
+}
+
 // structuralTypes are the result types whose MarshalJSON is exactly
 // MarshalFinite over a method-free alias: encoding them field by field
 // reproduces their bytes, so the planned encoder may descend into them.
@@ -238,7 +250,7 @@ func (s *returnPruner) pruneFields(rv reflect.Value, path []returnplan.Segment) 
 		if !f.value.CanSet() {
 			continue
 		}
-		if len(path) == 0 && f.name == returnedKey {
+		if len(path) == 0 && pinnedRootKey(f.name) {
 			continue
 		}
 		child := appendSeg(path, returnplan.Key(f.name))
@@ -568,8 +580,24 @@ func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment, w
 	buf.WriteByte('{')
 	first := true
 	for _, f := range jsonFields(v) {
+		if len(path) == 0 && f.name == rankingKey {
+			if isEmptyJSONValue(f.value) {
+				continue
+			}
+			b, err := encodeFinite(f.value)
+			if err != nil {
+				return nil, err
+			}
+			if !first {
+				buf.WriteByte(',')
+			}
+			first = false
+			buf.WriteString(`"` + rankingKey + `":`)
+			buf.Write(b)
+			continue
+		}
 		var vd returnplan.Verdict
-		if whole || (len(path) == 0 && f.name == returnedKey) {
+		if whole || (len(path) == 0 && pinnedRootKey(f.name)) {
 			vd = returnplan.Verdict{Keep: true, Whole: true}
 		} else {
 			vd = e.plan.Visit(appendSeg(path, returnplan.Key(f.name)))

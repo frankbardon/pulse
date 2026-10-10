@@ -1,0 +1,277 @@
+{
+  "requests": [
+    {
+      "label": "baseline",
+      "cohort": {
+        "filename": "harbor_pine_features.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_LOG",
+          "field": "tv_ad70",
+          "label": "tv_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "search_ad10",
+          "label": "search_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "social_ad30",
+          "label": "social_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "display_ad70",
+          "label": "display_sat"
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_RANGE",
+          "field": "week_index",
+          "values": [
+            "52",
+            "103"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "media_revenue_k",
+          "expression": "8.8683 * tv_sat + 12.2070 * search_sat + 11.5440 * social_sat + 9.7971 * display_sat"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "week_index",
+          "interval": 52,
+          "label": "year"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "media_revenue_k",
+          "label": "media_revenue_k"
+        }
+      ]
+    },
+    {
+      "label": "tv_to_search",
+      "cohort": {
+        "filename": "harbor_pine_features.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_LOG",
+          "field": "tv_minus1m_ad",
+          "label": "tv_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "search_plus1m_ad",
+          "label": "search_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "social_ad30",
+          "label": "social_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "display_ad70",
+          "label": "display_sat"
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_RANGE",
+          "field": "week_index",
+          "values": [
+            "52",
+            "103"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "media_revenue_k",
+          "expression": "8.8683 * tv_sat + 12.2070 * search_sat + 11.5440 * social_sat + 9.7971 * display_sat"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "week_index",
+          "interval": 52,
+          "label": "year"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "media_revenue_k",
+          "label": "media_revenue_k"
+        }
+      ]
+    },
+    {
+      "label": "tv_to_social",
+      "cohort": {
+        "filename": "harbor_pine_features.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_LOG",
+          "field": "tv_minus1m_ad",
+          "label": "tv_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "search_ad10",
+          "label": "search_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "social_plus1m_ad",
+          "label": "social_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "display_ad70",
+          "label": "display_sat"
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_RANGE",
+          "field": "week_index",
+          "values": [
+            "52",
+            "103"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "media_revenue_k",
+          "expression": "8.8683 * tv_sat + 12.2070 * search_sat + 11.5440 * social_sat + 9.7971 * display_sat"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "week_index",
+          "interval": 52,
+          "label": "year"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "media_revenue_k",
+          "label": "media_revenue_k"
+        }
+      ]
+    },
+    {
+      "label": "display_to_social",
+      "cohort": {
+        "filename": "harbor_pine_features.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_LOG",
+          "field": "tv_ad70",
+          "label": "tv_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "search_ad10",
+          "label": "search_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "social_plus1m_ad",
+          "label": "social_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "display_minus1m_ad",
+          "label": "display_sat"
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_RANGE",
+          "field": "week_index",
+          "values": [
+            "52",
+            "103"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "media_revenue_k",
+          "expression": "8.8683 * tv_sat + 12.2070 * search_sat + 11.5440 * social_sat + 9.7971 * display_sat"
+        }
+      ],
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "week_index",
+          "interval": 52,
+          "label": "year"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "media_revenue_k",
+          "label": "media_revenue_k"
+        }
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "name": "change_tv_to_search",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "baseline",
+      "targets": [
+        "tv_to_search"
+      ]
+    },
+    {
+      "name": "change_tv_to_social",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "baseline",
+      "targets": [
+        "tv_to_social"
+      ]
+    },
+    {
+      "name": "change_display_to_social",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "baseline",
+      "targets": [
+        "display_to_social"
+      ]
+    }
+  ]
+}

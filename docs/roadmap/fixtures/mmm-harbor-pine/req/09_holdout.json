@@ -1,0 +1,150 @@
+{
+  "requests": [
+    {
+      "label": "train_wk0_90",
+      "cohort": {
+        "filename": "harbor_pine_features.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_ONE_HOT",
+          "field": "region",
+          "label": "rg"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "tv_ad70",
+          "label": "tv_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "search_ad10",
+          "label": "search_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "social_ad30",
+          "label": "social_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "display_ad70",
+          "label": "display_sat"
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_RANGE",
+          "field": "week_index",
+          "values": [
+            "0",
+            "90"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "pred_k",
+          "expression": "107.2636 + 8.8683 * tv_sat + 12.2070 * search_sat + 11.5440 * social_sat + 9.7971 * display_sat + 0.0683 * email_ksends + 1.9841 * discount_pct + -93.5313 * competitor_sov + 1.9008 * category_demand + 0.3694 * week_index + 27.3692 * holiday + (region == \"California\" ? 60.9689 : region == \"Mid-Atlantic\" ? 21.9395 : region == \"Mountain\" ? -48.9482 : region == \"Northeast\" ? 47.2270 : region == \"Pacific NW\" ? -38.3411 : region == \"South Central\" ? -12.0517 : region == \"Southeast\" ? 12.0385 : 0)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "ape",
+          "expression": "abs(revenue_k - (107.2636 + 8.8683 * tv_sat + 12.2070 * search_sat + 11.5440 * social_sat + 9.7971 * display_sat + 0.0683 * email_ksends + 1.9841 * discount_pct + -93.5313 * competitor_sov + 1.9008 * category_demand + 0.3694 * week_index + 27.3692 * holiday + (region == \"California\" ? 60.9689 : region == \"Mid-Atlantic\" ? 21.9395 : region == \"Mountain\" ? -48.9482 : region == \"Northeast\" ? 47.2270 : region == \"Pacific NW\" ? -38.3411 : region == \"South Central\" ? -12.0517 : region == \"Southeast\" ? 12.0385 : 0))) / revenue_k"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "revenue_k",
+          "label": "actual_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "pred_k",
+          "label": "predicted_k"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "ape",
+          "label": "mape"
+        }
+      ]
+    },
+    {
+      "label": "holdout_wk91_103",
+      "cohort": {
+        "filename": "harbor_pine_features.pulse",
+        "data_dir": "."
+      },
+      "features": [
+        {
+          "type": "FEAT_ONE_HOT",
+          "field": "region",
+          "label": "rg"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "tv_ad70",
+          "label": "tv_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "search_ad10",
+          "label": "search_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "social_ad30",
+          "label": "social_sat"
+        },
+        {
+          "type": "FEAT_LOG",
+          "field": "display_ad70",
+          "label": "display_sat"
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_RANGE",
+          "field": "week_index",
+          "values": [
+            "91",
+            "103"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "pred_k",
+          "expression": "107.2636 + 8.8683 * tv_sat + 12.2070 * search_sat + 11.5440 * social_sat + 9.7971 * display_sat + 0.0683 * email_ksends + 1.9841 * discount_pct + -93.5313 * competitor_sov + 1.9008 * category_demand + 0.3694 * week_index + 27.3692 * holiday + (region == \"California\" ? 60.9689 : region == \"Mid-Atlantic\" ? 21.9395 : region == \"Mountain\" ? -48.9482 : region == \"Northeast\" ? 47.2270 : region == \"Pacific NW\" ? -38.3411 : region == \"South Central\" ? -12.0517 : region == \"Southeast\" ? 12.0385 : 0)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "ape",
+          "expression": "abs(revenue_k - (107.2636 + 8.8683 * tv_sat + 12.2070 * search_sat + 11.5440 * social_sat + 9.7971 * display_sat + 0.0683 * email_ksends + 1.9841 * discount_pct + -93.5313 * competitor_sov + 1.9008 * category_demand + 0.3694 * week_index + 27.3692 * holiday + (region == \"California\" ? 60.9689 : region == \"Mid-Atlantic\" ? 21.9395 : region == \"Mountain\" ? -48.9482 : region == \"Northeast\" ? 47.2270 : region == \"Pacific NW\" ? -38.3411 : region == \"South Central\" ? -12.0517 : region == \"Southeast\" ? 12.0385 : 0))) / revenue_k"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_SUM",
+          "field": "revenue_k",
+          "label": "actual_k"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "pred_k",
+          "label": "predicted_k"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "ape",
+          "label": "mape"
+        }
+      ]
+    }
+  ]
+}

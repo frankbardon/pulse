@@ -25,11 +25,11 @@ pulse api compose --request FILE [--json] [--stream]
 |---|---|---|---|---|
 | `--request`       | `-r` | string | (required) | Composed-request JSON path |
 | `--json`          |      | bool   | false      | Wrap output in the standard envelope |
-| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}` |
+| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}`; a ranked sweep ends with one `{"ranking": [...]}` line |
 | `--parallel`      |      | int    | 1          | Worker count; 0 = `GOMAXPROCS`, 1 = sequential |
 | `--no-fail-fast`  |      | bool   | false      | Aggregate errors across slots instead of cancelling on first failure (parallel mode only) |
 | `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference |
-| `--echo-request`  |      | bool   | false      | Include the normalized `ComposedRequest` on `envelope.request`; each slot reflects its post-defaults form. Ignored under `--stream` |
+| `--echo-request`  |      | bool   | false      | Include the normalized `ComposedRequest` on `envelope.request`; each slot reflects its post-defaults form; a `sweep` is echoed as the expanded slots that ran. Ignored under `--stream` |
 
 ## Request file shape
 

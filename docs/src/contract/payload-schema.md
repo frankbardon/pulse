@@ -540,6 +540,36 @@ the whole chain, so a stage that excludes `data` still feeds the next
 stage its rows. `final` is the last stage, shaped by its `return`;
 there is no chain-level block.
 
+### Compose sweep
+
+`ComposedRequest.sweep` (`SweepSpec`) is the one slot that expands into
+ordinary Compose slots, so a sweep adds no response shape of its own:
+`responses` carries explicit slots first, then one entry per expansion.
+`SweepSpec` is `{axes, mode, label, request, overlays, rank}`: `axes`
+are `SweepAxis {name, values}` (`values` a non-empty list of scalars),
+`mode` the closed enum `SweepMode` (`grid` default, `zip`), `request` an
+object in the `Request` shape that may carry `{{axis}}` / `{"$var":
+"axis"}` placeholders (the schema types it as `object`; the substituted
+body is decoded strictly at expansion), `overlays` an array of
+`ComposeOverlaySpec` objects with placeholders, and `rank` a
+`SweepRank {by, order, top}` (`SweepRankOrder`: `asc`, `desc`). The slot
+is `omitempty`, so a sweep-free request is byte-identical on the wire.
+It is gated by `capability:compose_sweep`: on an instance that hides it
+the `sweep` property and the `Sweep*` defs are absent. A malformed sweep
+is `PULSE_SWEEP_INVALID` with `details.field` (a `sweep`-rooted path)
+and `details.reason`. `pulse_predict` with `composed` reports the
+expansion as `sweep {axes, mode, expanded_count, labels}` on the predict
+result; that summary is not payload-reachable and is not in this schema.
+
+A sweep with `rank` adds `ComposedResponse.ranking`, an `omitempty` array
+of `RankEntry {label, value, rank}` (1-based, in rank order, `value`
+always finite). Only sweep slots are ranked. A slot whose value at
+`rank.by` is null, or whose path is missing there but resolves elsewhere,
+is left out with a `PULSE_SWEEP_RANK_PATH` warning on its own response;
+a non-number, ambiguous or nowhere-resolving path refuses the batch with
+the same code. `ranking` is pinned outside the Compose-level `return`:
+always emitted, never rounded by `precision`.
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a

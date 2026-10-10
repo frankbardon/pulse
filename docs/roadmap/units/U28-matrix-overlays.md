@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U24, U13]
 soft_depends_on: []
 blocks: [U30, U31]
-todo_items: [145, 146, 147, 148, 149, 150, 261, 265]
+todo_items: [145, 146, 147, 148, 149, 150, 261, 265, 296]
 branch: matrix-overlays
 ---
 
@@ -38,6 +38,7 @@ The MATRIX_RESULT overlay host with the `Ref.Matrix` reference family, `OVERLAY_
 - [ ] **#150** (10. Vector & matrix — operators › E6 — Matrix operations on results (overlays)) `MatrixSpec.multiplicity` → `p_adjusted` auxiliary matrix via the shared correction core (replaces the dropped `OVERLAY_CORR_PVALUE`)
 - [ ] **#261** (10. Vector & matrix — operators › Follow-ups from U24) Raw p-values and confidence intervals on `MAT_CORRELATION` `params.method` `spearman` / `kendall` (the `cor.test` analogues, exact Kendall with ties), as `auxiliary.p` / interval matrices; U24 ships the figures only
 - [ ] **#265** (10. Vector & matrix — operators › Follow-ups from U24) Partial-correlation statistic and p-value (df = n − 2 − g; the `ppcor` values already sit in `mv_partial_correlation.json`) as `auxiliary.p` beside the multiplicity core
+- [ ] **#296** (Follow-ups from U40) Summary of a matrix across groups (mean and range per cell over a grouped matrix result), so a pooled-versus-within-group cross-check table is a response, not an external assembly
 
 ## Scope
 

@@ -207,7 +207,7 @@ func apiComposeCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a ranked sweep ends with one {\"ranking\":[...]} line"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
@@ -279,16 +279,28 @@ func apiComposeCmd() *cli.Command {
 						}
 					}
 				}
+				// A ranked sweep ends the stream with one
+				// {"ranking":[...]} record, even when every slot was
+				// left out (an empty list).
+				if composed.Sweep != nil && composed.Sweep.Rank != nil {
+					ranking := []types.RankEntry{}
+					if resp != nil && resp.Ranking != nil {
+						ranking = resp.Ranking
+					}
+					if err := encodeFinite(enc, map[string]any{"ranking": ranking}); err != nil {
+						return err
+					}
+				}
 				return nil
 			}
 
 			if jsonOut {
+				// The library hands back the effective request it ran
+				// (a sweep expanded into its slots) when EchoRequest
+				// is on; the CLI writes it as is.
 				var echoed any
-				if echoRequest {
-					// Each sub-request was mutated in place by service
-					// during execution. Echo the composed request as a
-					// whole — each slot is the post-defaults form.
-					echoed = composed
+				if echoRequest && resp != nil && resp.NormalizedRequest != nil {
+					echoed = resp.NormalizedRequest
 				}
 				return writeEnvelopeWithRequest(cmd.Writer, resp, echoed)
 			}

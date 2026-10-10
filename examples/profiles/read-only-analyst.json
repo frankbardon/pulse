@@ -6,6 +6,7 @@
     "capability:stream",
     "capability:watch",
     "capability:compose",
+    "capability:compose_sweep",
     "capability:process_chain",
     "capability:facet",
     "capability:sample",

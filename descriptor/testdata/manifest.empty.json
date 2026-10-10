@@ -226,7 +226,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nThe `compose` examples show a compose `sweep` expanded into slots.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_inspect",
@@ -751,4 +751,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6a3e487225861acaa33b8117cdd60d08b99a3f1e4ea25165d661730b1ce55675
+// golden-hash: 6e4e03800f89a3ec7f7fe985bfa72d475d58e8c3d57922f8327c2d3e911778e9

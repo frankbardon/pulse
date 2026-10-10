@@ -1425,6 +1425,37 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SWEEP_INVALID: {
+		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays, and every placeholder must name an axis. Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"sweep", "axes", "*", "values"},
+				Hint:   "Give every axis a unique identifier `name` and at least one scalar value; under `mode: zip` give every axis the same number of values.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"sweep", "mode"},
+				Hint:     "Set `mode` to one of the values under `valid`, or drop it for grid.",
+				Examples: []any{"grid", "zip"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"sweep", "request"},
+				Hint:   "Reference every axis with `{{axis}}` (inside a string) or `{\"$var\": \"axis\"}` (a whole value), name only declared axes, correct the key under `unknown_field`, and move any `label` into sweep.label.",
+			},
+		},
+	},
+	PULSE_SWEEP_RANK_PATH: {
+		Message: "The sweep `rank.by` path does not parse, or does not resolve to one number in a slot's response. The rank reads each sweep slot's unshaped response JSON at that path: dotted segments, where a segment on an object is a key and a segment on a list selects the one element whose `name` or `label` equals it (never an index). The batch is refused when the path ends on a non-number, is ambiguous (two elements match, or the match's name and label differ) or resolves in no sweep slot (reason `syntax`, `not_number`, `ambiguous` or `missing`). As a WARNING on a slot's own response it means that slot is left out of the ranking: its value is null (undefined) or the path is missing there only. The path is under `by`, the slot under `label`, the failing segment under `segment`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"sweep", "rank", "by"},
+				Hint:   "Point `by` at a single numeric value every sweep slot's response carries, e.g. a regression statistic or one aggregate cell.",
+			},
+		},
+	},
 	PULSE_JOIN_TYPE_MISMATCH: {
 		Message: "A join key pair pairs fields whose schema types differ. Hash join keys must compare equal byte-for-byte after normalisation; type mismatches block this.",
 		Fixups: []Fixup{

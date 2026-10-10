@@ -220,6 +220,11 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// The response-shaping presets: a closed vocabulary on an ungated
 	// slot.
 	m[reflect.TypeFor[types.ReturnPreset]()] = stringify(types.AllReturnPresets())
+	// The sweep modes and rank orders: closed vocabularies (a hidden
+	// capability:compose_sweep drops the `sweep` slot, and SweepSpec /
+	// SweepRank with it).
+	m[reflect.TypeFor[types.SweepMode]()] = stringify(types.AllSweepModes())
+	m[reflect.TypeFor[types.SweepRankOrder]()] = stringify(types.AllSweepRankOrders())
 	// Explain's closed vocabularies: its detail levels, modes, roots and
 	// the finding verdicts.
 	m[reflect.TypeFor[descriptor.ExplainDetail]()] = stringify([]descriptor.ExplainDetail{descriptor.ExplainTerse, descriptor.ExplainFull})
@@ -439,6 +444,24 @@ type fieldKey struct {
 // object rather than #/$defs/Request: a placeholder may sit where the
 // request takes a number.
 var fieldOverrides = map[fieldKey]any{
+	// A sweep body is a Request with axis placeholders — `{"$var":
+	// "axis"}` may stand where the request takes a number — so it is an
+	// open object, not #/$defs/Request; likewise its overlays.
+	{reflect.TypeFor[types.SweepSpec](), "request"}: map[string]any{
+		"type":        "object",
+		"description": "The slot request body as wire JSON (the #/$defs/Request shape) with axis placeholders: `{{axis}}` inside a string, `{\"$var\": \"axis\"}` as a whole value. Each expanded body is decoded strictly into a Request.",
+	},
+	{reflect.TypeFor[types.SweepSpec](), "overlays"}: map[string]any{
+		"type":        "array",
+		"items":       map[string]any{"type": "object"},
+		"description": "Compose overlay specs (the #/$defs/ComposeOverlaySpec shape) with axis placeholders, substituted per expanded slot and appended to the request's own overlays.",
+	},
+	{reflect.TypeFor[types.SweepAxis](), "values"}: map[string]any{
+		"type":        "array",
+		"minItems":    1,
+		"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
+		"description": "The scalar values the axis takes, in expansion order.",
+	},
 	{reflect.TypeFor[descriptor.Recommendation](), "request"}: map[string]any{
 		"type":        "object",
 		"description": "The draft request as wire JSON (the #/$defs/Request shape). Every value the caller must supply is a \"<placeholder>\" string named after its wire key, listed in placeholders.",
