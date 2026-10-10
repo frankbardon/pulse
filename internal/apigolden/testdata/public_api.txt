@@ -152,10 +152,12 @@ pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
+pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
 pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
+pulse: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
@@ -2300,6 +2302,8 @@ pulse/errors: const PULSE_SPSS_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SPSS_WI
 pulse/errors: const PULSE_SPSS_ZSAV_BLOCK_CORRUPT pulse/errors.Code = "PULSE_SPSS_ZSAV_BLOCK_CORRUPT"
 pulse/errors: const PULSE_SPSS_ZSAV_INVALID pulse/errors.Code = "PULSE_SPSS_ZSAV_INVALID"
 pulse/errors: const PULSE_SUPPRESS_ADVISORY_UNKNOWN pulse/errors.Code = "PULSE_SUPPRESS_ADVISORY_UNKNOWN"
+pulse/errors: const PULSE_SWEEP_INVALID pulse/errors.Code = "PULSE_SWEEP_INVALID"
+pulse/errors: const PULSE_SWEEP_RANK_PATH pulse/errors.Code = "PULSE_SWEEP_RANK_PATH"
 pulse/errors: const PULSE_SYNTH_ALREADY_TAGGED pulse/errors.Code = "PULSE_SYNTH_ALREADY_TAGGED"
 pulse/errors: const PULSE_SYNTH_CONSTRAINT_INFEASIBLE pulse/errors.Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 pulse/errors: const PULSE_SYNTH_DISTRIBUTION_UNKNOWN pulse/errors.Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
@@ -3664,6 +3668,8 @@ pulse/types: func AllMultiplicityMethods() []pulse/types.MultiplicityMethod
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllReturnPresets() []pulse/types.ReturnPreset
+pulse/types: func AllSweepModes() []pulse/types.SweepMode
+pulse/types: func AllSweepRankOrders() []pulse/types.SweepRankOrder
 pulse/types: func AllTestTypes() []pulse/types.TestType
 pulse/types: func AllVectorCoerces() []pulse/types.VectorCoerce
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
@@ -3743,9 +3749,11 @@ pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
+pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
+pulse/types: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse/types: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse/types: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
@@ -4306,6 +4314,10 @@ pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolatio
 pulse/types: const REG_BAYES_LINEAR pulse/types.RegressionType = "REG_BAYES_LINEAR"
 pulse/types: const REG_GLM pulse/types.RegressionType = "REG_GLM"
 pulse/types: const REG_OLS pulse/types.RegressionType = "REG_OLS"
+pulse/types: type RankEntry struct
+pulse/types: type RankEntry field Label string "json:\"label\""
+pulse/types: type RankEntry field Rank int "json:\"rank\""
+pulse/types: type RankEntry field Value float64 "json:\"value\""
 pulse/types: type RegressionResult struct
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
@@ -4459,6 +4471,27 @@ pulse/types: func SlotWeightOf(spec pulse/types.WeightSpec) pulse/types.SlotWeig
 pulse/types: type StageRef struct
 pulse/types: type StageRef field Index *int "json:\"index,omitempty\""
 pulse/types: type StageRef field Name string "json:\"name,omitempty\""
+pulse/types: type SweepAxis struct
+pulse/types: type SweepAxis field Name string "json:\"name\""
+pulse/types: type SweepAxis field Values []any "json:\"values\""
+pulse/types: type SweepAxis method (*SweepAxis) UnmarshalJSON(data []byte) error
+pulse/types: type SweepMode string
+pulse/types: const SweepModeGrid pulse/types.SweepMode = "grid"
+pulse/types: const SweepModeZip pulse/types.SweepMode = "zip"
+pulse/types: type SweepRank struct
+pulse/types: type SweepRank field By string "json:\"by\""
+pulse/types: type SweepRank field Order pulse/types.SweepRankOrder "json:\"order,omitempty\""
+pulse/types: type SweepRank field Top *int "json:\"top,omitempty\""
+pulse/types: const SweepRankAsc pulse/types.SweepRankOrder = "asc"
+pulse/types: const SweepRankDesc pulse/types.SweepRankOrder = "desc"
+pulse/types: type SweepRankOrder string
+pulse/types: type SweepSpec struct
+pulse/types: type SweepSpec field Axes []pulse/types.SweepAxis "json:\"axes\""
+pulse/types: type SweepSpec field Label string "json:\"label,omitempty\""
+pulse/types: type SweepSpec field Mode pulse/types.SweepMode "json:\"mode,omitempty\""
+pulse/types: type SweepSpec field Overlays encoding/json.RawMessage "json:\"overlays,omitempty\""
+pulse/types: type SweepSpec field Rank *pulse/types.SweepRank "json:\"rank,omitempty\""
+pulse/types: type SweepSpec field Request encoding/json.RawMessage "json:\"request\""
 pulse/types: const TEST_ANOVA_F pulse/types.TestType = "TEST_ANOVA_F"
 pulse/types: const TEST_ANOVA_RM pulse/types.TestType = "TEST_ANOVA_RM"
 pulse/types: const TEST_ANOVA_WELCH pulse/types.TestType = "TEST_ANOVA_WELCH"
@@ -4556,4 +4589,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c62f4cfd2e665ec0f9bac67101e75a3154edc9f29e63cdc8219536cfbec2290a
+// golden-hash: 471952c991c9c547104ec87b4706bbedaf08841dadee24ce90554630c22525e1

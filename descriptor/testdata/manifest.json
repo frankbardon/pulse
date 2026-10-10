@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:a605e613dfcb3db04408f39beec6c3cb1d4940a65bfa164fdff559353e1b6761",
+    "feature_set_digest": "fs1:6fcbfc58f534e07cfdcdd0f923a3860d4542eca9e1329b61ec28380f2f6211c6",
     "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
     "commands": [
       {
@@ -6991,7 +6991,7 @@
         ]
       }
     ],
-    "error_codes_count": 298,
+    "error_codes_count": 300,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7240,6 +7240,8 @@
       "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
       "PULSE_SPSS_ZSAV_INVALID",
       "PULSE_SUPPRESS_ADVISORY_UNKNOWN",
+      "PULSE_SWEEP_INVALID",
+      "PULSE_SWEEP_RANK_PATH",
       "PULSE_SYNTH_ALREADY_TAGGED",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
@@ -13244,4 +13246,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fe223801e344b8d40dcc73a43c6d47a50e97a5a90a7a57c3d4d05b7a41a64118
+// golden-hash: 7c0cf27fc2eb1f4b76d5594539e2fe9cde90b1a7292c89ea38d4f06aa598628b
