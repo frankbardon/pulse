@@ -56,7 +56,7 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 
 ## Selection heuristics
 
-Counts / IDs → smallest unsigned width that fits the max. Measurements → `f32`; scores or wide dynamic range → `f64`. Money → `decimal128` (see `financial-cohorts`). Booleans → `packed_bool`; small ordinals (Likert, grades) → `u4`. Strings → always categorical, width by distinct cardinality. Multi-select → `set_*`, smallest width whose cap covers the distinct labels — the width is paid by every record, and above 256 labels there is no set type at all. Sometimes-missing → pick the base type, then `Nullable: true`.
+Counts / IDs → smallest unsigned width that fits the max. Measurements → `f32` (import inference picks `f64` unless `--float f32`); scores or wide dynamic range → `f64`. Money → `decimal128` (see `financial-cohorts`). Booleans → `packed_bool`; small ordinals (Likert, grades) → `u4`. Strings → always categorical, width by distinct cardinality. Multi-select → `set_*`, smallest width whose cap covers the distinct labels — the width is paid by every record, and above 256 labels there is no set type at all. Sometimes-missing → pick the base type, then `Nullable: true`.
 
 ## Bit-packed runs
 

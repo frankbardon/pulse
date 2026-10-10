@@ -207,6 +207,19 @@ const (
 	// columns). Suppressed by IgnoreExtra / `--ignore-extra`.
 	PULSE_IMPORT_SCHEMA_KEY_LATE Code = "PULSE_IMPORT_SCHEMA_KEY_LATE"
 
+	// PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN indicates an explicit import
+	// schema file declares a field whose type name is not a registered
+	// field type (details: field, type, valid — the registered type
+	// names). The name is never coerced: an unknown type used to fall
+	// back to f64 silently, so a typo stored a column in the wrong type.
+	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN Code = "PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN"
+
+	// PULSE_IMPORT_FLOAT_WIDTH_INVALID indicates an import's float-width
+	// knob (ImportJob.FloatWidth / InferOptions.FloatWidth, CLI
+	// `--float`) is neither "f64" (the default, also spelled "") nor
+	// "f32" (details: value, valid).
+	PULSE_IMPORT_FLOAT_WIDTH_INVALID Code = "PULSE_IMPORT_FLOAT_WIDTH_INVALID"
+
 	// PULSE_IMPORT_DST_AMBIGUOUS indicates a naive datetime literal read
 	// in an import source zone (ImportJob.SourceTZ / ColumnSourceTZ)
 	// names a wall-clock time the zone shows TWICE — a DST fall-back
@@ -3072,6 +3085,8 @@ var allCodes = []Code{
 	PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED,
 	PULSE_IMPORT_SCHEMA_DUPLICATE,
 	PULSE_IMPORT_SCHEMA_KEY_LATE,
+	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN,
+	PULSE_IMPORT_FLOAT_WIDTH_INVALID,
 	PULSE_IMPORT_DST_AMBIGUOUS,
 	PULSE_IMPORT_DST_NONEXISTENT,
 	PULSE_IMPORT_DST_RESOLVED,

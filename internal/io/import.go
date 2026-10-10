@@ -28,6 +28,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	if j.FS == nil {
 		return nil, fmt.Errorf("ImportJob.FS is required")
 	}
+	// The float-width knob is refused before anything is read, whether
+	// or not inference would consult it, so a typo never imports.
+	if _, err := ResolveFloatWidth(j.FloatWidth); err != nil {
+		return nil, err
+	}
 
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
@@ -92,6 +97,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		res, err := InferSchemaWithOptions(j.Source, InferOptions{
 			SampleRows:          j.SampleRows,
 			SetInferenceMinPct:  j.SetInferenceMinPct,
+			FloatWidth:          j.FloatWidth,
 			ColumnTypeOverrides: j.ColumnTypeOverrides,
 		})
 		if err != nil {
@@ -454,6 +460,10 @@ func writeFlatPayload(buf *bytes.Buffer, schema *encoding.Schema, rows int, logi
 
 // Predict validates the import without writing any output.
 func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
+	// Refused exactly as Run refuses it.
+	if _, err := ResolveFloatWidth(j.FloatWidth); err != nil {
+		return nil, err
+	}
 	schema := j.Schema
 	var warnings []InferenceWarning
 
@@ -499,6 +509,7 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		res, err := InferSchemaWithOptions(j.Source, InferOptions{
 			SampleRows:          j.SampleRows,
 			SetInferenceMinPct:  j.SetInferenceMinPct,
+			FloatWidth:          j.FloatWidth,
 			ColumnTypeOverrides: j.ColumnTypeOverrides,
 		})
 		if err != nil {

@@ -123,6 +123,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED: ownImportExport,
 	errors.PULSE_IMPORT_SCHEMA_DUPLICATE:       ownImportExport,
 	errors.PULSE_IMPORT_SCHEMA_KEY_LATE:        ownImportExport,
+	errors.PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN:    ownImportExport,
+	errors.PULSE_IMPORT_FLOAT_WIDTH_INVALID:    ownImportExport,
 	errors.PULSE_IMPORT_DST_AMBIGUOUS:          ownImportExport,
 	errors.PULSE_IMPORT_DST_NONEXISTENT:        ownImportExport,
 	errors.PULSE_IMPORT_DST_RESOLVED:           ownImportExport,

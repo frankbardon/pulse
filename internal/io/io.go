@@ -213,6 +213,16 @@ type ImportJob struct {
 	// Ignored when Schema is supplied, and inert when the Source is a
 	// SchemaAwareReader that yields a schema.
 	SetInferenceMinPct int
+	// FloatWidth is the type inference gives an all-float column: "f64"
+	// (the default; "" means the same) or "f32", a size opt-in that
+	// rounds every value to ~7 significant digits. Under "f32" an
+	// out-of-sample value past f32's range still promotes the field to
+	// f64 with PULSE_IMPORT_WIDTH_PROMOTED. Any other value refuses the
+	// import (Run and Predict alike, with or without a Schema) with
+	// PULSE_IMPORT_FLOAT_WIDTH_INVALID. Steers inference only: inert when
+	// Schema is supplied or a SchemaAwareReader yields a schema, and a
+	// ColumnTypeOverrides entry wins for its column. CLI `--float`.
+	FloatWidth string
 	// ColumnTypeOverrides bypasses inference for the named columns
 	// (keyed by exact header name). Used by the managed-import
 	// sidecar's force_type escape hatch. An override is applied exactly
@@ -473,6 +483,11 @@ type ConvertJob struct {
 	// keys) the explicit Schema does not name, instead of refusing; see
 	// ImportJob.IgnoreExtra.
 	IgnoreExtra bool
+	// FloatWidth is the width an inferred all-float column takes: "f64"
+	// (default; "") or "f32"; anything else is
+	// PULSE_IMPORT_FLOAT_WIDTH_INVALID. See ImportJob.FloatWidth. CLI
+	// `--float`.
+	FloatWidth string
 	// Includes restricts the export half to the named schema fields,
 	// in schema order. Nil / empty means write every field. The
 	// intermediate .pulse file (when KeepPulseAt is set) always

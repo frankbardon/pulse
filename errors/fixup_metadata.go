@@ -314,7 +314,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_WIDTH_PROMOTED: {
-		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
+		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range when f32 was inferred under the --float f32 opt-in (the default infers f64) (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -390,6 +390,25 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupSetDefault,
 				Path:   []string{"IgnoreExtra"},
 				Hint:   "Pass --ignore-extra (IgnoreExtra: true) when the late key is not wanted in the cohort.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN: {
+		Message: "An explicit import schema file declares a field whose `type` is not a registered field type, so the schema is refused before any row is read. The name is matched exactly (lower case, as `pulse import schema-template` emits it) and never coerced — an unknown name no longer falls back to f64. Details carry `field`, `type` (the name as written) and `valid` (every registered type name). Raised by every schema-file loader: `import <format> --schema`, `import predict --schema` and `convert --schema`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Correct the field's `type` to one of the names in details.valid (e.g. f64, not float or double), or regenerate the file with `pulse import schema-template INPUT` and edit from there.",
+			},
+		},
+	},
+	PULSE_IMPORT_FLOAT_WIDTH_INVALID: {
+		Message: "The import float-width knob names neither f64 nor f32, so the import is refused before the source is read. It chooses the width inference gives an all-float column: f64 (the default; the empty string means the same) keeps every decimal exact to ~15-17 significant digits, f32 halves the bytes but rounds to ~7. Details carry `value` (as given) and `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"FloatWidth"},
+				Hint:   "Pass --float f64 (FloatWidth \"f64\", or omit it) for exact decimals, or --float f32 to opt into the narrower width.",
 			},
 		},
 	},

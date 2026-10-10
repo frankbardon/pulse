@@ -2172,6 +2172,7 @@ pulse/errors: const PULSE_IMPORT_DESCRIPTION_TOO_LONG pulse/errors.Code = "PULSE
 pulse/errors: const PULSE_IMPORT_DST_AMBIGUOUS pulse/errors.Code = "PULSE_IMPORT_DST_AMBIGUOUS"
 pulse/errors: const PULSE_IMPORT_DST_NONEXISTENT pulse/errors.Code = "PULSE_IMPORT_DST_NONEXISTENT"
 pulse/errors: const PULSE_IMPORT_DST_RESOLVED pulse/errors.Code = "PULSE_IMPORT_DST_RESOLVED"
+pulse/errors: const PULSE_IMPORT_FLOAT_WIDTH_INVALID pulse/errors.Code = "PULSE_IMPORT_FLOAT_WIDTH_INVALID"
 pulse/errors: const PULSE_IMPORT_FORMAT_UNKNOWN pulse/errors.Code = "PULSE_IMPORT_FORMAT_UNKNOWN"
 pulse/errors: const PULSE_IMPORT_HANDLE_EXISTS pulse/errors.Code = "PULSE_IMPORT_HANDLE_EXISTS"
 pulse/errors: const PULSE_IMPORT_NULL_PROMOTED pulse/errors.Code = "PULSE_IMPORT_NULL_PROMOTED"
@@ -2182,6 +2183,7 @@ pulse/errors: const PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED pulse/errors.Code = "PUL
 pulse/errors: const PULSE_IMPORT_SCHEMA_DUPLICATE pulse/errors.Code = "PULSE_IMPORT_SCHEMA_DUPLICATE"
 pulse/errors: const PULSE_IMPORT_SCHEMA_FIELD_MISSING pulse/errors.Code = "PULSE_IMPORT_SCHEMA_FIELD_MISSING"
 pulse/errors: const PULSE_IMPORT_SCHEMA_KEY_LATE pulse/errors.Code = "PULSE_IMPORT_SCHEMA_KEY_LATE"
+pulse/errors: const PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN pulse/errors.Code = "PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN"
 pulse/errors: const PULSE_IMPORT_SET_OVERFLOW pulse/errors.Code = "PULSE_IMPORT_SET_OVERFLOW"
 pulse/errors: const PULSE_IMPORT_SOURCE_FORBIDDEN pulse/errors.Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
 pulse/errors: const PULSE_IMPORT_SOURCE_MISSING pulse/errors.Code = "PULSE_IMPORT_SOURCE_MISSING"
@@ -2480,6 +2482,7 @@ pulse/io: type ConvertJob underlying struct
 pulse/io: type ConvertJob field ColumnSourceTZ map[string]string
 pulse/io: type ConvertJob field DSTPolicy pulse/internal/io.DSTPolicy
 pulse/io: type ConvertJob field FS github.com/spf13/afero.Fs
+pulse/io: type ConvertJob field FloatWidth string
 pulse/io: type ConvertJob field IgnoreExtra bool
 pulse/io: type ConvertJob field IncludeOverlays *bool
 pulse/io: type ConvertJob field Includes []string
@@ -2650,6 +2653,7 @@ pulse/io: type ImportJob field DSTPolicy pulse/internal/io.DSTPolicy
 pulse/io: type ImportJob field DedupRatioFloor float64
 pulse/io: type ImportJob field ElideConstants bool
 pulse/io: type ImportJob field FS github.com/spf13/afero.Fs
+pulse/io: type ImportJob field FloatWidth string
 pulse/io: type ImportJob field Groups []pulse/internal/io.GroupDecl
 pulse/io: type ImportJob field IgnoreExtra bool
 pulse/io: type ImportJob field InferredSchema bool
@@ -4606,4 +4610,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bc3f5d64ab533fddbd395dc23c524b1ae3dc4b3dd61e5c102e68a7f34610e558
+// golden-hash: b9660c7b7374e93830e7add993b5437f2821de8139bb60dd28d535b2cbc9bfce

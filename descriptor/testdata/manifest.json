@@ -6991,7 +6991,7 @@
         ]
       }
     ],
-    "error_codes_count": 304,
+    "error_codes_count": 306,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7100,6 +7100,7 @@
       "PULSE_IMPORT_DST_AMBIGUOUS",
       "PULSE_IMPORT_DST_NONEXISTENT",
       "PULSE_IMPORT_DST_RESOLVED",
+      "PULSE_IMPORT_FLOAT_WIDTH_INVALID",
       "PULSE_IMPORT_FORMAT_UNKNOWN",
       "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_NULL_PROMOTED",
@@ -7110,6 +7111,7 @@
       "PULSE_IMPORT_SCHEMA_DUPLICATE",
       "PULSE_IMPORT_SCHEMA_FIELD_MISSING",
       "PULSE_IMPORT_SCHEMA_KEY_LATE",
+      "PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN",
       "PULSE_IMPORT_SET_OVERFLOW",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
@@ -13255,4 +13257,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 21ea3c73ad5857d69ad9c918bcfd817f04b4842fb7fa0b73b73010e1f9ccf124
+// golden-hash: c6c0fdd27a83f1e99bd8afa00756fe09531da9fb9f3949f0a88277906c0cfae9

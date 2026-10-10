@@ -121,7 +121,7 @@ A warning, not an error. Inference sizes each `categorical_*` rung and
 integer width from the first `--sample-rows` rows. When a later value
 does not fit — the 257th distinct value of a `categorical_u8` parent-name
 column, `70000` in a column the sample saw as `u8`, `-3` or `2.5` in an
-integer column, `1e300` in a column the sample saw as `f32` — Pulse
+integer column, `1e300` in a column the sample saw as `f32` (under `--float f32`) — Pulse
 promotes the field to the narrowest type that holds it and imports the
 row. `pulse convert` does the same over an inferred schema instead of
 failing with `PULSE_IMPORT_CATEGORICAL_OVERFLOW`. Details name the `field`, the inferred

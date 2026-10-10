@@ -68,6 +68,13 @@ type InferOptions struct {
 	// column to be classified as set_*. Defaults to
 	// defaultSetInferenceMinPct (30) when 0.
 	SetInferenceMinPct int
+	// FloatWidth is the type an all-float column infers as: "f64" (the
+	// default; "" means the same) or "f32". f64 keeps every decimal the
+	// source wrote exact to ~15-17 significant digits; f32 is a size
+	// opt-in that rounds to ~7. Any other value is refused with
+	// PULSE_IMPORT_FLOAT_WIDTH_INVALID. An integer column, and a column
+	// carrying a negative integer (always f64), is unaffected.
+	FloatWidth string
 	// ColumnTypeOverrides maps column name to forced FieldType,
 	// bypassing the inference heuristics entirely for those columns.
 	// For set_* / categorical_* types the dictionary is still built
@@ -117,6 +124,10 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 	}
 	if minPct > 100 {
 		minPct = 100
+	}
+	floatType, err := ResolveFloatWidth(opts.FloatWidth)
+	if err != nil {
+		return nil, err
 	}
 
 	columns, err := reader.ReadHeader()
@@ -177,7 +188,7 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 			ov, colWarnings, err = applyTypeOverride(colName, samples[i], override)
 			ft, nullable, delim, precision, scale = ov.Type, ov.Nullable, ov.Delim, ov.Precision, ov.Scale
 		} else {
-			ft, nullable, delim, colWarnings, err = inferColumnTypeWithOpts(colName, samples[i], minPct)
+			ft, nullable, delim, colWarnings, err = inferColumnTypeWithOpts(colName, samples[i], minPct, floatType)
 		}
 		if err != nil {
 			return nil, err
@@ -226,7 +237,7 @@ func ErrStopIteration() error {
 // for delimited-cell detection and returns the chosen delimiter
 // alongside the field type so importers can pack per-row masks
 // consistently.
-func inferColumnTypeWithOpts(colName string, values []string, minPct int,
+func inferColumnTypeWithOpts(colName string, values []string, minPct int, floatType encoding.FieldType,
 ) (encoding.FieldType, bool, string, []InferenceWarning, error) {
 	if len(values) == 0 {
 		return encoding.FieldTypeF64, false, "", nil, nil
@@ -275,7 +286,11 @@ func inferColumnTypeWithOpts(colName string, values []string, minPct int,
 		return encoding.FieldTypeF64, hasNulls, "", nil, nil
 	}
 	if allFloat(nonNullValues) {
-		if fitsF32(nonNullValues) {
+		// f64 unless the caller opted into f32 (InferOptions.FloatWidth),
+		// and even then only when every sampled value is inside f32's
+		// RANGE — f32 still rounds an in-range decimal to ~7 digits,
+		// which is why it is an opt-in and never the default.
+		if floatType == encoding.FieldTypeF32 && fitsF32(nonNullValues) {
 			return encoding.FieldTypeF32, hasNulls, "", nil, nil
 		}
 		return encoding.FieldTypeF64, hasNulls, "", nil, nil
@@ -497,6 +512,30 @@ func allFloat(values []string) bool {
 		}
 	}
 	return true
+}
+
+// Float-width knob values (InferOptions.FloatWidth, ImportJob.FloatWidth,
+// CLI --float). The empty string is FloatWidthF64.
+const (
+	FloatWidthF64 = "f64"
+	FloatWidthF32 = "f32"
+)
+
+// ResolveFloatWidth maps a float-width knob value to the field type an
+// all-float column infers as: "" and "f64" → f64, "f32" → f32. Any other
+// value is PULSE_IMPORT_FLOAT_WIDTH_INVALID (details: value, valid).
+func ResolveFloatWidth(width string) (encoding.FieldType, error) {
+	switch width {
+	case "", FloatWidthF64:
+		return encoding.FieldTypeF64, nil
+	case FloatWidthF32:
+		return encoding.FieldTypeF32, nil
+	}
+	return 0, errors.NewCodedErrorWithDetails(
+		errors.PULSE_IMPORT_FLOAT_WIDTH_INVALID,
+		fmt.Sprintf("float width %q is not one of f64, f32", width),
+		map[string]any{"value": width, "valid": []string{FloatWidthF64, FloatWidthF32}},
+	)
 }
 
 // fitsF32 checks if all float values lie inside float32's range (see

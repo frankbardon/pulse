@@ -2,6 +2,7 @@ package io
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -133,4 +134,33 @@ func resolveExplicitSchema(source Reader, schema *encoding.Schema, ignoreExtra b
 		lk.RefuseLateKeys(!ignoreExtra)
 	}
 	return &out, nil
+}
+
+// ParseSchemaFieldType resolves the type name an explicit schema file
+// declares for field. The name must be a registered field type
+// (encoding.ParseFieldType, exact spelling); anything else is
+// PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN naming the field, the type as written
+// and the valid set. There is no fallback — an unknown name used to
+// become f64 silently, so a typo stored the column in the wrong type.
+func ParseSchemaFieldType(field, name string) (encoding.FieldType, error) {
+	if ft, ok := encoding.ParseFieldType(name); ok {
+		return ft, nil
+	}
+	valid := RegisteredFieldTypeNames()
+	return 0, errors.NewCodedErrorWithDetails(
+		errors.PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN,
+		fmt.Sprintf("schema field %q declares unknown type %q; valid types: %s", field, name, strings.Join(valid, ", ")),
+		map[string]any{"field": field, "type": name, "valid": valid},
+	)
+}
+
+// RegisteredFieldTypeNames lists every registered field type's name in
+// type-byte order, walked off the encoding registry (FieldType.IsKnown)
+// so a new type joins the list without an edit here.
+func RegisteredFieldTypeNames() []string {
+	var names []string
+	for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
+		names = append(names, ft.String())
+	}
+	return names
 }

@@ -4,7 +4,7 @@ description: Per-format CLI flags an agent must know — source-side read knobs 
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
-covers: [CLI flags, --ignore-extra, --sheet, --spss-missing, --charset, --group, --source-tz, --dst-policy, --tz, --ignore-sidecar, --uncompressed, --sanitize-names]
+covers: [CLI flags, --ignore-extra, --float, --sheet, --spss-missing, --charset, --group, --source-tz, --dst-policy, --tz, --ignore-sidecar, --uncompressed, --sanitize-names]
 ---
 
 # Format CLI flags
@@ -27,7 +27,9 @@ Per-format READ knobs the file cannot always answer itself; all ride `io.ReaderO
 
 **Source zone (`import <fmt>`, `import auto`, `import predict`, `convert`, `convert predict`; MCP `source_tz`).** Naive datetimes import as UTC unless `--source-tz Zone` (IANA, `UTC` or `±HH:MM`; repeatable `col=Zone` wins per column; `date` columns skipped, `col=` on one is `CLI_INPUT`) says where they were recorded. Offset/`Z` literals keep their instant. DST gap/overlap is FATAL (`PULSE_IMPORT_DST_AMBIGUOUS` / `_NONEXISTENT`, naming the row) unless `--dst-policy earlier|later`, which warns `PULSE_IMPORT_DST_RESOLVED` with counts. `import auto` persists the zone on the managed sidecar; `convert` writes zoned naive values as UTC `…Z` literals.
 
-**Explicit schema (`import <fmt>`, `import predict`, `convert` with `--schema`).** Fields match source columns by exact NAME, in any order; a field with no column, a column no field names, a repeated name or a late NDJSON / JSON-array key is a coded refusal (`PULSE_IMPORT_SCHEMA_*`) before any row. `--ignore-extra` drops unnamed columns and late keys instead.<!-- feature: capability:import --> Detail: `tool-import`.<!-- /feature -->
+**Explicit schema (`import <fmt>`, `import predict`, `convert` with `--schema`).** Fields match source columns by exact NAME, in any order; a field with no column, a column no field names, a repeated name, a late NDJSON / JSON-array key or an unknown `type` (never read as f64) is a coded refusal (`PULSE_IMPORT_SCHEMA_*`) before any row. `--ignore-extra` drops unnamed columns and late keys instead.<!-- feature: capability:import --> Detail: `tool-import`.<!-- /feature -->
+
+**Float width (same leaves + `import schema-template`).** Inferred floats are `f64`; `--float f32` halves the bytes but rounds to ~7 digits.
 
 **Export zone (`export <fmt>`, `export predict`; `io.ExportJob.TimeZone`).** `--tz Zone` (IANA or `UTC` only, else `PULSE_TIMEZONE_UNKNOWN`) renders `datetime` cells as local literals with offset — `2026-03-29T08:00:00+05:30` — that re-import to the same instant; `date` never moves. Absent / UTC-equivalent is byte-identical `…Z`. Arrow/Parquet carry it as UTF8 strings.
 

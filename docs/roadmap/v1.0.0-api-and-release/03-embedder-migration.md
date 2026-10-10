@@ -419,13 +419,16 @@ Not shipped, by decision: p-values and intervals on rank and partial correlation
 
 ## Changes from U41 (derived cohort)
 
-In progress. Contract: `docs/src/cli/flags.md` (`--schema` / `--ignore-extra`), `skills/tool-import.md`. `format_version` stays `"1.1"`; no `.pulse` byte changes.
+In progress. Contract: `docs/src/cli/flags.md` (`--schema` / `--ignore-extra`, `--float`), `skills/tool-import.md`. `format_version` stays `"1.1"`; no `.pulse` byte changes.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
 | an explicit `ImportJob.Schema` / `ConvertJob.Schema` mapped to source columns by POSITION (`CsvColumnIdx` = schema array index), so a reordered schema silently swapped same-typed columns | matched by exact header NAME on every adapter (Arrow / Parquet / SPSS included when the explicit schema overrides the source's), on a copy of the schema; any order works. A field with no column, a column no field names, a repeated name, or an NDJSON / JSON-array key first seen after the first object is refused before any row | behaviour change | give every schema field the exact source column name; set `IgnoreExtra` when the schema deliberately names a subset of the columns (previously such columns were silently ignored) | U41 |
 | (none) | `io.ImportJob.IgnoreExtra`, `io.ConvertJob.IgnoreExtra` (CLI `--ignore-extra` on `import <fmt>`, `import predict`, `convert`) | added | set it to drop unnamed source columns and late keys instead of refusing | U41 |
 | (none) | `errors.PULSE_IMPORT_SCHEMA_FIELD_MISSING`, `PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED`, `PULSE_IMPORT_SCHEMA_DUPLICATE`, `PULSE_IMPORT_SCHEMA_KEY_LATE` | added | `pulse errors lookup CODE`; the manifest error list changed | U41 |
+| an inferred all-float column took `f32` whenever every sampled value was inside f32's RANGE, so ordinary decimals rounded to ~7 significant digits and money sums drifted | inferred floats are `f64`; `f32` only on opt-in — `io.ImportJob.FloatWidth` / `io.ConvertJob.FloatWidth` `"f32"` (CLI `--float f32` on `import <fmt>`, `import predict`, `import schema-template`, `convert`), which restores the old rule including out-of-sample `PULSE_IMPORT_WIDTH_PROMOTED`. Any other value is `PULSE_IMPORT_FLOAT_WIDTH_INVALID` | behaviour change | re-imported cohorts carry `f64` float fields (wider rows, exact values); set `FloatWidth: "f32"` to keep the old width, or force one column with `ColumnTypeOverrides` / managed `force_type` | U41 |
+| an unknown `type` name in a CLI schema file (`--schema` on `import <fmt>`, `import predict`, `convert`) silently became `f64` | refused with `PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN` (`field`, `type`, `valid`) before any row is read | behaviour change | spell every `type` as a registered field type name (`pulse import schema-template INPUT` emits valid ones) | U41 |
+| (none) | `io.ImportJob.FloatWidth`, `io.ConvertJob.FloatWidth`; `errors.PULSE_IMPORT_FLOAT_WIDTH_INVALID`, `PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN` | added | see the two rows above | U41 |
 
 ## Third-party dependency
 

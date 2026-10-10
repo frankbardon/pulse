@@ -1,13 +1,14 @@
 package cli
 
-import "github.com/frankbardon/pulse/encoding"
+import (
+	"github.com/frankbardon/pulse/encoding"
+	iio "github.com/frankbardon/pulse/internal/io"
+)
 
-// parseFieldType converts a string type name to an encoding.FieldType.
-// Delegates to encoding.ParseFieldType so the canonical type-name table
-// lives in one place. Unknown names fall back to f64.
-func parseFieldType(name string) encoding.FieldType {
-	if ft, ok := encoding.ParseFieldType(name); ok {
-		return ft
-	}
-	return encoding.FieldTypeF64 // fallback
+// parseFieldType converts the type name a schema file declares for field
+// to an encoding.FieldType. Delegates to iio.ParseSchemaFieldType so the
+// canonical type-name table lives in one place. An unknown name is
+// refused with PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN — never coerced to f64.
+func parseFieldType(field, name string) (encoding.FieldType, error) {
+	return iio.ParseSchemaFieldType(field, name)
 }

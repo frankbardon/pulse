@@ -43,6 +43,10 @@ import (
 // categorical_u32 still refuses. Convert passes cell TEXT through, so a
 // promotion never changes what the target receives.
 func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
+	// Refused before the source is read, exactly as ImportJob refuses it.
+	if _, err := ResolveFloatWidth(j.FloatWidth); err != nil {
+		return nil, err
+	}
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
 
@@ -90,7 +94,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			return nil, fmt.Errorf("schema inference requires a ResetReader source")
 		}
 		var err error
-		schema, inferWarnings, err = InferSchema(j.Source, j.SampleRows)
+		schema, inferWarnings, err = j.inferSchema()
 		if err != nil {
 			return nil, err
 		}
@@ -358,6 +362,10 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 
 // Predict validates the conversion without writing.
 func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
+	// Refused before the source is read, exactly as ImportJob refuses it.
+	if _, err := ResolveFloatWidth(j.FloatWidth); err != nil {
+		return nil, err
+	}
 	schema := j.Schema
 	var warnings []InferenceWarning
 
@@ -387,7 +395,7 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 			return nil, fmt.Errorf("schema inference requires a ResetReader source")
 		}
 		var err error
-		schema, warnings, err = InferSchema(j.Source, j.SampleRows)
+		schema, warnings, err = j.inferSchema()
 		if err != nil {
 			return nil, err
 		}
@@ -443,6 +451,17 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 // zoneJob carries the convert's source-zone options in the ImportJob
 // shape resolveSourceZones judges, so the two verbs share one set of
 // refusals.
+// inferSchema runs the inference pass with the job's sampling and
+// float-width knobs — the one call Run and Predict share, so a predicted
+// convert infers the schema Run writes.
+func (j *ConvertJob) inferSchema() (*encoding.Schema, []InferenceWarning, error) {
+	res, err := InferSchemaWithOptions(j.Source, InferOptions{SampleRows: j.SampleRows, FloatWidth: j.FloatWidth})
+	if err != nil {
+		return nil, nil, err
+	}
+	return res.Schema, res.Warnings, nil
+}
+
 func (j *ConvertJob) zoneJob() *ImportJob {
 	return &ImportJob{SourceTZ: j.SourceTZ, ColumnSourceTZ: j.ColumnSourceTZ, DSTPolicy: j.DSTPolicy}
 }

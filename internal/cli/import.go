@@ -28,6 +28,10 @@ const spssMissingFlagUsage = "How SPSS numeric user-missing values are represent
 // every leaf that takes --schema so the wording cannot drift.
 const ignoreExtraFlagUsage = "With --schema: drop source columns (and NDJSON / JSON-array keys first seen after the first object) the schema does not name, instead of refusing with PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED / PULSE_IMPORT_SCHEMA_KEY_LATE. Schema fields always match columns by exact name"
 
+// floatFlagUsage is the one-line help for --float, shared by every leaf
+// that infers a schema so the wording cannot drift.
+const floatFlagUsage = "Width an all-float column infers as: f64 (default; exact decimals) or f32 (half the bytes, rounds to ~7 significant digits). Any other value is PULSE_IMPORT_FLOAT_WIDTH_INVALID. Inert with --schema"
+
 // importFlags are the common flags for all import format subcommands.
 var importFlags = []cli.Flag{
 	&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
@@ -35,6 +39,7 @@ var importFlags = []cli.Flag{
 	&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
 	&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 	&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
+	&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
 	&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
@@ -153,6 +158,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 	job.StrictDedup = cmd.Bool("strict")
 	job.IgnoreExtra = cmd.Bool("ignore-extra")
+	job.FloatWidth = cmd.String("float")
 	for _, decl := range cmd.StringSlice("group") {
 		g, err := iio.ParseGroupDecl(decl)
 		if err != nil {
@@ -239,6 +245,7 @@ func importPredictCmd() *cli.Command {
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
+			&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "suggest-groups", Usage: "Detect candidate parent groups (a key and the fields it determines) and measure each over every row: ratio, resident dictionary bytes, projected file size and a ready-to-paste --group value. Suggests only; nothing is declared"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Evaluate a parent-group declaration exactly as 'import <format> --group' would apply it (same syntax, repeatable): its verdict and measured figures, or the error the import would fail with"},
@@ -283,6 +290,7 @@ func importPredictCmd() *cli.Command {
 			job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 			job.StrictDedup = cmd.Bool("strict")
 			job.IgnoreExtra = cmd.Bool("ignore-extra")
+			job.FloatWidth = cmd.String("float")
 			for _, decl := range cmd.StringSlice("group") {
 				g, gerr := iio.ParseGroupDecl(decl)
 				if gerr != nil {
@@ -417,6 +425,7 @@ func importSchemaTemplateCmd() *cli.Command {
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
+			&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -443,6 +452,7 @@ func importSchemaTemplateCmd() *cli.Command {
 			job := pio.NewImportJob(reader, "/dev/null")
 			job.FS = fs
 			job.SampleRows = sampleRows
+			job.FloatWidth = cmd.String("float")
 
 			report, err := job.Predict(ctx)
 			if err != nil {
@@ -523,7 +533,10 @@ func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
 
 	byteOffset := 0
 	for i, f := range fields {
-		ft := parseFieldType(f.Type)
+		ft, err := parseFieldType(f.Name, f.Type)
+		if err != nil {
+			return nil, err
+		}
 		field := encoding.Field{
 			Name:         f.Name,
 			Type:         ft,

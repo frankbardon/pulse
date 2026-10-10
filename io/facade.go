@@ -481,12 +481,14 @@ type RowError = iio.RowError
 //
 // # Precedence over the inference-steering slots
 //
-// ImportJob carries four slots that exist only to steer inference. With
-// an authoritative schema there is no inference to steer: three are
-// inert — Run reads none of them — and the fourth is refused:
+// ImportJob carries five slots that exist only to steer inference. With
+// an authoritative schema there is no inference to steer: four are
+// inert — Run reads none of them — and the fifth is refused:
 //
 //   - SampleRows, SetInferenceMinPct — sampling knobs with nothing to
 //     sample.
+//   - FloatWidth — the inferred float width; a value other than "",
+//     "f64" or "f32" is still refused (PULSE_IMPORT_FLOAT_WIDTH_INVALID).
 //   - SetDelimiters — set_* masks come from the source's own set
 //     definitions, not from splitting delimited cell strings.
 //   - ColumnTypeOverrides — the managed-import force_type escape hatch.
