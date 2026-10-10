@@ -1,9 +1,12 @@
 package service
 
 import (
+	"context"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 )
@@ -62,8 +65,10 @@ func (s *Service) zoned(req *types.Request, zones []descriptor.ResolvedZone) *ty
 // Weight resolution (resolveWeights) runs here too, right after the
 // references pass, so every caller resolves weights at the same point
 // predict does.
-func (s *Service) checkFieldRefs(req *types.Request, schema *encoding.Schema) error {
-	if err := descx.ScopedFieldRefRefusal(req, schema, s.instance); err != nil {
+func (s *Service) checkFieldRefs(ctx context.Context, req *types.Request, schema *encoding.Schema) error {
+	// ctx carries the request's bound models (a Compose slot's fits), the
+	// names an ATTR_REG_PREDICT slot resolves.
+	if err := descx.ScopedFieldRefRefusalWithModels(req, schema, s.instance, model.SetFrom(ctx)); err != nil {
 		return markLocated(err)
 	}
 	// `return` data columns — the rule predict applies right after the

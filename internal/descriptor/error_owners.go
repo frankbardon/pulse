@@ -281,7 +281,12 @@ var errorOwners = map[errors.Code][]string{
 	// The one model namespace: Compose fits bind it today.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits),
-	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits),
+	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, "ATTR_REG_PREDICT"),
+	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore).
+	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT"),
 	// nested_in_sweep is raised by a sweep body, so either surface lists it.
 	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
 

@@ -3,11 +3,13 @@ package processing
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -72,6 +74,18 @@ type Processor struct {
 	// laps receives the coarse phase boundaries (observability); nil —
 	// the default — skips every boundary without a clock read.
 	laps PhaseLapper
+
+	// models is the request's bound-model namespace (internal/model):
+	// the names an ATTR_REG_PREDICT slot resolves when its attributes
+	// are bound. Nil binds nothing. Set through SetModels.
+	models *model.Set
+}
+
+// SetModels installs the request's bound models (nil: none). The
+// service passes the set its ctx carries (model.SetFrom) — a Compose
+// slot's fits — to every processor it builds (newProcessor).
+func (p *Processor) SetModels(models *model.Set) {
+	p.models = models
 }
 
 // PhaseLapper receives a processor's phase boundaries: Lap(ph) closes
@@ -655,7 +669,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 			if err != nil {
 				return nil, err
 			}
-			r.Set(ra.label, val)
+			SetAttributeOutput(r, ra.label, val, ra.nullable)
 		}
 
 		weights.Observe(r)
@@ -990,7 +1004,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			if err != nil {
 				return nil, err
 			}
-			r.Set(ra.label, val)
+			SetAttributeOutput(r, ra.label, val, ra.nullable)
 		}
 
 		// Tallied AFTER row-local attributes land: the primary field
@@ -1093,6 +1107,8 @@ type twoPassStage struct {
 	row   RowLocalAttribute
 	tp    TwoPassAttribute
 	label string
+	// nullable: the computer writes NaN as a null (EmitsNull).
+	nullable bool
 }
 
 // buildTwoPassStages constructs every attribute in declared order and
@@ -1111,14 +1127,14 @@ func (p *Processor) buildTwoPassStages(attrs []*types.Attribute) ([]twoPassStage
 		if factoryErr != nil {
 			return nil, twoPassPlan{}, factoryErr
 		}
-		if err := bindAttribute(computer, p.exts); err != nil {
+		if err := p.bindAttribute(computer); err != nil {
 			return nil, twoPassPlan{}, err
 		}
 		label := attr.Label
 		if label == "" {
 			label = defaultAttributeLabel(attr)
 		}
-		st := twoPassStage{attr: attr, label: label}
+		st := twoPassStage{attr: attr, label: label, nullable: EmitsNull(computer)}
 		if tp, ok := computer.(TwoPassAttribute); ok {
 			st.tp, st.row = tp, tp
 		} else if rl, ok := computer.(RowLocalAttribute); ok {
@@ -1216,7 +1232,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		if err != nil {
 			return err
 		}
-		r.Set(st.label, val)
+		SetAttributeOutput(r, st.label, val, st.nullable)
 		return nil
 	}
 
@@ -1404,6 +1420,8 @@ type rowLocalAttrEntry struct {
 	attr     *types.Attribute
 	computer RowLocalAttribute
 	label    string
+	// nullable: the computer writes NaN as a null (EmitsNull).
+	nullable bool
 }
 
 // buildRowLocalAttributes constructs RowLocalAttribute instances for the
@@ -1424,7 +1442,7 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 		if err != nil {
 			return nil, err
 		}
-		if err := bindAttribute(computer, p.exts); err != nil {
+		if err := p.bindAttribute(computer); err != nil {
 			return nil, err
 		}
 		rowLocal, ok := computer.(RowLocalAttribute)
@@ -1436,7 +1454,7 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 		if label == "" {
 			label = defaultAttributeLabel(attr)
 		}
-		out = append(out, rowLocalAttrEntry{attr: attr, computer: rowLocal, label: label})
+		out = append(out, rowLocalAttrEntry{attr: attr, computer: rowLocal, label: label, nullable: EmitsNull(computer)})
 	}
 	return out, nil
 }
@@ -1879,7 +1897,7 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 		if err != nil {
 			return err
 		}
-		if err := bindAttribute(computer, p.exts); err != nil {
+		if err := p.bindAttribute(computer); err != nil {
 			return err
 		}
 		values, err := computer.Compute(records, attr.Field)
@@ -1892,8 +1910,15 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 		if label == "" {
 			label = defaultAttributeLabel(attr)
 		}
+		nullable := EmitsNull(computer)
 		for i, r := range records {
 			if i < len(values) {
+				if nullable && math.IsNaN(values[i]) {
+					// A null output (NullEmitter): the row has no value
+					// under the label, so aggregations skip it.
+					r.SetNull(label)
+					continue
+				}
 				// Writes the value without clearing a null mark and
 				// invalidates any cached AllValues() result.
 				r.injectValue(label, values[i])

@@ -58,6 +58,9 @@ func TestMergeRefusal(t *testing.T) {
 		{"tests", &types.Request{Aggregations: sum("n"), Tests: []*types.Test{{}}}, nil, "windows, features"},
 		{"nil attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{nil}}, nil, "attribute slot is nil"},
 		{"row-local built-in attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA}}}, nil, ""},
+		// Bound before the row pass: a per-row score merges like a formula.
+		{"bound-model score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_PREDICT}}}, nil, ""},
+		{"refit attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED}}}, nil, "attribute ATTR_REG_FITTED is not row-local"},
 		{"row-local extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, fakeExt{}, ""},
 		{"two-pass extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_TWO"}}}, fakeExt{}, "attribute ATTR_X_TWO is not row-local"},
 		{"extension attribute without registry", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, nil, "not row-local"},
@@ -281,5 +284,18 @@ func TestChainRefusal_IgnoresMatrices(t *testing.T) {
 	}
 	if ChainRefusal(req, nil, nil, 0, "s0") == nil {
 		t.Fatal("a matrix-only stage passed the no-aggregator rule")
+	}
+}
+
+// TestChainRefusal_AdmitsBoundModelScore: ATTR_REG_PREDICT is row-local
+// once its model is bound, so a chain stage carrying it is admitted
+// exactly as one carrying ATTR_FORMULA is.
+func TestChainRefusal_AdmitsBoundModelScore(t *testing.T) {
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "p"}},
+		Attributes:   []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p", Params: []byte(`{"fit":"m"}`)}},
+	}
+	if err := ChainRefusal(req, decSchema(), nil, 0, "s0"); err != nil {
+		t.Fatalf("refused a chain stage scoring a bound model: %v", err)
 	}
 }

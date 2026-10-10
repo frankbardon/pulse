@@ -512,6 +512,27 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			numericSchema,
 		},
 		{
+			// Row-local once bound: streams like ATTR_FORMULA, alone and
+			// beside a two-pass attribute reading its label.
+			"ATTR_REG_PREDICT streams",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "p"}},
+				Attributes:   []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"m"}`)}},
+			},
+			numericSchema,
+		},
+		{
+			"ATTR_REG_PREDICT beside a two-pass attribute streams",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "z"}},
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"m"}`)},
+					{Type: types.ATTR_ZSCORE, Field: "p", Label: "z"},
+				},
+			},
+			numericSchema,
+		},
+		{
 			"REG_BAYES_LINEAR with bootstrap modifier buffers",
 			&types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},

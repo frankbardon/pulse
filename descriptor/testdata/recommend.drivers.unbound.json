@@ -231,12 +231,48 @@
             "use": "TEST_PEARSON_R"
           }
         ]
+      },
+      {
+        "operator": "ATTR_REG_PREDICT",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "fit": "\u003cfit\u003e"
+              },
+              "type": "ATTR_REG_PREDICT"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "fit"
+        ],
+        "alternatives": [
+          {
+            "when": "the model should be fitted to these same rows inside the slot",
+            "use": "ATTR_REG_FITTED"
+          },
+          {
+            "when": "you want the coefficients, their standard errors and p-values",
+            "use": "REG_OLS"
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 5
+    "candidates_considered": 6
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 95c0d7bd64df8d8b227d6d3be1b79b0b53061e47e829a82635ac3f11f81aa11f
+// golden-hash: e23c25939a2cbf6baacd947b93a41433e9379b3e1edc8ececabc2afbbb903cf8

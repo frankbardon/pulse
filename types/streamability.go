@@ -252,7 +252,8 @@ func (t GroupType) Mergeable() bool {
 // Streamable reports whether this attribute type can be computed in a
 // streaming path. Three tiers exist at runtime:
 //
-//   - Row-local: FORMULA, DATE_PART implement processing.RowLocalAttribute
+//   - Row-local: FORMULA, DATE_PART (and REG_PREDICT, whose model is
+//     bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
 //   - Two-pass: ZSCORE, TSCORE, NORMALIZED implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
@@ -268,7 +269,7 @@ func (t AttributeType) Streamable() bool {
 		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
 		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE,
 		ATTR_SET_POPCOUNT, ATTR_SET_HAS,
-		ATTR_CODE_IN:
+		ATTR_CODE_IN, ATTR_REG_PREDICT:
 		return true
 	case ATTR_PERCENTILE:
 		return false

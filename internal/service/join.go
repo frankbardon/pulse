@@ -41,7 +41,7 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 			return err
 		}
 		zones = z
-		if err := s.checkFieldRefs(&clone, joined); err != nil {
+		if err := s.checkFieldRefs(ctx, &clone, joined); err != nil {
 			return err
 		}
 		return s.limitsPreflight(&clone, joined, lin)

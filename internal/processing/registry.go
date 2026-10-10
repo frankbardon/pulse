@@ -50,6 +50,7 @@ var attributeRegistry = map[types.AttributeType]AttributeFactory{
 	types.ATTR_REG_FITTED:   newRegFittedAttribute,
 	types.ATTR_REG_RESIDUAL: newRegResidualAttribute,
 	types.ATTR_REG_LEVERAGE: newRegLeverageAttribute,
+	types.ATTR_REG_PREDICT:  newRegPredictAttribute,
 
 	types.ATTR_SET_POPCOUNT: newSetPopcountAttribute,
 	types.ATTR_SET_HAS:      newSetHasAttribute,

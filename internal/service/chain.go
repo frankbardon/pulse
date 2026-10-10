@@ -228,7 +228,7 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
 		return nil, err
 	}
-	if err := s.checkFieldRefs(stage, synthSchema); err != nil {
+	if err := s.checkFieldRefs(ctx, stage, synthSchema); err != nil {
 		return nil, locate(err, "stage", i)
 	}
 	if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{

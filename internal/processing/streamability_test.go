@@ -403,6 +403,8 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 		case types.ATTR_CODE_IN:
 			spec.Field = "code"
 			spec.Params = []byte(`{"codes":[1]}`)
+		case types.ATTR_REG_PREDICT:
+			spec.Params = []byte(`{"fit":"m"}`)
 		}
 		instance, err := factory(spec, schema)
 		if err != nil {

@@ -23,6 +23,7 @@ var attributeInterpretations = map[string][]descriptor.Interpretation{
 	"ATTR_PERCENTILE":   interpAttrPercentile,
 	"ATTR_REG_FITTED":   interpAttrRegFitted,
 	"ATTR_REG_LEVERAGE": interpAttrRegLeverage,
+	"ATTR_REG_PREDICT":  interpAttrRegPredict,
 	"ATTR_REG_RESIDUAL": interpAttrRegResidual,
 	"ATTR_TSCORE":       interpAttrTScore,
 	"ATTR_ZSCORE":       interpAttrZScore,
@@ -141,6 +142,22 @@ var (
 				"A straight-line model: where the target bends with a predictor, fitted values miss in a pattern over parts of its range; read ATTR_REG_RESIDUAL to see it.",
 				"A row missing the target still gets a fitted value when its predictors are present; a row missing any predictor reads 0, which is not a prediction.",
 				attrRegPenalty,
+			},
+		},
+	}
+
+	interpAttrRegPredict = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The target value the named fitted model predicts for the row from the row's own predictor values: intercept + sum(coefficient * predictor) " +
+				"at the fit's full precision, in the target's units — for a GLM on the response scale (the inverse link applied: a probability, a count) unless scale is link. " +
+				"With terms, only the listed terms are summed: that part of the prediction, a contribution in the target's units (link units for a GLM).",
+			Caveats: []string{
+				"On rows the model was fitted to it equals ATTR_REG_FITTED exactly and matches them more closely than it will match new rows (overfitting): " +
+					"judge a model on rows it was not fitted to.",
+				"A coefficient's confidence bound gives the range of that one term, not a prediction interval for a row.",
+				attrRegAssociation,
+				"A row missing any predictor the score reads gets null, never 0.",
 			},
 		},
 	}

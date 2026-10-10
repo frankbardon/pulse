@@ -463,7 +463,7 @@ func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) e
 			{Type: types.FILTER_EXPRESSION, Expression: plan.filterExpr},
 		}
 	}
-	set := s.neededFields(req, schema)
+	set := s.neededFields(context.Background(), req, schema)
 	if set.IsWide() {
 		return nil
 	}
@@ -497,7 +497,7 @@ func (s *Service) buildSingleFilter(schema *encoding.Schema, filterExpr string) 
 // short-circuits on misses without paying the expr eval cost.
 func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) (processing.FilterFunc, error) {
 	if len(plan.filterers) > 0 {
-		if err := s.checkFieldRefs(&types.Request{Filterers: plan.filterers}, schema); err != nil {
+		if err := s.checkFieldRefs(context.Background(), &types.Request{Filterers: plan.filterers}, schema); err != nil {
 			return nil, err
 		}
 	}

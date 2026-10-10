@@ -57,7 +57,7 @@ func (None) Attribute(string) (bool, bool)  { return false, false }
 // tree, bit-identical to serial; a grouped request's per-bucket
 // matrices merge bucket by bucket the same way); only row-local
 // attributes (ATTR_FORMULA,
-// ATTR_DATE_PART, row_local extensions); only mergeable groupers
+// ATTR_DATE_PART, ATTR_REG_PREDICT, row_local extensions); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
 // one over a decimal128 field (the built-in decimal fold is
@@ -98,7 +98,9 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 		rowLocal, ok := ext.Attribute(string(attr.Type))
 		if !ok {
 			switch attr.Type {
-			case types.ATTR_FORMULA, types.ATTR_DATE_PART:
+			case types.ATTR_FORMULA, types.ATTR_DATE_PART,
+				// Bound before the row pass: a pure per-row score.
+				types.ATTR_REG_PREDICT:
 				rowLocal = true
 			}
 		}

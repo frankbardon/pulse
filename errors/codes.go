@@ -1054,6 +1054,39 @@ const (
 	// "name" and "available" (the bound names, sorted).
 	PULSE_MODEL_UNKNOWN Code = "PULSE_MODEL_UNKNOWN"
 
+	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot whose
+	// scoring parameters do not fit: params that are not an object of
+	// {fit, terms, scale} (reason "params_invalid"), no params.fit
+	// ("fit_missing"), a field / target / predictors / penalty set on the
+	// slot ("slot_fields" — the bound model supplies them), an empty
+	// terms list ("terms_empty") or one naming a term twice
+	// ("term_duplicate"), a scale other than response|link
+	// ("scale_unknown") or a scale on a non-GLM fit ("scale_not_glm"),
+	// or a fit of a regression type it cannot score
+	// ("type_unsupported"). Refused identically by predict and the
+	// runtime before any record is read. Details carry "attribute",
+	// "reason" and, when known, "fit".
+	PULSE_MODEL_SCORE_INVALID Code = "PULSE_MODEL_SCORE_INVALID"
+
+	// PULSE_MODEL_TERM_UNKNOWN indicates a reference to a term a bound
+	// model does not have: an ATTR_REG_PREDICT params.terms entry that
+	// is neither one of the fit's predictors nor "(intercept)". Details
+	// carry "fit", "term" and "available" (the terms it may name).
+	PULSE_MODEL_TERM_UNKNOWN Code = "PULSE_MODEL_TERM_UNKNOWN"
+
+	// PULSE_MODEL_PREDICTOR_MISSING indicates a scoring frame without a
+	// column for one of a bound model's predictors: no schema field,
+	// feature output or earlier attribute label carries the name.
+	// Scoring never infers a column. Details carry "attribute", "fit"
+	// and "field".
+	PULSE_MODEL_PREDICTOR_MISSING Code = "PULSE_MODEL_PREDICTOR_MISSING"
+
+	// PULSE_MODEL_PREDICTOR_NOT_NUMERIC indicates a bound model's
+	// predictor column that is a schema field of a type a regression
+	// cannot read (a categorical or a set) on the scoring frame.
+	// Details carry "attribute", "fit", "field" and "field_type".
+	PULSE_MODEL_PREDICTOR_NOT_NUMERIC Code = "PULSE_MODEL_PREDICTOR_NOT_NUMERIC"
+
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
 	// window, feature or attribute item: no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
@@ -3299,6 +3332,10 @@ var allCodes = []Code{
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
+	PULSE_MODEL_SCORE_INVALID,
+	PULSE_MODEL_TERM_UNKNOWN,
+	PULSE_MODEL_PREDICTOR_MISSING,
+	PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
 	PULSE_FOR_EACH_INVALID,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,

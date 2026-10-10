@@ -379,16 +379,19 @@
         ]
       },
       {
-        "operator": "ATTR_REG_RESIDUAL",
+        "operator": "ATTR_REG_PREDICT",
         "category": "attribute",
         "level": "advanced",
-        "why": "Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. Fill in each placeholder in the draft before you run it.",
+        "why": "Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "attributes": [
             {
               "field": "\u003cfield\u003e",
-              "type": "ATTR_REG_RESIDUAL"
+              "params": {
+                "fit": "\u003cfit\u003e"
+              },
+              "type": "ATTR_REG_PREDICT"
             }
           ],
           "cohort": {
@@ -397,28 +400,25 @@
         },
         "placeholders": [
           "cohort",
-          "field"
+          "field",
+          "fit"
         ],
         "alternatives": [
           {
-            "when": "you want the model's summary (coefficients, R-squared)",
+            "when": "the model should be fitted to these same rows inside the slot",
+            "use": "ATTR_REG_FITTED"
+          },
+          {
+            "when": "you want the coefficients, their standard errors and p-values",
             "use": "REG_OLS"
-          },
-          {
-            "when": "you want how unusual each row's predictor values are",
-            "use": "ATTR_REG_LEVERAGE"
-          },
-          {
-            "when": "you want how far a value is from the mean, with no model",
-            "use": "ATTR_ZSCORE"
           }
         ]
       }
     ],
-    "truncated": false,
-    "candidates_considered": 10
+    "truncated": true,
+    "candidates_considered": 11
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 57f9476484cc812f87486983d1db8c1c5c5f0f9228e3c8c4fc59f0cc404520e1
+// golden-hash: c09ac4bb496d87dd36f49f3757301722c80096e4efb174951e5922f9eb3bb298

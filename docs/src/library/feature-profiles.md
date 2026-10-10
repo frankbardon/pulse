@@ -166,6 +166,7 @@ one name in every group must be enabled:
 | `OVERLAY_T_CELL`, `OVERLAY_Z_CELL`, `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF`, `OVERLAY_PAIRWISE_WELCH_T`, `OVERLAY_PAIRWISE_TWO_MEANS_Z` | `AGG_WELFORD` |
 | `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` | `AGG_WEIGHTED_MEAN` or `AGG_AVERAGE` (either one) |
 | `ATTR_REG_FITTED`, `ATTR_REG_LEVERAGE`, `ATTR_REG_RESIDUAL` | `REG_OLS` |
+| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one) |
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
 

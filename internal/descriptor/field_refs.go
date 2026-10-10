@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -33,7 +34,15 @@ func FieldRefRefusal(req *types.Request, schema *encoding.Schema, snap *Extensio
 // output labels are not judged). The runtime's form; nil inst is
 // FieldRefRefusal(req, schema, nil).
 func ScopedFieldRefRefusal(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) error {
-	if all := fieldRefRefusals(req, schema, inst.Extensions(), inst); len(all) > 0 {
+	return ScopedFieldRefRefusalWithModels(req, schema, inst, nil)
+}
+
+// ScopedFieldRefRefusalWithModels is ScopedFieldRefRefusal for a
+// Request whose ATTR_REG_PREDICT slots resolve against models — the
+// runtime's bound set (a Compose slot's fits), predict's static
+// model.FitCatalog. Nil binds nothing.
+func ScopedFieldRefRefusalWithModels(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, models model.Catalog) error {
+	if all := fieldRefRefusalsWithModels(req, schema, inst.Extensions(), inst, models); len(all) > 0 {
 		return all[0]
 	}
 	return nil
@@ -134,6 +143,12 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 // (opRoute), so a hidden operator is walked exactly as a
 // never-registered name. Nil hides nothing.
 func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) []*errors.CodedError {
+	return fieldRefRefusalsWithModels(req, schema, snap, inst, nil)
+}
+
+// fieldRefRefusalsWithModels is fieldRefRefusals with the models an
+// ATTR_REG_PREDICT slot resolves against (nil: none bound).
+func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
 	if req == nil || schema == nil {
 		return nil
 	}
@@ -223,6 +238,22 @@ func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 					return refusal(string(attr.Type)+" predictor references unknown field: "+name,
 						map[string]any{"field": name, "attribute": string(attr.Type)})
 				})
+			}
+		case types.ATTR_REG_PREDICT:
+			// The scoring rule (internal/model.CheckScore — the one the
+			// attribute's bind re-runs), then every column the bound
+			// model may read: present on the frame, numeric when it is a
+			// schema field.
+			p, sig, cerr := model.CheckScore(attr, models)
+			if cerr != nil {
+				w.out = append(w.out, cerr)
+				break
+			}
+			for _, col := range sig.Terms {
+				w.check(col, func() *errors.CodedError { return model.PredictorMissing(p.Fit, col) })
+				if f := schema.Field(col); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
+					w.out = append(w.out, model.PredictorNotNumeric(p.Fit, col, f.Type.String()))
+				}
 			}
 		default:
 			if attrRoute != types.ATTR_FORMULA || attr.Field != "" {

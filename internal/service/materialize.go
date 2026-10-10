@@ -84,7 +84,7 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if err != nil {
 		return err
 	}
-	if err := s.checkFieldRefs(req, schema); err != nil {
+	if err := s.checkFieldRefs(ctx, req, schema); err != nil {
 		return err
 	}
 	lin, err := s.limitInputs(ctx, cohort, path)

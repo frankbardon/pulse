@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
@@ -20,9 +21,16 @@ func defaultAttributeLabel(attr *types.Attribute) string {
 	switch attr.Type {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 		return string(attr.Type) + "_" + attr.Target
+	case types.ATTR_REG_PREDICT:
+		return model.DefaultScoreLabel(attr)
 	}
 	return string(attr.Type) + "_" + attr.Field
 }
+
+// DefaultAttributeLabel is defaultAttributeLabel for the service's
+// per-shard and parallel-decode reducers, which build their own
+// row-local attribute set.
+func DefaultAttributeLabel(attr *types.Attribute) string { return defaultAttributeLabel(attr) }
 
 // Per-row regression attributes (Phase 7).
 //
@@ -311,10 +319,9 @@ func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 		}
 		x[i] = v
 	}
-	yhat := a.fit.Intercept
-	for i, c := range a.fit.Coefficients {
-		yhat += c * x[i]
-	}
+	// The shared scoring kernel: ATTR_REG_PREDICT scores a bound fit
+	// with the same expression, so the two agree bit for bit.
+	yhat := regression.LinearPredictor(a.fit.Intercept, a.fit.Coefficients, x)
 
 	switch a.kind {
 	case regAttrFitted:

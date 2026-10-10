@@ -11,6 +11,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -1049,6 +1050,8 @@ func attributeDefaultLabel(attr *types.Attribute, inst *InstanceSnapshot) string
 	switch opRoute(inst, attr.Type) {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 		return string(attr.Type) + "_" + attr.Target
+	case types.ATTR_REG_PREDICT:
+		return model.DefaultScoreLabel(attr)
 	}
 	return string(attr.Type) + "_" + attr.Field
 }

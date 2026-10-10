@@ -381,7 +381,7 @@ func TestExprProgram_MatchesPerRowCompile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := bindAttribute(comp, exts); err != nil {
+		if err := BindAttribute(comp, exts, nil); err != nil {
 			t.Fatalf("%q: bind: %v", src, err)
 		}
 		fa := comp.(*formulaAttribute)
@@ -554,7 +554,7 @@ func TestExprFormula_NullSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := bindAttribute(comp, nil); err != nil {
+		if err := BindAttribute(comp, nil, nil); err != nil {
 			t.Fatalf("%q: %v", src, err)
 		}
 		return comp.(*formulaAttribute).Row(r, "")

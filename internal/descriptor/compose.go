@@ -963,20 +963,24 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
 func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions) {
+	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
+	// fit pre-pass binds each `fits` entry before any slot runs.
+	models := model.CatalogFromFits(req.Fits)
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
 		}
-		validateComposeRequest(env, slot, opts, "request", i)
+		validateComposeRequest(env, slot, opts, "request", i, models)
 	}
 }
 
 // validateComposeRequest runs one compose-batch request's runtime-entry
 // checks (validateComposeSlots' order) and records each refusal located
 // under key = idx — details.request for a slot, details.fit for a fit.
+// models are the names its ATTR_REG_PREDICT slots resolve (nil: none).
 // It returns the schema the request executes over (nil when
 // unresolvable) and whether every check passed.
-func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int) (*encoding.Schema, bool) {
+func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog) (*encoding.Schema, bool) {
 	l := opts.instance().Limits()
 	// The request's Process expands its item for_each first (right
 	// after the slot gate the whole batch already passed).
@@ -1015,7 +1019,7 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		return schema, false
 	}
 	defaulted := defaultedForValidation(slot, schema, opts)
-	refs := fieldRefRefusals(defaulted, schema, extensionsFromOpts(opts), opts.instance())
+	refs := fieldRefRefusalsWithModels(defaulted, schema, extensionsFromOpts(opts), opts.instance(), models)
 	for _, ce := range refs {
 		addCodedError(env, RefusalAt(ce, key, idx))
 	}
@@ -1061,7 +1065,8 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		if req.Cohort != nil {
 			out[i].Cohort = cohortPathFor(req.Cohort)
 		}
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i)
+		// A fit request runs before anything is bound: it scores nothing.
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, nil)
 		if !ok || schema == nil {
 			continue
 		}

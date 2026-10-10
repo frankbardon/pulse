@@ -197,7 +197,7 @@ func processCrosstabWithoutPlan(ctx context.Context, s *Service, req *types.Requ
 	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
-	s.applyCrosstabProjection(iter, req, cohort.Schema())
+	s.applyCrosstabProjection(context.Background(), iter, req, cohort.Schema())
 
 	// Disable the plan-driven path so the per-record hot loop routes
 	// to ReadRecordWithWideProjected instead of ReadRecordWithWidePlan.

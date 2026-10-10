@@ -320,6 +320,18 @@ const (
 	// Penalty set are rejected at factory time with PROCESSING_CONFIG.
 	ATTR_REG_LEVERAGE AttributeType = "ATTR_REG_LEVERAGE"
 
+	// ATTR_REG_PREDICT scores each row from a BOUND model — a fit named
+	// in the request (ComposedRequest `fits`) — instead of refitting:
+	// intercept + Σ coefficient·predictor at the fit's full precision,
+	// the GLM inverse link applied on the response scale (default) or
+	// not (params.scale "link"). Params {fit, terms?, scale?}; `terms`
+	// scores a subset of the model's terms (the intercept only when
+	// listed as "(intercept)"). The fit's predictor list is authoritative
+	// and read off the slot's own columns; a null in any column the
+	// score reads yields null. Row-local once bound: streamable,
+	// chain / merge eligible, materialize-admissible.
+	ATTR_REG_PREDICT AttributeType = "ATTR_REG_PREDICT"
+
 	// ATTR_SET_POPCOUNT emits popcount(mask) per row as a numeric column.
 	// Field must reference a set_* field. Streamable.
 	ATTR_SET_POPCOUNT AttributeType = "ATTR_SET_POPCOUNT"
@@ -346,6 +358,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_PERCENTILE,
 		ATTR_REG_FITTED,
 		ATTR_REG_LEVERAGE,
+		ATTR_REG_PREDICT,
 		ATTR_REG_RESIDUAL,
 		ATTR_SET_HAS,
 		ATTR_SET_POPCOUNT,

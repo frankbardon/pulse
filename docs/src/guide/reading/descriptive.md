@@ -276,6 +276,23 @@ How far the row's predictor values sit from the other rows' (from the predictors
 - A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; a row missing any predictor reads 0, below the 1/n floor, so 0 marks a missing row.
 - Unpenalized least squares only; a request with a penalty is refused.
 
+<a id="op-attr_reg_predict"></a>
+
+### `ATTR_REG_PREDICT`
+
+Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. See its [catalog entry](../catalog/attribute.md#op-attr_reg_predict).
+
+#### `value`
+
+The target value the named fitted model predicts for the row from the row's own predictor values: intercept + sum(coefficient * predictor) at the fit's full precision, in the target's units — for a GLM on the response scale (the inverse link applied: a probability, a count) unless scale is link. With terms, only the listed terms are summed: that part of the prediction, a contribution in the target's units (link units for a GLM).
+
+**Caveats:**
+
+- On rows the model was fitted to it equals ATTR_REG_FITTED exactly and matches them more closely than it will match new rows (overfitting): judge a model on rows it was not fitted to.
+- A coefficient's confidence bound gives the range of that one term, not a prediction interval for a row.
+- The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
+- A row missing any predictor the score reads gets null, never 0.
+
 <a id="op-attr_reg_residual"></a>
 
 ### `ATTR_REG_RESIDUAL`

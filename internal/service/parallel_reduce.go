@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -152,7 +153,7 @@ func (s *Service) reduceParallelBuffered(
 
 		filterFns, buildErr = processing.BuildFilters(req.Filterers, schema, s.extensions)
 		if buildErr == nil {
-			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions)
+			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx))
 		}
 		if buildErr == nil && grouperFactory != nil {
 			grp, err := grouperFactory(grouperSpec, schema)
@@ -225,7 +226,7 @@ func (s *Service) reduceParallelBuffered(
 					if err != nil {
 						return err
 					}
-					rec.Set(ra.label, val)
+					processing.SetAttributeOutput(rec, ra.label, val, ra.nullable)
 				}
 
 				// Run.NullRecords' primary-field tally. This worker

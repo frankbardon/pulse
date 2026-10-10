@@ -103,7 +103,9 @@ var aggregatorClasses = map[types.AggregationType]Class{
 // standardise against the weighted mean and the weighted POPULATION sd
 // √(M2_w/Σw) — scale-free, so identical under both kinds (statsmodels
 // DescrStatsW(ddof = 0)). Every other attribute is row-local
-// (ClassNone).
+// (ClassNone) — ATTR_REG_PREDICT included: it scores a bound fit,
+// whose own weight applied when the fit ran; a weight in force on the
+// scoring slot changes no score and is reported skipped.
 var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_ZSCORE:     ClassAware,
 	types.ATTR_TSCORE:     ClassAware,

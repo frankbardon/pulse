@@ -87,6 +87,7 @@ skills/op-attr-normalized.md
 skills/op-attr-percentile.md
 skills/op-attr-reg-fitted.md
 skills/op-attr-reg-leverage.md
+skills/op-attr-reg-predict.md
 skills/op-attr-reg-residual.md
 skills/op-attr-set-has.md
 skills/op-attr-set-popcount.md

@@ -715,7 +715,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
+	if err := s.checkFieldRefs(ctx, req, cohort.Schema()); err != nil {
 		return nil, err
 	}
 	lin, err := s.limitInputs(ctx, cohort, path)
@@ -804,7 +804,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
-	projected := s.applyProjection(iter, req, cohort.Schema())
+	projected := s.applyProjection(ctx, iter, req, cohort.Schema())
 
 	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.Process(ctx, req, iter)
@@ -936,7 +936,7 @@ func (s *Service) processSingleFileParallelMaybe(
 		projectMapHint = len(schema.Fields)
 	)
 	if s.projectBuffered {
-		needed := s.neededFields(req, schema)
+		needed := s.neededFields(ctx, req, schema)
 		if !needed.IsWide() {
 			size := needed.Len()
 			if size > 0 && size < len(schema.Fields) {
@@ -1050,11 +1050,11 @@ func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
 // wide set (extraction couldn't introspect) leaves the iterator on
 // the full-decode path. Works uniformly for single-file and multi-
 // shard iterators via the scanIterator interface.
-func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+func (s *Service) applyProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
 	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
 		return 0
 	}
-	return s.installProjection(iter, req, schema)
+	return s.installProjection(ctx, iter, req, schema)
 }
 
 // applyCrosstabProjection is the crosstab-specific variant of
@@ -1065,19 +1065,19 @@ func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema 
 // crosstab path even when the cohort-wide flag is off. Falls back to
 // full decode silently when the needed-field set widens (extension
 // operator without FieldInputs, malformed expression, etc.).
-func (s *Service) applyCrosstabProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+func (s *Service) applyCrosstabProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
 	if iter == nil || req == nil || schema == nil {
 		return 0
 	}
-	return s.installProjection(iter, req, schema)
+	return s.installProjection(ctx, iter, req, schema)
 }
 
 // installProjection is the shared mechanics behind applyProjection
 // and applyCrosstabProjection. The two callers diverge only on the
 // gate that decides whether projection is attempted at all. It returns
 // the retained-field count it installed, 0 when it left full decode.
-func (s *Service) installProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
-	needed := s.neededFields(req, schema)
+func (s *Service) installProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+	needed := s.neededFields(ctx, req, schema)
 	if needed.IsWide() {
 		return 0
 	}

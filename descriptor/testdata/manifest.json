@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:a6be0f04323ffd329dd1ef5b1af37f3c5794ded44ba5c24cb84edb95c5e39aab",
+    "feature_set_digest": "fs1:1219daee5e00ef66b42b3805e704c9c2a73473b1fb3e49d44cb740e0f1ec0d4a",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -2776,6 +2776,57 @@
           ],
           "intents": [
             "data_quality"
+          ]
+        },
+        {
+          "name": "ATTR_REG_PREDICT",
+          "category": "attribute",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS (penalties; under selection the selected features), REG_GLM and REG_BAYES_LINEAR (posterior mean). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+          "params": [
+            {
+              "name": "fit",
+              "type": "string",
+              "required": true,
+              "description": "Name of a bound model: a `fits` entry of the enclosing compose request."
+            },
+            {
+              "name": "terms",
+              "type": "list",
+              "required": false,
+              "description": "Score only these terms (fit predictors; \"(intercept)\" to include the intercept), summed in fit order — a contribution column. Omit to score the whole model."
+            },
+            {
+              "name": "scale",
+              "type": "enum",
+              "required": false,
+              "default": "response",
+              "description": "REG_GLM only: response applies the inverse link (the fit's fitted means); link returns the linear predictor.",
+              "enum_values": [
+                "response",
+                "link"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one score per record (null when a column the score reads is null)",
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "benchmark",
+            "drivers",
+            "relationship"
           ]
         },
         {
@@ -7013,7 +7064,7 @@
         ]
       }
     ],
-    "error_codes_count": 317,
+    "error_codes_count": 321,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7186,6 +7237,10 @@
       "PULSE_MATRIX_UNSUPPORTED_SOURCE",
       "PULSE_MATRIX_ZERO_VARIANCE",
       "PULSE_MODEL_NAME_COLLISION",
+      "PULSE_MODEL_PREDICTOR_MISSING",
+      "PULSE_MODEL_PREDICTOR_NOT_NUMERIC",
+      "PULSE_MODEL_SCORE_INVALID",
+      "PULSE_MODEL_TERM_UNKNOWN",
       "PULSE_MODEL_UNKNOWN",
       "PULSE_MULTIPLICITY_CONFLICT",
       "PULSE_MULTIPLICITY_INVALID",
@@ -7481,6 +7536,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7558,6 +7614,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7635,6 +7692,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7712,6 +7770,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7788,6 +7847,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7864,6 +7924,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7940,6 +8001,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -8016,6 +8078,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -8847,6 +8910,10 @@
       {
         "name": "op-attr-reg-leverage",
         "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic."
+      },
+      {
+        "name": "op-attr-reg-predict",
+        "description": "Per-row score from a bound model (a compose `fits` entry) — no refit; whole model or a terms subset."
       },
       {
         "name": "op-attr-reg-residual",
@@ -9769,7 +9836,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 187,
+    "examples_count": 188,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13316,4 +13383,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d4d087ee4ec63485470f9a0e2d95f00d6bd7f59efe416c8be32d55dd03df6b59
+// golden-hash: 8506e5adf4cfdf139f0dc16a735646d35cf75548c5acd53273ef1071082c074c

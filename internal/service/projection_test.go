@@ -180,7 +180,7 @@ func TestProjection_RespectsDisableFlag(t *testing.T) {
 
 	iter := newStreamingIterator(cfg.Fs(), "wide.pulse", schema)
 	defer iter.Close()
-	svc.applyProjection(iter, &types.Request{
+	svc.applyProjection(context.Background(), iter, &types.Request{
 		Cohort: &types.Cohort{Filename: "wide.pulse"},
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "v"},
@@ -199,7 +199,7 @@ func TestProjection_ProjectsToNarrowSet(t *testing.T) {
 
 	iter := newStreamingIterator(cfg.Fs(), "wide.pulse", schema)
 	defer iter.Close()
-	svc.applyProjection(iter, &types.Request{
+	svc.applyProjection(context.Background(), iter, &types.Request{
 		Cohort: &types.Cohort{Filename: "wide.pulse"},
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "v"},
@@ -241,7 +241,7 @@ func TestProjection_ReuseBranchHonorsPlan(t *testing.T) {
 	iter := newStreamingIterator(cfg.Fs(), "wide.pulse", schema)
 	defer iter.Close()
 	iter.SetReuse(true) // force the reuse branch (the fixed path)
-	svc.applyProjection(iter, &types.Request{
+	svc.applyProjection(context.Background(), iter, &types.Request{
 		Cohort: &types.Cohort{Filename: "wide.pulse"},
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "y"},
@@ -331,7 +331,7 @@ func TestProjection_WideRequestSkipsProjection(t *testing.T) {
 
 	iter := newStreamingIterator(cfg.Fs(), "wide.pulse", schema)
 	defer iter.Close()
-	svc.applyProjection(iter, req, schema)
+	svc.applyProjection(context.Background(), iter, req, schema)
 	if iter.project != nil {
 		t.Errorf("expected no projection installed when request touches every field")
 	}
@@ -365,7 +365,7 @@ func TestProjection_WeightColumnDecodes(t *testing.T) {
 			svc.SetDefaultWeight(tc.def)
 			iter := newStreamingIterator(cfg.Fs(), "wide.pulse", schema)
 			defer iter.Close()
-			svc.applyProjection(iter, tc.req, schema)
+			svc.applyProjection(context.Background(), iter, tc.req, schema)
 			if iter.project == nil {
 				t.Fatal("expected a projection filter")
 			}

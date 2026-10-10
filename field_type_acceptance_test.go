@@ -156,13 +156,17 @@ var acceptanceTemplates = map[string]string{
 	"AGG_SET_DISTINCT_VALUES": `{"aggregations":[{"type":"AGG_SET_DISTINCT_VALUES","field":"$F"}]}`,
 
 	// Attributes (aggregated afterwards so the label is consumed).
-	"ATTR_ZSCORE":       `{"attributes":[{"type":"ATTR_ZSCORE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_TSCORE":       `{"attributes":[{"type":"ATTR_TSCORE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_NORMALIZED":   `{"attributes":[{"type":"ATTR_NORMALIZED","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_FORMULA":      `{"attributes":[{"type":"ATTR_FORMULA","field":"$F","label":"o","expression":"x * 2"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_PERCENTILE":   `{"attributes":[{"type":"ATTR_PERCENTILE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_DATE_PART":    `{"attributes":[{"type":"ATTR_DATE_PART","field":"$F","label":"o","params":{"part":"year"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_REG_FITTED":   `{"attributes":[{"type":"ATTR_REG_FITTED","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_ZSCORE":     `{"attributes":[{"type":"ATTR_ZSCORE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_TSCORE":     `{"attributes":[{"type":"ATTR_TSCORE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_NORMALIZED": `{"attributes":[{"type":"ATTR_NORMALIZED","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_FORMULA":    `{"attributes":[{"type":"ATTR_FORMULA","field":"$F","label":"o","expression":"x * 2"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_PERCENTILE": `{"attributes":[{"type":"ATTR_PERCENTILE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_DATE_PART":  `{"attributes":[{"type":"ATTR_DATE_PART","field":"$F","label":"o","params":{"part":"year"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_REG_FITTED": `{"attributes":[{"type":"ATTR_REG_FITTED","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	// Scores a model bound by a compose fit, which a plain request never
+	// has; its predictor-type parity is pinned by
+	// TestRegPredict_PredictRuntimeParity.
+	"ATTR_REG_PREDICT":  ``,
 	"ATTR_REG_RESIDUAL": `{"attributes":[{"type":"ATTR_REG_RESIDUAL","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_REG_LEVERAGE": `{"attributes":[{"type":"ATTR_REG_LEVERAGE","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_SET_POPCOUNT": `{"attributes":[{"type":"ATTR_SET_POPCOUNT","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,

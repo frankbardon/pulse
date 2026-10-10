@@ -2272,6 +2272,10 @@ pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SING
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
 pulse/errors: const PULSE_MODEL_NAME_COLLISION pulse/errors.Code = "PULSE_MODEL_NAME_COLLISION"
+pulse/errors: const PULSE_MODEL_PREDICTOR_MISSING pulse/errors.Code = "PULSE_MODEL_PREDICTOR_MISSING"
+pulse/errors: const PULSE_MODEL_PREDICTOR_NOT_NUMERIC pulse/errors.Code = "PULSE_MODEL_PREDICTOR_NOT_NUMERIC"
+pulse/errors: const PULSE_MODEL_SCORE_INVALID pulse/errors.Code = "PULSE_MODEL_SCORE_INVALID"
+pulse/errors: const PULSE_MODEL_TERM_UNKNOWN pulse/errors.Code = "PULSE_MODEL_TERM_UNKNOWN"
 pulse/errors: const PULSE_MODEL_UNKNOWN pulse/errors.Code = "PULSE_MODEL_UNKNOWN"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
 pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
@@ -3687,6 +3691,7 @@ pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
 pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
+pulse/types: const ATTR_REG_PREDICT pulse/types.AttributeType = "ATTR_REG_PREDICT"
 pulse/types: const ATTR_REG_RESIDUAL pulse/types.AttributeType = "ATTR_REG_RESIDUAL"
 pulse/types: const ATTR_SET_HAS pulse/types.AttributeType = "ATTR_SET_HAS"
 pulse/types: const ATTR_SET_POPCOUNT pulse/types.AttributeType = "ATTR_SET_POPCOUNT"
@@ -4669,4 +4674,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 719d2ffa88caedd0d0d0e72d994a650d6cd03eec41b179d5b8c9d3c322b949d2
+// golden-hash: cccd0080bc81cce21cbf41edca5502e4fb68744222c0a5f6bce8ef38629a04ad

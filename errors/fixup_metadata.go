@@ -1622,6 +1622,51 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MODEL_SCORE_INVALID: {
+		Message: "An ATTR_REG_PREDICT slot's scoring parameters do not fit, so nothing runs — predict refuses it identically. Params are an object `{fit, terms?, scale?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`). The slot takes no `field`, `target`, `predictors` or `penalty` (`slot_fields`) — the bound model supplies them. Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`). Any other params shape is `params_invalid`. The rule is under `reason`, the fit under `fit`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "fit"},
+				Hint:   "Set params.fit to the name of a `fits` entry, and drop target / predictors / penalty from the slot.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"attributes", "*", "params", "scale"},
+				Hint:   "Drop params.scale unless the fit is generalized-linear; a least-squares or Bayesian score is already on the target's scale.",
+			},
+		},
+	},
+	PULSE_MODEL_TERM_UNKNOWN: {
+		Message: "A reference names a term the bound model does not have. ATTR_REG_PREDICT params.terms may list the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "terms"},
+				Hint:   "List only names under `available`; add `(intercept)` to include the intercept.",
+			},
+		},
+	},
+	PULSE_MODEL_PREDICTOR_MISSING: {
+		Message: "The scoring slot has no column for one of the bound model's predictors: no schema field, feature output or earlier attribute label carries the name. Scoring reads the model's predictors from the slot's own columns and never infers one — a one-hot reference level is an ABSENT predictor of the fit, not a missing column. The predictor is under `field`, the fit under `fit`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"features"},
+				Hint:   "Repeat in the scoring slot the features that built the fit's predictor columns (e.g. the same FEAT_LOG / FEAT_ONE_HOT).",
+			},
+		},
+	},
+	PULSE_MODEL_PREDICTOR_NOT_NUMERIC: {
+		Message: "A bound model's predictor column is a schema field of a type a regression cannot read on the scoring frame (a categorical or a set), so it cannot enter a linear predictor. The predictor is under `field`, its type under `field_type`, the fit under `fit`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"features"},
+				Hint:   "Score against a numeric column: build the fit and the scoring slot from the same numeric feature output (e.g. FEAT_ONE_HOT indicators for a categorical).",
+			},
+		},
+	},
 	PULSE_FOR_EACH_INVALID: {
 		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{

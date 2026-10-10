@@ -45,6 +45,14 @@ type Bound struct {
 	// reference level).
 	Predictors []string
 
+	// Terms are the predictor columns the fit was offered, in spec
+	// order — Predictors without Selection, the candidate superset
+	// under it. A scoring reference may name any of them in `terms` (a
+	// candidate the selection dropped scores 0) and a scoring frame must
+	// hold all of them, so predict, which sees only the spec, judges a
+	// reference exactly as the runtime does.
+	Terms []string
+
 	// Intercept is the fitted intercept.
 	Intercept float64
 
@@ -95,6 +103,7 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 		Type:            res.Type,
 		Target:          spec.Target,
 		Predictors:      predictors,
+		Terms:           append([]string(nil), spec.Predictors...),
 		Intercept:       intercept,
 		Coefficients:    make([]float64, len(predictors)),
 		InterceptStdErr: stdErr(res, InterceptKey),
