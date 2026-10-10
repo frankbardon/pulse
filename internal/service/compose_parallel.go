@@ -89,11 +89,10 @@ func (s *Service) composeParallel(
 	opts ComposeOptions,
 	slots *[]*types.Request,
 ) (*types.ComposedResponse, error) {
-	if composed == nil || len(composed.Requests) == 0 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
-			"composed request must contain at least one request")
-	}
-	if err := s.composeSlotsPreflight(composed); err != nil {
+	// The sweep expands before the worker pool starts, exactly as on
+	// the serial path.
+	composed, rank, err := s.expandCompose(composed)
+	if err != nil {
 		return nil, err
 	}
 	// Hidden slots are refused before the worker pool starts, exactly
@@ -172,7 +171,7 @@ func (s *Service) composeParallel(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			reqCtx := composeSlotContext(runCtx, vetoes, multPlan, i)
+			reqCtx := rankSlotContext(composeSlotContext(runCtx, vetoes, multPlan, i), rank, i)
 			if o.PerRequestTimeout > 0 {
 				var reqCancel context.CancelFunc
 				reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)
@@ -263,6 +262,9 @@ func (s *Service) composeParallel(
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
 	out := &types.ComposedResponse{Responses: responses}
+	if s.echoRequest {
+		out.NormalizedRequest = composed
+	}
 	if len(layers) > 0 {
 		out.Overlays = distributeComposeWarnings(layers, warnings)
 	}
@@ -271,6 +273,10 @@ func (s *Service) composeParallel(
 	// each slot's own families correct inside the slot. Shared with the
 	// other orchestrator, so serial and parallel answer identically.
 	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+		return nil, err
+	}
+	// The sweep rank reads the finished, folded, still-unshaped slots.
+	if err := applyComposeRank(rank, requests, out); err != nil {
 		return nil, err
 	}
 

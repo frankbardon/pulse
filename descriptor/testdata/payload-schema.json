@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:a605e613dfcb3db04408f39beec6c3cb1d4940a65bfa164fdff559353e1b6761",
+  "$comment": "feature_set_digest: fs1:6fcbfc58f534e07cfdcdd0f923a3860d4542eca9e1329b61ec28380f2f6211c6",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -519,6 +519,9 @@
         },
         "return": {
           "$ref": "#/$defs/Return"
+        },
+        "sweep": {
+          "$ref": "#/$defs/SweepSpec"
         }
       },
       "required": [
@@ -532,6 +535,15 @@
         "overlays": {
           "items": {
             "$ref": "#/$defs/OverlayLayer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "ranking": {
+          "items": {
+            "$ref": "#/$defs/RankEntry"
           },
           "type": [
             "array",
@@ -2630,6 +2642,29 @@
       "properties": {},
       "type": "object"
     },
+    "RankEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "rank": {
+          "type": "integer"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "label",
+        "rank",
+        "value"
+      ],
+      "type": "object"
+    },
     "RecommendNeed": {
       "additionalProperties": false,
       "properties": {
@@ -3628,6 +3663,102 @@
       },
       "type": "object"
     },
+    "SweepAxis": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "values": {
+          "description": "The scalar values the axis takes, in expansion order.",
+          "items": {
+            "type": [
+              "number",
+              "string",
+              "boolean"
+            ]
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "values"
+      ],
+      "type": "object"
+    },
+    "SweepMode": {
+      "enum": [
+        "grid",
+        "zip"
+      ],
+      "type": "string"
+    },
+    "SweepRank": {
+      "additionalProperties": false,
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "order": {
+          "$ref": "#/$defs/SweepRankOrder"
+        },
+        "top": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "by"
+      ],
+      "type": "object"
+    },
+    "SweepRankOrder": {
+      "enum": [
+        "asc",
+        "desc"
+      ],
+      "type": "string"
+    },
+    "SweepSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "axes": {
+          "items": {
+            "$ref": "#/$defs/SweepAxis"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/$defs/SweepMode"
+        },
+        "overlays": {
+          "description": "Compose overlay specs (the #/$defs/ComposeOverlaySpec shape) with axis placeholders, substituted per expanded slot and appended to the request's own overlays.",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "rank": {
+          "$ref": "#/$defs/SweepRank"
+        },
+        "request": {
+          "description": "The slot request body as wire JSON (the #/$defs/Request shape) with axis placeholders: `{{axis}}` inside a string, `{\"$var\": \"axis\"}` as a whole value. Each expanded body is decoded strictly into a Request.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "axes",
+        "request"
+      ],
+      "type": "object"
+    },
     "Test": {
       "additionalProperties": false,
       "properties": {
@@ -3970,4 +4101,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 8fa03f0b9eeffb23e81464fef216264fa876496e169f18fa35204a746247c3a1
+// golden-hash: fb55333970aeb012e19f19514ab88a265db225733a24124da8765e19c50b983b

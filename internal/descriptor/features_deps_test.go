@@ -79,6 +79,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:stream":            {{"capability:process"}},
 		"capability:watch":             {{"capability:process"}},
 		"capability:filter_to_file":    {{"capability:process"}, {"FILTER_EXPRESSION"}},
+		"capability:compose_sweep":     {{"capability:compose"}}, // a sweep expands into Compose slots
 		"ATTR_REG_FITTED":              {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_LEVERAGE":            {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_RESIDUAL":            {requestHosts, {"REG_OLS"}},

@@ -3,7 +3,9 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -95,6 +97,12 @@ type ComposeValidationResult struct {
 	// PULSE_ADVISORY_MANY_TESTS over PValues. Never a warning; omitted
 	// when none fires.
 	Advisories []descriptor.Advisory `json:"advisories,omitempty"`
+
+	// Sweep summarises what the request's `sweep` block expands to —
+	// axes, resolved mode, expanded slot count and (once expanded) the
+	// sweep slots' labels. Set whenever the sweep is structurally
+	// valid, also on a refused batch; omitted without a sweep.
+	Sweep *descriptor.SweepSummary `json:"sweep,omitempty"`
 }
 
 // ValidateCompose runs the no-execute COMPOSE-host overlay walk over
@@ -125,6 +133,17 @@ func ValidateCompose(req *types.ComposedRequest) *descriptor.Envelope {
 // the identical answer either way (a nil snapshot yields a nil
 // resolver, which the gate reads as "no extension groupers").
 func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions) *descriptor.Envelope {
+	env, _ := ValidateComposeExpanded(req, opts)
+	return env
+}
+
+// ValidateComposeExpanded is ValidateComposeWithOptions also returning
+// the effective request it judged — the sweep expanded into slots after
+// the explicit ones (sweep.Expand) — so the facade can reach every slot
+// cohort (the managed-import TTL) without expanding twice. The
+// effective request is the input itself when it carries no sweep, and
+// the input too when the sweep was refused before it expanded.
+func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (*descriptor.Envelope, *types.ComposedRequest) {
 	result := &ComposeValidationResult{
 		Valid:                    true,
 		Request:                  req,
@@ -136,14 +155,56 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 	if req == nil {
 		env.AddError(string(errors.SERVICE_VALIDATION), "compose request is required", nil)
 		result.Valid = false
-		return env
+		return env, nil
+	}
+	written := req
+	// The runtime's entry order (Service.expandCompose): a set sweep on
+	// an instance that hides it is an unknown field before its contents
+	// are judged; then the sweep expands — the runtime's shared
+	// expansion, sweep.Expand — with the MaxComposeSlots preflight over
+	// explicit + expanded slots before any sweep slot renders (a
+	// sweep-free batch is counted too); then the slot gate over the
+	// effective request. Every pass below judges the effective request:
+	// explicit slots, then sweep slots, one label namespace.
+	// result.Request keeps the request as written.
+	if req.Sweep != nil {
+		if serr := SlotRefusal(req, opts.instance()); serr != nil {
+			addCodedError(env, serr)
+			result.Valid = false
+			return env, written
+		}
+		result.Sweep = sweepSummary(req.Sweep)
+	}
+	exp, xerr := sweep.Expand(req, composeSlotsPreflight(opts))
+	if xerr != nil {
+		addCodedError(env, xerr)
+		result.Valid = false
+		return env, written
+	}
+	req = exp.Composed
+	if result.Sweep != nil {
+		result.Sweep.Labels = exp.Labels
 	}
 	// A slot the instance hides is an unknown field, refused before
-	// anything else — the runtime's order.
+	// anything else past the expansion — the runtime's order. A sweep
+	// slot carrying one is located by details.request like an explicit
+	// slot.
 	if serr := SlotRefusal(req, opts.instance()); serr != nil {
 		addCodedError(env, serr)
 		result.Valid = false
-		return env
+		return env, req
+	}
+	// One label namespace across explicit and sweep slots, checked
+	// whether or not the batch declares overlays or a sweep — the
+	// runtime (applyComposeLabelDefaults) refuses a collision before any
+	// slot runs. With overlays the walk below reports it beside the
+	// overlay faults.
+	if len(req.Overlays) == 0 {
+		if _, collision := composeBuildLabelIndex(req); collision != "" {
+			addLabelCollision(env, collision)
+			result.Valid = false
+			return env, req
+		}
 	}
 	// Multiplicity over the whole batch — the pass Compose runs before
 	// any slot starts (ResolveComposeMultiplicity).
@@ -179,7 +240,7 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		// Nothing to validate at the overlay surface; downstream
 		// per-slot validation (the standard Predict on each Request)
 		// runs through a separate entry point.
-		return env
+		return env, req
 	}
 
 	// Build slot label → (slot index, *Request) lookup. Mirrors the
@@ -190,9 +251,7 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 	// descriptor surface stays parity-true.
 	byLabel, labelCollision := composeBuildLabelIndex(req)
 	if labelCollision != "" {
-		env.AddError(string(errors.PULSE_COMPOSE_LABEL_COLLISION),
-			"compose request has two slots resolving to the same label: "+labelCollision,
-			map[string]any{"label": labelCollision})
+		addLabelCollision(env, labelCollision)
 		// Continue — label collisions do not block the overlay
 		// walk from surfacing other failures the caller would
 		// otherwise have to round-trip to discover.
@@ -225,7 +284,49 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 	if len(env.Errors) > 0 {
 		result.Valid = false
 	}
-	return env
+	return env, req
+}
+
+// composeSlotsPreflight is the MaxComposeSlots check sweep.Expand runs
+// on explicit + expanded slots before rendering a sweep slot — the
+// runtime's limits.CheckComposeSlots over the instance's limits
+// (InstanceSnapshot.Limits, the resolved Options.Limits pulse.New
+// installs; the built-in defaults without an instance), so predict and
+// the runtime refuse the identical batch with the identical
+// PULSE_LIMIT_EXCEEDED.
+func composeSlotsPreflight(opts *PredictOptions) func(slots int) error {
+	l := opts.instance().Limits()
+	return func(slots int) error {
+		if ce := limits.CheckComposeSlots(l, slots); ce != nil {
+			return ce
+		}
+		return nil
+	}
+}
+
+// sweepSummary is ComposeValidationResult.Sweep for a sweep that passes
+// the structural check (sweep.Validate), else nil. Labels are filled in
+// once the expansion succeeds.
+func sweepSummary(spec *types.SweepSpec) *descriptor.SweepSummary {
+	if sweep.Validate(spec) != nil {
+		return nil
+	}
+	mode := spec.Mode
+	if mode == "" {
+		mode = types.SweepModeGrid
+	}
+	axes := make([]descriptor.SweepAxisSummary, len(spec.Axes))
+	for i, ax := range spec.Axes {
+		axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values)}
+	}
+	return &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec)}
+}
+
+// addLabelCollision reports PULSE_COMPOSE_LABEL_COLLISION for label.
+func addLabelCollision(env *descriptor.Envelope, label string) {
+	env.AddError(string(errors.PULSE_COMPOSE_LABEL_COLLISION),
+		"compose request has two slots resolving to the same label: "+label,
+		map[string]any{"label": label})
 }
 
 // composeOverlayDescriptorName resolves the renderer-facing label for one

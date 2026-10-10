@@ -74,7 +74,7 @@ type ManifestIn struct {
 type ExamplesSearchIn struct {
 	Query    string   `json:"query,omitempty" jsonschema:"Plain words or a name. One word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags. Known operator aliases (anova, chisq.test, pearson) and phrases from an intent's sounds (move together) also match"`
 	Tags     []string `json:"tags,omitempty" jsonschema:"Canonical taxonomy tags; results must carry every tag (AND)"`
-	Category string   `json:"category,omitempty" jsonschema:"Exact directory: aggregations, attributes, crosstab, facet, features, filterers, groupers, matrices, overlays, regression, tests, windows"`
+	Category string   `json:"category,omitempty" jsonschema:"Exact directory: aggregations, attributes, compose, crosstab, facet, features, filterers, groupers, matrices, overlays, regression, tests, windows"`
 	Intent   string   `json:"intent,omitempty" jsonschema:"Intent-taxonomy ID (e.g. compare_groups, relationship); results must declare it. Unknown: PULSE_RECOMMEND_INTENT_UNKNOWN"`
 }
 

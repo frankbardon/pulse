@@ -923,6 +923,29 @@ const (
 	// value.
 	PULSE_COMPOSE_LABEL_COLLISION Code = "PULSE_COMPOSE_LABEL_COLLISION"
 
+	// PULSE_SWEEP_INVALID indicates a malformed ComposedRequest `sweep`
+	// block: no axes, an axis name that is not a unique identifier, an
+	// empty or non-scalar values list, an unknown mode, unequal axis
+	// lengths under mode zip, a request body that is not a JSON object,
+	// overlays that are not a JSON array, or a malformed rank (empty
+	// `by`, unknown order, top below 1), an axis no placeholder names or
+	// a placeholder naming no axis, or a substituted request that does
+	// not decode strictly or sets `label`. Refused identically by predict
+	// and the runtime before any slot runs. Details carry "field" (the
+	// sweep-rooted path), "reason", "axis" where one is involved and,
+	// where they apply, "value" / "valid".
+	PULSE_SWEEP_INVALID Code = "PULSE_SWEEP_INVALID"
+
+	// PULSE_SWEEP_RANK_PATH indicates a sweep rank whose `by` path does
+	// not parse, or does not resolve to one number in a slot's response:
+	// it ends on a non-number, is ambiguous (a list segment matching two
+	// elements, or one whose name and label differ) or resolves in no
+	// sweep slot. Details carry "by", "reason", the offending slot
+	// "label" and the failing "segment". Also the code of the warning a
+	// slot left out of the ranking (null value, or path missing in that
+	// slot only) carries on its own response.
+	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
+
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
 	// the left field's schema type differs from the right field's
 	// (e.g. left is u32, right is categorical_u8). Hash join requires
@@ -3124,6 +3147,8 @@ var allCodes = []Code{
 	PULSE_CHAIN_EMPTY,
 	PULSE_CHAIN_STAGE_JOIN,
 	PULSE_COMPOSE_LABEL_COLLISION,
+	PULSE_SWEEP_INVALID,
+	PULSE_SWEEP_RANK_PATH,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
 	PULSE_JOIN_FIELD_UNKNOWN,

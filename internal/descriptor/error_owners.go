@@ -262,6 +262,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_CHAIN_EMPTY:             own(featProcessChain),
 	errors.PULSE_CHAIN_STAGE_JOIN:        own(featProcessChain),
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
+	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
+	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
 
 	errors.PULSE_JOIN_TYPE_MISMATCH:        own(featJoins),
 	errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED: own(featJoins),

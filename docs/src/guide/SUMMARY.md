@@ -31,6 +31,7 @@
     - [cohort-sidecar-index](skills/cohort-sidecar-index.md)
     - [cohort-width-overflow](skills/cohort-width-overflow.md)
     - [compose-requests](skills/compose-requests.md)
+    - [compose-sweeps](skills/compose-sweeps.md)
     - [crosstab-guide](skills/crosstab-guide.md)
     - [crosstab-margin-aggregations](skills/crosstab-margin-aggregations.md)
     - [expression-language](skills/expression-language.md)

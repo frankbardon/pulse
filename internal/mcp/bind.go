@@ -1316,6 +1316,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				"Batch-level multiple-comparison correction, inherited by every slot request (below its own request-level block) and every Compose overlay layer that sets none of its own. Family `compose` pools every compose-family member across the slots and the Compose layers.",
 				types.AllMultiplicityFamilies(), true),
 			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
+			"sweep":  sweepSchema(),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1323,6 +1324,52 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
 	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
+}
+
+// sweepSchema describes the ComposedRequest `sweep` block (types.SweepSpec):
+// one request body with axis placeholders expanded over its axes into
+// compose slots. Dropped with the slot when capability:compose_sweep is
+// hidden (dropHiddenSlots).
+func sweepSchema() map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": "Parameter sweep: one request body with axis placeholders (`{{axis}}` inside a string, {\"$var\": \"axis\"} as a whole value), expanded over the axes into compose slots appended after `requests`, before any slot runs.",
+		"properties": map[string]any{
+			"axes": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "The swept parameters.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{"type": "string", "description": "Placeholder name: an identifier, unique within the sweep."},
+						"values": map[string]any{
+							"type":        "array",
+							"minItems":    1,
+							"description": "The scalar values the axis takes, in expansion order.",
+							"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
+						},
+					},
+					"required": []string{"name", "values"},
+				},
+			},
+			"mode":     enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths)."),
+			"label":    map[string]any{"type": "string", "description": "Per-slot label pattern with {{axis}} placeholders; default `<axis>=<value>` pairs joined by `_`."},
+			"request":  map[string]any{"type": "object", "description": "The slot request body (the request shape) with axis placeholders."},
+			"overlays": map[string]any{"type": "array", "items": map[string]any{"type": "object"}, "description": "Compose overlay specs with axis placeholders, substituted per slot and appended to `overlays`."},
+			"rank": map[string]any{
+				"type":        "object",
+				"description": "Orders the finished sweep slots by one number and reports them in the response `ranking`.",
+				"properties": map[string]any{
+					"by":    map[string]any{"type": "string", "description": "Path of the ranked number in each slot's response."},
+					"order": enumStringField(stringSlice(types.AllSweepRankOrders()), "asc (default) or desc."),
+					"top":   map[string]any{"type": "integer", "minimum": 1, "description": "Keep only the first top entries; omit to rank every slot."},
+				},
+				"required": []string{"by"},
+			},
+		},
+		"required": []string{"axes", "request"},
+	}
 }
 
 // buildSampleSchema describes the pulse_sample tool params.

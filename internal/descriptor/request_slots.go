@@ -140,6 +140,12 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.ComposedRequest{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		multiplicitySlotGate,
+		{key: "sweep", visible: capabilityGate(featComposeSweep)},
+	},
+	// The sweep rank rides capability:compose_sweep with the `sweep`
+	// slot that produces it.
+	reflect.TypeOf(types.ComposedResponse{}): {
+		{key: "ranking", visible: capabilityGate(featComposeSweep)},
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
@@ -343,6 +349,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && r.Multiplicity != nil {
 			out = append(out, multiplicityKey)
+		}
+		if r != nil && r.Sweep != nil {
+			out = append(out, "sweep")
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {

@@ -1,6 +1,6 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **41 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **45 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep) was added after U39 and lands before U32; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and are post-U40 units whose v1.0.0 membership is an owner call. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -69,7 +69,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U29 | [vector-field-types](U29-vector-field-types.md): Cohorts can store fixed-length numeric vectors natively | Vector & matrix | L | U16, U27 | 151, 152, 153, 154, 155 |
 | U30 | [matrix-extensions-hardening](U30-matrix-extensions-hardening.md): Embedders can add their own matrix operators, and the matrix stack is proven at scale | Vector & matrix | M | U25, U28, U29 | 156, 157, 158, 270 |
 | U31 | [guidance-guides](U31-guidance-guides.md): A developer can start from a question and find the right analysis without knowing statistics | Guided analysis | M | U21, U24, U28 | 100, 101, 102, 103, 250, 251, 252, 269 |
-| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38 | 159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268 |
+| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40 | 159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268 |
 | U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234 |
 | U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | S | U02b | 194, 195, 196, 197, 216, 231 |
 | U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | M | U02c (soft) | 198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267 |
@@ -77,6 +77,10 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U37 | [shell-completion](U37-shell-completion.md): The pulse CLI completes commands, flags and values natively in the terminal | API & release | M | — (U06 soft) | 208, 209, 210, 211, 212 |
 | U38 | [skill-sync](U38-skill-sync.md): Hand-written skills say exactly what the engine does, and every skill fits its budget | Guided analysis | M | U21 | 235, 236, 237 |
 | U39 | [code-in-attribute](U39-attr-code-in.md): A top-box share of the whole base is one attribute and one weighted mean on the fused crosstab path | Guided analysis | S | — | 240, 241, 242, 243, 244, 245 |
+| U40 | [compose-sweep](U40-compose-sweep.md): A parameter grid is one compose request: Pulse expands it, runs every combination and ranks the results | API & release | M | — | 272, 273, 274, 275, 276, 277, 278, 297, 298 |
+| U41 | [derived-cohort](U41-derived-cohort.md): A request's derived columns become a new cohort with the schema carried over, and the import that follows cannot mislabel a column | API & release | L | U40 | 279, 280, 281, 282, 283, 284, 285 |
+| U42 | [fit-scoring](U42-fit-scoring.md): A fitted model is applied to rows by name, its error is an aggregator, and its interval bounds pass through | API & release | L | U41 | 286, 287, 288, 289 |
+| U43 | [post-aggregation-ratios](U43-post-aggregation-ratios.md): A ratio of two aggregates and a scalar derived from an aggregate are native, so ROI and a scenario scale factor need no hand arithmetic | API & release | M | U42 | 290, 291, 292 |
 
 ## Dependency graph
 
@@ -123,6 +127,10 @@ graph TD
   U37["U37 shell-completion"]
   U38["U38 skill-sync"]
   U39["U39 code-in-attribute"]
+  U40["U40 compose-sweep"]
+  U41["U41 derived-cohort"]
+  U42["U42 fit-scoring"]
+  U43["U43 post-aggregation-ratios"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -191,6 +199,10 @@ graph TD
   U06 -.-> U37
   U21 --> U38
   U38 --> U32
+  U40 --> U32
+  U40 --> U41
+  U41 --> U42
+  U42 --> U43
 ```
 
 ## Human inputs that gate units

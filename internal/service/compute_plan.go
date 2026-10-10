@@ -224,7 +224,10 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 //     Compose overlay naming this slot (componentsVetoed) keeps every
 //     Components sub-part. A chain overlay reads its stages' data and
 //     crosstab payload only, so it vetoes nothing;
-//  5. the closed DisableComponents gate drops every Components sub-part,
+//  5. veto: a sweep slot of a ranked sweep (rankVetoed) computes the
+//     full plan — the rank reads the unshaped response, so a slot
+//     `return` that excludes the ranked part never skips it;
+//  6. the closed DisableComponents gate drops every Components sub-part,
 //     veto or not (an overlay that needs them refuses, as before).
 //
 // No `return` and an open gate is FullComputePlan: byte-identical.
@@ -254,6 +257,11 @@ func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, re
 	}
 	if componentsVetoed(ctx) {
 		plan = plan.WithComponentsOf(full)
+	}
+	if rankVetoed(ctx) {
+		// A ranked sweep slot: the rank reads the unshaped response, so
+		// nothing its selection excludes is skipped.
+		plan = full
 	}
 	if s.componentsGateClosed(req) {
 		plan = plan.WithoutComponents()
