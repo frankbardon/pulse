@@ -16,7 +16,9 @@ import (
 //
 // targetSchema must be structurally identical to the shard's own
 // schema (field count, names, types, byte offsets, bit positions) —
-// only the per-categorical dictionaries differ.
+// only the per-categorical dictionaries differ. The record bytes are
+// addressed by the type-derived layout the decoder walks
+// (widenFieldOffsets / LayoutFields), not by the stored offsets.
 //
 // When remap is empty (every incoming dict was a prefix of canonical),
 // the function still re-emits the shard with targetSchema so the
@@ -106,12 +108,19 @@ func rewriteShardDicts(shardBytes []byte, targetSchema *encoding.Schema, remap m
 			map[string]any{"record_size": recordSize, "payload_bytes": len(remaining)})
 	}
 
+	// Each field's position is derived from the field TYPES, exactly as
+	// the record writer and the decoder (a running cursor over the
+	// on-wire widths) place it — never the stored Field.ByteOffset,
+	// which is a cache that a caller-authored or pre-canonical-layout
+	// schema can carry wrong. Trusting it wrote the remapped index over
+	// a neighbouring field and left the dictionary field untouched.
+	offsets, _ := widenFieldOffsets(srcSchema)
 	rewritePlan := make([]rewriteEntry, 0, len(remap))
 	for idx, m := range remap {
 		f := &srcSchema.Fields[idx]
 		rewritePlan = append(rewritePlan, rewriteEntry{
 			field:  idx,
-			offset: int(f.ByteOffset),
+			offset: offsets[idx],
 			ftype:  f.Type,
 			remap:  m,
 		})

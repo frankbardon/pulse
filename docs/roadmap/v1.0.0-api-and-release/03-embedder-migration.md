@@ -419,7 +419,7 @@ Not shipped, by decision: p-values and intervals on rank and partial correlation
 
 ## Changes from U41 (derived cohort)
 
-In progress. Contract: `docs/src/cli/flags.md` (`--schema` / `--ignore-extra`, `--float`), `skills/tool-import.md`. `format_version` stays `"1.1"`; no `.pulse` byte changes.
+In progress. Contract: `docs/src/cli/flags.md` (`--schema` / `--ignore-extra`, `--float`), `skills/tool-import.md`. `format_version` stays `"1.1"`; no `.pulse` format change — only the stored schema-block offsets of explicit-schema and schema-file cohorts move to the canonical layout (record payloads unchanged).
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
@@ -431,6 +431,8 @@ In progress. Contract: `docs/src/cli/flags.md` (`--schema` / `--ignore-extra`, `
 | (none) | `io.ImportJob.FloatWidth`, `io.ConvertJob.FloatWidth`; `errors.PULSE_IMPORT_FLOAT_WIDTH_INVALID`, `PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN` | added | see the two rows above | U41 |
 | (none) | `pulse.ImportSpec.Schema` (`*encoding.Schema`), `.IgnoreExtra`, `.FloatWidth` — the managed import (`ImportFile`, MCP `pulse_import` `schema` / `ignore_extra` / `float`) takes an explicit schema matched by name, under the same refusals as `ImportJob`; none is persisted on the managed sidecar. A schema on a `.pulse` source is `PULSE_IMPORT_SCHEMA_INVALID` | added | set them on the spec; an unset spec imports exactly as before | U41 |
 | a malformed CLI schema file (`--schema`) failed with an uncoded error (`--json` `errors[0].code` the `CLI_ERROR` placeholder); an empty array `[]` was accepted | both refused with `errors.PULSE_IMPORT_SCHEMA_INVALID` (`reason` `malformed` / `empty`) | behaviour change | match on the code; write at least one field, or omit `--schema` to infer | U41 |
+| an explicit `ImportJob.Schema` / `ConvertJob.Schema` / `ImportSpec.Schema` stored the caller's `Field.ByteOffset` / `BitPosition` verbatim (all zeros when unset), so a shard `add` with diverging dictionaries could rewrite a neighbouring field's bytes, a nonzero `BitPosition` read bit-packed values back wrong through the engine, and the cohort failed shard cohesion against an inferred twin | caller-supplied `ByteOffset` / `BitPosition` are ignored: every explicit-schema import stores the canonical layout (a bit-packed field owns one whole byte at bit 0); the shard dictionary rewrite addresses bytes by that type-derived layout whatever an older shard stores. Record payloads are unchanged | behaviour change | stop setting `ByteOffset` / `BitPosition` on an explicit schema. A cohort imported before this with zero offsets keeps them and fails `shard add` cohesion against a newly imported twin — re-import it | U41 |
+| a CLI schema file (`--schema`) with a bit-packed field (`u4`, `packed_bool`) ahead of other fields stored every later field's offset one byte short (it summed `ByteSize()`) | stored at the canonical layout; record payloads unchanged | value change (schema block only) | a schema-file cohort of that shape written before this fails `shard add` cohesion against one written after — re-import the older one | U41 |
 
 ## Third-party dependency
 

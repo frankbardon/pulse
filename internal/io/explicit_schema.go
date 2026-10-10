@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // This file holds the schema-level checks of an explicit (caller-
@@ -60,6 +61,9 @@ func checkSchemaDescriptions(schema *encoding.Schema) error {
 // A source with no header at all (an empty file) has no rows to
 // mislabel; the schema is returned as a copy, unresolved.
 //
+// The copy is laid out canonically (encx.LayoutFields): caller-supplied
+// ByteOffset / BitPosition are ignored.
+//
 // The caller's schema is never mutated: the row pass assigns
 // dictionaries and (on predict) nullability on the copy.
 func resolveExplicitSchema(source Reader, schema *encoding.Schema, ignoreExtra bool) (*encoding.Schema, error) {
@@ -85,6 +89,14 @@ func resolveExplicitSchema(source Reader, schema *encoding.Schema, ignoreExtra b
 
 	out := *schema
 	out.Fields = append([]encoding.Field(nil), schema.Fields...)
+	// Caller-supplied ByteOffset / BitPosition are ignored: the record
+	// writer and the decoder place every field by a type-derived cursor,
+	// so the stored values must be that same layout. A caller-authored
+	// offset (an embedder schema that never set one is all zeros) would
+	// otherwise be written into the schema block, refused by shard
+	// cohesion against an inferred twin, and — on BitPosition — read
+	// back from a bit the writer never set.
+	encx.LayoutFields(out.Fields)
 	if len(header) == 0 {
 		return &out, nil
 	}

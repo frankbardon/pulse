@@ -24,6 +24,14 @@ import (
 // regression this test exists to catch. If a change to import.go moves any of
 // these hashes, the absent-implementation path is no longer byte-identical and
 // the change is a regression until proven otherwise.
+//
+// The two explicit_schema_* hashes were re-pinned once, deliberately: the
+// explicit-schema resolver now lays its copy out canonically
+// (encx.LayoutFields), so the second field's STORED schema-block ByteOffset
+// is 1 where the caller's all-zero offset used to be written verbatim. The
+// record payload, dictionaries and every decoded value are byte-identical
+// before and after — readers place fields by a type-derived cursor.
+// Previous: 5c289e0a… (non_nullable), 8742d35c… (nullable_bitmap).
 func TestImportJob_NonSchemaAwareReader_ByteIdentical(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -88,7 +96,7 @@ func TestImportJob_NonSchemaAwareReader_ByteIdentical(t *testing.T) {
 					{Name: "name", Type: encoding.FieldTypeCategoricalU8, CsvColumnIdx: 1, Dictionary: encoding.NewDictionary()},
 				}}
 			},
-			want: "5c289e0a07288f71f3e0e2d77b2b294107f5d0292eedac12ca5a4e5e0542cb9b",
+			want: "b630ec6512f17553bc0ccfd392097d97f55448e18b9d183c87e2a491396b2277",
 		},
 		{
 			name:    "explicit_schema_nullable_bitmap",
@@ -104,7 +112,7 @@ func TestImportJob_NonSchemaAwareReader_ByteIdentical(t *testing.T) {
 					{Name: "score", Type: encoding.FieldTypeF64, Nullable: true, CsvColumnIdx: 1},
 				}}
 			},
-			want: "8742d35c657aa59f69fbe48123fdd92181ffe33907d2aa09bc3212d43e27cc99",
+			want: "ecdc224632996c72972b959d1ca96aaa7e4763380526ce2e05ebdb4a83c996b3",
 		},
 		{
 			name:    "inference_steering_slots",
