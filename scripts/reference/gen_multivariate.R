@@ -645,6 +645,36 @@ col_doc <- c(mv_meta("collinearity diagnostics",
   list(cases = col_cases))
 
 # ------------------------------------------------------------ vcov(lm/glm)
+# glm_fixed_point refines a converged glm to the IRLS FIXED POINT and
+# returns the coefficients there plus (X'WX)^-1 at THAT point's working
+# weights. vcov(glm) is (X'WX)^-1 at the weights glm.fit computed at the
+# START of its last iteration -- one beta update behind coef(fit), about
+# 1e-7 relative on a near-separated binomial fit -- whereas Pulse
+# evaluates it at the weights of the converged beta. Fisher-scoring
+# steps (Newton for the canonical links used here) continue from
+# coef(fit) until the step no longer moves beta; the loop refuses to
+# stop short of a 1e-14 relative step.
+glm_fixed_point <- function(fit) {
+  # fit carries x = TRUE: its data frame is local to the caller.
+  fam <- family(fit); X <- fit$x; y <- fit$y; pw <- fit$prior.weights
+  b <- coef(fit); last <- Inf
+  for (it in 1:100) {
+    eta <- drop(X %*% b); mu <- fam$linkinv(eta); me <- fam$mu.eta(eta)
+    w <- pw * me^2 / fam$variance(mu)
+    step <- drop(solve(crossprod(X * w, X), crossprod(X * w, (y - mu) / me)))
+    rel <- max(abs(step) / pmax(abs(b), 1))
+    b <- b + step
+    if (rel == 0 || (rel <= 1e-14 && rel >= last)) break
+    last <- rel
+  }
+  if (rel > 1e-14) stop("glm fixed point not reached: relative step ", rel)
+  eta <- drop(X %*% b); mu <- fam$linkinv(eta); me <- fam$mu.eta(eta)
+  w <- pw * me^2 / fam$variance(mu)
+  V <- solve(crossprod(X * w, X))
+  dimnames(V) <- list(colnames(X), colnames(X)); names(b) <- colnames(X)
+  near(V, vcov(fit), 1e-5, "fixed-point vcov vs vcov(glm)")
+  list(b = b, V = V)
+}
 vc_cases <- list()
 add_vcov <- function(fx, df, fml, family, kind) {
   vars <- all.vars(fml)
@@ -674,12 +704,12 @@ add_vcov <- function(fx, df, fml, family, kind) {
     # IRLS run to convergence well past glm's default epsilon (1e-8 on
     # the deviance), so the oracle is the MLE, not one stopping point.
     ctl <- glm.control(epsilon = 1e-14, maxit = 200)
-    fit <- if (kind == "none") glm(fml, family = fam, data = d, control = ctl) else suppressWarnings(glm(fml, family = fam, data = d, weights = .ws, control = ctl))
+    fit <- if (kind == "none") glm(fml, family = fam, data = d, control = ctl, x = TRUE) else suppressWarnings(glm(fml, family = fam, data = d, weights = .ws, control = ctl, x = TRUE))
     if (!fit$converged) stop("glm did not converge: ", fx, " ", family, " ", kind)
-    V <- vcov(fit); b <- coef(fit)
+    fp <- glm_fixed_point(fit); V <- fp$V; b <- fp$b
     if (kind == "frequency") {
-      fe <- glm(fml, family = fam, data = expand(d, w), control = ctl)
-      near(vcov(fe), V, 1e-7, paste("expanded glm vcov", fx)); near(coef(fe), b, 1e-7, "expanded glm coef")
+      fe <- glm_fixed_point(glm(fml, family = fam, data = expand(d, w), control = ctl, x = TRUE))
+      near(fe$V, V, 1e-9, paste("expanded glm vcov", fx)); near(fe$b, b, 1e-9, "expanded glm coef")
     }
   }
   vc_cases[[length(vc_cases) + 1]] <<- list(
@@ -698,10 +728,57 @@ for (kind in w_kinds) {
   add_vcov("weighted", wd, y_bin ~ x1 + x3, "binomial", kind)
   add_vcov("weighted", wd, y_count ~ x2 + x4, "poisson", kind)
 }
+
+# Resample: jackknife. Leave-one-out lm refits; V = (n-1)/n * sum_i
+# (b_-i - bbar)(b_-i - bbar)^T, the centring and scaling of the
+# jackknife standard error, so sqrt(diag(V)) is that SE. Coefficients
+# stay at the full-data fit.
+jk_cases <- list()
+add_jackknife <- function(fx, df, fml) {
+  d <- listwise(df, all.vars(fml)); n <- nrow(d)
+  B <- t(vapply(seq_len(n), function(i) coef(lm(fml, data = d[-i, , drop = FALSE])), numeric(length(all.vars(fml)))))
+  C <- sweep(B, 2, colMeans(B))
+  V <- (n - 1) / n * crossprod(C)
+  jk_cases[[length(jk_cases) + 1]] <<- list(
+    fixture = fx, formula = paste(deparse(fml), collapse = ""), resample = "jackknife",
+    n_rows = num(n), terms = strs(colnames(V)), coefficients = numv(coef(lm(fml, data = d))),
+    std_errors = numv(sqrt(diag(V))), vcov = numm(V), correlation = numm(cov2cor(V))
+  )
+}
+add_jackknife("mtcars", mt, mpg ~ wt + hp + qsec)
+add_jackknife("attitude", att, rating ~ complaints + privileges + learning)
+
+# Selection: stats::step over lm. Pulse's OLS criterion is -2 logL +
+# k*(p + 2) at the MLE sigma^2 = RSS/n; step's extractAIC is n*log(RSS/n)
+# + k*(p + 1) -- the same up to a constant, so both walk the same path
+# (k = 2 AIC, k = log(n) BIC). selected lists the retained predictors in
+# the order the final formula carries them (forward: order added;
+# backward: spec order), the order Pulse's selected_features reports.
+# V = vcov(lm(selected formula)): the final refit's covariance.
+sel_cases <- list()
+add_selection <- function(fx, df, fml, direction, criterion) {
+  d <- listwise(df, all.vars(fml)); n <- nrow(d)
+  k <- if (criterion == "bic") log(n) else 2
+  lower <- update(fml, . ~ 1)
+  # do.call inlines the data into the call, so step()'s update() can
+  # re-evaluate it outside this frame.
+  start <- do.call("lm", list(formula = if (direction == "forward") lower else fml, data = d))
+  s <- step(start, scope = list(lower = lower, upper = fml), direction = direction, k = k, trace = 0)
+  sel <- attr(terms(s), "term.labels")
+  V <- vcov(s)
+  sel_cases[[length(sel_cases) + 1]] <<- list(
+    fixture = fx, formula = paste(deparse(fml), collapse = ""), selection = direction, criterion = criterion,
+    n_rows = num(n), selected = strs(sel), terms = strs(colnames(V)), coefficients = numv(coef(s)),
+    std_errors = numv(sqrt(diag(V))), vcov = numm(V), correlation = numm(cov2cor(V))
+  )
+}
+add_selection("mtcars", mt, mpg ~ wt + hp + qsec + drat + disp + cyl, "forward", "aic")
+add_selection("attitude", att, rating ~ complaints + privileges + learning + raises + critical + advance, "backward", "bic")
+
 vc_doc <- c(mv_meta("regression coefficient covariance",
-  "vcov(lm(...)), vcov(glm(..., family = binomial | poisson)); weighted per the one rule",
-  "Terms use R's '(Intercept)' spelling. gaussian weighted: the frequency formula on w* = w*N*/sum(w): V = s2 * (X'W*X)^-1 with s2 = sum(w* e^2)/(N* - p) (frequency asserted == lm on rep()-expanded rows). glm runs IRLS to glm.control(epsilon = 1e-14, maxit = 200). glm weighted: glm(weights = w*), dispersion fixed at 1, so the kind does not move V (frequency asserted == expanded glm). correlation = cov2cor(vcov); std_errors = sqrt(diag(vcov))."),
-  list(cases = vc_cases))
+  "vcov(lm(...)), vcov(glm(..., family = binomial | poisson)) refined to the IRLS fixed point; weighted per the one rule; jackknife over leave-one-out lm; vcov(step(lm(...)))",
+  "Terms use R's '(Intercept)' spelling. gaussian weighted: the frequency formula on w* = w*N*/sum(w): V = s2 * (X'W*X)^-1 with s2 = sum(w* e^2)/(N* - p) (frequency asserted == lm on rep()-expanded rows). glm runs IRLS to glm.control(epsilon = 1e-14, maxit = 200), then Fisher-scoring steps from coef(fit) until the step stops moving beta (relative <= 1e-14); V = (X'WX)^-1 at the weights of THAT beta (vcov(glm) lags one update behind; asserted within 1e-5). glm weighted: glm(weights = w*), dispersion fixed at 1, so the kind does not move V (frequency asserted == expanded glm). correlation = cov2cor(vcov); std_errors = sqrt(diag(vcov)). jackknife_cases: V = (n-1)/n * crossprod of the centred leave-one-out lm coefficients; coefficients are the full-data fit. selection_cases: step() over lm (k = 2 aic, log(n) bic), selected = retained predictors in formula order, V = vcov of the selected lm."),
+  list(cases = vc_cases, jackknife_cases = jk_cases, selection_cases = sel_cases))
 
 # --------------------------------------------------------------- nearPD
 npd_cases <- list()

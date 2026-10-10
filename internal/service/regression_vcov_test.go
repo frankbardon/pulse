@@ -44,20 +44,19 @@ type vcovOracle struct {
 // vcovOLSTol: lm solves a QR, Pulse folds Welford moments and inverts
 // the centred Gram by gonum's Cholesky (cross-arch ulps).
 //
-// vcovGLMTol is looser for a measured reason, not to absorb noise: R's
-// vcov(glm) is (XᵀWX)⁻¹ at the working weights glm.fit computed at the
-// START of its last IRLS iteration — one β update behind the returned
-// coefficients — whereas Pulse evaluates (XᵀWX)⁻¹ at the weights of the
-// CONVERGED β. Tightening Pulse's tolerance does not move its figure
-// (the fit is converged); refining R's fit by Newton steps to a fixed
-// point and inverting XᵀWX there reproduces Pulse to 2e-13 (pinned by
-// TestRegressionVcov_GLMAtConvergedWeights). The lag is largest on the
-// near-separated binomial fits (relative ≈ 1e-7 on mtcars am ~ wt + hp)
-// and invisible on poisson; 1e-6 holds it with room while staying far
-// below any basis mistake (w vs w* moves an entry by tens of percent).
+// vcovGLMTol: R's raw vcov(glm) is (XᵀWX)⁻¹ at the working weights
+// glm.fit computed at the START of its last IRLS iteration — one β
+// update behind the returned coefficients (≈ 1e-7 relative on the
+// near-separated binomial mtcars am ~ wt + hp) — whereas Pulse evaluates
+// at the weights of the CONVERGED β. The generator therefore refines
+// each glm by Fisher-scoring steps to the IRLS fixed point and inverts
+// XᵀWX there (glm_fixed_point in gen_multivariate.R). Against that
+// oracle the worst entry measured is 2.1e-13 (arm64); 1e-11 keeps 50×
+// headroom for cross-arch Cholesky ulps while sitting four decades below
+// the one-iteration lag the raw vcov(glm) carried.
 const (
 	vcovOLSTol = 1e-10
-	vcovGLMTol = 1e-6
+	vcovGLMTol = 1e-11
 )
 
 func vcovSpec(c vcovOracle) *types.RegressionSpec {
@@ -318,13 +317,13 @@ func TestRegressionVcov_Refusals(t *testing.T) {
 	}
 }
 
-// TestRegressionVcov_GLMAtConvergedWeights pins why the GLM oracle
-// tolerance is 1e-6: R's glm(am ~ wt + hp, binomial) on mtcars, refined
-// by Newton steps until β is a fixed point (max relative step 7.7e-16)
-// and (XᵀWX)⁻¹ taken at THAT β's weights, gives the matrix below —
-// Pulse matches it to 1e-10, while vcov(glm) itself sits ≈ 1e-7 away
-// (its weights lag one IRLS update behind the returned coefficients).
-// R: f <- glm(..., control = glm.control(epsilon = 1e-14)); b <- coef(f);
+// TestRegressionVcov_GLMAtConvergedWeights pins the converged-weights
+// basis independently of mv_vcov.json: R's glm(am ~ wt + hp, binomial)
+// on mtcars, refined by Newton steps until β is a fixed point (max
+// relative step 7.7e-16) and (XᵀWX)⁻¹ taken at THAT β's weights, gives
+// the matrix below — Pulse matches it to 1e-10, while vcov(glm) itself
+// sits ≈ 1e-7 away (its weights lag one IRLS update behind the returned
+// coefficients). R: f <- glm(..., control = glm.control(epsilon = 1e-14)); b <- coef(f);
 // repeat b <- b + solve(t(X) %*% (w*X), t(X) %*% (y - mu)) at
 // mu = plogis(X %*% b), w = mu(1 − mu); V <- solve(t(X) %*% (w*X)).
 func TestRegressionVcov_GLMAtConvergedWeights(t *testing.T) {
@@ -354,6 +353,106 @@ func TestRegressionVcov_GLMAtConvergedWeights(t *testing.T) {
 				t.Errorf("vcov[%d][%d] = %.17g, R at converged weights %.17g", i, j, got[i][j], want[i][j])
 			}
 		}
+	}
+}
+
+// modifierOracle is one mv_vcov.json jackknife_cases / selection_cases
+// entry.
+type modifierOracle struct {
+	Fixture     string      `json:"fixture"`
+	Formula     string      `json:"formula"`
+	Resample    string      `json:"resample"`
+	Selection   string      `json:"selection"`
+	Criterion   string      `json:"criterion"`
+	Selected    []string    `json:"selected"`
+	Terms       []string    `json:"terms"`
+	StdErrors   []float64   `json:"std_errors"`
+	Vcov        [][]float64 `json:"vcov"`
+	Correlation [][]float64 `json:"correlation"`
+}
+
+// checkModifierVcov compares a modifier fit's vcov / correlation with
+// the oracle entry for entry and holds √diag(Vcov) == StdErrors exactly.
+func checkModifierVcov(t *testing.T, res *types.RegressionResult, keys []string, c modifierOracle) {
+	t.Helper()
+	if res.Vcov == nil || res.Correlation == nil {
+		t.Fatalf("vcov / correlation absent: %+v", res)
+	}
+	if !reflect.DeepEqual(res.Vcov.RowKeys, keys) || !reflect.DeepEqual(res.Correlation.ColumnKeys, keys) {
+		t.Fatalf("keys %v / %v, want %v", res.Vcov.RowKeys, res.Correlation.ColumnKeys, keys)
+	}
+	if len(c.Terms) != len(keys) {
+		t.Fatalf("oracle terms %v, Pulse keys %v", c.Terms, keys)
+	}
+	worst := 0.0
+	for i := range keys {
+		for j := range keys {
+			g, w := res.Vcov.Values[i][j], c.Vcov[i][j]
+			if !vcovNear(g, w, vcovOLSTol) {
+				t.Errorf("vcov[%s][%s] = %.17g, R = %.17g", keys[i], keys[j], g, w)
+			}
+			worst = math.Max(worst, math.Abs(g-w)/math.Max(1, math.Abs(w)))
+			if g, w := res.Correlation.Values[i][j], c.Correlation[i][j]; !vcovNear(g, w, vcovOLSTol) {
+				t.Errorf("correlation[%s][%s] = %.17g, R = %.17g", keys[i], keys[j], g, w)
+			}
+			if res.Vcov.Values[i][j] != res.Vcov.Values[j][i] {
+				t.Errorf("[%s][%s] not exactly symmetric", keys[i], keys[j])
+			}
+		}
+		if se := res.StdErrors[keys[i]]; math.Sqrt(res.Vcov.Values[i][i]) != se {
+			t.Errorf("√vcov[%s] = %.17g, std_error %.17g (must be exact)", keys[i], math.Sqrt(res.Vcov.Values[i][i]), se)
+		}
+		if !vcovNear(res.StdErrors[keys[i]], c.StdErrors[i], vcovOLSTol) {
+			t.Errorf("std_error[%s] = %.17g, R = %.17g", keys[i], res.StdErrors[keys[i]], c.StdErrors[i])
+		}
+	}
+	t.Logf("worst vcov relative error %.3g (tol %g)", worst, vcovOLSTol)
+}
+
+// TestRegressionVcov_ModifiersMatchROracle: under Resample = jackknife
+// the vcov is R's leave-one-out lm covariance (n−1)/n·Σ(β₋ᵢ − β̄)(β₋ᵢ −
+// β̄)ᵀ; under Selection it is vcov(lm) of the formula stats::step
+// selects (its extractAIC differs from Pulse's criterion by a constant,
+// so the two walk the same path), keyed (intercept) + the selected
+// predictors in the order selected_features reports them.
+func TestRegressionVcov_ModifiersMatchROracle(t *testing.T) {
+	var golden struct {
+		Jackknife []modifierOracle `json:"jackknife_cases"`
+		Selection []modifierOracle `json:"selection_cases"`
+	}
+	dir := loadMV(t, "mv_vcov.json", &golden)
+	if len(golden.Jackknife) < 2 || len(golden.Selection) < 2 {
+		t.Fatalf("oracle has %d jackknife / %d selection cases, want ≥ 2 each", len(golden.Jackknife), len(golden.Selection))
+	}
+	cfg := fixtureFS(t, dir)
+	run := func(t *testing.T, c modifierOracle, mut func(*types.RegressionSpec)) *types.RegressionResult {
+		t.Helper()
+		spec := vcovSpec(vcovOracle{Formula: c.Formula, Family: "gaussian"})
+		mut(spec)
+		resp, err := New(cfg).Process(context.Background(), &types.Request{
+			Cohort:      &types.Cohort{Filename: filepath.Join(dir, c.Fixture+".pulse")},
+			Regressions: []*types.RegressionSpec{spec},
+		})
+		if err != nil {
+			t.Fatalf("Process: %v", err)
+		}
+		return resp.Regressions[0]
+	}
+	for _, c := range golden.Jackknife {
+		t.Run("jackknife/"+c.Fixture, func(t *testing.T) {
+			var preds []string
+			res := run(t, c, func(s *types.RegressionSpec) { s.Resample = c.Resample; preds = s.Predictors })
+			checkModifierVcov(t, res, append([]string{"(intercept)"}, preds...), c)
+		})
+	}
+	for _, c := range golden.Selection {
+		t.Run("selection/"+c.Fixture+"/"+c.Selection, func(t *testing.T) {
+			res := run(t, c, func(s *types.RegressionSpec) { s.Selection, s.Criterion = c.Selection, c.Criterion })
+			if !reflect.DeepEqual(res.SelectedFeatures, c.Selected) {
+				t.Fatalf("selected %v, step() selected %v", res.SelectedFeatures, c.Selected)
+			}
+			checkModifierVcov(t, res, append([]string{"(intercept)"}, c.Selected...), c)
+		})
 	}
 }
 
