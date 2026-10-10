@@ -565,6 +565,16 @@ Written as: pairwise deletion
 
 See also: listwise-deletion, missing-value, correlation
 
+## partial-correlation
+
+The correlation between two measures after the straight-line part of chosen other measures has been taken out of both.
+
+Why it matters: It separates a direct link from one that appears only because both measures follow a third; like any correlation it shows association, not cause.
+
+Written as: partial correlation, partial correlations, partial r
+
+See also: correlation, multicollinearity
+
 ## partial-eta-squared
 
 Eta-squared computed after setting aside variation explained by other factors, such as differences between the people measured repeatedly.

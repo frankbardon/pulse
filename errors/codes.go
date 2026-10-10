@@ -2627,13 +2627,21 @@ const (
 	// predict and the runtime before the crosstab dispatch.
 	PULSE_MATRIX_HOST_CONFLICT Code = "PULSE_MATRIX_HOST_CONFLICT"
 
-	// PULSE_MATRIX_NOT_PSD is a per-matrix WARNING (MatrixResult.Warnings,
-	// params.missing "pairwise" only): the pairwise matrix, scaled by its
-	// diagonal, is not positive semidefinite — the reference Cholesky
-	// fails even with a 1e-10 diagonal tolerance, so no data set has
-	// these pairwise figures. Detection only; nothing is repaired.
-	// Details carry "pivot" (axis index), "member", "checked" (members
-	// judged) and "tolerance".
+	// PULSE_MATRIX_NOT_PSD: a pairwise matrix (params.missing "pairwise"
+	// only), scaled by its diagonal, is not positive semidefinite — the
+	// reference Cholesky fails even with a 1e-10 diagonal tolerance, so
+	// no data set has these pairwise figures. Details carry "matrix",
+	// "pivot" (axis index), "member", "checked" (members judged) and
+	// "tolerance". Severity depends on the operator:
+	//   - a per-matrix WARNING (MatrixResult.Warnings, detection only)
+	//     on MAT_COVARIANCE / MAT_CORRELATION;
+	//   - a FATAL refusal on a decomposition operator
+	//     (MAT_PARTIAL_CORRELATION), whose input must be PSD, unless
+	//     params.repair is "nearest" (details add "repair_options");
+	//   - under params.repair "nearest", a WARNING that the input was
+	//     replaced by its nearest correlation matrix (Higham), details
+	//     adding "repair", "frobenius_adjustment" (correlation scale),
+	//     "iterations" and "converged".
 	PULSE_MATRIX_NOT_PSD Code = "PULSE_MATRIX_NOT_PSD"
 
 	// PULSE_MATRIX_LISTWISE_HEAVY_DROP is a per-matrix WARNING: listwise

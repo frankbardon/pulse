@@ -44,3 +44,35 @@ The determinant of the correlation table: 1 when no member is linearly related t
 
 - Null when the table is not positive definite, including when any cell is null.
 - No published convention bands it; a value near 0 flags near-redundant members.
+
+<a id="op-mat_partial_correlation"></a>
+
+### `MAT_PARTIAL_CORRELATION`
+
+How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. See its [catalog entry](../catalog/matrix.md#op-mat_partial_correlation).
+
+#### `primary.values`
+
+Each off-diagonal cell is the correlation of its row and column members once the held-fixed fields are taken out of both (every other member, or the params.control fields), from -1 to +1. 0 means no straight-line link is left after holding them fixed. The diagonal is 1.
+
+**Bands** (convention: Cohen (1988); a labelled convention, not a rule):
+
+| Absolute value | Label |
+|---|---|
+| below 0.1 | very small |
+| from 0.1 to below 0.3 | small |
+| from 0.3 to below 0.5 | medium |
+| 0.5 and above | large |
+
+**Sign:**
+
+- `+`: the two fields tend to rise together
+- `-`: one field tends to fall as the other rises
+
+**Caveats:**
+
+- Correlation is not causation: a third factor may drive both fields.
+- A partial r can be much smaller than, or even opposite in sign to, the plain r when the held-fixed fields drive both members; holding fixed a field that is itself an outcome of the pair can also create a link that is not there.
+- A null cell means the input had an undefined correlation (a member with no spread, or too few rows), so no cell can be computed.
+- Under params.repair the cells come from the nearest consistent correlation table, not the observed one; the PULSE_MATRIX_NOT_PSD warning says how far it moved.
+- The matrix reports no p-values.

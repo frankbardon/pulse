@@ -14,7 +14,7 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 	// Vector members: integer and float fields, plus packed_bool under
 	// the vector's coerce "binary" (internal/vectors.MemberTypeAllowed).
 	memberTypes := []string{"f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
-	// missing: the missing-data knobs both operators take
+	// missing: the missing-data knobs every operator takes
 	// (internal/vectors.decodeMissing).
 	missing := []descriptor.Param{
 		{Name: "missing", Type: "enum", Required: false, Default: vectors.MissingListwise, EnumValues: vectors.MissingModes(), Description: "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N)."},
@@ -38,6 +38,22 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			},
 			Streamable:      types.MAT_CORRELATION.Streamable(),
 			Mergeable:       types.MAT_CORRELATION.Mergeable(),
+			ComponentSchema: matrixSchema(),
+		},
+		{
+			Name:         string(types.MAT_PARTIAL_CORRELATION),
+			Description:  "Partial correlation matrix: each pair's Pearson correlation with other fields held fixed, from the precision matrix of the folded columns' correlation (listwise or pairwise). params.control \"all\" (default) controls each pair for every other member; a field list controls each pair for exactly those fields and drops any member it names from the output. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\", a singular one is PULSE_MATRIX_SINGULAR. Weighted under frequency and probability weights. No p-values.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "control", Type: "list", Required: false, Default: vectors.ControlAll, Description: "\"all\" (each pair controls for every other member: -P_ij/sqrt(P_ii*P_jj) of the precision matrix P) or a list of numeric field names: each output pair controls for exactly those fields. A listed member leaves the output axis; a listed field outside the members joins the co-moment and the missing-data mode."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: replace a non-PSD input correlation by its nearest correlation matrix (Higham alternating projections with Dykstra's correction, Matrix::nearPD corr = TRUE; at most 100 iterations, convergence 1e-7) and warn PULSE_MATRIX_NOT_PSD with frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD)."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "partial_correlation",
+				Auxiliary: []string{"n"},
+			},
+			Streamable:      types.MAT_PARTIAL_CORRELATION.Streamable(),
+			Mergeable:       types.MAT_PARTIAL_CORRELATION.Mergeable(),
 			ComponentSchema: matrixSchema(),
 		},
 		{

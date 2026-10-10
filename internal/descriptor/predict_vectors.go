@@ -60,12 +60,15 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 	buckets, basis, known := vectors.EstimateBuckets(req.Groups, schema)
 	out := make([]descriptor.MatrixPredict, 0, len(plans))
 	for _, m := range plans {
-		p := len(m.Members.Members)
+		// The output axis: every member, or under a
+		// MAT_PARTIAL_CORRELATION control list the non-control members.
+		axis, axisLabels := m.OutputMembers()
+		p := len(axis)
 		mp := descriptor.MatrixPredict{
 			Name:             m.Name,
 			Type:             m.Type,
 			Shape:            [2]int{p, p},
-			AxisKeys:         append([]string{}, m.Members.Members...),
+			AxisKeys:         axis,
 			Missing:          vectors.MissingListwise,
 			Encoding:         m.Encoding,
 			AccumulatorBytes: m.AccumulatorBytes(),
@@ -98,7 +101,7 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			mp.Missing = vectors.MissingPairwise
 		}
 		if m.ExplicitLabels {
-			mp.Labels = append([]string(nil), m.Members.Labels...)
+			mp.Labels = axisLabels
 		}
 		out = append(out, mp)
 	}

@@ -29,11 +29,13 @@ func TestPredict_Matrices(t *testing.T) {
 			{Name: "rho", Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"method": "spearman"}`)},
 			{Name: "tau", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"method": "kendall", "missing": "pairwise"}`)},
 			{Name: "pear", Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"method": "pearson"}`)},
+			{Name: "pv", Type: types.MAT_PARTIAL_CORRELATION, Vector: "v", Params: json.RawMessage(`{"control": ["q_1"]}`)},
+			{Name: "pc", Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_2", "q_3"}, Params: json.RawMessage(`{"control": ["q_1"], "missing": "pairwise"}`)},
 		},
 	}
 	env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
 	if len(env.Errors) != 0 {
-		t.Fatalf("unexpected errors: %v", env.Errors)
+		t.Fatalf("unexpected errors: %+v", *env.Errors[0])
 	}
 	got := env.Data.(*descriptor.PredictResult).Matrices
 	want := []descriptor.MatrixPredict{
@@ -59,6 +61,15 @@ func TestPredict_Matrices(t *testing.T) {
 		// An explicit "pearson" is the default: streamable, mergeable.
 		{Name: "pear", Type: types.MAT_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
 			Missing: "listwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 8*(2+3), Streamable: true},
+		// A partial correlation's axis drops a member control (q_1) and
+		// its label; an outside control (q_1 beside inline q_2, q_3)
+		// joins the fold, so the state and the PSD risk count three
+		// columns on a 2 × 2 result.
+		{Name: "pv", Type: types.MAT_PARTIAL_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_2", "q_3"},
+			Labels: []string{"Two", "Three"}, Missing: "listwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 8*(3+6), Streamable: true},
+		{Name: "pc", Type: types.MAT_PARTIAL_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_2", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
 	}
 	// Ungrouped: one bucket, p² cells, one accumulator per merge block.
 	for i := range want {
@@ -120,7 +131,7 @@ func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
 		t.Helper()
 		env := predictFromBytes(data, req(), nil)
 		if len(env.Errors) != 0 {
-			t.Fatalf("unexpected errors: %v", env.Errors)
+			t.Fatalf("unexpected errors: %+v", *env.Errors[0])
 		}
 		ms := env.Data.(*descriptor.PredictResult).Matrices
 		if len(ms) != 1 {
@@ -188,7 +199,7 @@ func TestPredict_MatrixBucketEstimate(t *testing.T) {
 			req := &types.Request{Groups: c.groups, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}, Matrices: specs}
 			env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
 			if len(env.Errors) != 0 {
-				t.Fatalf("unexpected errors: %v", env.Errors)
+				t.Fatalf("unexpected errors: %+v", *env.Errors[0])
 			}
 			got := env.Data.(*descriptor.PredictResult).Matrices
 			if len(got) != len(specs) {

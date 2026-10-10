@@ -2,7 +2,9 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -11,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -43,7 +46,7 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 		rows  [][5]float64
 		fires map[string]bool // "<type>/<p>" pairwise shapes that must warn
 	}{
-		{"three-way", nonPSDRows(), map[string]bool{"MAT_COVARIANCE/3": true, "MAT_CORRELATION/3": true}},
+		{"three-way", nonPSDRows(), map[string]bool{"MAT_COVARIANCE/3": true, "MAT_CORRELATION/3": true, "MAT_PARTIAL_CORRELATION/3": true}},
 		{"pair-cov", pairCovNotPSDRows(), map[string]bool{"MAT_COVARIANCE/2": true}},
 		{"reference", matrixRows(500), nil},
 	}
@@ -57,8 +60,13 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 			for _, mode := range []string{"listwise", "pairwise"} {
 				for _, members := range [][]string{{"x1", "x2", "x3"}, {"x1", "x2"}} {
 					label := fmt.Sprintf("%s/%s/%s/%d", fx.name, typ, mode, len(members))
-					spec := types.MatrixSpec{Name: "m", Type: typ, Vector: "v",
-						Params: json.RawMessage(`{"missing": "` + mode + `"}`)}
+					params := `{"missing": "` + mode + `"}`
+					if vectors.IsDecomposition(typ) {
+						// A decomposition operator refuses a non-PSD
+						// input unrepaired; repaired, it warns.
+						params = `{"missing": "` + mode + `", "repair": "nearest"}`
+					}
+					spec := types.MatrixSpec{Name: "m", Type: typ, Vector: "v", Params: json.RawMessage(params)}
 					req := &types.Request{
 						Cohort:   &types.Cohort{Filename: "p.pulse"},
 						Vectors:  []types.VectorSpec{{Name: "v", Fields: members}},
@@ -73,7 +81,18 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 						t.Fatalf("%s: predict reports %d matrices, want 1", label, len(pr.Matrices))
 					}
 					mp := pr.Matrices[0]
-					res := processMatrices(t, cfg, req).Matrices[0]
+					resp, err := New(cfg).Process(context.Background(), req)
+					if err != nil {
+						// A decomposition of a singular input (perfectly
+						// collinear members on these small fixtures)
+						// refuses; that is not a PSD-risk question.
+						var ce *errors.CodedError
+						if vectors.IsDecomposition(typ) && stderrors.As(err, &ce) && ce.Code == errors.PULSE_MATRIX_SINGULAR {
+							continue
+						}
+						t.Fatalf("%s: Process: %v", label, err)
+					}
+					res := resp.Matrices[0]
 
 					if mp.Name != res.Name || mp.Type != res.Type {
 						t.Errorf("%s: predict %s/%s, runtime %s/%s", label, mp.Name, mp.Type, res.Name, res.Type)

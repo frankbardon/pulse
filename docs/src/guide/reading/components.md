@@ -649,3 +649,11 @@ Only the floor keys.
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
 | `ddof` | int | always | The delta degrees of freedom the covariance used (params.ddof, default 1). |
+
+<a id="op-mat_partial_correlation"></a>
+
+#### `MAT_PARTIAL_CORRELATION`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_partial_correlation).
+
+Only the floor keys.

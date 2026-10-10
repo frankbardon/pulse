@@ -33,7 +33,11 @@ type matrixSlot struct {
 	plan   vectors.Matrix
 	weight *types.WeightSpec
 	state  *BlockCoMoments
-	x      []float64
+	// cols are the folded fields (plan.Columns(): the members, then
+	// any MAT_PARTIAL_CORRELATION control outside them), the co-moment
+	// axis.
+	cols []string
+	x    []float64
 	// rows is a BUFFERED slot's admitted rows (the plan is not
 	// Streamable: a finalizer that needs the whole row set, e.g. a
 	// rank method); nil on a co-moment slot. A buffered slot still
@@ -124,7 +128,8 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 		if plan.Pairwise {
 			mode = linalg.Pairwise
 		}
-		st, err := NewBlockCoMoments(len(plan.Members.Members), mode)
+		cols := plan.Columns()
+		st, err := NewBlockCoMoments(len(cols), mode)
 		if err != nil {
 			return nil, err
 		}
@@ -132,11 +137,12 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			plan:    plan,
 			weight:  s.weights[i],
 			state:   st,
-			x:       make([]float64, len(plan.Members.Members)),
+			cols:    cols,
+			x:       make([]float64, len(cols)),
 			compute: s.compute,
 		}
 		if !plan.Streamable {
-			slots[i].rows = newMatrixRows(len(plan.Members.Members), plan.Pairwise)
+			slots[i].rows = newMatrixRows(len(cols), plan.Pairwise)
 		}
 		workMatrixAccumulators.Add(1)
 	}
@@ -152,7 +158,7 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 // and adds no mass. The field argument is ignored (BlockMerger shape).
 func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 	null, all := false, true
-	for i, f := range m.plan.Members.Members {
+	for i, f := range m.cols {
 		v, ok := r.NumericValue(f)
 		if !ok {
 			v = math.NaN()
@@ -267,7 +273,7 @@ func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
 	}
 	if m.plan.Pairwise {
 		c.NNull = int(m.allNull)
-		p := len(m.plan.Members.Members)
+		p := len(m.cols)
 		if p > 0 {
 			lo, hi := cm.PairN(0, 0), cm.PairN(0, 0)
 			for i := 0; i < p; i++ {
@@ -300,8 +306,9 @@ func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
 // types.AllMatrixTypes() entry (there is no extension MAT_* category).
 // The contract is matrixFinalizer (matrix_finalize.go).
 var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
-	types.MAT_COVARIANCE:  finalizeCovariance,
-	types.MAT_CORRELATION: finalizeCorrelation,
+	types.MAT_COVARIANCE:          finalizeCovariance,
+	types.MAT_CORRELATION:         finalizeCorrelation,
+	types.MAT_PARTIAL_CORRELATION: finalizePartialCorrelation,
 }
 
 // finalizeCovariance is MAT_COVARIANCE: M2 / (W − ddof), NaN where
@@ -331,21 +338,23 @@ func finalizeCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
 	return in.coMomentOutput(in.CM.Corr()), nil
 }
 
-// values renders a square symmetric matrix over the slot's members in
-// its encoding: full rows, or the upper triangle (row r from column r).
-// at reads cell (r, c).
+// values renders a square symmetric matrix over the slot's OUTPUT
+// axis (plan.OutputMembers: every member, or a
+// MAT_PARTIAL_CORRELATION's non-control members) in its encoding: full
+// rows, or the upper triangle (row r from column r). at reads cell
+// (r, c) in output-axis coordinates.
 func (m *matrixSlot) values(at func(r, c int) float64) *types.MatrixValues {
-	members := m.plan.Members.Members
+	members, labels := m.plan.OutputMembers()
 	p := len(members)
 	out := &types.MatrixValues{
 		Kind:       types.MatrixKindSquareSymmetric,
 		Encoding:   m.plan.Encoding,
-		RowKeys:    append([]string(nil), members...),
+		RowKeys:    members,
 		ColumnKeys: append([]string(nil), members...),
 		Values:     make([][]float64, p),
 	}
 	if m.plan.ExplicitLabels {
-		out.Labels = append([]string(nil), m.plan.Members.Labels...)
+		out.Labels = labels
 	}
 	for r := 0; r < p; r++ {
 		start := 0

@@ -3187,8 +3187,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_NOT_PSD: {
-		Message: "A pairwise matrix (`params.missing` = `pairwise`) is not positive semidefinite: each pair was computed over its own rows, and together the figures are inconsistent — no single data set produces them. Detected with the reference Cholesky on the matrix scaled by its diagonal, with a 1e-10 tolerance; details name the failing pivot (`pivot` axis index, `member`). The matrix is returned unchanged; downstream methods that need a valid covariance or correlation matrix will fail or mislead on it.",
+		Message: "A pairwise matrix (`params.missing` = `pairwise`) is not positive semidefinite: each pair was computed over its own rows, and together the figures are inconsistent — no single data set produces them. Detected with the reference Cholesky on the matrix scaled by its diagonal, with a 1e-10 tolerance; details name the failing pivot (`pivot` axis index, `member`). On the covariance and correlation operators it is a warning and the matrix is returned unchanged; downstream methods that need a valid covariance or correlation matrix will fail or mislead on it. On a decomposition operator (partial correlation) it is FATAL unless `params.repair` is `nearest`, which replaces the input by its nearest correlation matrix (Higham alternating projections, Matrix::nearPD) and keeps this code as a warning carrying `frobenius_adjustment`.",
 		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"matrices", "*", "params", "repair"},
+				Hint:   "On a decomposition operator (partial correlation), set `repair: \"nearest\"` to run on the nearest correlation matrix; the warning reports how far it moved (`frobenius_adjustment`).",
+			},
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"matrices", "*", "params", "missing"},

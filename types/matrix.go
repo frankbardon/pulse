@@ -29,6 +29,17 @@ const (
 	// (diagonal included) are NaN (null on the wire). Weighted under frequency and probability weights
 	// (r is scale-free, so the two kinds agree). No p-values.
 	MAT_CORRELATION MatrixType = "MAT_CORRELATION"
+	// MAT_PARTIAL_CORRELATION is the partial correlation matrix: each
+	// pair's correlation with other fields held fixed, read off the
+	// precision matrix of the members' Pearson correlations.
+	// params.control "all" (default: each pair controls for every other
+	// member) or a list of numeric fields (members or not; each output
+	// pair controls for exactly those, and the output covers the
+	// non-control members). A decomposition operator: a non-PSD input
+	// (pairwise) is refused with PULSE_MATRIX_NOT_PSD unless
+	// params.repair "nearest"; a singular one is PULSE_MATRIX_SINGULAR.
+	// Weighted under frequency and probability weights. No p-values.
+	MAT_PARTIAL_CORRELATION MatrixType = "MAT_PARTIAL_CORRELATION"
 )
 
 // AllMatrixTypes returns every built-in matrix operator in alphabetical
@@ -37,6 +48,7 @@ func AllMatrixTypes() []MatrixType {
 	return []MatrixType{
 		MAT_CORRELATION,
 		MAT_COVARIANCE,
+		MAT_PARTIAL_CORRELATION,
 	}
 }
 
@@ -48,7 +60,7 @@ func AllMatrixTypes() []MatrixType {
 // MatrixSpec.Streamable, which its params may turn off.
 func (t MatrixType) Streamable() bool {
 	switch t {
-	case MAT_CORRELATION, MAT_COVARIANCE:
+	case MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION:
 		return true
 	}
 	return false
@@ -63,7 +75,7 @@ func (t MatrixType) Streamable() bool {
 // Streamable: the merge gate reads MatrixSpec.Mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
-	case MAT_CORRELATION, MAT_COVARIANCE:
+	case MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION:
 		return true
 	}
 	return false
@@ -126,7 +138,8 @@ type MatrixSpec struct {
 	// "ddof": 0 | 1; both: "missing": "listwise" | "pairwise",
 	// "max_drop_share": a share in [0, 1], listwise only, no default;
 	// MAT_CORRELATION only: "summary": {"top_pairs": k}, k a positive
-	// integer).
+	// integer, and "method"; MAT_PARTIAL_CORRELATION: "control": "all" |
+	// [fields], "repair": "nearest").
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot

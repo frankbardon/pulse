@@ -319,6 +319,7 @@ var builtinFeatures = withDependencies([]Feature{
 	// Matrix operators — types.AllMatrixTypes().
 	op("MAT_CORRELATION"),
 	op("MAT_COVARIANCE"),
+	op("MAT_PARTIAL_CORRELATION"),
 	// Overlay kinds — types.AllOverlayKinds().
 	op("OVERLAY_CHISQ_COL"),
 	op("OVERLAY_CHISQ_MATRIX"),
@@ -584,6 +585,7 @@ var hardEdges = map[string][]string{
 	featFilterToFile:                        {"FILTER_EXPRESSION"},
 	"MAT_CORRELATION":                       {featMatrices},
 	"MAT_COVARIANCE":                        {featMatrices},
+	"MAT_PARTIAL_CORRELATION":               {featMatrices},
 }
 
 // RequestHostCapabilities returns the request-executing host

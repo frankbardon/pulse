@@ -9,7 +9,23 @@ import "github.com/frankbardon/pulse/descriptor"
 // output_keys.scalars). MAT_COVARIANCE's cells are in the members' own
 // units, so it declares none.
 var matrixInterpretations = map[string][]descriptor.Interpretation{
-	"MAT_CORRELATION": interpMatCorrelation,
+	"MAT_CORRELATION":         interpMatCorrelation,
+	"MAT_PARTIAL_CORRELATION": interpMatPartialCorrelation,
+}
+
+var interpMatPartialCorrelation = []descriptor.Interpretation{
+	bandedBy(ConventionCohenR, descriptor.Interpretation{
+		Field: "primary.values",
+		Means: "Each off-diagonal cell is the correlation of its row and column members once the held-fixed fields are taken out of both (every other member, or the params.control fields), from -1 to +1. 0 means no straight-line link is left after holding them fixed. The diagonal is 1.",
+		Sign:  correlationSign,
+		Caveats: []string{
+			causationCaveatText,
+			"A partial r can be much smaller than, or even opposite in sign to, the plain r when the held-fixed fields drive both members; holding fixed a field that is itself an outcome of the pair can also create a link that is not there.",
+			"A null cell means the input had an undefined correlation (a member with no spread, or too few rows), so no cell can be computed.",
+			"Under params.repair the cells come from the nearest consistent correlation table, not the observed one; the PULSE_MATRIX_NOT_PSD warning says how far it moved.",
+			"The matrix reports no p-values.",
+		},
+	}),
 }
 
 var interpMatCorrelation = []descriptor.Interpretation{

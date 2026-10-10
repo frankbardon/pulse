@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -113,7 +114,13 @@ func TestMatrixPairwise_AuxiliaryNShape(t *testing.T) {
 						Matrices: []types.MatrixSpec{spec},
 					}).Matrices[0]
 				}
-				def, list, pair := mk(""), mk(`{"missing": "listwise"}`), mk(`{"missing": "pairwise"}`)
+				pairParams := `{"missing": "pairwise"}`
+				if vectors.IsDecomposition(typ) {
+					// These pairwise correlations are not PSD: a
+					// decomposition operator refuses them unrepaired.
+					pairParams = `{"missing": "pairwise", "repair": "nearest"}`
+				}
+				def, list, pair := mk(""), mk(`{"missing": "listwise"}`), mk(pairParams)
 				if def.Auxiliary != nil || list.Auxiliary != nil {
 					t.Fatalf("listwise carries auxiliary %v / %v", def.Auxiliary, list.Auxiliary)
 				}
@@ -174,6 +181,9 @@ func nonPSDRows() [][5]float64 {
 // (singular but PSD) pairwise matrix and the listwise mode are not.
 func TestMatrixWarnings_NotPSD(t *testing.T) {
 	for _, typ := range types.AllMatrixTypes() {
+		if vectors.IsDecomposition(typ) {
+			continue // fatal or repaired: TestMatrixPartialCorrelation_NotPSDGuard
+		}
 		t.Run(string(typ), func(t *testing.T) {
 			res := runOneMatrix(t, nonPSDRows(), missingSpec(typ, x123, "", `{"missing": "pairwise"}`))
 			w := findWarning(res, errors.PULSE_MATRIX_NOT_PSD)

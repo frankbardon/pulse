@@ -2,9 +2,9 @@
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a square result in which every member is compared
-with every member. Two operators ship: `MAT_COVARIANCE` and
+with every member. Three operators ship: `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
-`params.method`). Both are additive: a request without
+`params.method`) and `MAT_PARTIAL_CORRELATION`. All are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -55,7 +55,9 @@ from the diagonal). Undefined cells are `null`, keys kept.
 - `missing: "listwise"` (default) drops a row with any null member;
   `"pairwise"` uses, per cell, the rows where both members are present.
   A pairwise matrix of three or more members may fail to be positive
-  semi-definite (`PULSE_MATRIX_NOT_PSD`, detection only).
+  semi-definite (`PULSE_MATRIX_NOT_PSD`: detection only on the
+  covariance and correlation operators, fatal on a decomposition
+  operator — see Partial correlation).
 - `max_drop_share` (listwise) warns `PULSE_MATRIX_LISTWISE_HEAVY_DROP`.
 - `PULSE_MATRIX_INSUFFICIENT_N` and `PULSE_MATRIX_ZERO_VARIANCE` flag thin
   or constant members. A constant member nulls its correlation row and
@@ -74,6 +76,33 @@ every admitted row until finalize, so the request runs buffered and
 serially (predict: `streamable` and `mergeable` false,
 `row_buffer_bytes`); it takes frequency weights only (a probability
 weight is `PULSE_WEIGHT_UNSUPPORTED`) and emits no p-values.
+
+## Partial correlation
+
+`MAT_PARTIAL_CORRELATION` reads each pair's Pearson correlation with
+other fields held fixed, off the precision matrix of the members'
+correlation (the same co-moments as `MAT_CORRELATION`, so it streams,
+merges and takes both weight kinds). `params.control` is `"all"`
+(default: every pair controls for every other member, as
+`ppcor::pcor`) or a list of numeric fields: each output pair then
+controls for exactly those (`ppcor::pcor.test(x, y, Z)`), a listed
+member leaves the output axis, and a listed field outside the members
+joins the fold and its missing-data mode (projection and
+`Components.Matrices` count it). No p-values, no scalars; pairwise adds
+`auxiliary.n`. If any input correlation is undefined every cell is
+`null`.
+
+It is a **decomposition** operator, so its input must be usable: a
+pairwise input that is not positive semi-definite is refused with the
+fatal `PULSE_MATRIX_NOT_PSD` (predict flags the risk as
+`pairwise_psd_risk`) unless `params.repair: "nearest"`, which replaces
+it by the nearest correlation matrix — Higham's alternating projections
+with Dykstra's correction, `Matrix::nearPD(corr = TRUE)`'s settings
+(at most 100 iterations, convergence 1e-7, eigenvalue floor 1e-8 of the
+largest) — and keeps the code as a warning carrying
+`frobenius_adjustment`, `iterations` and `converged`. A member or
+control that is a linear mix of the others is `PULSE_MATRIX_SINGULAR`
+with `rank`, `condition_number` and `dependent_fields`.
 
 ## Groups, cost and refusals
 

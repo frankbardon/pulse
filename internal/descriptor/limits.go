@@ -96,7 +96,7 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		})
 		if err == nil {
 			for _, m := range plans {
-				if f, ok := limits.Evaluate(l, limits.MaxMatrixDim, int64(len(m.Members.Members)), limits.Certain); ok {
+				if f, ok := limits.Evaluate(l, limits.MaxMatrixDim, int64(len(m.Columns())), limits.Certain); ok {
 					out = append(out, f)
 				}
 			}

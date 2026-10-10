@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
+	"gonum.org/v1/gonum/mat"
 )
 
 // matrix_merge_invariance_test.go is the U16 E2 gate: the REAL
@@ -90,6 +91,13 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 			spec.Params = json.RawMessage(`{"missing": "pairwise", "summary": {"top_pairs": 3}}`)
 		}
 	}
+	// MAT_PARTIAL_CORRELATION is a decomposition operator: these
+	// pairwise correlations are not PSD, so its pairwise variant repairs
+	// them (the repair is a function of the merged bits, so it is as
+	// worker-invariant as they are).
+	if v.matrixType() == types.MAT_PARTIAL_CORRELATION && v.pairwise {
+		spec.Params = json.RawMessage(`{"missing": "pairwise", "repair": "nearest"}`)
+	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
 	}
@@ -116,6 +124,11 @@ type matrixRun struct {
 	run       types.RunComponents
 	comps     []types.MatrixComponents
 	instances int64
+	// anchorTol is the relative tolerance against the reference anchor:
+	// 1e-9, or 1e-6 for MAT_PARTIAL_CORRELATION, whose inversion of
+	// these near-collinear members (x2 ≈ x1 / 2, cond ≈ 1e8) amplifies
+	// the blocked-vs-straight co-moment rounding.
+	anchorTol float64
 }
 
 func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decodeWorkers, shardWorkers int) matrixRun {
@@ -155,7 +168,10 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 	if !pairwise && findWarning(m, errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP) == nil {
 		t.Fatalf("listwise variant carries no PULSE_MATRIX_LISTWISE_HEAVY_DROP (warnings %v)", matWarningCodes(m))
 	}
-	out := matrixRun{words: words, auxN: auxN, warnings: resp.Warnings, matWarns: m.Warnings, instances: stats.instancesWithRows.Load()}
+	out := matrixRun{words: words, auxN: auxN, warnings: resp.Warnings, matWarns: m.Warnings, instances: stats.instancesWithRows.Load(), anchorTol: 1e-9}
+	if req.Matrices[0].Type == types.MAT_PARTIAL_CORRELATION {
+		out.anchorTol = 1e-6
+	}
 	if req.Matrices[0].Type == types.MAT_CORRELATION {
 		pairs, ok := m.Vectors["top_pairs"].([]types.MatrixPair)
 		if !ok || len(pairs) != 3 {
@@ -240,8 +256,14 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 		c.Add([]float64{read(r, 0), read(r, 1), read(r, 2)}, w)
 	}
 	cov := c.Cov(1)
-	if v.matrixType() == types.MAT_CORRELATION {
+	switch v.matrixType() {
+	case types.MAT_CORRELATION:
 		cov = c.Corr()
+	case types.MAT_PARTIAL_CORRELATION:
+		if v.pairwise {
+			return nil // the repaired matrix has no independent anchor here
+		}
+		cov = referencePartial(t, c.Corr())
 	}
 	var words []uint64
 	for i := 0; i < 3; i++ {
@@ -252,15 +274,44 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 	return words
 }
 
+// referencePartial is the control-"all" partial correlation of r
+// through gonum's general inverse — an anchor independent of the
+// engine's reference InverseSPD.
+func referencePartial(t *testing.T, r *linalg.Sym) *linalg.Sym {
+	t.Helper()
+	n := r.N()
+	d := mat.NewDense(n, n, nil)
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			d.Set(i, j, r.At(i, j))
+		}
+	}
+	var inv mat.Dense
+	if err := inv.Inverse(d); err != nil {
+		t.Fatalf("reference inverse: %v", err)
+	}
+	out, _ := linalg.NewSym(n, nil)
+	for i := 0; i < n; i++ {
+		out.Set(i, i, 1)
+		for j := i + 1; j < n; j++ {
+			out.Set(i, j, -inv.At(i, j)/math.Sqrt(inv.At(i, i)*inv.At(j, j)))
+		}
+	}
+	return out
+}
+
 func assertMatrixCloseToReference(t *testing.T, got matrixRun, ref []uint64) {
 	t.Helper()
+	if ref == nil {
+		return
+	}
 	cells := got.words[:len(got.words)-1] // drop the determinant
 	if len(cells) != len(ref) {
 		t.Fatalf("matrix has %d cells, reference %d", len(cells), len(ref))
 	}
 	for i := range ref {
 		x, y := math.Float64frombits(cells[i]), math.Float64frombits(ref[i])
-		if d := math.Abs(x - y); !(d <= 1e-9*math.Max(1, math.Max(math.Abs(x), math.Abs(y)))) {
+		if d := math.Abs(x - y); !(d <= got.anchorTol*math.Max(1, math.Max(math.Abs(x), math.Abs(y)))) {
 			t.Errorf("cell %d: %v, reference %v", i, x, y)
 		}
 	}

@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:2079f61ff41eb586f7282bd739c1f9ac19f4ec26958d79409458918d91244e7a",
+  "$comment": "feature_set_digest: fs1:7a432e0c8e7568672e326159e97550e6d818c42bb2cfb84b2910a1d4497f54a0",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2047,7 +2047,8 @@
     "MatrixType": {
       "enum": [
         "MAT_CORRELATION",
-        "MAT_COVARIANCE"
+        "MAT_COVARIANCE",
+        "MAT_PARTIAL_CORRELATION"
       ],
       "type": "string"
     },
@@ -3956,4 +3957,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 2cb080d8e9d6e342e3897268c83ed0c04ea2b0dfa86794ddab8c59ccd6fc3990
+// golden-hash: 8aa51d1abb322772d1e565be9acc7ca1c815ce0468f6b556e576d8dd0e6e2720

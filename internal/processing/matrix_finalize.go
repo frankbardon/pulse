@@ -49,8 +49,14 @@ type matrixFinalizeInput struct {
 // Plan returns the slot's resolved spec.
 func (in *matrixFinalizeInput) Plan() vectors.Matrix { return in.slot.plan }
 
-// Members returns the slot's axis members in order.
-func (in *matrixFinalizeInput) Members() []string { return in.slot.plan.Members.Members }
+// Members returns the slot's folded columns in order — the CM axis
+// (plan.Columns(): the members, then any MAT_PARTIAL_CORRELATION
+// control outside them). On every other operator they are the members.
+func (in *matrixFinalizeInput) Members() []string { return in.slot.cols }
+
+// Output returns the output axis as Members positions
+// (plan.OutputIndices()); Square's coordinates index it.
+func (in *matrixFinalizeInput) Output() []int { return in.slot.plan.OutputIndices() }
 
 // WantAuxiliary, WantVectors and WantScalars report whether the run's
 // plan renders that part (a `return` exclusion skips it).
@@ -58,8 +64,8 @@ func (in *matrixFinalizeInput) WantAuxiliary() bool { return in.slot.compute.Mat
 func (in *matrixFinalizeInput) WantVectors() bool   { return in.slot.compute.MatrixVectors }
 func (in *matrixFinalizeInput) WantScalars() bool   { return in.slot.compute.MatrixScalars }
 
-// Square renders a square symmetric matrix over the members in the
-// slot's encoding; at reads cell (r, c).
+// Square renders a square symmetric matrix over the output axis in the
+// slot's encoding; at reads cell (r, c) in output coordinates.
 func (in *matrixFinalizeInput) Square(at func(r, c int) float64) *types.MatrixValues {
 	return in.slot.values(at)
 }

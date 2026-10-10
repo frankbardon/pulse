@@ -348,6 +348,10 @@
           {
             "when": "you need a p-value for one pair's Kendall tau",
             "use": "TEST_KENDALL_TAU"
+          },
+          {
+            "when": "you want each pair's link with other fields held fixed",
+            "use": "MAT_PARTIAL_CORRELATION"
           }
         ]
       },
@@ -469,9 +473,9 @@
       }
     ],
     "truncated": true,
-    "candidates_considered": 12
+    "candidates_considered": 13
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: a9581a4f8365367e4a800bc5e6bd508e2ff6ce75577fd0382c7b444c60a28d85
+// golden-hash: fcf390c451c1977f6751418ddfd64b3cea1a1b39e8e1ad86cb110e19072eba9f

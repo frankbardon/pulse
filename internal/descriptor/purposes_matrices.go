@@ -5,12 +5,41 @@ import "github.com/frankbardon/pulse/descriptor"
 // matrixPurposes is the Purpose registry for the MAT_* operators, keyed
 // by type. builtinPurposes assembles it with the other category maps.
 // Matrix operators are descriptive: they report figures, no p-values.
-// MAT_CORRELATION's primary is a standardised figure, so it carries an
-// Interpretation (matrixInterpretations in interpretations_matrices.go);
+// MAT_CORRELATION's and MAT_PARTIAL_CORRELATION's primaries are
+// standardised figures, so each carries an Interpretation (matrixInterpretations in interpretations_matrices.go);
 // MAT_COVARIANCE's is in the members' own units and declares none.
 var matrixPurposes = map[string]descriptor.Purpose{
-	"MAT_CORRELATION": purposeMatCorrelation,
-	"MAT_COVARIANCE":  purposeMatCovariance,
+	"MAT_CORRELATION":         purposeMatCorrelation,
+	"MAT_COVARIANCE":          purposeMatCovariance,
+	"MAT_PARTIAL_CORRELATION": purposeMatPartialCorrelation,
+}
+
+var purposeMatPartialCorrelation = descriptor.Purpose{
+	Plain:   "How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1.",
+	KnownAs: []string{"partial r", "controlling for", "partial correlation matrix", "partial correlations"},
+	Intents: []string{IntentRelationship, IntentDrivers},
+	Questions: []string{
+		"Does satisfaction still track price once delivery time is held fixed?",
+		"Which of these ratings are linked directly, rather than only through the overall score?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey:  "Driver analysis: which rating items stay linked to the overall score once the other items are held fixed.",
+		descriptor.DomainOps:     "Whether two store metrics still move together once foot traffic, which drives both, is held fixed.",
+		descriptor.DomainScience: "Separating direct links among measured responses from links that run through a shared third measure.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you want each pair's link with nothing held fixed", Use: "MAT_CORRELATION"},
+		{When: "you want how much each field moves the outcome, in its own units", Use: "REG_OLS"},
+		{When: "you need a p-value for one pair", Use: "TEST_PEARSON_R"},
+	},
+	Assumptions: []string{
+		"Each pair is held fixed for the other members by default, or for exactly the fields named in params.control.",
+		"Only straight-line links are removed and measured; a curved link to a held-fixed field leaves a trace.",
+		"A row with any member or control missing is dropped from every cell (listwise deletion) unless pairwise deletion is chosen, which can leave the input inconsistent; that input is refused unless it is repaired.",
+		"A field that is an exact straight-line mix of the others leaves nothing to compare, so the matrix is refused.",
+	},
+	Level:    descriptor.LevelAdvanced,
+	Glossary: []string{"partial-correlation", "correlation", "listwise-deletion", "pairwise-deletion", "multicollinearity"},
 }
 
 var purposeMatCorrelation = descriptor.Purpose{
@@ -31,6 +60,7 @@ var purposeMatCorrelation = descriptor.Purpose{
 		{When: "you want the joint spread in the fields' own units", Use: "MAT_COVARIANCE"},
 		{When: "you need a p-value for one pair's rank correlation", Use: "TEST_SPEARMAN_R"},
 		{When: "you need a p-value for one pair's Kendall tau", Use: "TEST_KENDALL_TAU"},
+		{When: "you want each pair's link with other fields held fixed", Use: "MAT_PARTIAL_CORRELATION"},
 	},
 	Assumptions: []string{
 		"A row with any member missing is dropped from every cell (listwise deletion).",

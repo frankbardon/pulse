@@ -86,6 +86,7 @@
   ],
   "statistic_bindings": {
     "MAT_CORRELATION": "pearson_r",
+    "MAT_PARTIAL_CORRELATION": "pearson_r",
     "REG_OLS": "r_squared",
     "TEST_FISHER_EXACT": "odds_ratio",
     "TEST_PEARSON_R": "pearson_r"

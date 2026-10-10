@@ -2,6 +2,8 @@ package vectors
 
 import (
 	"encoding/json"
+	stderrors "errors"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -238,5 +240,91 @@ func TestResolveMatrices_Method(t *testing.T) {
 	}
 	if SpecMethod(types.MatrixSpec{Type: types.MAT_COVARIANCE}) != "" {
 		t.Error("SpecMethod on MAT_COVARIANCE must be empty")
+	}
+}
+
+// TestResolveMatrices_PartialControls: MAT_PARTIAL_CORRELATION's
+// params.control — "all" / absent / null control for every member; a
+// list may name members (they leave the output axis) and other numeric
+// fields (they join the fold after the members, as Extra), each
+// resolved by the vector rules; params.repair accepts "nearest" only.
+func TestResolveMatrices_PartialControls(t *testing.T) {
+	resolve := func(params string) (Matrix, error) {
+		spec := types.MatrixSpec{Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_1", "q_2", "q_3"}}
+		if params != "" {
+			spec.Params = json.RawMessage(params)
+		}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	for _, params := range []string{"", `{"control": "all"}`, `{"control": null}`} {
+		m, err := resolve(params)
+		if err != nil {
+			t.Fatalf("%s: %v", params, err)
+		}
+		if m.Controls != nil || m.Output != nil || m.Extra != nil || !reflect.DeepEqual(m.Columns(), []string{"q_1", "q_2", "q_3"}) {
+			t.Errorf("%s: controls %v output %v extra %v", params, m.Controls, m.Output, m.Extra)
+		}
+		if axis, _ := m.OutputMembers(); !reflect.DeepEqual(axis, []string{"q_1", "q_2", "q_3"}) {
+			t.Errorf("%s: axis %v", params, axis)
+		}
+	}
+	m, err := resolve(`{"control": ["score", "q_2", "mid"], "repair": "nearest", "missing": "pairwise"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(m.Columns(), []string{"q_1", "q_2", "q_3", "score", "mid"}) || !reflect.DeepEqual(m.Output, []int{0, 2}) {
+		t.Errorf("columns %v output %v", m.Columns(), m.Output)
+	}
+	if axis, _ := m.OutputMembers(); !reflect.DeepEqual(axis, []string{"q_1", "q_3"}) {
+		t.Errorf("axis %v", axis)
+	}
+	if m.Repair != RepairNearest || !m.Pairwise || !m.Decomposition() || !m.PSDRisk() {
+		t.Errorf("repair %q pairwise %v decomposition %v risk %v", m.Repair, m.Pairwise, m.Decomposition(), m.PSDRisk())
+	}
+	for params, want := range map[string]errors.Code{
+		`{"control": []}`:                     errors.SERVICE_VALIDATION,
+		`{"control": "none"}`:                 errors.SERVICE_VALIDATION,
+		`{"control": 3}`:                      errors.SERVICE_VALIDATION,
+		`{"control": ["q_1", "q_1"]}`:         errors.SERVICE_VALIDATION,
+		`{"control": ["q_*"]}`:                errors.SERVICE_VALIDATION,
+		`{"control": ["q_1", "q_2", "q_3"]}`:  errors.SERVICE_VALIDATION,
+		`{"control": ["nope"]}`:               errors.SERVICE_VALIDATION,
+		`{"control": ["region"]}`:             errors.PULSE_VECTOR_MEMBER_TYPE,
+		`{"repair": "clip"}`:                  errors.SERVICE_VALIDATION,
+		`{"summary": {"top_pairs": 1}}`:       errors.SERVICE_VALIDATION,
+		`{"control": ["mid"], "method": "x"}`: errors.SERVICE_VALIDATION,
+	} {
+		_, err := resolve(params)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != want {
+			t.Errorf("%s: error %v, want %s", params, err, want)
+		}
+	}
+	// An unknown outside control names its own params.control entry.
+	_, cerr := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_1", "q_2"},
+		Params: json.RawMessage(`{"control": ["q_1", "score", "nope"]}`)}}}, testSchema(), nil)
+	if cerr == nil || cerr.Details["slot"] != "matrices[0].params.control[2]" || cerr.Details["field"] != "nope" {
+		t.Errorf("unknown control refusal = %v", cerr)
+	}
+	// MAT_CORRELATION does not take repair or control.
+	for _, params := range []string{`{"repair": "nearest"}`, `{"control": "all"}`} {
+		_, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"q_1", "q_2"}, Params: json.RawMessage(params)}}}, testSchema(), nil)
+		if err == nil || err.Details["reason"] != "bad_params" {
+			t.Errorf("MAT_CORRELATION %s: %v, want bad_params", params, err)
+		}
+	}
+	// Projection reads the outside controls.
+	req := &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_1", "q_2"},
+		Params: json.RawMessage(`{"control": ["score"]}`)}}}
+	if got, ok := MatrixMembers(req, testSchema()); !ok || !reflect.DeepEqual(got, []string{"score", "q_1", "q_2"}) {
+		t.Errorf("MatrixMembers = %v, %v", got, ok)
+	}
+	req.Matrices[0].Params = json.RawMessage(`{"control": ["nope"]}`)
+	if _, ok := MatrixMembers(req, testSchema()); ok {
+		t.Error("MatrixMembers ok with an unknown control")
 	}
 }

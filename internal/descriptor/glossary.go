@@ -465,6 +465,13 @@ var glossaryRegistry = []descriptor.Term{
 		Jargon:  true, Forms: []string{"correlation", "correlations", "correlation coefficient"},
 	},
 	{
+		ID:      "partial-correlation",
+		Short:   "The correlation between two measures after the straight-line part of chosen other measures has been taken out of both.",
+		WhyCare: "It separates a direct link from one that appears only because both measures follow a third; like any correlation it shows association, not cause.",
+		SeeAlso: []string{"correlation", "multicollinearity"},
+		Jargon:  true, Forms: []string{"partial correlation", "partial correlations", "partial r"},
+	},
+	{
 		ID:      "cross-tabulation",
 		Short:   "A table that counts rows for every combination of two categorical fields, one along the rows and one along the columns.",
 		WhyCare: "It is the simplest way to see whether two categories go together; a chi-square test then says how surprising the pattern would be if the two fields were unrelated.",

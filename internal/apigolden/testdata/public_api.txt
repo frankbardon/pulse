@@ -3979,6 +3979,7 @@ pulse/types: type LookupResult field Rows []map[string]any "json:\"rows\""
 pulse/types: type LookupResult field Warnings []string "json:\"warnings,omitempty\""
 pulse/types: const MAT_CORRELATION pulse/types.MatrixType = "MAT_CORRELATION"
 pulse/types: const MAT_COVARIANCE pulse/types.MatrixType = "MAT_COVARIANCE"
+pulse/types: const MAT_PARTIAL_CORRELATION pulse/types.MatrixType = "MAT_PARTIAL_CORRELATION"
 pulse/types: type MarginAggregationFault struct
 pulse/types: type MarginAggregationFault field Details map[string]any
 pulse/types: type MarginAggregationFault field Kind pulse/types.MarginAggregationFaultKind
@@ -4543,4 +4544,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a996dd54c034849a1c382443b7ce7ba950a315b262c00955de0553ee5a86a14c
+// golden-hash: b1bc901c371468d017a72b6e457ba4c0d38361445d508884c061d7043dddc88d

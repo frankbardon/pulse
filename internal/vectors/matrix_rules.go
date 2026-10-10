@@ -23,16 +23,21 @@ import (
 //     different rows need not satisfy |C_ij| ≤ √(V_i·V_j);
 //   - MAT_CORRELATION at p ≥ 3 — a 2 × 2 correlation is clamped to
 //     [−1, 1] with a unit diagonal, which is always PSD, but three
-//     pairwise r's need not be mutually consistent.
+//     pairwise r's need not be mutually consistent;
+//   - MAT_PARTIAL_CORRELATION at p ≥ 3 folded columns (members plus
+//     outside controls) — its input is the pairwise correlation over
+//     every column. A decomposition operator (Decomposition): there the
+//     risk is a FATAL PULSE_MATRIX_NOT_PSD, or the repair warning under
+//     params.repair "nearest", never the detection-only warning.
 func (m Matrix) PSDRisk() bool {
 	if !m.Pairwise {
 		return false
 	}
-	p := len(m.Members.Members)
+	p := len(m.Columns())
 	switch m.Type {
 	case types.MAT_COVARIANCE:
 		return p >= 2
-	case types.MAT_CORRELATION:
+	case types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION:
 		return p >= 3
 	}
 	return false
@@ -48,13 +53,14 @@ const (
 )
 
 // AccumulatorBytes estimates the payload bytes of one co-moment state
-// over the matrix's members: 32 + 8·(p + p(p+1)/2) listwise,
+// over the matrix's folded columns (Columns: the members plus any
+// outside control): 32 + 8·(p + p(p+1)/2) listwise,
 // 32 + 56·p(p+1)/2 pairwise. The engine holds one such state per
 // populated merge block (linalg.MergeBlockSize rows) until finalize, so
 // a run's matrix state is this times its block count. Go headers and
 // map overhead are not counted.
 func (m Matrix) AccumulatorBytes() int64 {
-	p := int64(len(m.Members.Members))
+	p := int64(len(m.Columns()))
 	cells := p * (p + 1) / 2
 	if m.Pairwise {
 		return coMomentHeaderBytes + pairMomentBytes*cells
@@ -72,7 +78,7 @@ func (m Matrix) RowBytes() int64 {
 	if m.Streamable {
 		return 0
 	}
-	return 8 * (int64(len(m.Members.Members)) + 1)
+	return 8 * (int64(len(m.Columns())) + 1)
 }
 
 // How a bucket estimate was derived (MatrixPredict.bucket_basis).

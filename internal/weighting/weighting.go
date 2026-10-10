@@ -186,6 +186,10 @@ var regressionClasses = map[types.RegressionType]Class{
 var matrixClasses = map[types.MatrixType]Class{
 	types.MAT_CORRELATION: ClassAware,
 	types.MAT_COVARIANCE:  ClassAware,
+	// MAT_PARTIAL_CORRELATION reads the same weighted correlation and
+	// inverts it (corpcor::cor2pcor on the weighted r): scale-free, so
+	// the two kinds agree, as for MAT_CORRELATION.
+	types.MAT_PARTIAL_CORRELATION: ClassAware,
 }
 
 // MatrixClassOf is a matrix spec's weight class: its type's

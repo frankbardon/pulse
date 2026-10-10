@@ -74,7 +74,6 @@ var exampleIntentExemptions = []guidanceExemption{}
 // (TestGlossary_OrphanReport). Key: the term ID.
 var glossaryOrphanExemptions = []guidanceExemption{
 	// Matrix operators (correlation matrix, reliability, PCA).
-	{Key: "pairwise-deletion", Owner: "U24", Why: "Every built-in correlation (TEST_PEARSON_R / _SPEARMAN_R / _KENDALL_TAU) takes exactly two fields and skips a row missing either, so pairwise and listwise deletion coincide; the choice first exists for the multi-field MAT_CORRELATION matrix U24 ships."},
 	{Key: "factor", Owner: "U24", Why: "Defined as a latent factor (factor analysis), not a categorical grouping field, so GROUP_CATEGORY does not link it; the factor-analysis operator U24 ships does."},
 	{Key: "eigenvalue", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
 	{Key: "loading", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},

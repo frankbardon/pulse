@@ -93,6 +93,9 @@ func TestPSDRisk_PerType(t *testing.T) {
 		{"pairwise correlation p=2", types.MAT_CORRELATION, true, 2, false},
 		{"pairwise correlation p=3", types.MAT_CORRELATION, true, 3, true},
 		{"listwise correlation", types.MAT_CORRELATION, false, 5, false},
+		{"pairwise partial p=2", types.MAT_PARTIAL_CORRELATION, true, 2, false},
+		{"pairwise partial p=3", types.MAT_PARTIAL_CORRELATION, true, 3, true},
+		{"listwise partial", types.MAT_PARTIAL_CORRELATION, false, 5, false},
 		{"pairwise unnamed type p=3", types.MatrixType("MAT_OTHER"), true, 3, false},
 		{"pairwise unnamed type p=8", types.MatrixType("MAT_OTHER"), true, 8, false},
 	}
@@ -103,6 +106,12 @@ func TestPSDRisk_PerType(t *testing.T) {
 				t.Errorf("PSDRisk = %v, want %v", got, c.want)
 			}
 		})
+	}
+	// A partial correlation's risk counts its folded columns: two
+	// members plus an outside control are three.
+	m := Matrix{Type: types.MAT_PARTIAL_CORRELATION, Pairwise: true, Members: members(2), Extra: []string{"c"}, Output: []int{0, 1}}
+	if !m.PSDRisk() || m.AccumulatorBytes() != (Matrix{Pairwise: true, Members: members(3)}).AccumulatorBytes() {
+		t.Errorf("partial with an outside control: PSDRisk %v, AccumulatorBytes %d", m.PSDRisk(), m.AccumulatorBytes())
 	}
 }
 

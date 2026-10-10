@@ -97,6 +97,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-group-set-value`](skills/op-group-set-value.md): Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with "|".
 - [`op-mat-correlation`](skills/op-mat-correlation.md): Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped), no p-values.
 - [`op-mat-covariance`](skills/op-mat-covariance.md): Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped).
+- [`op-mat-partial-correlation`](skills/op-mat-partial-correlation.md): Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair "nearest", singular input refused.
 - [`op-overlay-chisq-col`](skills/op-overlay-chisq-col.md): Per-column χ² goodness-of-fit test across the host crosstab's contingency table.
 - [`op-overlay-chisq-matrix`](skills/op-overlay-chisq-matrix.md): Whole-matrix χ² independence test across the host crosstab's row × column contingency table.
 - [`op-overlay-chisq-row`](skills/op-overlay-chisq-row.md): Per-row χ² goodness-of-fit test across the host crosstab's contingency table.

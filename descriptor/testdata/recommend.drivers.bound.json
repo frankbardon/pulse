@@ -283,6 +283,42 @@
         ]
       },
       {
+        "operator": "MAT_PARTIAL_CORRELATION",
+        "category": "matrix",
+        "level": "advanced",
+        "why": "How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. It uses revenue (f64), seats (u16) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "revenue",
+                "seats",
+                "score"
+              ],
+              "type": "MAT_PARTIAL_CORRELATION"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want each pair's link with nothing held fixed",
+            "use": "MAT_CORRELATION"
+          },
+          {
+            "when": "you want how much each field moves the outcome, in its own units",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you need a p-value for one pair",
+            "use": "TEST_PEARSON_R"
+          }
+        ]
+      },
+      {
         "operator": "REG_GLM",
         "category": "regression",
         "level": "advanced",
@@ -428,9 +464,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 9
+    "candidates_considered": 10
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 90d2b27fec1eebe8e2387e0829999266470e985633c9ddfca2709ec627c4c543
+// golden-hash: 442cedbe776773f4e6c8e1b11368576e1c1a5cbd55fb7fe268f57e533c7a39d1

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -56,6 +57,87 @@ type Matrix struct {
 	// number of strongest off-diagonal pairs the result lists under
 	// vectors.top_pairs. 0 (the default) emits no summary.
 	TopPairs int
+	// Controls is MAT_PARTIAL_CORRELATION's params.control named list,
+	// in the caller's order: nil is "all" (each pair controls for every
+	// other member). A control may be a member (it leaves the output
+	// axis) or any other numeric field (it joins the fold: Extra).
+	Controls []string
+	// Extra are the control fields outside the members, in params
+	// order: the slot folds them after the members (Columns), so they
+	// join the co-moment and the missing-data mode.
+	Extra []string
+	// Output are the output axis positions in Columns — the members
+	// that are not controls, in axis order. Nil means every member
+	// (Columns is then exactly the members).
+	Output []int
+	// Repair is a decomposition operator's params.repair: "" (refuse a
+	// non-PSD input with PULSE_MATRIX_NOT_PSD) or RepairNearest.
+	Repair string
+}
+
+// RepairNearest is params.repair "nearest": a non-PSD input matrix is
+// replaced by its nearest correlation matrix (Higham 2002, alternating
+// projections with Dykstra's correction), scaled back to the input's
+// diagonal, with a PULSE_MATRIX_NOT_PSD warning carrying the Frobenius
+// adjustment.
+const RepairNearest = "nearest"
+
+// ControlAll is MAT_PARTIAL_CORRELATION's default params.control.
+const ControlAll = "all"
+
+// Columns returns the fields the slot folds, in fold order: the
+// members, then any control outside them (Extra). Every co-moment
+// index (N, PairN, the warnings' member names) is a Columns index.
+func (m Matrix) Columns() []string {
+	if len(m.Extra) == 0 {
+		return m.Members.Members
+	}
+	out := make([]string, 0, len(m.Members.Members)+len(m.Extra))
+	out = append(out, m.Members.Members...)
+	return append(out, m.Extra...)
+}
+
+// OutputIndices returns the output axis as Columns positions: Output,
+// or every member when Output is nil.
+func (m Matrix) OutputIndices() []int {
+	if m.Output != nil {
+		return m.Output
+	}
+	out := make([]int, len(m.Members.Members))
+	for i := range out {
+		out[i] = i
+	}
+	return out
+}
+
+// OutputMembers returns the result's axis keys (OutputIndices'
+// fields) and their labels.
+func (m Matrix) OutputMembers() (members, labels []string) {
+	idx := m.OutputIndices()
+	members = make([]string, len(idx))
+	labels = make([]string, len(idx))
+	for k, i := range idx {
+		members[k] = m.Members.Members[i]
+		if i < len(m.Members.Labels) {
+			labels[k] = m.Members.Labels[i]
+		} else {
+			labels[k] = members[k]
+		}
+	}
+	return members, labels
+}
+
+// Decomposition reports whether the matrix's operator decomposes (or
+// inverts) its input matrix, so a non-PSD input is a FATAL
+// PULSE_MATRIX_NOT_PSD unless params.repair is "nearest" — the shared
+// guard (processing.guardPSD). Every other operator keeps the
+// detection-only warning.
+func (m Matrix) Decomposition() bool { return IsDecomposition(m.Type) }
+
+// IsDecomposition reports whether t is a decomposition operator (see
+// Matrix.Decomposition): today MAT_PARTIAL_CORRELATION.
+func IsDecomposition(t types.MatrixType) bool {
+	return t == types.MAT_PARTIAL_CORRELATION
 }
 
 // Missing-data modes (params.missing).
@@ -123,6 +205,15 @@ type covarianceParams struct {
 type correlationParams struct {
 	Method  *string        `json:"method"`
 	Summary *summaryParams `json:"summary"`
+	missingParams
+}
+
+// partialParams is MAT_PARTIAL_CORRELATION's params object: the
+// control set ("all" or a field list, decoded by decodeControl), the
+// repair choice and the missing-data knobs; any other key is refused.
+type partialParams struct {
+	Control json.RawMessage `json:"control"`
+	Repair  *string         `json:"repair"`
 	missingParams
 }
 
@@ -200,6 +291,8 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 		if err := decodeMatrixParams(at, spec, &m); err != nil {
 			return nil, err
 		}
+		// Controls resolve after the members (below): a control is a
+		// member or another numeric field.
 
 		if spec.Vector != "" {
 			r, ok := Find(resolved, spec.Vector)
@@ -220,6 +313,9 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 				return nil, err
 			}
 			m.Members = r
+		}
+		if err := resolveControls(at, schema, &m); err != nil {
+			return nil, err
 		}
 		out = append(out, m)
 	}
@@ -286,8 +382,141 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			m.TopPairs = *k
 		}
 		miss = p.missingParams
+	case types.MAT_PARTIAL_CORRELATION:
+		var p partialParams
+		if err := decodeStrict(raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		controls, err := decodeControl(at, p.Control)
+		if err != nil {
+			return err
+		}
+		m.Controls = controls
+		if p.Repair != nil {
+			if *p.Repair != RepairNearest {
+				return matrixInvalid(at, "bad_params", at+" params.repair must be \"nearest\"",
+					map[string]any{"param": "repair", "value": *p.Repair, "valid": []string{RepairNearest}})
+			}
+			m.Repair = RepairNearest
+		}
+		miss = p.missingParams
 	}
 	return decodeMissing(at, miss, m)
+}
+
+// decodeControl decodes params.control: absent, null or "all" is nil
+// (control for every other member); otherwise a non-empty list of
+// distinct, non-empty field names (no glob: a control names one field).
+func decodeControl(at string, raw json.RawMessage) ([]string, *errors.CodedError) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil, nil
+	}
+	var all string
+	if json.Unmarshal(raw, &all) == nil {
+		if all == ControlAll {
+			return nil, nil
+		}
+		return nil, matrixInvalid(at, "bad_params", at+" params.control must be \"all\" or a list of field names",
+			map[string]any{"param": "control", "value": all})
+	}
+	var list []string
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return nil, matrixInvalid(at, "bad_params", at+" params.control must be \"all\" or a list of field names",
+			map[string]any{"param": "control"})
+	}
+	if len(list) == 0 {
+		return nil, matrixInvalid(at, "bad_params", at+" params.control lists no field; omit it (or use \"all\") to control for every other member",
+			map[string]any{"param": "control"})
+	}
+	seen := make(map[string]bool, len(list))
+	for _, c := range list {
+		switch {
+		case c == "" || isGlob(c):
+			return nil, matrixInvalid(at, "bad_params", at+" params.control entries are field names (no glob)",
+				map[string]any{"param": "control", "value": c})
+		case seen[c]:
+			return nil, matrixInvalid(at, "bad_params", at+" params.control names "+strconv.Quote(c)+" twice",
+				map[string]any{"param": "control", "value": c})
+		}
+		seen[c] = true
+	}
+	return list, nil
+}
+
+// controlSlot rewrites a ResolveSpec refusal's "slot" detail
+// ("…params.control.fields[k]", k indexing the outside controls) to the
+// caller's own path, "…params.control[j]" with j the entry's position
+// in params.control. The error is copied, never mutated.
+func controlSlot(err *errors.CodedError, at string, controls, outside []string) *errors.CodedError {
+	prefix := at + ".params.control.fields["
+	slot, ok := err.Details["slot"].(string)
+	if !ok || !strings.HasPrefix(slot, prefix) {
+		return err
+	}
+	k, convErr := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(slot, prefix), "]"))
+	if convErr != nil || k < 0 || k >= len(outside) {
+		return err
+	}
+	j := 0
+	for i, c := range controls {
+		if c == outside[k] {
+			j = i
+			break
+		}
+	}
+	details := make(map[string]any, len(err.Details))
+	for key, v := range err.Details {
+		details[key] = v
+	}
+	details["slot"] = at + ".params.control[" + strconv.Itoa(j) + "]"
+	return errors.NewCodedErrorWithDetails(err.Code, err.Message, details)
+}
+
+// resolveControls places m.Controls against the resolved members: a
+// control that is a member leaves the output axis; any other must be a
+// numeric field the vector rules admit (ResolveSpec at
+// "matrices[i].params.control": the field-reference and member-type
+// refusals) and joins the fold as Extra. At least one member must stay
+// on the output axis.
+func resolveControls(at string, schema *encoding.Schema, m *Matrix) *errors.CodedError {
+	if m.Controls == nil {
+		return nil
+	}
+	members := m.Members.Members
+	isControl := make(map[string]bool, len(m.Controls))
+	var outside []string
+	for _, c := range m.Controls {
+		isControl[c] = true
+		inside := false
+		for _, f := range members {
+			if f == c {
+				inside = true
+				break
+			}
+		}
+		if !inside {
+			outside = append(outside, c)
+		}
+	}
+	if len(outside) > 0 {
+		r, err := ResolveSpec(at+".params.control", types.VectorSpec{Name: m.Name, Fields: outside}, schema)
+		if err != nil {
+			return controlSlot(err, at, m.Controls, outside)
+		}
+		m.Extra = r.Members
+	}
+	m.Output = []int{}
+	for i, f := range members {
+		if !isControl[f] {
+			m.Output = append(m.Output, i)
+		}
+	}
+	if len(m.Output) == 0 {
+		return matrixInvalid(at, "bad_params", at+" params.control names every member; at least one member must stay uncontrolled",
+			map[string]any{"param": "control", "members": append([]string(nil), members...)})
+	}
+	return nil
 }
 
 // decodeMissing applies params.missing / params.max_drop_share: missing
@@ -327,15 +556,20 @@ func decodeStrict(raw []byte, v any) error {
 	return dec.Decode(v)
 }
 
-// MatrixMembers returns the union of every member req's matrix specs
-// read — a vector spec's vector members and an inline spec's fields —
-// and whether every one resolved (projection decodes wide otherwise).
+// MatrixMembers returns the union of every field req's matrix specs
+// read beyond Request.Vectors — an inline spec's fields and a
+// MAT_PARTIAL_CORRELATION params.control entry (a control outside the
+// members joins the fold) — and whether every one resolved (projection
+// decodes wide otherwise).
 func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []string, ok bool) {
 	if req == nil || len(req.Matrices) == 0 {
 		return nil, true
 	}
 	ok = true
 	for i, spec := range req.Matrices {
+		if spec.Type == types.MAT_PARTIAL_CORRELATION {
+			members, ok = appendControlFields(members, ok, matrixPath(i), spec, schema)
+		}
 		if spec.Vector != "" || len(spec.Fields) == 0 {
 			continue // vector members ride Members(req.Vectors)
 		}
@@ -345,6 +579,31 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 			continue
 		}
 		members = append(members, r.Members...)
+	}
+	return members, ok
+}
+
+// appendControlFields appends spec's params.control fields that exist
+// in the schema (a member repeated here is harmless: projection
+// de-duplicates); a malformed control, or one the schema lacks, clears
+// ok.
+func appendControlFields(members []string, ok bool, at string, spec types.MatrixSpec, schema *encoding.Schema) ([]string, bool) {
+	var p struct {
+		Control json.RawMessage `json:"control"`
+	}
+	if len(spec.Params) == 0 || json.Unmarshal(spec.Params, &p) != nil {
+		return members, ok
+	}
+	controls, err := decodeControl(at, p.Control)
+	if err != nil {
+		return members, false
+	}
+	for _, c := range controls {
+		if schema == nil || schema.Field(c) == nil {
+			ok = false
+			continue
+		}
+		members = append(members, c)
 	}
 	return members, ok
 }

@@ -672,6 +672,18 @@ Using every row that has both fields of a given pair, so each pair of fields may
 
 **See also:** [`listwise-deletion`](#term-listwise-deletion), [`missing-value`](#term-missing-value), [`correlation`](#term-correlation)
 
+<a id="term-partial-correlation"></a>
+
+## partial-correlation
+
+The correlation between two measures after the straight-line part of chosen other measures has been taken out of both.
+
+**Why care:** It separates a direct link from one that appears only because both measures follow a third; like any correlation it shows association, not cause.
+
+**Forms:** partial correlation, partial correlations, partial r
+
+**See also:** [`correlation`](#term-correlation), [`multicollinearity`](#term-multicollinearity)
+
 <a id="term-partial-eta-squared"></a>
 
 ## partial-eta-squared

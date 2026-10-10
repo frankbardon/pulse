@@ -336,7 +336,7 @@ var correlationScope = lintScope{names: []string{"TEST_PEARSON_R", "TEST_SPEARMA
 
 // correlationMatrixScope: matrix operators whose primary.values cells
 // are correlations (CORR-CAUSAL).
-var correlationMatrixScope = lintScope{names: []string{"MAT_CORRELATION"}}
+var correlationMatrixScope = lintScope{names: []string{"MAT_CORRELATION", "MAT_PARTIAL_CORRELATION"}}
 
 // regressionScope: the REG_* types, whose coefficients.* reading must
 // carry the causation caveat (CORR-CAUSAL) and whose Purpose must name
