@@ -7325,7 +7325,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `matrices`, `overlays`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `compose`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `matrices`, `overlays`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`. The `compose` examples show a compose `sweep` expanded into slots.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
       },
       {
         "name": "pulse_explain",
@@ -8586,6 +8586,10 @@
         "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
       },
       {
+        "name": "compose-sweeps",
+        "description": "ComposedRequest.sweep — one request body with axis placeholders expands into many ordinary Compose slots (grid or zip), with a label pattern, per-slot overlays, limit counting and predict parity."
+      },
+      {
         "name": "crosstab-guide",
         "description": "Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics."
       },
@@ -9706,10 +9710,11 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 185,
+    "examples_count": 186,
     "example_categories": [
       "aggregations",
       "attributes",
+      "compose",
       "crosstab",
       "facet",
       "features",
@@ -13246,4 +13251,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7c0cf27fc2eb1f4b76d5594539e2fe9cde90b1a7292c89ea38d4f06aa598628b
+// golden-hash: 7fdf904fc1e1b487265b78ed29bd1ce91e6ae7e6d6447bb010f248dc16e27ea3
