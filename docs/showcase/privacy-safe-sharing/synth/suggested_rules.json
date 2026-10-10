@@ -1,0 +1,119 @@
+[
+  {
+    "when": "round(churned) == 0",
+    "set_null": [
+      "end_date"
+    ],
+    "owns_nulls": true,
+    "_evidence": {
+      "detector": "gating",
+      "note": "measured, not asserted: \"churned\" is the field whose levels split these 1 target(s) into ~always-null and ~never-null. It is the STATISTICAL gate; the SEMANTIC cause may be a different field that moves with it, so read the rates below and correct `when` before use. Note also that set_null repairs co-missingness only — each target's own null_rate still fires beneath the gate, raising its marginal null rate above the captured one.",
+      "gate_field": "churned",
+      "gated_levels": [
+        "0"
+      ],
+      "open_levels": [
+        "1"
+      ],
+      "levels": [
+        {
+          "level": "0",
+          "side": "gated",
+          "n": 32367,
+          "mean_target_null_rate": 1
+        },
+        {
+          "level": "1",
+          "side": "open",
+          "n": 7633,
+          "mean_target_null_rate": 0
+        }
+      ],
+      "targets": [
+        {
+          "field": "end_date",
+          "null_rate": 0.809175,
+          "gated_null_rate": 1,
+          "open_null_rate": 0
+        }
+      ],
+      "rows_observed": 40000,
+      "rows_affected": 32367,
+      "gated_share": 0.809175,
+      "max_null_rate_deviation": 0,
+      "min_level_support": 7633
+    }
+  },
+  {
+    "set_expr": {
+      "frequent_caller": "round(support_contacts) \u003e= 4"
+    },
+    "_evidence": {
+      "detector": "dependency",
+      "note": "measured, not asserted: each of these 1 target(s) takes exactly one value at each level of \"support_contacts\", on all 40000 row(s) where they are present together — zero exceptions. THE SEARCH IS NARROW BY DESIGN: targets are packed_bool and u4 ONLY, sources are categorical_*/packed_bool/u4 with at most 16 observed levels, and the dependency is on ONE source. Wider numerics, date, set_*, categorical-valued targets and joint two-field dependencies were NOT looked for, so a field missing from this file was not cleared — it was not examined. The band edges below are READ OFF THE DATA, never assumed, and each expression is a TOTAL function of the source: a level generation produces that the cohort never carried falls into the nearest band rather than raising, so check the edges. This rule carries no `when`, so accepting it makes these target(s) RULE-DETERMINED: their captured linear models, conditional pairs and residual correlations are retired at priority 0 rather than computed and then overwritten.",
+      "source_field": "support_contacts",
+      "source_levels": 9,
+      "dependency": [
+        {
+          "field": "frequent_caller",
+          "type": "packed_bool",
+          "form": "threshold",
+          "mapping": [
+            {
+              "level": "0",
+              "value": false,
+              "n": 14725
+            },
+            {
+              "level": "1",
+              "value": false,
+              "n": 14048
+            },
+            {
+              "level": "2",
+              "value": false,
+              "n": 7259
+            },
+            {
+              "level": "3",
+              "value": false,
+              "n": 2821
+            },
+            {
+              "level": "4",
+              "value": true,
+              "n": 865
+            },
+            {
+              "level": "5",
+              "value": true,
+              "n": 223
+            },
+            {
+              "level": "6",
+              "value": true,
+              "n": 49
+            },
+            {
+              "level": "7",
+              "value": true,
+              "n": 8
+            },
+            {
+              "level": "8",
+              "value": true,
+              "n": 2
+            }
+          ],
+          "exceptions": 0
+        }
+      ],
+      "rows_observed": 40000,
+      "rows_affected": 40000,
+      "gated_share": 1,
+      "max_null_rate_deviation": 0,
+      "min_level_support": 2,
+      "thin_support": true
+    }
+  }
+]

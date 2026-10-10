@@ -1,0 +1,414 @@
+{
+  "requests": [
+    {
+      "label": "source_contract",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "contract"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "twin_contract",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "contract"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "source_plan",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "plan"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "twin_plan",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "plan"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "source_autopay",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "autopay"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "twin_autopay",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "autopay"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "source_contacts",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "support_contacts"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "twin_contacts",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "support_contacts"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "source_tenure",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "tenure_months",
+          "interval": 12
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "twin_tenure",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_RANGE",
+          "field": "tenure_months",
+          "interval": 12
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        }
+      ]
+    },
+    {
+      "label": "source_spend_by_product",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_SET_PER_ELEMENT",
+          "field": "products_held"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "monthly_spend",
+          "label": "avg_monthly_spend_usd"
+        }
+      ]
+    },
+    {
+      "label": "twin_spend_by_product",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_SET_PER_ELEMENT",
+          "field": "products_held"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "monthly_spend",
+          "label": "avg_monthly_spend_usd"
+        }
+      ]
+    },
+    {
+      "label": "source_spend_by_plan",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "plan"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "monthly_spend",
+          "label": "avg_monthly_spend_usd"
+        }
+      ]
+    },
+    {
+      "label": "twin_spend_by_plan",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "plan"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_AVERAGE",
+          "field": "monthly_spend",
+          "label": "avg_monthly_spend_usd"
+        }
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "name": "contract_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_contract",
+      "targets": [
+        "twin_contract"
+      ]
+    },
+    {
+      "name": "contract_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_contract",
+      "targets": [
+        "twin_contract"
+      ]
+    },
+    {
+      "name": "plan_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_plan",
+      "targets": [
+        "twin_plan"
+      ]
+    },
+    {
+      "name": "plan_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_plan",
+      "targets": [
+        "twin_plan"
+      ]
+    },
+    {
+      "name": "autopay_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_autopay",
+      "targets": [
+        "twin_autopay"
+      ]
+    },
+    {
+      "name": "autopay_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_autopay",
+      "targets": [
+        "twin_autopay"
+      ]
+    },
+    {
+      "name": "contacts_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_contacts",
+      "targets": [
+        "twin_contacts"
+      ]
+    },
+    {
+      "name": "contacts_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_contacts",
+      "targets": [
+        "twin_contacts"
+      ]
+    },
+    {
+      "name": "tenure_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_tenure",
+      "targets": [
+        "twin_tenure"
+      ]
+    },
+    {
+      "name": "tenure_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_tenure",
+      "targets": [
+        "twin_tenure"
+      ]
+    },
+    {
+      "name": "spend_by_product_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_spend_by_product",
+      "targets": [
+        "twin_spend_by_product"
+      ]
+    },
+    {
+      "name": "spend_by_product_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_spend_by_product",
+      "targets": [
+        "twin_spend_by_product"
+      ]
+    },
+    {
+      "name": "spend_by_plan_twin_minus_source",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "group",
+      "reference": "source_spend_by_plan",
+      "targets": [
+        "twin_spend_by_plan"
+      ]
+    },
+    {
+      "name": "spend_by_plan_twin_index",
+      "kind": "OVERLAY_INDEX_VS_REF",
+      "scope": "group",
+      "reference": "source_spend_by_plan",
+      "targets": [
+        "twin_spend_by_plan"
+      ]
+    }
+  ]
+}

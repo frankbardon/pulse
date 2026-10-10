@@ -1,0 +1,91 @@
+{
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": "."
+  },
+  "attributes": [
+    {
+      "type": "ATTR_SET_POPCOUNT",
+      "field": "products_held",
+      "label": "n_products"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "field": "products_held",
+      "label": "dormant",
+      "expression": "len(products_held) == 0 ? 1 : 0"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "age",
+      "label": "customers"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "dormant",
+      "label": "dormant_accounts"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "frequent_caller",
+      "label": "frequent_callers"
+    },
+    {
+      "type": "AGG_MIN",
+      "field": "start_date",
+      "label": "earliest_start"
+    },
+    {
+      "type": "AGG_MIN",
+      "field": "end_date",
+      "label": "earliest_end"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "end_date",
+      "label": "latest_end"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "churned",
+      "label": "churn_rate"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "monthly_spend",
+      "label": "avg_monthly_spend_usd"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "tenure_months",
+      "label": "avg_tenure_months"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "support_contacts",
+      "label": "avg_support_contacts"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "autopay",
+      "label": "autopay_rate"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "n_products",
+      "label": "avg_products"
+    },
+    {
+      "type": "AGG_SET_FREQUENCY",
+      "field": "products_held",
+      "label": "product_holders"
+    },
+    {
+      "type": "AGG_NULL_COUNT",
+      "field": "end_date",
+      "label": "open_accounts_no_end_date"
+    }
+  ]
+}

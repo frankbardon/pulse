@@ -1,0 +1,146 @@
+{
+  "requests": [
+    {
+      "label": "source",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "monthly_spend",
+          "label": "avg_monthly_spend_usd"
+        },
+        {
+          "type": "AGG_MEDIAN",
+          "field": "monthly_spend",
+          "label": "median_monthly_spend_usd"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "tenure_months",
+          "label": "avg_tenure_months"
+        },
+        {
+          "type": "AGG_MEDIAN",
+          "field": "tenure_months",
+          "label": "median_tenure_months"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "age",
+          "label": "avg_age"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "support_contacts",
+          "label": "avg_support_contacts"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "autopay",
+          "label": "autopay_rate"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "n_products",
+          "label": "avg_products"
+        },
+        {
+          "type": "AGG_SET_FREQUENCY",
+          "field": "products_held",
+          "label": "product_holders"
+        }
+      ]
+    },
+    {
+      "label": "twin",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "attributes": [
+        {
+          "type": "ATTR_SET_POPCOUNT",
+          "field": "products_held",
+          "label": "n_products"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "customers"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "monthly_spend",
+          "label": "avg_monthly_spend_usd"
+        },
+        {
+          "type": "AGG_MEDIAN",
+          "field": "monthly_spend",
+          "label": "median_monthly_spend_usd"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "tenure_months",
+          "label": "avg_tenure_months"
+        },
+        {
+          "type": "AGG_MEDIAN",
+          "field": "tenure_months",
+          "label": "median_tenure_months"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "age",
+          "label": "avg_age"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "support_contacts",
+          "label": "avg_support_contacts"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "autopay",
+          "label": "autopay_rate"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "n_products",
+          "label": "avg_products"
+        },
+        {
+          "type": "AGG_SET_FREQUENCY",
+          "field": "products_held",
+          "label": "product_holders"
+        }
+      ]
+    }
+  ]
+}

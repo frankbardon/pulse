@@ -1,0 +1,8 @@
+[
+  {"when": "round(churned) == 0", "set_null": ["end_date"], "owns_nulls": true},
+  {"set_expr": {"frequent_caller": "round(support_contacts) >= 4"}},
+  {"set_expr": {"tenure_months": "round(tenure_months)"}},
+  {"set_expr": {"start_date": "(round(churned) == 1 ? end_date : 20634) - round(tenure_months * 30.4375)"}},
+  {"when": "!products_held[\"mobile\"] && !products_held[\"broadband\"] && !products_held[\"tv\"] && !products_held[\"landline\"] && !products_held[\"protection\"]",
+   "set": {"monthly_spend": 0}}
+]

@@ -1,0 +1,77 @@
+{
+  "requests": [
+    {
+      "label": "source",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "plan"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "contract"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    },
+    {
+      "label": "twin",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "plan"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "contract"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        },
+        "margins": {
+          "rows": true,
+          "columns": true,
+          "grand": true
+        }
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "churn_pp_gap",
+      "kind": "OVERLAY_DELTA_VS_REF",
+      "scope": "cell",
+      "reference": "source",
+      "targets": [
+        "twin"
+      ]
+    }
+  ]
+}

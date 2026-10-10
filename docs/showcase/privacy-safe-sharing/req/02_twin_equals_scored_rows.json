@@ -1,0 +1,98 @@
+{
+  "requests": [
+    {
+      "label": "tagged_synthetic_partition",
+      "cohort": {
+        "filename": "tagged.pulse",
+        "data_dir": "."
+      },
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "rows"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "monthly_spend",
+          "label": "total_spend"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tenure_months",
+          "label": "total_tenure"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "start_date",
+          "label": "sum_start_date"
+        },
+        {
+          "type": "AGG_NULL_COUNT",
+          "field": "end_date",
+          "label": "null_end_dates"
+        },
+        {
+          "type": "AGG_SET_FREQUENCY",
+          "field": "products_held",
+          "label": "product_holders"
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_EXPRESSION",
+          "expression": "_synthetic == 1"
+        }
+      ]
+    },
+    {
+      "label": "shareable_twin",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "rows"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "churned",
+          "label": "churn_rate"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "monthly_spend",
+          "label": "total_spend"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "tenure_months",
+          "label": "total_tenure"
+        },
+        {
+          "type": "AGG_SUM",
+          "field": "start_date",
+          "label": "sum_start_date"
+        },
+        {
+          "type": "AGG_NULL_COUNT",
+          "field": "end_date",
+          "label": "null_end_dates"
+        },
+        {
+          "type": "AGG_SET_FREQUENCY",
+          "field": "products_held",
+          "label": "product_holders"
+        }
+      ]
+    }
+  ]
+}

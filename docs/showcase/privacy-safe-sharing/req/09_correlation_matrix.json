@@ -1,0 +1,62 @@
+{
+  "requests": [
+    {
+      "label": "source",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "vectors": [
+        {
+          "name": "drivers",
+          "fields": [
+            "age",
+            "tenure_months",
+            "monthly_spend",
+            "support_contacts",
+            "autopay",
+            "churned"
+          ],
+          "coerce": "binary"
+        }
+      ],
+      "matrices": [
+        {
+          "type": "MAT_CORRELATION",
+          "name": "driver_corr",
+          "vector": "drivers",
+          "encoding": "upper"
+        }
+      ]
+    },
+    {
+      "label": "twin",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "vectors": [
+        {
+          "name": "drivers",
+          "fields": [
+            "age",
+            "tenure_months",
+            "monthly_spend",
+            "support_contacts",
+            "autopay",
+            "churned"
+          ],
+          "coerce": "binary"
+        }
+      ],
+      "matrices": [
+        {
+          "type": "MAT_CORRELATION",
+          "name": "driver_corr",
+          "vector": "drivers",
+          "encoding": "upper"
+        }
+      ]
+    }
+  ]
+}

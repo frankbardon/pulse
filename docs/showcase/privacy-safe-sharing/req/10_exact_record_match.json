@@ -1,0 +1,150 @@
+{
+  "requests": [
+    {
+      "label": "control_source_vs_itself",
+      "cohort": {
+        "filename": "customers.pulse",
+        "data_dir": "."
+      },
+      "joins": [
+        {
+          "right": "customers.pulse",
+          "kind": "inner",
+          "as": "src_",
+          "on": [
+            {
+              "left_field": "region",
+              "right_field": "region"
+            },
+            {
+              "left_field": "age",
+              "right_field": "age"
+            },
+            {
+              "left_field": "plan",
+              "right_field": "plan"
+            },
+            {
+              "left_field": "contract",
+              "right_field": "contract"
+            },
+            {
+              "left_field": "tenure_months",
+              "right_field": "tenure_months"
+            },
+            {
+              "left_field": "monthly_spend",
+              "right_field": "monthly_spend"
+            },
+            {
+              "left_field": "support_contacts",
+              "right_field": "support_contacts"
+            },
+            {
+              "left_field": "frequent_caller",
+              "right_field": "frequent_caller"
+            },
+            {
+              "left_field": "autopay",
+              "right_field": "autopay"
+            },
+            {
+              "left_field": "start_date",
+              "right_field": "start_date"
+            },
+            {
+              "left_field": "churned",
+              "right_field": "churned"
+            }
+          ]
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_EXPRESSION",
+          "expression": "join(products_held, \"|\") == join(src_products_held, \"|\") && (end_date ?? -1) == (src_end_date ?? -1)"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "matching_row_pairs"
+        }
+      ]
+    },
+    {
+      "label": "twin_vs_source",
+      "cohort": {
+        "filename": "twin.pulse",
+        "data_dir": "."
+      },
+      "joins": [
+        {
+          "right": "customers.pulse",
+          "kind": "inner",
+          "as": "src_",
+          "on": [
+            {
+              "left_field": "region",
+              "right_field": "region"
+            },
+            {
+              "left_field": "age",
+              "right_field": "age"
+            },
+            {
+              "left_field": "plan",
+              "right_field": "plan"
+            },
+            {
+              "left_field": "contract",
+              "right_field": "contract"
+            },
+            {
+              "left_field": "tenure_months",
+              "right_field": "tenure_months"
+            },
+            {
+              "left_field": "monthly_spend",
+              "right_field": "monthly_spend"
+            },
+            {
+              "left_field": "support_contacts",
+              "right_field": "support_contacts"
+            },
+            {
+              "left_field": "frequent_caller",
+              "right_field": "frequent_caller"
+            },
+            {
+              "left_field": "autopay",
+              "right_field": "autopay"
+            },
+            {
+              "left_field": "start_date",
+              "right_field": "start_date"
+            },
+            {
+              "left_field": "churned",
+              "right_field": "churned"
+            }
+          ]
+        }
+      ],
+      "filterers": [
+        {
+          "type": "FILTER_EXPRESSION",
+          "expression": "join(products_held, \"|\") == join(src_products_held, \"|\") && (end_date ?? -1) == (src_end_date ?? -1)"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "age",
+          "label": "matching_row_pairs"
+        }
+      ]
+    }
+  ]
+}
