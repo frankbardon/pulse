@@ -215,6 +215,7 @@ func returnSections(in returnSizeInputs) []returnSection {
 			kids = append(kids, elems(1,
 				leaf("name", sizeLabel), leaf("type", sizeLabel),
 				term("coefficients"), term("std_errors"), term("p_values"),
+				term("ci_lower"), term("ci_upper"), leaf("df", sizeNumber), leaf("conf_level", sizeNumber),
 				leaf("r2", sizeNumber), leaf("adj_r2", sizeNumber), leaf("n_obs", sizeNumber)))
 		}
 		add(key("regressions", kids...), returnSizeHeuristic)

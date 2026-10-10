@@ -891,6 +891,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"prior_shape":     num("REG_BAYES_LINEAR inverse-gamma shape."),
 				"prior_rate":      num("REG_BAYES_LINEAR inverse-gamma rate."),
 				"credible_level":  num("REG_BAYES_LINEAR credible-interval mass; 0 means 0.95."),
+				"conf_level":      num("Coverage of the coefficient intervals ci_lower / ci_upper, 0 < c < 1; 0 means 0.95 (REG_BAYES_LINEAR: credible_level)."),
 				"resample":        enumStringField([]string{"jackknife", "bootstrap"}, "Resampling layer; omit for none."),
 				"bootstrap_iters": integer("Bootstrap replicates when resample is bootstrap."),
 				"rng_seed":        integer("Bootstrap RNG seed."),

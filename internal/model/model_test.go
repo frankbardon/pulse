@@ -156,6 +156,38 @@ func TestBind(t *testing.T) {
 	}
 }
 
+// TestBind_Intervals: a bound fit carries its confidence bounds aligned
+// with Predictors at full precision (the result's own float64s), NaN
+// where the result has none, and the result's conf_level.
+func TestBind_Intervals(t *testing.T) {
+	res := &types.RegressionResult{
+		Type:         types.REG_OLS,
+		Coefficients: map[string]float64{InterceptKey: 1.5, "x": 2.25, "z": -0.125},
+		StdErrors:    map[string]float64{InterceptKey: 0.5, "x": 0.25},
+		CILower:      map[string]float64{InterceptKey: 0.1234567890123456789, "x": 1.7000000000000002},
+		CIUpper:      map[string]float64{InterceptKey: 2.9, "x": 2.8000000000000003},
+		ConfLevel:    0.9,
+	}
+	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"z", "x"}}
+	b, err := Bind("m", spec, res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.InterceptCILower != res.CILower[InterceptKey] || b.InterceptCIUpper != 2.9 || b.ConfLevel != 0.9 {
+		t.Fatalf("intercept interval [%v, %v] level %v", b.InterceptCILower, b.InterceptCIUpper, b.ConfLevel)
+	}
+	if !math.IsNaN(b.CILower[0]) || !math.IsNaN(b.CIUpper[0]) || b.CILower[1] != 1.7000000000000002 || b.CIUpper[1] != 2.8000000000000003 {
+		t.Fatalf("intervals %v %v, want [NaN 1.7000000000000002] [NaN 2.8000000000000003]", b.CILower, b.CIUpper)
+	}
+	none, err := Bind("n", spec, &types.RegressionResult{Coefficients: res.Coefficients})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !math.IsNaN(none.InterceptCILower) || !math.IsNaN(none.CIUpper[1]) || none.ConfLevel != 0 {
+		t.Fatalf("no intervals: %+v", none)
+	}
+}
+
 func ignoreBound(_ *Bound, err error) error { return err }
 
 func TestSet(t *testing.T) {

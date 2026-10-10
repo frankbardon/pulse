@@ -35,6 +35,7 @@ Use something else:
 | `prior_precision` | float | 0.001 | Scalar ε, Λ₀ = ε·I, relative to σ²: prior SD = σ/√ε. |
 | `prior_shape` / `prior_rate` | float | engine | Inverse-gamma α₀ / β₀ on residual variance. |
 | `credible_level` | float | `0.95` | Posterior credible-interval mass. |
+| `conf_level` | float | `credible_level` | `CILower` / `CIUpper` mass, `0<c<1`. |
 | `weight` | slot weight | inherited | `null` opts out; frequency only (= the expanded rows: X'WX, X'Wy, Σw in the posterior). Adds `SumWeights`; `NObs` raw rows. |
 | `vcov` | bool | `false` | Adds the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ (null if a_n ≤ 1) + `Correlation`; diag = `StdErrors`²·a_n/(a_n−1). |
 
@@ -44,13 +45,13 @@ Use something else:
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as OLS; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `CILower` / `CIUpper` the same t interval at `conf_level` (equal when unset), `DF` = 2a_n, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as OLS; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
 
 ## Reading the output
 
 - `coefficients.*`: Posterior mean of the coefficient: the expected difference in the outcome between rows one unit apart on this predictor, holding the other predictors fixed, after combining the data with the prior.
 - `std_errors.*`: Scale of the coefficient's Student-t posterior: how uncertain the coefficient is given the data and the prior. With many rows it is close to the posterior standard deviation.
-- `r2`: R-squared of the posterior-mean fit: the share of the outcome's variation the posterior-mean coefficients account for in these rows.
+- `conf_level`: The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
 
 ## Gotchas
 

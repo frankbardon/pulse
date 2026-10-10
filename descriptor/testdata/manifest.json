@@ -5832,7 +5832,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals.",
+        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level.",
         "streamable": true,
         "streamable_hint": "Streamable; Resample and Selection are refused (PROCESSING_CONFIG), so nothing forces the buffered path.",
         "params": [
@@ -5891,6 +5891,13 @@
             "description": "Posterior credible-interval mass."
           },
           {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, the posterior Student-t interval on df = 2·a_n; falls back to credible_level when unset, so the bounds then equal credible_intervals."
+          },
+          {
             "name": "vcov",
             "type": "bool",
             "required": false,
@@ -5921,7 +5928,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, deviance, null deviance, McFadden pseudo-R².",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R².",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -6022,6 +6029,13 @@
             ]
           },
           {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: Wald normal coefficient ∓ z·SE (dispersion 1)."
+          },
+          {
             "name": "vcov",
             "type": "bool",
             "required": false,
@@ -6072,7 +6086,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, R², adjusted R², residual std error.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error.",
         "streamable": true,
         "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path.",
         "params": [
@@ -6170,6 +6184,13 @@
               "aic",
               "bic"
             ]
+          },
+          {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: coefficient ∓ t·SE on the residual df (N* − p − 1 weighted); Wald normal under resample; intervals only where a std error is reported."
           },
           {
             "name": "vcov",
@@ -9802,7 +9823,7 @@
       },
       {
         "name": "regression-inference",
-        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -13783,6 +13804,10 @@
           "regressions[*].coefficients",
           "regressions[*].std_errors",
           "regressions[*].p_values",
+          "regressions[*].ci_lower",
+          "regressions[*].ci_upper",
+          "regressions[*].df",
+          "regressions[*].conf_level",
           "regressions[*].r2",
           "regressions[*].adj_r2",
           "regressions[*].deviance",
@@ -13895,4 +13920,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 94fe97e9132d038f87b405fd3bffac74dd2c615dc89743243964e75777976ae3
+// golden-hash: bc60053ab2ac95052351fc6e4b729479ba4f5a9cc6ebfdd562091ad8ec41dc3e

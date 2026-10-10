@@ -258,6 +258,10 @@ func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
 		ConvergedIters: e.convergedIters,
 	}
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
+	// t on the residual df N* − p − 1 (the N* rule, weighting.md): the
+	// same df the p-values read. Lasso / elastic net get intervals only
+	// where they report a (plug-in) standard error.
+	attachIntervals(res, resolvedConfLevel(e.spec), solve.DF, true)
 	if e.spec.Vcov {
 		attachVcov(res, predictors, olsVcov(solve, e.acc.meanX))
 	}

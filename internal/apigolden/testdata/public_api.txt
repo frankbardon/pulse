@@ -4408,11 +4408,15 @@ pulse/types: type RankEntry field Value float64 "json:\"value\""
 pulse/types: type RegressionResult struct
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
+pulse/types: type RegressionResult field CILower map[string]float64 "json:\"ci_lower,omitempty\""
+pulse/types: type RegressionResult field CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
 pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\"coefficients,omitempty\""
+pulse/types: type RegressionResult field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionResult field ConvergedIters int "json:\"converged_iters,omitempty\""
 pulse/types: type RegressionResult field Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
 pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64 "json:\"credible_intervals,omitempty\""
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
+pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
@@ -4438,6 +4442,7 @@ pulse/types: type RegressionResult method (RegressionResult) MarshalJSON() ([]by
 pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionSpec field BootstrapIters int "json:\"bootstrap_iters,omitempty\""
+pulse/types: type RegressionSpec field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
@@ -4677,4 +4682,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bddd64b99240de646ae133b7809cc088fc54c03486371a96b076f292e023be91
+// golden-hash: c2ee1707569c428464e48c79b45289a631a6ef0db3adfa5cf7ca46fa156dcd6a

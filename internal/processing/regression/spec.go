@@ -27,10 +27,16 @@ import (
 //     catches this but ValidateRegression is also reachable from
 //     hand-built specs in tests.
 //
-// A spec that sets Vcov is then held to validateVcov.
+// A spec is then held to validateConfLevel (0 < conf_level < 1, zero
+// the default) and, when it sets Vcov, to validateVcov.
 func ValidateRegression(spec *types.RegressionSpec) error {
 	if err := validateRegressionSpec(spec); err != nil {
 		return err
+	}
+	if spec != nil {
+		if err := validateConfLevel(spec); err != nil {
+			return err
+		}
 	}
 	return validateVcov(spec)
 }

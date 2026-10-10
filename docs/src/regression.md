@@ -67,6 +67,7 @@ Ordinary least squares with optional regularization.
 | `tol`         | no       | Convergence tolerance (default `1e-6`).                                                |
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`. Downgrades streaming.                                  |
 | `selection`   | no       | `"forward"`, `"backward"`, or `"stepwise"`. Requires `criterion`. Downgrades streaming. |
+| `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95. Student t on the residual df. |
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
 
@@ -86,6 +87,7 @@ Generalized linear model via iteratively-reweighted least squares.
 | `tol`         | no       | Convergence tolerance (default `1e-8`).                                                |
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`.                                                        |
 | `selection`   | no       | Subset-selection wrapper; requires `criterion`.                                        |
+| `conf_level`  | no       | Coverage of the Wald `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95.               |
 
 Always buffered. Setting `penalty` / `alpha` / `l1_ratio` on a `REG_GLM` spec is rejected with `PROCESSING_CONFIG`; regularized GLM is reserved for a later phase.
 
@@ -105,6 +107,9 @@ Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior.
 | `prior_shape`     | no       | Inverse-gamma shape `a₀`. Default `1e-3`.                                          |
 | `prior_rate`      | no       | Inverse-gamma rate `b₀`. Default `1e-3`.                                           |
 | `credible_level`  | no       | Posterior interval mass. Default 0.95.                                             |
+| `conf_level`      | no       | Mass of `ci_lower` / `ci_upper` (the same posterior t interval). Defaults to `credible_level`. |
+
+Every fit with standard errors reports `ci_lower` / `ci_upper` (keyed like `coefficients`), `conf_level` and, for a t interval, `df`: OLS t on the residual df (N* − p − 1 on a weighted fit), GLM Wald normal (R's `confint.default`), Bayes the posterior t on 2·a_n, and any fit under `resample` normal on the resampled standard errors. An interval exists exactly where a standard error does; an undefined bound is `null`.
 
 Modifier compatibility: `Resample` and `Selection` are **rejected** for `REG_BAYES_LINEAR` at spec validation — the posterior already conveys uncertainty via credible intervals, and stepwise feature selection on a Bayesian model is a posterior-based question the conjugate-NIG engine doesn't support.
 

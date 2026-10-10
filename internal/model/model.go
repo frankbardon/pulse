@@ -68,6 +68,19 @@ type Bound struct {
 	// Predictors (NaN where the fit reports none).
 	StdErrors []float64
 
+	// InterceptCILower / InterceptCIUpper are the intercept's
+	// confidence bounds and CILower / CIUpper the coefficients' aligned
+	// with Predictors, at ConfLevel (RegressionResult.CILower /
+	// CIUpper, full precision); NaN where the fit reports none.
+	InterceptCILower float64
+	InterceptCIUpper float64
+	CILower          []float64
+	CIUpper          []float64
+
+	// ConfLevel is the intervals' coverage (0 when the fit reports no
+	// intervals).
+	ConfLevel float64
+
 	// Family and Link are the GLM error family and link ("" otherwise).
 	Family string
 	Link   string
@@ -99,19 +112,24 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 		return nil, missingCoefficient(name, InterceptKey)
 	}
 	b := &Bound{
-		Name:            name,
-		Type:            res.Type,
-		Target:          spec.Target,
-		Predictors:      predictors,
-		Terms:           append([]string(nil), spec.Predictors...),
-		Intercept:       intercept,
-		Coefficients:    make([]float64, len(predictors)),
-		InterceptStdErr: stdErr(res, InterceptKey),
-		StdErrors:       make([]float64, len(predictors)),
-		Family:          res.Family,
-		Link:            res.Link,
-		Vcov:            res.Vcov,
-		Result:          res,
+		Name:             name,
+		Type:             res.Type,
+		Target:           spec.Target,
+		Predictors:       predictors,
+		Terms:            append([]string(nil), spec.Predictors...),
+		Intercept:        intercept,
+		Coefficients:     make([]float64, len(predictors)),
+		InterceptStdErr:  stdErr(res, InterceptKey),
+		StdErrors:        make([]float64, len(predictors)),
+		InterceptCILower: lookupOrNaN(res.CILower, InterceptKey),
+		InterceptCIUpper: lookupOrNaN(res.CIUpper, InterceptKey),
+		CILower:          make([]float64, len(predictors)),
+		CIUpper:          make([]float64, len(predictors)),
+		ConfLevel:        res.ConfLevel,
+		Family:           res.Family,
+		Link:             res.Link,
+		Vcov:             res.Vcov,
+		Result:           res,
 	}
 	for i, p := range predictors {
 		c, ok := res.Coefficients[p]
@@ -120,12 +138,19 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 		}
 		b.Coefficients[i] = c
 		b.StdErrors[i] = stdErr(res, p)
+		b.CILower[i] = lookupOrNaN(res.CILower, p)
+		b.CIUpper[i] = lookupOrNaN(res.CIUpper, p)
 	}
 	return b, nil
 }
 
 func stdErr(res *types.RegressionResult, key string) float64 {
-	if v, ok := res.StdErrors[key]; ok {
+	return lookupOrNaN(res.StdErrors, key)
+}
+
+// lookupOrNaN reads a per-term result map; an absent term is NaN.
+func lookupOrNaN(m map[string]float64, key string) float64 {
+	if v, ok := m[key]; ok {
 		return v
 	}
 	return math.NaN()

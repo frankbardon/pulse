@@ -1,13 +1,28 @@
 ---
 name: regression-inference
-description: Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills.
+description: Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [vcov, Vcov, Correlation, covariance, coefficient correlation, standard errors, std_errors, regressions]
+covers: [ci_lower, ci_upper, conf_level, confidence interval, df, vcov, Vcov, Correlation, covariance, coefficient correlation, standard errors, std_errors, regressions]
 ---
 
-# Regression coefficient covariance
+# Regression coefficient intervals and covariance
+
+## Confidence intervals
+
+Every fit with standard errors carries `ci_lower` / `ci_upper` (keyed like `coefficients`), `conf_level` and, for a t interval, `df`: bound = β ∓ q·SE. Set `"conf_level": 0.9` (flat, `0<c<1`, default 0.95).
+
+| Fit | q | `df` |
+|---|---|---|
+| OLS, ridge | Student t | residual N* − p − 1 (fractional weighted) |
+| GLM | normal (Wald, R `confint.default`) | absent |
+| Bayesian linear | posterior t, = `credible_intervals` at one level | 2a_N |
+| Resample | normal on the resampled SE | absent |
+
+Present exactly where `std_errors` is: lasso / elastic net only on kept predictors (plug-in, approximate), selection keyed by `selected_features`. An undefined bound (df ≤ 0) is `null`. t on df, so it differs from a pasted ±1.96·SE in about the third digit on small samples.
+
+## Covariance
 
 Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to get the coefficient covariance and its correlation. Off by default: `Vcov` / `Correlation` are then absent and the response is byte-identical.
 
@@ -54,7 +69,7 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 
 ## Response shaping
 
-Both slots ride the `standard` preset (the MCP default) and are absent from `minimal`. Exclude with `regressions[*].vcov` / `regressions[*].correlation` paths in `return.exclude`; `return.precision` rounds them like any figure. See `response-shaping`.
+`vcov`, `correlation`, `ci_lower`, `ci_upper`, `df`, `conf_level` ride the `standard` preset (the MCP default) and are absent from `minimal`. Exclude with `regressions[*].<key>` paths in `return.exclude`; `return.precision` rounds them like any figure. See `response-shaping`.
 
 ## See
 

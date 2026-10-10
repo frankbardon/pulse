@@ -35,6 +35,7 @@ Use something else:
 | `l1_ratio` | float | `0` | Elastic-net mix in `[0,1]`. |
 | `max_iters` / `tol` | int / float | engine | Coordinate-descent caps for regularized fits. |
 | `weight` | slot weight | inherited | `null` opts out; both kinds. WLS β (penalty × Σw: kind-free); SE, df = N*−p−1 (fractional), `AdjR2` on N* = Σw (frequency) / Kish n_eff (probability). |
+| `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation` (`MatrixValues`, keys `(intercept)` + predictors); √diag = `StdErrors`. Unpenalized σ̂²(XᵀX)⁻¹ / ridge sandwich, N* basis. Resample: replicate covariance; selection: final refit's. `l1` / `elasticnet` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. |
 
 `resample` / `selection` are top-level modifiers — see [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md).
@@ -45,17 +46,17 @@ Use something else:
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (raw rows); weighted adds `SumWeights` (+ `NEff`, probability). Penalized shrunk-to-zero βs drop from `StdErrors`. Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper` = β ∓ t(`DF`)·SE wherever an SE is (resample: z on its SE, no `DF`), `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (raw rows); weighted adds `SumWeights` (+ `NEff`, probability). Penalized shrunk-to-zero βs drop from `StdErrors`. Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
 
 ## Reading the output
 
 - `coefficients.*`: The difference in the outcome's expected value between rows one unit apart on this predictor, holding the other predictors fixed, in outcome units per predictor unit (an association, not the effect of changing it).
 - `std_errors.*`: How much the coefficient would vary from sample to sample; smaller means a more precise estimate. Pulse reports the classic standard error, which assumes residuals of constant spread.
-- `r2`: R-squared: the share of the outcome's variation around its mean that the fitted model accounts for in these rows, from 0 to 1.
+- `conf_level`: The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
 
 ## Gotchas
 
-- Weighted: `resample` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`; n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `AdjR2`, `ResidualStdErr` null.
+- Weighted: `resample` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`; n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `CILower`/`CIUpper`, `DF`, `AdjR2`, `ResidualStdErr` null.
 - `l1` / `elasticnet` SE is plug-in over the active set — pair with [`op-reg-mod-resample`](op-reg-mod-resample.md); otherwise `PROCESSING_REGRESSION_APPROXIMATE_SE` warns.
 - Collinearity → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`; drop a predictor or add `l2`.
 - `penalty != ""` + `selection != ""` → `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.

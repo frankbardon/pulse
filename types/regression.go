@@ -162,6 +162,16 @@ type RegressionSpec struct {
 	// modifier, with PROCESSING_REGRESSION_VCOV_UNSUPPORTED.
 	Vcov bool `json:"vcov,omitempty"`
 
+	// ConfLevel is the coverage of the coefficient confidence intervals
+	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
+	// selects 0.95. REG_OLS uses a Student-t critical value on the
+	// residual degrees of freedom (N* − p − 1 on a weighted fit), REG_GLM
+	// a Wald normal one, REG_BAYES_LINEAR the posterior Student-t
+	// (credible_level is the fallback when this is unset, so the
+	// intervals then equal CredibleIntervals). Under Resample the
+	// intervals are Wald normal on the resampled standard errors.
+	ConfLevel float64 `json:"conf_level,omitempty"`
+
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
 	// slot out (it runs unweighted); a field-name string or a
@@ -221,6 +231,29 @@ type RegressionResult struct {
 	// PValues maps predictor name to its two-sided p-value under the
 	// null β = 0.
 	PValues map[string]float64 `json:"p_values,omitempty"`
+
+	// CILower and CIUpper map predictor name (keyed like Coefficients) to
+	// the lower / upper bound of the coefficient's two-sided confidence
+	// interval at ConfLevel: coefficient ∓ q·StdErrors, q the Student-t
+	// critical value on DF (REG_OLS; REG_BAYES_LINEAR's posterior t,
+	// where the bounds equal CredibleIntervals at the same level) or the
+	// standard normal one when DF is absent (REG_GLM Wald; any fit under
+	// Resample). A key is present exactly when StdErrors carries it, so
+	// a fit without standard errors carries no intervals. An undefined
+	// bound (DF ≤ 0) is null.
+	CILower map[string]float64 `json:"ci_lower,omitempty"`
+	CIUpper map[string]float64 `json:"ci_upper,omitempty"`
+
+	// DF is the degrees of freedom of the Student-t critical value the
+	// intervals read: the residual df N* − p − 1 on REG_OLS (n − p − 1
+	// unweighted; Σw or Kish n_eff in place of n on a weighted fit, so
+	// fractional under kind probability), 2·a_n on REG_BAYES_LINEAR.
+	// Absent when the intervals are Wald normal; null when undefined.
+	DF float64 `json:"df,omitempty"`
+
+	// ConfLevel is the resolved interval coverage (RegressionSpec
+	// ConfLevel, 0.95 by default); present exactly when CILower is.
+	ConfLevel float64 `json:"conf_level,omitempty"`
 
 	// R2 is the coefficient of determination (REG_OLS / REG_BAYES_LINEAR).
 	R2 float64 `json:"r2,omitempty"`

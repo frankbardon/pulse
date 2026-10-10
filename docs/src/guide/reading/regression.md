@@ -44,6 +44,30 @@ Scale of the coefficient's Student-t posterior: how uncertain the coefficient is
 - With the default weak prior and many rows per predictor it is close to the OLS confidence interval. With few rows it is narrower, because the default variance prior divides by about n rather than n - p - 1 (about 19% narrower at 20 rows and 5 predictors). With an informative prior it also reflects that prior.
 - An interval that excludes 0 is not a significance test; report the interval itself.
 
+#### `ci_lower.*`
+
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the equal-tailed posterior interval on the coefficient's Student-t posterior with df degrees of freedom, as in credible_intervals.
+
+**Caveats:**
+
+- With conf_level unset it is built at credible_level, so it equals credible_intervals; it reads like them, as a probability given the prior and the model.
+
+#### `ci_upper.*`
+
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the equal-tailed posterior interval on the coefficient's Student-t posterior with df degrees of freedom, as in credible_intervals.
+
+**Caveats:**
+
+- With conf_level unset it is built at credible_level, so it equals credible_intervals; it reads like them, as a probability given the prior and the model.
+
+#### `conf_level`
+
+The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
+
+#### `df`
+
+Degrees of freedom of the coefficients' Student-t posterior, 2 * a_n, which the interval's critical value reads.
+
 #### `r2`
 
 R-squared of the posterior-mean fit: the share of the outcome's variation the posterior-mean coefficients account for in these rows.
@@ -118,6 +142,32 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 - Wald z at dispersion fixed to 1: with overdispersed counts the Poisson p-values come out too small, and gamma p-values are unreliable.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `ci_lower.*`
+
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval), on the link scale.
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.
+- Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.
+
+#### `ci_upper.*`
+
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval), on the link scale.
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.
+- Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.
+
+#### `conf_level`
+
+The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
 
 #### `deviance`
 
@@ -198,6 +248,40 @@ How much the coefficient would vary from sample to sample; smaller means a more 
 - On a penalized fit (l1, l2, elasticnet) the coefficients are shrunk on purpose, so these p-values do not have the usual reading; l1 and elasticnet ones are approximate.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `ci_lower.*`
+
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a Student-t critical value on df times its standard error.
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Under resample the critical value is the normal one and the standard error the resampled one; df is then absent.
+- On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones exist only for the kept predictors and are approximate.
+
+#### `ci_upper.*`
+
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a Student-t critical value on df times its standard error.
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Under resample the critical value is the normal one and the standard error the resampled one; df is then absent.
+- On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones exist only for the kept predictors and are approximate.
+
+#### `conf_level`
+
+The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
+
+#### `df`
+
+Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional.
+
+**Caveats:**
+
+- Null when it is 0 or below: too few rows (or too small an effective sample) for the predictors, and every bound is then null too.
 
 #### `r2`
 

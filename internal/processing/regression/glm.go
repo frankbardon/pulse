@@ -443,6 +443,8 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		ConvergedIters: convergedIters,
 	}
 	rw.note(res, sumW, sumWSq)
+	// Wald normal intervals, on the same basis as the Wald-z p-values.
+	attachIntervals(res, resolvedConfLevel(e.spec), 0, false)
 	if e.spec.Vcov {
 		// Cov(β) = (XᵀWX)⁻¹ at the converged weights (dispersion 1), its
 		// diagonal the clamped variances the standard errors read.

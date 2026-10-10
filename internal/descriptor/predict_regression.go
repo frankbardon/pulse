@@ -113,6 +113,16 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			)
 		}
 
+		// conf_level, when set, must lie in (0, 1) — the runtime's
+		// regression.validateConfLevel rule, mirrored here.
+		if c := reg.ConfLevel; c != 0 && !(c > 0 && c < 1) {
+			env.AddError(
+				string(errors.PROCESSING_CONFIG),
+				string(reg.Type)+" conf_level must satisfy 0 < conf_level < 1 (zero selects the default of 0.95)",
+				map[string]any{"conf_level": c, "type": string(reg.Type)},
+			)
+		}
+
 		// vcov: true needs a coefficient covariance: refused on lasso /
 		// elastic net (under a Resample / Selection modifier too) — the
 		// runtime's regression.validateVcov rule, mirrored here (predict

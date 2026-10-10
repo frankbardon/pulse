@@ -23,6 +23,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `link` | enum | family default | `binomial→logit`, `poisson→log`, `gamma→inverse`. `identity`, `probit`, `cloglog`, `sqrt` reserved. |
 | `max_iters` / `tol` | int / float | engine | IRLS caps. |
 | `weight` | slot weight | inherited | `null` opts out; both kinds. IRLS prior weights w* (R `glm(weights = w*)`); SEs, deviances on w*. |
+| `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
 | `vcov` | bool | `false` | Adds `Vcov` = (XᵀWX)⁻¹ at the converged weights (dispersion 1) + `Correlation`; √diag = `StdErrors`. Resample: replicate covariance; selection: final refit's. |
 
 `resample` / `selection` are top-level modifiers — see `op-reg-mod-resample`, `op-reg-mod-selection`.
@@ -33,7 +34,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` echoed; `ConvergedIters` = IRLS steps; `NObs` raw rows, weighted adds `SumWeights` (+ `NEff`, probability). Always buffered — IRLS needs multiple passes.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `CILower` / `CIUpper` = Wald β ∓ z·SE (R `confint.default`, not the profile `confint`), `ConfLevel`, no `DF`; `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` echoed; `ConvergedIters` = IRLS steps; `NObs` raw rows, weighted adds `SumWeights` (+ `NEff`, probability). Always buffered — IRLS needs multiple passes.
 
 <!-- generated: reading-the-output -->
 

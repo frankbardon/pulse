@@ -330,6 +330,7 @@ func (e *modifierEngine) fitOLSInterceptOnly(records []Record) (*types.Regressio
 		NObs:           n,
 		ResidualStdErr: residualStdErr,
 	}
+	attachIntervals(res, resolvedConfLevel(e.spec), float64(n-1), true)
 	if e.spec.Vcov {
 		// The 1×1 covariance of β₀ = ȳ: the variance se0 is the root of.
 		v0 := 0.0
