@@ -14,7 +14,7 @@ requires: [capability:compose]
 
 ## When to compose
 
-- **Several independent questions in one call** — a summary, a breakdown and a crosstab of the same survey; or the same request over several cohorts.
+- **Several independent questions in one call** — a summary, a breakdown and a crosstab of one survey, or one request over several cohorts<!-- feature: capability:compose_sweep --> (a parameter grid: `compose-sweeps`)<!-- /feature -->.
 - **Comparing slots** — a Compose-host overlay reads two or more finished slots and decorates the comparison (reference vs target, or a multi-slot panel).
 
 Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a chain<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->. Every slot opens and decodes its own cohort: composing saves round-trips, not decode work.
@@ -68,7 +68,7 @@ Two slots resolving to the same final label (duplicates, or a caller label colli
 
 Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` against the labels above; find them among the manifest `overlays[]` entries serving `compare_groups` or `benchmark` and read their atomic skills. The usual refusal is schema divergence — the reference and target slots group or crosstab on different axes; keep the compared slots' shapes identical and vary only the filter or cohort. Per-layer diagnostics land on `overlays[i].warnings`.
 
-Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by byte-equal dictionary PREFIX — only when you have verified prefix-equal dictionaries) and `MaxPanelTargets` (default 16; caps a multi-slot panel's targets, overflow ⇒ `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`).
+Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by byte-equal dictionary PREFIX; only when verified) and `MaxPanelTargets` (default 16; overflow ⇒ `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`).
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
@@ -82,7 +82,7 @@ Every slot's `components` is emitted independently — the universal floor (`{n,
 
 ## Validate before executing
 
-`pulse_predict` takes one `Request`: loop it over the slots to catch field typos, missing dictionaries and type mismatches before paying for `pulse_compose`. Compose overlay specs are checked when the fold runs, after the slots — so a mislabelled overlay costs the full batch; check every `SlotLabel` against the labels you set.
+`pulse_predict` takes one `Request`: loop it over the slots to catch field typos, missing dictionaries and type mismatches before paying for `pulse_compose`. Compose overlay specs are checked when the fold runs, after the slots — a mislabelled overlay costs the full batch; check every `SlotLabel` against your labels.
 
 ## See
 

@@ -25,7 +25,7 @@ import (
 	"sync"
 )
 
-//go:embed aggregations/*.json attributes/*.json crosstab/*.json facet/*.json features/*.json filterers/*.json groupers/*.json matrices/*.json overlays/*.json regression/*.json tests/*.json windows/*.json
+//go:embed aggregations/*.json attributes/*.json compose/*.json crosstab/*.json facet/*.json features/*.json filterers/*.json groupers/*.json matrices/*.json overlays/*.json regression/*.json tests/*.json windows/*.json
 var content embed.FS
 
 // AllCategories returns every directory the library indexes, sorted

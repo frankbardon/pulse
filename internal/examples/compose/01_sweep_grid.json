@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Compose batch with one explicit baseline slot plus a two-axis grid sweep: the average revenue of each treatment arm over each region is expanded from ONE request body into ordinary compose slots labelled arm_region. The explicit slot keeps index 0, the sweep slots follow in grid order (first axis slowest). Predict reports the sweep summary and counts the expanded slots against MaxComposeSlots.",
+    "capabilities": [
+      "capability:compose_sweep"
+    ],
+    "intents": [
+      "compare_groups"
+    ],
+    "name": "compose-sweep-grid",
+    "operators": [
+      "AGG_AVERAGE",
+      "FILTER_INCLUDE"
+    ],
+    "tags": [
+      "compose",
+      "composed",
+      "experiment-analysis"
+    ]
+  },
+  "requests": [
+    {
+      "label": "baseline",
+      "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+      "aggregations": [{"type": "AGG_AVERAGE", "field": "revenue"}]
+    }
+  ],
+  "sweep": {
+    "axes": [
+      {"name": "arm", "values": ["control", "variant"]},
+      {"name": "region", "values": ["north", "south"]}
+    ],
+    "mode": "grid",
+    "label": "{{arm}}_{{region}}",
+    "request": {
+      "cohort": {"filename": "experiment.pulse", "data_dir": ".data"},
+      "filterers": [
+        {"type": "FILTER_INCLUDE", "field": "treatment", "values": [{"$var": "arm"}]},
+        {"type": "FILTER_INCLUDE", "field": "region", "values": [{"$var": "region"}]}
+      ],
+      "aggregations": [{"type": "AGG_AVERAGE", "field": "revenue"}]
+    }
+  }
+}

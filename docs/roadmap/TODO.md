@@ -279,6 +279,7 @@ Theme documents: see the [roadmap index](README.md).
 #### Follow-ups from U40
 - [ ] **#297** A later request references a sweep winner (`rank.top`) instead of typing the winning axis values by hand (worked-example gap 14) · [U40](units/U40-compose-sweep.md)
 - [ ] **#298** Per-axis profile in the ranking output (minimum of the metric over the other axes, per axis value) for the decay identifiability reading (worked-example gap 15) · [U40](units/U40-compose-sweep.md)
+- [ ] **#299** An empty Compose (no `requests`, no `sweep`) predicts valid but the runtime refuses it with `SERVICE_VALIDATION`; make predict refuse it with the same code. Found in U40 (E1-S3) · [U35](units/U35-predict-runtime-parity.md)
 
 ### Derived cohorts — added after the plan ([U41](units/U41-derived-cohort.md))
 - [ ] **#279** NDJSON import matches schema fields to keys by name, not by position; mismatches are coded refusals (bug-class fix: an unsorted schema silently mislabels columns today) · [U41](units/U41-derived-cohort.md)

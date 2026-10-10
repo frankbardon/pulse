@@ -140,3 +140,7 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 
 - **#248** — Bound Recommend reads a shard archive header-only: the archive path of `descx.Predict` does `io.ReadAll`, so a bound Recommend on an archive reads every shard. Found in U22 (PR #331); see [U22 handed on](U22-recommend-explain.md#handed-on).
 - **#249** — Recommend drafts every serving operator: `AGG_RATIO` (predict refuses a missing `field` the runtime ignores), `AGG_WEIGHTED_MEAN` (no weight binding), `ATTR_REG_*` and `FEAT_BUCKETIZE` (required params the manifest does not declare); see `unmappedOnFixture` in `internal/guide/bind_test.go`. Found in U22 (PR #331); see [U22 handed on](U22-recommend-explain.md#handed-on).
+
+## Inherited from U40
+
+- [ ] **#299** — An empty Compose (no `requests`, no `sweep`) predicts valid but the runtime refuses it with `SERVICE_VALIDATION`; make predict refuse it with the same code. Found in U40 (E1-S3).

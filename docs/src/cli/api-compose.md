@@ -29,7 +29,7 @@ pulse api compose --request FILE [--json] [--stream]
 | `--parallel`      |      | int    | 1          | Worker count; 0 = `GOMAXPROCS`, 1 = sequential |
 | `--no-fail-fast`  |      | bool   | false      | Aggregate errors across slots instead of cancelling on first failure (parallel mode only) |
 | `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference |
-| `--echo-request`  |      | bool   | false      | Include the normalized `ComposedRequest` on `envelope.request`; each slot reflects its post-defaults form. Ignored under `--stream` |
+| `--echo-request`  |      | bool   | false      | Include the normalized `ComposedRequest` on `envelope.request`; each slot reflects its post-defaults form; a `sweep` is echoed as the expanded slots that ran. Ignored under `--stream` |
 
 ## Request file shape
 

@@ -13,7 +13,7 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 
 ## Input
 
-`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see [`compose-requests`](compose-requests.md)). Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
+`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see [`compose-requests`](compose-requests.md)). An optional `sweep` expands one request body over axes into more slots ([`compose-sweeps`](compose-sweeps.md)); a sweep body's missing `return` defaults to `standard`. Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
 
 ## Output
 

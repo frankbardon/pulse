@@ -540,6 +540,27 @@ the whole chain, so a stage that excludes `data` still feeds the next
 stage its rows. `final` is the last stage, shaped by its `return`;
 there is no chain-level block.
 
+### Compose sweep
+
+`ComposedRequest.sweep` (`SweepSpec`) is the one slot that expands into
+ordinary Compose slots, so a sweep adds no response shape of its own:
+`responses` carries explicit slots first, then one entry per expansion.
+`SweepSpec` is `{axes, mode, label, request, overlays, rank}`: `axes`
+are `SweepAxis {name, values}` (`values` a non-empty list of scalars),
+`mode` the closed enum `SweepMode` (`grid` default, `zip`), `request` an
+object in the `Request` shape that may carry `{{axis}}` / `{"$var":
+"axis"}` placeholders (the schema types it as `object`; the substituted
+body is decoded strictly at expansion), `overlays` an array of
+`ComposeOverlaySpec` objects with placeholders, and `rank` a
+`SweepRank {by, order, top}` (`SweepRankOrder`: `asc`, `desc`). The slot
+is `omitempty`, so a sweep-free request is byte-identical on the wire.
+It is gated by `capability:compose_sweep`: on an instance that hides it
+the `sweep` property and the `Sweep*` defs are absent. A malformed sweep
+is `PULSE_SWEEP_INVALID` with `details.field` (a `sweep`-rooted path)
+and `details.reason`. `pulse_predict` with `composed` reports the
+expansion as `sweep {axes, mode, expanded_count, labels}` on the predict
+result; that summary is not payload-reachable and is not in this schema.
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a

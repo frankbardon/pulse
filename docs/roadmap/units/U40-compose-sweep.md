@@ -167,4 +167,5 @@ Everything the MMM worked example needed outside Pulse and this unit does not de
 | 17 | `WIN_LAG` default 0 biases lag-1 autocorrelation; post-tests cannot skip null | #294 | [U36](U36-reference-oracles.md) |
 | 18 | OLS standard errors ignore cross-group correlation; no clustered or HAC option | #295 | [U25](U25-multivariate-tests-segmentation.md) |
 | 21 | Cross-check tables assembled from per-group matrices by hand | #296 | [U28](U28-matrix-overlays.md) |
+| - | An empty Compose (no `requests`, no `sweep`) predicts valid; the runtime refuses it with `SERVICE_VALIDATION` | #299 | [U35](U35-predict-runtime-parity.md) |
 | 19 | The example's data generator is external | none | Out of scope; the fixture README says so |
