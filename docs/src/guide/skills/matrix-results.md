@@ -31,7 +31,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - `MAT_PCA` — loadings (rectangular p × k), eigenvalues, KMO, Bartlett; `params.components` k / `kaiser` / `{variance}`.
 - `MAT_RELIABILITY` — alpha, omega, item diagnostics; `params.reverse` + `scale_min` / `scale_max` flip reverse-keyed items.
 
-Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**
+Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `kind` is `square_symmetric` or `rectangular` (p × k); `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**
 
 `encoding`: `full` (default, p rows of p cells) or `upper` (row r holds the p − r cells from the diagonal, `values[r][k]` = cell (r, r + k)) — about half the bytes.
 
@@ -39,7 +39,7 @@ Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only w
 
 `params.missing`: `listwise` (default, drop a row if any member is null) or `pairwise` (each cell uses the rows where both members are present; `auxiliary.n` gives each pair's row count).
 
-- Pairwise matrices of three or more members can fail to be positive semi-definite (`PULSE_MATRIX_NOT_PSD`); do not feed them to anything that needs PSD.
+- Pairwise matrices of three or more members can fail to be positive semi-definite: a warning on covariance / correlation, FATAL on a decomposition unless `params.repair: "nearest"` (`PULSE_MATRIX_NOT_PSD`).
 - `max_drop_share` (listwise only) warns `PULSE_MATRIX_LISTWISE_HEAVY_DROP` when more than that share of rows was dropped.
 - `PULSE_MATRIX_INSUFFICIENT_N` (under two rows or no weight mass) and `PULSE_MATRIX_ZERO_VARIANCE` (a constant member: its correlation row and column are null; covariance keeps an exact 0).
 - Weights follow [`weighting`](weighting.md): frequency and probability both fold into a weighted covariance. A row of weight 0 counts toward `n` but adds no mass.
@@ -75,4 +75,4 @@ Streamability is per spec, not per type: a spec whose params need every row at o
 
 ## See
 
-[`request-envelope`](request-envelope.md) · [`weighting`](weighting.md) · [`response-components`](response-components.md) · [`grouper-design`](grouper-design.md)
+[`multivariate-design`](multivariate-design.md) · [`request-envelope`](request-envelope.md) · [`weighting`](weighting.md) · [`response-components`](response-components.md) · [`grouper-design`](grouper-design.md)

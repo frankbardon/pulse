@@ -8636,6 +8636,10 @@
         "description": "Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected."
       },
       {
+        "name": "multivariate-design",
+        "description": "Choosing a multivariate operator on a battery of numeric fields — which matrix answers which question, what to do with missing data and weights, when a decomposition needs a repaired matrix, and where p-values stand. Topical design; per-operator params in the atomic op-mat-* skills."
+      },
+      {
         "name": "op-agg-average",
         "description": "Arithmetic mean of a numeric field across the input set."
       },
@@ -13240,4 +13244,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0acd21f77ad3dcf8fefecf1e91e0f2fc09e650c2d4fdbd3b228ff7a272cb7891
+// golden-hash: 2f30fe9bf9ceab4d2eaf13afdce9e1be495cf66814336057c03eb0a76e7cb13c

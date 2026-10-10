@@ -44,6 +44,7 @@
     - [label-display](skills/label-display.md)
     - [matrix-results](skills/matrix-results.md)
     - [multiplicity-correction](skills/multiplicity-correction.md)
+    - [multivariate-design](skills/multivariate-design.md)
     - [op-agg-average](skills/op-agg-average.md)
     - [op-agg-ci-lower](skills/op-agg-ci-lower.md)
     - [op-agg-ci-upper](skills/op-agg-ci-upper.md)

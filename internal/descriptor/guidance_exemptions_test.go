@@ -52,7 +52,7 @@ var interpretationExemptions = []guidanceExemption{}
 var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
 	{Key: IntentFlows, Owner: "U28", Why: "Flow analysis needs the matrix overlays (stochastic matrices, steady states) U28 ships."},
-	{Key: IntentMeasureConstruct, Owner: "U24", Why: "MAT_RELIABILITY and MAT_PCA declare it (two since U24 E3-S1); the 3-declarer floor still wants a third (U25's MAT_FACTOR is the natural one)."},
+	{Key: IntentMeasureConstruct, Owner: "U24", Why: "MAT_RELIABILITY and MAT_PCA declare it (two since U24 E3-S1); the 3-declarer floor still wants a third (U25's MAT_FACTOR, TODO #262, is the natural one)."},
 }
 
 // intentExampleExemptions — intents no example's _meta.intents tags
@@ -73,7 +73,7 @@ var exampleIntentExemptions = []guidanceExemption{}
 // (TestGlossary_OrphanReport). Key: the term ID.
 var glossaryOrphanExemptions = []guidanceExemption{
 	// Matrix operators (correlation matrix, reliability, PCA).
-	{Key: "factor", Owner: "U25", Why: "Defined as a latent factor (factor analysis), not a categorical grouping field, so GROUP_CATEGORY does not link it; the MAT_FACTOR operator U25 ships (factor analysis and rotation) does."},
+	{Key: "factor", Owner: "U25", Why: "Defined as a latent factor (factor analysis), not a categorical grouping field, so GROUP_CATEGORY does not link it; the MAT_FACTOR operator (roadmap TODO #262, U25: factor analysis and rotation) does."},
 	// Segmentation.
 	{Key: "centroid", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},
 	{Key: "distance", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},
