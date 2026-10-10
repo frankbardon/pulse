@@ -103,3 +103,4 @@ Every failure is an `*errors.CodedError`. Look up its prose with `pulse errors l
   - `no_convergence`.
 
   A reference Cholesky failure carries `pivot`; an exhausted ridge schedule carries `attempts` and `ridge`.
+  A failed `Cholesky` (so `SolveSPD` / `InverseSPD`) or `FactorSPD` on a finite matrix also carries `rank`, `condition_number` (`+Inf`, `null` on the wire, when rank-deficient) and, for a rank-deficient one, `dependent_indices`: the axis indices in the linear dependency. A matrix operator names them as `dependent_fields`.

@@ -368,10 +368,11 @@ type MatrixPredict struct {
 	// one state per block its rows touch). Omitted with the bucket count
 	// unknown. It is the matrix term of the MaxEstimatedMemory estimate.
 	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
-	// Streamable reports whether the operator folds row by row (its
-	// result is emitted at finalize — terminal flush when streamed).
-	// Request-level routing (groupers, two-pass attributes) is
-	// PredictResult.Streamable.
+	// Streamable reports whether this spec folds row by row (its
+	// result is emitted at finalize — terminal flush when streamed):
+	// the spec-level types.MatrixSpec.Streamable, the type folded with
+	// its params (a rank method is buffered). Request-level routing
+	// (groupers, two-pass attributes) is PredictResult.Streamable.
 	Streamable bool `json:"streamable"`
 	// PairwisePSDRisk reports whether the result can come back not
 	// positive semidefinite — pairwise MAT_COVARIANCE at p ≥ 2,

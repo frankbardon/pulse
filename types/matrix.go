@@ -43,7 +43,9 @@ func AllMatrixTypes() []MatrixType {
 // Streamable reports whether the operator folds row by row: every
 // built-in matrix operator does (its state is the per-block co-moment
 // set), so the result is emitted at finalize — on the streaming path,
-// at terminal flush. An unknown type is not streamable.
+// at terminal flush. An unknown type is not streamable. This is the
+// TYPE-level answer the manifest reports; routing reads the spec-level
+// MatrixSpec.Streamable, which its params may turn off.
 func (t MatrixType) Streamable() bool {
 	switch t {
 	case MAT_CORRELATION, MAT_COVARIANCE:
@@ -57,7 +59,8 @@ func (t MatrixType) Streamable() bool {
 // DecodeWorkers / ShardWorkers. Every built-in matrix operator merges
 // through the blocked merge tree (per-block co-moments keyed by
 // absolute record position), so serial and every worker count return
-// the same bits. An unknown type is not mergeable.
+// the same bits. An unknown type is not mergeable. Type-level, like
+// Streamable: the merge gate reads MatrixSpec.Mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
 	case MAT_CORRELATION, MAT_COVARIANCE:
@@ -134,8 +137,41 @@ type MatrixSpec struct {
 	Encoding MatrixEncoding `json:"encoding,omitempty"`
 }
 
-// Streamable reports whether the spec's operator folds row by row.
-func (s MatrixSpec) Streamable() bool { return s.Type.Streamable() }
+// Streamable reports whether this concrete spec folds row by row, so a
+// request carrying it may run on the streaming path. It folds the
+// type-level answer (MatrixType.Streamable) with the spec's params: a
+// params choice that needs every row at once (a rank method on
+// MAT_CORRELATION — any params.method other than "pearson") makes the
+// spec buffered. This, not the type-level method, is what the runtime
+// streaming gate, predict and the engine's slot builder read, so they
+// cannot disagree. Malformed params read as the type's own answer; the
+// field-reference pass refuses them before any run.
+func (s MatrixSpec) Streamable() bool { return s.Type.Streamable() && !s.bufferedParams() }
+
+// Mergeable reports whether this concrete spec's running state combines
+// across input partitions, so a request carrying it may fan out over
+// DecodeWorkers / ShardWorkers. Like Streamable it folds the type-level
+// answer (MatrixType.Mergeable) with the spec's params: a buffered spec
+// keeps its rows, which do not merge, so it is never mergeable and the
+// request runs serially (internal/mergegate.MergeRefusal).
+func (s MatrixSpec) Mergeable() bool { return s.Type.Mergeable() && !s.bufferedParams() }
+
+// bufferedParams reports whether the spec's params select a computation
+// that needs the whole row set (a rank method). Only params.method on
+// MAT_CORRELATION does today: absent or "pearson" folds co-moments;
+// anything else ranks.
+func (s MatrixSpec) bufferedParams() bool {
+	if s.Type != MAT_CORRELATION || len(s.Params) == 0 {
+		return false
+	}
+	var p struct {
+		Method *string `json:"method"`
+	}
+	if err := json.Unmarshal(s.Params, &p); err != nil || p.Method == nil {
+		return false
+	}
+	return *p.Method != "pearson"
+}
 
 // EffectiveEncoding returns the spec's Encoding, MatrixEncodingFull
 // when empty.

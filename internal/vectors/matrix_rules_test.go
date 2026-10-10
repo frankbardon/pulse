@@ -66,3 +66,70 @@ func TestEstimateBuckets(t *testing.T) {
 		})
 	}
 }
+
+// TestPSDRisk_PerType: the NOT_PSD risk is decided per type — pairwise
+// covariance from p = 2, pairwise correlation from p = 3, listwise
+// never, and a type the rule does not name carries none (an operator
+// must opt in, never inherit the catch-all a non-correlation type used
+// to fall into).
+func TestPSDRisk_PerType(t *testing.T) {
+	members := func(p int) Resolved {
+		r := Resolved{}
+		for i := 0; i < p; i++ {
+			r.Members = append(r.Members, "m"+string(rune('a'+i)))
+		}
+		return r
+	}
+	cases := []struct {
+		name     string
+		typ      types.MatrixType
+		pairwise bool
+		p        int
+		want     bool
+	}{
+		{"listwise covariance", types.MAT_COVARIANCE, false, 4, false},
+		{"pairwise covariance p=1", types.MAT_COVARIANCE, true, 1, false},
+		{"pairwise covariance p=2", types.MAT_COVARIANCE, true, 2, true},
+		{"pairwise correlation p=2", types.MAT_CORRELATION, true, 2, false},
+		{"pairwise correlation p=3", types.MAT_CORRELATION, true, 3, true},
+		{"listwise correlation", types.MAT_CORRELATION, false, 5, false},
+		{"pairwise unnamed type p=3", types.MatrixType("MAT_OTHER"), true, 3, false},
+		{"pairwise unnamed type p=8", types.MatrixType("MAT_OTHER"), true, 8, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := Matrix{Type: c.typ, Pairwise: c.pairwise, Members: members(c.p)}
+			if got := m.PSDRisk(); got != c.want {
+				t.Errorf("PSDRisk = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestResolveMatrices_CopiesSpecStreamability: the resolved plan carries
+// the spec-level answers, so the engine's slot builder reads the same
+// rule as the routing gates.
+func TestResolveMatrices_CopiesSpecStreamability(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "a", Type: encoding.FieldTypeF64},
+		{Name: "b", Type: encoding.FieldTypeF64},
+	}}
+	req := &types.Request{Matrices: []types.MatrixSpec{
+		{Type: types.MAT_COVARIANCE, Fields: []string{"a", "b"}},
+		{Type: types.MAT_CORRELATION, Fields: []string{"a", "b"}},
+	}}
+	plans, err := ResolveMatrices(req, schema, nil)
+	if err != nil {
+		t.Fatalf("ResolveMatrices: %v", err)
+	}
+	for i, m := range plans {
+		spec := req.Matrices[i]
+		if m.Streamable != spec.Streamable() || m.Mergeable != spec.Mergeable() {
+			t.Errorf("%s: plan (streamable %v, mergeable %v) != spec (%v, %v)",
+				m.Name, m.Streamable, m.Mergeable, spec.Streamable(), spec.Mergeable())
+		}
+		if !m.Streamable || !m.Mergeable {
+			t.Errorf("%s: a co-moment operator must resolve streamable and mergeable", m.Name)
+		}
+	}
+}

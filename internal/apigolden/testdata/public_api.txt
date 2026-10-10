@@ -4060,6 +4060,7 @@ pulse/types: type MatrixSpec field Vector string "json:\"vector,omitempty\""
 pulse/types: type MatrixSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type MatrixSpec method (MatrixSpec) EffectiveEncoding() pulse/types.MatrixEncoding
 pulse/types: type MatrixSpec method (MatrixSpec) EffectiveName() string
+pulse/types: type MatrixSpec method (MatrixSpec) Mergeable() bool
 pulse/types: type MatrixSpec method (MatrixSpec) Streamable() bool
 pulse/types: type MatrixType string
 pulse/types: type MatrixType method (MatrixType) Mergeable() bool
@@ -4540,4 +4541,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bd768a506f569a7c0f5c20b1e95f2e156b62b7e288aeb519113c91d485f317b1
+// golden-hash: 7018e689f61a1eb23947a498782ed549468f4583756c8b3e5074df4ae0be166a

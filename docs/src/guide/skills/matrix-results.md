@@ -68,6 +68,8 @@ A range or date grouper is `unknown`: the three figures are omitted, never guess
 
 Serial, parallel-decode and sharded runs return bit-identical matrices on one cohort file; a multi-shard archive matches its single-file twin within rounding only.
 
+Streamability is per spec, not per type: a spec whose params need every row at once (a rank method) is buffered — predict `matrices[].streamable` false — so the whole request runs buffered (`ProcessStream` too) and serially.
+
 ## See
 
 [`request-envelope`](request-envelope.md) · [`weighting`](weighting.md) · [`response-components`](response-components.md) · [`grouper-design`](grouper-design.md)

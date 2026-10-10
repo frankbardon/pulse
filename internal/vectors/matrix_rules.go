@@ -14,7 +14,10 @@ import (
 // semidefinite — the only shapes the engine runs its
 // PULSE_MATRIX_NOT_PSD check on, so a false here is a guarantee the
 // warning never fires. Listwise matrices are Gram matrices over one row
-// set and always PSD. Under pairwise each cell rests on its own rows:
+// set and always PSD. Under pairwise each cell rests on its own rows,
+// and the risk is decided PER TYPE — a type this switch does not name
+// carries none (an operator that assembles a pairwise matrix and can
+// come back non-PSD must add its own case):
 //
 //   - MAT_COVARIANCE at p ≥ 2 — a variance and a covariance over
 //     different rows need not satisfy |C_ij| ≤ √(V_i·V_j);
@@ -26,10 +29,13 @@ func (m Matrix) PSDRisk() bool {
 		return false
 	}
 	p := len(m.Members.Members)
-	if m.Type == types.MAT_CORRELATION {
+	switch m.Type {
+	case types.MAT_COVARIANCE:
+		return p >= 2
+	case types.MAT_CORRELATION:
 		return p >= 3
 	}
-	return p >= 2
+	return false
 }
 
 // Accumulator byte layout (linalg.CoMoment): the shared header — n and

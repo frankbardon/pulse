@@ -34,6 +34,14 @@ type matrixSlot struct {
 	weight *types.WeightSpec
 	state  *BlockCoMoments
 	x      []float64
+	// rows is a BUFFERED slot's admitted rows (the plan is not
+	// Streamable: a finalizer that needs the whole row set, e.g. a
+	// rank method); nil on a co-moment slot. A buffered slot still
+	// folds its co-moments, which carry the floor counts and the
+	// data-quality warnings, so both kinds render them alike. Rows do
+	// not merge: a buffered spec is never Mergeable, so the merge gate
+	// keeps its request serial.
+	rows *matrixRows
 	// dropped counts the filter-passing rows listwise deletion dropped
 	// (a null member). An integer, summed across partitions at Merge,
 	// so it is worker-invariant like the blocks. Always 0 under
@@ -91,8 +99,11 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	if req == nil || len(req.Matrices) == 0 || !compute.AccumulatesMatrices() {
 		return nil, nil
 	}
+	// Every built-in type the instance offers resolves, streamable or
+	// not: a buffered spec (vectors.Matrix.Streamable false) gets a row
+	// buffer, never an unknown_type refusal.
 	plans, verr := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
-		return t.Streamable() && !exts.isHidden(string(t))
+		return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
 	})
 	if verr != nil {
 		return nil, verr
@@ -123,6 +134,9 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			state:   st,
 			x:       make([]float64, len(plan.Members.Members)),
 			compute: s.compute,
+		}
+		if !plan.Streamable {
+			slots[i].rows = newMatrixRows(len(plan.Members.Members), plan.Pairwise)
 		}
 		workMatrixAccumulators.Add(1)
 	}
@@ -162,6 +176,9 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 		}
 		w = wv
 	}
+	if m.rows != nil {
+		m.rows.add(m.x, w)
+	}
 	return m.state.Add(r, m.x, w)
 }
 
@@ -195,7 +212,12 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 	return res, m.components(cm), nil
 }
 
-// render is the slot's MatrixResult off the merged state cm.
+// render is the slot's MatrixResult off the merged state cm: the
+// operator's finalizer (matrixFinalizers) builds every part, and render
+// assembles them. A finalizer's error — a coded refusal such as
+// PULSE_MATRIX_SINGULAR — is returned as is. A part the run's plan
+// skips is dropped even if a finalizer built it, so the plan, not the
+// operator, decides what is on the wire.
 func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, error) {
 	workMatrixResultBuilds.Add(1)
 	fin, ok := matrixFinalizers[m.plan.Type]
@@ -203,26 +225,31 @@ func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, error) {
 		return types.MatrixResult{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
 	}
-	primary := fin(cm, m.plan)
+	out, err := fin(&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+	if err != nil {
+		return types.MatrixResult{}, err
+	}
+	if out.Primary == nil {
+		return types.MatrixResult{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"matrix finalizer returned no primary matrix", map[string]any{"type": string(m.plan.Type)})
+	}
 	res := types.MatrixResult{
 		Name:     m.plan.Name,
 		Type:     m.plan.Type,
-		Primary:  m.values(primary.At),
-		Warnings: m.warnings(cm, primary),
+		Primary:  out.Primary,
+		Warnings: out.Warnings,
 	}
-	if m.compute.MatrixScalars {
+	if m.compute.MatrixScalars && out.Scalars != nil {
 		workMatrixScalarBuilds.Add(1)
-		res.Scalars = map[string]float64{"determinant": determinantSPD(primary)}
+		res.Scalars = out.Scalars
 	}
-	if m.plan.Pairwise && m.compute.MatrixAuxiliary {
+	if m.compute.MatrixAuxiliary && out.Auxiliary != nil {
 		workMatrixAuxiliaryBuilds.Add(1)
-		res.Auxiliary = map[string]*types.MatrixValues{
-			"n": m.values(func(i, j int) float64 { return float64(cm.PairN(i, j)) }),
-		}
+		res.Auxiliary = out.Auxiliary
 	}
-	if m.plan.TopPairs > 0 && m.compute.MatrixVectors {
+	if m.compute.MatrixVectors && out.Vectors != nil {
 		workMatrixVectorBuilds.Add(1)
-		res.Vectors = map[string]any{"top_pairs": topPairs(primary, cm.PairN, m.plan.Members.Members, m.plan.TopPairs)}
+		res.Vectors = out.Vectors
 	}
 	return res, nil
 }
@@ -269,21 +296,19 @@ func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
 	return c
 }
 
-// matrixFinalizer turns a slot's merged co-moment state into the
-// operator's primary matrix.
-type matrixFinalizer func(cm *linalg.CoMoment, plan vectors.Matrix) *linalg.Sym
-
 // matrixFinalizers is the built-in MAT_* registry: one finalizer per
 // types.AllMatrixTypes() entry (there is no extension MAT_* category).
+// The contract is matrixFinalizer (matrix_finalize.go).
 var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
 	types.MAT_COVARIANCE:  finalizeCovariance,
 	types.MAT_CORRELATION: finalizeCorrelation,
 }
 
 // finalizeCovariance is MAT_COVARIANCE: M2 / (W − ddof), NaN where
-// W − ddof ≤ 0 or a member has no mass.
-func finalizeCovariance(cm *linalg.CoMoment, plan vectors.Matrix) *linalg.Sym {
-	return cm.Cov(plan.DDOF)
+// W − ddof ≤ 0 or a member has no mass, with the shared co-moment
+// outputs (coMomentOutput).
+func finalizeCovariance(in *matrixFinalizeInput) (matrixOutput, error) {
+	return in.coMomentOutput(in.CM.Cov(in.Plan().DDOF)), nil
 }
 
 // finalizeCorrelation is MAT_CORRELATION (Pearson): C_ij / √(M2_ii·M2_jj)
@@ -291,8 +316,8 @@ func finalizeCovariance(cm *linalg.CoMoment, plan vectors.Matrix) *linalg.Sym {
 // TEST_PEARSON_R's arithmetic. A member with zero spread (constant, a
 // single massed row, no rows) has no defined correlation: its whole
 // row and column, diagonal included, are NaN.
-func finalizeCorrelation(cm *linalg.CoMoment, _ vectors.Matrix) *linalg.Sym {
-	return cm.Corr()
+func finalizeCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
+	return in.coMomentOutput(in.CM.Corr()), nil
 }
 
 // values renders a square symmetric matrix over the slot's members in

@@ -2553,7 +2553,13 @@ const (
 	// (not_positive_definite, ill_conditioned, backend_error, non_finite,
 	// no_convergence), "pivot" for a reference Cholesky failure,
 	// "attempts" / "ridge" when a ridge schedule was exhausted, and
-	// "condition_number" from the SPD solve / inverse.
+	// "condition_number" from the SPD solve / inverse. A failed
+	// Cholesky factorisation (reference Cholesky — so SolveSPD /
+	// InverseSPD — or FactorSPD) of a finite matrix also carries "rank",
+	// "condition_number" (+Inf when rank-deficient) and, when
+	// rank-deficient, "dependent_indices" (the axis indices in the
+	// linear dependency); a matrix operator adds "matrix" and the
+	// members' names as "dependent_fields".
 	PULSE_MATRIX_SINGULAR Code = "PULSE_MATRIX_SINGULAR"
 
 	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose

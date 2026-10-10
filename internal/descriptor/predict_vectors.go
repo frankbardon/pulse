@@ -63,7 +63,7 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			Missing:          vectors.MissingListwise,
 			Encoding:         m.Encoding,
 			AccumulatorBytes: m.AccumulatorBytes(),
-			Streamable:       m.Type.Streamable(),
+			Streamable:       m.Streamable,
 			PairwisePSDRisk:  m.PSDRisk(),
 			BucketBasis:      basis,
 		}

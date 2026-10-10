@@ -28,6 +28,14 @@ type Matrix struct {
 	ExplicitLabels bool
 	// Encoding is the effective Values layout.
 	Encoding types.MatrixEncoding
+	// Streamable and Mergeable are the spec-level answers
+	// (types.MatrixSpec.Streamable / Mergeable — the type folded with
+	// its params), copied at resolution so the engine, predict and the
+	// routing gates read one rule. A non-streamable matrix is BUFFERED:
+	// its slot keeps the admitted rows for a finalizer that needs them
+	// all (a rank method).
+	Streamable bool
+	Mergeable  bool
 	// DDOF is MAT_COVARIANCE's delta degrees of freedom (default 1).
 	DDOF int
 	// Pairwise reports params.missing "pairwise": each pair is computed
@@ -146,7 +154,8 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 		}
 		names[name] = i
 
-		m := Matrix{Index: i, Name: name, Type: spec.Type, Encoding: enc}
+		m := Matrix{Index: i, Name: name, Type: spec.Type, Encoding: enc,
+			Streamable: spec.Streamable(), Mergeable: spec.Mergeable()}
 		if err := decodeMatrixParams(at, spec, &m); err != nil {
 			return nil, err
 		}

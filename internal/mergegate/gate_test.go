@@ -78,6 +78,8 @@ func TestMergeRefusal(t *testing.T) {
 		{"matrices with vectors", &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Vector: "v"}}, Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"n"}}}}, nil, ""},
 		{"matrices with filterer and row-local attribute", &types.Request{Matrices: cov(), Filterers: []*types.Filterer{{Type: types.FILTER_INCLUDE}}, Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA}}}, nil, ""},
 		{"unknown matrix type", &types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_NOPE", Fields: []string{"n"}}}}, nil, "matrix operator MAT_NOPE is not mergeable"},
+		{"buffered matrix spec (rank method)", &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"n"}, Params: []byte(`{"method":"spearman"}`)}}}, nil, "matrix operator MAT_CORRELATION is not mergeable"},
+		{"pearson matrix spec", &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"n"}, Params: []byte(`{"method":"pearson"}`)}}}, nil, ""},
 		{"grouped matrices", &types.Request{Aggregations: sum("n"), Matrices: cov(), Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}}}, nil, ""},
 		{"grouped matrices only", &types.Request{Matrices: cov(), Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}}}, nil, ""},
 		{"grouped matrices still refuse a non-mergeable grouper", &types.Request{Matrices: cov(), Groups: []*types.Group{{Type: types.GROUP_QUANTILE, Field: "n"}}}, nil, "grouper GROUP_QUANTILE is not mergeable"},
