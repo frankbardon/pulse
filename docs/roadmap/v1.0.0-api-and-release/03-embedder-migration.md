@@ -444,6 +444,14 @@ Complete for U41 (no release tag cut by the unit; rides the next `v1.0.0-alpha.N
 | a cohort-bound MCP input schema carried each enum-bound string on a `features[]` / `attributes[]` / `windows[]` item as `{"type": "string", "enum": [...]}` | when `capability:for_each` is enabled, those properties are `{"type": "string", "anyOf": [{"enum": [...]}, {"pattern": <axis placeholder>}]}`, and the item gains `if {required: [for_each]}` / `else` (no placeholder); an item without `for_each` still rejects a value outside the enum | behaviour change (schema shape) | a client that reads a property's `enum` directly finds it at `enum` or, on these items, as the first `anyOf` branch | U41 |
 | a stored request template substituted every `{{name}}` / `{"$var": "name"}` it found | the renderer leaves a `for_each` item's own axis placeholders for the expansion; a declared variable named like an axis is refused at load with `errors.PULSE_TEMPLATE_AXIS_COLLISION` | added / behaviour change | rename a template variable that collides with an axis name | U41 |
 
+## Changes from U42 (fit scoring)
+
+In progress for U42. Contract: `.claude/reference/execution-modes.md` (Scoring a bound fit); skills `op-attr-reg-fitted`, `op-attr-reg-residual`, `op-attr-reg-leverage`. `format_version` stays `"1.1"` (a null figure was already `null` on the wire).
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL` and `ATTR_REG_LEVERAGE` wrote `0` for a row with a null predictor (and `ATTR_REG_RESIDUAL` for a null target), so a downstream `AGG_AVERAGE` / `AGG_SUM` / error figure averaged those rows in as zeros | the row's output is null (as `ATTR_REG_PREDICT`): a downstream aggregation counts it in `n_null` and skips it, and a materialized or streamed row carries `null`. A null target alone still gets a fitted value and a leverage; a row the weighted refit excludes keeps leverage `0` | behaviour change | none if every input row is complete. Otherwise averages over the column change (they now cover only the defined rows) and `n` / `n_null` move | U42 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

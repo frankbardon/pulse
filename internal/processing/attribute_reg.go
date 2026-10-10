@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -302,10 +303,16 @@ func (a *regressionAttribute) Finalize() error {
 	return nil
 }
 
+// EmitsNull satisfies NullEmitter: a NaN from Row / Compute is a null.
+func (a *regressionAttribute) EmitsNull() bool { return true }
+
+var _ NullEmitter = (*regressionAttribute)(nil)
+
 // Row emits the per-row scalar for this attribute given a record and
-// the finalized fit. Rows with null target / predictors emit 0; the
-// downstream label injection treats this as a numeric value (mirrors
-// existing ATTR_ZSCORE behaviour for null inputs).
+// the finalized fit. A row with a null predictor — or, for
+// ATTR_REG_RESIDUAL, a null target — emits NaN, which the orchestrator
+// writes as a NULL (NullEmitter), so a downstream aggregation skips it
+// rather than averaging a 0. ATTR_REG_PREDICT shares the rule.
 func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 	if !a.finalized || a.fit == nil {
 		return 0, errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -315,7 +322,7 @@ func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 	for i, name := range a.fit.PredictorOrder {
 		v, ok := rec.NumericValue(name)
 		if !ok {
-			return 0, nil
+			return math.NaN(), nil
 		}
 		x[i] = v
 	}
@@ -329,7 +336,7 @@ func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 	case regAttrResidual:
 		y, ok := rec.NumericValue(a.spec.Target)
 		if !ok {
-			return 0, nil
+			return math.NaN(), nil
 		}
 		return y - yhat, nil
 	case regAttrLeverage:
