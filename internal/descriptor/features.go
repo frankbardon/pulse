@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/frankbardon/pulse/types"
 )
 
 // FeatureKind classifies one row of the feature table. It is the
@@ -99,6 +101,7 @@ var (
 	featProcess      = FeatureName(FeatureKindCapability, "process")
 	featCompose      = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep = FeatureName(FeatureKindCapability, "compose_sweep")
+	featComposeFits  = FeatureName(FeatureKindCapability, "compose_fits")
 	featForEach      = FeatureForEach
 	featProcessChain = FeatureName(FeatureKindCapability, "process_chain")
 	featFacet        = FeatureName(FeatureKindCapability, "facet")
@@ -158,6 +161,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("watch"),          // Watch*
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
 	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
+	capability("compose_fits"),   // ComposedRequest.Fits + ComposedResponse.Fits
 	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
 	capability("process_chain"),  // ProcessChain
 	capability("facet"),          // Facet, FacetSchema
@@ -464,6 +468,8 @@ var slotTokens = map[string]slotTokenSet{
 	// `sweep` and `ranking` are everyday English; no guidance sentence
 	// names the slot yet.
 	featComposeSweep: {},
+	// `fits` is everyday English; no guidance sentence names the slot.
+	featComposeFits: {},
 	// `for_each` names the item key only; no guidance sentence names it.
 	featForEach: {},
 	// pulse_explain's `sample` root slot: "sample" is everyday English
@@ -617,6 +623,19 @@ var hardEdges = map[string][]string{
 	featComposeSweep: {featCompose},
 }
 
+// groupEdges are the dependencies needing MORE than one any-of group
+// (hardEdges holds one): each group is ANDed after the host group.
+//
+//   - capability:compose_fits runs its fits before Compose slots and a
+//     fit is one regression: it needs Compose AND any-of the REG_*
+//     operators.
+var groupEdges = map[string][][]string{
+	featComposeFits: {
+		{featCompose},
+		{string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
+	},
+}
+
 // RequestHostCapabilities returns the request-executing host
 // capabilities, in a fresh slice: the any-of group every non-overlay
 // operator depends on. The profile validator gives extension operators
@@ -672,6 +691,7 @@ func withDependencies(rows []Feature) []Feature {
 		if anyOf := hardEdges[f.Name]; len(anyOf) > 0 {
 			groups = append(groups, append([]string(nil), anyOf...))
 		}
+		groups = append(groups, cloneGroups(groupEdges[f.Name])...)
 		f.DependsOn = groups
 	}
 	return rows

@@ -42,6 +42,7 @@
     - [cohort-sharding](guide/skills/cohort-sharding.md)
     - [cohort-sidecar-index](guide/skills/cohort-sidecar-index.md)
     - [cohort-width-overflow](guide/skills/cohort-width-overflow.md)
+    - [compose-fits](guide/skills/compose-fits.md)
     - [compose-requests](guide/skills/compose-requests.md)
     - [compose-sweeps](guide/skills/compose-sweeps.md)
     - [crosstab-guide](guide/skills/crosstab-guide.md)

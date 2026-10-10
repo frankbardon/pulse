@@ -16,6 +16,7 @@ requires: [capability:compose]
 
 - **Several independent questions in one call** — a summary, a breakdown and a crosstab of one survey, or one request over several cohorts (a parameter grid: [`compose-sweeps`](compose-sweeps.md)).
 - **Comparing slots** — a Compose-host overlay reads two or more finished slots and decorates the comparison (reference vs target, or a multi-slot panel).
+- **One model, many slots** — fit once, every slot reads it by name ([`compose-fits`](compose-fits.md)).
 
 Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a chain ([`process-chain`](process-chain.md)). Every slot opens and decodes its own cohort: composing saves round-trips, not decode work.
 

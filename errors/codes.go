@@ -1033,6 +1033,27 @@ const (
 	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
 
+	// PULSE_FIT_INVALID indicates a malformed ComposedRequest `fits`
+	// entry: an empty name (reason "name_missing"), no request
+	// ("request_missing"), a request holding zero or more than one
+	// regression ("regression_count", with "count"), or a request with
+	// groups or a crosstab ("grouped") — a fit is one ungrouped model.
+	// Refused identically by predict and the runtime before any fit or
+	// slot runs. Details carry "fit" (the 0-based entry index), "name"
+	// and "reason".
+	PULSE_FIT_INVALID Code = "PULSE_FIT_INVALID"
+
+	// PULSE_MODEL_NAME_COLLISION indicates two bound models sharing a
+	// name — two ComposedRequest `fits` entries today; the one model
+	// namespace every name reference resolves against. Details carry
+	// "name" and the colliding "fit" index.
+	PULSE_MODEL_NAME_COLLISION Code = "PULSE_MODEL_NAME_COLLISION"
+
+	// PULSE_MODEL_UNKNOWN indicates a reference to a model name no fit
+	// (or loaded model) binds in the request's scope. Details carry
+	// "name" and "available" (the bound names, sorted).
+	PULSE_MODEL_UNKNOWN Code = "PULSE_MODEL_UNKNOWN"
+
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
 	// window, feature or attribute item: no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
@@ -3275,6 +3296,9 @@ var allCodes = []Code{
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
+	PULSE_FIT_INVALID,
+	PULSE_MODEL_NAME_COLLISION,
+	PULSE_MODEL_UNKNOWN,
 	PULSE_FOR_EACH_INVALID,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,

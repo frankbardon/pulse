@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/observe"
@@ -1136,6 +1137,11 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err := s.slotRefusal(composed); err != nil {
 		return nil, err
 	}
+	// The fits' structural rules, before anything else past the slot
+	// gate (predict runs the same model.CheckFits).
+	if err := model.CheckFits(composed.Fits); err != nil {
+		return nil, err
+	}
 	multPlan, err := s.resolveComposeMultiplicity(composed)
 	if err != nil {
 		return nil, err
@@ -1149,6 +1155,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	foldOverlays := composeOverlaysComputed(composed, composeRet, multPlan)
+	fitCtx := ctx
 	ctx = withinCompose(ctx)
 
 	requests, err := applyComposeLabelDefaults(composed)
@@ -1164,6 +1171,12 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if foldOverlays {
 		vetoes = composeSlotVetoes(composed.Overlays, requests)
 	}
+	// The fit pre-pass: every fit runs once, as a standalone request,
+	// before any slot; every slot then carries the bound models.
+	models, fitResults, err := s.runComposeFits(fitCtx, composed.Fits, 1)
+	if err != nil {
+		return nil, err
+	}
 
 	// Observability (no-ops off): the batch's planning is its plan
 	// phase; each slot is a child operation timed under its own
@@ -1172,7 +1185,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	ei.Lap(observe.PhasePlan)
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		slotCtx, end := startChild(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), i, req)
+		slotCtx, end := startChild(bindSlotModels(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), models, req), i, req)
 		resp, err := s.Process(slotCtx, req)
 		end(err)
 		if err != nil {
@@ -1209,7 +1222,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// no Compose-only overlays. The `Responses` slot is the SAME slice
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
-	out := &types.ComposedResponse{Responses: responses}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}

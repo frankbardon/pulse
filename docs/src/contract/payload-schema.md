@@ -570,6 +570,25 @@ a non-number, ambiguous or nowhere-resolving path refuses the batch with
 the same code. `ranking` is pinned outside the Compose-level `return`:
 always emitted, never rounded by `precision`.
 
+### Compose fits
+
+`ComposedRequest.fits` is an `omitempty` array of `FitSpec {name,
+request}`: `request` is an ordinary `Request` holding exactly one
+regression and no `groups` / `crosstab`. Every fit runs once, before any
+slot (sweep slots included), over its own cohort, filters, features and
+weight; slots read the fitted model by `name` (one namespace,
+`PULSE_MODEL_NAME_COLLISION` on a duplicate, `PULSE_MODEL_UNKNOWN` for an
+unbound reference). A malformed entry is `PULSE_FIT_INVALID` with
+`details.fit` (the entry index) and `details.reason` (`name_missing`,
+`request_missing`, `regression_count`, `grouped`); a fit request's own
+refusal keeps its code and gains `details.fit`. A fit request's `return`
+is ignored. The fits surface as `ComposedResponse.fits`, an `omitempty`
+object of `RegressionResult` keyed by fit name, pinned outside the
+Compose-level `return` like `ranking` (always emitted, never rounded).
+Both slots are gated by `capability:compose_fits`. `pulse_predict` with
+`composed` lists them as `fits [{name, type, target, predictors,
+cohort}]` on the predict result (not payload-reachable).
+
 ### Item fan-out (`for_each`)
 
 `Window`, `Feature` and `Attribute` each carry an optional `for_each`

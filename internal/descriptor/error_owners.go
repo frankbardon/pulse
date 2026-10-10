@@ -278,6 +278,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
+	// The one model namespace: Compose fits bind it today.
+	errors.PULSE_FIT_INVALID:          own(featComposeFits),
+	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits),
+	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits),
 	// nested_in_sweep is raised by a sweep body, so either surface lists it.
 	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
 

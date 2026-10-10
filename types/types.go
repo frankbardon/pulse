@@ -1624,6 +1624,14 @@ type ComposedRequest struct {
 	// the slot is `omitempty`, so a sweep-free request is byte-identical
 	// on the wire and under Hash. See SweepSpec.
 	Sweep *SweepSpec `json:"sweep,omitempty"`
+
+	// Fits are the batch's named regression fits: each runs once,
+	// before any slot (in parallel among themselves under
+	// ComposeParallel), and every slot — sweep-expanded ones included —
+	// receives the bound models by name. Gated by capability:compose_fits.
+	// Nil is absent — the slot is `omitempty`, so a fit-free request is
+	// byte-identical on the wire and under Hash. See FitSpec.
+	Fits []FitSpec `json:"fits,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -1666,6 +1674,13 @@ type ComposedResponse struct {
 	// order (ComposedRequest.Sweep.Rank). Omitted when the request set no
 	// rank. Gated by capability:compose_sweep with the `sweep` slot.
 	Ranking []RankEntry `json:"ranking,omitempty"`
+
+	// Fits carries each ComposedRequest.Fits entry's regression result,
+	// keyed by the fit's name (JSON object keys sort by name). Omitted
+	// when the request declared no fits. Like `ranking` it sits outside
+	// the Compose-level `return`: always emitted, never rounded. Gated
+	// by capability:compose_fits with the `fits` request slot.
+	Fits map[string]*RegressionResult `json:"fits,omitempty"`
 
 	// NormalizedRequest is the effective request the batch ran: a
 	// sweep's expanded `requests` (explicit slots, then one labelled

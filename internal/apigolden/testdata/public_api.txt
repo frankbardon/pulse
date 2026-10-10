@@ -141,6 +141,7 @@ pulse: type ComposeOptions field PerRequestTimeout time.Duration
 pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationResult
 pulse: type ComposePredictResult underlying struct
 pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
 pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse: type ComposePredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
 pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
@@ -149,6 +150,7 @@ pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "jso
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
+pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
@@ -157,6 +159,7 @@ pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omi
 pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
+pulse: type ComposedResponse field Fits map[string]*pulse/types.RegressionResult "json:\"fits,omitempty\""
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
@@ -1315,6 +1318,12 @@ pulse/descriptor: type FiltererPredict field BufferedComponents bool "json:\"buf
 pulse/descriptor: type FiltererPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type FiltererPredict field Field string "json:\"field,omitempty\""
 pulse/descriptor: type FiltererPredict field Type pulse/types.FiltererType "json:\"type\""
+pulse/descriptor: type FitSummary struct
+pulse/descriptor: type FitSummary field Cohort string "json:\"cohort,omitempty\""
+pulse/descriptor: type FitSummary field Name string "json:\"name\""
+pulse/descriptor: type FitSummary field Predictors []string "json:\"predictors\""
+pulse/descriptor: type FitSummary field Target string "json:\"target\""
+pulse/descriptor: type FitSummary field Type pulse/types.RegressionType "json:\"type\""
 pulse/descriptor: type ForEachSummary struct
 pulse/descriptor: type ForEachSummary field Axes []pulse/descriptor.SweepAxisSummary "json:\"axes\""
 pulse/descriptor: type ForEachSummary field ExpandedCount int "json:\"expanded_count\""
@@ -2187,6 +2196,7 @@ pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEA
 pulse/errors: const PULSE_FEATURE_PROFILE_UNKNOWN pulse/errors.Code = "PULSE_FEATURE_PROFILE_UNKNOWN"
 pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
+pulse/errors: const PULSE_FIT_INVALID pulse/errors.Code = "PULSE_FIT_INVALID"
 pulse/errors: const PULSE_FOR_EACH_INVALID pulse/errors.Code = "PULSE_FOR_EACH_INVALID"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
 pulse/errors: const PULSE_GROUP_ENTRIES_EXHAUSTED pulse/errors.Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
@@ -2261,6 +2271,8 @@ pulse/errors: const PULSE_MATRIX_SHAPE_MISMATCH pulse/errors.Code = "PULSE_MATRI
 pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SINGULAR"
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
+pulse/errors: const PULSE_MODEL_NAME_COLLISION pulse/errors.Code = "PULSE_MODEL_NAME_COLLISION"
+pulse/errors: const PULSE_MODEL_UNKNOWN pulse/errors.Code = "PULSE_MODEL_UNKNOWN"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
 pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
 pulse/errors: const PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
@@ -3802,6 +3814,7 @@ pulse/types: type ComposeOverlaySpec field Scope pulse/types.OverlayScope "json:
 pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omitempty\""
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
+pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
@@ -3809,6 +3822,7 @@ pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"retur
 pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
+pulse/types: type ComposedResponse field Fits map[string]*pulse/types.RegressionResult "json:\"fits,omitempty\""
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
@@ -3980,6 +3994,9 @@ pulse/types: type FiltererComponents field NNullInput int "json:\"n_null_input\"
 pulse/types: type FiltererComponents field NOut int "json:\"n_out\""
 pulse/types: type FiltererType string
 pulse/types: type FiltererType method (FiltererType) Streamable() bool
+pulse/types: type FitSpec struct
+pulse/types: type FitSpec field Name string "json:\"name\""
+pulse/types: type FitSpec field Request *pulse/types.Request "json:\"request\""
 pulse/types: type ForEach struct
 pulse/types: type ForEach field Axes []pulse/types.SweepAxis "json:\"axes\""
 pulse/types: type ForEach field Mode pulse/types.SweepMode "json:\"mode,omitempty\""
@@ -4652,4 +4669,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c792d1288a6857668bfa815486c13dd0856fe264e482e1c3d5cdae50138242a3
+// golden-hash: 719d2ffa88caedd0d0d0e72d994a650d6cd03eec41b179d5b8c9d3c322b949d2

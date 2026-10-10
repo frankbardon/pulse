@@ -7,6 +7,7 @@
     "capability:watch",
     "capability:compose",
     "capability:compose_sweep",
+    "capability:compose_fits",
     "capability:for_each",
     "capability:process_chain",
     "capability:facet",

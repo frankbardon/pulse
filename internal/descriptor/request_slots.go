@@ -27,6 +27,9 @@ import (
 //     capability:crosstab (the MATRIX host) or capability:compose (the
 //     SERIES host a grouped Process runs)
 //   - ComposedRequest.Overlays — capability:compose
+//   - ComposedRequest.Sweep    — capability:compose_sweep
+//   - ComposedRequest.Fits     — capability:compose_fits (each fit
+//     request's own slots are gated like a slot's, details.fit)
 //   - ChainRequest.Overlays    — capability:process_chain
 //   - FacetRequest.Overlays    — capability:facet
 //   - Request.Weight and every nested per-slot `weight` (Aggregation —
@@ -152,11 +155,13 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "overlays", visible: overlayGate(featCompose)},
 		multiplicitySlotGate,
 		{key: "sweep", visible: capabilityGate(featComposeSweep)},
+		{key: "fits", visible: capabilityGate(featComposeFits)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it.
 	reflect.TypeOf(types.ComposedResponse{}): {
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
+		{key: "fits", visible: capabilityGate(featComposeFits)},
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
@@ -363,6 +368,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && r.Sweep != nil {
 			out = append(out, "sweep")
+		}
+		if r != nil && len(r.Fits) > 0 {
+			out = append(out, "fits")
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {
@@ -648,6 +656,11 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 		for i, req := range r.Requests {
 			if ce := requestSlotRefusal(req, inst); ce != nil {
 				return RefusalAt(ce, "request", i)
+			}
+		}
+		for i, fit := range r.Fits {
+			if ce := requestSlotRefusal(fit.Request, inst); ce != nil {
+				return RefusalAt(ce, "fit", i)
 			}
 		}
 	case *types.ChainRequest:

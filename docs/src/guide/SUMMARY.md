@@ -30,6 +30,7 @@
     - [cohort-sharding](skills/cohort-sharding.md)
     - [cohort-sidecar-index](skills/cohort-sidecar-index.md)
     - [cohort-width-overflow](skills/cohort-width-overflow.md)
+    - [compose-fits](skills/compose-fits.md)
     - [compose-requests](skills/compose-requests.md)
     - [compose-sweeps](skills/compose-sweeps.md)
     - [crosstab-guide](skills/crosstab-guide.md)

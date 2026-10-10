@@ -1447,6 +1447,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				types.AllMultiplicityFamilies(), true),
 			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
 			"sweep":  sweepSchema(),
+			"fits":   fitsSchema(reqSchema),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1454,6 +1455,24 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
 	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
+}
+
+// fitsSchema describes the ComposedRequest `fits` list (types.FitSpec):
+// named regression fits run once before any slot. Dropped with the slot
+// when capability:compose_fits is hidden (dropHiddenSlots).
+func fitsSchema(reqSchema map[string]any) map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "Named regression fits, each run ONCE before any slot (sweep slots included); slots read the fitted model by name. Each fit's result is returned under the response `fits`, keyed by name.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":    map[string]any{"type": "string", "description": "The fit's bound name, unique in the request."},
+				"request": reqSchema,
+			},
+			"required": []string{"name", "request"},
+		},
+	}
 }
 
 // forEachSchema describes an item `for_each` (types.ForEach): the item

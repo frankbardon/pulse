@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:f851ca4127599792e148701605b8ba72c2be9e27dc59de14d29010f297488994",
+  "$comment": "feature_set_digest: fs1:a6be0f04323ffd329dd1ef5b1af37f3c5794ded44ba5c24cb84edb95c5e39aab",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -499,6 +499,15 @@
     "ComposedRequest": {
       "additionalProperties": false,
       "properties": {
+        "fits": {
+          "items": {
+            "$ref": "#/$defs/FitSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
         },
@@ -535,6 +544,12 @@
     "ComposedResponse": {
       "additionalProperties": false,
       "properties": {
+        "fits": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RegressionResult"
+          },
+          "type": "object"
+        },
         "overlays": {
           "items": {
             "$ref": "#/$defs/OverlayLayer"
@@ -1557,6 +1572,22 @@
         "FILTER_TRUE"
       ],
       "type": "string"
+    },
+    "FitSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/Request"
+        }
+      },
+      "required": [
+        "name",
+        "request"
+      ],
+      "type": "object"
     },
     "ForEach": {
       "additionalProperties": false,
@@ -4131,4 +4162,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 765565d518b34423c742c225323e677b40999534256c10777ec529639fd8fde0
+// golden-hash: eeb4e8d0845abc4d4c36d66863d34fae42b5acc3b1f7af36bd071a168889edea

@@ -1587,6 +1587,41 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FIT_INVALID: {
+		Message: "A ComposedRequest `fits` entry is malformed, so nothing runs — predict refuses it identically. Every fit needs a non-empty `name` and a `request` holding exactly ONE regression (reason `regression_count`, the count under `count`) and no `groups` or `crosstab` (reason `grouped`): a fit is one model over one row set, fit once before any slot. A missing name is `name_missing`, a missing request `request_missing`. The entry index is under `fit`, its name under `name`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "regressions"},
+				Hint:   "Give the fit request exactly one regression; fit a second model as its own `fits` entry with its own name.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"fits", "*", "request", "groups"},
+				Hint:   "Drop `groups` / `crosstab` from the fit request — a fit is one ungrouped model. Fit one model per subset with a filter in each fit request instead.",
+			},
+		},
+	},
+	PULSE_MODEL_NAME_COLLISION: {
+		Message: "Two bound models share a name: every `fits` entry name must be unique in the request, because slots reference a model by that name alone. The name is under `name`, the second entry's index under `fit`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "name"},
+				Hint:   "Rename one of the colliding fits and update the references to it.",
+			},
+		},
+	},
+	PULSE_MODEL_UNKNOWN: {
+		Message: "A reference names a model no fit binds in this request. Names resolve against the ComposedRequest `fits` entries (one namespace). The unknown name is under `name`, the bound names under `available`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "name"},
+				Hint:   "Reference one of the names under `available`, or add a `fits` entry with that name.",
+			},
+		},
+	},
 	PULSE_FOR_EACH_INVALID: {
 		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{

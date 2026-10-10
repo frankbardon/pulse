@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
@@ -100,6 +101,10 @@ func (s *Service) composeParallel(
 	if err := s.slotRefusal(composed); err != nil {
 		return nil, err
 	}
+	// The fits' structural rules, exactly as on the serial path.
+	if err := model.CheckFits(composed.Fits); err != nil {
+		return nil, err
+	}
 	multPlan, err := s.resolveComposeMultiplicity(composed)
 	if err != nil {
 		return nil, err
@@ -110,6 +115,7 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	foldOverlays := composeOverlaysComputed(composed, composeRet, multPlan)
+	fitCtx := ctx
 	ctx = withinCompose(ctx)
 
 	// Synthesize Label auto-defaults + collision-check on a clone of the
@@ -128,6 +134,13 @@ func (s *Service) composeParallel(
 
 	o := opts.resolved()
 	n := len(requests)
+
+	// The fit pre-pass, exactly as on the serial path but with the fits
+	// themselves running concurrently on the same worker cap.
+	models, fitResults, err := s.runComposeFits(fitCtx, composed.Fits, o.MaxWorkers)
+	if err != nil {
+		return nil, err
+	}
 
 	// Per-slot result and error storage; never shared across slots so no
 	// inter-slot synchronization is required beyond the slot itself.
@@ -171,7 +184,7 @@ func (s *Service) composeParallel(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			reqCtx := rankSlotContext(composeSlotContext(runCtx, vetoes, multPlan, i), rank, i)
+			reqCtx := bindSlotModels(rankSlotContext(composeSlotContext(runCtx, vetoes, multPlan, i), rank, i), models, req)
 			if o.PerRequestTimeout > 0 {
 				var reqCancel context.CancelFunc
 				reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)
@@ -261,7 +274,7 @@ func (s *Service) composeParallel(
 	// `distributeComposeWarnings` (internal/service/compose_overlay.go) so the
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
-	out := &types.ComposedResponse{Responses: responses}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}
