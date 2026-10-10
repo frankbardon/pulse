@@ -1655,6 +1655,14 @@ type ComposedResponse struct {
 	// rank. Gated by capability:compose_sweep with the `sweep` slot.
 	Ranking []RankEntry `json:"ranking,omitempty"`
 
+	// NormalizedRequest is the effective request the batch ran: a
+	// sweep's expanded `requests` (explicit slots, then one labelled
+	// slot per combination) with the sweep overlays appended and no
+	// `sweep`; a sweep-free request as passed. Populated only when
+	// pulse.Options.EchoRequest is true, nil otherwise. Never on the
+	// wire: the CLI publishes it as the envelope's `request` echo.
+	NormalizedRequest *ComposedRequest `json:"-"`
+
 	// plan is the resolved Compose-level selection; MarshalJSON honours
 	// it. Set only by the facade.
 	plan *returnplan.Plan

@@ -92,7 +92,7 @@ func Count(spec *types.SweepSpec) int {
 
 // Expand turns c into its effective request — the ONE expansion every
 // Compose surface consumes (Compose and ComposeParallel in the runtime,
-// PredictCompose, the overlay resolve, the CLI echo), so their slot
+// PredictCompose, the overlay resolve, the EchoRequest echo), so their slot
 // lists and label namespaces cannot drift.
 //
 // Order of checks: Validate; then the reference rule (every axis is

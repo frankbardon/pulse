@@ -73,8 +73,10 @@ type Service struct {
 	autoLabels []*types.LabelBinding
 
 	// echoRequest causes ProcessChain to capture per-stage normalized
-	// requests into ChainResponse.NormalizedRequest so the CLI / MCP
-	// boundary can publish them on the envelope. Other execution paths
+	// requests into ChainResponse.NormalizedRequest, and Compose the
+	// effective (sweep-expanded) request into
+	// ComposedResponse.NormalizedRequest, so the CLI / MCP boundary can
+	// publish them on the envelope. Other execution paths
 	// (Process, Compose, Facet, Sample) keep the in-place defaults
 	// mutation behavior — the boundary clones for echo purposes itself.
 	// Matches pulse.Options.EchoRequest.
@@ -1184,6 +1186,9 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
 	out := &types.ComposedResponse{Responses: responses}
+	if s.echoRequest {
+		out.NormalizedRequest = composed
+	}
 	if len(layers) > 0 {
 		// distributeComposeWarnings (internal/service/compose_overlay.go) folds
 		// the flat warnings slice into each layer's `Warnings` slot via

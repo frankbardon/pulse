@@ -262,6 +262,9 @@ func (s *Service) composeParallel(
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
 	out := &types.ComposedResponse{Responses: responses}
+	if s.echoRequest {
+		out.NormalizedRequest = composed
+	}
 	if len(layers) > 0 {
 		out.Overlays = distributeComposeWarnings(layers, warnings)
 	}
