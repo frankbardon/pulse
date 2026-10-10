@@ -1,0 +1,475 @@
+{
+  "cohort": {
+    "filename": "harbor_pine_mmm.pulse",
+    "data_dir": "."
+  },
+  "windows": [
+    {
+      "type": "WIN_EWMA",
+      "field": "tv_spend_k",
+      "label": "tv_ad10",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.9
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "tv_spend_k",
+      "label": "tv_ad30",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.7
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "tv_spend_k",
+      "label": "tv_ad50",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.5
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "tv_spend_k",
+      "label": "tv_ad70",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.3
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "search_spend_k",
+      "label": "search_ad10",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.9
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "search_spend_k",
+      "label": "search_ad30",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.7
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "search_spend_k",
+      "label": "search_ad50",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.5
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "search_spend_k",
+      "label": "search_ad70",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.3
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "social_spend_k",
+      "label": "social_ad10",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.9
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "social_spend_k",
+      "label": "social_ad30",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.7
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "social_spend_k",
+      "label": "social_ad50",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.5
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "social_spend_k",
+      "label": "social_ad70",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.3
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "display_spend_k",
+      "label": "display_ad10",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.9
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "display_spend_k",
+      "label": "display_ad30",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.7
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "display_spend_k",
+      "label": "display_ad50",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.5
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "display_spend_k",
+      "label": "display_ad70",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.3
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "tv_spend_k",
+      "label": "tv_ad60",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.4
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "tv_spend_k",
+      "label": "tv_ad80",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.2
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "tv_spend_k",
+      "label": "tv_ad90",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.1
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "tv_minus1m_k",
+      "label": "tv_minus1m_ad",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.3
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "display_minus1m_k",
+      "label": "display_minus1m_ad",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.3
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "search_plus1m_k",
+      "label": "search_plus1m_ad",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.9
+      }
+    },
+    {
+      "type": "WIN_EWMA",
+      "field": "social_plus1m_k",
+      "label": "social_plus1m_ad",
+      "partition_by": [
+        "region"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "frame": {
+        "mode": "rows"
+      },
+      "params": {
+        "alpha": 0.7
+      }
+    }
+  ],
+  "sort": [
+    {
+      "field": "region"
+    },
+    {
+      "field": "week"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "tv_minus1m_k",
+      "expression": "tv_spend_k * 0.80866"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "display_minus1m_k",
+      "expression": "display_spend_k * 0.62060"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "search_plus1m_k",
+      "expression": "search_spend_k * 1.20318"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "social_plus1m_k",
+      "expression": "social_spend_k * 1.19172"
+    }
+  ]
+}

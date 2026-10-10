@@ -1,0 +1,39 @@
+{
+  "cohort": {
+    "filename": "harbor_pine_mmm.pulse",
+    "data_dir": "."
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "week",
+      "label": "weeks"
+    }
+  ],
+  "vectors": [
+    {
+      "name": "drivers",
+      "fields": [
+        "revenue_k",
+        "tv_spend_k",
+        "search_spend_k",
+        "social_spend_k",
+        "display_spend_k",
+        "category_demand"
+      ]
+    }
+  ],
+  "matrices": [
+    {
+      "type": "MAT_CORRELATION",
+      "name": "within_region_corr",
+      "vector": "drivers"
+    }
+  ]
+}
