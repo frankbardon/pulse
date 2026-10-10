@@ -57,7 +57,9 @@ Both slots ride the `standard` preset (the MCP default) and are absent from `min
 ## See
 
 - [`regression-modeling`](regression-modeling.md) — choosing a model and modifiers.
-- [`op-reg-ols`](op-reg-ols.md), [`op-reg-glm`](op-reg-glm.md), [`op-reg-bayes-linear`](op-reg-bayes-linear.md) — the `vcov` Param per engine.
+- [`op-reg-ols`](op-reg-ols.md) — the `vcov` Param for OLS and ridge.
+- [`op-reg-glm`](op-reg-glm.md) — the `vcov` Param for GLM.
+- [`op-reg-bayes-linear`](op-reg-bayes-linear.md) — the `vcov` Param for the Bayesian linear model.
 - [`weighting`](weighting.md) — the N* basis.
 - [`response-shaping`](response-shaping.md) — presets and exclude paths.
 - [`matrix-results`](matrix-results.md) — the same matrix encodings.

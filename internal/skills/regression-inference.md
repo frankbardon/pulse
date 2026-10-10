@@ -32,7 +32,9 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 
 For OLS, ridge and GLM, √diag(Vcov) equals `StdErrors` exactly. The Bayesian diagonal is `StdErrors`² · a_N/(a_N−1), not equal: `StdErrors` there is the scale of the marginal t, not the posterior variance.
 
+<!-- feature: capability:weighting -->
 Weighted fits (frequency or probability) use the N* basis the weighted SE uses; see `weighting`.
+<!-- /feature -->
 
 ## Refusals
 
@@ -59,7 +61,19 @@ Both slots ride the `standard` preset (the MCP default) and are absent from `min
 ## See
 
 - `regression-modeling` — choosing a model and modifiers.
-- `op-reg-ols`, `op-reg-glm`, `op-reg-bayes-linear` — the `vcov` Param per engine.
+<!-- feature: REG_OLS -->
+- `op-reg-ols` — the `vcov` Param for OLS and ridge.
+<!-- /feature -->
+<!-- feature: REG_GLM -->
+- `op-reg-glm` — the `vcov` Param for GLM.
+<!-- /feature -->
+<!-- feature: REG_BAYES_LINEAR -->
+- `op-reg-bayes-linear` — the `vcov` Param for the Bayesian linear model.
+<!-- /feature -->
+<!-- feature: capability:weighting -->
 - `weighting` — the N* basis.
+<!-- /feature -->
 - `response-shaping` — presets and exclude paths.
+<!-- feature: capability:matrices -->
 - `matrix-results` — the same matrix encodings.
+<!-- /feature -->
