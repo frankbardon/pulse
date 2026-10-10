@@ -1,0 +1,15 @@
+{
+  "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+  "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+  "attributes": [
+    {"type": "ATTR_FORMULA", "field": "trial_started", "label": "trial", "expression": "trial_started == \"yes\" ? 1 : 0"},
+    {"type": "ATTR_FORMULA", "field": "device", "label": "mobile", "expression": "device == \"mobile\" ? 1 : 0"},
+    {"type": "ATTR_FORMULA", "field": "device", "label": "new_page_x_mobile", "expression": "(device == \"mobile\" && arm == \"new_page\") ? 1 : 0"},
+    {"type": "ATTR_FORMULA", "field": "region", "label": "emea", "expression": "region == \"EMEA\" ? 1 : 0"},
+    {"type": "ATTR_FORMULA", "field": "region", "label": "new_page_x_emea", "expression": "(region == \"EMEA\" && arm == \"new_page\") ? 1 : 0"}
+  ],
+  "regressions": [
+    {"type": "REG_OLS", "name": "trial_by_mobile", "target": "trial", "predictors": ["is_variant", "mobile", "new_page_x_mobile"]},
+    {"type": "REG_OLS", "name": "trial_by_emea", "target": "trial", "predictors": ["is_variant", "emea", "new_page_x_emea"]}
+  ]
+}

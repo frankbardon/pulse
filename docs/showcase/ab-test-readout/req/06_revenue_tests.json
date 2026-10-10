@@ -1,0 +1,8 @@
+{
+  "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+  "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+  "tests": [
+    {"type": "TEST_WELCH", "field": "revenue", "split_by": "arm", "label": "revenue_welch"},
+    {"type": "TEST_MANN_WHITNEY_U", "field": "revenue", "split_by": "arm", "label": "revenue_mann_whitney"}
+  ]
+}

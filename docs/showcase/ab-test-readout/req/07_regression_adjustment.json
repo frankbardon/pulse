@@ -1,0 +1,9 @@
+{
+  "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+  "aggregations": [{"type": "AGG_AVERAGE", "field": "prior_sessions", "label": "mean_prior_sessions"}],
+  "regressions": [
+    {"type": "REG_OLS", "name": "pages_unadjusted", "target": "pages_viewed", "predictors": ["is_variant"]},
+    {"type": "REG_OLS", "name": "pages_adjusted", "target": "pages_viewed", "predictors": ["is_variant", "prior_sessions"]},
+    {"type": "REG_OLS", "name": "cuped_theta", "target": "pages_viewed", "predictors": ["prior_sessions"]}
+  ]
+}

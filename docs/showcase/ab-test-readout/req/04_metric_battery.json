@@ -1,0 +1,13 @@
+{
+  "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+  "multiplicity": {"method": "holm", "family": "request"},
+  "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+  "tests": [
+    {"type": "TEST_PROP_Z", "field": "trial_started", "split_by": "arm", "label": "trial_start", "params": {"success": "yes"}},
+    {"type": "TEST_PROP_Z", "field": "paid_converted", "split_by": "arm", "label": "paid_conversion", "params": {"success": "yes"}},
+    {"type": "TEST_WELCH", "field": "revenue", "split_by": "arm", "label": "revenue_per_user"},
+    {"type": "TEST_WELCH", "field": "pages_viewed", "split_by": "arm", "label": "pages_viewed"},
+    {"type": "TEST_WELCH", "field": "days_to_convert", "split_by": "arm", "label": "days_to_convert"},
+    {"type": "TEST_PROP_Z", "field": "retained_30d", "split_by": "arm", "label": "retention_30d", "params": {"success": "yes"}}
+  ]
+}

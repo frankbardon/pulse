@@ -1,0 +1,8 @@
+{
+  "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+  "fields": ["arm"],
+  "overlays": [
+    {"name": "srm_vs_50_50_design", "kind": "OVERLAY_CHISQ_VS_POP", "scope": "group",
+     "ref": {"population": {"cohort": "design.pulse"}}}
+  ]
+}

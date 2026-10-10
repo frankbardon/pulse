@@ -1,0 +1,53 @@
+{
+  "requests": [
+    {
+      "label": "guardrails",
+      "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+      "multiplicity": {"method": "holm", "family": "request"},
+      "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+      "tests": [
+        {"type": "TEST_CHISQ", "rows": "arm", "cols": "assign_week", "label": "srm_by_week"},
+        {"type": "TEST_CHISQ", "rows": "arm", "cols": "device", "label": "balance_device"},
+        {"type": "TEST_CHISQ", "rows": "arm", "cols": "plan_tier", "label": "balance_plan_tier"},
+        {"type": "TEST_CHISQ", "rows": "arm", "cols": "region", "label": "balance_region"},
+        {"type": "TEST_CHISQ", "rows": "arm", "cols": "user_type", "label": "balance_user_type"},
+        {"type": "TEST_WELCH", "field": "prior_sessions", "split_by": "arm", "label": "balance_prior_sessions"}
+      ]
+    },
+    {
+      "label": "scorecard",
+      "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+      "multiplicity": {"method": "holm", "family": "request"},
+      "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+      "attributes": [
+        {"type": "ATTR_FORMULA", "field": "pages_viewed", "label": "pages_cuped",
+         "expression": "pages_viewed - 0.7601 * (prior_sessions - 10.0076)"}
+      ],
+      "tests": [
+        {"type": "TEST_PROP_Z", "field": "trial_started", "split_by": "arm", "label": "trial_start", "params": {"success": "yes"}},
+        {"type": "TEST_PROP_Z", "field": "paid_converted", "split_by": "arm", "label": "paid_conversion", "params": {"success": "yes"}},
+        {"type": "TEST_WELCH", "field": "revenue", "split_by": "arm", "label": "revenue_per_user"},
+        {"type": "TEST_WELCH", "field": "pages_cuped", "split_by": "arm", "label": "pages_viewed_cuped"},
+        {"type": "TEST_WELCH", "field": "days_to_convert", "split_by": "arm", "label": "days_to_convert"},
+        {"type": "TEST_PROP_Z", "field": "retained_30d", "split_by": "arm", "label": "retention_30d", "params": {"success": "yes"}}
+      ]
+    },
+    {
+      "label": "revenue_sensitivity",
+      "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+      "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+      "tests": [
+        {"type": "TEST_MANN_WHITNEY_U", "field": "revenue", "split_by": "arm", "label": "revenue_mann_whitney"}
+      ]
+    },
+    {
+      "label": "regression_adjustment",
+      "cohort": {"filename": "ab_test.pulse", "data_dir": "."},
+      "aggregations": [{"type": "AGG_COUNT", "field": "user_id", "label": "users"}],
+      "regressions": [
+        {"type": "REG_OLS", "name": "pages_unadjusted", "target": "pages_viewed", "predictors": ["is_variant"]},
+        {"type": "REG_OLS", "name": "pages_adjusted", "target": "pages_viewed", "predictors": ["is_variant", "prior_sessions"]}
+      ]
+    }
+  ]
+}
