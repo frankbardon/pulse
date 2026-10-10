@@ -267,6 +267,45 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#244** A general `target` / `predictors` refusal on every non-regression attribute (only `ATTR_CODE_IN` refuses them today) · [U39](units/U39-attr-code-in.md)
 - [ ] **#245** Optional: move the `ATTR_CODE_IN` parse and accept rules into a neutral shared package instead of the predict copy pinned by `TestCodeIn_PredictRefusalsMatchRuntime` · [U39](units/U39-attr-code-in.md)
 
+### Compose parameter sweeps — added after the plan ([U40](units/U40-compose-sweep.md); inspired by the [MMM worked example](fixtures/mmm-harbor-pine/README.md))
+- [ ] **#272** `ComposedRequest.Sweep`: one request body + named axes + a label pattern, expanded before execution into ordinary slots; `grid` (Cartesian, default) and `zip` (paired) modes; deterministic order and labels · [U40](units/U40-compose-sweep.md)
+- [ ] **#273** Substitution reuses the request-template engine (`$var` slot markers and `{{}}` string sugar); no second placeholder syntax · [U40](units/U40-compose-sweep.md)
+- [ ] **#274** Expanded slots count against the existing `Options.Limits.MaxComposeSlots` and are refused with `PULSE_LIMIT_EXCEEDED` before any slot runs; predict reports `axes`, `mode`, `expanded_count` · [U40](units/U40-compose-sweep.md)
+- [ ] **#275** `sweep.rank {by, order, top}` ranks finished slot responses by one scalar path; `ComposedResponse.Ranking` · [U40](units/U40-compose-sweep.md)
+- [ ] **#276** `PULSE_SWEEP_INVALID` and `PULSE_SWEEP_RANK_PATH` with `codeMetadata` and owners · [U40](units/U40-compose-sweep.md)
+- [ ] **#277** Companions: payload-schema golden, `update-demand.md` row, `features.go` capability row, `compose-requests` / `tool-compose` skills, an examples-library entry, CLAUDE.md Compose-envelope note, a `docs/src/library/` page · [U40](units/U40-compose-sweep.md)
+- [ ] **#278** Acceptance: the MMM fixture's 256-slot grid is reproduced by one sweep, and its ranking matches (a manual fixture run, not a Go test) · [U40](units/U40-compose-sweep.md)
+
+#### Follow-ups from U40
+- [ ] **#297** A later request references a sweep winner (`rank.top`) instead of typing the winning axis values by hand (worked-example gap 14) · [U40](units/U40-compose-sweep.md)
+- [ ] **#298** Per-axis profile in the ranking output (minimum of the metric over the other axes, per axis value) for the decay identifiability reading (worked-example gap 15) · [U40](units/U40-compose-sweep.md)
+
+### Derived cohorts — added after the plan ([U41](units/U41-derived-cohort.md))
+- [ ] **#279** NDJSON import matches schema fields to keys by name, not by position; mismatches are coded refusals (bug-class fix: an unsorted schema silently mislabels columns today) · [U41](units/U41-derived-cohort.md)
+- [ ] **#280** Materialise a request's derived columns into a new `.pulse` cohort, source schema carried over, derived columns appended as `f64` with generated descriptions · [U41](units/U41-derived-cohort.md)
+- [ ] **#281** Warn when a stream runs with projection and its output is destined for an import; the silent column drop is the bug · [U41](units/U41-derived-cohort.md)
+- [ ] **#282** Import inference for money-like columns: infer `f64`, or a `--float f64` flag, so sums do not drift under `f32` · [U41](units/U41-derived-cohort.md)
+- [ ] **#283** Fan-out of a window or feature list over a parameter within one request (the 23-entry adstock request becomes one declaration) · [U41](units/U41-derived-cohort.md)
+- [ ] **#284** `WIN_EWMA` `decay` parameter (`alpha = 1 - decay`) beside `alpha` · [U41](units/U41-derived-cohort.md)
+- [ ] **#285** Acceptance: materialise the example's feature cohort natively and fit on it, with no hand-written schema · [U41](units/U41-derived-cohort.md)
+
+### Fit scoring — added after the plan ([U42](units/U42-fit-scoring.md))
+- [ ] **#286** `ATTR_REG_PREDICT`: apply a named fit to rows, in-request or from a stored model; no coefficient is ever retyped · [U42](units/U42-fit-scoring.md)
+- [ ] **#287** Error aggregators over a target and a prediction (`AGG_MAPE`, `AGG_RMSE`), weight-aware, with a train/holdout split by index · [U42](units/U42-fit-scoring.md)
+- [ ] **#288** Interval bounds pass-through: contribution and scenario calculations read the fit's `ci_lower` / `ci_upper` · [U42](units/U42-fit-scoring.md)
+- [ ] **#289** Acceptance: the example's holdout MAPE, contribution table with intervals and scenario slots run without any copied coefficient · [U42](units/U42-fit-scoring.md)
+
+### Post-aggregation ratios — added after the plan ([U43](units/U43-post-aggregation-ratios.md))
+- [ ] **#290** A ratio output across aggregators (`AGG_RATIO`, or a post-aggregation formula slot) for ROI and marginal ROI; a zero or null denominator is `null` · [U43](units/U43-post-aggregation-ratios.md)
+- [ ] **#291** Aggregate-derived scalars inside `ATTR_FORMULA` (a cohort-total reference), with the two-pass cost visible in predict streamability · [U43](units/U43-post-aggregation-ratios.md)
+- [ ] **#292** Acceptance: the example's ROI, marginal ROI and scenario scale factors come out of Pulse with no hand-computed number · [U43](units/U43-post-aggregation-ratios.md)
+
+### Owner-unit backlog from the worked example (filed under existing units)
+- [ ] **#293** `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list, so ridge can leave a predictor subset unshrunk; add an oracle case · [U36](units/U36-reference-oracles.md)
+- [ ] **#294** Window lag default `null` and post-tests that honour null (`WIN_LAG` `default: 0` biases lag-1 autocorrelation) · [U36](units/U36-reference-oracles.md)
+- [ ] **#295** Clustered and HAC covariance options on `REG_OLS` `Vcov` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [ ] **#296** Summary of a matrix across groups (mean and range per cell over a grouped matrix result) · [U28](units/U28-matrix-overlays.md)
+
 ---
 
 ## 8. Response shaping ([response-shaping 00](v1.0.0-response-shaping/00-design.md))

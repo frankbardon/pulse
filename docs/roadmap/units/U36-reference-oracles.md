@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U08]
 soft_depends_on: []
 blocks: []
-todo_items: [202, 203, 204, 205, 266, 271]
+todo_items: [202, 203, 204, 205, 266, 271, 293, 294]
 branch: reference-oracles
 ---
 
@@ -40,6 +40,8 @@ Numbering note: appended as U36 after U35 rather than renumbered.
 - [ ] **#205** (4. Statistical integrity › Reference oracles) Runtime bugs found in U08: infinite `TEST_FISHER_EXACT` OR and Pearson / Spearman `details.t` break `--json`; `TEST_BROWN_FORSYTHE` reports F = 0, p = 0 at zero within-group spread; the Shapiro–Francia p for n < 5 is uncalibrated. ~~The Winitzki inverse-erf CI critical z is ~4.7e-4 too small~~ — **fixed by [U12](U12-weighting-inferential.md) E5-S1** (`normalCriticalTwoSided` = −`standardNormalPPF`(α/2), R `qnorm` to a few ulp, for the `TEST_Z_TWO_SAMPLE` / `TEST_PROP_Z` Wald and `TEST_PEARSON_R` Fisher-z intervals and `AGG_CI_*`; pinned against R in the weighted reference rows), so it leaves this unit's scope
 - [ ] **#266** (10. Vector & matrix — operators › Follow-ups from U24) Matrix oracle gaps: add weighted pairwise PCA, collinearity and reliability `item_sd` cases (the unweighted pairwise PCA and collinearity cases landed in U24)
 - [ ] **#271** (10. Vector & matrix — operators › Follow-ups from U24) `REG_GLM` gamma: Pulse fixes dispersion at 1 for standard errors and `vcov`; R estimates it. Decide, align, and add a gamma oracle case
+- [ ] **#293** (Follow-ups from U40) `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list, so ridge can leave a predictor subset (for example categorical dummies) unshrunk; add an oracle case
+- [ ] **#294** (Follow-ups from U40) Window lag default `null` and post-tests that honour null: a `WIN_LAG` `default: 0` fills the first rows and biases lag-1 autocorrelation (the reported figure includes the zero-filled rows)
 
 ## Scope
 
