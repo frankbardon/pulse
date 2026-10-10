@@ -1,0 +1,80 @@
+{
+  "requests": [
+    {
+      "label": "unweighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "wave"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "aware_unaided",
+          "label": "unaided"
+        }
+      },
+      "overlays": [
+        {
+          "name": "wave_vs_wave",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "row",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "weighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "wave"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "aware_unaided",
+          "label": "unaided"
+        }
+      },
+      "overlays": [
+        {
+          "name": "wave_vs_wave",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "row",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    }
+  ]
+}

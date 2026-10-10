@@ -1,0 +1,278 @@
+{
+  "requests": [
+    {
+      "label": "age_by_wave_unweighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "wave"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "share"
+        },
+        "normalize": "column"
+      }
+    },
+    {
+      "label": "age_total_unweighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "share"
+        },
+        "normalize": "column"
+      }
+    },
+    {
+      "label": "gender_unweighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "gender"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "share"
+        },
+        "normalize": "column"
+      }
+    },
+    {
+      "label": "region_unweighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "share"
+        },
+        "normalize": "column"
+      }
+    },
+    {
+      "label": "age_by_wave_weighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "wave"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "share"
+        },
+        "normalize": "column"
+      }
+    },
+    {
+      "label": "age_total_weighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "share"
+        },
+        "normalize": "column"
+      }
+    },
+    {
+      "label": "gender_weighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "gender"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "share"
+        },
+        "normalize": "column"
+      }
+    },
+    {
+      "label": "region_weighted",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "cell": {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "share"
+        },
+        "normalize": "column"
+      }
+    },
+    {
+      "label": "weight_profile",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "groups": [
+        {
+          "type": "GROUP_CATEGORY",
+          "field": "wave"
+        }
+      ],
+      "aggregations": [
+        {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "respondents",
+          "weight": null
+        },
+        {
+          "type": "AGG_MIN",
+          "field": "weight",
+          "label": "min_weight",
+          "weight": null
+        },
+        {
+          "type": "AGG_MAX",
+          "field": "weight",
+          "label": "max_weight",
+          "weight": null
+        },
+        {
+          "type": "AGG_COUNT",
+          "field": "resp_id",
+          "label": "weighted_base"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,974 @@
+{
+  "requests": [
+    {
+      "label": "good_value__age_band",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_good_value",
+          "params": {
+            "label": "Good value"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_good_value",
+          "label": "good_value"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "good_value__region",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_good_value",
+          "params": {
+            "label": "Good value"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_good_value",
+          "label": "good_value"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "high_quality__age_band",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_high_quality",
+          "params": {
+            "label": "High quality"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_high_quality",
+          "label": "high_quality"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "high_quality__region",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_high_quality",
+          "params": {
+            "label": "High quality"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_high_quality",
+          "label": "high_quality"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "innovative__age_band",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_innovative",
+          "params": {
+            "label": "Innovative"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_innovative",
+          "label": "innovative"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "innovative__region",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_innovative",
+          "params": {
+            "label": "Innovative"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_innovative",
+          "label": "innovative"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "trustworthy__age_band",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_trustworthy",
+          "params": {
+            "label": "Trustworthy"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_trustworthy",
+          "label": "trustworthy"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "trustworthy__region",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_trustworthy",
+          "params": {
+            "label": "Trustworthy"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_trustworthy",
+          "label": "trustworthy"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "stylish__age_band",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_stylish",
+          "params": {
+            "label": "Stylish"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_stylish",
+          "label": "stylish"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "stylish__region",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_stylish",
+          "params": {
+            "label": "Stylish"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_stylish",
+          "label": "stylish"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "eco_friendly__age_band",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_eco_friendly",
+          "params": {
+            "label": "Eco-friendly"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_eco_friendly",
+          "label": "eco_friendly"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "eco_friendly__region",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_eco_friendly",
+          "params": {
+            "label": "Eco-friendly"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_eco_friendly",
+          "label": "eco_friendly"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "for_people_like_me__age_band",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_for_people_like_me",
+          "params": {
+            "label": "For people like me"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "age_band"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_for_people_like_me",
+          "label": "for_people_like_me"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    },
+    {
+      "label": "for_people_like_me__region",
+      "cohort": {
+        "filename": "brand_tracker.pulse",
+        "data_dir": "."
+      },
+      "weight": {
+        "field": "weight",
+        "kind": "probability"
+      },
+      "filterers": [
+        {
+          "type": "FILTER_INCLUDE",
+          "field": "wave",
+          "values": [
+            "W4"
+          ]
+        },
+        {
+          "type": "FILTER_NULL",
+          "field": "attributes",
+          "values": [
+            "is_not_null"
+          ]
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_SET_HAS",
+          "field": "attributes",
+          "label": "has_for_people_like_me",
+          "params": {
+            "label": "For people like me"
+          }
+        }
+      ],
+      "crosstab": {
+        "rows": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "market"
+          }
+        ],
+        "columns": [
+          {
+            "type": "GROUP_CATEGORY",
+            "field": "region"
+          }
+        ],
+        "cell": {
+          "type": "AGG_AVERAGE",
+          "field": "has_for_people_like_me",
+          "label": "for_people_like_me"
+        },
+        "margins": {
+          "rows": true
+        }
+      },
+      "overlays": [
+        {
+          "name": "column_tests",
+          "kind": "OVERLAY_PAIRWISE_PROP_Z",
+          "scope": "column",
+          "params": {
+            "p_source": "cell_value"
+          }
+        }
+      ]
+    }
+  ],
+  "multiplicity": {
+    "method": "holm",
+    "family": "compose"
+  }
+}
