@@ -55,8 +55,8 @@ type MaterializeResult struct {
 // attributes, windows) — so the derived columns become ordinary fields
 // any later request can read, filter, group or join on.
 //
-// req may carry only features, filterers, attributes, windows, weight
-// and time_zone (plus cohort, label and disable_components). It runs
+// req may carry only features, filterers, attributes, windows, sort,
+// weight and time_zone (plus cohort, label and disable_components). It runs
 // Process's own pre-flight — the instance slot gate, smart defaults,
 // zones, the field-reference rule, the limits pre-flight — so a request
 // Process refuses is refused here with the same error; then:
@@ -69,14 +69,20 @@ type MaterializeResult struct {
 // The pipeline is Process's record-level half over a full decode:
 // features over every record, filters, attributes over the survivors,
 // windows over the survivors in source order. Output rows follow source
-// order (an archive's records in shard order); each source cell is the
-// exact stored value (Cohort.Reader). The output schema is the
+// order (an archive's records in shard order) unless req carries sort:
+// then they follow the order Request.Sort gives Process's row set —
+// the engine's own comparator, ties kept in source order, nulls last in
+// both directions — on keys naming source fields or derived columns.
+// Sorting moves rows, never values: each window has already run under
+// its own partition_by / order_by. Each source cell is the exact stored
+// value (Cohort.Reader). The output schema is the
 // source's logical schema unchanged — order, types, nullability,
 // dictionaries, descriptions — followed by the derived columns in
 // pipeline order (declaration order within features, attributes,
 // windows; a multi-output feature contributes every output), each
 // nullable f64 with a generated description naming its operator,
-// source field, params and source cohort. An integer window output
+// source field, params (a window's partition, order and — when the
+// operator reads it — frame) and source cohort. An integer window output
 // (row number, rank) is stored as f64; a value that is not a number
 // fails the run with PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC.
 //

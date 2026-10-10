@@ -246,3 +246,44 @@ func TestCompareCell_ScaledDecimal(t *testing.T) {
 		}
 	}
 }
+
+// TestSortOrder_IsSortsPermutation: SortOrder returns exactly the
+// order Sort puts rows in — desc keys, nulls last in both directions,
+// ties kept in input order — and leaves rows untouched; no keys is the
+// identity (nil).
+func TestSortOrder_IsSortsPermutation(t *testing.T) {
+	mk := func() []map[string]any {
+		return []map[string]any{
+			{"id": 0, "g": "b", "v": 3.0},
+			{"id": 1, "g": "a", "v": nil},
+			{"id": 2, "g": "b", "v": 1.0},
+			{"id": 3, "g": "a", "v": 3.0},
+			{"id": 4, "g": "a"},
+			{"id": 5, "g": "b", "v": 2.0},
+		}
+	}
+	for _, keys := range [][]types.OrderKey{
+		{{Field: "v", Desc: true}},
+		{{Field: "v"}},
+		{{Field: "g"}, {Field: "v", Desc: true}},
+		{{Field: "g", Desc: true}},
+	} {
+		rows := mk()
+		order := SortOrder(rows, keys)
+		sorted := mk()
+		Sort(sorted, keys)
+		for j, i := range order {
+			if rows[i]["id"] != sorted[j]["id"] {
+				t.Fatalf("keys %+v: position %d holds id %v, Sort put id %v there", keys, j, rows[i]["id"], sorted[j]["id"])
+			}
+		}
+		for i, r := range rows {
+			if r["id"] != i {
+				t.Fatalf("SortOrder moved rows")
+			}
+		}
+	}
+	if SortOrder(mk(), nil) != nil {
+		t.Error("no keys: want the nil identity order")
+	}
+}

@@ -263,6 +263,18 @@ func processRun(req func() *types.Request) func(ctx context.Context, svc *Servic
 	}
 }
 
+// discardSink is a MaterializeSink that keeps nothing.
+type discardSink struct{}
+
+func (discardSink) Begin(*Cohort, []descx.MaterializeColumn) error { return nil }
+func (discardSink) Row(int64, []any) error                         { return nil }
+
+func materializeRun(req func() *types.Request) func(ctx context.Context, svc *Service) error {
+	return func(ctx context.Context, svc *Service) error {
+		return svc.Materialize(ctx, req(), discardSink{})
+	}
+}
+
 func one(req func() *types.Request) func() []*types.Request {
 	return func() []*types.Request { return []*types.Request{req()} }
 }
@@ -339,6 +351,13 @@ func parityCases(f *limitsFixture) []parityCase {
 			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "weight", Label: "w{{k}}", Expression: "weight * {{k}}",
 				ForEach: &types.ForEach{Axes: []types.SweepAxis{{Name: "k", Values: []any{1, 2, 3}}}}}}}
 	}
+	// A sorted materialize: the pre-flight predict reports is the one
+	// it trips, before the sink opens anything.
+	materializeSorted := func() *types.Request {
+		return &types.Request{Cohort: wideCohort(f),
+			Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "weight"}},
+			Sort:     []types.OrderKey{{Field: "brand", Desc: true}, {Field: "LOG_weight"}}}
+	}
 	facet := func() *types.FacetRequest {
 		return &types.FacetRequest{Cohort: wideCohort(f), Fields: []string{"brand", "weight"}}
 	}
@@ -398,6 +417,9 @@ func parityCases(f *limitsFixture) []parityCase {
 			limits: maxGroups(8), wantTrip: limits.MaxGroups},
 		{name: "memory buffered", site: "buffered (memory pre-flight)", setup: serialArm,
 			requests: one(grouped(parityMedian, f.wide)), run: processRun(grouped(parityMedian, f.wide)),
+			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 20 }, wantTrip: limits.MaxEstimatedMemory},
+		{name: "memory materialize sorted", site: "materialize (memory pre-flight)", setup: serialArm,
+			requests: one(materializeSorted), run: materializeRun(materializeSorted),
 			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 20 }, wantTrip: limits.MaxEstimatedMemory},
 		{name: "memory join", site: "join (memory pre-flight)", setup: serialArm,
 			requests: one(join), run: processRun(join),
@@ -590,7 +612,7 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 	}
 	for _, s := range []string{"serial", "buffered", "parallel decode reducer", "parallel shard reducer", "merge",
 		"buffered crosstab", "fused crosstab", "join", "matrix", "compose", "compose (parallel)", "chain", "facet", "timeout",
-		"derived columns"} {
+		"derived columns", "materialize (memory pre-flight)"} {
 		if !sites[s] {
 			t.Errorf("runtime site %q never tripped", s)
 		}

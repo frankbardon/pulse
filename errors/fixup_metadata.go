@@ -653,7 +653,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATERIALIZE_SLOT_UNSUPPORTED: {
-		Message: "A materialize request carries a slot that does not produce one value per source record; only features, filterers, attributes, windows, weight and time_zone are accepted.",
+		Message: "A materialize request carries a slot that does not keep one row per source record; only features, filterers, attributes, windows, sort, weight and time_zone are accepted.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,

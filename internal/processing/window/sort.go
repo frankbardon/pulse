@@ -75,13 +75,40 @@ func Sort(rows []map[string]any, keys []types.OrderKey) {
 		return
 	}
 	sort.SliceStable(rows, func(a, b int) bool {
-		for _, k := range keys {
-			if cmp := CompareKey(rows[a][k.Field], rows[b][k.Field], k.Desc); cmp != 0 {
-				return cmp < 0
-			}
-		}
-		return false
+		return rowsLess(rows[a], rows[b], keys)
 	})
+}
+
+// SortOrder is Sort without the reorder: it returns the permutation
+// Sort applies to rows — out[j] is the index (into rows) of the row
+// Sort places at position j — leaving rows untouched. Same comparator,
+// same stability (ties keep their input order), nulls last in both
+// directions. Nil when keys is empty (the identity order). The
+// materialize path orders source indices with it, so its output rows
+// follow exactly the order Request.Sort gives Process's row set.
+func SortOrder(rows []map[string]any, keys []types.OrderKey) []int {
+	if len(keys) == 0 {
+		return nil
+	}
+	idx := make([]int, len(rows))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(a, b int) bool {
+		return rowsLess(rows[idx[a]], rows[idx[b]], keys)
+	})
+	return idx
+}
+
+// rowsLess is Request.Sort's comparator: the first key whose cells
+// differ decides (CompareKey); equal on every key is not less.
+func rowsLess(a, b map[string]any, keys []types.OrderKey) bool {
+	for _, k := range keys {
+		if cmp := CompareKey(a[k.Field], b[k.Field], k.Desc); cmp != 0 {
+			return cmp < 0
+		}
+	}
+	return false
 }
 
 // CompareKey orders two cells under one sort key: negative when a sorts

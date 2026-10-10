@@ -179,7 +179,7 @@ type DedupIn struct {
 // as pulse_dedup's: it changes no byte written, and the warnings it
 // would escalate are returned either way.
 type MaterializeIn struct {
-	Request   *types.Request `json:"request" jsonschema:"The request whose derived columns to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, weight, time_zone and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD."`
+	Request   *types.Request `json:"request" jsonschema:"The request whose derived columns to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, sort (the output row order), weight, time_zone and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD."`
 	Out       string         `json:"out" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR). An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
 	Overwrite bool           `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic: a failure leaves it as it was). Sidecars beside it become stale and are listed under invalidated_sidecars, each with its rebuild command; nothing is rebuilt."`
 }

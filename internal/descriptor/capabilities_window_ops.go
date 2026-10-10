@@ -102,7 +102,10 @@ func windowCapabilities() []descriptor.Operator {
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "f64",
 			EmitsTypeNote: "one float per row",
-			Streamable:    false,
+			// Cumulative over the ordered partition: the required frame
+			// is never read.
+			IgnoresFrame: true,
+			Streamable:   false,
 		},
 		{
 			Name:        string(types.WIN_PCT_CHANGE),

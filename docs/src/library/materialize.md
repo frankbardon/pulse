@@ -22,8 +22,8 @@ res, err := p.Materialize(ctx, &pulse.Request{
 // res.Records, res.DerivedColumns ("LOG_spend", "WIN_LAG_spend")
 ```
 
-- **Accepted slots.** Features, filterers, attributes, windows, weight
-  and `time_zone`. Any other slot is refused with
+- **Accepted slots.** Features, filterers, attributes, windows, `sort`,
+  weight and `time_zone`. Any other slot is refused with
   `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` (`details.slot`); a request with
   no feature, attribute or window with `PULSE_MATERIALIZE_NO_DERIVED`;
   an embedder-registered feature (its outputs are unknown before it
@@ -33,14 +33,25 @@ res, err := p.Materialize(ctx, &pulse.Request{
 - **Rows.** One per filter-passing source record, in source order (an
   archive's shards concatenated in archive order). Features see every
   record, attributes and windows the survivors — exactly as `Process`
-  computes them. Source cells are the exact stored values
+  computes them. With `sort`, the rows follow the order `Request.Sort`
+  gives `Process`'s row set — the engine's own comparator, ties in
+  source order, nulls last in both directions — on keys naming source
+  fields or derived columns (feature outputs, attribute and window
+  labels). Sorting moves rows, never values: every window has already
+  run under its own `partition_by` / `order_by`. Only the permutation
+  and each survivor's source index are held beside the buffered
+  records, and the memory pre-flight is `Process`'s
+  (`PULSE_LIMIT_EXCEEDED` before anything is created). Source cells are the exact stored values
   (`CohortReader.RecordAt`).
 - **Schema.** The source's logical schema verbatim (order, types,
   nullability, dictionaries, descriptions), then one nullable `f64` per
   derived output in pipeline order — features (every output of a
   multi-output feature), attributes, windows — each with a generated
   description such as `WIN_LAG of spend (partition region; order week)
-  — derived from sales.pulse`. Integer window outputs (row number,
+  — derived from sales.pulse`. A window's frame is stated only when the
+  operator reads it: `WIN_EWMA` is cumulative whatever its required
+  frame says (manifest `ignores_frame`), so its description has no
+  frame clause. Integer window outputs (row number,
   rank) are stored as `f64`; a non-numeric value (a lag copying a
   categorical label) fails the run with
   `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.

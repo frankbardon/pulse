@@ -14,7 +14,8 @@ import (
 // after every pre-flight check passed and before any record is
 // decoded, with the opened source cohort and the derived columns in
 // output order; an error from it ends the run. Row is then called once
-// per filter-passing source record, in source order, with the record's
+// per filter-passing source record — in source order, or in the
+// request's sort order when it carries one — with the record's
 // 0-based source index (global over a shard archive, in Cohort.Shards
 // order — the CohortRecordReader index) and one value per derived
 // column (float64 or nil). Row is never called when Begin failed.
@@ -35,8 +36,9 @@ type MaterializeSink interface {
 // outputs cannot be named (PULSE_MATERIALIZE_OUTPUT_UNDECLARED) — all
 // before sink.Begin.
 //
-// The scan always decodes every field (no projection) and holds every
-// record. The memory pre-flight already judges that buffered arm: with
+// A sort reorders the Row calls only (processing.DeriveRecords): the
+// derived values are those of the unsorted run. The scan always
+// decodes every field (no projection) and holds every record. The memory pre-flight already judges that buffered arm: with
 // aggregations and matrices refused, no accepted request is
 // streamable. Bound by Limits.RequestTimeout like Process.
 func (s *Service) Materialize(ctx context.Context, req *types.Request, sink MaterializeSink) error {

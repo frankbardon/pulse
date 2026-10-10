@@ -45,8 +45,8 @@ Label every output you will reference; without a label the column takes the oper
 
 ## What the output holds
 
-- **Rows:** one per filter-passing source record, in source order (an archive's shards in archive order). Features see every record; attributes and windows the survivors — exactly as `pulse_process` computes them.
-- **Columns:** the source fields verbatim (types, nullability, dictionaries, descriptions), then one nullable `f64` per derived output in pipeline order — feature outputs (every output of a multi-output feature), attributes, windows. Each gets a generated description naming operator, field, params, partition / order and the source cohort.
+- **Rows:** one per filter-passing source record, in source order (an archive's shards in archive order) — or in `sort` order, keyed on source fields or derived columns with `pulse_process`'s comparator. `sort` moves rows, never values: each window already ran under its own `order_by`. Features see every record; attributes and windows the survivors — exactly as `pulse_process` computes them.
+- **Columns:** the source fields verbatim (types, nullability, dictionaries, descriptions), then one nullable `f64` per derived output in pipeline order — feature outputs (every output of a multi-output feature), attributes, windows. Each gets a generated description naming operator, field, params, partition / order, the frame only when the operator reads it (not when its manifest entry says `ignores_frame`) and the source cohort.
 - Integer window outputs (row number, rank) are stored as `f64`; a non-numeric output (a lag over a categorical) is `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
 - Always a single-file cohort; source sidecars are not carried — rebuild an index on the new cohort if you need one.
 
@@ -56,7 +56,7 @@ All before anything is written; the write itself is atomic.
 
 | Code | Cause | Fix |
 |---|---|---|
-| `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` | a slot other than cohort, label, features, filterers, attributes, windows, weight, time_zone, disable_components (`details.slot`) | move that slot to the step-2 request |
+| `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` | a slot other than cohort, label, features, filterers, attributes, windows, sort, weight, time_zone, disable_components (`details.slot`) | move that slot to the step-2 request |
 | `PULSE_MATERIALIZE_NO_DERIVED` | no feature, attribute or window | nothing to write: run the request directly |
 | `PULSE_MATERIALIZE_OUTPUT_UNDECLARED` | an embedder-registered feature, whose outputs cannot be named before it runs | apply it in the step-2 request instead |
 | `SERVICE_VALIDATION` | `out` exists | pick a new path, or `overwrite` (stale sidecars are listed, never rebuilt) |

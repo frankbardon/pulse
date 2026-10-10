@@ -726,7 +726,7 @@ func apiMaterializeCmd() *cli.Command {
 		Name:  "materialize",
 		Usage: "Write a new cohort holding the request's filter-passing source records plus one f64 column per derived output (features, attributes, windows), so later requests read them as ordinary fields (atomic)",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path (cohort, label, features, filterers, attributes, windows, weight, time_zone, disable_components only)", Required: true},
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path (cohort, label, features, filterers, attributes, windows, sort, weight, time_zone, disable_components only)", Required: true},
 			&cli.StringFlag{Name: "out", Aliases: []string{"o"}, Usage: "Path of the new .pulse cohort to write", Required: true},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing cohort at --out (atomic); its now-stale sidecars are listed, never rebuilt"},
 			&cli.BoolFlag{Name: "strict", Usage: "Fail with PULSE_FIELD_DESCRIPTION_LOW_QUALITY (nothing written) when an output field's description is weak, instead of warning"},

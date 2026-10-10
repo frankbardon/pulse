@@ -33,7 +33,7 @@ Use something else:
 
 Give EXACTLY ONE of `alpha` / `decay` (manifest `exactly_one_of: smoothing`; a Recommend draft names `alpha`).
 
-`partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (REQUIRED `{mode: "rows"}`; ignored by the recurrence). `field` (required, numeric).
+`partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (REQUIRED `{mode: "rows"}`; ignored by the recurrence — manifest `ignores_frame`). `field` (required, numeric).
 
 ## Inputs
 

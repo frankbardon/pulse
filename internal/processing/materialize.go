@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/observe"
@@ -30,8 +31,17 @@ type DerivedEmit func(source int64, values []any) error
 // features over the unfiltered set, filters, attributes over the
 // filtered set, and — when req carries windows — the windows-only row
 // materialisation plus every window over the filtered rows. It then
-// calls emit once per filter-passing record, in iteration order, with
-// that record's source index and its derived values.
+// calls emit once per filter-passing record with that record's source
+// index and its derived values: in iteration order, or — req.Sort set —
+// in the order Request.Sort gives Process's row set (window.SortOrder:
+// the same comparator, stable ties in iteration order, nulls last in
+// both directions). A sort key may name a source field, a feature
+// output, an attribute label or a window label. Sorting changes only
+// the emit order, never a value: every window has already run under
+// its own partition_by / order_by. Only the permutation and each
+// survivor's source index are held beside the records (plus one
+// key-only cell map per survivor when there is no window row set to
+// read the keys from); the rows themselves are never copied.
 //
 // Every value is stored as a float64: an integer window output
 // (WIN_ROW_NUMBER / RANK / DENSE_RANK) widens losslessly, NaN stays
@@ -40,7 +50,7 @@ type DerivedEmit func(source int64, values []any) error
 // fails with PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC before emit sees the
 // record.
 //
-// The caller has validated req (no groups, aggregations, sort, tests,
+// The caller has validated req (no groups, aggregations, tests,
 // regressions, matrices). Weight stamping matches Process.
 func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter RecordIterator, cols []DerivedColumn, emit DerivedEmit) error {
 	req = p.stampWeights(req)
@@ -71,19 +81,39 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 			return err
 		}
 	}
-	p.lap(observe.PhaseScan)
 
 	// filtered is an order-preserving subsequence of all (the filter
 	// pass appends survivors in input order), so one forward walk
-	// recovers each survivor's source index.
+	// recovers each survivor's source index — taken BEFORE the sort,
+	// which then carries it explicitly through the permutation.
+	srcOf := make([]int64, len(filtered))
 	src := 0
 	for i, rec := range filtered {
-		if err := poll.Poll(); err != nil {
-			return err
-		}
 		for all[src] != rec {
 			src++
 		}
+		srcOf[i] = int64(src)
+		src++
+	}
+	var order []int
+	if len(req.Sort) > 0 {
+		keyRows := rows
+		if keyRows == nil {
+			keyRows = sortKeyRows(filtered, req.Sort)
+		}
+		order = window.SortOrder(keyRows, req.Sort)
+	}
+	p.lap(observe.PhaseScan)
+
+	for j := range filtered {
+		if err := poll.Poll(); err != nil {
+			return err
+		}
+		i := j
+		if order != nil {
+			i = order[j]
+		}
+		rec := filtered[i]
 		values := make([]any, len(cols))
 		for c, col := range cols {
 			if col.Window {
@@ -98,12 +128,33 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 				values[c] = v
 			}
 		}
-		if err := emit(int64(src), values); err != nil {
+		if err := emit(srcOf[i], values); err != nil {
 			return err
 		}
-		src++
 	}
 	return nil
+}
+
+// sortKeyRows builds, per record, the cells recordsToRows would hold
+// under each sort key — nothing else — so a run with no window row set
+// sorts on exactly the values Process's row set carries.
+func sortKeyRows(records []*Record, keys []types.OrderKey) []map[string]any {
+	out := make([]map[string]any, len(records))
+	for i, r := range records {
+		m := make(map[string]any, len(keys))
+		for _, k := range keys {
+			v, ok := r.exprValue(k.Field)
+			if !ok {
+				continue
+			}
+			if _, isDec := v.(encoding.Decimal128); isDec {
+				v = rowCell(r.fieldNamed(k.Field), v)
+			}
+			m[k.Field] = v
+		}
+		out[i] = m
+	}
+	return out
 }
 
 // derivedFloat converts one window output cell to the materialized

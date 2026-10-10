@@ -69,3 +69,38 @@ func TestMaterialize_SinkContract(t *testing.T) {
 		t.Fatalf("nil request: %v", err)
 	}
 }
+
+// TestMaterialize_SortOrdersRows: a sort reaches the sink as the Row
+// order (source indices still global), and a sort key naming no
+// pipeline column is refused by the field-reference rule before Begin.
+func TestMaterialize_SortOrdersRows(t *testing.T) {
+	ctx := context.Background()
+	svc := New(setupTestFS(t, "wide.pulse", wideSchema(), wideRecords()))
+	req := &types.Request{
+		Cohort:    &types.Cohort{Filename: "wide.pulse"},
+		Features:  []*types.Feature{{Type: types.FEAT_LOG, Field: "x"}},
+		Filterers: []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "color", Values: []string{"red", "green"}}},
+		Sort:      []types.OrderKey{{Field: "color", Desc: true}, {Field: "LOG_x", Desc: true}},
+	}
+	sink := &recordingSink{}
+	if err := svc.Materialize(ctx, req, sink); err != nil {
+		t.Fatal(err)
+	}
+	// color desc: red (0, 4, 8) before green (1, 5, 9); LOG_x desc within.
+	want := []int64{8, 4, 0, 9, 5, 1}
+	if len(sink.sources) != len(want) {
+		t.Fatalf("sources = %v, want %v", sink.sources, want)
+	}
+	for i := range want {
+		if sink.sources[i] != want[i] {
+			t.Fatalf("sources = %v, want %v", sink.sources, want)
+		}
+	}
+
+	sink = &recordingSink{}
+	req.Sort = []types.OrderKey{{Field: "nope"}}
+	var ce *errors.CodedError
+	if err := svc.Materialize(ctx, req, sink); !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || sink.began {
+		t.Fatalf("unknown sort key: err = %v began=%v; want a field-ref refusal before Begin", err, sink.began)
+	}
+}

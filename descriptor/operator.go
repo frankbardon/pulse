@@ -48,6 +48,16 @@ type Operator struct {
 	// with different Field values and requires an identical result.
 	IgnoresField bool `json:"ignores_field,omitempty"`
 
+	// IgnoresFrame marks a window operator that accepts (or requires) a
+	// frame on the wire but never reads it: WIN_EWMA is cumulative over
+	// the ordered partition whatever the frame says. Generated text that
+	// would echo the frame (a materialized column's description) omits
+	// it. Held at runtime by processing's
+	// TestWindows_IgnoresFrameMatchesRuntime, which runs every
+	// frame-taking window under different frames and requires identical
+	// output exactly when this flag is set.
+	IgnoresFrame bool `json:"ignores_frame,omitempty"`
+
 	// EmitsType is the field type produced for single-output operators.
 	// Empty when the operator's emit type is conditional on input or
 	// when it does not emit a typed column (e.g. an aggregator emits a

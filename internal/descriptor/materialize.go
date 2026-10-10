@@ -32,8 +32,9 @@ const materializeDescriptionMax = 1000
 // that does not yield one value per source record is refused with
 // PULSE_MATERIALIZE_SLOT_UNSUPPORTED, details.slot naming its JSON key,
 // in Request field order. Accepted: cohort, label, features,
-// filterers, attributes, windows, weight, time_zone and
-// disable_components (which has nothing to gate). Schema-free.
+// filterers, attributes, windows, sort (the output row order), weight,
+// time_zone and disable_components (which has nothing to gate).
+// Schema-free.
 func MaterializeSlotRefusal(req *types.Request) *errors.CodedError {
 	if req == nil {
 		return nil
@@ -45,7 +46,6 @@ func MaterializeSlotRefusal(req *types.Request) *errors.CodedError {
 		{"aggregations", len(req.Aggregations) > 0},
 		{"groups", len(req.Groups) > 0},
 		{"outputs", len(req.Outputs) > 0},
-		{"sort", len(req.Sort) > 0},
 		{"tests", len(req.Tests) > 0},
 		{"post_tests", len(req.PostTests) > 0},
 		{"regressions", len(req.Regressions) > 0},
@@ -61,7 +61,7 @@ func MaterializeSlotRefusal(req *types.Request) *errors.CodedError {
 	for _, s := range slots {
 		if s.set {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_SLOT_UNSUPPORTED,
-				"materialize does not accept the "+s.name+" slot: only features, filterers, attributes, windows, weight and time_zone produce one value per source record",
+				"materialize does not accept the "+s.name+" slot: only features, filterers, attributes, windows, sort, weight and time_zone keep one row per source record",
 				map[string]any{"slot": s.name})
 		}
 	}
@@ -137,13 +137,14 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 			continue
 		}
 		out = append(out, MaterializeColumn{Name: windowLabel(w), Window: true,
-			Description: derivedDescription(operatorPhrase(string(w.Type), w.Field, w.Params, windowClauses(w)), from)})
+			Description: derivedDescription(operatorPhrase(string(w.Type), w.Field, w.Params, windowClauses(w, inst)), from)})
 	}
 	return out, nil
 }
 
-// windowClauses renders a window's partition, order and frame.
-func windowClauses(w *types.Window) []string {
+// windowClauses renders a window's partition, order and frame — the
+// frame only when the operator reads it.
+func windowClauses(w *types.Window, inst *InstanceSnapshot) []string {
 	var out []string
 	if len(w.PartitionBy) > 0 {
 		out = append(out, "partition "+strings.Join(w.PartitionBy, ", "))
@@ -158,7 +159,10 @@ func windowClauses(w *types.Window) []string {
 		}
 		out = append(out, "order "+strings.Join(keys, ", "))
 	}
-	if f := w.Frame; f != nil {
+	// An operator that never reads its frame (IgnoresFrame — WIN_EWMA is
+	// cumulative over the ordered partition) gets no frame clause: the
+	// echoed bounds would describe a computation that did not happen.
+	if f := w.Frame; f != nil && !windowIgnoresFrame(opRoute(inst, w.Type)) {
 		bound := func(n *int) string {
 			if n == nil {
 				return "unbounded"
@@ -168,6 +172,18 @@ func windowClauses(w *types.Window) []string {
 		out = append(out, "frame "+bound(f.Preceding)+" preceding, "+bound(f.Following)+" following")
 	}
 	return out
+}
+
+// windowIgnoresFrame reports whether built-in window t declares
+// IgnoresFrame in its capability entry. An extension window (not in
+// the table) is taken to read its frame.
+func windowIgnoresFrame(t types.WindowType) bool {
+	for _, op := range windowCapabilities() {
+		if op.Name == string(t) {
+			return op.IgnoresFrame
+		}
+	}
+	return false
 }
 
 func undeclaredFeature(i int, feat *types.Feature, why string) *errors.CodedError {

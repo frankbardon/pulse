@@ -1555,6 +1555,7 @@ pulse/descriptor: type Operator field Description string "json:\"description\""
 pulse/descriptor: type Operator field EmitsType string "json:\"emits_type,omitempty\""
 pulse/descriptor: type Operator field EmitsTypeNote string "json:\"emits_type_note,omitempty\""
 pulse/descriptor: type Operator field IgnoresField bool "json:\"ignores_field,omitempty\""
+pulse/descriptor: type Operator field IgnoresFrame bool "json:\"ignores_frame,omitempty\""
 pulse/descriptor: type Operator field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type Operator field Name string "json:\"name\""
 pulse/descriptor: type Operator field Params []pulse/descriptor.Param "json:\"params\""
@@ -4650,4 +4651,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e2f32817338af6a25a70cb99de0234b734cd60552ca0d8f339380f62e9f5e6c4
+// golden-hash: dcbe91c634e2d2aca5ea730cf6918607a67ca913f3ddf85b28e54d3803eeb590

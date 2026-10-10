@@ -290,6 +290,76 @@ func TestMaterialize_DerivedValuesMatchProcess(t *testing.T) {
 	}
 }
 
+// TestMaterialize_SortMatchesProcessRowOrder: with a sort whose order
+// is not any window's order, the output rows follow Process's sorted
+// row set row for row — source cells and every derived value — and so
+// leave source order; the windows keep the values they compute under
+// their own partition / order.
+func TestMaterialize_SortMatchesProcessRowOrder(t *testing.T) {
+	ctx := context.Background()
+	p, _ := matPulse(t, Options{DisableProjection: true})
+	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{Shards: &ShardSplit{MaxRecords: 5}})
+	req := func() *Request {
+		r := matRequest("src.pulse")
+		r.Sort = []types.OrderKey{{Field: "WIN_ROW_NUMBER"}, {Field: "region", Desc: true}}
+		return r
+	}
+	if _, err := p.Materialize(ctx, req(), "out.pulse", MaterializeOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := p.Process(ctx, req())
+	if err != nil {
+		t.Fatal(err)
+	}
+	unsorted, err := p.Process(ctx, matRequest("src.pulse"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[float64]map[string]any{}
+	for _, r := range unsorted.Data {
+		byID[r["id"].(float64)] = r
+	}
+	schema, rows := readAll(t, p, "out.pulse")
+	if len(rows) != len(resp.Data) {
+		t.Fatalf("%d rows, Process emitted %d", len(rows), len(resp.Data))
+	}
+	src := matRows(t)
+	n := len(schema.Fields) - len(matDerived)
+	inSourceOrder := true
+	var prev uint64
+	for i, pr := range resp.Data {
+		id := rows[i][0].(uint64)
+		if pr["id"] != float64(id) {
+			t.Fatalf("row %d: id %d, Process id %v", i, id, pr["id"])
+		}
+		if i > 0 && id < prev {
+			inSourceOrder = false
+		}
+		prev = id
+		if rows[i][3] != src[id-1][3] {
+			t.Errorf("row %d spend %v, source %v", i, rows[i][3], src[id-1][3])
+		}
+		for c, name := range matDerived {
+			got := rows[i][n+c]
+			for _, want := range []any{pr[name], byID[float64(id)][name]} {
+				if want == nil {
+					if got != nil {
+						t.Errorf("row %d %s = %v, want null", i, name, got)
+					}
+					continue
+				}
+				wf, _ := toFloat(want)
+				if gf, ok := got.(float64); !ok || math.Float64bits(gf) != math.Float64bits(wf) {
+					t.Errorf("row %d %s = %v, want %v", i, name, got, want)
+				}
+			}
+		}
+	}
+	if inSourceOrder {
+		t.Fatal("the sort left the rows in source order; the fixture proves nothing")
+	}
+}
+
 func toFloat(v any) (float64, bool) {
 	switch x := v.(type) {
 	case float64:
@@ -412,7 +482,6 @@ func TestMaterialize_RefusesUnsupportedSlots(t *testing.T) {
 		"aggregations": func(r *Request) { r.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "id"}} },
 		"groups":       func(r *Request) { r.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}} },
 		"outputs":      func(r *Request) { r.Outputs = []*types.Output{{}} },
-		"sort":         func(r *Request) { r.Sort = []types.OrderKey{{Field: "id"}} },
 		"tests":        func(r *Request) { r.Tests = []*types.Test{{Type: types.TEST_T, Field: "spend"}} },
 		"post_tests":   func(r *Request) { r.PostTests = []*types.Test{{Type: types.TEST_T, Field: "spend"}} },
 		"regressions": func(r *Request) {
@@ -592,7 +661,9 @@ func TestMaterialize_MemoryLimitRefusesLikeProcess(t *testing.T) {
 	}
 	createTestPulseFile(t, fsys, "big.pulse", []string{"a", "b", "c"}, rows)
 	req := func() *Request {
-		return &Request{Cohort: &types.Cohort{Filename: "big.pulse"}, Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "b"}}}
+		// The sort is judged by the same pre-flight: it adds no finding.
+		return &Request{Cohort: &types.Cohort{Filename: "big.pulse"}, Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "b"}},
+			Sort: []types.OrderKey{{Field: "LOG_b", Desc: true}, {Field: "a"}}}
 	}
 	open := func(max int64) *Pulse {
 		p, err := New(Options{FS: fsys, Limits: Limits{MaxEstimatedMemory: max}})
