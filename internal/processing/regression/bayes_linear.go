@@ -1,6 +1,8 @@
 package regression
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/linalg"
@@ -428,6 +430,18 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 		ConvergedIters:    0,
 	}
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
+	if e.spec.Vcov {
+		// The POSTERIOR covariance of β under the NIG posterior,
+		// E[σ²]·Λ_n⁻¹ = b_n/(a_n−1)·Λ_n⁻¹ — defined only for a_n > 1
+		// (undefined → null). It is not StdErrors² on the diagonal: the
+		// standard errors are the marginal Student-t scales
+		// √(b_n/a_n·(Λ_n⁻¹)_jj), whose variance is this matrix's.
+		scale := math.NaN()
+		if aN > 1 {
+			scale = bN / (aN - 1)
+		}
+		attachVcov(res, predictors, symVcov(q, invLambda.At, scale, nil))
+	}
 	return res, nil
 }
 

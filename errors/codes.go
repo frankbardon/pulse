@@ -72,6 +72,15 @@ const (
 	// record set has fewer observations than predictors + 1 (the
 	// minimum for an identifiable fit).
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA Code = "PROCESSING_REGRESSION_INSUFFICIENT_DATA"
+
+	// PROCESSING_REGRESSION_VCOV_UNSUPPORTED indicates a regression set
+	// vcov: true on a fit with no coefficient covariance to report:
+	// lasso / elastic net (the l1 active set is data-dependent, so no
+	// sampling covariance exists — never approximated) or a Resample /
+	// Selection modifier (their standard errors come from refits, not a
+	// covariance). details.reason names which ("penalty" / "resample" /
+	// "selection").
+	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 )
 
 // SERVICE domain - HTTP/API layer and service operations
@@ -2983,6 +2992,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INVALID_FAMILY,
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
+	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
 	// SERVICE
 	SERVICE_VALIDATION,
 	SERVICE_RESOURCE,

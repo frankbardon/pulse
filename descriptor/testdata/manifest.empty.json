@@ -660,6 +660,8 @@
           "regressions[*].residual_std_err",
           "regressions[*].converged_iters",
           "regressions[*].selected_features",
+          "regressions[*].vcov",
+          "regressions[*].correlation",
           "overlays"
         ]
       },
@@ -745,4 +747,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b15445ba21fb7da7c233810376e9940837d8f5157045d161978ace9abe583347
+// golden-hash: 9560f1c3fa2bb0e2ae94c1b51b8dadf6a07232c3a17f3aa72c2e6431bce77535

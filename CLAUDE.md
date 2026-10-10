@@ -109,7 +109,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 
 **Response shaping.** Opt-in `Request.Return {preset, include, exclude, precision}`; an excluded part is ABSENT on the wire (never `null`), output stamped `returned`. Long form: `update-demand.md` (`Request.Return` row), `skills/response-shaping.md`.
 
-**Matrices.** `Request.Vectors` + `Request.Matrices` → `Response.Matrices` (`MatrixResult`, each matrix a dedicated `MatrixValues`, never the crosstab `MatrixPayload`). Long form: `matrix-and-vectors.md` (Matrix slot).
+**Matrices.** `Request.Vectors` + `Request.Matrices` → `Response.Matrices` (`MatrixResult`, each matrix a dedicated `MatrixValues`, never the crosstab `MatrixPayload`). Long form: `matrix-and-vectors.md` (Matrix slot). Opt-in `RegressionSpec.Vcov` adds `RegressionResult.Vcov` + `Correlation` (`MatrixValues`; off = byte-identical): `matrix-and-vectors.md` (Regression vcov).
 
 ### Response.Components
 

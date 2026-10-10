@@ -2832,6 +2832,9 @@
         "converged_iters": {
           "type": "integer"
         },
+        "correlation": {
+          "$ref": "#/$defs/MatrixValues"
+        },
         "credible_intervals": {
           "additionalProperties": {
             "items": {
@@ -2951,6 +2954,9 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "vcov": {
+          "$ref": "#/$defs/MatrixValues"
         }
       },
       "required": [
@@ -3038,6 +3044,9 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "vcov": {
+          "type": "boolean"
         },
         "weight": {
           "$ref": "#/$defs/SlotWeight"
@@ -3961,4 +3970,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6a2f048b5d08bf8bc5017083b838a184ca95a1c9512976cfed1ba698c8f8fb34
+// golden-hash: 8fa03f0b9eeffb23e81464fef216264fa876496e169f18fa35204a746247c3a1

@@ -766,6 +766,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"rng_seed":        integer("Bootstrap RNG seed."),
 				"selection":       enumStringField([]string{"forward", "backward", "stepwise"}, "Subset selection; omit for none."),
 				"criterion":       enumStringField([]string{"aic", "bic"}, "Information criterion; required with selection."),
+				"vcov":            map[string]any{"type": "boolean", "description": "Also emit the coefficient covariance (vcov) and its correlation matrix; refused on l1 / elasticnet and with resample or selection."},
 				"weight":          slotWeightSchema(c),
 			},
 			"required":             []string{"type", "target"},

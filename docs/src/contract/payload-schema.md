@@ -37,7 +37,8 @@ with a feature profile gets a narrower document:
   request root (a hidden `vectors` takes `VectorSpec` and `VectorCoerce`
   with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
   and `ResponseComponents.matrices` slots and `MatrixResult` /
-  `MatrixValues` / `MatrixComponents` with it); without
+  `MatrixComponents` with it — `MatrixValues` stays, shared with the
+  regression `vcov` / `correlation`); without
   `capability:weighting` no per-slot `weight` is a property either (so
   `SlotWeight` and `WeightSpec` are absent), and without
   `capability:multiplicity` no `multiplicity` block is a property of any
@@ -388,6 +389,28 @@ weighted keys only when they apply; `MAT_RELIABILITY`'s `operator`
 carries the omega fit's `iterations` / `converged`). Contract:
 `.claude/reference/matrix-and-vectors.md`.
 
+## Regression coefficient covariance
+
+`RegressionSpec` takes an additive `vcov` boolean (default `false`) and
+`RegressionResult` two additive `omitempty` `MatrixValues` slots,
+`vcov` and `correlation`, present only when the spec set `vcov: true`
+(`format_version` stays `"1.1"`; a fit without it is byte-identical).
+Both are `square_symmetric`, `full`, with `row_keys` = `column_keys` =
+`(intercept)` then the predictors in spec order. `vcov` is the
+coefficient covariance — `REG_OLS` σ̂²·(XᵀX)⁻¹ (ridge: the sandwich),
+`REG_GLM` (XᵀWX)⁻¹ at the converged working weights (dispersion 1),
+whose square-rooted diagonal is exactly `std_errors`; `REG_BAYES_LINEAR`
+the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ (`null` cells when
+a_n ≤ 1), whose diagonal is `std_errors`²·a_n/(a_n−1). A weighted fit
+reads the inference size N* (Σw frequency, n_eff probability), as its
+standard errors do. `correlation` is `vcov` scaled to a unit diagonal
+(R's `cov2cor`); an entry with a zero or undefined variance is `null`.
+Lasso / elastic net and the `resample` / `selection` modifiers refuse
+`vcov` with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
+(`details.reason` `penalty` / `resample` / `selection`) in predict and
+at runtime alike. Both slots are in the `standard` preset (not
+`minimal`) and every float in them is rounded by `return.precision`.
+
 ## Per-group aggregation components
 
 `groups` on `AggregationComponents` is an additive `omitempty` array of
@@ -489,7 +512,7 @@ emitted. Every listed path must resolve against this schema
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `vcov` / `correlation` when asked for) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 

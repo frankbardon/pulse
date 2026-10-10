@@ -2084,6 +2084,7 @@ pulse/errors: const PROCESSING_REGRESSION_NOT_IMPLEMENTED pulse/errors.Code = "P
 pulse/errors: const PROCESSING_REGRESSION_NO_CONVERGE pulse/errors.Code = "PROCESSING_REGRESSION_NO_CONVERGE"
 pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PROCESSING_REGRESSION_RANK_DEFICIENT"
 pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
+pulse/errors: const PROCESSING_REGRESSION_VCOV_UNSUPPORTED pulse/errors.Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
 pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
 pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
@@ -4310,6 +4311,7 @@ pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\"coefficients,omitempty\""
 pulse/types: type RegressionResult field ConvergedIters int "json:\"converged_iters,omitempty\""
+pulse/types: type RegressionResult field Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
 pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64 "json:\"credible_intervals,omitempty\""
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
@@ -4332,6 +4334,7 @@ pulse/types: type RegressionResult field Selection string "json:\"selection,omit
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
+pulse/types: type RegressionResult field Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
 pulse/types: type RegressionResult method (RegressionResult) MarshalJSON() ([]byte, error)
 pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
@@ -4356,6 +4359,7 @@ pulse/types: type RegressionSpec field Selection string "json:\"selection,omitem
 pulse/types: type RegressionSpec field Target string "json:\"target\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
+pulse/types: type RegressionSpec field Vcov bool "json:\"vcov,omitempty\""
 pulse/types: type RegressionSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type RegressionSpec method (RegressionSpec) Streamable() bool
 pulse/types: type RegressionType string
@@ -4552,4 +4556,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d3a792f71eaa8bd5a5a7d45cabef89c2806ccdb7cbed1f19ade1b7f0be7749af
+// golden-hash: c62f4cfd2e665ec0f9bac67101e75a3154edc9f29e63cdc8219536cfbec2290a

@@ -21,6 +21,16 @@ type olsSolveResult struct {
 	Sigma2         float64
 	ResidualStdErr float64
 	DF             float64 // N* − p − 1 (n − p − 1 unweighted; fractional under probability)
+
+	// Covariance inputs for the opt-in Vcov (vcov.go olsVcov), set by
+	// the closed-form solvers only (nil slopeCov on the l1 solvers):
+	// slopeCov(i, j) is the unscaled slope covariance (M2_xx⁻¹, or the
+	// ridge sandwich), sigma2Gram its scale, and variances the clamped
+	// pre-square-root variances of [intercept, β_1 … β_p] — StdErrors[j]
+	// is exactly √variances[j].
+	slopeCov   func(i, j int) float64
+	sigma2Gram float64
+	variances  []float64
 }
 
 // solveOLS performs the closed-form OLS fit from the centered
@@ -137,12 +147,14 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 		)
 	}
 	stdErrors := make([]float64, p+1)
+	variances := make([]float64, p+1)
 	// Slope SEs.
 	for j := 0; j < p; j++ {
 		v := sigma2Gram * invXX.At(j, j)
 		if v < 0 {
 			v = 0
 		}
+		variances[j+1] = v
 		stdErrors[j+1] = sqrt(v)
 	}
 	// Intercept SE: σ² · (1/n + μ_xᵀ · M2_xx⁻¹ · μ_x); on w* the 1/N*
@@ -160,9 +172,13 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	if seInt < 0 {
 		seInt = 0
 	}
+	variances[0] = seInt
 	stdErrors[0] = sqrt(seInt)
 
 	return &olsSolveResult{
+		slopeCov:       invXX.At,
+		sigma2Gram:     sigma2Gram,
+		variances:      variances,
 		Coefficients:   coeffs,
 		Intercept:      intercept,
 		StdErrors:      stdErrors,

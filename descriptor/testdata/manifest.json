@@ -5527,6 +5527,13 @@
             "required": false,
             "default": 0.95,
             "description": "Posterior credible-interval mass."
+          },
+          {
+            "name": "vcov",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales)."
           }
         ],
         "intents": [
@@ -5651,6 +5658,13 @@
               "aic",
               "bic"
             ]
+          },
+          {
+            "name": "vcov",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
           }
         ],
         "modifiers": [
@@ -5794,6 +5808,13 @@
               "aic",
               "bic"
             ]
+          },
+          {
+            "name": "vcov",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; lasso / elasticnet / resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
           }
         ],
         "modifiers": [
@@ -6970,7 +6991,7 @@
         ]
       }
     ],
-    "error_codes_count": 297,
+    "error_codes_count": 298,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7003,6 +7024,7 @@
       "PROCESSING_REGRESSION_NO_CONVERGE",
       "PROCESSING_REGRESSION_RANK_DEFICIENT",
       "PROCESSING_REGRESSION_SINGULAR_GRAM",
+      "PROCESSING_REGRESSION_VCOV_UNSUPPORTED",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
@@ -13119,6 +13141,8 @@
           "regressions[*].residual_std_err",
           "regressions[*].converged_iters",
           "regressions[*].selected_features",
+          "regressions[*].vcov",
+          "regressions[*].correlation",
           "overlays"
         ]
       },
@@ -13212,4 +13236,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4b10a5e4cbe3573181a6d9c12d7fbeed3f5d85bca3a84d45e22665f2744aa25f
+// golden-hash: 90b9aeea7a596388efde28aae5773050e1ca7764342a12aa3a6087b92fb35d4d

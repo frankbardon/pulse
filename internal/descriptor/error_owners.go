@@ -98,6 +98,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_REGRESSION_INVALID_FAMILY:    own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INVALID_LINK:      own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA: ownAllRegs,
+	errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED:  own("REG_GLM", "REG_OLS"),
 	errors.SERVICE_VALIDATION:                      shared,
 	errors.SERVICE_RESOURCE:                        shared,
 	errors.SERVICE_REGISTRY:                        shared,

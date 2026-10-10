@@ -434,6 +434,17 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		ConvergedIters: convergedIters,
 	}
 	rw.note(res, sumW, sumWSq)
+	if e.spec.Vcov {
+		// Cov(β) = (XᵀWX)⁻¹ at the converged weights (dispersion 1), its
+		// diagonal the clamped variances the standard errors read.
+		diag := make([]float64, p+1)
+		for a := range diag {
+			if v := lastInvXtWX.At(a, a); v >= 0 || math.IsNaN(v) {
+				diag[a] = v
+			}
+		}
+		attachVcov(res, predictors, symVcov(p+1, lastInvXtWX.At, 1, diag))
+	}
 	return res, nil
 }
 

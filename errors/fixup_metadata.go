@@ -165,6 +165,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_VCOV_UNSUPPORTED: {
+		Message: "vcov: true was set on a regression with no coefficient covariance to report (lasso / elastic net, or a Resample / Selection modifier).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Regressions", "*", "Vcov"},
+				Hint:   "Drop vcov from this regression, or fit it unpenalized or with penalty \"l2\" (ridge) and without resample / selection; details.reason names the blocking setting.",
+			},
+		},
+	},
 
 	// ---------- SERVICE ----------
 	SERVICE_VALIDATION: {

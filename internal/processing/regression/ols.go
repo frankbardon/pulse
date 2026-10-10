@@ -258,6 +258,9 @@ func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
 		ConvergedIters: e.convergedIters,
 	}
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
+	if e.spec.Vcov {
+		attachVcov(res, predictors, olsVcov(solve, e.acc.meanX))
+	}
 	return res, nil
 }
 
