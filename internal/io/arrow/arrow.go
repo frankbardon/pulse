@@ -14,6 +14,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 )
@@ -312,17 +313,14 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 
 	numFields := r.arrowSc.NumFields()
 	fields := make([]encoding.Field, numFields)
-	byteOffset := 0
 
 	for i := 0; i < numFields; i++ {
 		af := r.arrowSc.Field(i)
 		// Decimal128 columns resolve through this path so precision and
 		// scale ride along.
 		if pf, ok := PulseFieldFromArrow(af); ok {
-			pf.ByteOffset = byteOffset
 			pf.CsvColumnIdx = i
 			fields[i] = pf
-			byteOffset += pf.Type.ByteSize()
 			continue
 		}
 		ft := TypeToPulse(af.Type)
@@ -330,15 +328,10 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 			Name:         af.Name,
 			Type:         ft,
 			Nullable:     af.Nullable,
-			ByteOffset:   byteOffset,
 			CsvColumnIdx: i,
 		}
-		if ft.IsBitPacked() {
-			byteOffset++
-		} else {
-			byteOffset += ft.ByteSize()
-		}
 	}
+	encx.LayoutFields(fields)
 
 	return &encoding.Schema{Fields: fields}, nil
 }

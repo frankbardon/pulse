@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/iocore"
 )
 
@@ -170,7 +171,6 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 	fields := make([]encoding.Field, numCols)
 	delimiters := map[string]string{}
 
-	byteOffset := 0
 	for i, colName := range columns {
 		// Presence, never the value, decides whether a column is forced:
 		// FieldTypeU8 is the iota zero of FieldType, so a zero-value test
@@ -202,17 +202,12 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 			Name:         colName,
 			Type:         ft,
 			Nullable:     nullable,
-			ByteOffset:   byteOffset,
 			CsvColumnIdx: i,
 			Precision:    precision,
 			Scale:        scale,
 		}
-		if ft.IsBitPacked() {
-			byteOffset++
-		} else {
-			byteOffset += ft.ByteSize()
-		}
 	}
+	encx.LayoutFields(fields)
 
 	return &InferenceResult{
 		Schema:     &encoding.Schema{Fields: fields},

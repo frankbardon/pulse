@@ -118,7 +118,7 @@ func ConvertCommand() *cli.Command {
 			}
 
 			if schemaPath != "" {
-				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
+				schema, loadErr := iio.LoadSchemaFile(fs, schemaPath)
 				if loadErr != nil {
 					if jsonOut {
 						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr)

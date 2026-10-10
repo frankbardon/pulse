@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
@@ -254,84 +255,15 @@ func TestRegressionExamplesCount(t *testing.T) {
 	}
 }
 
-// loadFixtureSchema mirrors the loadSchemaFromFile helper in
-// internal/cli/import.go. Re-implemented here because that helper is
-// unexported and we want the test to live with the examples.
+// loadFixtureSchema reads a fixture schema file through the shared
+// schema-file decoder (internal/io.ParseSchemaJSON), so the fixtures are
+// laid out exactly as `pulse import --schema` lays them out.
 func loadFixtureSchema(path string) (*encoding.Schema, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	type fieldDef struct {
-		Name        string `json:"name"`
-		Type        string `json:"type"`
-		Description string `json:"description"`
-		Precision   uint8  `json:"precision,omitempty"`
-		Scale       uint8  `json:"scale,omitempty"`
-	}
-	var fields []fieldDef
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return nil, err
-	}
-	schema := &encoding.Schema{Fields: make([]encoding.Field, len(fields))}
-	offset := 0
-	for i, f := range fields {
-		ft := parseFixtureFieldType(f.Type)
-		field := encoding.Field{
-			Name:         f.Name,
-			Type:         ft,
-			ByteOffset:   offset,
-			CsvColumnIdx: i,
-			Description:  f.Description,
-		}
-		if ft.IsDecimal() {
-			field.Precision = f.Precision
-			field.Scale = f.Scale
-		}
-		schema.Fields[i] = field
-		offset += ft.ByteSize()
-	}
-	return schema, nil
-}
-
-// parseFixtureFieldType maps the schema-template strings to FieldType.
-// Delegates to encoding.ParseFieldType so set_* and any future type
-// strings work without a per-test allowlist; the explicit switch is
-// retained as a fallback for legacy strings the canonical parser may
-// not know about.
-func parseFixtureFieldType(s string) encoding.FieldType {
-	if ft, ok := encoding.ParseFieldType(s); ok {
-		return ft
-	}
-	switch s {
-	case "u8":
-		return encoding.FieldTypeU8
-	case "u16":
-		return encoding.FieldTypeU16
-	case "u32":
-		return encoding.FieldTypeU32
-	case "u64":
-		return encoding.FieldTypeU64
-	case "f32":
-		return encoding.FieldTypeF32
-	case "f64":
-		return encoding.FieldTypeF64
-	case "u4":
-		return encoding.FieldTypeU4
-	case "date":
-		return encoding.FieldTypeDate
-	case "packed_bool":
-		return encoding.FieldTypePackedBool
-	case "categorical_u8":
-		return encoding.FieldTypeCategoricalU8
-	case "categorical_u16":
-		return encoding.FieldTypeCategoricalU16
-	case "categorical_u32":
-		return encoding.FieldTypeCategoricalU32
-	case "decimal128":
-		return encoding.FieldTypeDecimal128
-	}
-	return encoding.FieldTypeU8
+	return iio.ParseSchemaJSON(data)
 }
 
 // buildShardedTransactionsFixture takes the imported transactions.pulse

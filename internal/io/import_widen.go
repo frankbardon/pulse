@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Full-pass width promotion for sample-inferred fields.
@@ -207,15 +208,6 @@ func convertOrWiden(schema *encoding.Schema, i int, raw string, dict *encoding.D
 	}
 }
 
-// importCellWidth is the bytes one field occupies in an import row: its
-// ByteSize, or one whole byte for a bit-packed type.
-func importCellWidth(ft encoding.FieldType) int {
-	if ft.IsBitPacked() {
-		return 1
-	}
-	return ft.ByteSize()
-}
-
 // widenBufferedColumn re-strides rows import rows held in buf, laid out
 // field by field per types (bit-packed = one byte), so field fi is
 // stored as to instead of types[fi]. It works in place, last row first:
@@ -229,9 +221,9 @@ func widenBufferedColumn(buf *bytes.Buffer, rows int, types []encoding.FieldType
 		if i == fi {
 			off = oldStride
 		}
-		oldStride += importCellWidth(ft)
+		oldStride += encx.CellWidth(ft)
 	}
-	wOld, wNew := importCellWidth(types[fi]), importCellWidth(to)
+	wOld, wNew := encx.CellWidth(types[fi]), encx.CellWidth(to)
 	newStride := oldStride - wOld + wNew
 	if rows == 0 || wNew == wOld && to != encoding.FieldTypeF64 {
 		return nil
@@ -263,14 +255,11 @@ func widenBufferedColumn(buf *bytes.Buffer, rows int, types []encoding.FieldType
 }
 
 // relayoutOffsets recomputes every field's ByteOffset from the field
-// types, exactly as inference lays them out, after a promotion changed a
-// width.
+// types through the canonical layout (encx.LayoutFields), after a
+// promotion changed a width or when a caller-authored schema's own
+// offsets must not be trusted (the cohort builder).
 func relayoutOffsets(schema *encoding.Schema) {
-	off := 0
-	for i := range schema.Fields {
-		schema.Fields[i].ByteOffset = off
-		off += importCellWidth(schema.Fields[i].Type)
-	}
+	encx.LayoutFields(schema.Fields)
 }
 
 // widthWarnings folds the rung steps into one PULSE_IMPORT_WIDTH_PROMOTED

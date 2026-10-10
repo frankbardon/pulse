@@ -217,8 +217,13 @@ Available on: `import csv`, `import tsv`, `import ndjson`,
 `import spss`, `import predict`, `convert`.
 
 `--schema FILE` supplies an explicit schema (a JSON array of
-`{name, type, description, nullable}`; `import schema-template INPUT`
-emits an editable one). Its fields are matched to the source's columns
+`{name, type, description, nullable}`, plus `precision` / `scale` on a
+`decimal128` field; `import schema-template INPUT` emits an editable one,
+decimal precision and scale included). The file carries no byte
+offsets — the layout is derived from field order and types exactly as
+inference derives it, so a file mixing `u4` / `packed_bool` with
+byte-aligned fields writes the same schema block an inferred import of
+the same fields does. Its fields are matched to the source's columns
 **by exact name** — case and whitespace included — never by position, so
 the schema may list them in any order and that order is the cohort's
 field order. For NDJSON and JSON-array sources the columns are the keys

@@ -111,6 +111,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 )
@@ -1148,7 +1149,6 @@ func defaultHints(ft encoding.FieldType, m measureLevel) (types.AggregationType,
 // would let one import's values leak into the other's IDs.
 func (m *mapping) schema() *encoding.Schema {
 	fields := make([]encoding.Field, len(m.out))
-	offset := 0
 	for i, slot := range m.out {
 		if slot.mrSet {
 			set := m.mrSets[slot.mrIndex]
@@ -1156,7 +1156,6 @@ func (m *mapping) schema() *encoding.Schema {
 				Name:         set.name,
 				Type:         set.fieldType,
 				Nullable:     set.nullable,
-				ByteOffset:   offset,
 				CsvColumnIdx: i,
 				Description:  set.description(),
 			}
@@ -1166,7 +1165,6 @@ func (m *mapping) schema() *encoding.Schema {
 			}
 			f.Dictionary = dict
 			fields[i] = f
-			offset += set.fieldType.ByteSize()
 			continue
 		}
 
@@ -1189,7 +1187,6 @@ func (m *mapping) schema() *encoding.Schema {
 			Name:         name,
 			Type:         ft,
 			Nullable:     nullable,
-			ByteOffset:   offset,
 			CsvColumnIdx: i,
 			Description:  description,
 		}
@@ -1203,8 +1200,8 @@ func (m *mapping) schema() *encoding.Schema {
 			f.Dictionary = dict
 		}
 		fields[i] = f
-		offset += ft.ByteSize()
 	}
+	encx.LayoutFields(fields)
 	return &encoding.Schema{Fields: fields}
 }
 

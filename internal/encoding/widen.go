@@ -315,17 +315,14 @@ func widenSetFieldStream(dst io.Writer, src io.Reader, field string, target enco
 // stride is a pure function of the type bytes, the stored offset is a
 // cache of that derivation, and a widen is precisely the operation that
 // invalidates the cache. Bit-packed fields report ByteSize()==0 but
-// occupy one whole byte each on the wire, matching Schema.RecordByteSize.
+// occupy one whole byte each on the wire, matching Schema.RecordByteSize
+// — the per-type width is CellWidth, the canonical layout's
+// (LayoutFields), so a widened schema lays out exactly as import does.
 func widenFieldOffsets(s *encoding.Schema) (offsets []int, payload int) {
 	offsets = make([]int, len(s.Fields))
 	for i := range s.Fields {
 		offsets[i] = payload
-		ft := s.Fields[i].Type
-		if ft.IsBitPacked() {
-			payload++
-			continue
-		}
-		payload += ft.ByteSize()
+		payload += CellWidth(s.Fields[i].Type)
 	}
 	return offsets, payload
 }

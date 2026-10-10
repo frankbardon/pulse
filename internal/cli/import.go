@@ -7,7 +7,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
@@ -177,7 +176,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	}
 
 	if schemaPath != "" {
-		schema, err := loadSchemaFromFile(fs, schemaPath)
+		schema, err := iio.LoadSchemaFile(fs, schemaPath)
 		if err != nil {
 			if jsonOut {
 				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -309,7 +308,7 @@ func importPredictCmd() *cli.Command {
 			}
 
 			if schemaPath != "" {
-				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
+				schema, loadErr := iio.LoadSchemaFile(fs, schemaPath)
 				if loadErr != nil {
 					if jsonOut {
 						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr)
@@ -459,26 +458,9 @@ func importSchemaTemplateCmd() *cli.Command {
 				return err
 			}
 
-			// Build template with empty descriptions.
-			type fieldTemplate struct {
-				Name        string `json:"name"`
-				Type        string `json:"type"`
-				Description string `json:"description"`
-				Nullable    bool   `json:"nullable"`
-			}
-			tmpl := make([]fieldTemplate, len(report.Schema.Fields))
-			for i, f := range report.Schema.Fields {
-				tmpl[i] = fieldTemplate{
-					Name:        f.Name,
-					Type:        f.Type.String(),
-					Description: "",
-					Nullable:    f.Nullable,
-				}
-			}
-
 			enc := json.NewEncoder(cmd.Writer)
 			enc.SetIndent("", "  ")
-			return enc.Encode(tmpl)
+			return enc.Encode(iio.SchemaFileTemplate(report.Schema))
 		},
 	}
 }
@@ -506,52 +488,4 @@ func readerOptionsFrom(cmd *cli.Command) pio.ReaderOptions {
 // --spss-missing value, say) otherwise.
 func makeImportReader(format string, fs afero.Fs, path string, opts pio.ReaderOptions) (pio.Reader, error) {
 	return pio.NewReader(pio.Format(format), fs, path, opts)
-}
-
-func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
-	data, err := afero.ReadFile(fs, path)
-	if err != nil {
-		return nil, fmt.Errorf("reading schema file: %w", err)
-	}
-
-	type fieldDef struct {
-		Name        string `json:"name"`
-		Type        string `json:"type"`
-		Description string `json:"description"`
-		Nullable    bool   `json:"nullable"`
-		Precision   uint8  `json:"precision,omitempty"`
-		Scale       uint8  `json:"scale,omitempty"`
-	}
-	var fields []fieldDef
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return nil, fmt.Errorf("parsing schema JSON: %w", err)
-	}
-
-	schema := &encoding.Schema{
-		Fields: make([]encoding.Field, len(fields)),
-	}
-
-	byteOffset := 0
-	for i, f := range fields {
-		ft, err := parseFieldType(f.Name, f.Type)
-		if err != nil {
-			return nil, err
-		}
-		field := encoding.Field{
-			Name:         f.Name,
-			Type:         ft,
-			Nullable:     f.Nullable,
-			ByteOffset:   byteOffset,
-			CsvColumnIdx: i,
-			Description:  f.Description,
-		}
-		if ft.IsDecimal() {
-			field.Precision = f.Precision
-			field.Scale = f.Scale
-		}
-		schema.Fields[i] = field
-		byteOffset += ft.ByteSize()
-	}
-
-	return schema, nil
 }
