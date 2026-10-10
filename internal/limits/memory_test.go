@@ -127,3 +127,15 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		t.Errorf("saturation: %d", got)
 	}
 }
+
+func TestMatrixRowBufferBytes(t *testing.T) {
+	if got := MatrixRowBufferBytes(1000, 8*4); got != 1000*32 {
+		t.Fatalf("MatrixRowBufferBytes = %d, want %d", got, 1000*32)
+	}
+	if got := MatrixRowBufferBytes(1000, 0); got != 0 {
+		t.Fatalf("streamable (row bytes 0): %d, want 0", got)
+	}
+	if got := MatrixRowBufferBytes(math.MaxInt64/2, 32); got != math.MaxInt64 {
+		t.Fatalf("saturation: %d", got)
+	}
+}

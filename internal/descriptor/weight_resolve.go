@@ -3,11 +3,13 @@ package descriptor
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -83,6 +85,12 @@ type weightSlot struct {
 	// extAware is its registration's WeightAware declaration.
 	extCategory string
 	extAware    bool
+	// specClass overrides the operator's class for this concrete spec
+	// (ClassNone: no override) — a MAT_CORRELATION rank method is
+	// frequency-only (weighting.MatrixClassOf); specMethod names the
+	// params.method that set it, echoed in the refusal.
+	specClass  weighting.Class
+	specMethod string
 	// reason is a slot-level PERMANENT refusal of a built-in operator
 	// that is otherwise classed by the table: every post-test (it reads
 	// aggregated rows) and a regression carrying a resample or
@@ -215,9 +223,14 @@ func weightUnsupported(s weightSlot, field string, inst *InstanceSnapshot) error
 // kindOnlyHead is the head and details of a frequency-only slot
 // refused under a weight of another kind.
 func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, map[string]any) {
-	return fmt.Sprintf("%s: %s has a weighted form only under weight kind %q, and the weight in force is kind %q", s.slot, s.operator, types.WeightKindFrequency, kind),
-		map[string]any{"slot": s.slot, "operator": s.operator, "field": field, "kind": string(kind),
-			"supported_kinds": []string{string(types.WeightKindFrequency)}}
+	op := s.operator
+	details := map[string]any{"slot": s.slot, "operator": s.operator, "field": field, "kind": string(kind),
+		"supported_kinds": []string{string(types.WeightKindFrequency)}}
+	if s.specMethod != "" {
+		op += " (params.method " + strconv.Quote(s.specMethod) + ")"
+		details["method"] = s.specMethod
+	}
+	return fmt.Sprintf("%s: %s has a weighted form only under weight kind %q, and the weight in force is kind %q", s.slot, op, types.WeightKindFrequency, kind), details
 }
 
 // weightKindUnsupported is the PULSE_WEIGHT_UNSUPPORTED refusal of a
@@ -419,6 +432,11 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	}
 	for i, m := range req.Matrices {
 		add(fmt.Sprintf("matrices[%d]", i), string(m.Type), m.Weight)
+		// A rank method is frequency-only (weighting.MatrixClassOf).
+		if c := weighting.MatrixClassOf(m.Type, vectors.IsRankMethod(vectors.SpecMethod(m))); c != weighting.ClassOf(string(m.Type)) {
+			s := &slots[len(slots)-1]
+			s.specClass, s.specMethod = c, vectors.SpecMethod(m)
+		}
 	}
 	return slots
 }
@@ -611,6 +629,8 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			// Classed below: a non-aware extension aggregator is
 			// skipped under the default, every other refusal is
 			// PULSE_EXTENSION_NOT_WEIGHT_AWARE.
+		case s.specClass != weighting.ClassNone:
+			class = s.specClass
 		default:
 			class = weighting.ClassOf(s.operator)
 		}

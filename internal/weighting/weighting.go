@@ -188,6 +188,19 @@ var matrixClasses = map[types.MatrixType]Class{
 	types.MAT_COVARIANCE:  ClassAware,
 }
 
+// MatrixClassOf is a matrix spec's weight class: its type's
+// (matrixClasses) unless rankMethod — a MAT_CORRELATION params.method
+// of "spearman" or "kendall" — which is ClassFrequencyOnly: the rank
+// matrix is TEST_SPEARMAN_R / TEST_KENDALL_TAU per pair, whose weighted
+// form is the frequency expansion (weighted mid-ranks, pair masses
+// w_i·w_j) with no probability-weighted reference form.
+func MatrixClassOf(t types.MatrixType, rankMethod bool) Class {
+	if rankMethod && t == types.MAT_CORRELATION {
+		return ClassFrequencyOnly
+	}
+	return ClassOf(string(t))
+}
+
 // refusalReasons are the PERMANENT refusals: operators with no standard
 // weighted form any reference software reproduces. The reason rides
 // the PULSE_WEIGHT_UNSUPPORTED refusal (message and details.reason).

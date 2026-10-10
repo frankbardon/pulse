@@ -95,7 +95,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-group-rounded`](skills/op-group-rounded.md): Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar.
 - [`op-group-set-per-element`](skills/op-group-set-per-element.md): Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount.
 - [`op-group-set-value`](skills/op-group-set-value.md): Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with "|".
-- [`op-mat-correlation`](skills/op-mat-correlation.md): Pearson correlation matrix of a vector's numeric members (listwise or pairwise), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped), no p-values.
+- [`op-mat-correlation`](skills/op-mat-correlation.md): Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped), no p-values.
 - [`op-mat-covariance`](skills/op-mat-covariance.md): Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped).
 - [`op-overlay-chisq-col`](skills/op-overlay-chisq-col.md): Per-column χ² goodness-of-fit test across the host crosstab's contingency table.
 - [`op-overlay-chisq-matrix`](skills/op-overlay-chisq-matrix.md): Whole-matrix χ² independence test across the host crosstab's row × column contingency table.

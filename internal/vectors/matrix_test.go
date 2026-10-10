@@ -68,6 +68,8 @@ func TestResolveMatrices_Refusals(t *testing.T) {
 		{"max_drop_share negative", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"max_drop_share": -0.1}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"max_drop_share under pairwise", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"missing": "pairwise", "max_drop_share": 0.2}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"top_pairs on covariance", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": 3}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"unknown method", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"method": "biserial"}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
+		{"method on covariance", []types.MatrixSpec{{Type: cov, Vector: "v", Params: json.RawMessage(`{"method": "spearman"}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"top_pairs zero", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": 0}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"top_pairs negative", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": -2}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
 		{"top_pairs fractional", []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "v", Params: json.RawMessage(`{"summary": {"top_pairs": 2.5}}`)}}, vec, nil, errors.SERVICE_VALIDATION, "bad_params"},
@@ -195,5 +197,46 @@ func TestResolveMatrices_TopPairs(t *testing.T) {
 				t.Errorf("TopPairs = %d, want %d", got[0].TopPairs, c.want)
 			}
 		})
+	}
+}
+
+// TestResolveMatrices_Method: MAT_CORRELATION params.method resolves to
+// pearson (default, streamable, mergeable) or a rank method (buffered,
+// not mergeable — the spec-level MatrixSpec answers copied through);
+// SpecMethod reads the same value off the raw spec.
+func TestResolveMatrices_Method(t *testing.T) {
+	cases := []struct {
+		params    string
+		method    string
+		buffered  bool
+		rankClass bool
+	}{
+		{``, CorrelationPearson, false, false},
+		{`{}`, CorrelationPearson, false, false},
+		{`{"method": "pearson"}`, CorrelationPearson, false, false},
+		{`{"method": "spearman", "missing": "pairwise"}`, CorrelationSpearman, true, true},
+		{`{"method": "kendall", "summary": {"top_pairs": 2}}`, CorrelationKendall, true, true},
+	}
+	for _, c := range cases {
+		spec := types.MatrixSpec{Type: types.MAT_CORRELATION, Fields: []string{"score", "mid"}, Params: json.RawMessage(c.params)}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			t.Fatalf("%s: unexpected refusal: %v", c.params, err)
+		}
+		m := got[0]
+		if m.Method != c.method || m.Streamable == c.buffered || m.Mergeable == c.buffered {
+			t.Errorf("%s: method %q streamable %v mergeable %v, want %q buffered %v", c.params, m.Method, m.Streamable, m.Mergeable, c.method, c.buffered)
+		}
+		if IsRankMethod(m.Method) != c.rankClass || SpecMethod(spec) != c.method {
+			t.Errorf("%s: IsRankMethod %v SpecMethod %q", c.params, IsRankMethod(m.Method), SpecMethod(spec))
+		}
+		if wantRow := c.buffered; (m.RowBytes() > 0) != wantRow {
+			t.Errorf("%s: RowBytes = %d", c.params, m.RowBytes())
+		} else if wantRow && m.RowBytes() != 8*3 {
+			t.Errorf("%s: RowBytes = %d, want 8·(p + 1) = 24", c.params, m.RowBytes())
+		}
+	}
+	if SpecMethod(types.MatrixSpec{Type: types.MAT_COVARIANCE}) != "" {
+		t.Error("SpecMethod on MAT_COVARIANCE must be empty")
 	}
 }

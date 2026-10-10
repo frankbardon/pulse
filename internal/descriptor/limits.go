@@ -266,8 +266,8 @@ func mergeBlocks(in LimitInputs) int64 {
 	return limits.MergeBlocks(in.Records)
 }
 
-// matrixMemory sums every resolved matrix's merge-block state for the
-// memory estimate (0 without matrices or when a spec is refused).
+// matrixMemory sums every resolved matrix's merge-block state — and a
+// buffered spec's row store — for the memory estimate (0 without matrices or when a spec is refused).
 func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) int64 {
 	if len(req.Matrices) == 0 {
 		return 0
@@ -289,6 +289,8 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 			b = limits.MatrixStateBytes(in.Records, 1, m.AccumulatorBytes())
 		}
 		total = addSaturating(total, b)
+		// A buffered spec (a rank method) also keeps its admitted rows.
+		total = addSaturating(total, limits.MatrixRowBufferBytes(in.Records, m.RowBytes()))
 	}
 	return total
 }

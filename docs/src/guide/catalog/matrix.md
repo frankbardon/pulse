@@ -4,7 +4,7 @@ The matrix operators this instance offers: what each is for, the questions it an
 
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
-| [`MAT_CORRELATION`](#op-mat_correlation) | How closely every pair in a set of numeric fields follows a straight line together, as one square table of r values from -1 to 1. | Which of these ten rating items go together most strongly? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value or confidence interval for one pair.<br>[`MAT_COVARIANCE`](#op-mat_covariance) when you want the joint spread in the fields' own units.<br>[`TEST_SPEARMAN_R`](test.md#op-test_spearman_r) when the links are consistent but curved, or the values are ranks. |
+| [`MAT_CORRELATION`](#op-mat_correlation) | How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1. | Which of these ten rating items go together most strongly? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value or confidence interval for one pair.<br>[`MAT_COVARIANCE`](#op-mat_covariance) when you want the joint spread in the fields' own units.<br>[`TEST_SPEARMAN_R`](test.md#op-test_spearman_r) when you need a p-value for one pair's rank correlation.<br>[`TEST_KENDALL_TAU`](test.md#op-test_kendall_tau) when you need a p-value for one pair's Kendall tau. |
 | [`MAT_COVARIANCE`](#op-mat_covariance) | How every pair in a set of numeric fields varies together, as one square table with each field's variance on the diagonal. | How do these five rating scales vary together across respondents? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want how closely two numeric fields follow a straight line together, on a scale from -1 to 1.<br>[`AGG_WELFORD`](aggregator.md#op-agg_welford) when you want the spread of one field on its own. |
 
 ## Operators
@@ -13,11 +13,11 @@ The matrix operators this instance offers: what each is for, the questions it an
 
 ### `MAT_CORRELATION`
 
-How closely every pair in a set of numeric fields follows a straight line together, as one square table of r values from -1 to 1.
+How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1.
 
 **Level:** intermediate
 
-**Also known as:** `correlation matrix`, `cor`
+**Also known as:** `correlation matrix`, `cor`, `rank correlation`, `spearman correlation matrix`, `kendall correlation matrix`
 
 **Questions it answers:**
 
@@ -36,14 +36,16 @@ How closely every pair in a set of numeric fields follows a straight line togeth
 - Each r reads only a straight-line link; a curved relationship can still be strong.
 - A few extreme rows can move an r a lot.
 - r is unit-free: each pair's co-moment divided by both members' spreads, the same arithmetic as TEST_PEARSON_R.
+- The spearman and kendall methods rank each member first, so they read any steady rise or fall, curved or not, and resist extreme rows; each cell is the TEST_SPEARMAN_R or TEST_KENDALL_TAU figure for its pair.
 
 **Use something else:**
 
 - [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value or confidence interval for one pair.
 - [`MAT_COVARIANCE`](#op-mat_covariance) when you want the joint spread in the fields' own units.
-- [`TEST_SPEARMAN_R`](test.md#op-test_spearman_r) when the links are consistent but curved, or the values are ranks.
+- [`TEST_SPEARMAN_R`](test.md#op-test_spearman_r) when you need a p-value for one pair's rank correlation.
+- [`TEST_KENDALL_TAU`](test.md#op-test_kendall_tau) when you need a p-value for one pair's Kendall tau.
 
-**Glossary:** [`correlation`](../glossary.md#term-correlation), [`covariance`](../glossary.md#term-covariance), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`outlier`](../glossary.md#term-outlier)
+**Glossary:** [`correlation`](../glossary.md#term-correlation), [`covariance`](../glossary.md#term-covariance), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`outlier`](../glossary.md#term-outlier), [`rank`](../glossary.md#term-rank), [`spearman-rho`](../glossary.md#term-spearman-rho), [`kendall-tau`](../glossary.md#term-kendall-tau)
 
 **Skill:** [`op-mat-correlation`](../skills/op-mat-correlation.md)
 

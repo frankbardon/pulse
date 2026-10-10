@@ -109,29 +109,11 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 	rx, tiesX := weightedMidRanks(s.xs.values, ws)
 	ry, tiesY := weightedMidRanks(s.ys, ws)
 	nW := s.xs.sumW // n unweighted
-	// Mean rank is (N+1)/2 regardless of ties (N = Σw).
-	mean := (nW + 1) / 2
-	var sxx, syy, sxy float64
-	for i := range n {
-		dx := rx[i] - mean
-		dy := ry[i] - mean
-		// (w·d)·d': exact at w = 1 (op-order exactness rule).
-		wdx := ws[i] * dx
-		sxx += wdx * dx
-		syy += ws[i] * dy * dy
-		sxy += wdx * dy
-	}
-	denom := math.Sqrt(sxx * syy)
-	if denom == 0 {
+	rho, ok := rankPearson(rx, ry, ws, nW)
+	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_CORRELATION_UNDEFINED,
 			"TEST_SPEARMAN_R: at least one column collapses to a single rank; ρ is undefined",
 			map[string]any{"n": n})
-	}
-	rho := sxy / denom
-	if rho > 1 {
-		rho = 1
-	} else if rho < -1 {
-		rho = -1
 	}
 	df := nW - 2
 	var t, p float64
@@ -170,4 +152,36 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 func (s *spearmanRRow) reset() {
 	s.xs = rankSample{}
 	s.ys = nil
+}
+
+// rankPearson is Spearman's ρ off two columns of (weighted) mid-ranks:
+// the Σw-weighted Pearson r around the mean rank (N+1)/2, N = nW = Σw,
+// clamped to [−1, 1]. ok is false (ρ undefined) when either column
+// collapses to a single rank. TEST_SPEARMAN_R and MAT_CORRELATION
+// params.method "spearman" both read it, so a matrix cell and the
+// test's ρ over the same rows are one computation, bit for bit.
+func rankPearson(rx, ry, ws []float64, nW float64) (rho float64, ok bool) {
+	// Mean rank is (N+1)/2 regardless of ties (N = Σw).
+	mean := (nW + 1) / 2
+	var sxx, syy, sxy float64
+	for i := range rx {
+		dx := rx[i] - mean
+		dy := ry[i] - mean
+		// (w·d)·d': exact at w = 1 (op-order exactness rule).
+		wdx := ws[i] * dx
+		sxx += wdx * dx
+		syy += ws[i] * dy * dy
+		sxy += wdx * dy
+	}
+	denom := math.Sqrt(sxx * syy)
+	if denom == 0 {
+		return math.NaN(), false
+	}
+	rho = sxy / denom
+	if rho > 1 {
+		rho = 1
+	} else if rho < -1 {
+		rho = -1
+	}
+	return rho, true
 }

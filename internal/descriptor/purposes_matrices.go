@@ -14,8 +14,8 @@ var matrixPurposes = map[string]descriptor.Purpose{
 }
 
 var purposeMatCorrelation = descriptor.Purpose{
-	Plain:   "How closely every pair in a set of numeric fields follows a straight line together, as one square table of r values from -1 to 1.",
-	KnownAs: []string{"correlation matrix", "cor"},
+	Plain:   "How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1.",
+	KnownAs: []string{"correlation matrix", "cor", "rank correlation", "spearman correlation matrix", "kendall correlation matrix"},
 	Intents: []string{IntentRelationship, IntentDescribe},
 	Questions: []string{
 		"Which of these ten rating items go together most strongly?",
@@ -29,16 +29,18 @@ var purposeMatCorrelation = descriptor.Purpose{
 	NotFor: []descriptor.Alternative{
 		{When: "you need a p-value or confidence interval for one pair", Use: "TEST_PEARSON_R"},
 		{When: "you want the joint spread in the fields' own units", Use: "MAT_COVARIANCE"},
-		{When: "the links are consistent but curved, or the values are ranks", Use: "TEST_SPEARMAN_R"},
+		{When: "you need a p-value for one pair's rank correlation", Use: "TEST_SPEARMAN_R"},
+		{When: "you need a p-value for one pair's Kendall tau", Use: "TEST_KENDALL_TAU"},
 	},
 	Assumptions: []string{
 		"A row with any member missing is dropped from every cell (listwise deletion).",
 		"Each r reads only a straight-line link; a curved relationship can still be strong.",
 		"A few extreme rows can move an r a lot.",
 		"r is unit-free: each pair's co-moment divided by both members' spreads, the same arithmetic as TEST_PEARSON_R.",
+		"The spearman and kendall methods rank each member first, so they read any steady rise or fall, curved or not, and resist extreme rows; each cell is the TEST_SPEARMAN_R or TEST_KENDALL_TAU figure for its pair.",
 	},
 	Level:    descriptor.LevelIntermediate,
-	Glossary: []string{"correlation", "covariance", "listwise-deletion", "outlier"},
+	Glossary: []string{"correlation", "covariance", "listwise-deletion", "outlier", "rank", "spearman-rho", "kendall-tau"},
 }
 
 var purposeMatCovariance = descriptor.Purpose{

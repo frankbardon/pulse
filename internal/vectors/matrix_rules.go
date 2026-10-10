@@ -62,6 +62,19 @@ func (m Matrix) AccumulatorBytes() int64 {
 	return coMomentHeaderBytes + 8*(p+cells)
 }
 
+// RowBytes is the bytes a BUFFERED matrix (not Streamable — a rank
+// method) keeps per admitted row until finalize: the p member values
+// and the row weight, 8·(p + 1). 0 on a streamable matrix, which keeps
+// no rows. The row store is shared by every bucket of a grouped run
+// (each row lands in its own bucket's store), so a run's buffer is this
+// times the admitted rows, at most the record count.
+func (m Matrix) RowBytes() int64 {
+	if m.Streamable {
+		return 0
+	}
+	return 8 * (int64(len(m.Members.Members)) + 1)
+}
+
 // How a bucket estimate was derived (MatrixPredict.bucket_basis).
 const (
 	// BucketBasisUngrouped: no Request.Groups — one result per spec.

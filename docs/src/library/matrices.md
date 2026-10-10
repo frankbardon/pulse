@@ -3,7 +3,8 @@
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a square result in which every member is compared
 with every member. Two operators ship: `MAT_COVARIANCE` and
-`MAT_CORRELATION` (Pearson). Both are additive: a request without
+`MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
+`params.method`). Both are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -62,16 +63,29 @@ from the diagonal). Undefined cells are `null`, keys kept.
 - Weights follow [Row Weighting](weighting.md); a weight-0 row counts
   toward `n` and adds no mass.
 
+## Rank correlation
+
+`MAT_CORRELATION` `params.method`: `pearson` (default), `spearman` or
+`kendall` (tau-b). A rank method ranks each member first (pairwise:
+each pair re-ranked over its own rows, as R's
+`cor(use = "pairwise.complete.obs")`), and each cell equals
+`TEST_SPEARMAN_R` / `TEST_KENDALL_TAU` over the pair's rows. It keeps
+every admitted row until finalize, so the request runs buffered and
+serially (predict: `streamable` and `mergeable` false,
+`row_buffer_bytes`); it takes frequency weights only (a probability
+weight is `PULSE_WEIGHT_UNSUPPORTED`) and emits no p-values.
+
 ## Groups, cost and refusals
 
 With `groups`, a matrix is computed per bucket, in `Response.Data` order
 (`sort` included). `Pulse.Predict` reports `matrices[]`: `shape`,
-`accumulator_bytes`, `pairwise_psd_risk`, and for a grouped request
+`accumulator_bytes`, `streamable`, `mergeable`, `row_buffer_bytes` (a
+rank method), `pairwise_psd_risk`, and for a grouped request
 `bucket_basis`, `estimated_buckets`, `estimated_cells` and
 `estimated_bytes` (an upper bound; omitted when the bucket count depends
 on the data). `estimated_bytes` is the run's co-moment state: merge
 blocks (`ceil(records / 4096)`, counted per shard for an archive) ×
-buckets × `accumulator_bytes`. Matrix dimension is capped by
+buckets × `accumulator_bytes`, plus a rank method's row buffer. Matrix dimension is capped by
 `Options.Limits.MaxMatrixDim`, and the opt-in
 `Options.Limits.MaxEstimatedMemory` counts `estimated_bytes` in the
 memory estimate it checks before any record is read.

@@ -23,9 +23,11 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 	return []descriptor.MatrixMeta{
 		{
 			Name:         string(types.MAT_CORRELATION),
-			Description:  "Pearson correlation matrix of a vector's members (listwise or pairwise), r clamped to [-1, 1]; a zero-spread member's row and column are null. Weighted under frequency and probability weights. No p-values.",
+			Description:  "Correlation matrix of a vector's members (listwise or pairwise): Pearson r by default, or Spearman rho / Kendall tau-b under params.method; a zero-spread member's row and column are null. Pearson is weighted under frequency and probability weights, a rank method under frequency weights only. No p-values.",
 			AcceptsTypes: memberTypes,
-			Params: append(append([]descriptor.Param(nil), missing...),
+			Params: append(append([]descriptor.Param{
+				{Name: "method", Type: "enum", Required: false, Default: vectors.CorrelationPearson, EnumValues: vectors.CorrelationMethods(), Description: "pearson (r over the co-moments; streamable, mergeable); spearman (rho, r on mid-ranks) or kendall (tau-b): each cell equals TEST_SPEARMAN_R / TEST_KENDALL_TAU over the pair's rows (pairwise re-ranks per pair); buffered and not mergeable, so the request runs serially; frequency weights only (a probability weight is PULSE_WEIGHT_UNSUPPORTED)."},
+			}, missing...),
 				descriptor.Param{Name: "summary", Type: "object", Required: false, Description: "{\"top_pairs\": k}, k a positive integer: list the k off-diagonal pairs with the largest |r| as vectors.top_pairs [{row, col, r, n}], ties in axis order; undefined pairs are skipped and k past the pair count lists every pair."},
 			),
 			OutputKeys: descriptor.MatrixOutputKeys{

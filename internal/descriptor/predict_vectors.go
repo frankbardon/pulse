@@ -1,6 +1,8 @@
 package descriptor
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
@@ -41,7 +43,11 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // EstimatedBytes is the real state, limits.MatrixStateBytes: one
 // CoMoment per populated block per bucket — omitted with the block
 // count unknown.
-func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, blocks int64) {
+//
+// records is the cohort's record count (-1 when unknown): a buffered
+// spec's RowBufferBytes is records × vectors.Matrix.RowBytes, added to
+// EstimatedBytes.
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, blocks, records int64) {
 	if req == nil || len(req.Matrices) == 0 {
 		return
 	}
@@ -64,8 +70,15 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			Encoding:         m.Encoding,
 			AccumulatorBytes: m.AccumulatorBytes(),
 			Streamable:       m.Streamable,
+			Mergeable:        m.Mergeable,
 			PairwisePSDRisk:  m.PSDRisk(),
 			BucketBasis:      basis,
+		}
+		var rowBytes int64
+		if m.RowBytes() > 0 && records >= 0 {
+			rowBytes = limits.MatrixRowBufferBytes(records, m.RowBytes())
+			rb := rowBytes
+			mp.RowBufferBytes = &rb
 		}
 		if known {
 			b := buckets
@@ -73,6 +86,11 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			mp.EstimatedBuckets, mp.EstimatedCells = &b, &cells
 			if blocks >= 0 {
 				bytes := limits.MatrixStateBytes(blocks, b, m.AccumulatorBytes())
+				if bytes > math.MaxInt64-rowBytes {
+					bytes = math.MaxInt64
+				} else {
+					bytes += rowBytes
+				}
 				mp.EstimatedBytes = &bytes
 			}
 		}

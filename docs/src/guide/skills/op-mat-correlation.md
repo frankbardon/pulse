@@ -1,6 +1,6 @@
 ```yaml
 name: op-mat-correlation
-description: Pearson correlation matrix of a vector's numeric members (listwise or pairwise), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped), no p-values.
+description: Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped), no p-values.
 kind: operator
 category: MAT
 operator: MAT_CORRELATION
@@ -13,7 +13,7 @@ Slot: `matrices[i]` `{type, vector | fields, params, weight, encoding}`; members
 
 ## Use when
 
-How closely every pair in a set of numeric fields follows a straight line together, as one square table of r values from -1 to 1.
+How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1.
 
 Questions it answers:
 
@@ -28,10 +28,11 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise: per-pair rows. |
+| `method` | `pearson` \| `spearman` \| `kendall` | `pearson` | Rank methods: buffered, serial. |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise: per-pair rows (rank methods re-rank per pair). |
 | `max_drop_share` | 0–1 | none | Listwise drop-share warning. |
 | `summary.top_pairs` | int ≥ 1 | none | k strongest pairs. |
-| `weight` | slot weight | inherited | Both kinds; `null` opts out. |
+| `weight` | slot weight | inherited | Pearson: both kinds; rank: frequency only. `null` opts out. |
 | `encoding` | `full` \| `upper` | `full` | `upper`: row r holds p − r cells. |
 
 ## Inputs
@@ -40,13 +41,12 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary`: r clamped to [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
+`primary`: r (ρ / τ-b under a rank method) in [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
 
 ## Reading the output
 
-- `primary.values`: Each off-diagonal cell is Pearson r for its row and column members: how closely the two follow a straight line together, from -1 to +1; 0 means no straight-line link. The diagonal is 1.
+- `primary.values`: Each off-diagonal cell is the correlation of its row and column members under params.method, from -1 to +1. pearson (default): r, how closely the two follow a straight line together; spearman: rho, r on the members' ranks, how steadily one rises or falls with the other; kendall: tau-b, the share of agreeing minus disagreeing row pairs, tie-adjusted. 0 means no such link. The diagonal is 1.
   - Bands (Cohen (1988), absolute value): very small below 0.1; small 0.1 to 0.3; medium 0.3 to 0.5; large 0.5 and above.
-- `scalars.determinant`: The determinant of the correlation table: 1 when no member is linearly related to the others, falling toward 0 as members become linear combinations of one another.
 
 ## Components
 
@@ -54,7 +54,8 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Gotchas
 
-- Same arithmetic as the Pearson test; no p-values. Weight-0 rows count in `n`, add no mass.
+- Each cell is the matching two-field test (Pearson, Spearman, Kendall) over its pair's rows. No p-values (`auxiliary.p` arrives with U28): run the test per pair. Weight-0 rows count in `n`, add no mass.
+- Rank methods: predict `streamable` / `mergeable` false; a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. Kendall τ-b runs smaller than ρ.
 - Pairwise r at p ≥ 3 can be non-PSD (predict `pairwise_psd_risk`) → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
 - Refusals and grouping: [`matrix-results`](matrix-results.md).
 

@@ -366,7 +366,8 @@ type MatrixPredict struct {
 	// ceil(records / merge_block_size) — per shard for an archive, whose
 	// block numbering restarts per shard. An upper bound (a bucket holds
 	// one state per block its rows touch). Omitted with the bucket count
-	// unknown. It is the matrix term of the MaxEstimatedMemory estimate.
+	// unknown. A buffered spec adds its RowBufferBytes. It is the matrix
+	// term of the MaxEstimatedMemory estimate.
 	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
 	// Streamable reports whether this spec folds row by row (its
 	// result is emitted at finalize — terminal flush when streamed):
@@ -374,6 +375,17 @@ type MatrixPredict struct {
 	// its params (a rank method is buffered). Request-level routing
 	// (groupers, two-pass attributes) is PredictResult.Streamable.
 	Streamable bool `json:"streamable"`
+	// Mergeable reports whether this spec's running state combines
+	// across partitions — the spec-level types.MatrixSpec.Mergeable (a
+	// rank method is not). A request carrying a non-mergeable spec runs
+	// serially: DecodeWorkers / ShardWorkers do not fan it out.
+	Mergeable bool `json:"mergeable"`
+	// RowBufferBytes estimates the row store a BUFFERED spec (not
+	// Streamable — a rank method) keeps until finalize: 8·(p + 1) bytes
+	// per admitted row (its member values and weight) times the
+	// cohort's record count, an upper bound. Omitted on a streamable
+	// spec or with the record count unknown; EstimatedBytes includes it.
+	RowBufferBytes *int64 `json:"row_buffer_bytes,omitempty"`
 	// PairwisePSDRisk reports whether the result can come back not
 	// positive semidefinite — pairwise MAT_COVARIANCE at p ≥ 2,
 	// pairwise MAT_CORRELATION at p ≥ 3 — the only shapes the runtime

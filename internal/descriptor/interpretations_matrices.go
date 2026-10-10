@@ -15,13 +15,14 @@ var matrixInterpretations = map[string][]descriptor.Interpretation{
 var interpMatCorrelation = []descriptor.Interpretation{
 	bandedBy(ConventionCohenR, descriptor.Interpretation{
 		Field: "primary.values",
-		Means: "Each off-diagonal cell is Pearson r for its row and column members: how closely the two follow a straight line together, from -1 to +1; 0 means no straight-line link. The diagonal is 1.",
+		Means: "Each off-diagonal cell is the correlation of its row and column members under params.method, from -1 to +1. pearson (default): r, how closely the two follow a straight line together; spearman: rho, r on the members' ranks, how steadily one rises or falls with the other; kendall: tau-b, the share of agreeing minus disagreeing row pairs, tie-adjusted. 0 means no such link. The diagonal is 1.",
 		Sign:  correlationSign,
 		Caveats: []string{
 			causationCaveatText,
 			"A null cell means a member had no spread (constant, or too few rows), so its correlation is undefined, not 0.",
-			"An r near zero rules out only a straight-line link; a curved relationship can still be strong.",
-			"The matrix reports no p-values; run TEST_PEARSON_R on a pair to test it.",
+			"A Pearson r near zero rules out only a straight-line link; a curved relationship can still be strong.",
+			"The bands are Cohen's for r; Kendall's tau-b runs smaller than r or rho for the same strength (about two thirds of rho), so read a kendall cell against lower cut-offs.",
+			"The matrix reports no p-values; run TEST_PEARSON_R, TEST_SPEARMAN_R or TEST_KENDALL_TAU on a pair to test it.",
 		},
 	}),
 	{

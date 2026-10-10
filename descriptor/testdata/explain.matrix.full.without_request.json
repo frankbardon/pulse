@@ -27,10 +27,13 @@
       "correlation",
       "covariance",
       "listwise-deletion",
-      "outlier"
+      "outlier",
+      "rank",
+      "spearman-rho",
+      "kendall-tau"
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: fe67d40bb08829e5420bd0c62d0102ff6ef23526595c70aa7f09b190ef616f71
+// golden-hash: 91909dbf790d01fad3400fdeba5e7a3d65b9fe6c644ee823dc4ad5dbfe8cd6b6

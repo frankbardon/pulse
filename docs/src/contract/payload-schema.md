@@ -336,8 +336,9 @@ any record is read: exactly one of `vector` / `fields`; a `vector` a
 follow the vector rules; result names are unique; `params` are the
 operator's own (`MAT_COVARIANCE`: `ddof` 0 or 1; both: `missing`
 `listwise` (default) or `pairwise`, `max_drop_share` in [0, 1],
-listwise only; `MAT_CORRELATION` only: `summary` `{top_pairs: k}`, k
-a positive integer). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+listwise only; `MAT_CORRELATION` only: `method` `pearson` (default),
+`spearman` or `kendall` — a rank method takes frequency weights only —
+and `summary` `{top_pairs: k}`, k a positive integer). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,

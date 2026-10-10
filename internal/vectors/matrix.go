@@ -47,6 +47,11 @@ type Matrix struct {
 	// exceeds it, the result carries PULSE_MATRIX_LISTWISE_HEAVY_DROP.
 	// Nil when unset.
 	MaxDropShare *float64
+	// Method is MAT_CORRELATION's params.method — CorrelationPearson
+	// (the default), CorrelationSpearman or CorrelationKendall; "" on
+	// every other type. A rank method is buffered and not mergeable
+	// (Streamable / Mergeable false).
+	Method string
 	// TopPairs is MAT_CORRELATION's params.summary.top_pairs: the
 	// number of strongest off-diagonal pairs the result lists under
 	// vectors.top_pairs. 0 (the default) emits no summary.
@@ -61,6 +66,41 @@ const (
 
 // MissingModes returns the params.missing values, default first.
 func MissingModes() []string { return []string{MissingListwise, MissingPairwise} }
+
+// Correlation methods (MAT_CORRELATION params.method).
+const (
+	CorrelationPearson  = "pearson"
+	CorrelationSpearman = "spearman"
+	CorrelationKendall  = "kendall"
+)
+
+// CorrelationMethods returns the params.method values, default first.
+func CorrelationMethods() []string {
+	return []string{CorrelationPearson, CorrelationSpearman, CorrelationKendall}
+}
+
+// IsRankMethod reports whether method is a rank correlation (spearman
+// or kendall): buffered, not mergeable, frequency weights only.
+func IsRankMethod(method string) bool {
+	return method == CorrelationSpearman || method == CorrelationKendall
+}
+
+// SpecMethod is spec's correlation method as the resolver reads it —
+// params.method on MAT_CORRELATION (CorrelationPearson when absent),
+// "" on every other type. Lenient: a params object that does not
+// decode yields the default (the resolver refuses it elsewhere).
+func SpecMethod(spec types.MatrixSpec) string {
+	if spec.Type != types.MAT_CORRELATION {
+		return ""
+	}
+	var p struct {
+		Method *string `json:"method"`
+	}
+	if len(spec.Params) == 0 || json.Unmarshal(spec.Params, &p) != nil || p.Method == nil {
+		return CorrelationPearson
+	}
+	return *p.Method
+}
 
 // missingParams are the missing-data knobs every matrix operator takes.
 type missingParams struct {
@@ -77,10 +117,11 @@ type covarianceParams struct {
 	missingParams
 }
 
-// correlationParams is MAT_CORRELATION's params object: the
-// missing-data knobs and the summary block, so any other key is
+// correlationParams is MAT_CORRELATION's params object: the method,
+// the missing-data knobs and the summary block, so any other key is
 // refused (strict decode).
 type correlationParams struct {
+	Method  *string        `json:"method"`
 	Summary *summaryParams `json:"summary"`
 	missingParams
 }
@@ -190,8 +231,11 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.CodedError {
 	raw := bytes.TrimSpace(spec.Params)
 	empty := len(raw) == 0 || bytes.Equal(raw, []byte("null"))
-	if spec.Type == types.MAT_COVARIANCE {
+	switch spec.Type {
+	case types.MAT_COVARIANCE:
 		m.DDOF = 1
+	case types.MAT_CORRELATION:
+		m.Method = CorrelationPearson
 	}
 	if empty {
 		return nil
@@ -219,6 +263,15 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		var p correlationParams
 		if err := decodeStrict(raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if p.Method != nil {
+			switch *p.Method {
+			case CorrelationPearson, CorrelationSpearman, CorrelationKendall:
+				m.Method = *p.Method
+			default:
+				return matrixInvalid(at, "bad_params", at+" params.method must be \"pearson\", \"spearman\" or \"kendall\"",
+					map[string]any{"param": "method", "value": *p.Method, "valid": CorrelationMethods()})
+			}
 		}
 		if p.Summary != nil {
 			k := p.Summary.TopPairs

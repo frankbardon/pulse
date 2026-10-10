@@ -25,7 +25,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 `matrices: [{name?, type, vector | fields, params?, weight?, encoding?}]`; the answer is `Response.matrices[]`, one `MatrixResult` per spec in request order.
 
 - `MAT_COVARIANCE` — covariance; `params.ddof` 0 or 1 (default 1).
-- `MAT_CORRELATION` — Pearson r, no p-values (run a test per pair for those); `params.summary.top_pairs: k` lists the k strongest pairs.
+- `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); no p-values (run a test per pair for those); `params.summary.top_pairs: k` lists the k strongest pairs.
 
 Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**
 
@@ -68,7 +68,7 @@ A range or date grouper is `unknown`: the three figures are omitted, never guess
 
 Serial, parallel-decode and sharded runs return bit-identical matrices on one cohort file; a multi-shard archive matches its single-file twin within rounding only.
 
-Streamability is per spec, not per type: a spec whose params need every row at once (a rank method) is buffered — predict `matrices[].streamable` false — so the whole request runs buffered (`ProcessStream` too) and serially.
+Streamability is per spec, not per type: a spec whose params need every row at once (a rank method) is buffered — predict `matrices[].streamable` / `mergeable` false — so the whole request runs buffered (`ProcessStream` too) and serially.
 
 ## See
 

@@ -311,12 +311,23 @@ func finalizeCovariance(in *matrixFinalizeInput) (matrixOutput, error) {
 	return in.coMomentOutput(in.CM.Cov(in.Plan().DDOF)), nil
 }
 
-// finalizeCorrelation is MAT_CORRELATION (Pearson): C_ij / √(M2_ii·M2_jj)
-// clamped to [−1, 1] — CoMoment.Corr, whose one-root form is
-// TEST_PEARSON_R's arithmetic. A member with zero spread (constant, a
-// single massed row, no rows) has no defined correlation: its whole
-// row and column, diagonal included, are NaN.
+// finalizeCorrelation is MAT_CORRELATION. Pearson (the default):
+// C_ij / √(M2_ii·M2_jj) clamped to [−1, 1] — CoMoment.Corr, whose
+// one-root form is TEST_PEARSON_R's arithmetic. A member with zero
+// spread (constant, a single massed row, no rows) has no defined
+// correlation: its whole row and column, diagonal included, are NaN.
+// A rank method (params.method "spearman" / "kendall") reads the
+// buffered rows instead (rankCorrelation, matrix_rank.go); every other
+// output — warnings, determinant, auxiliary.n, top_pairs — is the
+// shared co-moment set over that primary.
 func finalizeCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
+	if vectors.IsRankMethod(in.Plan().Method) {
+		r, err := rankCorrelation(in)
+		if err != nil {
+			return matrixOutput{}, err
+		}
+		return in.coMomentOutput(r), nil
+	}
 	return in.coMomentOutput(in.CM.Corr()), nil
 }
 
