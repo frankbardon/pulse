@@ -225,6 +225,14 @@ sections below.
 }
 ```
 
+**One-of-several params.** When the factory takes exactly one of
+several params (an EWMA's `span` or `halflife`), tag each with the same
+`ParamMeta.ExactlyOneOf` group name. The manifest shows it as
+`exactly_one_of`, and Recommend drafts the group's first member as a
+need, naming the others as alternatives. A group needs two or more
+members, none `Required` and none with a `Default`; anything else is
+`PULSE_EXTENSION_PARAM_INVALID`. The factory still enforces the rule.
+
 When `Streamable=true`, the probe at `pulse.New` time asserts that the
 factory's returned value implements `extend.OnlineAggregator`.
 Mismatch surfaces as `PULSE_EXTENSION_STREAMABLE_MISMATCH`. The

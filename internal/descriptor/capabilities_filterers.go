@@ -89,6 +89,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Category:        "filterer",
 			Description:     "Keep records for which Expression evaluates truthy; reads any record field.",
 			AcceptsTypes:    allCohortFieldTypes,
+			ReadsExpression: true,
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),

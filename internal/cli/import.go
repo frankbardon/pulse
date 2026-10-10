@@ -7,7 +7,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
@@ -24,12 +23,22 @@ const charsetFlagUsage = "Character encoding override for SPSS .sav input (e.g. 
 // every leaf a `.sav` can arrive through so the wording cannot drift.
 const spssMissingFlagUsage = "How SPSS numeric user-missing values are represented: auto (default — null plus a <var>_missing sibling carrying the reason) or null (plain null, reason not preserved)"
 
+// ignoreExtraFlagUsage is the one-line help for --ignore-extra, shared by
+// every leaf that takes --schema so the wording cannot drift.
+const ignoreExtraFlagUsage = "With --schema: drop source columns (and NDJSON / JSON-array keys first seen after the first object) the schema does not name, instead of refusing with PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED / PULSE_IMPORT_SCHEMA_KEY_LATE. Schema fields always match columns by exact name"
+
+// floatFlagUsage is the one-line help for --float, shared by every leaf
+// that infers a schema so the wording cannot drift.
+const floatFlagUsage = "Width an all-float column infers as: f64 (default; exact decimals) or f32 (half the bytes, rounds to ~7 significant digits). Any other value is PULSE_IMPORT_FLOAT_WIDTH_INVALID. Inert with --schema"
+
 // importFlags are the common flags for all import format subcommands.
 var importFlags = []cli.Flag{
 	&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
 	&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
 	&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
+	&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 	&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
+	&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
 	&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
@@ -147,6 +156,8 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.ElideConstants = cmd.Bool("elide-constants")
 	job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 	job.StrictDedup = cmd.Bool("strict")
+	job.IgnoreExtra = cmd.Bool("ignore-extra")
+	job.FloatWidth = cmd.String("float")
 	for _, decl := range cmd.StringSlice("group") {
 		g, err := iio.ParseGroupDecl(decl)
 		if err != nil {
@@ -165,7 +176,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	}
 
 	if schemaPath != "" {
-		schema, err := loadSchemaFromFile(fs, schemaPath)
+		schema, err := iio.LoadSchemaFile(fs, schemaPath)
 		if err != nil {
 			if jsonOut {
 				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -227,11 +238,13 @@ func importPredictCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
+			&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
+			&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "suggest-groups", Usage: "Detect candidate parent groups (a key and the fields it determines) and measure each over every row: ratio, resident dictionary bytes, projected file size and a ready-to-paste --group value. Suggests only; nothing is declared"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Evaluate a parent-group declaration exactly as 'import <format> --group' would apply it (same syntax, repeatable): its verdict and measured figures, or the error the import would fail with"},
@@ -275,6 +288,8 @@ func importPredictCmd() *cli.Command {
 			job.ElideConstants = cmd.Bool("elide-constants")
 			job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 			job.StrictDedup = cmd.Bool("strict")
+			job.IgnoreExtra = cmd.Bool("ignore-extra")
+			job.FloatWidth = cmd.String("float")
 			for _, decl := range cmd.StringSlice("group") {
 				g, gerr := iio.ParseGroupDecl(decl)
 				if gerr != nil {
@@ -293,7 +308,7 @@ func importPredictCmd() *cli.Command {
 			}
 
 			if schemaPath != "" {
-				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
+				schema, loadErr := iio.LoadSchemaFile(fs, schemaPath)
 				if loadErr != nil {
 					if jsonOut {
 						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", loadErr)
@@ -409,6 +424,7 @@ func importSchemaTemplateCmd() *cli.Command {
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
+			&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -435,32 +451,16 @@ func importSchemaTemplateCmd() *cli.Command {
 			job := pio.NewImportJob(reader, "/dev/null")
 			job.FS = fs
 			job.SampleRows = sampleRows
+			job.FloatWidth = cmd.String("float")
 
 			report, err := job.Predict(ctx)
 			if err != nil {
 				return err
 			}
 
-			// Build template with empty descriptions.
-			type fieldTemplate struct {
-				Name        string `json:"name"`
-				Type        string `json:"type"`
-				Description string `json:"description"`
-				Nullable    bool   `json:"nullable"`
-			}
-			tmpl := make([]fieldTemplate, len(report.Schema.Fields))
-			for i, f := range report.Schema.Fields {
-				tmpl[i] = fieldTemplate{
-					Name:        f.Name,
-					Type:        f.Type.String(),
-					Description: "",
-					Nullable:    f.Nullable,
-				}
-			}
-
 			enc := json.NewEncoder(cmd.Writer)
 			enc.SetIndent("", "  ")
-			return enc.Encode(tmpl)
+			return enc.Encode(iio.SchemaFileTemplate(report.Schema))
 		},
 	}
 }
@@ -488,49 +488,4 @@ func readerOptionsFrom(cmd *cli.Command) pio.ReaderOptions {
 // --spss-missing value, say) otherwise.
 func makeImportReader(format string, fs afero.Fs, path string, opts pio.ReaderOptions) (pio.Reader, error) {
 	return pio.NewReader(pio.Format(format), fs, path, opts)
-}
-
-func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
-	data, err := afero.ReadFile(fs, path)
-	if err != nil {
-		return nil, fmt.Errorf("reading schema file: %w", err)
-	}
-
-	type fieldDef struct {
-		Name        string `json:"name"`
-		Type        string `json:"type"`
-		Description string `json:"description"`
-		Nullable    bool   `json:"nullable"`
-		Precision   uint8  `json:"precision,omitempty"`
-		Scale       uint8  `json:"scale,omitempty"`
-	}
-	var fields []fieldDef
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return nil, fmt.Errorf("parsing schema JSON: %w", err)
-	}
-
-	schema := &encoding.Schema{
-		Fields: make([]encoding.Field, len(fields)),
-	}
-
-	byteOffset := 0
-	for i, f := range fields {
-		ft := parseFieldType(f.Type)
-		field := encoding.Field{
-			Name:         f.Name,
-			Type:         ft,
-			Nullable:     f.Nullable,
-			ByteOffset:   byteOffset,
-			CsvColumnIdx: i,
-			Description:  f.Description,
-		}
-		if ft.IsDecimal() {
-			field.Precision = f.Precision
-			field.Scale = f.Scale
-		}
-		schema.Fields[i] = field
-		byteOffset += ft.ByteSize()
-	}
-
-	return schema, nil
 }

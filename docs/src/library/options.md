@@ -240,7 +240,8 @@ p, err := pulse.New(pulse.Options{
 
 The instance resource limits: `RequestTimeout`, `MaxGroups`,
 `MaxCrosstabCells`, `MaxEstimatedMemory`, `MaxMatrixDim`,
-`MaxComposeSlots`, `MaxChainStages`, `MaxJoinBuildRows`. Per field, `0`
+`MaxComposeSlots`, `MaxChainStages`, `MaxJoinBuildRows`,
+`MaxDerivedColumns`. Per field, `0`
 means the default (`pulse.DefaultMaxGroups`, …), `pulse.Unlimited` (`-1`)
 means no limit, any other negative fails `pulse.New` with
 `PULSE_LIMIT_INVALID`. Precedence per field: a non-zero `Options.Limits`

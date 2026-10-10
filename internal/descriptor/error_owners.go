@@ -114,18 +114,25 @@ var errorOwners = map[errors.Code][]string{
 	errors.CLI_INTERNAL:                            shared,
 
 	// Import / export.
-	errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS:     ownImportExport,
-	errors.PULSE_IMPORT_ROW_ERROR:            ownImportExport,
-	errors.PULSE_IMPORT_NULL_PROMOTED:        ownImportExport,
-	errors.PULSE_IMPORT_WIDTH_PROMOTED:       ownImportExport,
-	errors.PULSE_IMPORT_OVERRIDE_INVALID:     ownImportExport,
-	errors.PULSE_IMPORT_DST_AMBIGUOUS:        ownImportExport,
-	errors.PULSE_IMPORT_DST_NONEXISTENT:      ownImportExport,
-	errors.PULSE_IMPORT_DST_RESOLVED:         ownImportExport,
-	errors.PULSE_IMPORT_TIMESTAMP_TRUNCATED:  ownImportExport,
-	errors.PULSE_EXPORT_ROW_ERROR:            own(featExport),
-	errors.PULSE_EXPORT_FIELD_UNKNOWN:        own(featExport),
-	errors.PULSE_IMPORT_CATEGORICAL_OVERFLOW: ownImportExport,
+	errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS:       ownImportExport,
+	errors.PULSE_IMPORT_ROW_ERROR:              ownImportExport,
+	errors.PULSE_IMPORT_NULL_PROMOTED:          ownImportExport,
+	errors.PULSE_IMPORT_WIDTH_PROMOTED:         ownImportExport,
+	errors.PULSE_IMPORT_OVERRIDE_INVALID:       ownImportExport,
+	errors.PULSE_IMPORT_SCHEMA_FIELD_MISSING:   ownImportExport,
+	errors.PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED: ownImportExport,
+	errors.PULSE_IMPORT_SCHEMA_DUPLICATE:       ownImportExport,
+	errors.PULSE_IMPORT_SCHEMA_KEY_LATE:        ownImportExport,
+	errors.PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN:    ownImportExport,
+	errors.PULSE_IMPORT_SCHEMA_INVALID:         ownImportExport,
+	errors.PULSE_IMPORT_FLOAT_WIDTH_INVALID:    ownImportExport,
+	errors.PULSE_IMPORT_DST_AMBIGUOUS:          ownImportExport,
+	errors.PULSE_IMPORT_DST_NONEXISTENT:        ownImportExport,
+	errors.PULSE_IMPORT_DST_RESOLVED:           ownImportExport,
+	errors.PULSE_IMPORT_TIMESTAMP_TRUNCATED:    ownImportExport,
+	errors.PULSE_EXPORT_ROW_ERROR:              own(featExport),
+	errors.PULSE_EXPORT_FIELD_UNKNOWN:          own(featExport),
+	errors.PULSE_IMPORT_CATEGORICAL_OVERFLOW:   ownImportExport,
 	// The synth writer refuses an over-wide set dictionary with it too.
 	errors.PULSE_IMPORT_SET_OVERFLOW:          plus(ownImportExport, own(featSynth)),
 	errors.PULSE_IMPORT_CATEGORICAL_UNBOUNDED: ownImportExport,
@@ -148,6 +155,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_GROUP_ENTRIES_EXHAUSTED:   shared,
 	errors.PULSE_GROUP_TOO_NARROW:          shared,
 	errors.PULSE_DEDUP_LOW_RATIO:           shared,
+
+	// Pulse.Materialize is a library method every instance carries.
+	errors.PULSE_MATERIALIZE_SLOT_UNSUPPORTED:     shared,
+	errors.PULSE_MATERIALIZE_NO_DERIVED:           shared,
+	errors.PULSE_MATERIALIZE_OUTPUT_UNDECLARED:    shared,
+	errors.PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC:   shared,
+	errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED: shared,
 
 	// Any numeric aggregator on a categorical field; predict raises it.
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: shared,
@@ -264,6 +278,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
+	// nested_in_sweep is raised by a sweep body, so either surface lists it.
+	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
 
 	errors.PULSE_JOIN_TYPE_MISMATCH:        own(featJoins),
 	errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED: own(featJoins),
@@ -365,6 +381,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEMPLATE_VAR_ENUM:       own(featTemplates),
 	errors.PULSE_TEMPLATE_UNRESOLVED:     own(featTemplates),
 	errors.PULSE_TEMPLATE_RENDER_INVALID: own(featTemplates),
+	errors.PULSE_TEMPLATE_AXIS_COLLISION: own(featTemplates),
 
 	// SPSS: every code is raised by the .sav / .zsav reader or writer or
 	// the SPSS metadata sidecar, all gated by io_format:spss.

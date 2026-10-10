@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U21]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [235, 236, 237]
+todo_items: [235, 236, 237, 376]
 branch: skill-sync
 ---
 
@@ -84,3 +84,9 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(skill-sync/E<n>-S
 ## Human inputs & decisions
 
 - None.
+
+## Inherited from U41
+
+Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#376** — `session-bootstrap.md` routing hint for `--float f32` (skipped in U41: the skill is at its design budget). Found in U41 (E1-S2).

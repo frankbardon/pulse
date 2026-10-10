@@ -10,9 +10,8 @@ import (
 
 // TestFieldTypeFromName_ResolvesEverySetRung pins that the spec type
 // names for the set family resolve from the encoding enum rather than
-// from a rung table maintained here. A missing rung is silent at the
-// CLI (internal/cli/fieldtype.go falls back to f64 on an unknown name)
-// and a hard refusal in the writer, so both directions are checked.
+// from a rung table maintained here. A missing rung is a hard refusal
+// in the writer, so both directions are checked.
 func TestFieldTypeFromName_ResolvesEverySetRung(t *testing.T) {
 	for _, want := range []encoding.FieldType{
 		encoding.FieldTypeSetU8,

@@ -190,7 +190,12 @@ func f32Fixture() ([]string, [][]string) {
 	return []string{"x", "y", "z"}, rows
 }
 
-// TestImportWiden_F32PromotesToF64: an inferred f32 that meets a value
+// optF32 opts an import into f32 float inference (--float f32): the
+// default infers f64, which never promotes.
+func optF32(j *ImportJob) { j.FloatWidth = FloatWidthF32 }
+
+// TestImportWiden_F32PromotesToF64: under the --float f32 opt-in, an
+// inferred f32 that meets a value
 // outside f32's range promotes to f64 at the first such row; every
 // earlier value decodes exactly (every f32 is exact in f64), the out-of-
 // range values decode as written instead of ±Inf / 0, the cohort is the
@@ -198,7 +203,7 @@ func f32Fixture() ([]string, [][]string) {
 // rounds stays f32.
 func TestImportWiden_F32PromotesToF64(t *testing.T) {
 	cols, rows := f32Fixture()
-	rep, raw, fs, err := runGroupImport(t, newMockReader(cols, rows), nil)
+	rep, raw, fs, err := runGroupImport(t, newMockReader(cols, rows), nil, optF32)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +235,7 @@ func TestImportWiden_F32PromotesToF64(t *testing.T) {
 	if vals[699]["x"] != 1e-50 || math.IsInf(vals[599]["x"], 0) || vals[649]["z"] != 1e-50 {
 		t.Errorf("out-of-range values decoded as %v / %v / %v", vals[599]["x"], vals[699]["x"], vals[649]["z"])
 	}
-	if _, full := importRaw(t, cols, rows, func(j *ImportJob) { j.SampleRows = len(rows) }); !bytes.Equal(raw, full) {
+	if _, full := importRaw(t, cols, rows, optF32, func(j *ImportJob) { j.SampleRows = len(rows) }); !bytes.Equal(raw, full) {
 		t.Error("promoted cohort differs from the whole-file-sample cohort")
 	}
 }
@@ -254,8 +259,11 @@ func TestImportWiden_F32DeclaredNeverPromotes(t *testing.T) {
 // f64 the import writes, with the same warning.
 func TestImportPredictWiden_F32(t *testing.T) {
 	cols, rows := f32Fixture()
-	imp, _ := importRaw(t, cols, rows)
-	rep, err := predictJob(t, newMockReader(cols, rows), func(j *ImportJob) { j.ElideConstants = true })
+	imp, _ := importRaw(t, cols, rows, optF32)
+	if len(imp.WidthWarnings) != 2 {
+		t.Fatalf("import width warnings %v, want two under --float f32", imp.WidthWarnings)
+	}
+	rep, err := predictJob(t, newMockReader(cols, rows), optF32, func(j *ImportJob) { j.ElideConstants = true })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,8 +277,11 @@ func TestImportPredictWiden_F32(t *testing.T) {
 // warning, and its kept cohort is the import's.
 func TestConvertWiden_F32(t *testing.T) {
 	cols, rows := f32Fixture()
-	imp, want := importRaw(t, cols, rows)
-	rep, target, kept := runConvert(t, newMockReader(cols, rows), true)
+	imp, want := importRaw(t, cols, rows, optF32)
+	if len(imp.WidthWarnings) != 2 {
+		t.Fatalf("import width warnings %v, want two under --float f32", imp.WidthWarnings)
+	}
+	rep, target, kept := runConvert(t, newMockReader(cols, rows), true, func(j *ConvertJob) { j.FloatWidth = FloatWidthF32 })
 	if got := fieldByName(rep.Schema, "x").Type; got != encoding.FieldTypeF64 {
 		t.Errorf("x = %s, want f64", got)
 	}

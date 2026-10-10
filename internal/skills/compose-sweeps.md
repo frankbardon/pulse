@@ -71,4 +71,4 @@ The substituted body decodes STRICTLY into a `Request`: an unknown key or a wron
 
 ## See
 
-`compose-requests` (slots, labels, overlay fold, parallel) · `overlay-system` (overlay hosts)<!-- feature: capability:templates --> · `request-templating` (the stored-template surface this is not)<!-- /feature -->.
+`compose-requests` (slots, labels, overlay fold, parallel) · `overlay-system` (overlay hosts)<!-- feature: capability:for_each --> · `item-fan-out` (the same axes on ONE window / feature / attribute item; refused inside a sweep body)<!-- /feature --><!-- feature: capability:templates --> · `request-templating` (the stored-template surface this is not)<!-- /feature -->.

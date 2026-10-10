@@ -240,6 +240,13 @@ func obsCalls() []obsCall {
 			_, err := p.Dedup(ctx, obsCohort, DedupOptions{Out: "dedup.pulse"})
 			return err
 		}},
+		{"Materialize", observe.OpMaterialize, func(ctx context.Context, p *Pulse) error {
+			_, err := p.Materialize(ctx, &Request{
+				Cohort:   &types.Cohort{Filename: obsCohort},
+				Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "amount"}},
+			}, "materialized.pulse", MaterializeOptions{Overwrite: true})
+			return err
+		}},
 		{"WidenSetField", observe.OpWiden, func(ctx context.Context, p *Pulse) error {
 			_, err := p.WidenSetField(ctx, obsCohort, "region", "set_u16")
 			return err

@@ -345,6 +345,24 @@ type NullAwareReader interface {
 	RowNulls() []bool
 }
 
+// LateKeyRefuser is an optional extension of Reader for keyed sources
+// (NDJSON, a JSON array of objects) whose column set is the key order of
+// the FIRST object, so a key that first appears in a later object has no
+// column to land in. By default such a key is dropped — the inference
+// path's long-standing behaviour.
+//
+// ImportJob and ConvertJob arm it when an explicit schema is matched to
+// the source by name and extra columns are not being ignored: the reader
+// then fails ReadRows at the first object carrying a key outside the
+// header with PULSE_IMPORT_SCHEMA_KEY_LATE (details: column, row,
+// columns), instead of silently losing that key's values. The setting
+// survives Reset.
+type LateKeyRefuser interface {
+	Reader
+	// RefuseLateKeys turns the late-key refusal on or off.
+	RefuseLateKeys(on bool)
+}
+
 // NullAwareWriter is an optional extension of Writer for targets whose
 // format has a native null channel and which therefore need to know
 // which caller is handing them rows.

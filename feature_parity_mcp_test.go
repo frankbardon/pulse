@@ -8,7 +8,7 @@ package pulse
 //   - operators: the hidden-name parity harness (runHiddenParityWith)
 //     driven through MCP tool calls — pulse_process, pulse_predict,
 //     pulse_compose (slot and overlays), pulse_process_chain (stage 0,
-//     stage 1, overlays) and pulse_facet_schema — so a hidden operator
+//     stage 1, overlays), pulse_facet_schema and pulse_materialize — so a hidden operator
 //     reaches a client exactly as a never-registered one does.
 //   - surfaces: every rendered MCP surface (tools/list before and after
 //     the bind-on-inspect rebind, prompts/list + prompts/get, resources
@@ -161,6 +161,13 @@ func mcpParityEntryPoints(sessions *mcpSessions) []parityEntryPoint {
 			c.chain(req, op, h.fields)
 			return call(t, h, "pulse_process_chain", req)
 		}},
+		{name: "MCP/pulse_materialize", run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
+			req, ok := h.materializeRequest(c, op)
+			if !ok {
+				return nil, false
+			}
+			return call(t, h, "pulse_materialize", map[string]any{"request": req, "out": parityMaterializeOut, "overwrite": true})
+		}},
 		{name: "MCP/pulse_facet_schema", run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
 			if c.facet == nil {
 				return nil, false
@@ -193,7 +200,7 @@ func invisibilityProfiles(t *testing.T) (map[string][]string, []string) {
 	}
 	// No published profile both hides an operator and mounts every
 	// request-carrying tool, so the pulse_compose / pulse_process_chain /
-	// pulse_facet_schema cells would never run: one inline host profile
+	// pulse_facet_schema / pulse_materialize cells would never run: one inline host profile
 	// adds those capabilities (and one overlay kind per host it reaches)
 	// to the minimal example's operators.
 	minimal, err := ExampleFeatureProfile("minimal")
@@ -201,7 +208,7 @@ func invisibilityProfiles(t *testing.T) (map[string][]string, []string) {
 		t.Fatalf("ExampleFeatureProfile(minimal): %v", err)
 	}
 	inline["mcp-hosts"] = append(append([]string(nil), minimal.Features...),
-		"capability:compose", "capability:process_chain", "capability:facet", "capability:crosstab",
+		"capability:compose", "capability:process_chain", "capability:facet", "capability:crosstab", "capability:materialize",
 		"OVERLAY_SHARE_OF_ROW", "OVERLAY_DELTA_VS_SIBLING", "OVERLAY_DELTA_VS_STAGE")
 	// No published profile both mounts a prompt and hides a tool its
 	// body names, so the prompt-body scrub would go unchecked: a

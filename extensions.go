@@ -159,6 +159,13 @@ type ParamMeta struct {
 	JSONType    string `json:"json_type"`
 	Required    bool   `json:"required,omitempty"`
 	Default     any    `json:"default,omitempty"`
+	// ExactlyOneOf names a group of mutually exclusive params: of the
+	// params sharing a group name, a request supplies exactly one. A
+	// group needs at least two members, none Required and none with a
+	// Default (PULSE_EXTENSION_PARAM_INVALID otherwise). The factory
+	// still enforces the rule; the declaration lets the manifest say it
+	// and lets Recommend draft the first member. Empty = ungrouped.
+	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
 }
 
 // AggregatorRegistration installs a custom AGG_* operator. The factory

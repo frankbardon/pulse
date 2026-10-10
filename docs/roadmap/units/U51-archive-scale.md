@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U19]
 blocks: [U32]
-todo_items: [354, 355, 356, 357, 358, 359, 360, 361]
+todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373]
 branch: archive-scale
 ---
 
@@ -98,3 +98,9 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(archive-scale/E<n
 
 - **Open:** an archive-level index versus per-shard sidecars for point lookup.
 - **Open:** deterministic reduction order (exact) versus compensated summation (fast) for byte equality.
+
+## Inherited from U41
+
+Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#373** — Legacy-offset cohort compatibility: shard cohesion and `rewriteShardDicts` refuse a cohort whose stored `ByteOffset` / `BitPosition` differ from the canonical layout (zero-offset explicit-schema cohorts from before U41 E1-S5, schema-file cohorts with a bit-packed field first from before E1-S3). **Required resolution: full cohort compatibility — such cohorts join and interoperate with new cohorts and shard archives without re-import (compare the type-derived layout, never stored offsets).** Found in U41 (E1-S5).

@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:1e8df9efcf57420cfe4b49f4d9014ff1cdeb1b5e97048892d11d91f8ae9bcdee",
-    "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
+    "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
         "name": "process",
@@ -748,7 +748,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 162,
+    "error_codes_count": 167,
     "error_domains": [
       "CLI",
       "DATA",
@@ -842,6 +842,11 @@
       "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LIMIT_EXCEEDED",
       "PULSE_LIMIT_INVALID",
+      "PULSE_MATERIALIZE_NO_DERIVED",
+      "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC",
+      "PULSE_MATERIALIZE_OUTPUT_UNDECLARED",
+      "PULSE_MATERIALIZE_SIDECARS_INVALIDATED",
+      "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
@@ -2212,10 +2217,16 @@
         "value": 100000000,
         "default": 100000000,
         "unit": "count"
+      },
+      {
+        "name": "max_derived_columns",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 57c2ca3c285bb64078e7639d620a2111cdfea7a6130c962c2723cee8b0267e37
+// golden-hash: a6ca6d4cc4e36eca0c73567dc3bfba312a17718759e3c9e0c2ae9b15fef28209

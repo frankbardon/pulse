@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:6fcbfc58f534e07cfdcdd0f923a3860d4542eca9e1329b61ec28380f2f6211c6",
+  "$comment": "feature_set_digest: fs1:f851ca4127599792e148701605b8ba72c2be9e27dc59de14d29010f297488994",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -234,6 +234,9 @@
         },
         "field": {
           "type": "string"
+        },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
         },
         "l1_ratio": {
           "type": "number"
@@ -1447,6 +1450,9 @@
         "field": {
           "type": "string"
         },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
+        },
         "label": {
           "type": "string"
         },
@@ -1551,6 +1557,27 @@
         "FILTER_TRUE"
       ],
       "type": "string"
+    },
+    "ForEach": {
+      "additionalProperties": false,
+      "properties": {
+        "axes": {
+          "items": {
+            "$ref": "#/$defs/SweepAxis"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "mode": {
+          "$ref": "#/$defs/SweepMode"
+        }
+      },
+      "required": [
+        "axes"
+      ],
+      "type": "object"
     },
     "FrameSpec": {
       "additionalProperties": false,
@@ -3989,6 +4016,9 @@
         "field": {
           "type": "string"
         },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
+        },
         "frame": {
           "$ref": "#/$defs/FrameSpec"
         },
@@ -4101,4 +4131,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: fb55333970aeb012e19f19514ab88a265db225733a24124da8765e19c50b983b
+// golden-hash: 765565d518b34423c742c225323e677b40999534256c10777ec529639fd8fde0

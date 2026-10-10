@@ -10,6 +10,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/imports"
+	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/jsonfinite"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -304,6 +305,22 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 		SourceTZ:       in.SourceTZ,
 		ColumnSourceTZ: in.ColumnSourceTZ,
 		DSTPolicy:      pio.DSTPolicy(in.DSTPolicy),
+		IgnoreExtra:    in.IgnoreExtra,
+		FloatWidth:     in.Float,
+	}
+	// A present schema (even an empty array, which SchemaFromFields
+	// refuses) goes through the CLI's own decoder; nil infers.
+	if in.Schema != nil {
+		defs := make([]iio.SchemaFileField, len(in.Schema))
+		for i, f := range in.Schema {
+			defs[i] = iio.SchemaFileField{Name: f.Name, Type: f.Type, Nullable: f.Nullable,
+				Description: f.Description, Precision: f.Precision, Scale: f.Scale}
+		}
+		schema, err := iio.SchemaFromFields(defs)
+		if err != nil {
+			return ImportOut{}, err
+		}
+		spec.Schema = schema
 	}
 	if in.TTL != "" {
 		d, err := imports.ParseTTL(in.TTL)
@@ -332,6 +349,24 @@ func HandleDedup(ctx context.Context, p *pulse.Pulse, in DedupIn) (DedupOut, err
 	})
 	if err != nil {
 		return DedupOut{}, err
+	}
+	return *res, nil
+}
+
+// HandleMaterialize runs pulse_materialize: the request's derived
+// columns written as ordinary fields of a new cohort at in.Out. All
+// behaviour — the slot gate, every refusal, the atomic write — is
+// pulse.Materialize; coded errors pass through verbatim.
+func HandleMaterialize(ctx context.Context, p *pulse.Pulse, in MaterializeIn) (MaterializeOut, error) {
+	if in.Request == nil {
+		return MaterializeOut{}, errMissingArg("request")
+	}
+	if in.Out == "" {
+		return MaterializeOut{}, errMissingArg("out")
+	}
+	res, err := p.Materialize(ctx, in.Request, in.Out, pulse.MaterializeOptions{Overwrite: in.Overwrite})
+	if err != nil {
+		return MaterializeOut{}, err
 	}
 	return *res, nil
 }

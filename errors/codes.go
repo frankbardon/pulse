@@ -177,6 +177,57 @@ const (
 	// silently dropped, narrowed or partially imported.
 	PULSE_IMPORT_OVERRIDE_INVALID Code = "PULSE_IMPORT_OVERRIDE_INVALID"
 
+	// PULSE_IMPORT_SCHEMA_FIELD_MISSING indicates an explicit import
+	// schema names a field the source header does not carry. An explicit
+	// schema is matched to the source's columns BY NAME (exact spelling,
+	// case and whitespace included), never by position, so a field with
+	// no column of that name refuses the import before any row is read
+	// (details: field, columns — the source header).
+	PULSE_IMPORT_SCHEMA_FIELD_MISSING Code = "PULSE_IMPORT_SCHEMA_FIELD_MISSING"
+
+	// PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED indicates the source header
+	// carries a column no field of the explicit import schema names
+	// (details: column, fields — the schema's field names). Suppressed by
+	// ImportJob.IgnoreExtra / ConvertJob.IgnoreExtra (`--ignore-extra`),
+	// which drops such columns instead.
+	PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED Code = "PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED"
+
+	// PULSE_IMPORT_SCHEMA_DUPLICATE indicates a name that by-name schema
+	// matching cannot resolve to one column: the explicit schema declares
+	// the same field name twice (details: field, side "schema"), or the
+	// source header repeats a column name (details: column, side
+	// "header").
+	PULSE_IMPORT_SCHEMA_DUPLICATE Code = "PULSE_IMPORT_SCHEMA_DUPLICATE"
+
+	// PULSE_IMPORT_SCHEMA_KEY_LATE indicates a keyed source (NDJSON, a
+	// JSON array of objects) whose column set is the first object's keys
+	// carries, in a later object, a key the first object did not — under
+	// an explicit schema that key's values would otherwise be dropped
+	// silently (details: column, row — the 1-based data row — and
+	// columns). Suppressed by IgnoreExtra / `--ignore-extra`.
+	PULSE_IMPORT_SCHEMA_KEY_LATE Code = "PULSE_IMPORT_SCHEMA_KEY_LATE"
+
+	// PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN indicates an explicit import
+	// schema file declares a field whose type name is not a registered
+	// field type (details: field, type, valid — the registered type
+	// names). The name is never coerced: an unknown type used to fall
+	// back to f64 silently, so a typo stored a column in the wrong type.
+	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN Code = "PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN"
+
+	// PULSE_IMPORT_SCHEMA_INVALID indicates an explicit import schema
+	// document cannot be used as written: it is not a JSON array of
+	// field objects, an entry carries a key the field shape does not
+	// have (MCP pulse_import), it lists no fields, or it was supplied for
+	// a source no conversion runs over (a .pulse passthrough). Details
+	// carry reason, plus error / key / index where they apply.
+	PULSE_IMPORT_SCHEMA_INVALID Code = "PULSE_IMPORT_SCHEMA_INVALID"
+
+	// PULSE_IMPORT_FLOAT_WIDTH_INVALID indicates an import's float-width
+	// knob (ImportJob.FloatWidth / InferOptions.FloatWidth, CLI
+	// `--float`) is neither "f64" (the default, also spelled "") nor
+	// "f32" (details: value, valid).
+	PULSE_IMPORT_FLOAT_WIDTH_INVALID Code = "PULSE_IMPORT_FLOAT_WIDTH_INVALID"
+
 	// PULSE_IMPORT_DST_AMBIGUOUS indicates a naive datetime literal read
 	// in an import source zone (ImportJob.SourceTZ / ColumnSourceTZ)
 	// names a wall-clock time the zone shows TWICE — a DST fall-back
@@ -302,6 +353,41 @@ const (
 	// dictionary bytes and the byte delta; the group is still written.
 	// Never a refusal on ratio alone — an error only under --strict.
 	PULSE_DEDUP_LOW_RATIO Code = "PULSE_DEDUP_LOW_RATIO"
+
+	// PULSE_MATERIALIZE_SLOT_UNSUPPORTED indicates a Pulse.Materialize
+	// request carrying a slot that does not produce one value per source
+	// record (groups, aggregations, crosstab, joins, sort, tests,
+	// post_tests, regressions, matrices, vectors, return, overlays,
+	// outputs, labels, multiplicity). details.slot names the slot's JSON
+	// key. Raised before any record is read or any file is created.
+	PULSE_MATERIALIZE_SLOT_UNSUPPORTED Code = "PULSE_MATERIALIZE_SLOT_UNSUPPORTED"
+
+	// PULSE_MATERIALIZE_NO_DERIVED indicates a Pulse.Materialize request
+	// with no features, attributes or windows: there is no derived
+	// column to append. Raised before any file is created.
+	PULSE_MATERIALIZE_NO_DERIVED Code = "PULSE_MATERIALIZE_NO_DERIVED"
+
+	// PULSE_MATERIALIZE_OUTPUT_UNDECLARED indicates a Pulse.Materialize
+	// request carrying a feature whose output columns cannot be named
+	// before the run (an embedder-registered feature, or a built-in one
+	// whose params or source field yield no output), so the output
+	// schema cannot be laid out. details carry feature_index and
+	// feature. Raised before any file is created.
+	PULSE_MATERIALIZE_OUTPUT_UNDECLARED Code = "PULSE_MATERIALIZE_OUTPUT_UNDECLARED"
+
+	// PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC indicates a derived value a
+	// Pulse.Materialize run cannot store in its f64 column — a window
+	// copying a categorical, set or decimal source value, or a
+	// non-numeric lag/lead default. details carry column and value_type.
+	// The run fails with no target written.
+	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC Code = "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC"
+
+	// PULSE_MATERIALIZE_SIDECARS_INVALIDATED is a warning: a
+	// Pulse.Materialize run with Overwrite replaced a cohort whose
+	// sidecars (point-lookup index, SPSS metadata) are now stale.
+	// details carry target and sidecars (their paths); the result's
+	// invalidated_sidecars names each with its rebuild command.
+	PULSE_MATERIALIZE_SIDECARS_INVALIDATED Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
 	// was requested on a categorical field.
@@ -747,7 +833,8 @@ const (
 
 	// PULSE_EXTENSION_PARAM_INVALID indicates a ParamMeta entry on a
 	// registration has missing or contradictory fields (empty name,
-	// unknown JSONType, Required=true with a non-nil Default).
+	// unknown JSONType, Required=true with a non-nil Default, an
+	// ExactlyOneOf group with one member or a Required / defaulted member).
 	PULSE_EXTENSION_PARAM_INVALID Code = "PULSE_EXTENSION_PARAM_INVALID"
 
 	// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH indicates an extension
@@ -945,6 +1032,21 @@ const (
 	// slot left out of the ranking (null value, or path missing in that
 	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
+
+	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
+	// window, feature or attribute item: no axes, an axis name that is
+	// not a unique identifier, an empty or non-scalar values list, an
+	// unknown mode, unequal axis lengths under mode zip, an axis no
+	// placeholder in the item names or a placeholder naming no axis,
+	// placeholder syntax the substitution refuses, a substituted item
+	// that does not decode strictly, or a `for_each` inside a compose
+	// sweep body (which a sweep cannot expand twice). Refused
+	// identically by predict and the runtime before any other check of
+	// the request. Details carry "field" (the request-rooted path, e.g.
+	// `windows[0].for_each.axes[1]`), "reason", "axis" where one is
+	// involved and, where they apply, "value" / "valid", the faulting
+	// combination "index" and its axis "values", and "unknown_field".
+	PULSE_FOR_EACH_INVALID Code = "PULSE_FOR_EACH_INVALID"
 
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
 	// the left field's schema type differs from the right field's
@@ -1753,6 +1855,18 @@ const (
 	// template under DetailTemplate, the target type, and the decode
 	// fault.
 	PULSE_TEMPLATE_RENDER_INVALID Code = "PULSE_TEMPLATE_RENDER_INVALID"
+
+	// PULSE_TEMPLATE_AXIS_COLLISION indicates a template declares a
+	// variable with the same name as an axis of a `for_each` item in its
+	// body. Inside that item the renderer leaves the item's own axis
+	// placeholders (`{{axis}}`, {"$var": "axis"}) for the for_each
+	// expansion, so a same-named template variable would make every such
+	// placeholder ambiguous; the declaration is refused rather than one
+	// reading silently winning. Raised at declaration validation (an
+	// author error, like PULSE_TEMPLATE_INVALID). Details carry the
+	// template under DetailTemplate, the shared name under
+	// DetailVariable, and the axis name's body path under "path".
+	PULSE_TEMPLATE_AXIS_COLLISION Code = "PULSE_TEMPLATE_AXIS_COLLISION"
 
 	// PULSE_SPSS_DICT_INVALID indicates an SPSS `.sav` dictionary is
 	// structurally malformed: the file does not open with the `$FL2` /
@@ -3038,6 +3152,13 @@ var allCodes = []Code{
 	PULSE_IMPORT_NULL_PROMOTED,
 	PULSE_IMPORT_WIDTH_PROMOTED,
 	PULSE_IMPORT_OVERRIDE_INVALID,
+	PULSE_IMPORT_SCHEMA_FIELD_MISSING,
+	PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED,
+	PULSE_IMPORT_SCHEMA_DUPLICATE,
+	PULSE_IMPORT_SCHEMA_KEY_LATE,
+	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN,
+	PULSE_IMPORT_SCHEMA_INVALID,
+	PULSE_IMPORT_FLOAT_WIDTH_INVALID,
 	PULSE_IMPORT_DST_AMBIGUOUS,
 	PULSE_IMPORT_DST_NONEXISTENT,
 	PULSE_IMPORT_DST_RESOLVED,
@@ -3060,6 +3181,11 @@ var allCodes = []Code{
 	PULSE_GROUP_ENTRIES_EXHAUSTED,
 	PULSE_GROUP_TOO_NARROW,
 	PULSE_DEDUP_LOW_RATIO,
+	PULSE_MATERIALIZE_SLOT_UNSUPPORTED,
+	PULSE_MATERIALIZE_NO_DERIVED,
+	PULSE_MATERIALIZE_OUTPUT_UNDECLARED,
+	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC,
+	PULSE_MATERIALIZE_SIDECARS_INVALIDATED,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
@@ -3149,6 +3275,7 @@ var allCodes = []Code{
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
+	PULSE_FOR_EACH_INVALID,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
 	PULSE_JOIN_FIELD_UNKNOWN,
@@ -3227,6 +3354,7 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_VAR_ENUM,
 	PULSE_TEMPLATE_UNRESOLVED,
 	PULSE_TEMPLATE_RENDER_INVALID,
+	PULSE_TEMPLATE_AXIS_COLLISION,
 	PULSE_SPSS_DICT_INVALID,
 	PULSE_SPSS_DICT_TRUNCATED,
 	PULSE_SPSS_FILE_EMPTY,

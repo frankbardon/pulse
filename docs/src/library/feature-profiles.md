@@ -86,7 +86,7 @@ unknown preset or a precision outside 1–17 is refused with
 names `pulse mcp --limit` and every `PULSE_LIMIT_*` error's `limit`
 detail use: `request_timeout`, `max_groups`, `max_crosstab_cells`,
 `max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
-`max_chain_stages`, `max_join_build_rows`.
+`max_chain_stages`, `max_join_build_rows`, `max_derived_columns`.
 
 ```json
 {
@@ -113,7 +113,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
@@ -145,12 +145,12 @@ Some features need others. A dependency is a list of groups, and at least
 one name in every group must be enabled:
 
 - Every operator, and `capability:crosstab` / `capability:joins` /
-  `capability:weighting` / `capability:matrices`, needs a host that runs requests: `capability:process`, `capability:compose` or
+  `capability:weighting` / `capability:matrices` / `capability:for_each`, needs a host that runs requests: `capability:process`, `capability:compose` or
   `capability:process_chain`.
 - `capability:multiplicity` needs nothing: its blocks ride every request
   host and facet overlays alike.
-- `capability:stream`, `capability:watch` and `capability:filter_to_file`
-  need `capability:process`.
+- `capability:stream`, `capability:watch`, `capability:filter_to_file`
+  and `capability:materialize` need `capability:process`.
 - An intent prompt (`mcp_extra:prompt_<intent>`) needs every tool its
   script calls: `capability:recommend`, `capability:explain` and
   `capability:process` (all three; `pulse_inspect` is always mounted).
@@ -315,6 +315,12 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   definitions and the `Response.matrices` result slot, and the manifest
   drops the `matrix` block. Every `MAT_*` operator depends on
   `capability:matrices`.
+- **Item fan-out.** Without `capability:for_each` a `for_each` on a
+  window, feature or attribute item (inside Compose requests and chain
+  stages too) fails `PULSE_REQUEST_UNKNOWN_FIELD`, naming the item under
+  `details.path` (`windows[1]`); the payload schema and the MCP tool
+  input schemas drop the key and the `ForEach` definition. A
+  hand-expanded request runs unchanged.
 - **Row weighting.** Without `capability:weighting` the instance has no
   weight surface. The request `weight` and every per-slot `weight`
   (aggregations, the crosstab cell, margin aggregations and axes,
@@ -511,7 +517,7 @@ Pulse publishes example profiles to copy, in the repository's
 |---|---|
 | `minimal` | `capability:process` plus core aggregators and the default groupers |
 | `survey-crosstab` | Process, Compose, crosstab, facet, labels, row weighting and multiple-comparison correction, with survey tests and the crosstab, compose and facet overlays they feed, closed over their dependencies |
-| `read-only-analyst` | Every analytic capability and operator; nothing that writes data (`import`, `export`, `filter_to_file`, `dedup`, `widen`, `shard`, `index`, `synth`) and no I/O formats |
+| `read-only-analyst` | Every analytic capability and operator; nothing that writes data (`import`, `export`, `filter_to_file`, `dedup`, `materialize`, `widen`, `shard`, `index`, `synth`) and no I/O formats |
 
 ```go
 names := pulse.ExampleFeatureProfiles()        // sorted: minimal, read-only-analyst, survey-crosstab

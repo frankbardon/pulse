@@ -17,8 +17,9 @@ import (
 // (internal/encoding/widen_test.go) proves the byte-level rewrite and the service
 // layer (internal/service/widen_field_test.go) proves the layout dispatch; what is
 // only reachable HERE is the type-NAME resolution, which is the facade's
-// own contract: an unknown name must be a coded refusal, never the silent
-// f64 fallback internal/cli/fieldtype.go performs for display purposes.
+// own contract: an unknown name must be a coded refusal, never a silent
+// fallback to some default type (the schema-file loader once fell back
+// to f64; internal/io.ParseSchemaFieldType now refuses).
 
 const widenFacadeSetOptions = 40
 
@@ -125,10 +126,10 @@ func TestWidenSetField_FacadeWidensByTypeName(t *testing.T) {
 	}
 }
 
-// An unknown --to value must NOT resolve to some default type. The CLI's
-// display-side parseFieldType falls back to f64 on an unknown name; if that
-// fallback ever reached this path the user would get "f64 is not a set type"
-// for a typo'd rung, or worse, a rewrite to a type they never asked for.
+// An unknown --to value must NOT resolve to some default type. Were an
+// f64-style fallback ever to reach this path the user would get "f64 is
+// not a set type" for a typo'd rung, or worse, a rewrite to a type they
+// never asked for.
 func TestWidenSetField_FacadeRejectsUnknownTypeName(t *testing.T) {
 	p, memFs := newWidenFacadePulse(t)
 	before := writeWidenFacadeCohort(t, memFs, "cohort.pulse")

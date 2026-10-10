@@ -31,7 +31,18 @@ type Reader struct {
 	// []string row does not. Rebuilt in place by the emit closure;
 	// valid only inside the callback.
 	nulls []bool
+
+	// lateKeys is the iocore.LateKeyRefuser state, armed by an
+	// explicit-schema import.
+	lateKeys jsonshared.LateKeys
 }
+
+// RefuseLateKeys implements iocore.LateKeyRefuser: when on, a key first
+// seen after the first object fails ReadRows with
+// PULSE_IMPORT_SCHEMA_KEY_LATE instead of being dropped. Survives Reset.
+func (r *Reader) RefuseLateKeys(on bool) { r.lateKeys.Set(on) }
+
+var _ iocore.LateKeyRefuser = (*Reader)(nil)
 
 // RowNulls implements iocore.NullAwareReader. Entry i is true when the
 // current row's column i was JSON null, or absent from the object.
@@ -211,13 +222,16 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 
 		r.rowNum++
-		obj, _, err := decodeObject(r.dec)
+		obj, keys, err := decodeObject(r.dec)
 		if err != nil {
 			return errors.NewCodedErrorWithDetails(
 				errors.PULSE_IMPORT_ROW_ERROR,
 				fmt.Sprintf("row %d: %v", r.rowNum, err),
 				map[string]any{"row": r.rowNum},
 			)
+		}
+		if err := r.lateKeys.Check(keys, r.header, r.rowNum, nil); err != nil {
+			return err
 		}
 		if err := emit(obj); err != nil {
 			if err == errStop {
@@ -244,6 +258,7 @@ func (r *Reader) Close() error {
 func (r *Reader) Reset() error {
 	r.dec = nil
 	r.header = nil
+	r.lateKeys.Forget()
 	r.pending = nil
 	r.rowNum = 0
 	r.closed = false

@@ -139,7 +139,7 @@ var (
 				"The seed enters at full weight, so the start of each partition leans on the first value: with alpha 0.1 it still carries about 35% of the weight " +
 					"ten rows later (0.9^10). Read the early rows with care.",
 				"It lags behind a trend: on a steadily rising series the smoothed value sits below the latest value.",
-				"alpha is given directly; some tools set it from a span (alpha = 2 / (span + 1)), which is not accepted here, so convert first.",
+				"alpha is given directly or as decay (alpha = 1 - decay, the carry-over share adstock work quotes); some tools set it from a span (alpha = 2 / (span + 1)), which is not accepted here, so convert first.",
 				"A missing value reads null and the smoothing carries over it: the next value is blended in as if the gap were one step.",
 				"The required frame is not used: the smoothing always runs from the partition's first row.",
 				winRowsNotTimeCaveat,

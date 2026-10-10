@@ -210,6 +210,68 @@ high-continuation fields and a one-line advice; pairs never span a shard
 boundary. Absent the flag the document is byte-identical. See
 [profile create](profile-create.md).
 
+### `--schema` / `--ignore-extra`
+
+Available on: `import csv`, `import tsv`, `import ndjson`,
+`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
+`import spss`, `import predict`, `convert`.
+
+`--schema FILE` supplies an explicit schema (a JSON array of
+`{name, type, description, nullable}`, plus `precision` / `scale` on a
+`decimal128` field; `import schema-template INPUT` emits an editable one,
+decimal precision and scale included). The file carries no byte
+offsets — the layout is derived from field order and types exactly as
+inference derives it, so a file mixing `u4` / `packed_bool` with
+byte-aligned fields writes the same schema block an inferred import of
+the same fields does. Its fields are matched to the source's columns
+**by exact name** — case and whitespace included — never by position, so
+the schema may list them in any order and that order is the cohort's
+field order. For NDJSON and JSON-array sources the columns are the keys
+of the first object. Arrow, Parquet and SPSS sources, whose own schema
+an explicit one overrides, are matched the same way. Every mismatch is
+refused before a row is read, under its own code:
+
+| Code | When | Details |
+|---|---|---|
+| `PULSE_IMPORT_SCHEMA_FIELD_MISSING` | a schema field has no column of that name | `field`, `columns` |
+| `PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED` | a source column no schema field names | `column`, `fields` |
+| `PULSE_IMPORT_SCHEMA_DUPLICATE` | a field name declared twice, or a repeated header name | `field` or `column`, `side` |
+| `PULSE_IMPORT_SCHEMA_KEY_LATE` | an NDJSON / JSON-array key first seen after the first object | `column`, `row`, `columns` |
+| `PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN` | a field's `type` is not a registered field type (never read as `f64`) | `field`, `type`, `valid` |
+| `PULSE_IMPORT_SCHEMA_INVALID` | the file is not a JSON array of field objects, or lists no field | `reason`, `error` |
+
+`--ignore-extra` drops source columns, and late keys, that the schema
+does not name instead of refusing (library: `ImportJob.IgnoreExtra` /
+`ConvertJob.IgnoreExtra`). A schema field with no column is still
+refused. Without `--schema` the flag is inert and inference is
+unchanged.
+
+The MCP `pulse_import` tool takes the same document inline as its
+`schema` argument, with `ignore_extra` and `float` beside it, and
+refuses with the same codes (plus `PULSE_IMPORT_SCHEMA_INVALID` for an
+unknown entry key or a schema on a `.pulse` source).
+
+### `--float`
+
+Available on: `import csv`, `import tsv`, `import ndjson`,
+`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
+`import spss`, `import predict`, `import schema-template`, `convert`.
+
+The width schema inference gives an all-float column: `f64` (the
+default) keeps every decimal the source wrote exact, so `0.1` and
+`123456.789012` round-trip and a money column's sum matches the f64
+reference; `f32` halves the column's bytes but rounds every value to
+about 7 significant digits. Under `f32` a column whose sample holds a
+value past f32's range still infers `f64`, and a later such value
+promotes the field (`PULSE_IMPORT_WIDTH_PROMOTED`, below). Any other
+value refuses the run with `PULSE_IMPORT_FLOAT_WIDTH_INVALID` (`value`,
+`valid`), with or without `--schema`. Inert with `--schema` or a source
+that carries its own schema (Arrow, Parquet, SPSS); a managed import's
+`column_type_overrides` still forces a column's type either way.
+Library: `ImportJob.FloatWidth` / `ConvertJob.FloatWidth` (`"f64"`,
+`"f32"`; `""` is `f64`). `import auto` and `pulse_import` take no
+float knob and infer `f64`.
+
 ### `--elide-constants`
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
@@ -351,8 +413,9 @@ dropping the row: `categorical_u8` → `u16` → `u32`; `u4` → `u8` → `u16`
 → `u32` → `u64` for a larger non-negative integer; `u4`..`u32` → `f64`
 for a negative, fractional or signed number; `f32` → `f64` for a value
 outside f32's range — past `MaxFloat32`, or a non-zero magnitude f32
-would flush to zero. That is the range test inference chose `f32` by, so
-a value f32 merely rounds (`0.1`) never promotes. Every step is lossless
+would flush to zero. Floats only infer `f32` under `--float f32` (see
+below), and by that same range test, so a value f32 merely rounds
+(`0.1`) never promotes. Every step is lossless
 for every value already read. Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
 warning (`field`, `from`, `to`, `source_row`) in the envelope `warnings`
 and `data.WidthWarnings` (`width_warnings` on `import auto` /
@@ -501,6 +564,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse api compose` | Execute multiple processing requests in batch | [api compose](api-compose.md) |
 | `pulse api facet` | Distinct values for a field, or a rich multi-field summary | [api facet](api-facet.md) |
 | `pulse api lookup` | Key-exact row read against a prebuilt sidecar index | [api lookup](api-lookup.md) |
+| `pulse api materialize` | Write a request's derived columns (features, attributes, windows) as fields of a new cohort: `-r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`; refusals keep their own code | [Materialize](../library/materialize.md) |
 | `pulse api predict` | Validate a request against a cohort without executing | [api predict](api-predict.md) |
 | `pulse api predict-chain` | Validate a process-chain request without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
 | `pulse api predict-compose` | Validate a Compose batch without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |

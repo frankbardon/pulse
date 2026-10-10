@@ -1,9 +1,7 @@
 package window
 
 import (
-	"encoding/json"
-
-	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/ewmaparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -12,25 +10,15 @@ type ewmaComputer struct {
 	alpha float64
 }
 
-type ewmaParams struct {
-	Alpha *float64 `json:"alpha"`
-}
-
 func init() {
 	register(types.WIN_EWMA, func(w *types.Window, _ WindowOptions) (WindowComputer, error) {
-		var p ewmaParams
-		if len(w.Params) > 0 {
-			if err := json.Unmarshal(w.Params, &p); err != nil {
-				return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "ewma params")
-			}
+		// The params reading is shared with predict (internal/ewmaparams), so
+		// both refuse the same request with the same message.
+		alpha, ref := ewmaparams.Resolve(w.Params)
+		if ref != nil {
+			return nil, ref.Coded()
 		}
-		if p.Alpha == nil {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "ewma requires params.alpha")
-		}
-		if *p.Alpha <= 0 || *p.Alpha > 1 {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "ewma alpha must be in (0, 1]")
-		}
-		return &ewmaComputer{field: w.Field, alpha: *p.Alpha}, nil
+		return &ewmaComputer{field: w.Field, alpha: alpha}, nil
 	})
 }
 

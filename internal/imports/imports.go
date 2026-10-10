@@ -148,6 +148,34 @@ type Spec struct {
 	// additions to the current declaration. Ignored on a .pulse
 	// passthrough.
 	SuggestGroups bool
+
+	// Schema is an explicit, caller-authored schema, exactly as
+	// io.ImportJob.Schema: it is matched to the source's columns BY NAME
+	// (never position) and every mismatch is a coded refusal raised
+	// before a row is read — PULSE_IMPORT_SCHEMA_FIELD_MISSING,
+	// _COLUMN_UNMAPPED, _DUPLICATE, _KEY_LATE. MCP pulse_import builds it
+	// from its `schema` argument through the same decoder the CLI
+	// --schema file goes through. Nil (the default) infers the schema,
+	// unchanged. A
+	// schema on a .pulse source is refused with
+	// PULSE_IMPORT_SCHEMA_INVALID: that source is never re-encoded.
+	//
+	// Deliberately NOT persisted on the sidecar (nor IgnoreExtra /
+	// FloatWidth): nothing re-imports a managed handle — an expired one
+	// is swept and Open never reuses one — and the cohort header already
+	// records every field's name, type, nullability and description.
+	Schema *encoding.Schema
+
+	// IgnoreExtra drops source columns (and late NDJSON / JSON-array
+	// keys) Schema does not name instead of refusing the import, as
+	// io.ImportJob.IgnoreExtra. Inert without Schema.
+	IgnoreExtra bool
+
+	// FloatWidth is the width an inferred all-float column takes: "f64"
+	// (the default; "" means the same) or "f32", as
+	// io.ImportJob.FloatWidth; any other value is
+	// PULSE_IMPORT_FLOAT_WIDTH_INVALID. Inert on a .pulse passthrough.
+	FloatWidth string
 }
 
 // Result describes the outcome of a managed-import call. Managed=false

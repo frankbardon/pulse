@@ -39,8 +39,8 @@ func featureCapabilities() []descriptor.Operator {
 			Category:    "feature",
 			Description: "Bin a numeric column into ordered buckets using explicit boundaries or N equal-population quantiles.",
 			Params: []descriptor.Param{
-				{Name: "boundaries", Type: "list", Required: false, Description: "Sorted ascending list of bucket cutpoints (mutually exclusive with quantiles)."},
-				{Name: "quantiles", Type: "int", Required: false, Description: "Number of equal-population buckets (mutually exclusive with boundaries)."},
+				{Name: "boundaries", Type: "list", Required: false, Description: "Sorted ascending list of bucket cutpoints (mutually exclusive with quantiles).", ExactlyOneOf: "cutpoints"},
+				{Name: "quantiles", Type: "int", Required: false, Description: "Number of equal-population buckets (mutually exclusive with boundaries).", ExactlyOneOf: "cutpoints"},
 			},
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "u32",

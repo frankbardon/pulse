@@ -19,6 +19,7 @@ func wantDefaults() Limits {
 		MaxComposeSlots:    1_000,
 		MaxChainStages:     1_000,
 		MaxJoinBuildRows:   100_000_000,
+		MaxDerivedColumns:  1_000,
 	}
 }
 
@@ -41,6 +42,7 @@ func TestNamesAndOptions(t *testing.T) {
 		MaxComposeSlots:    "Options.Limits.MaxComposeSlots",
 		MaxChainStages:     "Options.Limits.MaxChainStages",
 		MaxJoinBuildRows:   "Options.Limits.MaxJoinBuildRows",
+		MaxDerivedColumns:  "Options.Limits.MaxDerivedColumns",
 	}
 	names := Names()
 	if len(names) != len(want) {

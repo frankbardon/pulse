@@ -375,6 +375,14 @@ var requestParityEntryPoints = []parityEntryPoint{
 	// entry point the contract does.
 	{name: "Facet", run: func(*testing.T, *parityHost, parityCategory, string) ([]byte, bool) { return nil, false }},
 	{name: "Watch", run: func(*testing.T, *parityHost, parityCategory, string) ([]byte, bool) { return nil, false }},
+	{name: "Materialize", run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
+		req, ok := h.materializeRequest(c, op)
+		if !ok {
+			return nil, false
+		}
+		res, err := h.p.Materialize(context.Background(), req, parityMaterializeOut, MaterializeOptions{Overwrite: true})
+		return parityOutcome(res, err), true
+	}},
 	{name: "FilterToFile", run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
 		if c.filterToFile == nil {
 			return nil, false
@@ -398,6 +406,40 @@ func (h *parityHost) request(c parityCategory, op string) (*types.Request, bool)
 	}
 	req := h.base()
 	req.Cohort = &types.Cohort{Filename: h.cohort}
+	c.request(req, op, h.fields)
+	return req, true
+}
+
+// parityMaterializeOut is the target every Materialize cell writes
+// (overwriting): an outcome is the result object, never the bytes.
+const parityMaterializeOut = "parity-materialized.pulse"
+
+// materializeRequest builds a Materialize request carrying op in
+// category c's slot over the bare cohort — no base grouper or
+// aggregator, which Materialize refuses before any name resolves.
+// Only the derived-column and filter categories apply; a filterer cell
+// adds the first derived operator the instance offers (a filter alone
+// derives nothing), and is inapplicable when it offers none.
+func (h *parityHost) materializeRequest(c parityCategory, op string) (*types.Request, bool) {
+	switch c.name {
+	case "attribute", "window", "feature", "filterer":
+	default:
+		return nil, false
+	}
+	req := &types.Request{Cohort: &types.Cohort{Filename: h.cohort}}
+	if c.name == "filterer" {
+		inst := h.p.svc.InstanceSnapshot()
+		switch {
+		case inst.Enabled(string(types.FEAT_LOG)):
+			req.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: h.fields.num, Label: "derived"}}
+		case inst.Enabled(string(types.ATTR_FORMULA)):
+			req.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Field: h.fields.num, Label: "derived", Expression: h.fields.num + " * 2"}}
+		case inst.Enabled(string(types.WIN_ROW_NUMBER)):
+			req.Windows = []*types.Window{{Type: types.WIN_ROW_NUMBER, Label: "derived", OrderBy: []types.OrderKey{{Field: h.fields.cat}}}}
+		default:
+			return nil, false
+		}
+	}
 	c.request(req, op, h.fields)
 	return req, true
 }

@@ -75,10 +75,12 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:joins":             {requestHosts},
 		"capability:crosstab":          {requestHosts},
 		"capability:weighting":         {requestHosts},
-		"capability:multiplicity":      nil, // every block is a request slot, but Facet overlays carry one too: no host group
+		"capability:for_each":          {requestHosts}, // an item fan-out rides any request host
+		"capability:multiplicity":      nil,            // every block is a request slot, but Facet overlays carry one too: no host group
 		"capability:stream":            {{"capability:process"}},
 		"capability:watch":             {{"capability:process"}},
 		"capability:filter_to_file":    {{"capability:process"}, {"FILTER_EXPRESSION"}},
+		"capability:materialize":       {{"capability:process"}}, // runs Process's pre-flight and record pipeline
 		"capability:compose_sweep":     {{"capability:compose"}}, // a sweep expands into Compose slots
 		"ATTR_REG_FITTED":              {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_LEVERAGE":            {requestHosts, {"REG_OLS"}},

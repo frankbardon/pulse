@@ -409,6 +409,50 @@ func validateParams(params []ParamMeta, cat extensionCategory, regName string) e
 				},
 			)
 		}
+		if p.ExactlyOneOf != "" && (p.Required || p.Default != nil) {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension %s %q param[%d] (%q) is in ExactlyOneOf group %q but is Required or carries a Default", cat, regName, i, p.Name, p.ExactlyOneOf),
+				map[string]any{
+					"category":       string(cat),
+					"name":           regName,
+					"param_index":    i,
+					"param_name":     p.Name,
+					"exactly_one_of": p.ExactlyOneOf,
+				},
+			)
+		}
+	}
+	return validateExactlyOneOfGroups(params, cat, regName)
+}
+
+// validateExactlyOneOfGroups refuses an ExactlyOneOf group with a
+// single member: "exactly one of one param" is a required param, and
+// declaring it as a group would hide that from Recommend's drafting.
+func validateExactlyOneOfGroups(params []ParamMeta, cat extensionCategory, regName string) error {
+	members := map[string]int{}
+	var order []string
+	for _, p := range params {
+		if p.ExactlyOneOf == "" {
+			continue
+		}
+		if members[p.ExactlyOneOf] == 0 {
+			order = append(order, p.ExactlyOneOf)
+		}
+		members[p.ExactlyOneOf]++
+	}
+	for _, g := range order {
+		if members[g] < 2 {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension %s %q ExactlyOneOf group %q has one member; a group needs at least two (declare a lone param Required instead)", cat, regName, g),
+				map[string]any{
+					"category":       string(cat),
+					"name":           regName,
+					"exactly_one_of": g,
+				},
+			)
+		}
 	}
 	return nil
 }

@@ -314,7 +314,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_WIDTH_PROMOTED: {
-		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
+		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range when f32 was inferred under the --float f32 opt-in (the default infers f64) (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -333,6 +333,97 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "For an explicit-schema import or an SPSS source, drop ColumnTypeOverrides and declare the column's type in the explicit Schema instead — an authoritative source dictionary is not re-typed by an override.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_FIELD_MISSING: {
+		Message: "An explicit import schema (--schema / ImportJob.Schema / ConvertJob.Schema) names a field the source has no column for, so the import is refused before any row is read and nothing is written. An explicit schema is matched to the source's columns BY NAME — exact spelling, case and whitespace included — never by position; the order of the schema's fields is the cohort's field order and need not match the source. For NDJSON and JSON-array sources the columns are the keys of the FIRST object. Details carry `field` (the schema field) and `columns` (the source header).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "Fields", "*", "Name"},
+				Hint:   "Rename the schema field to the exact column spelling listed in details.columns, or remove the field from the schema. `pulse import schema-template INPUT` emits a schema whose names are the source header verbatim.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For an NDJSON / JSON-array source whose first object omits an optional key, write that key (as JSON null) on the first object, so the column set the first object declares covers every schema field.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED: {
+		Message: "The source carries a column that no field of the explicit import schema names, so the import is refused before any row is read rather than silently dropping that column's data. Columns are matched to schema fields by exact name. Details carry `column` (the unmapped source column) and `fields` (the schema's field names). The opt-out --ignore-extra (ImportJob.IgnoreExtra / ConvertJob.IgnoreExtra) drops every unmapped column instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "Fields"},
+				Hint:   "Add a field for the column to the schema (its name exactly as in details.column), or correct a schema field whose name was meant to match it.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"IgnoreExtra"},
+				Hint:   "Pass --ignore-extra (IgnoreExtra: true) to import only the schema's fields and drop every other source column on purpose.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_DUPLICATE: {
+		Message: "By-name matching of an explicit import schema found a name it cannot resolve to exactly one column, so the import is refused before any row is read. Either the schema declares the same field name twice (details: `field`, `side` = \"schema\"), or the source header repeats a column name (details: `column`, `side` = \"header\"). A repeated header name is refused when the schema names it, or when extra columns are not being ignored.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "Fields", "*", "Name"},
+				Hint:   "Remove or rename the repeated schema field so every field name is unique.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Rename the repeated source column so every header name is unique, then name the one you want in the schema. A repeated column the schema does not name is tolerated under --ignore-extra.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_KEY_LATE: {
+		Message: "Under an explicit import schema, an NDJSON or JSON-array source carries a key in a later object that the first object did not, so the import is refused at that row. The first object's keys are the source's column set; a key first seen later has no column, and importing past it would silently drop its values. Details carry `column` (the key), `row` (the 1-based data row it first appears on) and `columns` (the first object's keys). The opt-out --ignore-extra (IgnoreExtra) drops such keys instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Write every key on every object (a missing value as JSON null) so the first object declares the full column set, then name the key in the schema.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"IgnoreExtra"},
+				Hint:   "Pass --ignore-extra (IgnoreExtra: true) when the late key is not wanted in the cohort.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN: {
+		Message: "An explicit import schema file declares a field whose `type` is not a registered field type, so the schema is refused before any row is read. The name is matched exactly (lower case, as `pulse import schema-template` emits it) and never coerced — an unknown name no longer falls back to f64. Details carry `field`, `type` (the name as written) and `valid` (every registered type name). Raised by every schema-file loader: `import <format> --schema`, `import predict --schema` and `convert --schema`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Correct the field's `type` to one of the names in details.valid (e.g. f64, not float or double), or regenerate the file with `pulse import schema-template INPUT` and edit from there.",
+			},
+		},
+	},
+	PULSE_IMPORT_SCHEMA_INVALID: {
+		Message: "An explicit import schema (--schema file, ImportSpec.Schema, an MCP import `schema` argument) cannot be used as written, so the import is refused before any row is read and nothing is written. The document must be a JSON array of field objects {name, type, nullable, description, precision, scale} listing at least one field; over MCP an entry key outside that shape is refused rather than silently dropped (a misspelled `nullable` would otherwise import the field non-nullable). A schema is also refused on a .pulse source, which is used as-is and never re-encoded. Details carry `reason` (malformed, unknown_key, empty, passthrough) plus `error`, `key` or `index` where they apply.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "*"},
+				Hint:   "Write the schema as a JSON array of {\"name\", \"type\", \"nullable\", \"description\"} objects (precision / scale for decimal128 only), spelling each key exactly; `pulse import schema-template INPUT` emits a valid document to edit.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Schema"},
+				Hint:   "For a .pulse source drop the schema: the cohort already carries its own. Omit the schema entirely to let inference type the columns.",
+			},
+		},
+	},
+	PULSE_IMPORT_FLOAT_WIDTH_INVALID: {
+		Message: "The import float-width knob names neither f64 nor f32, so the import is refused before the source is read. It chooses the width inference gives an all-float column: f64 (the default; the empty string means the same) keeps every decimal exact to ~15-17 significant digits, f32 halves the bytes but rounds to ~7. Details carry `value` (as given) and `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"FloatWidth"},
+				Hint:   "Pass --float f64 (FloatWidth \"f64\", or omit it) for exact decimals, or --float f32 to opt into the narrower width.",
 			},
 		},
 	},
@@ -558,6 +649,56 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"StrictDedup"},
 				Hint:   "To keep a deliberately low-ratio group, re-run without --strict (it then writes with this warning) or lower --dedup-ratio-floor; a floor of 1 leaves only the grows-the-file check.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_SLOT_UNSUPPORTED: {
+		Message: "A materialize request carries a slot that does not keep one row per source record; only features, filterers, attributes, windows, sort, weight and time_zone are accepted.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"*"},
+				Hint:   "Remove the slot named in details.slot, or run the request through Process instead; a materialized cohort can then be processed with that slot as an ordinary request.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_NO_DERIVED: {
+		Message: "A materialize request carries no features, attributes or windows, so there is no derived column to append to the cohort.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Features"},
+				Hint:   "Add at least one feature, attribute or window slot; to copy filtered records without new columns, write the filtered cohort instead.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_UNDECLARED: {
+		Message: "A materialize request carries a feature whose output columns cannot be named before the run, so the output schema cannot be laid out.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Features", "*", "Type"},
+				Hint:   "Replace the feature named in details.feature with a built-in operator, or fix its params or source field so it yields at least one output column (predict lists the columns each feature emits).",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC: {
+		Message: "A derived value is not numeric, so it cannot be stored in the f64 column a materialize run writes for it; nothing was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Windows", "*", "Field"},
+				Hint:   "Point the window named by details.column at a numeric field, or give a lag/lead a numeric default; details.value_type names the value that was refused.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_SIDECARS_INVALIDATED: {
+		Message: "A materialize run overwrote a cohort whose sidecars are now stale; nothing was rebuilt.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"InvalidatedSidecars"},
+				Hint:   "Run each rebuild command the result's invalidated_sidecars lists (details.sidecars names their paths), or delete the stale sidecars.",
 			},
 		},
 	},
@@ -1201,11 +1342,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_PARAM_INVALID: {
-		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default).",
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, or an ExactlyOneOf group with one member or a Required / defaulted member).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true.",
+				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default.",
 				Examples: []any{"string", "number", "boolean", "array", "object"},
 			},
 		},
@@ -1443,6 +1584,27 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"sweep", "request"},
 				Hint:   "Reference every axis with `{{axis}}` (inside a string) or `{\"$var\": \"axis\"}` (a whole value), name only declared axes, correct the key under `unknown_field`, and move any `label` into sweep.label.",
+			},
+		},
+	},
+	PULSE_FOR_EACH_INVALID: {
+		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"windows", "*", "for_each", "axes"},
+				Hint:   "Give every axis a unique identifier `name` and at least one scalar value; under `mode: zip` give every axis the same number of values.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"windows", "*", "for_each", "mode"},
+				Hint:     "Set `mode` to one of the values under `valid`, or drop it for grid.",
+				Examples: []any{"grid", "zip"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"windows", "*", "label"},
+				Hint:   "Reference every axis with `{{axis}}` in a string (label, field) or `{\"$var\": \"axis\"}` inside params, name only declared axes, and correct the key under `unknown_field`. A for_each item works the same under `features` and `attributes`.",
 			},
 		},
 	},
@@ -2386,6 +2548,17 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Correct the template body against the target request type's shape: drop or rename the unknown field the decode fault names, and make sure each variable marker sits in a slot whose type matches the variable's declared type. Render with the same variables again to confirm.",
+			},
+		},
+	},
+
+	PULSE_TEMPLATE_AXIS_COLLISION: {
+		Message: "The template declares a variable with the same name as an axis of a for_each item in its body. Inside that item the renderer leaves the item's own axis placeholders for the for_each expansion, so a same-named template variable would make each such placeholder ambiguous.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Variables", "*"},
+				Hint:   "Rename either the template variable or the for_each axis named in the error details so the two no longer share a name, and update the placeholders that refer to the renamed one.",
 			},
 		},
 	},

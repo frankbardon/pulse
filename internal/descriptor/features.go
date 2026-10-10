@@ -99,12 +99,14 @@ var (
 	featProcess      = FeatureName(FeatureKindCapability, "process")
 	featCompose      = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep = FeatureName(FeatureKindCapability, "compose_sweep")
+	featForEach      = FeatureForEach
 	featProcessChain = FeatureName(FeatureKindCapability, "process_chain")
 	featFacet        = FeatureName(FeatureKindCapability, "facet")
 	featSample       = FeatureName(FeatureKindCapability, "sample")
 	featLookup       = FeatureName(FeatureKindCapability, "lookup")
 	featImport       = FeatureName(FeatureKindCapability, "import")
 	featDedup        = FeatureName(FeatureKindCapability, "dedup")
+	featMaterialize  = FeatureName(FeatureKindCapability, "materialize")
 	featRecommend    = FeatureName(FeatureKindCapability, "recommend")
 	featExplain      = FeatureName(FeatureKindCapability, "explain")
 	featLabels       = FeatureName(FeatureKindCapability, "labels")
@@ -131,6 +133,11 @@ var (
 // (DefaultMultiplicity refusal) reads it too.
 const FeatureMultiplicity = "capability:multiplicity"
 
+// FeatureForEach is capability:for_each — the item fan-out: the
+// `for_each` key on Window, Feature and Attribute. Exported because the
+// MCP binder (nested for_each properties) reads it.
+const FeatureForEach = "capability:for_each"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -151,6 +158,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("watch"),          // Watch*
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
 	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
+	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
 	capability("process_chain"),  // ProcessChain
 	capability("facet"),          // Facet, FacetSchema
 	capability("sample"),         // Sample, SampleWithRequest
@@ -163,6 +171,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("export"),         // Export, Convert, ImportTransfer, ExportTransfer
 	capability("filter_to_file"), // FilterToFile*
 	capability("dedup"),          // Dedup
+	capability("materialize"),    // pulse_materialize, pulse api materialize (the facade stays ungated)
 	capability("widen"),          // WidenSetField
 	capability("templates"),      // request templates
 	capability("synth"),          // Synth, SynthStream, data-profile capture; gates every synth distribution
@@ -378,11 +387,13 @@ var builtinFeatures = withDependencies([]Feature{
 var requestHosts = []string{featProcess, featCompose, featProcessChain}
 
 // processOnly lists the capabilities that exist only as a mode of Process
-// (streaming, watching, filter-to-file) and so depend on it alone.
+// (streaming, watching, filter-to-file, materialize — which runs Process's
+// pre-flight and record-level pipeline) and so depend on it alone.
 var processOnly = map[string]bool{
 	featStream:       true,
 	featWatch:        true,
 	featFilterToFile: true,
+	featMaterialize:  true,
 }
 
 // requestSlotCapabilities are request slots modelled as capabilities;
@@ -392,6 +403,7 @@ var requestSlotCapabilities = map[string]bool{
 	featCrosstab:  true,
 	featWeighting: true,
 	featMatrices:  true,
+	featForEach:   true,
 }
 
 // slotTokenSet is the prose vocabulary one slot-owning capability owns:
@@ -452,6 +464,8 @@ var slotTokens = map[string]slotTokenSet{
 	// `sweep` and `ranking` are everyday English; no guidance sentence
 	// names the slot yet.
 	featComposeSweep: {},
+	// `for_each` names the item key only; no guidance sentence names it.
+	featForEach: {},
 	// pulse_explain's `sample` root slot: "sample" is everyday English
 	// (a sample of rows, sample size).
 	featSample: {},
@@ -736,6 +750,7 @@ var mcpToolBindings = []MCPToolBinding{
 	{Tool: "pulse_imports_list", Feature: featImport},
 	{Tool: "pulse_drop", Feature: featImport},
 	{Tool: "pulse_dedup", Feature: featDedup},
+	{Tool: "pulse_materialize", Feature: featMaterialize},
 	{Tool: "pulse_label_tables", Feature: featLabels},
 	{Tool: "pulse_label_resolve", Feature: featLabels},
 	{Tool: "pulse_range_tables", Feature: featRangeTables},
@@ -794,6 +809,7 @@ var commandBindings = []CommandBinding{
 	{Command: "index drop", Feature: featIndex},
 	{Command: "widen", Feature: featWiden},
 	{Command: "dedup", Feature: featDedup},
+	{Command: "materialize", Feature: featMaterialize},
 	{Command: "recommend", Feature: featRecommend},
 	{Command: "explain", Feature: featExplain},
 	// The feature-profile tooling describes the binary, not an instance.

@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-EXACTLY ONE of:
+EXACTLY ONE of (manifest `exactly_one_of: cutpoints`; a Recommend draft names `boundaries`):
 
 - `boundaries` (list[float]) — sorted ascending cutpoints; `v` lands in bucket `i` where `boundaries[i-1] < v <= boundaries[i]`.
 - `quantiles` (int) — count of equal-population buckets.
@@ -41,7 +41,7 @@ One `u32`-coded `f64` column at `Label` (default `BUCKET_<field>`) holding the b
 
 ## Gotchas
 
-- Neither OR both of `boundaries` / `quantiles` → `PROCESSING_CONFIG` at predict.
+- Neither OR both of `boundaries` / `quantiles` → `SERVICE_VALIDATION` at predict (runtime `PROCESSING_CONFIG`).
 - Quantile mode is GLOBAL-PASS — sweeps the cohort for N-1 cutpoints before emitting. Streaming still works (state survives `iter.Reset()`); file-backed iterators pay a second I/O. Explicit mode is PER-ROW, stateless.
 - Boundaries are EXCLUSIVE on the lower edge — a value on a cutpoint goes to the LOWER index (`SearchFloat64s`).
 - Null inputs emit a null bucket; a range filter works on the integer code.

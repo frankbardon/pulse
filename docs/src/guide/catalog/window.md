@@ -114,7 +114,7 @@ Adds a smoothed series: each new value counts for a fixed share w, the previous 
 - Runs on the result's rows after grouping: one row per group, or one per filtered record when nothing is grouped.
 - Computed separately within each partition_by slice, in order_by order; with no partition the whole result is one series.
 - Steps are rows, not calendar periods: a period with no row is skipped, not filled, so one row back can span two periods.
-- The share w is set directly (params.alpha, above 0 and at most 1); it seeds from the partition's first value present.
+- The share w is set directly (params.alpha, above 0 and at most 1) or as its complement (params.decay = 1 - w, at least 0 and below 1); it seeds from the partition's first value present.
 - A missing value reads null and the smoothing carries over it.
 
 **Use something else:**

@@ -69,14 +69,24 @@ type Expansion struct {
 // under zip, 0 for a nil spec or one without axes. A product past
 // math.MaxInt saturates there, so a limit check on it never wraps.
 func Count(spec *types.SweepSpec) int {
-	if spec == nil || len(spec.Axes) == 0 {
+	if spec == nil {
 		return 0
 	}
-	if spec.Mode == types.SweepModeZip {
-		return len(spec.Axes[0].Values)
+	return countAxes(spec.Axes, spec.Mode)
+}
+
+// countAxes is Count over an axis list and mode: the axis product under
+// grid (saturating at math.MaxInt), the common length under zip, 0
+// without axes.
+func countAxes(axes []types.SweepAxis, mode types.SweepMode) int {
+	if len(axes) == 0 {
+		return 0
+	}
+	if mode == types.SweepModeZip {
+		return len(axes[0].Values)
 	}
 	n := 1
-	for _, ax := range spec.Axes {
+	for _, ax := range axes {
 		k := len(ax.Values)
 		if k == 0 {
 			return 0
@@ -95,7 +105,9 @@ func Count(spec *types.SweepSpec) int {
 // PredictCompose, the overlay resolve, the EchoRequest echo), so their slot
 // lists and label namespaces cannot drift.
 //
-// Order of checks: Validate; then the reference rule (every axis is
+// Order of checks: Validate; then the nested-for_each refusal (an item
+// in the body carrying `for_each` is PULSE_FOR_EACH_INVALID reason
+// nested_in_sweep); then the reference rule (every axis is
 // named by a placeholder in the request body, the AUTHORED label pattern
 // or the overlays — the default label does not count — and every
 // placeholder names an axis); then preflight, when non-nil, with the
@@ -125,6 +137,11 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 		return &Expansion{Composed: c, Explicit: len(c.Requests)}, nil
 	}
 	if ce := Validate(spec); ce != nil {
+		return nil, ce
+	}
+	// An item for_each inside the body is refused before the placeholder
+	// scan, which would otherwise trip on the item's own axis names.
+	if ce := nestedForEachRefusal(spec.Request); ce != nil {
 		return nil, ce
 	}
 	if ce := checkReferences(spec); ce != nil {
@@ -162,7 +179,7 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 	labels := make([]string, 0, n)
 
 	var ce *errors.CodedError
-	forEachCombination(spec, func(slot int, values map[string]any) bool {
+	forEachCombination(spec.Axes, spec.Mode, func(slot int, values map[string]any) bool {
 		vars := variablesFor(spec.Axes, values)
 		req, fault := renderRequest(spec, vars, values, slot)
 		if fault != nil {
@@ -201,14 +218,13 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels}, nil
 }
 
-// forEachCombination walks the spec's combinations in expansion order —
+// forEachCombination walks the axes' combinations in expansion order —
 // grid row-major with the FIRST axis slowest (an odometer whose last
 // axis turns fastest), zip in lockstep — handing each one's 0-based
-// sweep-slot ordinal and axis → value map to visit until it returns
-// false.
-func forEachCombination(spec *types.SweepSpec, visit func(slot int, values map[string]any) bool) {
-	axes := spec.Axes
-	if spec.Mode == types.SweepModeZip {
+// ordinal and axis → value map to visit until it returns false. The
+// compose sweep and an item's for_each share it.
+func forEachCombination(axes []types.SweepAxis, mode types.SweepMode, visit func(slot int, values map[string]any) bool) {
+	if mode == types.SweepModeZip {
 		for i := range axes[0].Values {
 			values := make(map[string]any, len(axes))
 			for _, ax := range axes {

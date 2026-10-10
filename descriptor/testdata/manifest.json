@@ -4,8 +4,8 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:6fcbfc58f534e07cfdcdd0f923a3860d4542eca9e1329b61ec28380f2f6211c6",
-    "limits_digest": "lim1:49b4b38405683a05bd5b01d52404485583713e64b529bc1bce5b75d1c275994d",
+    "feature_set_digest": "fs1:f851ca4127599792e148701605b8ba72c2be9e27dc59de14d29010f297488994",
+    "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
         "name": "process",
@@ -50,6 +50,15 @@
           "streamable": true,
           "deterministic": true,
           "expensive": false
+        }
+      },
+      {
+        "name": "materialize",
+        "description": "Write a new cohort holding a request's filter-passing source records plus one f64 column per derived output (features, attributes, windows), so later requests read them as ordinary fields (non-interactive, atomic)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
         }
       },
       {
@@ -2644,6 +2653,7 @@
             "u64",
             "u8"
           ],
+          "reads_expression": true,
           "emits_type": "f64",
           "emits_type_note": "one float per record (booleans coerce to 0/1)",
           "streamable": true,
@@ -3029,6 +3039,7 @@
             "u64",
             "u8"
           ],
+          "reads_expression": true,
           "emits_type_note": "record-level predicate",
           "streamable": true,
           "component_schema": {
@@ -4054,13 +4065,21 @@
         {
           "name": "WIN_EWMA",
           "category": "window",
-          "description": "Exponentially weighted moving average; current = α·value + (1−α)·previous.",
+          "description": "Exponentially weighted moving average; current = α·value + (1−α)·previous. Give exactly one of alpha or decay; alpha = 1 − decay.",
           "params": [
             {
               "name": "alpha",
               "type": "float",
-              "required": true,
-              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more."
+              "required": false,
+              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay.",
+              "exactly_one_of": "smoothing"
+            },
+            {
+              "name": "decay",
+              "type": "float",
+              "required": false,
+              "description": "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal. Exactly one of alpha or decay.",
+              "exactly_one_of": "smoothing"
             }
           ],
           "accepts_types": [
@@ -4073,6 +4092,7 @@
             "u64",
             "u8"
           ],
+          "ignores_frame": true,
           "emits_type": "f64",
           "emits_type_note": "one float per row",
           "streamable": false,
@@ -4359,13 +4379,15 @@
               "name": "boundaries",
               "type": "list",
               "required": false,
-              "description": "Sorted ascending list of bucket cutpoints (mutually exclusive with quantiles)."
+              "description": "Sorted ascending list of bucket cutpoints (mutually exclusive with quantiles).",
+              "exactly_one_of": "cutpoints"
             },
             {
               "name": "quantiles",
               "type": "int",
               "required": false,
-              "description": "Number of equal-population buckets (mutually exclusive with boundaries)."
+              "description": "Number of equal-population buckets (mutually exclusive with boundaries).",
+              "exactly_one_of": "cutpoints"
             }
           ],
           "accepts_types": [
@@ -6991,7 +7013,7 @@
         ]
       }
     ],
-    "error_codes_count": 300,
+    "error_codes_count": 314,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7088,6 +7110,7 @@
       "PULSE_FEATURE_PROFILE_UNKNOWN",
       "PULSE_FEAT_TARGET_LEAKAGE_RISK",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_FOR_EACH_INVALID",
       "PULSE_GROUP_DECLARATION_INVALID",
       "PULSE_GROUP_ENTRIES_EXHAUSTED",
       "PULSE_GROUP_FIELD_CONFLICT",
@@ -7100,12 +7123,19 @@
       "PULSE_IMPORT_DST_AMBIGUOUS",
       "PULSE_IMPORT_DST_NONEXISTENT",
       "PULSE_IMPORT_DST_RESOLVED",
+      "PULSE_IMPORT_FLOAT_WIDTH_INVALID",
       "PULSE_IMPORT_FORMAT_UNKNOWN",
       "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_NULL_PROMOTED",
       "PULSE_IMPORT_OVERRIDE_INVALID",
       "PULSE_IMPORT_ROW_ERROR",
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
+      "PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED",
+      "PULSE_IMPORT_SCHEMA_DUPLICATE",
+      "PULSE_IMPORT_SCHEMA_FIELD_MISSING",
+      "PULSE_IMPORT_SCHEMA_INVALID",
+      "PULSE_IMPORT_SCHEMA_KEY_LATE",
+      "PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN",
       "PULSE_IMPORT_SET_OVERFLOW",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
@@ -7137,6 +7167,11 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MATERIALIZE_NO_DERIVED",
+      "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC",
+      "PULSE_MATERIALIZE_OUTPUT_UNDECLARED",
+      "PULSE_MATERIALIZE_SIDECARS_INVALIDATED",
+      "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_HEYWOOD",
       "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_INSUFFICIENT_N",
@@ -7257,6 +7292,7 @@
       "PULSE_SYNTH_RULE_OWNERSHIP_INVALID",
       "PULSE_SYNTH_RULE_VALUE_INVALID",
       "PULSE_SYNTH_SOURCE_REQUIRED",
+      "PULSE_TEMPLATE_AXIS_COLLISION",
       "PULSE_TEMPLATE_INVALID",
       "PULSE_TEMPLATE_NOT_FOUND",
       "PULSE_TEMPLATE_RENDER_INVALID",
@@ -7341,7 +7377,7 @@
       },
       {
         "name": "pulse_import",
-        "description": "CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT. Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. SPSS is now writable too: `pulse export spss` emits a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar an import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false.\n\nSPSS read knobs: `charset` overrides the encoding a `.sav` declares about itself and is the ONLY recourse for a file that is wrong about itself — a stale record 7/20 name, or a pre-Unicode file declaring nothing at all, which reads as strict UTF-8 and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte. It is ignored for every other format. There is deliberately NO missing-value mode here: the default is the fidelity-preserving split (numeric user-missing values are null in the analytic column, and a generated `\u003cvar\u003e_missing` sibling records why), and the only alternative discards those siblings — ask for that explicitly with `pulse import spss --spss-missing=null`.\n\nParent groups (denormalized joins): `groups` takes `[{key: [...], members: [...]}]` — each distinct member tuple is stored once and every row carries a 4-byte index, a smaller format 0x02 cohort; a member that varies within its key fails PULSE_GROUP_MEMBER_NOT_CONSTANT. Do not guess declarations: set `suggest_groups: true` to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict) whose key/members paste straight back as `groups`, then re-import with `overwrite: true`. Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple), never failures; per-group figures ride `groups`."
+        "description": "CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT. Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. SPSS is now writable too: `pulse export spss` emits a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar an import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false.\n\nSPSS read knobs: `charset` overrides the encoding a `.sav` declares about itself and is the ONLY recourse for a file that is wrong about itself — a stale record 7/20 name, or a pre-Unicode file declaring nothing at all, which reads as strict UTF-8 and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte. It is ignored for every other format. There is deliberately NO missing-value mode here: the default is the fidelity-preserving split (numeric user-missing values are null in the analytic column, and a generated `\u003cvar\u003e_missing` sibling records why), and the only alternative discards those siblings — ask for that explicitly with `pulse import spss --spss-missing=null`.\n\nParent groups (denormalized joins): `groups` takes `[{key: [...], members: [...]}]` — each distinct member tuple is stored once and every row carries a 4-byte index, a smaller format 0x02 cohort; a member that varies within its key fails PULSE_GROUP_MEMBER_NOT_CONSTANT. Do not guess declarations: set `suggest_groups: true` to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict) whose key/members paste straight back as `groups`, then re-import with `overwrite: true`. Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple), never failures; per-group figures ride `groups`.\n\nExplicit schema: `schema` takes `[{name, type, nullable, description}]` (the `pulse import --schema` document; omit it to infer). Fields match source columns BY NAME, never position, and each mismatch is refused before any row is read with its own code: PULSE_IMPORT_SCHEMA_FIELD_MISSING, _COLUMN_UNMAPPED, _DUPLICATE, _KEY_LATE, _TYPE_UNKNOWN, _INVALID. `ignore_extra: true` drops unnamed columns instead. `float` picks the inferred float width: `f64` (default, exact decimals) or `f32`."
       },
       {
         "name": "pulse_imports_list",
@@ -7366,6 +7402,10 @@
       {
         "name": "pulse_manifest",
         "description": "CALL FIRST IN EVERY SESSION. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, matrix operators (`matrices`, used through the request's `vectors` / `matrices` slots, plus the `matrix` capability block), synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+      },
+      {
+        "name": "pulse_materialize",
+        "description": "CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD. Write a NEW single-file .pulse cohort (`out`, relative to PULSE_DATA_DIR) holding every filter-passing record of `request`'s cohort: the source columns verbatim, then one nullable f64 column per derived output of the request (features, attributes, windows) in pipeline order, each with a generated description. Derived values exist only inside the request that computes them, so a regression, grouper, filter or join over one needs this step first; then point the next request at `out`. `request` takes the pulse_process body but only the cohort, label, features, filterers, attributes, windows, sort (orders the output rows; keys may name derived columns), weight, time_zone and disable_components slots: any other slot is PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot), a request with no derived column PULSE_MATERIALIZE_NO_DERIVED, and an unknown key PULSE_REQUEST_UNKNOWN_FIELD. Every refusal happens before anything is written; the write is atomic. An existing `out` is refused with SERVICE_VALIDATION unless `overwrite: true`, which lists each sidecar it invalidated under `invalidated_sidecars` (with its rebuild command) beside a PULSE_MATERIALIZE_SIDECARS_INVALIDATED warning. Returns target, records, derived_columns, warnings."
       },
       {
         "name": "pulse_predict",
@@ -8598,6 +8638,10 @@
         "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
       },
       {
+        "name": "derived-cohorts",
+        "description": "Materialise a request's derived columns (features, attributes, windows) into a new cohort so a later request can regress, group, filter or join on them — when to, the two-step recipe, what the output holds."
+      },
+      {
         "name": "expression-language",
         "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
       },
@@ -8624,6 +8668,10 @@
       {
         "name": "intents",
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
+      },
+      {
+        "name": "item-fan-out",
+        "description": "for_each on a window, feature or attribute item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, a derived-column limit and predict parity."
       },
       {
         "name": "join-design",
@@ -9590,6 +9638,10 @@
         "description": "Bootstrap blob — call once per session for the operator + capability catalog."
       },
       {
+        "name": "tool-materialize",
+        "description": "Write a request's derived columns (features, attributes, windows) as ordinary fields of a new cohort that later requests read."
+      },
+      {
         "name": "tool-predict",
         "description": "Validate a request against a cohort schema without executing."
       },
@@ -9710,7 +9762,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 186,
+    "examples_count": 187,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13245,10 +13297,16 @@
         "value": 100000000,
         "default": 100000000,
         "unit": "count"
+      },
+      {
+        "name": "max_derived_columns",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7fdf904fc1e1b487265b78ed29bd1ce91e6ae7e6d6447bb010f248dc16e27ea3
+// golden-hash: 1681d48e1d94e9940a80b881b12eddb6e6b32f8d05bff14e9fdbf335231707e1

@@ -1,5 +1,8 @@
 // Package sweep is the one rule set for a Compose parameter sweep
-// (types.SweepSpec, the `sweep` slot of a ComposedRequest).
+// (types.SweepSpec, the `sweep` slot of a ComposedRequest) and for the
+// item fan-out that reuses its axes and substitution (types.ForEach,
+// the `for_each` key on a window, feature or attribute — items.go,
+// ExpandItems).
 //
 // It is NO-EXECUTE and sits below both callers that must agree on it:
 // the runtime (internal/service, Compose / ComposeParallel) and predict
@@ -68,56 +71,8 @@ func Validate(spec *types.SweepSpec) *errors.CodedError {
 	if spec == nil {
 		return nil
 	}
-	if len(spec.Axes) == 0 {
-		return invalid("sweep.axes", "", ReasonAxesEmpty,
-			"sweep declares no axes; a sweep needs at least one axis", nil)
-	}
-	seen := make(map[string]int, len(spec.Axes))
-	for i, ax := range spec.Axes {
-		at := axisPath(i)
-		if !isIdentifier(ax.Name) {
-			return invalid(at+".name", ax.Name, ReasonAxisNameInvalid,
-				"sweep axis "+describe(at, ax.Name)+" needs a name that is an identifier ([A-Za-z_][A-Za-z0-9_]*)",
-				map[string]any{"value": ax.Name})
-		}
-		if first, dup := seen[ax.Name]; dup {
-			return invalid(at+".name", ax.Name, ReasonAxisNameDuplicate,
-				"sweep axis name "+strconv.Quote(ax.Name)+" is declared twice ("+axisPath(first)+" and "+at+")",
-				map[string]any{"first": axisPath(first)})
-		}
-		seen[ax.Name] = i
-		if len(ax.Values) == 0 {
-			return invalid(at+".values", ax.Name, ReasonValuesEmpty,
-				"sweep axis "+describe(at, ax.Name)+" has no values; list at least one", nil)
-		}
-		for j, v := range ax.Values {
-			if !isScalar(v) {
-				vp := at + ".values[" + strconv.Itoa(j) + "]"
-				return invalid(vp, ax.Name, ReasonValueNotScalar,
-					"sweep axis "+describe(at, ax.Name)+" value "+vp+" is not a scalar; values are numbers, strings or booleans",
-					nil)
-			}
-		}
-	}
-	switch spec.Mode {
-	case "", types.SweepModeGrid, types.SweepModeZip:
-	default:
-		return invalid("sweep.mode", "", ReasonModeUnknown,
-			"sweep mode "+strconv.Quote(string(spec.Mode))+" is not grid or zip",
-			map[string]any{"value": string(spec.Mode), "valid": modeNames()})
-	}
-	if spec.Mode == types.SweepModeZip {
-		want := len(spec.Axes[0].Values)
-		for i, ax := range spec.Axes[1:] {
-			if len(ax.Values) != want {
-				at := axisPath(i + 1)
-				return invalid(at+".values", ax.Name, ReasonZipLengthMismatch,
-					"zip sweep axis "+describe(at, ax.Name)+" has "+strconv.Itoa(len(ax.Values))+
-						" values but "+describe(axisPath(0), spec.Axes[0].Name)+" has "+strconv.Itoa(want)+
-						"; zip walks the axes in lockstep, so every axis needs the same length",
-					map[string]any{"lengths": axisLengths(spec.Axes)})
-			}
-		}
+	if ce := sweepRules.validateAxes(spec.Axes, spec.Mode); ce != nil {
+		return ce
 	}
 	body := bytes.TrimSpace(spec.Request)
 	if len(body) == 0 || bytes.Equal(body, []byte("null")) {
@@ -158,7 +113,7 @@ func Validate(spec *types.SweepSpec) *errors.CodedError {
 	return nil
 }
 
-func axisPath(i int) string { return "sweep.axes[" + strconv.Itoa(i) + "]" }
+func axisPath(i int) string { return sweepRules.axisPath(i) }
 
 func describe(at, name string) string {
 	if name == "" {
@@ -168,6 +123,85 @@ func describe(at, name string) string {
 }
 
 func invalid(field, axis, reason, msg string, extra map[string]any) *errors.CodedError {
+	return sweepRules.invalid(field, axis, reason, msg, extra)
+}
+
+// axisRules is the axis rule set one fan-out surface applies: the
+// compose `sweep` (sweepRules) or an item's `for_each`
+// (forEachRules). root is the path the faults are rooted at, noun the
+// word the prose names the surface by, code the error raised.
+type axisRules struct {
+	root string
+	noun string
+	code errors.Code
+}
+
+// sweepRules is the ComposedRequest `sweep` rule set.
+var sweepRules = axisRules{root: "sweep", noun: "sweep", code: errors.PULSE_SWEEP_INVALID}
+
+func (r axisRules) axisPath(i int) string { return r.root + ".axes[" + strconv.Itoa(i) + "]" }
+
+// validateAxes is the structural axis check both fan-out surfaces run:
+// axes non-empty; every name a unique identifier; every values list
+// non-empty and scalar; mode empty, grid or zip; zip axes equal length.
+// Checks run in that order, axes in declared order; the first fault is
+// returned.
+func (r axisRules) validateAxes(axes []types.SweepAxis, mode types.SweepMode) *errors.CodedError {
+	if len(axes) == 0 {
+		return r.invalid(r.root+".axes", "", ReasonAxesEmpty,
+			r.noun+" declares no axes; a "+r.noun+" needs at least one axis", nil)
+	}
+	seen := make(map[string]int, len(axes))
+	for i, ax := range axes {
+		at := r.axisPath(i)
+		if !isIdentifier(ax.Name) {
+			return r.invalid(at+".name", ax.Name, ReasonAxisNameInvalid,
+				r.noun+" axis "+describe(at, ax.Name)+" needs a name that is an identifier ([A-Za-z_][A-Za-z0-9_]*)",
+				map[string]any{"value": ax.Name})
+		}
+		if first, dup := seen[ax.Name]; dup {
+			return r.invalid(at+".name", ax.Name, ReasonAxisNameDuplicate,
+				r.noun+" axis name "+strconv.Quote(ax.Name)+" is declared twice ("+r.axisPath(first)+" and "+at+")",
+				map[string]any{"first": r.axisPath(first)})
+		}
+		seen[ax.Name] = i
+		if len(ax.Values) == 0 {
+			return r.invalid(at+".values", ax.Name, ReasonValuesEmpty,
+				r.noun+" axis "+describe(at, ax.Name)+" has no values; list at least one", nil)
+		}
+		for j, v := range ax.Values {
+			if !isScalar(v) {
+				vp := at + ".values[" + strconv.Itoa(j) + "]"
+				return r.invalid(vp, ax.Name, ReasonValueNotScalar,
+					r.noun+" axis "+describe(at, ax.Name)+" value "+vp+" is not a scalar; values are numbers, strings or booleans",
+					nil)
+			}
+		}
+	}
+	switch mode {
+	case "", types.SweepModeGrid, types.SweepModeZip:
+	default:
+		return r.invalid(r.root+".mode", "", ReasonModeUnknown,
+			r.noun+" mode "+strconv.Quote(string(mode))+" is not grid or zip",
+			map[string]any{"value": string(mode), "valid": modeNames()})
+	}
+	if mode == types.SweepModeZip {
+		want := len(axes[0].Values)
+		for i, ax := range axes[1:] {
+			if len(ax.Values) != want {
+				at := r.axisPath(i + 1)
+				return r.invalid(at+".values", ax.Name, ReasonZipLengthMismatch,
+					"zip "+r.noun+" axis "+describe(at, ax.Name)+" has "+strconv.Itoa(len(ax.Values))+
+						" values but "+describe(r.axisPath(0), axes[0].Name)+" has "+strconv.Itoa(want)+
+						"; zip walks the axes in lockstep, so every axis needs the same length",
+					map[string]any{"lengths": axisLengths(axes)})
+			}
+		}
+	}
+	return nil
+}
+
+func (r axisRules) invalid(field, axis, reason, msg string, extra map[string]any) *errors.CodedError {
 	details := map[string]any{"field": field, "reason": reason}
 	if axis != "" {
 		details["axis"] = axis
@@ -175,7 +209,7 @@ func invalid(field, axis, reason, msg string, extra map[string]any) *errors.Code
 	for k, v := range extra {
 		details[k] = v
 	}
-	return errors.NewCodedErrorWithDetails(errors.PULSE_SWEEP_INVALID, msg, details)
+	return errors.NewCodedErrorWithDetails(r.code, msg, details)
 }
 
 // isIdentifier reports whether s matches [A-Za-z_][A-Za-z0-9_]*.

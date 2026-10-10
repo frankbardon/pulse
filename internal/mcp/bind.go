@@ -20,6 +20,8 @@ package mcp
 
 import (
 	"encoding/json"
+	"maps"
+	"slices"
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -603,8 +605,131 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
 	dropHiddenWeights(requestObject, inst)
 	dropHiddenMultiplicity(requestObject, inst)
+	relaxForEachItems(reqProps)
 
 	return json.Marshal(requestObject)
+}
+
+// forEachPlaceholderPattern matches a for_each axis placeholder
+// (`{{axis}}`, surrounding spaces tolerated) anywhere in a string — the
+// grammar the item expansion substitutes. JSON Schema patterns are
+// unanchored, so a string carrying one placeholder among literal text
+// (`{{ch}}_spend`) matches.
+const forEachPlaceholderPattern = `\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}`
+
+// relaxForEachItems lets a features / attributes / windows item that
+// carries a `for_each` spell any cohort-bound string — the operator type,
+// a field, partition_by / order_by entries, a regression target or
+// predictor, a weight field — as an axis placeholder, while an item
+// WITHOUT for_each keeps the strict enum. Each such string becomes
+// {"type":"string","anyOf":[{"enum":[…]},{"pattern":…}]}, and the item
+// gains `"if":{"required":["for_each"]}` with an `else` that forbids the
+// placeholder form at the same sites — plain draft 2020-12 keywords every
+// validating client implements. The `for_each` value itself is never
+// relaxed. A slot without a bound `for_each` (capability:for_each hidden:
+// the key was never added) is left untouched, so the placeholder branch
+// disappears with the capability.
+func relaxForEachItems(props map[string]any) {
+	for _, slot := range []string{"features", "attributes", "windows"} {
+		arr, _ := props[slot].(map[string]any)
+		item, _ := arr["items"].(map[string]any)
+		ip, _ := item["properties"].(map[string]any)
+		if _, ok := ip["for_each"]; !ok {
+			continue
+		}
+		forbid := map[string]any{}
+		for _, k := range slices.Sorted(maps.Keys(ip)) {
+			if k == "for_each" {
+				continue
+			}
+			relaxed, mirror := relaxEnumStrings(ip[k])
+			ip[k] = relaxed
+			if mirror != nil {
+				forbid[k] = mirror
+			}
+		}
+		if len(forbid) == 0 {
+			continue
+		}
+		item["if"] = map[string]any{"required": []string{"for_each"}}
+		item["else"] = map[string]any{"properties": forbid}
+	}
+}
+
+// relaxEnumStrings returns a copy of a schema node with every enum-bound
+// string inside it (through properties, items, oneOf and anyOf) widened
+// to also accept an axis placeholder, plus the mirror schema that, applied
+// at the node, refuses the placeholder form at exactly those sites (nil
+// when the node holds no enum-bound string). The input is never mutated:
+// bound schema fragments are shared between slots.
+func relaxEnumStrings(node any) (any, map[string]any) {
+	n, ok := node.(map[string]any)
+	if !ok {
+		return node, nil
+	}
+	if enum, ok := n["enum"]; ok && n["type"] == "string" {
+		out := make(map[string]any, len(n)+1)
+		for k, v := range n {
+			if k != "enum" {
+				out[k] = v
+			}
+		}
+		out["anyOf"] = []any{
+			map[string]any{"enum": enum},
+			map[string]any{"pattern": forEachPlaceholderPattern, "description": "A for_each axis placeholder ({{axis}}); valid only on an item carrying for_each."},
+		}
+		return out, map[string]any{"not": map[string]any{"type": "string", "pattern": forEachPlaceholderPattern}}
+	}
+	out := make(map[string]any, len(n))
+	for k, v := range n {
+		out[k] = v
+	}
+	mirror := map[string]any{}
+	if p, ok := n["properties"].(map[string]any); ok {
+		np := make(map[string]any, len(p))
+		mp := map[string]any{}
+		for k, v := range p {
+			r, m := relaxEnumStrings(v)
+			np[k] = r
+			if m != nil {
+				mp[k] = m
+			}
+		}
+		out["properties"] = np
+		if len(mp) > 0 {
+			mirror["properties"] = mp
+		}
+	}
+	if it, ok := n["items"]; ok {
+		r, m := relaxEnumStrings(it)
+		out["items"] = r
+		if m != nil {
+			mirror["items"] = m
+		}
+	}
+	var all []any
+	for _, kw := range []string{"oneOf", "anyOf"} {
+		branches, ok := n[kw].([]any)
+		if !ok {
+			continue
+		}
+		nb := make([]any, len(branches))
+		for i, b := range branches {
+			r, m := relaxEnumStrings(b)
+			nb[i] = r
+			if m != nil {
+				all = append(all, m)
+			}
+		}
+		out[kw] = nb
+	}
+	if len(all) > 0 {
+		mirror["allOf"] = all
+	}
+	if len(mirror) == 0 {
+		return out, nil
+	}
+	return out, mirror
 }
 
 // addRequestSlotDetail completes a bound Request schema with the slots
@@ -643,6 +768,11 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	attr["alpha"] = map[string]any{"type": "number", "description": "Penalty strength (> 0) when penalty is set."}
 	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
 	itemProps("windows")["frame"] = frameSchema()
+	if inst.Enabled(descx.FeatureForEach) {
+		for _, slot := range []string{"features", "attributes", "windows"} {
+			itemProps(slot)["for_each"] = forEachSchema()
+		}
+	}
 
 	if ct, ok := props["crosstab"].(map[string]any); ok {
 		ctProps, _ := ct["properties"].(map[string]any)
@@ -1324,6 +1454,38 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
 	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
+}
+
+// forEachSchema describes an item `for_each` (types.ForEach): the item
+// fanned out over parameter axes before validation. Bound only when
+// capability:for_each is enabled.
+func forEachSchema() map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. Counts toward Limits.MaxDerivedColumns. Not allowed inside a pulse_compose sweep body.",
+		"properties": map[string]any{
+			"axes": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "The fanned-out parameters.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{"type": "string", "description": "Placeholder name: an identifier, unique within this for_each."},
+						"values": map[string]any{
+							"type":        "array",
+							"minItems":    1,
+							"description": "The scalar values the axis takes, in expansion order.",
+							"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
+						},
+					},
+					"required": []string{"name", "values"},
+				},
+			},
+			"mode": enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths) — e.g. a label axis beside a parameter axis."),
+		},
+		"required": []string{"axes"},
+	}
 }
 
 // sweepSchema describes the ComposedRequest `sweep` block (types.SweepSpec):

@@ -154,7 +154,7 @@ func TestExampleFeatureProfiles_Content(t *testing.T) {
 	excluded := map[string]bool{
 		"capability:import": true, "capability:export": true, "capability:filter_to_file": true,
 		"capability:dedup": true, "capability:widen": true, "capability:shard": true,
-		"capability:index": true, "capability:synth": true,
+		"capability:index": true, "capability:synth": true, "capability:materialize": true,
 	}
 	fp, _ := ExampleFeatureProfile("read-only-analyst")
 	for _, f := range descx.Features() {

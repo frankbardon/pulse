@@ -570,6 +570,31 @@ a non-number, ambiguous or nowhere-resolving path refuses the batch with
 the same code. `ranking` is pinned outside the Compose-level `return`:
 always emitted, never rounded by `precision`.
 
+### Item fan-out (`for_each`)
+
+`Window`, `Feature` and `Attribute` each carry an optional `for_each`
+(`ForEach {axes, mode}` — the sweep's `SweepAxis` list and `SweepMode`).
+Before any other check the item is replaced IN PLACE by one ordinary
+item per axis combination (grid: first axis slowest; zip: lockstep),
+each rendered from the item's own body with the sweep substitution —
+`{{axis}}` in any string (`label`, `field`, `expression`), `{"$var":
+"axis"}` as a whole value inside `params` (opaque JSON; a typed
+non-string key cannot hold the marker) — and decoded strictly. Plain
+items are untouched, so a list may mix both, and no response shape
+changes: each expanded item produces its own column. The key is
+`omitempty`, so a for_each-free request is byte-identical on the wire
+and under `CanonicalHash`. It is gated by `capability:for_each`: on an
+instance that hides it the `for_each` properties and the `ForEach` def
+are absent (`SweepAxis` stays while a compose sweep is visible). A
+malformed for_each is `PULSE_FOR_EACH_INVALID` with `details.field` (a
+request-rooted path such as `windows[0].for_each.axes[1]`) and
+`details.reason`; a `for_each` inside a sweep body is refused with
+reason `nested_in_sweep`. `Limits.MaxDerivedColumns` (default 1,000)
+bounds plain plus expanded window, feature and attribute items, checked
+before any item renders. Predict reports each fan-out as `for_each
+[{path, axes, mode, expanded_count}]` on the predict result (not
+payload-reachable, so not in this schema).
+
 ## Undefined figures
 
 A result figure can be undefined even when every input is present — a

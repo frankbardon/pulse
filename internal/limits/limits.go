@@ -40,6 +40,7 @@ const (
 	DefaultMaxComposeSlots    int64         = 1_000
 	DefaultMaxChainStages     int64         = 1_000
 	DefaultMaxJoinBuildRows   int64         = 100_000_000
+	DefaultMaxDerivedColumns  int64         = 1_000
 )
 
 // Limits holds the instance resource limits. On an input layer a zero
@@ -81,6 +82,12 @@ type Limits struct {
 	// MaxJoinBuildRows bounds the record count of a join's build (right)
 	// side, which is held in memory. Default 100,000,000.
 	MaxJoinBuildRows int64
+
+	// MaxDerivedColumns bounds the number of window, feature and
+	// attribute items one request carries once every `for_each` is
+	// expanded (one per plain item, one per combination). Checked before
+	// any for_each item renders. Default 1,000.
+	MaxDerivedColumns int64
 }
 
 // Name is a limit's snake_case key — the spelling the feature profile
@@ -98,6 +105,7 @@ const (
 	MaxComposeSlots    Name = "max_compose_slots"
 	MaxChainStages     Name = "max_chain_stages"
 	MaxJoinBuildRows   Name = "max_join_build_rows"
+	MaxDerivedColumns  Name = "max_derived_columns"
 )
 
 // field binds a Name to its Go field.
@@ -142,6 +150,10 @@ var fields = []field{
 		func(l *Limits) int64 { return l.MaxJoinBuildRows },
 		func(l *Limits, v int64) { l.MaxJoinBuildRows = v },
 		DefaultMaxJoinBuildRows},
+	{MaxDerivedColumns, "MaxDerivedColumns",
+		func(l *Limits) int64 { return l.MaxDerivedColumns },
+		func(l *Limits, v int64) { l.MaxDerivedColumns = v },
+		DefaultMaxDerivedColumns},
 }
 
 func lookup(n Name) (field, bool) {

@@ -110,6 +110,27 @@ type ImportIn struct {
 	// slot beside them.
 	Groups        []pio.GroupDecl `json:"groups,omitempty" jsonschema:"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]}. Each distinct member tuple is stored ONCE and every row carries a 4-byte index instead — use it when the source is a denormalized join, where a parent's attributes (members) repeat on every child row and are determined by the parent's ID (key). The import FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT if a member varies within its key; omit key for a plain tuple group with no such check. Take declarations from suggest_groups candidates (their key/members are this exact shape) rather than guessing. Weak groups are reported, not refused: group_warnings carries PULSE_GROUP_TOO_NARROW (dropped) or PULSE_DEDUP_LOW_RATIO (written, under 2 rows per distinct tuple or no smaller). Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID. Writes format 0x02, which older pulse binaries cannot read. Not allowed on a .pulse passthrough."`
 	SuggestGroups bool            `json:"suggest_groups,omitempty" jsonschema:"Also detect candidate parent groups and return them as group_candidates, each measured over every row (ratio, resident dictionary bytes, projected file size, verdict) with key/members ready to pass back as a groups entry. Suggests only: the import still writes exactly what groups declares. Costs one extra full pass over the source. The loop is: import with suggest_groups, read group_candidates (the suggested list is the non-overlapping viable set), then re-import with groups and overwrite=true."`
+	// Schema / IgnoreExtra / Float are io.ImportJob's explicit-schema and
+	// float-width options, the CLI's --schema / --ignore-extra / --float.
+	// None is persisted on the sidecar (see imports.Spec.Schema).
+	Schema      []ImportSchemaField `json:"schema,omitempty" jsonschema:"Explicit schema: an array of field objects {name, type, nullable, description} (precision / scale for decimal128) — the same document pulse import --schema reads. Omit it to infer the schema (unchanged behaviour). Fields are matched to source columns BY NAME (exact spelling), never position; the array order is the cohort's field order. Refused before any row is read: a field with no column PULSE_IMPORT_SCHEMA_FIELD_MISSING, a column no field names PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED (unless ignore_extra), a repeated name PULSE_IMPORT_SCHEMA_DUPLICATE, an NDJSON / JSON-array key first seen after the first object PULSE_IMPORT_SCHEMA_KEY_LATE, an unknown type name PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN, an unknown entry key, an empty array or a schema on a .pulse source PULSE_IMPORT_SCHEMA_INVALID. A null in a non-nullable field is PULSE_IMPORT_ROW_ERROR."`
+	IgnoreExtra bool                `json:"ignore_extra,omitempty" jsonschema:"With schema: drop source columns (and late NDJSON / JSON-array keys) the schema does not name instead of refusing with PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED / PULSE_IMPORT_SCHEMA_KEY_LATE. A schema field with no column is still refused. Inert without schema. Default false."`
+	Float       string              `json:"float,omitempty" jsonschema:"Width an inferred all-float column takes: 'f64' (default; exact decimals) or 'f32' (half the bytes, rounds to ~7 significant digits). Any other value is PULSE_IMPORT_FLOAT_WIDTH_INVALID. Steers inference only: inert for fields an explicit schema types."`
+}
+
+// ImportSchemaField is one entry of pulse_import's `schema` argument —
+// the CLI --schema document's field shape (io.SchemaFileField), with
+// nullable and description optional as they are in a schema file
+// (absent = false / empty). HandleImport converts the entries and hands
+// them to the CLI's own decoder, io.SchemaFromFields, so type names and
+// layout resolve identically on both surfaces.
+type ImportSchemaField struct {
+	Name        string `json:"name" jsonschema:"Field name; must equal a source column header exactly (case and whitespace included). Matched BY NAME, never position."`
+	Type        string `json:"type" jsonschema:"Field type name as pulse import schema-template emits it: u4, u8, u16, u32, u64, f32, f64, date, datetime, packed_bool, categorical_u8/u16/u32, decimal128, set_u8/u16/u32/u64/u128/u256. An unknown name is PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN, never coerced."`
+	Nullable    bool   `json:"nullable,omitempty" jsonschema:"Whether the field may hold null. Default false: a null in it is PULSE_IMPORT_ROW_ERROR, never a silent widening."`
+	Description string `json:"description,omitempty" jsonschema:"Field description stored in the cohort header (max 1000 bytes)."`
+	Precision   uint8  `json:"precision,omitempty" jsonschema:"decimal128 only: total significant digits."`
+	Scale       uint8  `json:"scale,omitempty" jsonschema:"decimal128 only: digits after the decimal point."`
 }
 
 // There is deliberately no spss_missing slot on ImportIn. The mode's default
@@ -148,6 +169,19 @@ type DedupIn struct {
 	Groups        []pio.GroupDecl `json:"groups,omitempty" jsonschema:"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]} — the same shape pulse_import takes. Each distinct member tuple is stored ONCE and every row carries a 4-byte index. FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT (cohort untouched) if a member varies within its key. Take declarations from suggest_groups candidates rather than guessing. An already-grouped cohort is regrouped from scratch. Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID."`
 	SuggestGroups bool            `json:"suggest_groups,omitempty" jsonschema:"Detect candidate parent groups over the cohort's records and return them as group_candidates (ratio, resident dictionary bytes, projected size, verdict), each with key/members ready to pass back as a groups entry. With no groups this call is READ-ONLY. The loop is: call with suggest_groups only, read group_candidates.suggested, call again with those as groups."`
 	Out           string          `json:"out,omitempty" jsonschema:"Write the deduplicated cohort to this NEW path (must not exist) and leave the original untouched. Omit to rewrite the cohort IN PLACE (destructive, atomic: a failure leaves it byte-identical). Prefer out unless the user asked for an in-place conversion."`
+}
+
+// MaterializeIn is the input contract for pulse_materialize. The request
+// is NESTED under `request` (a pulse_process body) rather than spread at
+// the root, because out / overwrite are not request slots: spreading them
+// would make a misspelled request slot indistinguishable from a tool
+// argument. Strict mode (description quality) stays CLI + library only,
+// as pulse_dedup's: it changes no byte written, and the warnings it
+// would escalate are returned either way.
+type MaterializeIn struct {
+	Request   *types.Request `json:"request" jsonschema:"The request whose derived columns to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, sort (the output row order), weight, time_zone and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD."`
+	Out       string         `json:"out" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR). An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
+	Overwrite bool           `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic: a failure leaves it as it was). Sidecars beside it become stale and are listed under invalidated_sidecars, each with its rebuild command; nothing is rebuilt."`
 }
 
 // DropIn is the input contract for pulse_drop.
@@ -340,6 +374,9 @@ type ExplainOut = descriptor.ExplainResult
 
 // DedupOut is the output contract for pulse_dedup.
 type DedupOut = pulse.DedupResult
+
+// MaterializeOut is the output contract for pulse_materialize.
+type MaterializeOut = pulse.MaterializeResult
 
 // DropOut is the output contract for pulse_drop.
 type DropOut struct {

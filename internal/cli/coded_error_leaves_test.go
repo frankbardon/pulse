@@ -94,6 +94,14 @@ func TestLeaves_FatalCodedErrorKeepsItsCode(t *testing.T) {
 		{"api lookup", APICommand, func(t *testing.T, _, c string) []string {
 			return []string{"api", "lookup", "--json", "-i", c, "--key", "id=1"}
 		}, ""},
+		{"api materialize", APICommand, func(t *testing.T, dir, c string) []string {
+			mat := map[string]any{
+				"cohort": map[string]any{"filename": c},
+				"windows": []any{map[string]any{"type": "WIN_ROW_NUMBER", "label": "rn",
+					"order_by": []any{map[string]any{"field": "id"}}}},
+			}
+			return []string{"api", "materialize", "--json", "-r", reqFile(t, dir, "m.json", mat), "-o", filepath.Join(dir, "mat.pulse")}
+		}, ""},
 		{"cohort filter", CohortCommand, func(t *testing.T, dir, c string) []string {
 			return []string{"cohort", "filter", "--json", "-i", c, "-o", filepath.Join(dir, "out.pulse"), "--filter", "id > 1"}
 		}, ""},

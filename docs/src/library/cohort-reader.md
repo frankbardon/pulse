@@ -274,3 +274,12 @@ res, err := b.Close() // runs Pulse.AddShard once; res.Shards == ["2026-10.pulse
   before `AddShard` reconciled it; open the archive (or the anchor) to
   read the stored layout. The new shard reads back through `CohortReader`
   over the archive (after the existing shards) and over the anchor.
+
+## Materializing derived columns
+
+`Pulse.Materialize` writes a request's derived columns (features,
+attributes, windows) as ordinary fields of a new cohort, through
+`NewCohortBuilder` and with source cells read by `CohortReader.RecordAt`.
+The full contract — accepted slots, rows, schema, refusals, the CLI
+leaf and the MCP tool — is on its own page:
+[Materializing Derived Columns](materialize.md).

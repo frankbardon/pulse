@@ -106,6 +106,7 @@ func TestSkillsManifestConsistent(t *testing.T) {
 		"inspect":       true,
 		"predict":       true,
 		"manifest":      true,
+		"materialize":   true,
 		"mcp":           true,
 	}
 

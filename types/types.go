@@ -757,6 +757,10 @@ type Feature struct {
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
+
+	// ForEach, when set, fans this item out over parameter axes before
+	// validation (see ForEach). Gated by capability:for_each.
+	ForEach *ForEach `json:"for_each,omitempty"`
 }
 
 // OrderKey specifies an ordering key for a window's ORDER BY clause.
@@ -805,6 +809,10 @@ type Window struct {
 	// EWMA: {"alpha": 0.5}
 	// PCT_CHANGE: {"periods": 1}
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// ForEach, when set, fans this item out over parameter axes before
+	// validation (see ForEach). Gated by capability:for_each.
+	ForEach *ForEach `json:"for_each,omitempty"`
 }
 
 // Aggregation defines a single aggregation operation to apply to a field.
@@ -974,6 +982,10 @@ type Attribute struct {
 	// slot out (it runs unweighted); a field-name string or a
 	// {field, kind} object sets the slot's own weight. See SlotWeight.
 	Weight SlotWeight `json:"weight,omitzero"`
+
+	// ForEach, when set, fans this item out over parameter axes before
+	// validation (see ForEach). Gated by capability:for_each.
+	ForEach *ForEach `json:"for_each,omitempty"`
 }
 
 // Output configures how processing results are formatted.

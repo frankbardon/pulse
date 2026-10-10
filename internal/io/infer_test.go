@@ -81,7 +81,7 @@ func TestInferSchema_AllNumericTypes(t *testing.T) {
 		{"medium", encoding.FieldTypeU16},
 		{"large", encoding.FieldTypeU32},
 		{"huge", encoding.FieldTypeU64},
-		{"smallf", encoding.FieldTypeF32},
+		{"smallf", encoding.FieldTypeF64}, // f64 by default; f32 is opt-in
 		{"bigf", encoding.FieldTypeF64},
 	}
 

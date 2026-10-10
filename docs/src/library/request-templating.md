@@ -196,6 +196,53 @@ A surviving *unguarded* marker naming a variable that resolved to
 nothing is `PULSE_TEMPLATE_UNRESOLVED`. A marker never silently
 vanishes — optionality is spelled `$when`, always.
 
+### Items that fan out — `for_each`
+
+A window, feature or attribute item may carry a `for_each`, which fans
+it out over parameter axes after the template renders, using the same
+two placeholder spellings (`{{axis}}` in a string, `{"$var": "axis"}`
+as a whole value inside `params`). The renderer recognises such an item
+structurally — an object whose `for_each` lists `axes` with literal
+`name`s — and leaves **that item's own axis placeholders untouched** for
+the expansion. No escape is needed.
+
+Template variables keep working everywhere else, including beside the
+axis placeholders and inside the `for_each` value itself, so a template
+variable can supply an axis's values:
+
+```jsonc
+{"target": "request",
+ "variables": [{"name": "metric", "type": "field", "required": true},
+               {"name": "decays", "type": "list", "items": "number", "required": true}],
+ "body": {"cohort": {"filename": "media.pulse"},
+  "windows": [{"type": "<smoothing window>", "field": {"$var": "metric"},
+    "label": "{{metric}}_ad{{d}}", "order_by": [{"field": "week"}],
+    "params": {"decay": {"$var": "decay"}},
+    "for_each": {"axes": [{"name": "d", "values": [30, 50, 70]},
+                          {"name": "decay", "values": {"$var": "decays"}}],
+                 "mode": "zip"}}]}}
+```
+
+`{{metric}}` and both `{"$var": "metric"}` / `{"$var": "decays"}`
+substitute at render; `{{d}}` and `{"$var": "decay"}` reach the
+rendered request as written and resolve when the request runs or is
+predicted.
+
+Two rules keep this unambiguous, both checked at declaration time:
+
+- An axis `name` must be **literal**. Written as `{{…}}` or as a
+  `$var` marker it is `PULSE_TEMPLATE_INVALID` — the renderer has to
+  know the axis names before any variable resolves.
+- A template variable may not share a name with an axis of a
+  `for_each` item in the body: inside that item the placeholder would
+  mean two things. That is `PULSE_TEMPLATE_AXIS_COLLISION`; rename one
+  of them.
+
+An axis is scoped to its own item: the same `{{d}}` in a sibling item
+without that `for_each` is an undeclared reference
+(`PULSE_TEMPLATE_INVALID`), as is an axis placeholder inside the
+`for_each` value.
+
 ## The nine variable types
 
 | Type | Accepts | Extra declaration slot | Notes |
@@ -383,7 +430,7 @@ must be treated as read-only. Rendering never mutates it.
 
 ## The error family
 
-Nine codes, all in the `PULSE` domain. Every one carries the template
+Ten codes, all in the `PULSE` domain. Every one carries the template
 name under the `template` detail key; the variable-scoped members also
 carry `variable`. `pulse errors lookup <CODE>` is authoritative for
 the message and fixups.
@@ -417,6 +464,7 @@ render-time `PULSE_TEMPLATE_UNRESOLVED`.
 | `PULSE_TEMPLATE_VAR_ENUM` | a supplied value is not a member of an `enum`'s `values` set | Membership is exact and case-sensitive; the details carry the permitted set. |
 | `PULSE_TEMPLATE_UNRESOLVED` | an unguarded marker survived substitution — declared, but nothing resolved | Supply the variable, give it a default, or wrap the block in `$when`. Rendering hard-fails rather than emit a request carrying a literal marker string. |
 | `PULSE_TEMPLATE_RENDER_INVALID` | substitution succeeded but the rendered JSON failed **strict decode** into the target request type | Usually an unknown field, or a substituted value landing in a slot whose type it does not fit. |
+| `PULSE_TEMPLATE_AXIS_COLLISION` | a declared variable shares its name with an axis of a `for_each` item in the body | Rename the variable or the axis. An **author** fault, raised at declaration validation like `PULSE_TEMPLATE_INVALID`. |
 
 Strict decode is harsher than the rest of Pulse, and that is worth
 knowing before it bites: a body copied out of an `internal/examples/` file

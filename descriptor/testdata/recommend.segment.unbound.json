@@ -31,11 +31,17 @@
           "features": [
             {
               "field": "\u003cfield\u003e",
+              "params": {
+                "boundaries": [
+                  "\u003cboundaries\u003e"
+                ]
+              },
               "type": "FEAT_BUCKETIZE"
             }
           ]
         },
         "placeholders": [
+          "boundaries",
           "cohort",
           "field"
         ],
@@ -165,4 +171,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4545fe21f6eefeea8edde49da4078a2877caf4c84178f53ca252d00b4f20597e
+// golden-hash: 286cf31b1848e93282d4b51112bbb8b61539fa0ef773f1c3df660fbde3a717e3

@@ -42,6 +42,10 @@ The bridge between stages is a synthesised cohort: grouper keys become `categori
 - Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`. Stages are gated as they run, so a refusal in stage 2 comes after stages 0–1 executed; a zone or join-count refusal carries `details.stage`.
 
 When the gate refuses, run stage 0 as an ordinary request<!-- feature: capability:process --> (`pulse_process`)<!-- /feature --> and finish the later steps client-side.
+<!-- feature: capability:materialize -->
+
+A later step that must READ a window, feature or attribute column (a regression on a window) cannot chain: write the column first with `pulse_materialize` (`derived-cohorts`), then run that step on the new cohort.
+<!-- /feature -->
 
 ## Per-stage `Response.Components`
 

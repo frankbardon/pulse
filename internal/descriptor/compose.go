@@ -945,10 +945,19 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
 func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions) {
+	l := opts.instance().Limits()
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
 		}
+		// The slot's Process expands its item for_each first (right
+		// after the slot gate the whole batch already passed).
+		expanded, _, _, xerr := ExpandRequestItems(slot, l)
+		if xerr != nil {
+			addCodedError(env, RefusalAt(xerr, "request", i))
+			continue
+		}
+		slot = expanded
 		// The slot's Process refuses a second JoinSpec before it
 		// resolves a zone; Compose locates it like a zone refusal.
 		if jerr := JoinCountRefusal(slot); jerr != nil {

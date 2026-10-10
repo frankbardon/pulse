@@ -480,14 +480,19 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 		e.opStep(stepIn{slot: prefix + "filterers[" + strconv.Itoa(i) + "]", role: roleFilter, n: i + 1,
 			op: string(f.Type), fields: nonEmpty(f.Field), detail: detail})
 	}
-	for i, f := range r.Features {
+	// Feature, attribute and window items are described as they RUN:
+	// each for_each item expanded in place, its fan-out stated once
+	// before the items it adds. A step's slot stays the item as written.
+	x, fan := e.expandItems(prefix, r)
+	for i, f := range x.Features {
 		if f == nil {
 			continue
 		}
-		e.opStep(stepIn{slot: prefix + "features[" + strconv.Itoa(i) + "]", role: roleFeature, n: i + 1,
-			op: string(f.Type), fields: nonEmpty(f.Field), detail: onFields(nonEmpty(f.Field))})
+		slot, as := fan.slot(prefix, "features", i, roleFeature, f.Label)
+		e.opStep(stepIn{slot: slot, role: roleFeature, n: i + 1,
+			op: string(f.Type), fields: nonEmpty(f.Field), detail: onFields(nonEmpty(f.Field)) + as})
 	}
-	for i, a := range r.Attributes {
+	for i, a := range x.Attributes {
 		if a == nil {
 			continue
 		}
@@ -496,10 +501,11 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 			fields = append(nonEmpty(a.Target), a.Predictors...)
 			detail = predicting(a.Target, a.Predictors)
 		}
-		e.opStep(stepIn{slot: prefix + "attributes[" + strconv.Itoa(i) + "]", role: roleAttribute, n: i + 1,
-			op: string(a.Type), fields: fields, detail: detail})
+		slot, as := fan.slot(prefix, "attributes", i, roleAttribute, a.Label)
+		e.opStep(stepIn{slot: slot, role: roleAttribute, n: i + 1,
+			op: string(a.Type), fields: fields, detail: detail + as})
 	}
-	for i, w := range r.Windows {
+	for i, w := range x.Windows {
 		if w == nil {
 			continue
 		}
@@ -516,8 +522,9 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 			detail += ", ordered by " + andList(ticks(order))
 			fields = append(fields, order...)
 		}
-		e.opStep(stepIn{slot: prefix + "windows[" + strconv.Itoa(i) + "]", role: roleWindow, n: i + 1,
-			op: string(w.Type), fields: fields, detail: detail})
+		slot, as := fan.slot(prefix, "windows", i, roleWindow, w.Label)
+		e.opStep(stepIn{slot: slot, role: roleWindow, n: i + 1,
+			op: string(w.Type), fields: fields, detail: detail + as})
 	}
 	for i, g := range r.Groups {
 		if g == nil {

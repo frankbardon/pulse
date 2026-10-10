@@ -149,6 +149,30 @@ does not), share the type map with neighbouring formats via the
 `internal/io/arrow` package the way Parquet already does. CSV / TSV / NDJSON
 / JSON-array share `internal/io/jsonshared` for value coercion.
 
+### Explicit schemas are matched by header NAME
+
+A caller-authored schema (`ImportJob.Schema` / `ConvertJob.Schema`,
+CLI `--schema`) is matched to your reader's columns by the exact names
+`ReadHeader` returns — `resolveExplicitSchema` in
+`internal/io/explicit_schema.go`, the one resolver `ImportJob.Run`,
+`ImportJob.Predict` (and its measured pass) and `ConvertJob.Run` /
+`Predict` all run. It rewrites `CsvColumnIdx` on a copy of the schema
+and refuses a field with no column (`PULSE_IMPORT_SCHEMA_FIELD_MISSING`),
+a column no field names (`PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED`, unless
+`IgnoreExtra`) and a repeated name (`PULSE_IMPORT_SCHEMA_DUPLICATE`)
+before any row is read. Your adapter needs no code for it, but two
+things must hold: `ReadHeader` must be idempotent and must not consume
+a row the next `ReadRows` would emit, and the header names must
+correspond position-for-position to the cells of every row.
+
+A keyed format whose column set is the first record's keys (NDJSON,
+JSON array) should also implement the optional `iocore.LateKeyRefuser`
+(`RefuseLateKeys(on bool)`, kept across `Reset`): the resolver arms it
+when extra columns are not ignored, and the reader then fails `ReadRows`
+with `PULSE_IMPORT_SCHEMA_KEY_LATE` (`column`, `row`, `columns`) at the
+first record carrying a key the header lacks, instead of dropping it.
+`jsonshared.LateKeys` holds the shared state and refusal.
+
 ### Native datetimes: instant or wall clock
 
 The row path is text, and an import source zone (`ImportJob.SourceTZ`)
@@ -386,7 +410,8 @@ type on every row, no promotion) lives in `internal/io/import_override.go`
 and runs over whatever `ReadHeader` / `ReadRows` yield. A
 caller who genuinely needs a different type sets `ImportJob.Schema`
 explicitly — an explicit schema wins outright and `PulseSchema` is
-not even called.
+not even called; it is matched to `ReadHeader`'s names like any other
+explicit schema (see "Explicit schemas are matched by header NAME").
 
 **No null promotion.** `ImportJob.InferredSchema`'s out-of-sample-null
 tolerance does not apply. An authoritative schema is not

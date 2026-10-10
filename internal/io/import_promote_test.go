@@ -210,7 +210,7 @@ func TestImportJob_ExplicitSchema_NonNullable_StillErrors(t *testing.T) {
 }
 
 // TestImportJob_ExplicitSchema_NullableHonored is the regression for the
-// loadSchemaFromFile fix: an explicit schema that declares a field nullable
+// schema-file loader fix: an explicit schema that declares a field nullable
 // must accept null cells without error and persist the flag.
 func TestImportJob_ExplicitSchema_NullableHonored(t *testing.T) {
 	rows := [][]string{

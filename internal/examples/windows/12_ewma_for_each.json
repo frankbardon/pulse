@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "category": "windows",
+    "description": "Adstock-style grid from ONE window item: a for_each zips an integer label axis with a decay axis, so a single WIN_EWMA item expands in place into three exponentially weighted revenue columns (revenue_ad30 at decay 0.3, revenue_ad50 at 0.5, revenue_ad70 at 0.7). The label axis carries the label text because a placeholder cannot compute it from the decay. Predict reports the fan-out and counts the expanded items against MaxDerivedColumns.",
+    "capabilities": [
+      "capability:for_each"
+    ],
+    "intents": [
+      "change_over_time"
+    ],
+    "name": "win_ewma_for_each",
+    "operators": [
+      "WIN_EWMA"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "order_date"
+    }
+  ],
+  "windows": [
+    {
+      "for_each": {
+        "axes": [
+          {"name": "d", "values": [30, 50, 70]},
+          {"name": "decay", "values": [0.3, 0.5, 0.7]}
+        ],
+        "mode": "zip"
+      },
+      "type": "WIN_EWMA",
+      "field": "revenue",
+      "label": "revenue_ad{{d}}",
+      "order_by": [
+        {
+          "field": "order_date"
+        }
+      ],
+      "frame": {
+        "mode": "rows",
+        "preceding": null,
+        "following": 0
+      },
+      "params": {
+        "decay": {"$var": "decay"}
+      }
+    }
+  ]
+}

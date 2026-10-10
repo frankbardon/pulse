@@ -48,6 +48,25 @@ type Operator struct {
 	// with different Field values and requires an identical result.
 	IgnoresField bool `json:"ignores_field,omitempty"`
 
+	// IgnoresFrame marks a window operator that accepts (or requires) a
+	// frame on the wire but never reads it: WIN_EWMA is cumulative over
+	// the ordered partition whatever the frame says. Generated text that
+	// would echo the frame (a materialized column's description) omits
+	// it. Held at runtime by processing's
+	// TestWindows_IgnoresFrameMatchesRuntime, which runs every
+	// frame-taking window under different frames and requires identical
+	// output exactly when this flag is set.
+	IgnoresFrame bool `json:"ignores_frame,omitempty"`
+
+	// ReadsExpression marks an operator whose defining input is the
+	// request slot's own Expression string — not a Params entry
+	// (ATTR_FORMULA, FILTER_EXPRESSION). The operator refuses an empty
+	// Expression; every other operator never reads the slot. Generated
+	// text that names what a column computes (a materialized column's
+	// description) quotes the expression for a flagged operator. Held at
+	// runtime by processing's TestOperators_ReadsExpressionMatchesRuntime.
+	ReadsExpression bool `json:"reads_expression,omitempty"`
+
 	// EmitsType is the field type produced for single-output operators.
 	// Empty when the operator's emit type is conditional on input or
 	// when it does not emit a typed column (e.g. an aggregator emits a
@@ -148,6 +167,14 @@ type Param struct {
 	// FieldFilter constrains acceptable field types when Type=="field".
 	// One of: "numeric", "categorical", "date", "any".
 	FieldFilter string `json:"field_filter,omitempty"`
+
+	// ExactlyOneOf names the group of mutually exclusive params this
+	// one belongs to: of the params sharing a group name, a request
+	// must supply exactly one (WIN_EWMA's alpha / decay). Each member is
+	// Required=false with no Default, since no single member is
+	// required on its own. The first member in Params order is the
+	// one a drafted request names. Omitted for an ungrouped param.
+	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
 }
 
 // TestMeta describes a statistical test entry in the manifest. Tier-1 and

@@ -82,6 +82,13 @@ func CheckJoinBuildRows(l Limits, rows int64) *errors.CodedError {
 	return Check(l, MaxJoinBuildRows, rows)
 }
 
+// CheckDerivedColumns refuses a request carrying more than
+// MaxDerivedColumns window, feature and attribute items once every
+// for_each is expanded.
+func CheckDerivedColumns(l Limits, derived int) *errors.CodedError {
+	return Check(l, MaxDerivedColumns, int64(derived))
+}
+
 // FirstCertain returns the error of the first Certain finding in fs —
 // the pre-flight refusal — or nil when none is certain.
 func FirstCertain(fs []Finding) *errors.CodedError {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // fieldTypeFromName maps the spec's string type name to a FieldType.
@@ -65,23 +66,17 @@ type writerField struct {
 	sampler sampler
 }
 
-// nextFieldLayout advances the running (byteOffset, bitCursor) cursor by
-// one field of type ft and returns that field's own (byteOffset,
-// bitPosition). Bit-packed types (u4, packed_bool) each consume one whole
-// fresh byte — the same simplified convention buildSchema has always used
-// (matches internal/io/import.go's WriteByte path) — rather than sharing a byte
-// across neighbouring bit-packed fields. Shared by buildSchema and
+// nextFieldLayout advances the running byteOffset cursor by one field of
+// type ft and returns that field's own (byteOffset, bitPosition). The
+// width is the canonical layout's (encx.CellWidth, the per-field step of
+// encx.LayoutFields): a bit-packed type (u4, packed_bool) consumes one
+// whole fresh byte at bit 0 rather than sharing a byte with a
+// neighbour, exactly as import lays it out. Shared by buildSchema and
 // augment.go's buildMergedSchema so both lay out fields identically.
-func nextFieldLayout(ft encoding.FieldType, byteOffset, bitCursor *int) (offset, bitPosition int) {
+func nextFieldLayout(ft encoding.FieldType, byteOffset *int) (offset, bitPosition int) {
 	offset = *byteOffset
-	if ft.IsBitPacked() {
-		bitPosition = *bitCursor % 8
-		*byteOffset++
-		*bitCursor = 8
-	} else {
-		*byteOffset += ft.ByteSize()
-	}
-	return offset, bitPosition
+	*byteOffset += encx.CellWidth(ft)
+	return offset, 0
 }
 
 // buildSchema returns the encoding.Schema and per-field samplers laid
@@ -100,7 +95,6 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	ownedNulls := ruleOwnedNullFields(s.Rules)
 
 	byteOffset := 0
-	bitCursor := 8 // bit offsets advance from the high bit of a fresh byte
 	for i, fs := range s.Fields {
 		ft, ok := fieldTypeFromName(fs.Type)
 		if !ok {
@@ -175,7 +169,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			field.Precision = prec
 			field.Scale = scale
 		}
-		field.ByteOffset, field.BitPosition = nextFieldLayout(ft, &byteOffset, &bitCursor)
+		field.ByteOffset, field.BitPosition = nextFieldLayout(ft, &byteOffset)
 
 		smp, err := buildSampler(fs)
 		if err != nil {
