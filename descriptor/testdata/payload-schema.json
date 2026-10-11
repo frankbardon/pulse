@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:f851ca4127599792e148701605b8ba72c2be9e27dc59de14d29010f297488994",
+  "$comment": "feature_set_digest: fs1:d5e7bac111ec01c2d685b6ff2a1d3e0abf2c7730947606476b5fd0c8fe0e8fd5",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -146,6 +146,8 @@
         "AGG_DISTINCT_SUM",
         "AGG_FREQUENCY",
         "AGG_KURTOSIS",
+        "AGG_MAE",
+        "AGG_MAPE",
         "AGG_MAX",
         "AGG_MEDIAN",
         "AGG_MIN",
@@ -155,6 +157,7 @@
         "AGG_PERCENTILE",
         "AGG_RANGE",
         "AGG_RATIO",
+        "AGG_RMSE",
         "AGG_SET_CARDINALITY_AVG",
         "AGG_SET_CARDINALITY_SUM",
         "AGG_SET_DISTINCT_VALUES",
@@ -287,6 +290,7 @@
         "ATTR_PERCENTILE",
         "ATTR_REG_FITTED",
         "ATTR_REG_LEVERAGE",
+        "ATTR_REG_PREDICT",
         "ATTR_REG_RESIDUAL",
         "ATTR_SET_HAS",
         "ATTR_SET_POPCOUNT",
@@ -499,6 +503,15 @@
     "ComposedRequest": {
       "additionalProperties": false,
       "properties": {
+        "fits": {
+          "items": {
+            "$ref": "#/$defs/FitSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
         },
@@ -535,6 +548,12 @@
     "ComposedResponse": {
       "additionalProperties": false,
       "properties": {
+        "fits": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RegressionResult"
+          },
+          "type": "object"
+        },
         "overlays": {
           "items": {
             "$ref": "#/$defs/OverlayLayer"
@@ -564,6 +583,15 @@
         },
         "returned": {
           "$ref": "#/$defs/ReturnedMarker"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ResponseWarning"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1354,6 +1382,15 @@
             "null"
           ]
         },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelRef"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "numeric_percentiles": {
           "items": {
             "type": "number"
@@ -1557,6 +1594,25 @@
         "FILTER_TRUE"
       ],
       "type": "string"
+    },
+    "FitSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/Request"
+        },
+        "save": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "request"
+      ],
+      "type": "object"
     },
     "ForEach": {
       "additionalProperties": false,
@@ -2156,6 +2212,22 @@
         "kind",
         "row_keys",
         "values"
+      ],
+      "type": "object"
+    },
+    "ModelRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
       ],
       "type": "object"
     },
@@ -2882,6 +2954,24 @@
             "null"
           ]
         },
+        "ci_lower": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_upper": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
         "coefficients": {
           "additionalProperties": {
             "type": [
@@ -2890,6 +2980,12 @@
             ]
           },
           "type": "object"
+        },
+        "conf_level": {
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "converged_iters": {
           "type": "integer"
@@ -2916,6 +3012,12 @@
           "type": "string"
         },
         "deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "df": {
           "type": [
             "number",
             "null"
@@ -3035,6 +3137,9 @@
         "bootstrap_iters": {
           "type": "integer"
         },
+        "conf_level": {
+          "type": "number"
+        },
         "credible_level": {
           "type": "number"
         },
@@ -3094,6 +3199,9 @@
         },
         "rng_seed": {
           "type": "integer"
+        },
+        "save": {
+          "type": "string"
         },
         "selection": {
           "type": "string"
@@ -3209,6 +3317,15 @@
         "matrices": {
           "items": {
             "$ref": "#/$defs/MatrixSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelRef"
           },
           "type": [
             "array",
@@ -4131,4 +4248,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 765565d518b34423c742c225323e677b40999534256c10777ec529639fd8fde0
+// golden-hash: c6ece83e59095ffec7bb3473b87ec430fc21c5b1cb3e672501776dd5bc9f23ec

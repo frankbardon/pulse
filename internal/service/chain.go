@@ -8,6 +8,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/observe"
@@ -63,6 +64,20 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		if err := s.expandItems(st.Request); err != nil {
 			return nil, locate(markLocated(err), "stage", i)
 		}
+	}
+	// Then every stage's `models` (model.CheckChainModels — the rule
+	// PredictChain runs) and every model file read, before the cohort
+	// opens and any stage runs; each stage gets its own bound set.
+	if cerr := model.CheckChainModels(req.Stages); cerr != nil {
+		return nil, cerr
+	}
+	stageSets := make([]*model.Set, len(req.Stages))
+	for i, st := range req.Stages {
+		set, err := s.loadModels(nil, st.Request.Models)
+		if err != nil {
+			return nil, descx.RefusalAt(err, "stage", i)
+		}
+		stageSets[i] = set
 	}
 	// Every stage's multiplicity blocks resolve before the cohort opens
 	// — each stage a standalone Request with its own `request` family,
@@ -137,7 +152,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// (never skipped), so it vetoes no stage's `return` skip; stage 0
 	// resolves its own compute plan inside Process.
 	ei.Lap(observe.PhasePlan)
-	stageCtx, end := startChild(ctx, 0, stage0)
+	stageCtx, end := startChild(withModelsBound(ctx, stageSets[0]), 0, stage0)
 	firstResp, err := s.Process(stageCtx, stage0)
 	end(err)
 	if err != nil {
@@ -156,7 +171,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	for i := 1; i < len(req.Stages); i++ {
 		stage := req.Stages[i].Request
 		stage.Cohort = nil // chain stages >= 1 do not name a cohort
-		resp, err := s.runChainStageChild(ctx, req, i, stage, priorReq, priorResp, plans[i], rets[i], &normStages)
+		resp, err := s.runChainStageChild(withModelsBound(ctx, stageSets[i]), req, i, stage, priorReq, priorResp, plans[i], rets[i], &normStages)
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +243,7 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
 		return nil, err
 	}
-	if err := s.checkFieldRefs(stage, synthSchema); err != nil {
+	if err := s.checkFieldRefs(ctx, stage, synthSchema); err != nil {
 		return nil, locate(err, "stage", i)
 	}
 	if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{

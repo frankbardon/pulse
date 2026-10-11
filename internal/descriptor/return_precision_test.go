@@ -14,7 +14,7 @@ import (
 // new aggregator forces a count-or-measure decision.
 var measureAggregations = []types.AggregationType{
 	types.AGG_AVERAGE, types.AGG_CI_LOWER, types.AGG_CI_UPPER, types.AGG_DISTINCT_SUM,
-	types.AGG_KURTOSIS, types.AGG_MAX, types.AGG_MEDIAN, types.AGG_MIN, types.AGG_MODE,
+	types.AGG_KURTOSIS, types.AGG_MAE, types.AGG_MAPE, types.AGG_MAX, types.AGG_RMSE, types.AGG_MEDIAN, types.AGG_MIN, types.AGG_MODE,
 	types.AGG_PERCENTILE, types.AGG_RANGE, types.AGG_RATIO, types.AGG_SET_CARDINALITY_AVG,
 	types.AGG_SET_INTERSECTION, types.AGG_SET_UNION, types.AGG_SKEWNESS, types.AGG_STDDEV,
 	types.AGG_SUM, types.AGG_VARIANCE, types.AGG_WEIGHTED_MEAN, types.AGG_WELFORD, types.AGG_ZSCORE,

@@ -41,7 +41,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [ ] **#342** (Model workbench) Discrimination metrics: a weight-aware AUC / Gini aggregator over a score and a binary outcome, and a share-of-partition window for cumulative capture curves
 - [ ] **#343** (Model workbench) A grouped (k-fold or delete-d) jackknife, so resampled standard errors are practical at tens of thousands of rows
 - [ ] **#344** (Model workbench) Leakage-safe encoding in one parameter: `FEAT_TARGET_ENCODE` `fit_on` (category means from the training rows, applied to all) or out-of-fold encoding
-- [ ] **#345** (Model workbench) `ATTR_REG_PREDICT` (U42) scores GLM families on the response scale and can fit on a subset (training rows) while scoring all rows
+- [x] **#345** (Model workbench) `ATTR_REG_PREDICT` (U42) scores GLM families on the response scale and can fit on a subset (training rows) while scoring all rows. **Delivered by [U42](U42-fit-scoring.md) (E1-S2):** `scale: response` (the default) applies the inverse link and `scale: link` returns the linear predictor; a compose `fits` entry's own filter picks the training rows while a slot scores every row
 - [ ] **#346** (Model workbench) `GROUP_QUANTILE` and `GROUP_RANGE` keys sort in bucket order (D01…D10, numeric ranges), not lexicographically
 - [ ] **#347** (Model workbench) Acceptance: the credit example demonstrates leakage with the binary `collections_flag`, reports AUC, uses train-only target encoding, and scores the holdout with no transcribed coefficient
 
@@ -53,7 +53,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - AUC/Gini and capture curves
 - Grouped jackknife
 - Train-only target encoding
-- GLM scoring requirements for U42
+- GLM scoring requirements for U42 (delivered by U42 as #345)
 - Bucket key order
 
 **Out of scope**
@@ -74,7 +74,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(model-workbench/E
 
 ### E3 — Leakage-safe pipelines
 - S1: penalised GLM; grouped jackknife
-- S2: train-only target encoding; GLM scoring with U42; convert the credit example
+- S2: train-only target encoding; convert the credit example, scoring its holdout with `ATTR_REG_PREDICT` (GLM scoring itself shipped in U42, #345)
 
 ## Acceptance criteria
 

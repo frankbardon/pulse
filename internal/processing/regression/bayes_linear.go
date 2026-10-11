@@ -430,6 +430,9 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 		ConvergedIters:    0,
 	}
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
+	// The posterior Student-t interval credible_intervals reports, at
+	// conf_level (credible_level when unset): equal to it at one level.
+	attachIntervals(res, bayesConfLevel(e.spec), dfPost, true)
 	if e.spec.Vcov {
 		// The POSTERIOR covariance of β under the NIG posterior,
 		// E[σ²]·Λ_n⁻¹ = b_n/(a_n−1)·Λ_n⁻¹ — defined only for a_n > 1

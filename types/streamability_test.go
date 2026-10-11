@@ -30,6 +30,9 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_RATIO:          true,
 		AGG_CI_LOWER:       true,
 		AGG_CI_UPPER:       true,
+		AGG_MAPE:           true,
+		AGG_RMSE:           true,
+		AGG_MAE:            true,
 
 		AGG_WELFORD: true,
 
@@ -98,6 +101,9 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		AGG_CI_LOWER:   MarginRecompute,
 		AGG_CI_UPPER:   MarginRecompute,
 		AGG_WELFORD:    MarginRecompute,
+		AGG_MAPE:       MarginRecompute,
+		AGG_RMSE:       MarginRecompute,
+		AGG_MAE:        MarginRecompute,
 
 		AGG_SET_UNION:           MarginSummable,
 		AGG_SET_FREQUENCY:       MarginSummable,
@@ -174,6 +180,7 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 		ATTR_SET_POPCOUNT: true,
 		ATTR_SET_HAS:      true,
 		ATTR_CODE_IN:      true,
+		ATTR_REG_PREDICT:  true,
 	}
 	for _, a := range AllAttributeTypes() {
 		want, ok := expected[a]

@@ -1033,6 +1033,132 @@ const (
 	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
 
+	// PULSE_FIT_INVALID indicates a malformed ComposedRequest `fits`
+	// entry: an empty name (reason "name_missing"), no request
+	// ("request_missing"), a request holding zero or more than one
+	// regression ("regression_count", with "count"), or a request with
+	// groups or a crosstab ("grouped") — a fit is one ungrouped model.
+	// Refused identically by predict and the runtime before any fit or
+	// slot runs. Details carry "fit" (the 0-based entry index), "name"
+	// and "reason".
+	PULSE_FIT_INVALID Code = "PULSE_FIT_INVALID"
+
+	// PULSE_MODEL_NAME_COLLISION indicates two bound models sharing a
+	// name in the one model namespace every name reference resolves
+	// against: two ComposedRequest `fits` entries (details "name" and
+	// the colliding "fit" index), or a Request `models` entry whose name
+	// a fit or an earlier `models` entry already binds (details "name"
+	// and "sources" — both bindings, each {slot, index[, path]}).
+	PULSE_MODEL_NAME_COLLISION Code = "PULSE_MODEL_NAME_COLLISION"
+
+	// PULSE_MODEL_UNKNOWN indicates a reference to a model name no fit
+	// (or loaded model) binds in the request's scope. Details carry
+	// "name" and "available" (the bound names, sorted).
+	PULSE_MODEL_UNKNOWN Code = "PULSE_MODEL_UNKNOWN"
+
+	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot whose
+	// scoring parameters do not fit: params that are not an object of
+	// {fit, terms, scale, bound} (reason "params_invalid"), no params.fit
+	// ("fit_missing"), a field / target / predictors / penalty set on the
+	// slot ("slot_fields" — the bound model supplies them), an empty
+	// terms list ("terms_empty") or one naming a term twice
+	// ("term_duplicate"), a scale other than response|link
+	// ("scale_unknown") or a scale on a non-GLM fit ("scale_not_glm"),
+	// a fit of a regression type it cannot score ("type_unsupported"),
+	// a bound other than point|lower|upper ("bound_unknown") or a
+	// lower / upper bound without exactly one predictor term
+	// ("bound_terms"). Refused identically by predict and the
+	// runtime before any record is read. Details carry "attribute",
+	// "reason" and, when known, "fit".
+	PULSE_MODEL_SCORE_INVALID Code = "PULSE_MODEL_SCORE_INVALID"
+
+	// PULSE_MODEL_TERM_UNKNOWN indicates a reference to a term a bound
+	// model does not have: an ATTR_REG_PREDICT params.terms entry or a
+	// coef() term that is neither one of the fit's predictors nor
+	// "(intercept)". Details carry "fit", "term" and "available" (the
+	// terms it may name).
+	PULSE_MODEL_TERM_UNKNOWN Code = "PULSE_MODEL_TERM_UNKNOWN"
+
+	// PULSE_MODEL_STAT_UNKNOWN indicates a coef(fit, term, stat) call
+	// whose stat is not one of point, lower, upper, se. Refused by
+	// predict for an all-literal call and at evaluation otherwise.
+	// Details carry "fit", "stat" and "valid".
+	PULSE_MODEL_STAT_UNKNOWN Code = "PULSE_MODEL_STAT_UNKNOWN"
+
+	// PULSE_MODEL_INTERVALS_UNAVAILABLE indicates a reference that reads
+	// a coefficient interval or standard error from a bound model that
+	// reports none (a degenerate intercept-only GLM): a coef() stat
+	// lower / upper / se, or an ATTR_REG_PREDICT params.bound lower /
+	// upper. Runtime only — predict cannot see a fit's numbers. Details
+	// carry "fit" and "stat" or "bound".
+	PULSE_MODEL_INTERVALS_UNAVAILABLE Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
+
+	// PULSE_MODEL_PREDICTOR_MISSING indicates a scoring frame without a
+	// column for one of a bound model's predictors: no schema field,
+	// feature output or earlier attribute label carries the name.
+	// Scoring never infers a column. Details carry "attribute", "fit"
+	// and "field".
+	PULSE_MODEL_PREDICTOR_MISSING Code = "PULSE_MODEL_PREDICTOR_MISSING"
+
+	// PULSE_MODEL_PREDICTOR_NOT_NUMERIC indicates a bound model's
+	// predictor column that is a schema field of a type a regression
+	// cannot read (a categorical or a set) on the scoring frame.
+	// Details carry "attribute", "fit", "field" and "field_type".
+	PULSE_MODEL_PREDICTOR_NOT_NUMERIC Code = "PULSE_MODEL_PREDICTOR_NOT_NUMERIC"
+
+	// PULSE_MODEL_SAVE_INVALID indicates a RegressionSpec or `fits`
+	// entry `save` path that cannot name a model file: blank (reason
+	// "path_empty"), not ending in ".pulse-model.json" ("suffix"), the
+	// bare suffix with no file name ("name_missing"), or climbing above
+	// the filesystem root ("escapes_root"). Refused identically by
+	// predict and the runtime before any record is read. Details carry
+	// "path", "reason" and "regression" (the spec index) or "fit". Two
+	// saves in one request or Compose batch naming the same file are
+	// refused too (reason "duplicate", details "sites" naming both).
+	PULSE_MODEL_SAVE_INVALID Code = "PULSE_MODEL_SAVE_INVALID"
+
+	// PULSE_MODEL_WRITE_FAILED indicates a model file save that failed
+	// on the filesystem (creating the parent directory, the temp file,
+	// writing, syncing, closing or renaming it over the target). The
+	// write is atomic: the target keeps its previous content (or stays
+	// absent). Details carry "path", "name" and "stage".
+	PULSE_MODEL_WRITE_FAILED Code = "PULSE_MODEL_WRITE_FAILED"
+
+	// PULSE_MODEL_OVERWRITTEN is emitted as a WARNING (not an error) when
+	// a model file save replaced an existing file at its path. The save
+	// succeeded; the warning exists so a replaced model is never silent.
+	// Details carry "path", "name" and, for a fit, "fit".
+	PULSE_MODEL_OVERWRITTEN Code = "PULSE_MODEL_OVERWRITTEN"
+
+	// PULSE_MODEL_FILE_INVALID indicates a model file that cannot be
+	// parsed: not JSON (reason "json"), no model_format_version
+	// ("version_missing"), or a version-1 document with an unknown key,
+	// a mistyped value or a structural fault — no type or target, a
+	// predictor without a coefficient or outside terms, a malformed vcov
+	// ("schema"). Details carry "path" and "reason" (plus "model" and
+	// "name" when a Request `models` entry loads it).
+	PULSE_MODEL_FILE_INVALID Code = "PULSE_MODEL_FILE_INVALID"
+
+	// PULSE_MODEL_VERSION_UNSUPPORTED indicates a model file whose
+	// model_format_version this build does not read. Details carry
+	// "path", "version" and "supported".
+	PULSE_MODEL_VERSION_UNSUPPORTED Code = "PULSE_MODEL_VERSION_UNSUPPORTED"
+
+	// PULSE_MODEL_REF_INVALID indicates a Request `models` entry that
+	// cannot name a model file: no name (reason "name_empty") or a path
+	// the save-path rule refuses ("path_empty", "suffix",
+	// "name_missing", "escapes_root"). Refused identically by predict and
+	// the runtime before any file or record is read. Details carry
+	// "model" (the entry index), "name", "path" and "reason".
+	PULSE_MODEL_REF_INVALID Code = "PULSE_MODEL_REF_INVALID"
+
+	// PULSE_MODEL_FILE_UNREADABLE indicates a Request `models` entry
+	// whose file cannot be read: absent (reason "missing") or unreadable
+	// — a directory, a permission or I/O fault ("unreadable"). Refused
+	// identically by predict and the runtime before any record is read.
+	// Details carry "model", "name", "path" and "reason".
+	PULSE_MODEL_FILE_UNREADABLE Code = "PULSE_MODEL_FILE_UNREADABLE"
+
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
 	// window, feature or attribute item: no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
@@ -3275,6 +3401,22 @@ var allCodes = []Code{
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
+	PULSE_FIT_INVALID,
+	PULSE_MODEL_NAME_COLLISION,
+	PULSE_MODEL_UNKNOWN,
+	PULSE_MODEL_SCORE_INVALID,
+	PULSE_MODEL_TERM_UNKNOWN,
+	PULSE_MODEL_STAT_UNKNOWN,
+	PULSE_MODEL_INTERVALS_UNAVAILABLE,
+	PULSE_MODEL_PREDICTOR_MISSING,
+	PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
+	PULSE_MODEL_SAVE_INVALID,
+	PULSE_MODEL_WRITE_FAILED,
+	PULSE_MODEL_OVERWRITTEN,
+	PULSE_MODEL_FILE_INVALID,
+	PULSE_MODEL_VERSION_UNSUPPORTED,
+	PULSE_MODEL_REF_INVALID,
+	PULSE_MODEL_FILE_UNREADABLE,
 	PULSE_FOR_EACH_INVALID,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,

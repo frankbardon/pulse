@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U32]
-todo_items: [318, 319, 320, 321, 322, 323]
+todo_items: [318, 319, 320, 321, 322, 323, 395]
 branch: grouped-analysis
 ---
 
@@ -95,3 +95,9 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(grouped-analysis/
 ## Human inputs & decisions
 
 - **Open:** whether grouped tests are implied by `groups` or opt-in via `within`. Implicit is natural but changes today's (ignored) behaviour for existing requests.
+
+## Inherited from U42
+
+Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#395** — A grouper over explicit numeric ranges (e.g. 0–90 and 91–103), so a train/holdout split that is not a multiple of the `GROUP_RANGE` interval is one slot instead of a filter or two slots. Found in U42 (E2-S1).

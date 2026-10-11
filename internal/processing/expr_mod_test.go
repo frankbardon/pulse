@@ -23,7 +23,7 @@ func exprModFormula(t *testing.T, s *encoding.Schema, src string, r *Record) (fl
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := bindAttribute(comp, nil); err != nil {
+	if err := BindAttribute(comp, nil, nil); err != nil {
 		return 0, err
 	}
 	return comp.(*formulaAttribute).Row(r, "")

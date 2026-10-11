@@ -6,6 +6,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -33,7 +35,15 @@ func FieldRefRefusal(req *types.Request, schema *encoding.Schema, snap *Extensio
 // output labels are not judged). The runtime's form; nil inst is
 // FieldRefRefusal(req, schema, nil).
 func ScopedFieldRefRefusal(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) error {
-	if all := fieldRefRefusals(req, schema, inst.Extensions(), inst); len(all) > 0 {
+	return ScopedFieldRefRefusalWithModels(req, schema, inst, nil)
+}
+
+// ScopedFieldRefRefusalWithModels is ScopedFieldRefRefusal for a
+// Request whose ATTR_REG_PREDICT slots resolve against models — the
+// runtime's bound set (a Compose slot's fits), predict's static
+// model.FitCatalog. Nil binds nothing.
+func ScopedFieldRefRefusalWithModels(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, models model.Catalog) error {
+	if all := fieldRefRefusalsWithModels(req, schema, inst.Extensions(), inst, models); len(all) > 0 {
 		return all[0]
 	}
 	return nil
@@ -42,10 +52,18 @@ func ScopedFieldRefRefusal(req *types.Request, schema *encoding.Schema, inst *In
 // ScopedFacetFieldRefRefusals is FacetFieldRefRefusals for one
 // instance, on ScopedFieldRefRefusal's terms.
 func ScopedFacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, inst *InstanceSnapshot) []*errors.CodedError {
+	return ScopedFacetFieldRefRefusalsWithModels(req, schema, inst, nil)
+}
+
+// ScopedFacetFieldRefRefusalsWithModels is ScopedFacetFieldRefRefusals
+// for a FacetRequest whose filterers' coef() calls resolve against
+// models — the runtime's loaded set, predict's static catalog of the
+// request's `models`. Nil binds nothing.
+func ScopedFacetFieldRefRefusalsWithModels(req *types.FacetRequest, schema *encoding.Schema, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
 	if req == nil {
 		return nil
 	}
-	return fieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema, inst.Extensions(), inst)
+	return fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers}, schema, inst.Extensions(), inst, models)
 }
 
 // FacetFieldRefRefusals is FieldRefRefusals for a FacetRequest: its
@@ -134,6 +152,12 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 // (opRoute), so a hidden operator is walked exactly as a
 // never-registered name. Nil hides nothing.
 func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) []*errors.CodedError {
+	return fieldRefRefusalsWithModels(req, schema, snap, inst, nil)
+}
+
+// fieldRefRefusalsWithModels is fieldRefRefusals with the models an
+// ATTR_REG_PREDICT slot resolves against (nil: none bound).
+func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
 	if req == nil || schema == nil {
 		return nil
 	}
@@ -195,6 +219,9 @@ func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 			continue
 		}
 		w.checkInputs("filterer", string(fil.Type), nil, "filter")
+		if opRoute(inst, fil.Type) == types.FILTER_EXPRESSION {
+			w.checkCoef(fil.Expression, models)
+		}
 		if fil.Field == "" && !filterFieldRequired(opRoute(inst, fil.Type)) {
 			continue
 		}
@@ -224,7 +251,26 @@ func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 						map[string]any{"field": name, "attribute": string(attr.Type)})
 				})
 			}
+		case types.ATTR_REG_PREDICT:
+			// The scoring rule (internal/model.CheckScore — the one the
+			// attribute's bind re-runs), then every column the bound
+			// model may read: present on the frame, numeric when it is a
+			// schema field.
+			p, sig, cerr := model.CheckScore(attr, models)
+			if cerr != nil {
+				w.out = append(w.out, cerr)
+				break
+			}
+			for _, col := range sig.Terms {
+				w.check(col, func() *errors.CodedError { return model.PredictorMissing(p.Fit, col) })
+				if f := schema.Field(col); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
+					w.out = append(w.out, model.PredictorNotNumeric(p.Fit, col, f.Type.String()))
+				}
+			}
 		default:
+			if attrRoute == types.ATTR_FORMULA {
+				w.checkCoef(attr.Expression, models)
+			}
 			if attrRoute != types.ATTR_FORMULA || attr.Field != "" {
 				w.check(attr.Field, func() *errors.CodedError {
 					return refusal("attribute references unknown field: "+attr.Field,
@@ -482,6 +528,9 @@ var aggParamFieldKeys = map[types.AggregationType][]string{
 	types.AGG_WEIGHTED_MEAN: {"weight_field"},
 	types.AGG_RATIO:         {"numerator_field", "denominator_field"},
 	types.AGG_DISTINCT_SUM:  {"distinct_by"},
+	types.AGG_MAPE:          {"prediction_field"},
+	types.AGG_RMSE:          {"prediction_field"},
+	types.AGG_MAE:           {"prediction_field"},
 }
 
 // postTestParamFieldKeys lists, per built-in tier-2 test, the Params
@@ -682,4 +731,21 @@ func isBuiltinMatrixType(t types.MatrixType) bool {
 		}
 	}
 	return false
+}
+
+// checkCoef records the first refusal of expr's all-literal coef()
+// calls against models (internal/model/coefcall.StaticRefusal — the
+// check the engine's build runs too), unless an embedder ExprFunction
+// named coef owns the name.
+func (w *fieldRefWalk) checkCoef(expr string, models model.Catalog) {
+	if w.snap != nil {
+		for _, fn := range w.snap.ExprFunctions {
+			if fn.Name == model.CoefFunc {
+				return
+			}
+		}
+	}
+	if cerr := coefcall.StaticRefusal(expr, models); cerr != nil {
+		w.out = append(w.out, cerr)
+	}
 }

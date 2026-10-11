@@ -278,6 +278,29 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
+	// The one model namespace: Compose fits and loaded models bind it.
+	errors.PULSE_FIT_INVALID:          own(featComposeFits),
+	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
+	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore) and
+	// the coef() expression function (internal/model.CheckCoef), which
+	// ATTR_FORMULA and FILTER_EXPRESSION evaluate.
+	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT"),
+	// The model file: a `save` writes it (capability:model_save), a
+	// `models` entry loads it (capability:models) — the parse codes are
+	// the load's.
+	errors.PULSE_MODEL_SAVE_INVALID:        own(featModelSave),
+	errors.PULSE_MODEL_WRITE_FAILED:        own(featModelSave),
+	errors.PULSE_MODEL_OVERWRITTEN:         own(featModelSave),
+	errors.PULSE_MODEL_FILE_INVALID:        own(featModels),
+	errors.PULSE_MODEL_VERSION_UNSUPPORTED: own(featModels),
+	errors.PULSE_MODEL_REF_INVALID:         own(featModels),
+	errors.PULSE_MODEL_FILE_UNREADABLE:     own(featModels),
 	// nested_in_sweep is raised by a sweep body, so either surface lists it.
 	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
 

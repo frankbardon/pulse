@@ -45,7 +45,7 @@ Use something else:
 
 ## Output
 
-One `float64` per record — the model's prediction ŷᵢ. NaN-free over the filter-passing rows used to fit.
+One `float64` per record — the model's prediction ŷᵢ. **Null (never 0) when any predictor is null**, so a downstream aggregation counts the row in `n_null`; a null target alone still gets ŷᵢ.
 
 ## Reading the output
 

@@ -11,6 +11,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_PERCENTILE`](#op-attr_percentile) | Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. | Where does each store's revenue rank among all stores, as a percentage? | basic | [`AGG_PERCENTILE`](aggregator.md#op-agg_percentile) when you want the value at a chosen percentile, such as the 90th.<br>[`WIN_RANK`](window.md#op-win_rank) when you want ranks within partitions, or tied values to share a rank.<br>[`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want rows split into equal-sized bands. |
 | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) | Adds to every row the value a straight-line model predicts for its target from its predictors. | What order value would we expect for each customer given their visits and tenure? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, R-squared and p-values of the model.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want how far each row sits from its prediction.<br>[`REG_GLM`](regression.md#op-reg_glm) when the target is yes/no or a count. |
 | [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) | Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. | Which rows have predictor values so far from the rest that they could steer the model? | advanced | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
+| [`ATTR_REG_PREDICT`](#op-attr_reg_predict) | Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. | How close are the model's predictions on weeks it was not fitted to (a holdout)? | advanced | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) when the model should be fitted to these same rows inside the slot.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, their standard errors and p-values. |
 | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) | Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. | Which stores sell far more or less than their size and footfall predict? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the model's summary (coefficients, R-squared).<br>[`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want how far a value is from the mean, with no model. |
 | [`ATTR_SET_HAS`](#op-attr_set_has) | Adds a 1 / 0 column saying whether each row's multi-select field includes one named option. | Which respondents ticked 'price' among their reasons, as a column to cross with other answers? | basic | [`FILTER_SET_CONTAINS_ANY`](filterer.md#op-filter_set_contains_any) when you want to keep only rows that include any of several options.<br>[`AGG_SET_FREQUENCY`](aggregator.md#op-agg_set_frequency) when you want how often each option was chosen. |
 | [`ATTR_SET_POPCOUNT`](#op-attr_set_popcount) | Adds to every row the number of options its multi-select field has selected. | How many reasons did each respondent tick? | basic | [`AGG_SET_CARDINALITY_AVG`](aggregator.md#op-agg_set_cardinality_avg) when you want the average number of selections per group.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when you want whether one particular option was chosen. |
@@ -260,6 +261,41 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 **Glossary:** [`outlier`](../glossary.md#term-outlier), [`residual`](../glossary.md#term-residual), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
 
 **Skill:** [`op-attr-reg-leverage`](../skills/op-attr-reg-leverage.md)
+
+<a id="op-attr_reg_predict"></a>
+
+### `ATTR_REG_PREDICT`
+
+Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values.
+
+**Level:** advanced
+
+**Questions it answers:**
+
+- How close are the model's predictions on weeks it was not fitted to (a holdout)?
+- How much of each week's sales does the TV term of the fitted model account for?
+
+**Use cases by domain:**
+
+- *survey:* Score this wave's respondents with the satisfaction model fitted on last wave.
+- *ops:* Predict handling time for new tickets from a model fitted on last quarter's.
+- *science:* Predict the held-out subjects' response from the dose model fitted on the rest.
+
+**Assumptions:**
+
+- The model is fitted once, on the fit request's own rows, before any slot runs; scoring never refits.
+- The scoring rows must carry every predictor column the fit used, built the same way (same features); an absent one-hot column is the reference level.
+- A row missing any predictor the score reads gets no value (null), never 0.
+- A prediction reflects association in the fitted rows, never what would happen if a predictor were changed.
+
+**Use something else:**
+
+- [`ATTR_REG_FITTED`](#op-attr_reg_fitted) when the model should be fitted to these same rows inside the slot.
+- [`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, their standard errors and p-values.
+
+**Glossary:** [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`overfitting`](../glossary.md#term-overfitting), [`link-function`](../glossary.md#term-link-function), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-attr-reg-predict`](../skills/op-attr-reg-predict.md)
 
 <a id="op-attr_reg_residual"></a>
 

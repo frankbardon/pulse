@@ -201,256 +201,196 @@
         ]
       },
       {
-        "operator": "REG_BAYES_LINEAR",
-        "category": "regression",
-        "level": "advanced",
-        "why": "Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. It uses revenue (f64), seats (u16), score (f64), signup (date) and churned (packed_bool).",
+        "operator": "AGG_MAE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. It uses revenue (f64) and seats (u16).",
         "bound": true,
         "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "params": {
+                "prediction_field": "seats"
+              },
+              "type": "AGG_MAE"
+            }
+          ],
           "cohort": {
             "filename": "recommend.pulse"
-          },
-          "regressions": [
-            {
-              "predictors": [
-                "seats",
-                "score",
-                "signup",
-                "churned"
-              ],
-              "target": "revenue",
-              "type": "REG_BAYES_LINEAR"
-            }
-          ]
+          }
         },
         "alternatives": [
           {
-            "when": "you want p-values, resampled standard errors or stepwise predictor selection (none run on this type)",
-            "use": "REG_OLS"
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
           },
           {
-            "when": "the outcome is yes/no (0/1) or a count",
-            "use": "REG_GLM"
-          },
-          {
-            "when": "you only want how closely two numeric fields follow a straight line together",
-            "use": "TEST_PEARSON_R"
+            "when": "you want the miss as a share of the actual value",
+            "use": "AGG_MAPE"
           }
         ]
       },
       {
-        "operator": "REG_BAYES_LINEAR",
-        "category": "regression",
-        "level": "advanced",
-        "why": "Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. It uses seats (u16), revenue (f64), score (f64), signup (date) and churned (packed_bool).",
+        "operator": "AGG_MAE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. It uses revenue (f64) and score (f64).",
         "bound": true,
         "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "params": {
+                "prediction_field": "score"
+              },
+              "type": "AGG_MAE"
+            }
+          ],
           "cohort": {
             "filename": "recommend.pulse"
-          },
-          "regressions": [
-            {
-              "predictors": [
-                "revenue",
-                "score",
-                "signup",
-                "churned"
-              ],
-              "target": "seats",
-              "type": "REG_BAYES_LINEAR"
-            }
-          ]
+          }
         },
         "alternatives": [
           {
-            "when": "you want p-values, resampled standard errors or stepwise predictor selection (none run on this type)",
-            "use": "REG_OLS"
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
           },
           {
-            "when": "the outcome is yes/no (0/1) or a count",
-            "use": "REG_GLM"
-          },
-          {
-            "when": "you only want how closely two numeric fields follow a straight line together",
-            "use": "TEST_PEARSON_R"
+            "when": "you want the miss as a share of the actual value",
+            "use": "AGG_MAPE"
           }
         ]
       },
       {
-        "operator": "REG_BAYES_LINEAR",
-        "category": "regression",
-        "level": "advanced",
-        "why": "Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. It uses score (f64), revenue (f64), seats (u16), signup (date) and churned (packed_bool).",
+        "operator": "AGG_MAE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. It uses seats (u16) and revenue (f64).",
         "bound": true,
         "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "params": {
+                "prediction_field": "revenue"
+              },
+              "type": "AGG_MAE"
+            }
+          ],
           "cohort": {
             "filename": "recommend.pulse"
-          },
-          "regressions": [
-            {
-              "predictors": [
-                "revenue",
-                "seats",
-                "signup",
-                "churned"
-              ],
-              "target": "score",
-              "type": "REG_BAYES_LINEAR"
-            }
-          ]
+          }
         },
         "alternatives": [
           {
-            "when": "you want p-values, resampled standard errors or stepwise predictor selection (none run on this type)",
-            "use": "REG_OLS"
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
           },
           {
-            "when": "the outcome is yes/no (0/1) or a count",
-            "use": "REG_GLM"
-          },
-          {
-            "when": "you only want how closely two numeric fields follow a straight line together",
-            "use": "TEST_PEARSON_R"
+            "when": "you want the miss as a share of the actual value",
+            "use": "AGG_MAPE"
           }
         ]
       },
       {
-        "operator": "MAT_PARTIAL_CORRELATION",
-        "category": "matrix",
-        "level": "advanced",
-        "why": "How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. It uses revenue (f64), seats (u16) and score (f64).",
+        "operator": "AGG_MAPE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. It uses revenue (f64) and seats (u16).",
         "bound": true,
         "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "params": {
+                "prediction_field": "seats"
+              },
+              "type": "AGG_MAPE"
+            }
+          ],
           "cohort": {
             "filename": "recommend.pulse"
-          },
-          "matrices": [
-            {
-              "fields": [
-                "revenue",
-                "seats",
-                "score"
-              ],
-              "type": "MAT_PARTIAL_CORRELATION"
-            }
-          ]
+          }
         },
         "alternatives": [
           {
-            "when": "you want each pair's link with nothing held fixed",
-            "use": "MAT_CORRELATION"
+            "when": "actual values can be 0 or close to 0, where a share is undefined or explodes",
+            "use": "AGG_MAE"
           },
           {
-            "when": "you want how much each field moves the outcome, in its own units",
-            "use": "REG_OLS"
-          },
-          {
-            "when": "you need a p-value for one pair",
-            "use": "TEST_PEARSON_R"
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
           }
         ]
       },
       {
-        "operator": "REG_GLM",
-        "category": "regression",
-        "level": "advanced",
-        "why": "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. It uses revenue (f64), seats (u16), score (f64), signup (date) and churned (packed_bool). Fill in each placeholder in the draft before you run it.",
-        "bound": false,
+        "operator": "AGG_MAPE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. It uses revenue (f64) and score (f64).",
+        "bound": true,
         "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "params": {
+                "prediction_field": "score"
+              },
+              "type": "AGG_MAPE"
+            }
+          ],
           "cohort": {
             "filename": "recommend.pulse"
-          },
-          "regressions": [
-            {
-              "family": "\u003cfamily\u003e",
-              "predictors": [
-                "seats",
-                "score",
-                "signup",
-                "churned"
-              ],
-              "target": "revenue",
-              "type": "REG_GLM"
-            }
-          ]
-        },
-        "placeholders": [
-          "family"
-        ],
-        "needs": [
-          {
-            "param": "family",
-            "why": "Choose the model family that suits the outcome."
           }
-        ],
+        },
         "alternatives": [
           {
-            "when": "the outcome is a numeric measure with roughly symmetric, constant-spread residuals",
-            "use": "REG_OLS"
+            "when": "actual values can be 0 or close to 0, where a share is undefined or explodes",
+            "use": "AGG_MAE"
           },
           {
-            "when": "you only want to know whether a yes/no rate differs between two groups",
-            "use": "TEST_PROP_Z"
-          },
-          {
-            "when": "the outcome and the single predictor are both categories",
-            "use": "TEST_CHISQ"
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
           }
         ]
       },
       {
-        "operator": "REG_GLM",
-        "category": "regression",
-        "level": "advanced",
-        "why": "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. It uses seats (u16), revenue (f64), score (f64), signup (date) and churned (packed_bool). Fill in each placeholder in the draft before you run it.",
-        "bound": false,
+        "operator": "AGG_MAPE",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. It uses seats (u16) and revenue (f64).",
+        "bound": true,
         "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "params": {
+                "prediction_field": "revenue"
+              },
+              "type": "AGG_MAPE"
+            }
+          ],
           "cohort": {
             "filename": "recommend.pulse"
-          },
-          "regressions": [
-            {
-              "family": "\u003cfamily\u003e",
-              "predictors": [
-                "revenue",
-                "score",
-                "signup",
-                "churned"
-              ],
-              "target": "seats",
-              "type": "REG_GLM"
-            }
-          ]
-        },
-        "placeholders": [
-          "family"
-        ],
-        "needs": [
-          {
-            "param": "family",
-            "why": "Choose the model family that suits the outcome."
           }
-        ],
+        },
         "alternatives": [
           {
-            "when": "the outcome is a numeric measure with roughly symmetric, constant-spread residuals",
-            "use": "REG_OLS"
+            "when": "actual values can be 0 or close to 0, where a share is undefined or explodes",
+            "use": "AGG_MAE"
           },
           {
-            "when": "you only want to know whether a yes/no rate differs between two groups",
-            "use": "TEST_PROP_Z"
-          },
-          {
-            "when": "the outcome and the single predictor are both categories",
-            "use": "TEST_CHISQ"
+            "when": "large misses should count for more than small ones",
+            "use": "AGG_RMSE"
           }
         ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 11
+    "candidates_considered": 23
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 140deabe34b126110ef2a4cd898300f2bde43558bef56a16a322e6f193a0a78e
+// golden-hash: 005bd8c6b3917f68460c920ebda42143a336c5b8077ccc78c8f0ffca92136406

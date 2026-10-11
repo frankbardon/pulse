@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -303,11 +304,11 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 
 	// Pre-build per-shard operators. Each shard worker gets its own
 	// instance set so there's no shared mutable state across workers.
-	filterFns, err := processing.BuildFilters(req.Filterers, schema, s.extensions)
+	filterFns, err := processing.BuildFiltersWithModels(req.Filterers, schema, s.extensions, model.SetFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
-	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions)
+	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +420,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			if err != nil {
 				return nil, err
 			}
-			rec.Set(ra.label, val)
+			processing.SetAttributeOutput(rec, ra.label, val, ra.nullable)
 		}
 
 		// Run.NullRecords' primary-field tally, AFTER row-local
@@ -598,9 +599,14 @@ type rowLocalAttrSpec struct {
 	attr     *types.Attribute
 	computer processing.RowLocalAttribute
 	label    string
+	// nullable: the computer writes NaN as a null (processing.EmitsNull).
+	nullable bool
 }
 
-func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, exts *processing.ExtensionRegistry) ([]rowLocalAttrSpec, error) {
+// buildRowLocalAttrSpecs builds one worker's row-local attributes, bound
+// (processing.BindAttribute) to the registry and the request's bound
+// models, labelled by the processor's own default-label rule.
+func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set) ([]rowLocalAttrSpec, error) {
 	if len(attrs) == 0 {
 		return nil, nil
 	}
@@ -615,8 +621,8 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		if err != nil {
 			return nil, err
 		}
-		if aware, ok := computer.(processing.ExtensionAware); ok {
-			aware.SetExtensions(exts)
+		if err := processing.BindAttribute(computer, exts, models); err != nil {
+			return nil, err
 		}
 		rl, ok := computer.(processing.RowLocalAttribute)
 		if !ok {
@@ -625,9 +631,9 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		}
 		label := attr.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", attr.Type, attr.Field)
+			label = processing.DefaultAttributeLabel(attr)
 		}
-		out = append(out, rowLocalAttrSpec{attr: attr, computer: rl, label: label})
+		out = append(out, rowLocalAttrSpec{attr: attr, computer: rl, label: label, nullable: processing.EmitsNull(computer)})
 	}
 	return out, nil
 }

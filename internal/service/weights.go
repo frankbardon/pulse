@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -46,8 +47,8 @@ func (s *Service) resolveWeights(req *types.Request, schema *encoding.Schema) er
 // weight's column: NeededFields sees the request and slot weights but
 // not pulse.Options.DefaultWeight, and a weight column left out of the
 // projection decodes as null on every row.
-func (s *Service) neededFields(req *types.Request, schema *encoding.Schema) processing.FieldSet {
-	set := processing.NeededFields(req, schema, s.extensions)
+func (s *Service) neededFields(ctx context.Context, req *types.Request, schema *encoding.Schema) processing.FieldSet {
+	set := processing.NeededFieldsWithModels(req, schema, s.extensions, model.SetFrom(ctx))
 	if s.defaultWeight != nil && schema != nil && schema.Field(s.defaultWeight.Field) != nil {
 		set.Add(s.defaultWeight.Field)
 	}
@@ -67,6 +68,7 @@ func (s *Service) newProcessor(ctx context.Context, schema *encoding.Schema, req
 	proc.SetComputePlan(s.computePlanFor(ctx, req))
 	proc.SetWeighting(s.defaultWeight, s.strict)
 	proc.SetLimits(s.Limits())
+	proc.SetModels(model.SetFrom(ctx))
 	if ei := execInfoFrom(ctx); ei != nil {
 		proc.SetPhaseLapper(ei)
 	}

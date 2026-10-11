@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Train and holdout model error side by side in ONE slot: a compose `fits` entry fits income ~ age by OLS on customers 1-149, once; the slot scores every customer with ATTR_REG_PREDICT and groups by id with GROUP_RANGE interval 150, so bucket 0-150 is the training rows and 150-300 the held-out rows. AGG_MAPE (a fraction, 0.12 = 12%; zero actuals excluded and counted in n_zero_actual), AGG_RMSE and AGG_MAE compare income with the prediction column named by params.prediction_field. The same shape splits a weekly series with GROUP_RANGE over week_index (interval 91: weeks 0-90 train, 91-103 holdout).",
+    "capabilities": [
+      "capability:compose_fits"
+    ],
+    "intents": [
+      "benchmark",
+      "drivers"
+    ],
+    "name": "compose-fit-holdout-model-error",
+    "operators": [
+      "AGG_MAE",
+      "AGG_MAPE",
+      "AGG_RMSE",
+      "ATTR_REG_PREDICT",
+      "FILTER_RANGE",
+      "GROUP_RANGE",
+      "REG_OLS"
+    ],
+    "tags": [
+      "compose",
+      "regression",
+      "ols",
+      "streaming-friendly"
+    ]
+  },
+  "fits": [
+    {
+      "name": "income_model",
+      "request": {
+        "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+        "filterers": [{"type": "FILTER_RANGE", "field": "id", "values": ["1", "149"]}],
+        "regressions": [{"type": "REG_OLS", "name": "income_model", "target": "income", "predictors": ["age"]}]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "label": "train_vs_holdout",
+      "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+      "attributes": [
+        {"type": "ATTR_REG_PREDICT", "label": "pred", "params": {"fit": "income_model"}}
+      ],
+      "groups": [
+        {"type": "GROUP_RANGE", "field": "id", "interval": 150}
+      ],
+      "aggregations": [
+        {"type": "AGG_MAPE", "field": "income", "label": "mape", "params": {"prediction_field": "pred"}},
+        {"type": "AGG_RMSE", "field": "income", "label": "rmse", "params": {"prediction_field": "pred"}},
+        {"type": "AGG_MAE", "field": "income", "label": "mae", "params": {"prediction_field": "pred"}}
+      ]
+    }
+  ]
+}

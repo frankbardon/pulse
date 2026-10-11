@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -266,6 +267,13 @@ func ApplyGrouperExtensions(g Grouper, exts *ExtensionRegistry) Grouper {
 // reuse the same factory + extension semantics. Returns nil when
 // filterers is empty.
 func BuildFilters(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry) ([]FilterFunc, error) {
+	return BuildFiltersWithModels(filterers, schema, exts, nil)
+}
+
+// BuildFiltersWithModels is BuildFilters for a request whose
+// expressions read bound models through coef() — a Compose slot's fits
+// (model.SetFrom on the slot's ctx). Nil binds nothing.
+func BuildFiltersWithModels(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set) ([]FilterFunc, error) {
 	if len(filterers) == 0 {
 		return nil, nil
 	}
@@ -279,6 +287,11 @@ func BuildFilters(filterers []*types.Filterer, schema *encoding.Schema, exts *Ex
 		builder := factory()
 		if aware, ok := builder.(ExtensionAware); ok {
 			aware.SetExtensions(exts)
+		}
+		if mb, ok := builder.(modelBinder); ok {
+			if err := mb.bindModels(models); err != nil {
+				return nil, err
+			}
 		}
 		fn, err := builder.Build(f, schema)
 		if err != nil {

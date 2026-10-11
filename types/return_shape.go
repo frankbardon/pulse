@@ -50,10 +50,16 @@ const returnedKey = "returned"
 // precision (its values are copies of the slots' unshaped figures).
 const rankingKey = "ranking"
 
+// fitsKey is the ComposedResponse.Fits JSON key: like `ranking`,
+// outside the plan's path space, so a set fits map is always emitted at
+// full precision (the bound models are scored from those figures).
+const fitsKey = "fits"
+
 // pinnedRootKey reports whether name is a root key the plan never
-// prunes: the `returned` marker and the sweep `ranking`.
+// prunes: the `returned` marker, the sweep `ranking` and the Compose
+// `fits`.
 func pinnedRootKey(name string) bool {
-	return name == returnedKey || name == rankingKey
+	return name == returnedKey || name == rankingKey || name == fitsKey
 }
 
 // structuralTypes are the result types whose MarshalJSON is exactly
@@ -580,7 +586,7 @@ func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment, w
 	buf.WriteByte('{')
 	first := true
 	for _, f := range jsonFields(v) {
-		if len(path) == 0 && f.name == rankingKey {
+		if len(path) == 0 && (f.name == rankingKey || f.name == fitsKey) {
 			if isEmptyJSONValue(f.value) {
 				continue
 			}
@@ -592,7 +598,7 @@ func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment, w
 				buf.WriteByte(',')
 			}
 			first = false
-			buf.WriteString(`"` + rankingKey + `":`)
+			buf.WriteString(`"` + f.name + `":`)
 			buf.Write(b)
 			continue
 		}

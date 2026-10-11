@@ -261,9 +261,22 @@ func extensionNotWeightAware(s weightSlot, field string, explicit bool) error {
 
 // aggValueFields lists the columns a weighted aggregation multiplies by
 // the weight: AGG_RATIO ignores its Field and weights its two params;
-// every other aggregator weights its Field.
+// the model-error family (AGG_MAPE / AGG_RMSE / AGG_MAE) weights its
+// Field and params.prediction_field; every other aggregator weights its
+// Field.
 func aggValueFields(a *types.Aggregation) []string {
-	if a.Type != types.AGG_RATIO {
+	switch a.Type {
+	case types.AGG_MAPE, types.AGG_RMSE, types.AGG_MAE:
+		// Both sides of the scored pair are value fields.
+		var p struct {
+			Pred string `json:"prediction_field"`
+		}
+		if len(a.Params) > 0 && json.Unmarshal(a.Params, &p) != nil {
+			return []string{a.Field}
+		}
+		return []string{a.Field, p.Pred}
+	case types.AGG_RATIO:
+	default:
 		return []string{a.Field}
 	}
 	var p struct {

@@ -246,9 +246,9 @@ func isScalarOutput(t reflect.Type) bool {
 // path. TestRegressionOutputs_AreResultTags pins every key to a real
 // struct tag.
 var regressionOutputs = map[string][]string{
-	string(types.REG_OLS):          {"adj_r2", "coefficients", "converged_iters", "n_obs", "p_values", "r2", "residual_std_err", "std_errors"},
-	string(types.REG_GLM):          {"coefficients", "converged_iters", "deviance", "n_obs", "null_deviance", "p_values", "pseudo_r2", "std_errors"},
-	string(types.REG_BAYES_LINEAR): {"adj_r2", "coefficients", "credible_intervals", "n_obs", "r2", "residual_std_err", "std_errors"},
+	string(types.REG_OLS):          {"adj_r2", "ci_lower", "ci_upper", "coefficients", "conf_level", "converged_iters", "df", "n_obs", "p_values", "r2", "residual_std_err", "std_errors"},
+	string(types.REG_GLM):          {"ci_lower", "ci_upper", "coefficients", "conf_level", "converged_iters", "deviance", "n_obs", "null_deviance", "p_values", "pseudo_r2", "std_errors"},
+	string(types.REG_BAYES_LINEAR): {"adj_r2", "ci_lower", "ci_upper", "coefficients", "conf_level", "credible_intervals", "df", "n_obs", "r2", "residual_std_err", "std_errors"},
 }
 
 // RegressionOutputKeys returns a copy of the applicability row for

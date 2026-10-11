@@ -339,6 +339,7 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 	if labels := buildLabelsSchema(c, inst); labels != nil {
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
+	requestObject["properties"].(map[string]any)["models"] = modelsSchema("Saved model files loaded by name for the filterers' coef() calls (one namespace).")
 	dropHiddenSlots(requestObject, &types.FacetRequest{}, inst)
 	dropHiddenMultiplicity(requestObject, inst)
 	return json.Marshal(requestObject)
@@ -748,6 +749,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	props["regressions"] = regressionsSchema(c, inst)
 	props["vectors"] = vectorsSchema()
 	props["matrices"] = matricesSchema(c, inst)
+	props["models"] = modelsSchema("Saved model files loaded by name, before any record is read, into the namespace Compose `fits` bind: ATTR_REG_PREDICT `fit` and coef() resolve a loaded name like a fit. A name bound twice is PULSE_MODEL_NAME_COLLISION.")
 
 	itemProps := func(slot string) map[string]any {
 		arr, _ := props[slot].(map[string]any)
@@ -868,7 +870,7 @@ func joinsSchema(c fieldClassification) map[string]any {
 func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[string]any {
 	num := func(d string) map[string]any { return map[string]any{"type": "number", "description": d} }
 	integer := func(d string) map[string]any { return map[string]any{"type": "integer", "description": d} }
-	return map[string]any{
+	out := map[string]any{
 		"type":        "array",
 		"description": "Regression fits (REG_*), each a result in Response.regressions.",
 		"items": map[string]any{
@@ -891,6 +893,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"prior_shape":     num("REG_BAYES_LINEAR inverse-gamma shape."),
 				"prior_rate":      num("REG_BAYES_LINEAR inverse-gamma rate."),
 				"credible_level":  num("REG_BAYES_LINEAR credible-interval mass; 0 means 0.95."),
+				"conf_level":      num("Coverage of the coefficient intervals ci_lower / ci_upper, 0 < c < 1; 0 means 0.95 (REG_BAYES_LINEAR: credible_level)."),
 				"resample":        enumStringField([]string{"jackknife", "bootstrap"}, "Resampling layer; omit for none."),
 				"bootstrap_iters": integer("Bootstrap replicates when resample is bootstrap."),
 				"rng_seed":        integer("Bootstrap RNG seed."),
@@ -901,6 +904,37 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 			},
 			"required":             []string{"type", "target"},
 			"additionalProperties": true,
+		},
+	}
+	addModelSave(out, inst, "Write the finished fit as a model file at this path (relative to the data root, ending .pulse-model.json), atomically; overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	return out
+}
+
+// addModelSave adds the `save` property to an array schema's items when
+// inst enables capability:model_save.
+func addModelSave(arr map[string]any, inst *descx.InstanceSnapshot, desc string) {
+	if !inst.Enabled(descx.FeatureModelSave) {
+		return
+	}
+	props := arr["items"].(map[string]any)["properties"].(map[string]any)
+	props["save"] = map[string]any{"type": "string", "description": desc}
+}
+
+// modelsSchema is Request.models / FacetRequest.models
+// (types.ModelRef): model files a `save` wrote, loaded by name. Dropped
+// with the slot when capability:models is hidden (dropHiddenSlots).
+func modelsSchema(desc string) map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": desc,
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
+				"path": map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json."},
+			},
+			"required":             []string{"name", "path"},
+			"additionalProperties": false,
 		},
 	}
 }
@@ -1447,6 +1481,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				types.AllMultiplicityFamilies(), true),
 			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
 			"sweep":  sweepSchema(),
+			"fits":   fitsSchema(reqSchema, inst),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1454,6 +1489,26 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
 	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
+}
+
+// fitsSchema describes the ComposedRequest `fits` list (types.FitSpec):
+// named regression fits run once before any slot. Dropped with the slot
+// when capability:compose_fits is hidden (dropHiddenSlots).
+func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[string]any {
+	out := map[string]any{
+		"type":        "array",
+		"description": "Named regression fits, each run ONCE before any slot (sweep slots included); slots read the fitted model by name. Each fit's result is returned under the response `fits`, keyed by name.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":    map[string]any{"type": "string", "description": "The fit's bound name, unique in the request."},
+				"request": reqSchema,
+			},
+			"required": []string{"name", "request"},
+		},
+	}
+	addModelSave(out, inst, "Write the bound model as a model file at this path (relative to the data root, ending .pulse-model.json) once the fit has run; overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	return out
 }
 
 // forEachSchema describes an item `for_each` (types.ForEach): the item

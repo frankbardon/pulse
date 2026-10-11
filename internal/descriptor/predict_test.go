@@ -325,6 +325,10 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 			// (TestResolveWeights_WeightedMeanSugar).
 			agg.Params = json.RawMessage(`{"weight_field":"val"}`)
 		}
+		if aggType == types.AGG_MAPE || aggType == types.AGG_RMSE || aggType == types.AGG_MAE {
+			// Model error compares field with a required prediction column.
+			agg.Params = json.RawMessage(`{"prediction_field":"val"}`)
+		}
 		req := &types.Request{Aggregations: []*types.Aggregation{agg}}
 		env := predictFromBytes(data, req, nil)
 		if len(env.Errors) != 0 {

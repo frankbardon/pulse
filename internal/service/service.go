@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/observe"
@@ -641,6 +642,19 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := mergegate.MatrixRefusal(req); err != nil {
 		return nil, markLocated(err)
 	}
+	// Every regression `save` path and their uniqueness, shared with
+	// predict (model.CheckRequestSaves): refused before any record is
+	// read.
+	if cerr := model.CheckRequestSaves(req); cerr != nil {
+		return nil, markLocated(cerr)
+	}
+	// The request's `models`: every file read and decoded, bound beside
+	// what ctx already binds (a Compose pre-pass binds a slot's ahead),
+	// before any record is read — predict loads them at the same point.
+	ctx, err := s.bindRequestModels(ctx, req.Models)
+	if err != nil {
+		return nil, markLocated(err)
+	}
 
 	// The multiplicity blocks resolve before any dispatch (every arm —
 	// crosstab, join, shard, parallel decode, serial — shares it); a
@@ -677,6 +691,11 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 		return nil, err
 	}
 	appendVectorWarnings(req, resp)
+	// Model files: every regression `save`, from the full-precision
+	// results (a `return` shapes the response later, in the facade).
+	if err := s.saveRegressionModels(ctx, req, resp); err != nil {
+		return nil, err
+	}
 	return resp, nil
 }
 
@@ -714,7 +733,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
+	if err := s.checkFieldRefs(ctx, req, cohort.Schema()); err != nil {
 		return nil, err
 	}
 	lin, err := s.limitInputs(ctx, cohort, path)
@@ -803,7 +822,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 
-	projected := s.applyProjection(iter, req, cohort.Schema())
+	projected := s.applyProjection(ctx, iter, req, cohort.Schema())
 
 	proc := s.newProcessor(ctx, cohort.Schema(), req)
 	resp, err := proc.Process(ctx, req, iter)
@@ -935,7 +954,7 @@ func (s *Service) processSingleFileParallelMaybe(
 		projectMapHint = len(schema.Fields)
 	)
 	if s.projectBuffered {
-		needed := s.neededFields(req, schema)
+		needed := s.neededFields(ctx, req, schema)
 		if !needed.IsWide() {
 			size := needed.Len()
 			if size > 0 && size < len(schema.Fields) {
@@ -1049,11 +1068,11 @@ func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
 // wide set (extraction couldn't introspect) leaves the iterator on
 // the full-decode path. Works uniformly for single-file and multi-
 // shard iterators via the scanIterator interface.
-func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+func (s *Service) applyProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
 	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
 		return 0
 	}
-	return s.installProjection(iter, req, schema)
+	return s.installProjection(ctx, iter, req, schema)
 }
 
 // applyCrosstabProjection is the crosstab-specific variant of
@@ -1064,19 +1083,19 @@ func (s *Service) applyProjection(iter scanIterator, req *types.Request, schema 
 // crosstab path even when the cohort-wide flag is off. Falls back to
 // full decode silently when the needed-field set widens (extension
 // operator without FieldInputs, malformed expression, etc.).
-func (s *Service) applyCrosstabProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+func (s *Service) applyCrosstabProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
 	if iter == nil || req == nil || schema == nil {
 		return 0
 	}
-	return s.installProjection(iter, req, schema)
+	return s.installProjection(ctx, iter, req, schema)
 }
 
 // installProjection is the shared mechanics behind applyProjection
 // and applyCrosstabProjection. The two callers diverge only on the
 // gate that decides whether projection is attempted at all. It returns
 // the retained-field count it installed, 0 when it left full decode.
-func (s *Service) installProjection(iter scanIterator, req *types.Request, schema *encoding.Schema) int {
-	needed := s.neededFields(req, schema)
+func (s *Service) installProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+	needed := s.neededFields(ctx, req, schema)
 	if needed.IsWide() {
 		return 0
 	}
@@ -1136,6 +1155,18 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err := s.slotRefusal(composed); err != nil {
 		return nil, err
 	}
+	// The fits' structural rules, before anything else past the slot
+	// gate (predict runs the same model.CheckFits).
+	if err := model.CheckFits(composed.Fits); err != nil {
+		return nil, err
+	}
+	// Then the batch's saves and loads (model.CheckComposeBatch — every
+	// slot's save path, every save's uniqueness, every `models` entry)
+	// and every model file read, before any fit or slot runs.
+	pre, err := s.composeModelsPrepass(composed)
+	if err != nil {
+		return nil, err
+	}
 	multPlan, err := s.resolveComposeMultiplicity(composed)
 	if err != nil {
 		return nil, err
@@ -1149,6 +1180,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	foldOverlays := composeOverlaysComputed(composed, composeRet, multPlan)
+	fitCtx := ctx
 	ctx = withinCompose(ctx)
 
 	requests, err := applyComposeLabelDefaults(composed)
@@ -1164,6 +1196,12 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if foldOverlays {
 		vetoes = composeSlotVetoes(composed.Overlays, requests)
 	}
+	// The fit pre-pass: every fit runs once, as a standalone request,
+	// before any slot; every slot then carries the bound models.
+	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, pre, 1)
+	if err != nil {
+		return nil, err
+	}
 
 	// Observability (no-ops off): the batch's planning is its plan
 	// phase; each slot is a child operation timed under its own
@@ -1172,7 +1210,11 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	ei.Lap(observe.PhasePlan)
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		slotCtx, end := startChild(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), i, req)
+		slotSet, err := pre.slotSet(models, i)
+		if err != nil {
+			return nil, err
+		}
+		slotCtx, end := startChild(bindSlotModels(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), slotSet, req), i, req)
 		resp, err := s.Process(slotCtx, req)
 		end(err)
 		if err != nil {
@@ -1209,7 +1251,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// no Compose-only overlays. The `Responses` slot is the SAME slice
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
-	out := &types.ComposedResponse{Responses: responses}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}

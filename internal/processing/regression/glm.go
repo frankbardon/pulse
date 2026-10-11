@@ -53,6 +53,12 @@ type glmEngine struct {
 	family glmFamily
 
 	finalized bool
+
+	// fitted, when set, receives the converged linear predictor η and
+	// fitted means μ = g⁻¹(η) of the rows that entered the fit, in
+	// record order — the engine's own fitted values. A test seam (the
+	// scoring kernel's bit-equality pin); nil in every production fit.
+	fitted func(eta, mu []float64)
 }
 
 const (
@@ -292,12 +298,12 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		// We need the inverse at the converged weights, which is the
 		// XᵀWX from this iteration evaluated at the next β; but β is
 		// what we just solved for. Recompute X β and update η.
+		// η_i through the shared scoring kernel (score.go): column 0 of
+		// X is the intercept's 1, so η_i = β₀ + Σ β_a·x_ia in predictor
+		// order — the expression ATTR_REG_PREDICT evaluates, bit for bit.
 		for i := 0; i < n; i++ {
-			eta[i] = 0
 			xi := xRows[i*(p+1) : (i+1)*(p+1)]
-			for a := 0; a < p+1; a++ {
-				eta[i] += xi[a] * beta[a]
-			}
+			eta[i] = LinearPredictor(beta[0], beta[1:], xi[1:])
 		}
 		convergedIters = iter + 1
 		if dnum/(dnorm+convergenceEps) < tol {
@@ -379,6 +385,9 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	for i := 0; i < n; i++ {
 		mu[i] = e.family.InverseLink(eta[i])
 	}
+	if e.fitted != nil {
+		e.fitted(eta, mu)
+	}
 	deviance := 0.0
 	for i := 0; i < n; i++ {
 		deviance += prior[i] * e.family.Deviance(yVec[i], mu[i])
@@ -434,6 +443,8 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		ConvergedIters: convergedIters,
 	}
 	rw.note(res, sumW, sumWSq)
+	// Wald normal intervals, on the same basis as the Wald-z p-values.
+	attachIntervals(res, resolvedConfLevel(e.spec), 0, false)
 	if e.spec.Vcov {
 		// Cov(β) = (XᵀWX)⁻¹ at the converged weights (dispersion 1), its
 		// diagonal the clamped variances the standard errors read.

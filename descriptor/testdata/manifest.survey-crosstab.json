@@ -1414,7 +1414,7 @@
       },
       {
         "name": "regression-inference",
-        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -2125,6 +2125,10 @@
           "regressions[*].coefficients",
           "regressions[*].std_errors",
           "regressions[*].p_values",
+          "regressions[*].ci_lower",
+          "regressions[*].ci_upper",
+          "regressions[*].df",
+          "regressions[*].conf_level",
           "regressions[*].r2",
           "regressions[*].adj_r2",
           "regressions[*].deviance",
@@ -2229,4 +2233,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a6ca6d4cc4e36eca0c73567dc3bfba312a17718759e3c9e0c2ae9b15fef28209
+// golden-hash: f74e9ca89bb9a1381a5b2a866ed0b9525a4f1e00a23611da146728773e783b05

@@ -91,6 +91,12 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	// U12 E5-S1: the normal-critical bound on N* (Σw / Kish n_eff).
 	types.AGG_CI_LOWER: ClassAware,
 	types.AGG_CI_UPPER: ClassAware,
+
+	// fit-scoring E2-S1: model error as a ratio of two weighted sums,
+	// Σw·loss / Σw (RMSE its square root).
+	types.AGG_MAPE: ClassAware,
+	types.AGG_RMSE: ClassAware,
+	types.AGG_MAE:  ClassAware,
 }
 
 // attributeClasses classes the attributes the table governs: the
@@ -103,7 +109,9 @@ var aggregatorClasses = map[types.AggregationType]Class{
 // standardise against the weighted mean and the weighted POPULATION sd
 // √(M2_w/Σw) — scale-free, so identical under both kinds (statsmodels
 // DescrStatsW(ddof = 0)). Every other attribute is row-local
-// (ClassNone).
+// (ClassNone) — ATTR_REG_PREDICT included: it scores a bound fit,
+// whose own weight applied when the fit ran; a weight in force on the
+// scoring slot changes no score and is reported skipped.
 var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_ZSCORE:     ClassAware,
 	types.ATTR_TSCORE:     ClassAware,

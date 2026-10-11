@@ -10,6 +10,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`cohort-sharding`](skills/cohort-sharding.md): Shard archives in depth — strict structural cohesion, dictionary union-merge, set-rung auto-widen on create and add, grouped shards, the anchor syntax, union-wide memory for materializing operations, single-writer concurrency, and transport-only compression for moving a cohort.
 - [`cohort-sidecar-index`](skills/cohort-sidecar-index.md): The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints.
 - [`cohort-width-overflow`](skills/cohort-width-overflow.md): What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it.
+- [`compose-fits`](skills/compose-fits.md): ComposedRequest.fits — named regression fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
 - [`compose-requests`](skills/compose-requests.md): ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components.
 - [`compose-sweeps`](skills/compose-sweeps.md): ComposedRequest.sweep — one request body with axis placeholders expands into many ordinary Compose slots (grid or zip), with a label pattern, per-slot overlays, limit counting and predict parity.
 - [`crosstab-guide`](skills/crosstab-guide.md): Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics.
@@ -36,6 +37,8 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-distinct-sum`](skills/op-agg-distinct-sum.md): Sum a value field once per distinct key.
 - [`op-agg-frequency`](skills/op-agg-frequency.md): Value count — how many non-null rows hold one chosen value (params.value); one float64 per output row.
 - [`op-agg-kurtosis`](skills/op-agg-kurtosis.md): Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.
+- [`op-agg-mae`](skills/op-agg-mae.md): Mean absolute error of a prediction against an actual — mean(|y - prediction|).
+- [`op-agg-mape`](skills/op-agg-mape.md): Mean absolute percentage error of a prediction against an actual — mean(|y - prediction| / |y|), as a fraction.
 - [`op-agg-max`](skills/op-agg-max.md): Largest non-null value of the field.
 - [`op-agg-median`](skills/op-agg-median.md): 50th percentile of the field; requires sorting the full value set.
 - [`op-agg-min`](skills/op-agg-min.md): Smallest non-null value of the field.
@@ -45,6 +48,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-percentile`](skills/op-agg-percentile.md): Configurable percentile of the field; requires sorting the full value set.
 - [`op-agg-range`](skills/op-agg-range.md): Spread (max minus min) of the field across the input set.
 - [`op-agg-ratio`](skills/op-agg-ratio.md): Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored.
+- [`op-agg-rmse`](skills/op-agg-rmse.md): Root mean squared error of a prediction against an actual — sqrt(mean((y - prediction)^2)).
 - [`op-agg-set-cardinality-avg`](skills/op-agg-set-cardinality-avg.md): Average popcount per contributing row — typical number of selections.
 - [`op-agg-set-cardinality-sum`](skills/op-agg-set-cardinality-sum.md): Sum of popcounts across contributing rows — total label selections seen.
 - [`op-agg-set-distinct-values`](skills/op-agg-set-distinct-values.md): Count of distinct exact mask values seen; each combination is atomic.
@@ -65,6 +69,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank column against the post-filter value set; requires sorting.
 - [`op-attr-reg-fitted`](skills/op-attr-reg-fitted.md): Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass.
 - [`op-attr-reg-leverage`](skills/op-attr-reg-leverage.md): Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic.
+- [`op-attr-reg-predict`](skills/op-attr-reg-predict.md): Per-row score from a bound model (a compose `fits` entry or a loaded `models` file) — no refit; whole model or a terms subset.
 - [`op-attr-reg-residual`](skills/op-attr-reg-residual.md): Per-row residual yᵢ − ŷᵢ from an OLS refit during the attribute prepass.
 - [`op-attr-set-has`](skills/op-attr-set-has.md): Per-row 0/1 — whether the configured label's bit is set on a set field.
 - [`op-attr-set-popcount`](skills/op-attr-set-popcount.md): Per-row popcount of a set field — number of selected labels.
@@ -205,7 +210,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`pairwise-n-sources`](skills/pairwise-n-sources.md): The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
 - [`predict-advisories`](skills/predict-advisories.md): Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
 - [`process-chain`](skills/process-chain.md): ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning.
-- [`regression-inference`](skills/regression-inference.md): Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills.
+- [`regression-inference`](skills/regression-inference.md): Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills.
 - [`regression-modeling`](skills/regression-modeling.md): Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills.
 - [`request-envelope`](skills/request-envelope.md): Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request.
 - [`request-templating`](skills/request-templating.md): Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang.

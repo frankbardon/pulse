@@ -27,6 +27,9 @@ import (
 //     capability:crosstab (the MATRIX host) or capability:compose (the
 //     SERIES host a grouped Process runs)
 //   - ComposedRequest.Overlays — capability:compose
+//   - ComposedRequest.Sweep    — capability:compose_sweep
+//   - ComposedRequest.Fits     — capability:compose_fits (each fit
+//     request's own slots are gated like a slot's, details.fit)
 //   - ChainRequest.Overlays    — capability:process_chain
 //   - FacetRequest.Overlays    — capability:facet
 //   - Request.Weight and every nested per-slot `weight` (Aggregation —
@@ -38,6 +41,8 @@ import (
 //     — capability:multiplicity
 //   - every item `for_each` (Window, Feature, Attribute) —
 //     capability:for_each
+//   - every `save` (RegressionSpec, FitSpec) — capability:model_save
+//   - Request.Models and FacetRequest.Models — capability:models
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
@@ -95,6 +100,17 @@ const forEachKey = "for_each"
 // forEachSlotGate is the one gate every `for_each` key shares.
 var forEachSlotGate = gatedSlot{key: forEachKey, visible: capabilityGate(featForEach)}
 
+// saveKey is the JSON key of a model file save on a RegressionSpec and
+// a ComposedRequest `fits` entry; both ride capability:model_save.
+const saveKey = "save"
+
+// modelSaveSlotGate is the one gate every `save` key shares.
+var modelSaveSlotGate = gatedSlot{key: saveKey, visible: capabilityGate(featModelSave)}
+
+// modelsSlotGate gates the `models` key on a Request and a
+// FacetRequest; both ride capability:models.
+var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels)}
+
 // gatedSlots maps each request root (by its Go type) to its gated
 // slots, plus the nested slot objects that carry a gated key of their
 // own (the per-slot `weight`). The nested entries are what the payload
@@ -109,10 +125,12 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "matrices", visible: capabilityGate(featMatrices)},
 		weightSlotGate,
 		multiplicitySlotGate,
+		modelsSlotGate,
 	},
 	reflect.TypeOf(types.Aggregation{}):        {weightSlotGate},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
-	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate},
+	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate},
+	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate},
 	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
 	reflect.TypeOf(types.Window{}):             {forEachSlotGate},
@@ -152,17 +170,20 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "overlays", visible: overlayGate(featCompose)},
 		multiplicitySlotGate,
 		{key: "sweep", visible: capabilityGate(featComposeSweep)},
+		{key: "fits", visible: capabilityGate(featComposeFits)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it.
 	reflect.TypeOf(types.ComposedResponse{}): {
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
+		{key: "fits", visible: capabilityGate(featComposeFits)},
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
 	},
 	reflect.TypeOf(types.FacetRequest{}): {
 		{key: "overlays", visible: overlayGate(featFacet)},
+		modelsSlotGate,
 	},
 	// Explain carries every other root as a slot: a root whose
 	// capability is hidden is not a slot of it, request and result alike.
@@ -354,6 +375,9 @@ func setSlots(v any) []string {
 		if r.Multiplicity != nil {
 			out = append(out, multiplicityKey)
 		}
+		if len(r.Models) > 0 {
+			out = append(out, "models")
+		}
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
@@ -364,6 +388,9 @@ func setSlots(v any) []string {
 		if r != nil && r.Sweep != nil {
 			out = append(out, "sweep")
 		}
+		if r != nil && len(r.Fits) > 0 {
+			out = append(out, "fits")
+		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
@@ -371,6 +398,9 @@ func setSlots(v any) []string {
 	case *types.FacetRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
+		}
+		if r != nil && len(r.Models) > 0 {
+			out = append(out, "models")
 		}
 	}
 	return out
@@ -545,6 +575,22 @@ func composeOverlayMultiplicityRefusal(overlays []types.ComposeOverlaySpec, inst
 	return nil
 }
 
+// nestedModelSaveRefusal refuses the first regression `save` set inside
+// req when inst hides capability:model_save. The refusal is
+// PULSE_REQUEST_UNKNOWN_FIELD at that regression (details.path),
+// valid_keys over its visible keys.
+func nestedModelSaveRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
+	if req == nil || inst.Enabled(featModelSave) {
+		return nil
+	}
+	for i, r := range req.Regressions {
+		if r != nil && r.Save != "" {
+			return unknownFieldErrorAt(fmt.Sprintf("regressions[%d]", i), []string{saveKey}, VisibleSlotKeys(r, inst))
+		}
+	}
+	return nil
+}
+
 // nestedForEachRefusal refuses the first item `for_each` set inside req
 // when inst hides capability:for_each, in expansion order: features,
 // attributes, windows. The refusal is PULSE_REQUEST_UNKNOWN_FIELD at that
@@ -587,7 +633,10 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 	if ce := nestedMultiplicityRefusal(req, inst); ce != nil {
 		return ce
 	}
-	return nestedForEachRefusal(req, inst)
+	if ce := nestedForEachRefusal(req, inst); ce != nil {
+		return ce
+	}
+	return nestedModelSaveRefusal(req, inst)
 }
 
 // SlotRefusal is the request-slot gate. v is a *types.Request,
@@ -628,6 +677,9 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 		if ce := nestedForEachRefusal(r, inst); ce != nil {
 			return ce
 		}
+		if ce := nestedModelSaveRefusal(r, inst); ce != nil {
+			return ce
+		}
 	case *types.FacetRequest:
 		if r == nil {
 			return nil
@@ -648,6 +700,15 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 		for i, req := range r.Requests {
 			if ce := requestSlotRefusal(req, inst); ce != nil {
 				return RefusalAt(ce, "request", i)
+			}
+		}
+		for i, fit := range r.Fits {
+			if fit.Save != "" && !inst.Enabled(featModelSave) {
+				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("fits[%d]", i), []string{saveKey},
+					VisibleSlotKeys(&r.Fits[i], inst)), "fit", i)
+			}
+			if ce := requestSlotRefusal(fit.Request, inst); ce != nil {
+				return RefusalAt(ce, "fit", i)
 			}
 		}
 	case *types.ChainRequest:

@@ -368,6 +368,9 @@ func packageResampleResult(
 	}
 	out.StdErrors = seMap
 	out.PValues = pMap
+	// Wald normal intervals on the resampled standard errors — the basis
+	// the resample p-values use — replacing the base fit's t intervals.
+	attachIntervals(&out, resolvedConfLevel(spec), 0, false)
 	out.Resample = spec.Resample
 	out.Vcov, out.Correlation = nil, nil
 	if spec.Vcov {

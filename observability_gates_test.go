@@ -543,10 +543,17 @@ func TestHookPanicRecovered(t *testing.T) {
 // MEASURED ON PRE-U20 main (commit 406c6b7c, go1.26.1 and go1.27.1,
 // arm64 and amd64 — identical). U20 promised the off path is
 // allocation-identical; this pin is the proof.
+//
+// predict re-pinned 236 → 251 by fit-scoring E2-S1 (branch fit-scoring,
+// on 8415480c + the change, go1.27, arm64): predict rebuilds the
+// aggregator capability table per call (aggregatorComponentSchemaIndex
+// → aggregatorCapabilities → withWeightAware), so the three new
+// weight-aware rows AGG_MAPE / AGG_RMSE / AGG_MAE add their per-row
+// allocations — registry growth, not observability work on the off path.
 var obsOffAllocBaseline = map[string]float64{
 	"process":       164,
 	"count_records": 45,
-	"predict":       236,
+	"predict":       251,
 	"inspect":       66,
 }
 

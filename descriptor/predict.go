@@ -885,6 +885,22 @@ type SweepSummary struct {
 	Labels []string `json:"labels,omitempty"`
 }
 
+// FitSummary is one ComposeValidationResult.Fits entry: a ComposedRequest
+// `fits` entry as predict reads it, statically — never fitted.
+type FitSummary struct {
+	// Name is the fit's bound name.
+	Name string `json:"name"`
+	// Type is the fit's regression operator.
+	Type types.RegressionType `json:"type"`
+	// Target is the fit's response field.
+	Target string `json:"target"`
+	// Predictors are the predictor columns as written. Under a selection
+	// modifier the fit binds only the predictors the selection keeps.
+	Predictors []string `json:"predictors"`
+	// Cohort is the path of the cohort the fit runs over.
+	Cohort string `json:"cohort,omitempty"`
+}
+
 // ForEachSummary describes one window, feature or attribute item's
 // `for_each` fan-out: PredictResult.ForEach.
 type ForEachSummary struct {

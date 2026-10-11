@@ -76,6 +76,10 @@ type FacetRequest struct {
 	// that sets no `tz` of its own. Empty inherits
 	// pulse.Options.DefaultTimeZone, then UTC.
 	TimeZone string `json:"time_zone,omitempty"`
+
+	// Models loads saved model files by name for the filterers' coef()
+	// calls — the Request.Models contract. Gated by capability:models.
+	Models []ModelRef `json:"models,omitempty"`
 }
 
 // FacetResult is the response shape returned by pulse.FacetSchema.

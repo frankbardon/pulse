@@ -1017,6 +1017,10 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 			field:      "num",
 			params:     json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`),
 		},
+		// Model error scores num (actual) against den (prediction).
+		types.AGG_MAPE: {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", field: "num", params: json.RawMessage(`{"prediction_field":"den"}`)},
+		types.AGG_RMSE: {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", field: "num", params: json.RawMessage(`{"prediction_field":"den"}`)},
+		types.AGG_MAE:  {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", field: "num", params: json.RawMessage(`{"prediction_field":"den"}`)},
 		types.AGG_DISTINCT_SUM: {
 			svc:        scoreSvc,
 			schema:     scoreSchema,

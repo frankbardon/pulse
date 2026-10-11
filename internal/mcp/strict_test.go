@@ -101,6 +101,21 @@ func TestCheckUnknownKeysComposed_TagsIndex(t *testing.T) {
 	assertDetailKeys(t, ce.Details, "unknown_keys", "suggestions", "valid_keys", "request")
 }
 
+// TestCheckUnknownKeysComposed_TagsFitIndex: a fit request is a
+// Request too — an unknown key inside fits[i].request is refused with
+// details.fit, the key the service's fit refusals use.
+func TestCheckUnknownKeysComposed_TagsFitIndex(t *testing.T) {
+	body := []byte(`{"requests":[{"cohort":{"filename":"x.pulse"}}],"fits":[{"name":"a","request":{}},{"name":"b","request":{"regresions":[]}}]}`)
+	ce := checkUnknownKeysComposed(body, nil)
+	if ce == nil {
+		t.Fatal("expected error for unknown key in fits[1].request, got nil")
+	}
+	if idx, ok := ce.Details["fit"].(int); !ok || idx != 1 {
+		t.Errorf("fit = %v, want 1", ce.Details["fit"])
+	}
+	assertDetailKeys(t, ce.Details, "unknown_keys", "suggestions", "valid_keys", "fit")
+}
+
 func TestCheckUnknownKeysChain_TagsStage(t *testing.T) {
 	body := []byte(`{"cohort":{"filename":"x.pulse"},"stages":[{"name":"s0","request":{"groupers":[]}}]}`)
 	ce := checkUnknownKeysChain(body, nil)

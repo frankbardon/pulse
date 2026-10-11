@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U41]
-todo_items: [272, 273, 274, 275, 276, 277, 278, 297, 298, 380]
+todo_items: [272, 273, 274, 275, 276, 277, 278, 297, 298, 380, 392]
 branch: compose-sweep
 ---
 
@@ -52,6 +52,7 @@ Numbering note: appended as U40 after U39, not renumbered. This unit was not in 
 - [ ] **#297** (Follow-ups from U40) Let a following request reference a sweep winner (`rank.top`) instead of typing the winning axis values by hand (worked-example gap 14); decide whether it is a named alias or a ranking reference
 - [ ] **#298** (Follow-ups from U40) Per-axis profile in the ranking output (the minimum of the metric over the other axes, per axis value), so "how identifiable is each axis" is a response field, not an eyeball of the grid (worked-example gap 15)
 - [ ] **#380** (Follow-ups from U41) A `for_each` item inside a compose `sweep` body (lexical scoping of item axes under sweep axes); U41 refuses it for v1 with `nested_in_sweep`, and it can grow without a break. See [U41 handed on](U41-derived-cohort.md#handed-on)
+- [ ] **#392** (Follow-ups from U42) `pulse api compose --stream` ends with an optional terminal `{"fits":…}` NDJSON line, like the sweep's `ranking` line; today a stream carries no fit result (documented). See [U42 handed on](U42-fit-scoring.md#handed-on)
 
 ## Proposed wire form
 

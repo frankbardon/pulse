@@ -414,6 +414,23 @@ without a modifier, with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
 (`details.reason` `penalty`) in predict and at runtime alike. Both slots are in the `standard` preset (not
 `minimal`) and every float in them is rounded by `return.precision`.
 
+## Regression coefficient intervals
+
+`RegressionSpec` takes an additive `conf_level` float (`0 < c < 1`,
+zero or absent = 0.95; out of range is `PROCESSING_CONFIG` in predict
+and at runtime) and `RegressionResult` four additive `omitempty`
+slots: `ci_lower` / `ci_upper` (maps keyed like `coefficients`, a key
+present exactly when `std_errors` carries it), `df` and `conf_level`
+(`format_version` stays `"1.1"`). Each bound is β ∓ q·SE: `REG_OLS` a
+Student-t q on `df` = the residual N* − p − 1 (fractional under
+probability weights), `REG_GLM` a Wald normal q (no `df`),
+`REG_BAYES_LINEAR` the posterior t on `df` = 2·a_n — equal to
+`credible_intervals` when `conf_level` is unset, since it then falls
+back to `credible_level` — and any fit under `resample` a normal q on
+the resampled standard errors (no `df`). An undefined bound or `df`
+(residual df ≤ 0) is `null`. All four are in the `standard` preset (not
+`minimal`) and rounded by `return.precision`.
+
 ## Per-group aggregation components
 
 `groups` on `AggregationComponents` is an additive `omitempty` array of
@@ -515,7 +532,7 @@ emitted. Every listed path must resolve against this schema
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `vcov` / `correlation` when asked for) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` when asked for) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 
@@ -569,6 +586,71 @@ is left out with a `PULSE_SWEEP_RANK_PATH` warning on its own response;
 a non-number, ambiguous or nowhere-resolving path refuses the batch with
 the same code. `ranking` is pinned outside the Compose-level `return`:
 always emitted, never rounded by `precision`.
+
+### Compose fits
+
+`ComposedRequest.fits` is an `omitempty` array of `FitSpec {name,
+request}`: `request` is an ordinary `Request` holding exactly one
+regression and no `groups` / `crosstab`. Every fit runs once, before any
+slot (sweep slots included), over its own cohort, filters, features and
+weight; slots read the fitted model by `name` (one namespace,
+`PULSE_MODEL_NAME_COLLISION` on a duplicate, `PULSE_MODEL_UNKNOWN` for an
+unbound reference). A malformed entry is `PULSE_FIT_INVALID` with
+`details.fit` (the entry index) and `details.reason` (`name_missing`,
+`request_missing`, `regression_count`, `grouped`); a fit request's own
+refusal keeps its code and gains `details.fit`. A fit request's `return`
+is ignored. The fits surface as `ComposedResponse.fits`, an `omitempty`
+object of `RegressionResult` keyed by fit name, pinned outside the
+Compose-level `return` like `ranking` (always emitted, never rounded).
+Both slots are gated by `capability:compose_fits`. `pulse_predict` with
+`composed` lists them as `fits [{name, type, target, predictors,
+cohort}]` on the predict result (not payload-reachable).
+
+### Model files (`save`)
+
+`RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,
+relative to the instance filesystem root, where the finished fit is
+written as a model file (`model_format_version` 1, `.pulse-model.json`;
+the format is in `.claude/reference/byte-layout.md`, "Model file"). The
+path must end `.pulse-model.json` and stay under the root
+(`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`
+or `details.fit`, refused by predict and the runtime alike before any
+record is read); a failed write is `PULSE_MODEL_WRITE_FAILED`. Replacing a
+file succeeds with the warning `PULSE_MODEL_OVERWRITTEN`: on the
+`Response.warnings` of the request whose regression saved, or on
+`ComposedResponse.warnings` — an `omitempty` array of `ResponseWarning`
+for batch-level diagnostics, always emitted (a `warnings` keep path the
+Compose-level `return` cannot exclude) — for a `fits` save
+(`details.fit`). Both `save` keys are
+gated by `capability:model_save`; the file itself is not payload-reachable,
+so `format_version` stays `"1.1"`. Two saves naming one file in a request
+or a Compose batch are refused (`reason: duplicate`, `details.sites`
+naming both writers), and a batch judges every save path — fits and
+slots — before any fit or slot runs (a slot's fault gains
+`details.request`). Materialize and ProcessChain admit no regression, so
+neither ever writes a model file.
+
+### Loading models (`models`)
+
+`Request.models` and `FacetRequest.models` are `omitempty` arrays of
+`ModelRef {name, path}`: each loads a model file a `save` wrote, under
+`name`, into the namespace a Compose `fits` list binds, so
+`ATTR_REG_PREDICT` `fit` and `coef()` resolve a loaded name exactly like
+a fit (bit-for-bit the same scores). Every file is read, version-checked
+and decoded before any record is read — in a Compose batch or a chain,
+before any fit, slot or stage runs, so a load always sees the file as it
+was before the run. Refusals, predict and runtime alike:
+`PULSE_MODEL_REF_INVALID` (no name, or a path the save-path rule
+refuses; `details.model`, `reason`), `PULSE_MODEL_FILE_UNREADABLE`
+(`missing` / `unreadable`), `PULSE_MODEL_FILE_INVALID` /
+`PULSE_MODEL_VERSION_UNSUPPORTED` (with `details.model` and `name`),
+`PULSE_MODEL_NAME_COLLISION` (a name a fit or an earlier entry binds;
+`details.sources` names both), then the scoring rules
+(`PULSE_MODEL_PREDICTOR_MISSING` / `_NOT_NUMERIC` against the scoring
+frame). Provenance is informational: a model fit on one cohort scores any
+cohort holding its predictor columns. A fit request's own `models` are
+all it sees (fits run before the batch binds); each chain stage loads its
+own. Gated by `capability:models`; `format_version` stays `"1.1"`.
 
 ### Item fan-out (`for_each`)
 

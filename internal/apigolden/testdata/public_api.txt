@@ -141,6 +141,7 @@ pulse: type ComposeOptions field PerRequestTimeout time.Duration
 pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationResult
 pulse: type ComposePredictResult underlying struct
 pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
 pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse: type ComposePredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
 pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
@@ -149,6 +150,7 @@ pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "jso
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
+pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
@@ -157,11 +159,13 @@ pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omi
 pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
+pulse: type ComposedResponse field Fits map[string]*pulse/types.RegressionResult "json:\"fits,omitempty\""
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
+pulse: type ComposedResponse field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse: type CreateShardArchiveResult = pulse/internal/service.CreateShardArchiveResult
 pulse: type CreateShardArchiveResult underlying struct
@@ -328,6 +332,7 @@ pulse: type FacetRequest field HistogramBins int "json:\"histogram_bins,omitempt
 pulse: type FacetRequest field HistogramRange [2]float64 "json:\"histogram_range,omitempty\""
 pulse: type FacetRequest field IncludeHistogram bool "json:\"include_histogram,omitempty\""
 pulse: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
+pulse: type FacetRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
@@ -818,6 +823,7 @@ pulse: type Request field Joins []*pulse/types.JoinSpec "json:\"joins,omitempty\
 pulse: type Request field Label string "json:\"label,omitempty\""
 pulse: type Request field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse: type Request field Matrices []pulse/types.MatrixSpec "json:\"matrices,omitempty\""
+pulse: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
@@ -1315,6 +1321,12 @@ pulse/descriptor: type FiltererPredict field BufferedComponents bool "json:\"buf
 pulse/descriptor: type FiltererPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type FiltererPredict field Field string "json:\"field,omitempty\""
 pulse/descriptor: type FiltererPredict field Type pulse/types.FiltererType "json:\"type\""
+pulse/descriptor: type FitSummary struct
+pulse/descriptor: type FitSummary field Cohort string "json:\"cohort,omitempty\""
+pulse/descriptor: type FitSummary field Name string "json:\"name\""
+pulse/descriptor: type FitSummary field Predictors []string "json:\"predictors\""
+pulse/descriptor: type FitSummary field Target string "json:\"target\""
+pulse/descriptor: type FitSummary field Type pulse/types.RegressionType "json:\"type\""
 pulse/descriptor: type ForEachSummary struct
 pulse/descriptor: type ForEachSummary field Axes []pulse/descriptor.SweepAxisSummary "json:\"axes\""
 pulse/descriptor: type ForEachSummary field ExpandedCount int "json:\"expanded_count\""
@@ -2187,6 +2199,7 @@ pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEA
 pulse/errors: const PULSE_FEATURE_PROFILE_UNKNOWN pulse/errors.Code = "PULSE_FEATURE_PROFILE_UNKNOWN"
 pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
+pulse/errors: const PULSE_FIT_INVALID pulse/errors.Code = "PULSE_FIT_INVALID"
 pulse/errors: const PULSE_FOR_EACH_INVALID pulse/errors.Code = "PULSE_FOR_EACH_INVALID"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
 pulse/errors: const PULSE_GROUP_ENTRIES_EXHAUSTED pulse/errors.Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
@@ -2261,6 +2274,21 @@ pulse/errors: const PULSE_MATRIX_SHAPE_MISMATCH pulse/errors.Code = "PULSE_MATRI
 pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SINGULAR"
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
+pulse/errors: const PULSE_MODEL_FILE_INVALID pulse/errors.Code = "PULSE_MODEL_FILE_INVALID"
+pulse/errors: const PULSE_MODEL_FILE_UNREADABLE pulse/errors.Code = "PULSE_MODEL_FILE_UNREADABLE"
+pulse/errors: const PULSE_MODEL_INTERVALS_UNAVAILABLE pulse/errors.Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
+pulse/errors: const PULSE_MODEL_NAME_COLLISION pulse/errors.Code = "PULSE_MODEL_NAME_COLLISION"
+pulse/errors: const PULSE_MODEL_OVERWRITTEN pulse/errors.Code = "PULSE_MODEL_OVERWRITTEN"
+pulse/errors: const PULSE_MODEL_PREDICTOR_MISSING pulse/errors.Code = "PULSE_MODEL_PREDICTOR_MISSING"
+pulse/errors: const PULSE_MODEL_PREDICTOR_NOT_NUMERIC pulse/errors.Code = "PULSE_MODEL_PREDICTOR_NOT_NUMERIC"
+pulse/errors: const PULSE_MODEL_REF_INVALID pulse/errors.Code = "PULSE_MODEL_REF_INVALID"
+pulse/errors: const PULSE_MODEL_SAVE_INVALID pulse/errors.Code = "PULSE_MODEL_SAVE_INVALID"
+pulse/errors: const PULSE_MODEL_SCORE_INVALID pulse/errors.Code = "PULSE_MODEL_SCORE_INVALID"
+pulse/errors: const PULSE_MODEL_STAT_UNKNOWN pulse/errors.Code = "PULSE_MODEL_STAT_UNKNOWN"
+pulse/errors: const PULSE_MODEL_TERM_UNKNOWN pulse/errors.Code = "PULSE_MODEL_TERM_UNKNOWN"
+pulse/errors: const PULSE_MODEL_UNKNOWN pulse/errors.Code = "PULSE_MODEL_UNKNOWN"
+pulse/errors: const PULSE_MODEL_VERSION_UNSUPPORTED pulse/errors.Code = "PULSE_MODEL_VERSION_UNSUPPORTED"
+pulse/errors: const PULSE_MODEL_WRITE_FAILED pulse/errors.Code = "PULSE_MODEL_WRITE_FAILED"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
 pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
 pulse/errors: const PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
@@ -3646,6 +3674,8 @@ pulse/types: const AGG_DISTINCT_COUNT pulse/types.AggregationType = "AGG_DISTINC
 pulse/types: const AGG_DISTINCT_SUM pulse/types.AggregationType = "AGG_DISTINCT_SUM"
 pulse/types: const AGG_FREQUENCY pulse/types.AggregationType = "AGG_FREQUENCY"
 pulse/types: const AGG_KURTOSIS pulse/types.AggregationType = "AGG_KURTOSIS"
+pulse/types: const AGG_MAE pulse/types.AggregationType = "AGG_MAE"
+pulse/types: const AGG_MAPE pulse/types.AggregationType = "AGG_MAPE"
 pulse/types: const AGG_MAX pulse/types.AggregationType = "AGG_MAX"
 pulse/types: const AGG_MEDIAN pulse/types.AggregationType = "AGG_MEDIAN"
 pulse/types: const AGG_MIN pulse/types.AggregationType = "AGG_MIN"
@@ -3655,6 +3685,7 @@ pulse/types: const AGG_NULL_COUNT pulse/types.AggregationType = "AGG_NULL_COUNT"
 pulse/types: const AGG_PERCENTILE pulse/types.AggregationType = "AGG_PERCENTILE"
 pulse/types: const AGG_RANGE pulse/types.AggregationType = "AGG_RANGE"
 pulse/types: const AGG_RATIO pulse/types.AggregationType = "AGG_RATIO"
+pulse/types: const AGG_RMSE pulse/types.AggregationType = "AGG_RMSE"
 pulse/types: const AGG_SET_CARDINALITY_AVG pulse/types.AggregationType = "AGG_SET_CARDINALITY_AVG"
 pulse/types: const AGG_SET_CARDINALITY_SUM pulse/types.AggregationType = "AGG_SET_CARDINALITY_SUM"
 pulse/types: const AGG_SET_DISTINCT_VALUES pulse/types.AggregationType = "AGG_SET_DISTINCT_VALUES"
@@ -3675,6 +3706,7 @@ pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
 pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
+pulse/types: const ATTR_REG_PREDICT pulse/types.AttributeType = "ATTR_REG_PREDICT"
 pulse/types: const ATTR_REG_RESIDUAL pulse/types.AttributeType = "ATTR_REG_RESIDUAL"
 pulse/types: const ATTR_SET_HAS pulse/types.AttributeType = "ATTR_SET_HAS"
 pulse/types: const ATTR_SET_POPCOUNT pulse/types.AttributeType = "ATTR_SET_POPCOUNT"
@@ -3802,6 +3834,7 @@ pulse/types: type ComposeOverlaySpec field Scope pulse/types.OverlayScope "json:
 pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omitempty\""
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
+pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
@@ -3809,11 +3842,13 @@ pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"retur
 pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
+pulse/types: type ComposedResponse field Fits map[string]*pulse/types.RegressionResult "json:\"fits,omitempty\""
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse/types: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
+pulse/types: type ComposedResponse field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse/types: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse/types: type CrosstabComponents struct
 pulse/types: type CrosstabComponents field CellComponents [][]map[string]any "json:\"cell_components,omitempty\""
@@ -3935,6 +3970,7 @@ pulse/types: type FacetRequest field HistogramBins int "json:\"histogram_bins,om
 pulse/types: type FacetRequest field HistogramRange [2]float64 "json:\"histogram_range,omitempty\""
 pulse/types: type FacetRequest field IncludeHistogram bool "json:\"include_histogram,omitempty\""
 pulse/types: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
+pulse/types: type FacetRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse/types: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
@@ -3980,6 +4016,10 @@ pulse/types: type FiltererComponents field NNullInput int "json:\"n_null_input\"
 pulse/types: type FiltererComponents field NOut int "json:\"n_out\""
 pulse/types: type FiltererType string
 pulse/types: type FiltererType method (FiltererType) Streamable() bool
+pulse/types: type FitSpec struct
+pulse/types: type FitSpec field Name string "json:\"name\""
+pulse/types: type FitSpec field Request *pulse/types.Request "json:\"request\""
+pulse/types: type FitSpec field Save string "json:\"save,omitempty\""
 pulse/types: type ForEach struct
 pulse/types: type ForEach field Axes []pulse/types.SweepAxis "json:\"axes\""
 pulse/types: type ForEach field Mode pulse/types.SweepMode "json:\"mode,omitempty\""
@@ -4155,6 +4195,9 @@ pulse/types: type MatrixValues field Labels []string "json:\"labels,omitempty\""
 pulse/types: type MatrixValues field RowKeys []string "json:\"row_keys\""
 pulse/types: type MatrixValues field Values [][]float64 "json:\"values\""
 pulse/types: type MatrixValues method (MatrixValues) MarshalJSON() ([]byte, error)
+pulse/types: type ModelRef struct
+pulse/types: type ModelRef field Name string "json:\"name\""
+pulse/types: type ModelRef field Path string "json:\"path\""
 pulse/types: type Multiplicity struct
 pulse/types: type Multiplicity field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Multiplicity field Family pulse/types.MultiplicityFamily "json:\"family,omitempty\""
@@ -4383,11 +4426,15 @@ pulse/types: type RankEntry field Value float64 "json:\"value\""
 pulse/types: type RegressionResult struct
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
+pulse/types: type RegressionResult field CILower map[string]float64 "json:\"ci_lower,omitempty\""
+pulse/types: type RegressionResult field CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
 pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\"coefficients,omitempty\""
+pulse/types: type RegressionResult field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionResult field ConvergedIters int "json:\"converged_iters,omitempty\""
 pulse/types: type RegressionResult field Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
 pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64 "json:\"credible_intervals,omitempty\""
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
+pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
@@ -4413,6 +4460,7 @@ pulse/types: type RegressionResult method (RegressionResult) MarshalJSON() ([]by
 pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionSpec field BootstrapIters int "json:\"bootstrap_iters,omitempty\""
+pulse/types: type RegressionSpec field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
@@ -4429,6 +4477,7 @@ pulse/types: type RegressionSpec field PriorRate float64 "json:\"prior_rate,omit
 pulse/types: type RegressionSpec field PriorShape float64 "json:\"prior_shape,omitempty\""
 pulse/types: type RegressionSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
 pulse/types: type RegressionSpec field Resample string "json:\"resample,omitempty\""
+pulse/types: type RegressionSpec field Save string "json:\"save,omitempty\""
 pulse/types: type RegressionSpec field Selection string "json:\"selection,omitempty\""
 pulse/types: type RegressionSpec field Target string "json:\"target\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
@@ -4451,6 +4500,7 @@ pulse/types: type Request field Joins []*pulse/types.JoinSpec "json:\"joins,omit
 pulse/types: type Request field Label string "json:\"label,omitempty\""
 pulse/types: type Request field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse/types: type Request field Matrices []pulse/types.MatrixSpec "json:\"matrices,omitempty\""
+pulse/types: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
@@ -4652,4 +4702,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c792d1288a6857668bfa815486c13dd0856fe264e482e1c3d5cdae50138242a3
+// golden-hash: 81a63d55ba4f97eada11dab73a9da960a8059124cdab44b2804f8d43b7ca143b

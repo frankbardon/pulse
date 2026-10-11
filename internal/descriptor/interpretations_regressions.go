@@ -1,6 +1,10 @@
 package descriptor
 
-import "github.com/frankbardon/pulse/descriptor"
+import (
+	"slices"
+
+	"github.com/frankbardon/pulse/descriptor"
+)
 
 // regressionInterpretations is the Interpretation registry for the REG_*
 // types: how to read each RegressionResult key the type emits on its
@@ -47,9 +51,26 @@ var (
 		"There are no published bands for adjusted R-squared, so none are attached: Cohen's R-squared benchmarks are stated for R-squared itself.",
 	}
 	regRSE = "Typical size of a residual, in the outcome's units: how far actual values sit from the fitted line on a typical row."
+
+	regCIRepeated = "It is a statement about the method, not this one range: intervals built this way cover the true coefficient " +
+		"in about conf_level of repeated samples, if the model's assumptions hold."
+	regCIOneAtATime = "Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level."
+	regConfLevel    = descriptor.Interpretation{
+		Field: "conf_level",
+		Means: "The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).",
+	}
 )
 
-var interpRegOLS = []descriptor.Interpretation{
+// regCI is the ci_lower.* / ci_upper.* pair for one type: means names
+// how the bound is built, caveats are the type's own.
+func regCI(means string, caveats ...string) []descriptor.Interpretation {
+	return []descriptor.Interpretation{
+		{Field: "ci_lower.*", Means: "Lower bound of the coefficient's two-sided confidence interval at conf_level: " + means, Caveats: caveats},
+		{Field: "ci_upper.*", Means: "Upper bound of the coefficient's two-sided confidence interval at conf_level: " + means, Caveats: caveats},
+	}
+}
+
+var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 	{
 		Field: "coefficients.*",
 		Means: "The difference in the outcome's expected value between rows one unit apart on this predictor, holding the other " +
@@ -81,6 +102,19 @@ var interpRegOLS = []descriptor.Interpretation{
 			"On a penalized fit (l1, l2, elasticnet) the coefficients are shrunk on purpose, so these p-values do not have the usual reading; l1 and elasticnet ones are approximate.",
 		},
 	},
+}, append(regCI("the coefficient minus (lower) or plus (upper) a Student-t critical value on df times its standard error.",
+	regCIRepeated,
+	regCIOneAtATime,
+	"Under resample the critical value is the normal one and the standard error the resampled one; df is then absent.",
+	"On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones "+
+		"exist only for the kept predictors and are approximate.",
+), regConfLevel, descriptor.Interpretation{
+	Field: "df",
+	Means: "Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional.",
+	Caveats: []string{
+		"Null when it is 0 or below: too few rows (or too small an effective sample) for the predictors, and every bound is then null too.",
+	},
+}), []descriptor.Interpretation{
 	bandedBy(ConventionCohenR2, descriptor.Interpretation{
 		Field: "r2",
 		Means: "R-squared: the share of the outcome's variation around its mean that the fitted model accounts for in these rows, from 0 to 1.",
@@ -109,9 +143,9 @@ var interpRegOLS = []descriptor.Interpretation{
 			"A value at max_iters suggests the fit stopped before settling; raise max_iters or tol.",
 		},
 	},
-}
+})
 
-var interpRegGLM = []descriptor.Interpretation{
+var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 	{
 		Field: "coefficients.*",
 		Means: "The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding " +
@@ -148,6 +182,12 @@ var interpRegGLM = []descriptor.Interpretation{
 			"Wald z at dispersion fixed to 1: with overdispersed counts the Poisson p-values come out too small, and gamma p-values are unreliable.",
 		},
 	},
+}, append(regCI("the coefficient minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval), on the link scale.",
+	regCIRepeated,
+	regCIOneAtATime,
+	"Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.",
+	"Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.",
+), regConfLevel), []descriptor.Interpretation{
 	{
 		Field: "deviance",
 		Means: "How far the fitted predictions sit from the observed outcomes, as twice the log-likelihood gap to a model " +
@@ -179,9 +219,9 @@ var interpRegGLM = []descriptor.Interpretation{
 			"A fit that cannot converge within max_iters is refused rather than reported.",
 		},
 	},
-}
+})
 
-var interpRegBayesLinear = []descriptor.Interpretation{
+var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	{
 		Field: "coefficients.*",
 		Means: "Posterior mean of the coefficient: the expected difference in the outcome between rows one unit apart on this predictor, " +
@@ -215,6 +255,12 @@ var interpRegBayesLinear = []descriptor.Interpretation{
 			"An interval that excludes 0 is not a significance test; report the interval itself.",
 		},
 	},
+}, append(regCI("the equal-tailed posterior interval on the coefficient's Student-t posterior with df degrees of freedom, as in credible_intervals.",
+	"With conf_level unset it is built at credible_level, so it equals credible_intervals; it reads like them, as a probability given the prior and the model.",
+), regConfLevel, descriptor.Interpretation{
+	Field: "df",
+	Means: "Degrees of freedom of the coefficients' Student-t posterior, 2 * a_n, which the interval's critical value reads.",
+}), []descriptor.Interpretation{
 	{
 		Field: "r2",
 		Means: "R-squared of the posterior-mean fit: the share of the outcome's variation the posterior-mean coefficients account for in these rows.",
@@ -238,4 +284,4 @@ var interpRegBayesLinear = []descriptor.Interpretation{
 		},
 	},
 	regNObs,
-}
+})

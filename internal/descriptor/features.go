@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/frankbardon/pulse/types"
 )
 
 // FeatureKind classifies one row of the feature table. It is the
@@ -99,6 +101,9 @@ var (
 	featProcess      = FeatureName(FeatureKindCapability, "process")
 	featCompose      = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep = FeatureName(FeatureKindCapability, "compose_sweep")
+	featComposeFits  = FeatureName(FeatureKindCapability, "compose_fits")
+	featModelSave    = FeatureModelSave
+	featModels       = FeatureModels
 	featForEach      = FeatureForEach
 	featProcessChain = FeatureName(FeatureKindCapability, "process_chain")
 	featFacet        = FeatureName(FeatureKindCapability, "facet")
@@ -138,6 +143,16 @@ const FeatureMultiplicity = "capability:multiplicity"
 // MCP binder (nested for_each properties) reads it.
 const FeatureForEach = "capability:for_each"
 
+// FeatureModelSave is capability:model_save — the `save` key on a
+// RegressionSpec and a ComposedRequest `fits` entry, which writes the
+// fit as a model file. Exported for the MCP bound schema.
+const FeatureModelSave = "capability:model_save"
+
+// FeatureModels is capability:models — the `models` key on a Request
+// and a FacetRequest, which loads saved model files by name into the
+// bound-model namespace. Exported for the MCP bound schema.
+const FeatureModels = "capability:models"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -158,6 +173,9 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("watch"),          // Watch*
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
 	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
+	capability("compose_fits"),   // ComposedRequest.Fits + ComposedResponse.Fits
+	capability("model_save"),     // RegressionSpec.Save + FitSpec.Save (model files)
+	capability("models"),         // Request.Models + FacetRequest.Models (load model files)
 	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
 	capability("process_chain"),  // ProcessChain
 	capability("facet"),          // Facet, FacetSchema
@@ -238,6 +256,9 @@ var builtinFeatures = withDependencies([]Feature{
 	op("AGG_CI_LOWER"),
 	op("AGG_CI_UPPER"),
 	op("AGG_WELFORD"),
+	op("AGG_MAPE"),
+	op("AGG_RMSE"),
+	op("AGG_MAE"),
 	op("AGG_SET_UNION"),
 	op("AGG_SET_INTERSECTION"),
 	op("AGG_SET_FREQUENCY"),
@@ -252,6 +273,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_PERCENTILE"),
 	op("ATTR_REG_FITTED"),
 	op("ATTR_REG_LEVERAGE"),
+	op("ATTR_REG_PREDICT"),
 	op("ATTR_REG_RESIDUAL"),
 	op("ATTR_SET_HAS"),
 	op("ATTR_SET_POPCOUNT"),
@@ -404,7 +426,13 @@ var requestSlotCapabilities = map[string]bool{
 	featWeighting: true,
 	featMatrices:  true,
 	featForEach:   true,
+	featModelSave: true,
 }
+
+// modelsHosts is the any-of host group of capability:models: every
+// request host, plus capability:facet (FacetRequest.Models feeds the
+// facet filterers' coef()).
+var modelsHosts = []string{featProcess, featCompose, featProcessChain, featFacet}
 
 // slotTokenSet is the prose vocabulary one slot-owning capability owns:
 // the wire tokens that name its request / response slots, and the topic
@@ -464,6 +492,12 @@ var slotTokens = map[string]slotTokenSet{
 	// `sweep` and `ranking` are everyday English; no guidance sentence
 	// names the slot yet.
 	featComposeSweep: {},
+	// `fits` is everyday English; no guidance sentence names the slot.
+	featComposeFits: {},
+	// `save` is everyday English; no guidance sentence names the slot.
+	featModelSave: {},
+	// `models` is everyday English; no guidance sentence names the slot.
+	featModels: {},
 	// `for_each` names the item key only; no guidance sentence names it.
 	featForEach: {},
 	// pulse_explain's `sample` root slot: "sample" is everyday English
@@ -589,6 +623,10 @@ var overlayHostKinds = map[string][]string{
 //     FILTER_EXPRESSION would break FilterToFile for any request.
 //   - every MAT_* operator rides the Request.Matrices slot, which
 //     capability:matrices gates.
+//   - capability:model_save writes a fitted regression, so it needs
+//     any-of the REG_* operators.
+//   - capability:models loads a model only a scoring reference reads:
+//     ATTR_REG_PREDICT, or coef() in ATTR_FORMULA / FILTER_EXPRESSION.
 //
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
@@ -602,19 +640,39 @@ var hardEdges = map[string][]string{
 	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {"AGG_AVERAGE", "AGG_WEIGHTED_MEAN"},
 	"ATTR_REG_FITTED":                       {"REG_OLS"},
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
-	"ATTR_REG_RESIDUAL":                     {"REG_OLS"},
-	"OVERLAY_YOY":                           {"GROUP_DATE"},
-	featFilterToFile:                        {"FILTER_EXPRESSION"},
-	"MAT_COLLINEARITY":                      {featMatrices},
-	"MAT_CORRELATION":                       {featMatrices},
-	"MAT_COVARIANCE":                        {featMatrices},
-	"MAT_PARTIAL_CORRELATION":               {featMatrices},
-	"MAT_PCA":                               {featMatrices},
-	"MAT_RELIABILITY":                       {featMatrices},
+	// Scores a bound fit of any scorable regression type.
+	"ATTR_REG_PREDICT":        {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"},
+	"ATTR_REG_RESIDUAL":       {"REG_OLS"},
+	"OVERLAY_YOY":             {"GROUP_DATE"},
+	featFilterToFile:          {"FILTER_EXPRESSION"},
+	"MAT_COLLINEARITY":        {featMatrices},
+	"MAT_CORRELATION":         {featMatrices},
+	"MAT_COVARIANCE":          {featMatrices},
+	"MAT_PARTIAL_CORRELATION": {featMatrices},
+	"MAT_PCA":                 {featMatrices},
+	"MAT_RELIABILITY":         {featMatrices},
 
 	// A sweep expands into Compose slots: without Compose there is
 	// nothing to expand into.
 	featComposeSweep: {featCompose},
+	// A save writes a fitted regression: without a regression there is
+	// nothing to save.
+	featModelSave: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
+	// A loaded model is read only by a scoring reference.
+	featModels: {"ATTR_FORMULA", "ATTR_REG_PREDICT", "FILTER_EXPRESSION"},
+}
+
+// groupEdges are the dependencies needing MORE than one any-of group
+// (hardEdges holds one): each group is ANDed after the host group.
+//
+//   - capability:compose_fits runs its fits before Compose slots and a
+//     fit is one regression: it needs Compose AND any-of the REG_*
+//     operators.
+var groupEdges = map[string][][]string{
+	featComposeFits: {
+		{featCompose},
+		{string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
+	},
 }
 
 // RequestHostCapabilities returns the request-executing host
@@ -662,6 +720,8 @@ func withDependencies(rows []Feature) []Feature {
 			if hosts := OverlayHostCapabilities(f.Name); len(hosts) > 0 {
 				groups = append(groups, hosts)
 			}
+		case f.Name == featModels:
+			groups = append(groups, append([]string(nil), modelsHosts...))
 		case f.Kind == FeatureKindOperator, requestSlotCapabilities[f.Name]:
 			groups = append(groups, append([]string(nil), requestHosts...))
 		case processOnly[f.Name]:
@@ -672,6 +732,7 @@ func withDependencies(rows []Feature) []Feature {
 		if anyOf := hardEdges[f.Name]; len(anyOf) > 0 {
 			groups = append(groups, append([]string(nil), anyOf...))
 		}
+		groups = append(groups, cloneGroups(groupEdges[f.Name])...)
 		f.DependsOn = groups
 	}
 	return rows

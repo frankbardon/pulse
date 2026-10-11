@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/datepart"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -237,6 +238,9 @@ type formulaAttribute struct {
 	expression string
 	schema     *encoding.Schema
 	exts       *ExtensionRegistry
+	// models are the request's bound models coef() reads (nil: none),
+	// set by bindModels before prepare compiles.
+	models *model.Set
 
 	once    sync.Once
 	prog    *exprProgram
@@ -270,9 +274,19 @@ func (a *formulaAttribute) SetExtensions(r *ExtensionRegistry) {
 // and Compute call it too, for any caller that skips that step.
 func (a *formulaAttribute) prepare() error {
 	a.once.Do(func() {
-		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.exts.ExprOptions())
+		if a.progErr = a.exts.coefStaticRefusal(a.expression, a.models); a.progErr != nil {
+			return
+		}
+		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.exts.exprOptionsWithModels(a.models))
 	})
 	return a.progErr
+}
+
+// bindModels satisfies modelBinder: coef() reads the request's bound
+// models. Its static rule runs in prepare, after the binding.
+func (a *formulaAttribute) bindModels(models *model.Set) error {
+	a.models = models
+	return nil
 }
 
 func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, error) {
@@ -333,17 +347,63 @@ type attributePreparer interface {
 	prepare() error
 }
 
-// bindAttribute injects the registry into a freshly built attribute and
-// runs its build-time preparation, so a compile error surfaces before
-// any record is read.
-func bindAttribute(computer AttributeComputer, exts *ExtensionRegistry) error {
+// modelBinder is implemented by attributes that score a bound model
+// (ATTR_REG_PREDICT): bindModels resolves it in the request's bound
+// models before any record is read.
+type modelBinder interface {
+	bindModels(models *model.Set) error
+}
+
+// NullEmitter is implemented by an attribute whose NaN output means "no
+// value for this row" (ATTR_REG_PREDICT: a null input). Every
+// orchestrator arm writes such a value as a NULL under the label
+// (SetAttributeOutput), so a downstream aggregation skips the row and
+// counts it in n_null instead of folding NaN. An attribute without it
+// keeps its NaN as a value.
+type NullEmitter interface {
+	EmitsNull() bool
+}
+
+// EmitsNull reports whether computer writes NaN as a null.
+func EmitsNull(computer AttributeComputer) bool {
+	ne, ok := computer.(NullEmitter)
+	return ok && ne.EmitsNull()
+}
+
+// SetAttributeOutput writes one attribute value under label on a
+// row-at-a-time arm: a NULL when nullable (EmitsNull) and v is NaN,
+// otherwise the value with any prior null mark cleared (Record.Set).
+func SetAttributeOutput(rec *Record, label string, v float64, nullable bool) {
+	if nullable && math.IsNaN(v) {
+		rec.SetNull(label)
+		return
+	}
+	rec.Set(label, v)
+}
+
+// BindAttribute injects the registry and the request's bound models
+// into a freshly built attribute and runs its build-time preparation,
+// so a compile error or an unresolvable model surfaces before any record
+// is read. models may be nil (nothing bound).
+func BindAttribute(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set) error {
 	if aware, ok := computer.(ExtensionAware); ok {
 		aware.SetExtensions(exts)
+	}
+	if mb, ok := computer.(modelBinder); ok {
+		if err := mb.bindModels(models); err != nil {
+			return err
+		}
 	}
 	if p, ok := computer.(attributePreparer); ok {
 		return p.prepare()
 	}
 	return nil
+}
+
+// bindAttribute is BindAttribute with this processor's registry and
+// bound models.
+func (p *Processor) bindAttribute(computer AttributeComputer) error {
+	return BindAttribute(computer, p.exts, p.models)
 }
 
 type percentileAttribute struct{}

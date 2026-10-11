@@ -66,6 +66,7 @@ func checkUnknownRequestKeys(body []byte, inst *descx.InstanceSnapshot) *perr.Co
 const (
 	locationRequest = "request"
 	locationStage   = "stage"
+	locationFit     = "fit"
 )
 
 // checkHiddenRootKeys refuses a ComposedRequest / ChainRequest root
@@ -101,6 +102,9 @@ func checkUnknownKeysComposed(body []byte, inst *descx.InstanceSnapshot) *perr.C
 	}
 	var probe struct {
 		Requests []json.RawMessage `json:"requests"`
+		Fits     []struct {
+			Request json.RawMessage `json:"request"`
+		} `json:"fits"`
 	}
 	if err := json.Unmarshal(body, &probe); err != nil {
 		return nil
@@ -108,6 +112,16 @@ func checkUnknownKeysComposed(body []byte, inst *descx.InstanceSnapshot) *perr.C
 	for i, r := range probe.Requests {
 		if ce := checkUnknownRequestKeys(r, inst); ce != nil {
 			ce.Details[locationRequest] = i
+			return ce
+		}
+	}
+	// A fit request is a Request too, located by details.fit.
+	for i, f := range probe.Fits {
+		if len(f.Request) == 0 {
+			continue
+		}
+		if ce := checkUnknownRequestKeys(f.Request, inst); ce != nil {
+			ce.Details[locationFit] = i
 			return ce
 		}
 	}

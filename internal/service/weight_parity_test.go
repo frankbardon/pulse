@@ -126,6 +126,13 @@ var parityOps = []parityOp{
 	// on N*), mergeable — every arm.
 	{op: types.AGG_CI_LOWER, fields: []string{"x", "y"}, params: json.RawMessage(`{"confidence":0.9}`), kishScaled: true},
 	{op: types.AGG_CI_UPPER, fields: []string{"x", "y"}, kishScaled: true},
+	// fit-scoring E2-S1: model error, actual vs the integer prediction g.
+	// Over integer x the MAE / MSE sums are integers, so MAE and RMSE are
+	// exact on expansion there; MAPE (|x − g| / |x|) and the fractional y
+	// are operation-order sensitive. x hits 0 (MAPE's n_zero_actual).
+	{op: types.AGG_MAPE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`)},
+	{op: types.AGG_RMSE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`), expandExact: []string{"x"}},
+	{op: types.AGG_MAE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`), expandExact: []string{"x"}},
 }
 
 // --- fixture ------------------------------------------------------------

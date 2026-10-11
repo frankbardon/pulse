@@ -1185,6 +1185,24 @@
             "null"
           ]
         },
+        "ci_lower": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_upper": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
         "coefficients": {
           "additionalProperties": {
             "type": [
@@ -1193,6 +1211,12 @@
             ]
           },
           "type": "object"
+        },
+        "conf_level": {
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "converged_iters": {
           "type": "integer"
@@ -1219,6 +1243,12 @@
           "type": "string"
         },
         "deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "df": {
           "type": [
             "number",
             "null"
@@ -1337,6 +1367,9 @@
         },
         "bootstrap_iters": {
           "type": "integer"
+        },
+        "conf_level": {
+          "type": "number"
         },
         "credible_level": {
           "type": "number"
@@ -2018,4 +2051,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6dd882e968439c2aefc4d7c7ca41dfb9e870d6ea904c894a09ff470953b2e64b
+// golden-hash: 4298e666400f3f61ce3f8bfdbc171dd4a0f28ba93c5297f94aebc1f45ea831cb

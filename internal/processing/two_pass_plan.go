@@ -134,6 +134,11 @@ func planTwoPassStages(attrs []*types.Attribute, twoPass []bool, exts *Extension
 // depending on every earlier attribute: correct, at the price of extra
 // layers.
 func attributeInputNames(attr *types.Attribute, exts *ExtensionRegistry) (map[string]struct{}, bool) {
+	if attr.Type == types.ATTR_REG_PREDICT {
+		// Its inputs are the bound model's predictors, which the request
+		// does not spell: depend on every earlier attribute.
+		return nil, false
+	}
 	out := make(map[string]struct{}, 2+len(attr.Predictors))
 	add := func(s string) {
 		if s != "" {

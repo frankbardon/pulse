@@ -62,6 +62,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		AGG_WELFORD,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
@@ -99,6 +100,7 @@ func (t AggregationType) Mergeable() bool {
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES:
@@ -179,6 +181,11 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		AGG_MEDIAN, AGG_PERCENTILE, AGG_MODE,
 		AGG_ZSCORE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_CI_LOWER, AGG_CI_UPPER,
+		// A pooled mean of per-row losses: re-derivable from per-cell
+		// (loss_sum, weight_sum) in principle, but no cell exposes them
+		// to the reshape pass, so the margin re-walks raw rows (RMSE's
+		// square root does not pool by addition either).
+		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		// Welford emits a running (mean, sample-variance, n) triple.
 		// Sample variance does not pool by addition across cells — the
 		// margin must re-walk raw rows. Mirrors AGG_VARIANCE / AGG_STDDEV.
@@ -252,7 +259,8 @@ func (t GroupType) Mergeable() bool {
 // Streamable reports whether this attribute type can be computed in a
 // streaming path. Three tiers exist at runtime:
 //
-//   - Row-local: FORMULA, DATE_PART implement processing.RowLocalAttribute
+//   - Row-local: FORMULA, DATE_PART (and REG_PREDICT, whose model is
+//     bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
 //   - Two-pass: ZSCORE, TSCORE, NORMALIZED implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
@@ -268,7 +276,7 @@ func (t AttributeType) Streamable() bool {
 		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
 		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE,
 		ATTR_SET_POPCOUNT, ATTR_SET_HAS,
-		ATTR_CODE_IN:
+		ATTR_CODE_IN, ATTR_REG_PREDICT:
 		return true
 	case ATTR_PERCENTILE:
 		return false

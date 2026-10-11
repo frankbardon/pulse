@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -32,6 +33,12 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 // checked against types.AllRegressionTypes() instead. A type inst hides
 // is refused exactly as a type outside that set.
 func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, inst *InstanceSnapshot) {
+	// Every `save` path and their uniqueness — the runtime's
+	// model.CheckRequestSaves, the one rule (first fault,
+	// details.regression; a duplicate names both sites).
+	if cerr := model.CheckRequestSaves(req); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+	}
 	for _, reg := range req.Regressions {
 		if reg == nil {
 			continue
@@ -110,6 +117,16 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 				string(errors.SERVICE_VALIDATION),
 				"regression Selection requires a Criterion (aic | bic)",
 				map[string]any{"selection": reg.Selection},
+			)
+		}
+
+		// conf_level, when set, must lie in (0, 1) — the runtime's
+		// regression.validateConfLevel rule, mirrored here.
+		if c := reg.ConfLevel; c != 0 && !(c > 0 && c < 1) {
+			env.AddError(
+				string(errors.PROCESSING_CONFIG),
+				string(reg.Type)+" conf_level must satisfy 0 < conf_level < 1 (zero selects the default of 0.95)",
+				map[string]any{"conf_level": c, "type": string(reg.Type)},
 			)
 		}
 

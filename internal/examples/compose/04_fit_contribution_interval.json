@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Per-row contribution of one driver, with its coefficient interval, read from a shared fit: a compose `fits` entry fits income ~ age by OLS once; the slot scores only the age term with ATTR_REG_PREDICT `terms: [\"age\"]` (beta x age), then the same term at `bound: lower` and `bound: upper` (the fit's own 95% t-interval bound x age), and reads the coefficient itself with coef(\"income_model\", \"age\") in ATTR_FORMULA for a per-decade effect. Averages per region. No coefficient or bound is typed into the request: every figure comes from the fit at full precision. The bounds are a coefficient interval scaled by the column, not a prediction interval.",
+    "capabilities": [
+      "capability:compose_fits"
+    ],
+    "intents": [
+      "drivers"
+    ],
+    "name": "compose-fit-contribution-interval",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_FORMULA",
+      "ATTR_REG_PREDICT",
+      "GROUP_CATEGORY",
+      "REG_OLS"
+    ],
+    "tags": [
+      "compose",
+      "regression",
+      "ols",
+      "streaming-friendly"
+    ]
+  },
+  "fits": [
+    {
+      "name": "income_model",
+      "request": {
+        "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+        "regressions": [{"type": "REG_OLS", "name": "income_model", "target": "income", "predictors": ["age"]}]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "label": "age_contribution_by_region",
+      "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+      "attributes": [
+        {"type": "ATTR_REG_PREDICT", "label": "age_contrib", "params": {"fit": "income_model", "terms": ["age"]}},
+        {"type": "ATTR_REG_PREDICT", "label": "age_contrib_lo", "params": {"fit": "income_model", "terms": ["age"], "bound": "lower"}},
+        {"type": "ATTR_REG_PREDICT", "label": "age_contrib_hi", "params": {"fit": "income_model", "terms": ["age"], "bound": "upper"}},
+        {"type": "ATTR_FORMULA", "label": "per_decade", "expression": "coef(\"income_model\", \"age\") * 10"}
+      ],
+      "groups": [
+        {"type": "GROUP_CATEGORY", "field": "region"}
+      ],
+      "aggregations": [
+        {"type": "AGG_AVERAGE", "field": "age_contrib", "label": "mean_contrib"},
+        {"type": "AGG_AVERAGE", "field": "age_contrib_lo", "label": "mean_contrib_lo"},
+        {"type": "AGG_AVERAGE", "field": "age_contrib_hi", "label": "mean_contrib_hi"},
+        {"type": "AGG_AVERAGE", "field": "per_decade", "label": "income_per_decade"}
+      ]
+    }
+  ]
+}

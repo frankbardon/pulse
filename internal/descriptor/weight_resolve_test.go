@@ -395,6 +395,11 @@ func TestResolveWeights_DecimalRefused(t *testing.T) {
 		{"ratio numerator", &types.Request{Weight: def, Aggregations: []*types.Aggregation{ratio("dec", "x")}}, nil, "AGG_RATIO", "dec"},
 		{"ratio denominator", &types.Request{Aggregations: []*types.Aggregation{ratio("x", "dec")}}, def, "AGG_RATIO", "dec"},
 		{"crosstab cell", &types.Request{Crosstab: &types.CrosstabSpec{Cell: &types.Aggregation{Type: types.AGG_SUM, Field: "dec"}}}, def, "AGG_SUM", "dec"},
+		// Model error weights both sides of the scored pair.
+		{"mae prediction", &types.Request{Weight: def, Aggregations: []*types.Aggregation{{Type: types.AGG_MAE, Field: "x",
+			Params: []byte(`{"prediction_field":"dec"}`)}}}, nil, "AGG_MAE", "dec"},
+		{"mape actual", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MAPE, Field: "dec",
+			Params: []byte(`{"prediction_field":"x"}`)}}}, def, "AGG_MAPE", "dec"},
 	}
 	for _, tc := range refused {
 		t.Run(tc.name, func(t *testing.T) {

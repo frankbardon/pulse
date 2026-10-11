@@ -455,6 +455,10 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		types.AGG_WEIGHTED_MEAN: coh(json.RawMessage(`{"weight_field":"weight"}`)),
 		types.AGG_RATIO:         coh(json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`)),
 		types.AGG_DISTINCT_SUM:  coh(json.RawMessage(`{"distinct_by":"num"}`)),
+		// Model error scores value (actual) against num (prediction).
+		types.AGG_MAPE: coh(json.RawMessage(`{"prediction_field":"num"}`)),
+		types.AGG_RMSE: coh(json.RawMessage(`{"prediction_field":"num"}`)),
+		types.AGG_MAE:  coh(json.RawMessage(`{"prediction_field":"num"}`)),
 
 		// Set ops use the set_u8 dictionary cohort.
 		types.AGG_SET_UNION:           set(),

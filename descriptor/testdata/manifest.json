@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:f851ca4127599792e148701605b8ba72c2be9e27dc59de14d29010f297488994",
+    "feature_set_digest": "fs1:d5e7bac111ec01c2d685b6ff2a1d3e0abf2c7730947606476b5fd0c8fe0e8fd5",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -1034,6 +1034,197 @@
           ]
         },
         {
+          "name": "AGG_MAE",
+          "category": "aggregator",
+          "description": "Mean absolute error of a prediction against an actual: mean(|field - prediction|) over rows where both sides answer; in the actual's units. Weighted: sum(w*|y - yhat|) / sum(w). No contributing row yields NaN (null in JSON).",
+          "params": [
+            {
+              "name": "prediction_field",
+              "type": "field",
+              "required": true,
+              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "field_filter": "numeric"
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when no row contributed)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "loss_sum",
+                "type": "float64",
+                "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+              },
+              {
+                "name": "weight_sum",
+                "type": "float64",
+                "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+              },
+              {
+                "name": "n_scored",
+                "type": "int",
+                "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+              },
+              {
+                "name": "n_null_prediction",
+                "type": "int",
+                "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+              },
+              {
+                "name": "mae",
+                "type": "float64",
+                "description": "Resolved MAE: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "drivers"
+          ]
+        },
+        {
+          "name": "AGG_MAPE",
+          "category": "aggregator",
+          "description": "Mean absolute percentage error of a prediction against an actual: mean(|field - prediction| / |field|) as a FRACTION (0.12 = 12%), over rows where both sides answer and the actual is non-zero (a zero actual is excluded and counted in n_zero_actual). Weighted: sum(w*loss) / sum(w). No contributing row yields NaN (null in JSON).",
+          "params": [
+            {
+              "name": "prediction_field",
+              "type": "field",
+              "required": true,
+              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "field_filter": "numeric"
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when no row contributed)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "loss_sum",
+                "type": "float64",
+                "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+              },
+              {
+                "name": "weight_sum",
+                "type": "float64",
+                "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+              },
+              {
+                "name": "n_scored",
+                "type": "int",
+                "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+              },
+              {
+                "name": "n_null_prediction",
+                "type": "int",
+                "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+              },
+              {
+                "name": "n_zero_actual",
+                "type": "int",
+                "description": "Rows whose actual and prediction both answered but whose actual is exactly 0: their percentage error is undefined, so they are excluded from the figure."
+              },
+              {
+                "name": "mape",
+                "type": "float64",
+                "description": "Resolved MAPE fraction: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "drivers"
+          ]
+        },
+        {
           "name": "AGG_MAX",
           "category": "aggregator",
           "description": "Largest non-null value of the field.",
@@ -1665,6 +1856,104 @@
           "intents": [
             "composition",
             "describe"
+          ]
+        },
+        {
+          "name": "AGG_RMSE",
+          "category": "aggregator",
+          "description": "Root mean squared error of a prediction against an actual: sqrt(mean((field - prediction)^2)) over rows where both sides answer; in the actual's units. Weighted: sqrt(sum(w*(y - yhat)^2) / sum(w)) — the square root of the pooled MSE. No contributing row yields NaN (null in JSON).",
+          "params": [
+            {
+              "name": "prediction_field",
+              "type": "field",
+              "required": true,
+              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "field_filter": "numeric"
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (NaN, null in JSON, when no row contributed)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "loss_sum",
+                "type": "float64",
+                "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+              },
+              {
+                "name": "weight_sum",
+                "type": "float64",
+                "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+              },
+              {
+                "name": "n_scored",
+                "type": "int",
+                "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+              },
+              {
+                "name": "n_null_prediction",
+                "type": "int",
+                "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+              },
+              {
+                "name": "mse",
+                "type": "float64",
+                "description": "Mean squared error loss_sum / weight_sum; rmse is its square root (NaN, null in JSON, when no row contributed)."
+              },
+              {
+                "name": "rmse",
+                "type": "float64",
+                "description": "Resolved RMSE: sqrt(mse)."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "drivers"
           ]
         },
         {
@@ -2776,6 +3065,69 @@
           ],
           "intents": [
             "data_quality"
+          ]
+        },
+        {
+          "name": "ATTR_REG_PREDICT",
+          "category": "attribute",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS (penalties; under selection the selected features), REG_GLM and REG_BAYES_LINEAR (posterior mean). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+          "params": [
+            {
+              "name": "fit",
+              "type": "string",
+              "required": true,
+              "description": "Name of a bound model: a `fits` entry of the enclosing compose request."
+            },
+            {
+              "name": "terms",
+              "type": "list",
+              "required": false,
+              "description": "Score only these terms (fit predictors; \"(intercept)\" to include the intercept), summed in fit order — a contribution column. Omit to score the whole model."
+            },
+            {
+              "name": "scale",
+              "type": "enum",
+              "required": false,
+              "default": "response",
+              "description": "REG_GLM only: response applies the inverse link (the fit's fitted means); link returns the linear predictor.",
+              "enum_values": [
+                "response",
+                "link"
+              ]
+            },
+            {
+              "name": "bound",
+              "type": "enum",
+              "required": false,
+              "default": "point",
+              "description": "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null.",
+              "enum_values": [
+                "point",
+                "lower",
+                "upper"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one score per record (null when a column the score reads is null)",
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "benchmark",
+            "drivers",
+            "relationship"
           ]
         },
         {
@@ -5492,7 +5844,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals.",
+        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level.",
         "streamable": true,
         "streamable_hint": "Streamable; Resample and Selection are refused (PROCESSING_CONFIG), so nothing forces the buffered path.",
         "params": [
@@ -5551,6 +5903,13 @@
             "description": "Posterior credible-interval mass."
           },
           {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, the posterior Student-t interval on df = 2·a_n; falls back to credible_level when unset, so the bounds then equal credible_intervals."
+          },
+          {
             "name": "vcov",
             "type": "bool",
             "required": false,
@@ -5581,7 +5940,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, deviance, null deviance, McFadden pseudo-R².",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R².",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -5682,6 +6041,13 @@
             ]
           },
           {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: Wald normal coefficient ∓ z·SE (dispersion 1)."
+          },
+          {
             "name": "vcov",
             "type": "bool",
             "required": false,
@@ -5732,7 +6098,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, R², adjusted R², residual std error.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error.",
         "streamable": true,
         "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path.",
         "params": [
@@ -5830,6 +6196,13 @@
               "aic",
               "bic"
             ]
+          },
+          {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: coefficient ∓ t·SE on the residual df (N* − p − 1 weighted); Wald normal under resample; intervals only where a std error is reported."
           },
           {
             "name": "vcov",
@@ -7013,7 +7386,7 @@
         ]
       }
     ],
-    "error_codes_count": 314,
+    "error_codes_count": 330,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7110,6 +7483,7 @@
       "PULSE_FEATURE_PROFILE_UNKNOWN",
       "PULSE_FEAT_TARGET_LEAKAGE_RISK",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_FIT_INVALID",
       "PULSE_FOR_EACH_INVALID",
       "PULSE_GROUP_DECLARATION_INVALID",
       "PULSE_GROUP_ENTRIES_EXHAUSTED",
@@ -7184,6 +7558,21 @@
       "PULSE_MATRIX_SINGULAR",
       "PULSE_MATRIX_UNSUPPORTED_SOURCE",
       "PULSE_MATRIX_ZERO_VARIANCE",
+      "PULSE_MODEL_FILE_INVALID",
+      "PULSE_MODEL_FILE_UNREADABLE",
+      "PULSE_MODEL_INTERVALS_UNAVAILABLE",
+      "PULSE_MODEL_NAME_COLLISION",
+      "PULSE_MODEL_OVERWRITTEN",
+      "PULSE_MODEL_PREDICTOR_MISSING",
+      "PULSE_MODEL_PREDICTOR_NOT_NUMERIC",
+      "PULSE_MODEL_REF_INVALID",
+      "PULSE_MODEL_SAVE_INVALID",
+      "PULSE_MODEL_SCORE_INVALID",
+      "PULSE_MODEL_STAT_UNKNOWN",
+      "PULSE_MODEL_TERM_UNKNOWN",
+      "PULSE_MODEL_UNKNOWN",
+      "PULSE_MODEL_VERSION_UNSUPPORTED",
+      "PULSE_MODEL_WRITE_FAILED",
       "PULSE_MULTIPLICITY_CONFLICT",
       "PULSE_MULTIPLICITY_INVALID",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
@@ -7454,6 +7843,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7463,6 +7854,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7478,6 +7870,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7531,6 +7924,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7540,6 +7935,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7555,6 +7951,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7608,6 +8005,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7617,6 +8016,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7632,6 +8032,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7685,6 +8086,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7694,6 +8097,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7709,6 +8113,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7762,6 +8167,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7771,6 +8178,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7785,6 +8193,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7838,6 +8247,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7847,6 +8258,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7861,6 +8273,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -7914,6 +8327,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -7923,6 +8338,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -7937,6 +8353,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -8013,6 +8430,7 @@
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
+          "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
@@ -8070,6 +8488,8 @@
           "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
+          "AGG_MAE",
+          "AGG_MAPE",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
@@ -8079,6 +8499,7 @@
           "AGG_PERCENTILE",
           "AGG_RANGE",
           "AGG_RATIO",
+          "AGG_RMSE",
           "AGG_SKEWNESS",
           "AGG_STDDEV",
           "AGG_SUM",
@@ -8622,6 +9043,10 @@
         "description": "What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it."
       },
       {
+        "name": "compose-fits",
+        "description": "ComposedRequest.fits — named regression fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity."
+      },
+      {
         "name": "compose-requests",
         "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
       },
@@ -8726,6 +9151,14 @@
         "description": "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments."
       },
       {
+        "name": "op-agg-mae",
+        "description": "Mean absolute error of a prediction against an actual — mean(|y - prediction|)."
+      },
+      {
+        "name": "op-agg-mape",
+        "description": "Mean absolute percentage error of a prediction against an actual — mean(|y - prediction| / |y|), as a fraction."
+      },
+      {
         "name": "op-agg-max",
         "description": "Largest non-null value of the field."
       },
@@ -8760,6 +9193,10 @@
       {
         "name": "op-agg-ratio",
         "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored."
+      },
+      {
+        "name": "op-agg-rmse",
+        "description": "Root mean squared error of a prediction against an actual — sqrt(mean((y - prediction)^2))."
       },
       {
         "name": "op-agg-set-cardinality-avg",
@@ -8840,6 +9277,10 @@
       {
         "name": "op-attr-reg-leverage",
         "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic."
+      },
+      {
+        "name": "op-attr-reg-predict",
+        "description": "Per-row score from a bound model (a compose `fits` entry or a loaded `models` file) — no refit; whole model or a terms subset."
       },
       {
         "name": "op-attr-reg-residual",
@@ -9403,7 +9844,7 @@
       },
       {
         "name": "regression-inference",
-        "description": "Coefficient covariance and correlation on a regression — the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -9762,7 +10203,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 187,
+    "examples_count": 191,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -10010,12 +10451,15 @@
         "AGG_CI_LOWER",
         "AGG_CI_UPPER",
         "AGG_KURTOSIS",
+        "AGG_MAE",
+        "AGG_MAPE",
         "AGG_MAX",
         "AGG_MEDIAN",
         "AGG_MIN",
         "AGG_MODE",
         "AGG_PERCENTILE",
         "AGG_RANGE",
+        "AGG_RMSE",
         "AGG_SET_INTERSECTION",
         "AGG_SKEWNESS",
         "AGG_STDDEV",
@@ -11388,6 +11832,127 @@
           ],
           "mergeability": "mergeable"
         },
+        "AGG_MAE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "loss_sum",
+              "type": "float64",
+              "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+            },
+            {
+              "name": "weight_sum",
+              "type": "float64",
+              "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+            },
+            {
+              "name": "n_scored",
+              "type": "int",
+              "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+            },
+            {
+              "name": "n_null_prediction",
+              "type": "int",
+              "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+            },
+            {
+              "name": "mae",
+              "type": "float64",
+              "description": "Resolved MAE: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_MAPE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "loss_sum",
+              "type": "float64",
+              "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+            },
+            {
+              "name": "weight_sum",
+              "type": "float64",
+              "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+            },
+            {
+              "name": "n_scored",
+              "type": "int",
+              "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+            },
+            {
+              "name": "n_null_prediction",
+              "type": "int",
+              "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+            },
+            {
+              "name": "n_zero_actual",
+              "type": "int",
+              "description": "Rows whose actual and prediction both answered but whose actual is exactly 0: their percentage error is undefined, so they are excluded from the figure."
+            },
+            {
+              "name": "mape",
+              "type": "float64",
+              "description": "Resolved MAPE fraction: loss_sum / weight_sum (NaN, null in JSON, when no row contributed)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "AGG_MAX": {
           "keys": [
             {
@@ -11724,6 +12289,69 @@
               "name": "ratio",
               "type": "float64",
               "description": "Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_RMSE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "loss_sum",
+              "type": "float64",
+              "description": "Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions."
+            },
+            {
+              "name": "weight_sum",
+              "type": "float64",
+              "description": "Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions."
+            },
+            {
+              "name": "n_scored",
+              "type": "int",
+              "description": "Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and \u003e 0)."
+            },
+            {
+              "name": "n_null_prediction",
+              "type": "int",
+              "description": "Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only."
+            },
+            {
+              "name": "mse",
+              "type": "float64",
+              "description": "Mean squared error loss_sum / weight_sum; rmse is its square root (NaN, null in JSON, when no row contributed)."
+            },
+            {
+              "name": "rmse",
+              "type": "float64",
+              "description": "Resolved RMSE: sqrt(mse)."
             }
           ],
           "mergeability": "mergeable"
@@ -13197,6 +13825,10 @@
           "regressions[*].coefficients",
           "regressions[*].std_errors",
           "regressions[*].p_values",
+          "regressions[*].ci_lower",
+          "regressions[*].ci_upper",
+          "regressions[*].df",
+          "regressions[*].conf_level",
           "regressions[*].r2",
           "regressions[*].adj_r2",
           "regressions[*].deviance",
@@ -13309,4 +13941,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1681d48e1d94e9940a80b881b12eddb6e6b32f8d05bff14e9fdbf335231707e1
+// golden-hash: 4d45f9f55e4852bd657cd9a7d2a869da912490d44d3cc27173d565641815d3bc

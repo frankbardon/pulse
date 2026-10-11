@@ -120,6 +120,42 @@ func attributeCapabilities() []descriptor.Operator {
 			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
 		},
 		{
+			Name:        string(types.ATTR_REG_PREDICT),
+			Category:    "attribute",
+			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS (penalties; under selection the selected features), REG_GLM and REG_BAYES_LINEAR (posterior mean). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+			Params: []descriptor.Param{
+				{
+					Name:        "fit",
+					Type:        "string",
+					Required:    true,
+					Description: "Name of a bound model: a `fits` entry of the enclosing compose request.",
+				},
+				{
+					Name:        "terms",
+					Type:        "list",
+					Description: "Score only these terms (fit predictors; \"(intercept)\" to include the intercept), summed in fit order — a contribution column. Omit to score the whole model.",
+				},
+				{
+					Name:        "scale",
+					Type:        "enum",
+					Default:     "response",
+					EnumValues:  []string{"response", "link"},
+					Description: "REG_GLM only: response applies the inverse link (the fit's fitted means); link returns the linear predictor.",
+				},
+				{
+					Name:        "bound",
+					Type:        "enum",
+					Default:     "point",
+					EnumValues:  []string{"point", "lower", "upper"},
+					Description: "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null.",
+				},
+			},
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsType:     "f64",
+			EmitsTypeNote: "one score per record (null when a column the score reads is null)",
+			Streamable:    true,
+		},
+		{
 			Name:         string(types.ATTR_SET_POPCOUNT),
 			Category:     "attribute",
 			Description:  "Per-row popcount of a set field — the number of selected labels.",

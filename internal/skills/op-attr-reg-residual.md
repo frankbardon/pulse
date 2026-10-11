@@ -33,7 +33,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Output
 
-One `float64` per record — `yᵢ − ŷᵢ`. With an intercept (always present for OLS) Σ residuals ≈ 0 across the fit set.
+One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target or any predictor is null**, so a downstream aggregation counts the row in `n_null`. With an intercept (always present for OLS) Σ residuals ≈ 0 across the fit set.
 
 <!-- generated: reading-the-output -->
 

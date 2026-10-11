@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U32]
-todo_items: [301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 375]
+todo_items: [301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 375, 397]
 branch: strict-input
 ---
 
@@ -113,3 +113,9 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(strict-input/E<n>
 Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#375** — `pulse import auto` (managed import) takes `--float`, `--schema` and `--ignore-extra` like `import <fmt>`; today they reach the managed import only through `ImportSpec` and MCP `pulse_import`. Found in U41 (E1-S2).
+
+## Inherited from U42
+
+Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#397** — In a plain (non-sweep) compose slot, an unknown grouper key such as `"label"` on `GROUP_RANGE` is silently ignored, while a sweep body's strict decode refuses it. A plain request should refuse unknown grouper keys the same way, or the two paths should be unified. Found in U42 (E4-S1) while converting the MMM fixture (`docs/roadmap/fixtures/mmm-harbor-pine/req/10`–`11` used to carry `"label"`).

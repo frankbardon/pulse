@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "In-sample model error per region: ATTR_REG_FITTED adds an OLS income ~ age prediction to every customer, then AGG_MAPE (a fraction; rows with a zero actual excluded and counted in n_zero_actual), AGG_RMSE and AGG_MAE compare income with that column, named by params.prediction_field. Error on the fitted rows is optimistic; score a holdout from a compose fit with ATTR_REG_PREDICT to judge new data.",
+    "intents": [
+      "benchmark",
+      "compare_groups"
+    ],
+    "name": "model_error_per_region",
+    "operators": [
+      "AGG_MAE",
+      "AGG_MAPE",
+      "AGG_RMSE",
+      "ATTR_REG_FITTED",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "regression",
+      "ols",
+      "comparison"
+    ]
+  },
+  "attributes": [
+    {
+      "type": "ATTR_REG_FITTED",
+      "label": "income_pred",
+      "target": "income",
+      "predictors": ["age"]
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "region"
+    }
+  ],
+  "aggregations": [
+    {"type": "AGG_MAPE", "field": "income", "label": "mape", "params": {"prediction_field": "income_pred"}},
+    {"type": "AGG_RMSE", "field": "income", "label": "rmse", "params": {"prediction_field": "income_pred"}},
+    {"type": "AGG_MAE", "field": "income", "label": "mae", "params": {"prediction_field": "income_pred"}}
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "region"
+    }
+  ]
+}

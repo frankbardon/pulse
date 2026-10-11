@@ -403,6 +403,8 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 		case types.ATTR_CODE_IN:
 			spec.Field = "code"
 			spec.Params = []byte(`{"codes":[1]}`)
+		case types.ATTR_REG_PREDICT:
+			spec.Params = []byte(`{"fit":"m"}`)
 		}
 		instance, err := factory(spec, schema)
 		if err != nil {
@@ -434,6 +436,9 @@ func TestRegistryStreamabilityMatchesTypes(t *testing.T) {
 		types.AGG_RATIO:         `{"numerator_field":"num","denominator_field":"den"}`,
 		types.AGG_DISTINCT_SUM:  `{"distinct_by":"k"}`,
 		types.AGG_FREQUENCY:     `{"value":"1"}`,
+		types.AGG_MAPE:          `{"prediction_field":"p"}`,
+		types.AGG_RMSE:          `{"prediction_field":"p"}`,
+		types.AGG_MAE:           `{"prediction_field":"p"}`,
 	}
 	for _, aggType := range types.AllAggregationTypes() {
 		factory, ok := aggregatorRegistry[aggType]

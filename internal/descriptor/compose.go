@@ -2,9 +2,11 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -103,6 +105,12 @@ type ComposeValidationResult struct {
 	// sweep slots' labels. Set whenever the sweep is structurally
 	// valid, also on a refused batch; omitted without a sweep.
 	Sweep *descriptor.SweepSummary `json:"sweep,omitempty"`
+
+	// Fits lists the request's `fits` entries in declaration order —
+	// name, regression type, target, the predictors as written and the
+	// cohort — read statically, never fitted. Set once the fits pass
+	// their structural rules (model.CheckFits); omitted without fits.
+	Fits []descriptor.FitSummary `json:"fits,omitempty"`
 }
 
 // ValidateCompose runs the no-execute COMPOSE-host overlay walk over
@@ -194,6 +202,22 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 		result.Valid = false
 		return env, req
 	}
+	// Then the fits' structural rules — the runtime's model.CheckFits,
+	// run right after its slot gate; nothing past it runs on a refusal.
+	if ferr := model.CheckFits(req.Fits); ferr != nil {
+		addCodedError(env, ferr)
+		result.Valid = false
+		return env, req
+	}
+	// Then the batch's saves and loads — the runtime's
+	// model.CheckComposeBatch and its model-file reads, run before any
+	// fit or slot; nothing past it runs on a refusal.
+	loaded, berr := loadComposeModels(req, opts)
+	if berr != nil {
+		addCodedError(env, berr)
+		result.Valid = false
+		return env, req
+	}
 	// One label namespace across explicit and sweep slots, checked
 	// whether or not the batch declares overlays or a sweep — the
 	// runtime (applyComposeLabelDefaults) refuses a collision before any
@@ -223,7 +247,10 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 	// slot's Process — against the slot's cohort (or joined) schema
 	// read through opts.SchemaLoader. A refusal carries the slot index
 	// under details.request, as the runtime's does.
-	validateComposeSlots(env, req, opts)
+	validateComposeSlots(env, req, opts, loaded)
+	// Each fit request, recursively: the slot checks plus the regression
+	// rules, located under details.fit (the runtime's fit pre-pass).
+	result.Fits = validateComposeFits(env, req.Fits, opts, loaded)
 
 	// Fit-for-purpose advisories, per slot then over the Compose-host
 	// overlays — computed whether or not the batch is valid, never a
@@ -944,67 +971,179 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions) {
-	l := opts.instance().Limits()
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded) {
+	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
+	// fit pre-pass binds each `fits` entry before any slot runs, beside
+	// the slot's own loaded `models`.
+	fits := model.CatalogFromFits(req.Fits)
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
 		}
-		// The slot's Process expands its item for_each first (right
-		// after the slot gate the whole batch already passed).
-		expanded, _, _, xerr := ExpandRequestItems(slot, l)
-		if xerr != nil {
-			addCodedError(env, RefusalAt(xerr, "request", i))
+		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, slot.Models, loaded.slot(i)))
+	}
+}
+
+// composeLoaded is predict's Compose pre-pass result: each fit
+// request's and each slot's loaded model files, index-aligned.
+type composeLoaded struct {
+	fits  [][]*model.File
+	slots [][]*model.File
+}
+
+func (l *composeLoaded) fit(i int) []*model.File {
+	if l == nil || i >= len(l.fits) {
+		return nil
+	}
+	return l.fits[i]
+}
+
+func (l *composeLoaded) slot(i int) []*model.File {
+	if l == nil || i >= len(l.slots) {
+		return nil
+	}
+	return l.slots[i]
+}
+
+// loadComposeModels is the runtime's Compose pre-pass
+// (Service.composeModelsPrepass): model.CheckComposeBatch, then every
+// fit request's `models` files read, then every slot's, each refusal
+// located by details.fit / details.request.
+func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*composeLoaded, error) {
+	if cerr := model.CheckComposeBatch(req.Fits, req.Requests); cerr != nil {
+		return nil, cerr
+	}
+	out := &composeLoaded{fits: make([][]*model.File, len(req.Fits)), slots: make([][]*model.File, len(req.Requests))}
+	for i, f := range req.Fits {
+		if f.Request == nil {
 			continue
 		}
-		slot = expanded
-		// The slot's Process refuses a second JoinSpec before it
-		// resolves a zone; Compose locates it like a zone refusal.
-		if jerr := JoinCountRefusal(slot); jerr != nil {
-			addCodedError(env, RefusalAt(jerr, "request", i))
+		files, cerr := opts.loadModelFiles(f.Request.Models)
+		if cerr != nil {
+			return nil, RefusalAt(cerr, "fit", i)
+		}
+		out.fits[i] = files
+	}
+	for k, slot := range req.Requests {
+		if slot == nil {
 			continue
 		}
-		// Then the matrix-host rule (matrices with joins or a crosstab).
-		if merr := mergegate.MatrixRefusal(slot); merr != nil {
-			addCodedError(env, RefusalAt(merr, "request", i))
+		files, cerr := opts.loadModelFiles(slot.Models)
+		if cerr != nil {
+			return nil, RefusalAt(cerr, "request", k)
+		}
+		out.slots[k] = files
+	}
+	return out, nil
+}
+
+// validateComposeRequest runs one compose-batch request's runtime-entry
+// checks (validateComposeSlots' order) and records each refusal located
+// under key = idx — details.request for a slot, details.fit for a fit.
+// models are the names its ATTR_REG_PREDICT slots resolve (nil: none).
+// It returns the schema the request executes over (nil when
+// unresolvable) and whether every check passed.
+func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog) (*encoding.Schema, bool) {
+	l := opts.instance().Limits()
+	// The request's Process expands its item for_each first (right
+	// after the slot gate the whole batch already passed).
+	expanded, _, _, xerr := ExpandRequestItems(slot, l)
+	if xerr != nil {
+		addCodedError(env, RefusalAt(xerr, key, idx))
+		return nil, false
+	}
+	slot = expanded
+	// The request's Process refuses a second JoinSpec before it
+	// resolves a zone; Compose locates it like a zone refusal.
+	if jerr := JoinCountRefusal(slot); jerr != nil {
+		addCodedError(env, RefusalAt(jerr, key, idx))
+		return nil, false
+	}
+	// Then the matrix-host rule (matrices with joins or a crosstab).
+	if merr := mergegate.MatrixRefusal(slot); merr != nil {
+		addCodedError(env, RefusalAt(merr, key, idx))
+		return nil, false
+	}
+	// Then the request's `return` block (ResolveReturn — the pass its
+	// Process runs before dispatch).
+	if _, rerr := ResolveReturn(slot, opts.instance()); rerr != nil {
+		addCodedError(env, RefusalAt(rerr, key, idx))
+		return nil, false
+	}
+	schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+	if len(keyRefusals) > 0 {
+		for _, ce := range keyRefusals {
+			addCodedError(env, RefusalAt(ce, key, idx))
+		}
+		return schema, false
+	}
+	if _, err := resolveRequestZones(slot, schema, opts); err != nil {
+		addCodedError(env, RefusalAt(err, key, idx))
+		return schema, false
+	}
+	defaulted := defaultedForValidation(slot, schema, opts)
+	refs := fieldRefRefusalsWithModels(defaulted, schema, extensionsFromOpts(opts), opts.instance(), models)
+	for _, ce := range refs {
+		addCodedError(env, RefusalAt(ce, key, idx))
+	}
+	if len(refs) > 0 {
+		return schema, false
+	}
+	// `return` data columns, right after the field references (the
+	// runtime's checkFieldRefs order).
+	if cerr := ReturnColumnRefusal(defaulted, schema, opts.instance()); cerr != nil {
+		addCodedError(env, RefusalAt(cerr, key, idx))
+		return schema, false
+	}
+	// The request's Process resolves its weights right after its field
+	// references pass (ResolveWeights).
+	if _, werr := resolveRequestWeights(slot, schema, opts); werr != nil {
+		addCodedError(env, RefusalAt(werr, key, idx))
+		return schema, false
+	}
+	return schema, true
+}
+
+// validateComposeFits is the fit half of PredictCompose, run once the
+// structural rules (model.CheckFits) passed: each fit request gets the
+// slot checks (validateComposeRequest, details.fit) and then predict's
+// regression rules over the schema it executes over, located the same
+// way. It returns the static per-fit summary — name, regression type,
+// target, the predictors as written and the cohort — in declaration
+// order (nil without fits).
+func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded) []descriptor.FitSummary {
+	if len(fits) == 0 {
+		return nil
+	}
+	out := make([]descriptor.FitSummary, len(fits))
+	for i, f := range fits {
+		req := model.FitRequest(f)
+		reg := req.Regressions[0]
+		out[i] = descriptor.FitSummary{
+			Name:       f.Name,
+			Type:       reg.Type,
+			Target:     reg.Target,
+			Predictors: append([]string{}, reg.Predictors...),
+		}
+		if req.Cohort != nil {
+			out[i].Cohort = cohortPathFor(req.Cohort)
+		}
+		// A fit request runs before the batch binds anything: it sees
+		// only its own loaded `models`.
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(nil, req.Models, loaded.fit(i)))
+		if !ok || schema == nil {
 			continue
 		}
-		// Then the slot's `return` block (ResolveReturn — the pass its
-		// Process runs before dispatch).
-		if _, rerr := ResolveReturn(slot, opts.instance()); rerr != nil {
-			addCodedError(env, RefusalAt(rerr, "request", i))
-			continue
-		}
-		schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
-		if len(keyRefusals) > 0 {
-			for _, ce := range keyRefusals {
-				addCodedError(env, RefusalAt(ce, "request", i))
+		scratch := descriptor.NewEnvelope(nil)
+		validateRegressions(scratch, req, schema, nil, opts.instance())
+		for _, e := range scratch.Errors {
+			details := make(map[string]any, len(e.Details)+1)
+			for k, v := range e.Details {
+				details[k] = v
 			}
-			continue
-		}
-		if _, err := resolveRequestZones(slot, schema, opts); err != nil {
-			addCodedError(env, RefusalAt(err, "request", i))
-			continue
-		}
-		defaulted := defaultedForValidation(slot, schema, opts)
-		refs := fieldRefRefusals(defaulted, schema, extensionsFromOpts(opts), opts.instance())
-		for _, ce := range refs {
-			addCodedError(env, RefusalAt(ce, "request", i))
-		}
-		// `return` data columns, right after the field references
-		// (the runtime's checkFieldRefs order).
-		if len(refs) == 0 {
-			if cerr := ReturnColumnRefusal(defaulted, schema, opts.instance()); cerr != nil {
-				addCodedError(env, RefusalAt(cerr, "request", i))
-				continue
-			}
-		}
-		// The slot's Process resolves its weights right after its field
-		// references pass (ResolveWeights).
-		if len(refs) == 0 {
-			if _, werr := resolveRequestWeights(slot, schema, opts); werr != nil {
-				addCodedError(env, RefusalAt(werr, "request", i))
-			}
+			details["fit"] = i
+			env.AddError(e.Code, e.Message, details)
 		}
 	}
+	return out
 }

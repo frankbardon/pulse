@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Fit once, score a holdout: a compose `fits` entry fits income ~ age by OLS on every region but west, ONCE, before any slot; both slots then score their own rows from that bound fit with ATTR_REG_PREDICT (no refit, full-precision coefficients) and summarise the miss (income - prediction). The train slot reproduces the fit's own fitted values exactly; the holdout slot scores the west rows the model never saw. The response carries each slot plus `fits.income_model`, the fit's full regression result.",
+    "capabilities": [
+      "capability:compose_fits"
+    ],
+    "intents": [
+      "relationship",
+      "benchmark"
+    ],
+    "name": "compose-fit-holdout-score",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_STDDEV",
+      "ATTR_FORMULA",
+      "ATTR_REG_PREDICT",
+      "FILTER_EXCLUDE",
+      "FILTER_INCLUDE",
+      "REG_OLS"
+    ],
+    "tags": [
+      "compose",
+      "regression",
+      "ols"
+    ]
+  },
+  "fits": [
+    {
+      "name": "income_model",
+      "request": {
+        "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+        "filterers": [{"type": "FILTER_EXCLUDE", "field": "region", "values": ["west"]}],
+        "regressions": [{"type": "REG_OLS", "name": "income_model", "target": "income", "predictors": ["age"]}]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "label": "train",
+      "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+      "filterers": [{"type": "FILTER_EXCLUDE", "field": "region", "values": ["west"]}],
+      "attributes": [
+        {"type": "ATTR_REG_PREDICT", "label": "pred", "params": {"fit": "income_model"}},
+        {"type": "ATTR_FORMULA", "label": "miss", "expression": "income - pred"}
+      ],
+      "aggregations": [
+        {"type": "AGG_AVERAGE", "field": "miss", "label": "mean_miss"},
+        {"type": "AGG_STDDEV", "field": "miss", "label": "sd_miss"}
+      ]
+    },
+    {
+      "label": "holdout",
+      "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+      "filterers": [{"type": "FILTER_INCLUDE", "field": "region", "values": ["west"]}],
+      "attributes": [
+        {"type": "ATTR_REG_PREDICT", "label": "pred", "params": {"fit": "income_model"}},
+        {"type": "ATTR_FORMULA", "label": "miss", "expression": "income - pred"}
+      ],
+      "aggregations": [
+        {"type": "AGG_AVERAGE", "field": "miss", "label": "mean_miss"},
+        {"type": "AGG_STDDEV", "field": "miss", "label": "sd_miss"}
+      ]
+    }
+  ]
+}

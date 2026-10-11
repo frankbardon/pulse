@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379]
+todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394]
 branch: predict-runtime-parity
 ---
 
@@ -153,3 +153,11 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 - [ ] **#372** — Bit-packed reads agree on legacy cohorts: export (`internal/io/export.go`) reads the whole byte of a `u4` / `packed_bool` field while the engine `RecordReader` family and the SPSS writer read the stored `BitPosition`, so a legacy cohort with a nonzero stored `BitPosition` exports different values than it processes. **Required resolution: proper reads — every reader (engine, export, SPSS, lookup) decodes legacy cohorts correctly and identically; no re-import.** Found in U41 (E1-S5).
 - [ ] **#378** — A compose `sweep` body inside a stored request template: the renderer consumes the sweep's `{{axis}}` placeholders; extend the `for_each` scope rule in `internal/template/for_each.go` to `sweep.axes`. Found in U41 (E3-S4).
 - [ ] **#379** — Cohort-bound MCP schemas refuse a cohort field whose name contains a `{{ident}}` token on an item without `for_each` (the placeholder `else` branch); admit literal field names that match the pattern. Found in U41 (E3-S4).
+
+## Inherited from U42
+
+Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#391** — `internal/mergegate`'s built-in row-local list includes `ATTR_CODE_IN` and the `ATTR_SET_*` attributes (pre-existing omission). Found in U42 (E1-S2).
+- [ ] **#393** — `FilterToFileWithRequest` and `SampleWithRequest` load `Request.models`; today a `coef()` there is refused as `PULSE_MODEL_UNKNOWN` (loud, never a wrong number). Found in U42 (E3-S2).
+- [ ] **#394** — A direct test of model binding on the parallel-decode path (`parallel_reduce.go` → `BuildFiltersWithModels`), which needs an mmap'd OS file; the shard path is tested. Found in U42 (E2-S3).

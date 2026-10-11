@@ -52,7 +52,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Name:           string(types.REG_OLS),
 			Description:    "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
 			AcceptsTypes:   numericTypes,
-			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, R², adjusted R², residual std error.",
+			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error.",
 			Streamable:     types.REG_OLS.Streamable(),
 			StreamableHint: commonModifierHint,
 			Params: []descriptor.Param{
@@ -68,6 +68,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "rng_seed", Type: "int", Required: false, Description: "Seed for the bootstrap RNG."},
 				{Name: "selection", Type: "enum", Required: false, EnumValues: []string{"", "backward", "forward", "stepwise"}, Description: "Subset-selection wrapper; downgrades streaming."},
 				{Name: "criterion", Type: "enum", Required: false, EnumValues: []string{"aic", "bic"}, Description: "Information criterion driving selection."},
+				{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: coefficient ∓ t·SE on the residual df (N* − p − 1 weighted); Wald normal under resample; intervals only where a std error is reported."},
 				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; resample gives the replicate covariance, selection the final refit's; lasso / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."},
 			},
 			Modifiers: []descriptor.RegressionModifier{resampleModifier, selectionModifier},
@@ -76,7 +77,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Name:           string(types.REG_GLM),
 			Description:    "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links.",
 			AcceptsTypes:   numericTypes,
-			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, deviance, null deviance, McFadden pseudo-R².",
+			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R².",
 			Streamable:     types.REG_GLM.Streamable(),
 			StreamableHint: "Always buffered; IRLS requires multiple passes over the data.",
 			Params: []descriptor.Param{
@@ -91,6 +92,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "rng_seed", Type: "int", Required: false, Description: "Seed for the bootstrap RNG."},
 				{Name: "selection", Type: "enum", Required: false, EnumValues: []string{"", "backward", "forward", "stepwise"}, Description: "Subset-selection wrapper."},
 				{Name: "criterion", Type: "enum", Required: false, EnumValues: []string{"aic", "bic"}, Description: "Information criterion driving selection."},
+				{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: Wald normal coefficient ∓ z·SE (dispersion 1)."},
 				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's."},
 			},
 			Modifiers: []descriptor.RegressionModifier{resampleModifier, selectionModifier},
@@ -99,7 +101,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Name:           string(types.REG_BAYES_LINEAR),
 			Description:    "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; reports posterior means, std errors, and credible intervals.",
 			AcceptsTypes:   numericTypes,
-			EmitsTypeNote:  "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals.",
+			EmitsTypeNote:  "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level.",
 			Streamable:     types.REG_BAYES_LINEAR.Streamable(),
 			StreamableHint: "Streamable; Resample and Selection are refused (PROCESSING_CONFIG), so nothing forces the buffered path.",
 			Params: []descriptor.Param{
@@ -111,6 +113,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "prior_shape", Type: "float", Required: false, Description: "Inverse-gamma shape parameter for residual variance."},
 				{Name: "prior_rate", Type: "float", Required: false, Description: "Inverse-gamma rate parameter for residual variance."},
 				{Name: "credible_level", Type: "float", Required: false, Default: 0.95, Description: "Posterior credible-interval mass."},
+				{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Coverage of ci_lower / ci_upper, the posterior Student-t interval on df = 2·a_n; falls back to credible_level when unset, so the bounds then equal credible_intervals."},
 				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales)."},
 			},
 			// No resample / selection modifiers: validateBayesLinearSpec

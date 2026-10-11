@@ -58,7 +58,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
+	if err := s.checkFieldRefs(ctx, req, cohort.Schema()); err != nil {
 		return nil, err
 	}
 	lin, err := s.limitInputs(ctx, cohort, path)
@@ -103,7 +103,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// independent of opts.ProjectBufferedFields because the crosstab
 	// path has no streamable alternative — the savings are load-bearing
 	// on cohorts beyond ~50 fields.
-	projected := s.applyCrosstabProjection(iter, req, cohort.Schema())
+	projected := s.applyCrosstabProjection(ctx, iter, req, cohort.Schema())
 	// The buffered crosstab arm; a decode that fans out below restamps
 	// it as parallel decode.
 	execInfoFrom(ctx).setPlan(observe.ArmBuffered, 1, len(cohort.Shards()), projected)
@@ -200,7 +200,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 			return err
 		}
 		zones = z
-		if err := s.checkFieldRefs(&clone, joined); err != nil {
+		if err := s.checkFieldRefs(ctx, &clone, joined); err != nil {
 			return err
 		}
 		return s.limitsPreflight(&clone, joined, lin)

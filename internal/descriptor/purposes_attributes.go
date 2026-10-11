@@ -26,6 +26,7 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_PERCENTILE":   purposeAttrPercentile,
 	"ATTR_REG_FITTED":   purposeAttrRegFitted,
 	"ATTR_REG_LEVERAGE": purposeAttrRegLeverage,
+	"ATTR_REG_PREDICT":  purposeAttrRegPredict,
 	"ATTR_REG_RESIDUAL": purposeAttrRegResidual,
 	"ATTR_SET_HAS":      purposeAttrSetHas,
 	"ATTR_SET_POPCOUNT": purposeAttrSetPopcount,
@@ -302,6 +303,32 @@ var (
 		},
 		Level:    descriptor.LevelAdvanced,
 		Glossary: []string{"regression-coefficient", "overfitting", "listwise-deletion"},
+	}
+
+	purposeAttrRegPredict = descriptor.Purpose{
+		Plain:   "Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values.",
+		Intents: []string{IntentRelationship, IntentBenchmark, IntentDrivers},
+		Questions: []string{
+			"How close are the model's predictions on weeks it was not fitted to (a holdout)?",
+			"How much of each week's sales does the TV term of the fitted model account for?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Score this wave's respondents with the satisfaction model fitted on last wave.",
+			descriptor.DomainOps:     "Predict handling time for new tickets from a model fitted on last quarter's.",
+			descriptor.DomainScience: "Predict the held-out subjects' response from the dose model fitted on the rest.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the model should be fitted to these same rows inside the slot", Use: "ATTR_REG_FITTED"},
+			{When: "you want the coefficients, their standard errors and p-values", Use: "REG_OLS"},
+		},
+		Assumptions: []string{
+			"The model is fitted once, on the fit request's own rows, before any slot runs; scoring never refits.",
+			"The scoring rows must carry every predictor column the fit used, built the same way (same features); an absent one-hot column is the reference level.",
+			"A row missing any predictor the score reads gets no value (null), never 0.",
+			"A prediction reflects association in the fitted rows, never what would happen if a predictor were changed.",
+		},
+		Level:    descriptor.LevelAdvanced,
+		Glossary: []string{"regression-coefficient", "overfitting", "link-function", "missing-value"},
 	}
 
 	purposeAttrRegResidual = descriptor.Purpose{

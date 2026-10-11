@@ -57,6 +57,11 @@ definition:
     form with N* = Kish n_eff, cross-checked against statsmodels
     DescrStatsW(w*).zconfint_mean; the same closed form must equal R on
     the frequency column (1e-12) first.
+  * AGG_MAE / AGG_RMSE / AGG_MAPE (fit-scoring E2-S1) — scikit-learn
+    metrics mean_absolute_error / mean_squared_error (RMSE = its root) /
+    mean_absolute_percentage_error with sample_weight, actual x against
+    prediction y (no zero actual in the fixture, so sklearn's eps floor
+    on |y| never engages).
   * AGG_MODE / AGG_MODE_COUNT / AGG_FREQUENCY / AGG_RATIO / AGG_SET_* —
     numpy weighted sums (np.unique + np.bincount(weights=...), masked
     np.sum): Σw per value, Σw_match / Σw, Σw·num / Σw·den, Σw per
@@ -137,6 +142,7 @@ import scipy.special
 import scipy.stats
 import sklearn
 import sklearn.linear_model
+import sklearn.metrics
 import statsmodels
 from statsmodels.genmod import families as sm_families
 from statsmodels.genmod.generalized_linear_model import GLM as SmGLM
@@ -404,6 +410,24 @@ def cases():
         add("AGG_RATIO", {"": num / den},
             params='{"numerator_field":"x","denominator_field":"y"}',
             comp={"numerator": num, "denominator": den}, src=nsrc)
+
+        # Model error (fit-scoring E2-S1): actual x scored against the
+        # prediction y over the rows ratio uses (x present, weight valid;
+        # a zero weight contributes nothing, as in sample_weight). x has
+        # no zero, so MAPE excludes no row here.
+        ya = np.array([ROWS[i][0] for i in ridx])
+        yp = np.array([ROWS[i][1] for i in ridx])
+        wv = np.array([ws[i] for i in ridx])
+        msrc = f"scikit-learn {sklearn.__version__} metrics(sample_weight)"
+        mae = float(sklearn.metrics.mean_absolute_error(ya, yp, sample_weight=wv))
+        mse = float(sklearn.metrics.mean_squared_error(ya, yp, sample_weight=wv))
+        mape = float(sklearn.metrics.mean_absolute_percentage_error(ya, yp, sample_weight=wv))
+        assert not np.any(ya == 0), "fixture: a zero actual would differ (sklearn floors |y| at eps)"
+        merr = '{"prediction_field":"y"}'
+        add("AGG_MAE", {"": mae}, params=merr, comp={"mae": mae, "weight_sum": float(wv.sum())}, src=msrc)
+        add("AGG_RMSE", {"": math.sqrt(mse)}, params=merr,
+            comp={"mse": mse, "rmse": math.sqrt(mse), "weight_sum": float(wv.sum())}, src=msrc)
+        add("AGG_MAPE", {"": mape}, params=merr, comp={"mape": mape, "weight_sum": float(wv.sum())}, src=msrc)
 
         if kind == "frequency":
             e = np.repeat(x, w.astype(int))

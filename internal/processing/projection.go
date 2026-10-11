@@ -7,6 +7,7 @@ import (
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -82,6 +83,15 @@ func (s FieldSet) Len() int {
 // because we'd have no introspection. Built-in operators are fully
 // introspectable here.
 func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionRegistry) FieldSet {
+	return NeededFieldsWithModels(req, schema, ext, nil)
+}
+
+// NeededFieldsWithModels is NeededFields for a request whose
+// ATTR_REG_PREDICT slots score models bound in models: each such slot
+// reads its model's predictor columns, which the request does not
+// spell. A slot whose model is not bound adds nothing — the
+// field-reference pass has refused it before any decode.
+func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *ExtensionRegistry, models *model.Set) FieldSet {
 	out := NewFieldSet(8)
 	if req == nil || schema == nil {
 		out.Widen()
@@ -175,6 +185,13 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 		addKnown(a.Field)
 		addKnown(a.Target)
 		addAllKnown(a.Predictors)
+		if a.Type == types.ATTR_REG_PREDICT {
+			if p, err := model.DecodeScoreParams(a.Params); err == nil {
+				if b, lerr := models.Lookup(p.Fit); lerr == nil {
+					addAllKnown(b.Predictors)
+				}
+			}
+		}
 		if a.Type == types.ATTR_FORMULA && a.Expression != "" {
 			if !appendExprIdents(out, a.Expression, known) {
 				out.Widen()
@@ -503,6 +520,7 @@ func (v *exprIdentVisitor) Visit(node *exprast.Node) {
 //   - AGG_DISTINCT_SUM:  Params.distinct_by
 //   - AGG_WEIGHTED_MEAN: Params.weight_field
 //   - AGG_RATIO:         Params.numerator_field, Params.denominator_field
+//   - AGG_MAPE / AGG_RMSE / AGG_MAE: Params.prediction_field
 //
 // A field named ONLY here and not projected is decoded onto no Record,
 // so Record.NumericValue answers ok=false for it on every row and the
@@ -528,6 +546,12 @@ func addAggParamFields(out FieldSet, a *types.Aggregation, known map[string]stru
 		}
 	case types.AGG_WEIGHTED_MEAN:
 		if name, ok := jsonStringField(a.Params, "weight_field"); ok {
+			if _, in := known[name]; in {
+				out.Add(name)
+			}
+		}
+	case types.AGG_MAPE, types.AGG_RMSE, types.AGG_MAE:
+		if name, ok := jsonStringField(a.Params, "prediction_field"); ok {
 			if _, in := known[name]; in {
 				out.Add(name)
 			}

@@ -169,6 +169,35 @@ Only the floor keys.
 | `m4` | float64 | always | Fourth-moment accumulator (sum of fourth-power deviations from the running mean). |
 | `kurtosis` | float64 | always | Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n. |
 
+<a id="op-agg_mae"></a>
+
+#### `AGG_MAE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/aggregator.md#op-agg_mae).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `loss_sum` | float64 | always | Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions. |
+| `weight_sum` | float64 | always | Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions. |
+| `n_scored` | int | always | Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and > 0). |
+| `n_null_prediction` | int | always | Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only. |
+| `mae` | float64 | always | Resolved MAE: loss_sum / weight_sum (NaN, null in JSON, when no row contributed). |
+
+<a id="op-agg_mape"></a>
+
+#### `AGG_MAPE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/aggregator.md#op-agg_mape).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `loss_sum` | float64 | always | Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions. |
+| `weight_sum` | float64 | always | Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions. |
+| `n_scored` | int | always | Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and > 0). |
+| `n_null_prediction` | int | always | Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only. |
+| `n_zero_actual` | int | always | Rows whose actual and prediction both answered but whose actual is exactly 0: their percentage error is undefined, so they are excluded from the figure. |
+| `mape` | float64 | always | Resolved MAPE fraction: loss_sum / weight_sum (NaN, null in JSON, when no row contributed). |
+
 <a id="op-agg_max"></a>
 
 #### `AGG_MAX`
@@ -271,6 +300,21 @@ Only the floor keys.
 | `numerator` | float64 | always | Running sum of the numerator field (weighted slot: of weight * numerator). |
 | `denominator` | float64 | always | Running sum of the denominator field (weighted slot: of weight * denominator). |
 | `ratio` | float64 | always | Resolved ratio: numerator / denominator (NaN, null in JSON, when denominator is zero). |
+
+<a id="op-agg_rmse"></a>
+
+#### `AGG_RMSE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/aggregator.md#op-agg_rmse).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `loss_sum` | float64 | always | Running sum of the per-row loss over contributing rows (weighted slot: of weight * loss). Additive across partitions. |
+| `weight_sum` | float64 | always | Running sum of the weights of contributing rows; the contributing-row count on an unweighted slot. Additive across partitions. |
+| `n_scored` | int | always | Rows that contributed: actual and prediction both answered (and, weighted, the weight was valid and > 0). |
+| `n_null_prediction` | int | always | Rows whose actual answered but whose prediction is null; skipped. The floor's n / n_null key on the actual (field) only. |
+| `mse` | float64 | always | Mean squared error loss_sum / weight_sum; rmse is its square root (NaN, null in JSON, when no row contributed). |
+| `rmse` | float64 | always | Resolved RMSE: sqrt(mse). |
 
 <a id="op-agg_set_cardinality_avg"></a>
 

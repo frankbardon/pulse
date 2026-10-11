@@ -66,6 +66,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
@@ -383,6 +384,28 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 		return attrEmitted(t, &types.Attribute{
 			Type: types.ATTR_REG_LEVERAGE, Label: "out", Target: "y", Predictors: []string{"x1", "x2"},
 		}, s, emitsRegRecords(s))
+	},
+	string(types.ATTR_REG_PREDICT): func(t *testing.T) emitted {
+		// Scores a bound model: bind one by hand, then score the rows.
+		s := regSchema()
+		set := &model.Set{}
+		if err := set.Add(&model.Bound{Name: "m", Type: types.REG_OLS, Predictors: []string{"x1", "x2"},
+			Terms: []string{"x1", "x2"}, Intercept: 2, Coefficients: []float64{3, 5}}); err != nil {
+			t.Fatal(err)
+		}
+		spec := &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: "out", Params: json.RawMessage(`{"fit":"m"}`)}
+		c, err := newRegPredictAttribute(spec, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := BindAttribute(c, nil, set); err != nil {
+			t.Fatal(err)
+		}
+		vals, err := c.Compute(emitsRegRecords(s), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return emitted(vals)
 	},
 	string(types.ATTR_SET_POPCOUNT): func(t *testing.T) emitted {
 		s := emitsSetSchema(t)

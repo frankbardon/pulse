@@ -78,6 +78,18 @@ const (
 	// independent sums).
 	AGG_RATIO AggregationType = "AGG_RATIO"
 
+	// AGG_MAPE, AGG_RMSE and AGG_MAE score a prediction against an
+	// actual: Field is the actual, params.prediction_field the
+	// prediction (typically an ATTR_REG_PREDICT column). MAPE is the
+	// mean of |y − ŷ| / |y| as a FRACTION (rows with y == 0 excluded and
+	// counted in the n_zero_actual component), RMSE the square root of
+	// the mean of (y − ŷ)², MAE the mean of |y − ŷ|. A null on either
+	// side skips the row. Weighted: Σw·loss / Σw. Streamable + mergeable
+	// (additive sums).
+	AGG_MAPE AggregationType = "AGG_MAPE"
+	AGG_RMSE AggregationType = "AGG_RMSE"
+	AGG_MAE  AggregationType = "AGG_MAE"
+
 	// AGG_CI_LOWER and AGG_CI_UPPER emit the lower / upper bound of a
 	// confidence interval for the mean of the named numeric field.
 	// Params: `confidence` (float, default 0.95), `method` (string,
@@ -151,6 +163,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_DISTINCT_SUM,
 		AGG_CI_LOWER, AGG_CI_UPPER,
 		AGG_WELFORD,
+		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
@@ -320,6 +333,18 @@ const (
 	// Penalty set are rejected at factory time with PROCESSING_CONFIG.
 	ATTR_REG_LEVERAGE AttributeType = "ATTR_REG_LEVERAGE"
 
+	// ATTR_REG_PREDICT scores each row from a BOUND model — a fit named
+	// in the request (ComposedRequest `fits`) — instead of refitting:
+	// intercept + Σ coefficient·predictor at the fit's full precision,
+	// the GLM inverse link applied on the response scale (default) or
+	// not (params.scale "link"). Params {fit, terms?, scale?}; `terms`
+	// scores a subset of the model's terms (the intercept only when
+	// listed as "(intercept)"). The fit's predictor list is authoritative
+	// and read off the slot's own columns; a null in any column the
+	// score reads yields null. Row-local once bound: streamable,
+	// chain / merge eligible, materialize-admissible.
+	ATTR_REG_PREDICT AttributeType = "ATTR_REG_PREDICT"
+
 	// ATTR_SET_POPCOUNT emits popcount(mask) per row as a numeric column.
 	// Field must reference a set_* field. Streamable.
 	ATTR_SET_POPCOUNT AttributeType = "ATTR_SET_POPCOUNT"
@@ -346,6 +371,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_PERCENTILE,
 		ATTR_REG_FITTED,
 		ATTR_REG_LEVERAGE,
+		ATTR_REG_PREDICT,
 		ATTR_REG_RESIDUAL,
 		ATTR_SET_HAS,
 		ATTR_SET_POPCOUNT,
@@ -1108,6 +1134,15 @@ type Request struct {
 	// capability:matrices. See MatrixSpec.
 	Matrices []MatrixSpec `json:"matrices,omitempty"`
 
+	// Models loads saved model files (a regression `save`) by name, into
+	// the one bound-model namespace a Compose `fits` list also binds:
+	// ATTR_REG_PREDICT and coef() resolve a loaded name exactly like a
+	// fit of the same name. Every file is read, version-checked and
+	// decoded before any record is read; a name already bound (another
+	// entry, or a Compose fit) is PULSE_MODEL_NAME_COLLISION. Gated by
+	// capability:models. See ModelRef.
+	Models []ModelRef `json:"models,omitempty"`
+
 	// Joins describes pushdown hash-join legs attached to the primary
 	// cohort. v1 supports exactly one inner join per Request; multi-
 	// join chains and the left/outer/anti kinds land in a follow-up.
@@ -1371,8 +1406,11 @@ type AggregationComponents struct {
 	// join the components entry back to its request slot.
 	Label string `json:"label,omitempty"`
 
-	// N is the number of input records observed by the aggregator
-	// (post-filter, pre-null-skip). Universal floor — emitted by every
+	// N is the number of NON-NULL input values the aggregator observed
+	// (post-filter, after the null skip): the records counted in NNull
+	// are not in N, so N + NNull is the post-filter record count. On a
+	// paired-input slot (AGG_MAPE / AGG_RMSE / AGG_MAE) presence is
+	// judged on Field alone. Universal floor — emitted by every
 	// aggregator.
 	N int `json:"n"`
 
@@ -1624,6 +1662,14 @@ type ComposedRequest struct {
 	// the slot is `omitempty`, so a sweep-free request is byte-identical
 	// on the wire and under Hash. See SweepSpec.
 	Sweep *SweepSpec `json:"sweep,omitempty"`
+
+	// Fits are the batch's named regression fits: each runs once,
+	// before any slot (in parallel among themselves under
+	// ComposeParallel), and every slot — sweep-expanded ones included —
+	// receives the bound models by name. Gated by capability:compose_fits.
+	// Nil is absent — the slot is `omitempty`, so a fit-free request is
+	// byte-identical on the wire and under Hash. See FitSpec.
+	Fits []FitSpec `json:"fits,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -1666,6 +1712,21 @@ type ComposedResponse struct {
 	// order (ComposedRequest.Sweep.Rank). Omitted when the request set no
 	// rank. Gated by capability:compose_sweep with the `sweep` slot.
 	Ranking []RankEntry `json:"ranking,omitempty"`
+
+	// Fits carries each ComposedRequest.Fits entry's regression result,
+	// keyed by the fit's name (JSON object keys sort by name). Omitted
+	// when the request declared no fits. Like `ranking` it sits outside
+	// the Compose-level `return`: always emitted, never rounded. Gated
+	// by capability:compose_fits with the `fits` request slot.
+	Fits map[string]*RegressionResult `json:"fits,omitempty"`
+
+	// Warnings carries the batch-level diagnostics no slot owns: today
+	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the
+	// fit request's regression — replaced an existing model file), with
+	// details.fit locating the entry. A `warnings` keep path: the
+	// Compose-level `return` (overlays only) never drops it. Omitted when
+	// empty, so a warning-free batch is byte-identical on the wire.
+	Warnings []*ResponseWarning `json:"warnings,omitempty"`
 
 	// NormalizedRequest is the effective request the batch ran: a
 	// sweep's expanded `requests` (explicit slots, then one labelled

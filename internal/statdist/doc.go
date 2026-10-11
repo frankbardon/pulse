@@ -1,11 +1,13 @@
 // Package statdist holds the distribution primitives shared by the
 // statistical operators: the Student-t tail, CDF, quantile and two-sided
-// critical value, and the regularized incomplete beta they rest on.
+// critical value, the regularized incomplete beta they rest on, and the
+// standard normal quantile (NormalQuantile).
 //
 // It is a LEAF (stdlib only today; gonum is allowed) so both
 // internal/processing (TEST_* operators, overlays) and
 // internal/processing/regression (REG_* coefficient p-values, Bayes
-// credible intervals) import one implementation without a cycle.
+// credible intervals, coefficient confidence intervals) import one
+// implementation without a cycle.
 // TestStatdistImportBoundary enforces the ceiling.
 //
 // Every primitive is checked against R to a relative 1e-10 by

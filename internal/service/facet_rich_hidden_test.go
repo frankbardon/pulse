@@ -30,13 +30,13 @@ func TestBuildAdditiveAccumulators_ScopeFiltersUseInstanceRegistry(t *testing.T)
 			Filterers:      []*types.Filterer{{Type: ft, Field: "region", Values: []string{"north"}}},
 		}
 	}
-	if _, _, err := buildAdditiveAccumulators(req(types.FILTER_EXCLUDE), schema, nil, limits.Limits{}); err != nil {
+	if _, _, err := buildAdditiveAccumulators(req(types.FILTER_EXCLUDE), schema, nil, nil, limits.Limits{}); err != nil {
 		t.Fatalf("unscoped build: %v", err)
 	}
 	hide := (*processing.ExtensionRegistry)(nil).WithHidden(func(n string) bool { return n == string(types.FILTER_EXCLUDE) })
 
-	_, _, err := buildAdditiveAccumulators(req(types.FILTER_EXCLUDE), schema, hide, limits.Limits{})
-	_, _, never := buildAdditiveAccumulators(req("FILTER_NEVER_REGISTERED"), schema, hide, limits.Limits{})
+	_, _, err := buildAdditiveAccumulators(req(types.FILTER_EXCLUDE), schema, hide, nil, limits.Limits{})
+	_, _, never := buildAdditiveAccumulators(req("FILTER_NEVER_REGISTERED"), schema, hide, nil, limits.Limits{})
 	var ce, cn *errors.CodedError
 	if !stderrors.As(err, &ce) || !stderrors.As(never, &cn) {
 		t.Fatalf("errors = %v / %v, want coded errors", err, never)

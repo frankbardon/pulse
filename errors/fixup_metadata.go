@@ -1587,6 +1587,199 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FIT_INVALID: {
+		Message: "A ComposedRequest `fits` entry is malformed, so nothing runs — predict refuses it identically. Every fit needs a non-empty `name` and a `request` holding exactly ONE regression (reason `regression_count`, the count under `count`) and no `groups` or `crosstab` (reason `grouped`): a fit is one model over one row set, fit once before any slot. A missing name is `name_missing`, a missing request `request_missing`. The entry index is under `fit`, its name under `name`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "regressions"},
+				Hint:   "Give the fit request exactly one regression; fit a second model as its own `fits` entry with its own name.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"fits", "*", "request", "groups"},
+				Hint:   "Drop `groups` / `crosstab` from the fit request — a fit is one ungrouped model. Fit one model per subset with a filter in each fit request instead.",
+			},
+		},
+	},
+	PULSE_MODEL_NAME_COLLISION: {
+		Message: "Two bound models share a name: `fits` entries and `models` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` entry names both bindings under `sources` (each {slot, index} plus a model's path).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "name"},
+				Hint:   "Rename one of the colliding fits and update the references to it.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "name"},
+				Hint:   "Load the model under a name no fit or other entry uses, and update the references to it.",
+			},
+		},
+	},
+	PULSE_MODEL_UNKNOWN: {
+		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` entries (one namespace). The unknown name is under `name`, the bound names under `available`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "name"},
+				Hint:   "Reference one of the names under `available`, or add a `fits` entry with that name.",
+			},
+		},
+	},
+	PULSE_MODEL_SCORE_INVALID: {
+		Message: "An ATTR_REG_PREDICT slot's scoring parameters do not fit, so nothing runs — predict refuses it identically. Params are an object `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`). The slot takes no `field`, `target`, `predictors` or `penalty` (`slot_fields`) — the bound model supplies them. Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`). `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. Any other params shape is `params_invalid`. The rule is under `reason`, the fit under `fit`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "fit"},
+				Hint:   "Set params.fit to the name of a `fits` entry, and drop target / predictors / penalty from the slot.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"attributes", "*", "params", "scale"},
+				Hint:   "Drop params.scale unless the fit is generalized-linear; a least-squares or Bayesian score is already on the target's scale.",
+			},
+		},
+	},
+	PULSE_MODEL_TERM_UNKNOWN: {
+		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "terms"},
+				Hint:   "List only names under `available`; add `(intercept)` to include the intercept.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass coef() a term under `available` as its second argument.",
+			},
+		},
+	},
+	PULSE_MODEL_STAT_UNKNOWN: {
+		Message: "A coef(fit, term, stat) call names a stat it cannot read. The stat is `point` (the coefficient, the default when omitted), `lower` / `upper` (its confidence bounds at the fit's conf_level) or `se` (its standard error). An all-literal call is refused by predict; a computed one when it evaluates. The fit is under `fit`, the stat under `stat`, the accepted stats under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass one of `valid` as coef()'s third argument, or drop it for the coefficient.",
+			},
+		},
+	},
+	PULSE_MODEL_INTERVALS_UNAVAILABLE: {
+		Message: "A reference reads a coefficient interval or standard error from a bound model that reports none (a degenerate fit, such as an intercept-only generalized-linear model, carries no standard errors and so no intervals): a coef() stat `lower` / `upper` / `se`, or a scoring attribute's `bound` `lower` / `upper`. Raised when the fit is bound — predict cannot see a fit's numbers. A single term's missing figure (a lasso-dropped predictor's interval) is not this refusal: it reads as null. The fit is under `fit`, the setting under `stat` or `bound`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "bound"},
+				Hint:   "Score the point coefficient (drop params.bound), or fit a model with predictors so it reports intervals.",
+			},
+		},
+	},
+	PULSE_MODEL_PREDICTOR_MISSING: {
+		Message: "The scoring slot has no column for one of the bound model's predictors: no schema field, feature output or earlier attribute label carries the name. Scoring reads the model's predictors from the slot's own columns and never infers one — a one-hot reference level is an ABSENT predictor of the fit, not a missing column. The predictor is under `field`, the fit under `fit`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"features"},
+				Hint:   "Repeat in the scoring slot the features that built the fit's predictor columns (e.g. the same FEAT_LOG / FEAT_ONE_HOT).",
+			},
+		},
+	},
+	PULSE_MODEL_PREDICTOR_NOT_NUMERIC: {
+		Message: "A bound model's predictor column is a schema field of a type a regression cannot read on the scoring frame (a categorical or a set), so it cannot enter a linear predictor. The predictor is under `field`, its type under `field_type`, the fit under `fit`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"features"},
+				Hint:   "Score against a numeric column: build the fit and the scoring slot from the same numeric feature output (e.g. FEAT_ONE_HOT indicators for a categorical).",
+			},
+		},
+	},
+	PULSE_MODEL_SAVE_INVALID: {
+		Message: "A `save` path (on a regression or a `fits` entry) cannot name a model file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two models to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"regressions", "*", "save"},
+				Hint:   "Name the model file under the data root with the `.pulse-model.json` suffix, e.g. `models/mmm.pulse-model.json`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "save"},
+				Hint:   "Give the fit's `save` a `.pulse-model.json` path under the data root.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"regressions", "*", "save"},
+				Hint:   "For `duplicate`, give each saving regression or fit its own file (e.g. one per fit name), or drop the extra `save`.",
+			},
+		},
+	},
+	PULSE_MODEL_WRITE_FAILED: {
+		Message: "Writing a model file failed on the filesystem: creating its directory, the temp file, writing, syncing or renaming it over the target (the stage is under `stage`, the file under `path`, the model under `name`). The write is atomic, so the target keeps its previous content or stays absent; the fit itself succeeded.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"regressions", "*", "save"},
+				Hint:   "Save to a writable location under the data root (check permissions and free space), or drop `save` to run the fit without persisting it.",
+			},
+		},
+	},
+	PULSE_MODEL_OVERWRITTEN: {
+		Message: "A model file save replaced an existing file at its path (under `path`; the model under `name`, a fit's index under `fit`). The save succeeded and the new file is complete; the warning exists so a replaced model is never silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"regressions", "*", "save"},
+				Hint:   "No action needed if replacing the model was intended. To keep both, save under a new path (e.g. a dated file name).",
+			},
+		},
+	},
+	PULSE_MODEL_FILE_INVALID: {
+		Message: "A model file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` (`version_missing`), or its version-1 document has an unknown key, a mistyped value or a structural fault such as a predictor without a coefficient (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model` and its name under `name`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-save the model from its fit with `save`; a model file is written by Pulse and should not be hand-edited.",
+			},
+		},
+	},
+	PULSE_MODEL_VERSION_UNSUPPORTED: {
+		Message: "A model file's `model_format_version` is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-save the model with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
+			},
+		},
+	},
+	PULSE_MODEL_REF_INVALID: {
+		Message: "A `models` entry cannot name a model file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json`, with a file name before the suffix and no `..` above the root. The entry's index is under `model`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "path"},
+				Hint:   "Point `path` at the file a `save` wrote, e.g. `models/mmm.pulse-model.json`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "name"},
+				Hint:   "Give the entry the name its scoring references use.",
+			},
+		},
+	},
+	PULSE_MODEL_FILE_UNREADABLE: {
+		Message: "A `models` entry's file cannot be read: it does not exist (reason `missing`) or reading it failed — a directory, permissions or an I/O fault (`unreadable`). Every model file is read before any record is read (in a batch or chain, before anything runs), so nothing ran. The file is under `path`, the entry's index under `model` and its name under `name`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "path"},
+				Hint:   "Point `path` at an existing model file under the data root (a regression or fit `save` writes one).",
+			},
+		},
+	},
 	PULSE_FOR_EACH_INVALID: {
 		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
