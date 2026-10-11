@@ -192,7 +192,9 @@ the vendored `attitude` (Chatterjee & Price 1977) and `mtcars`
 (Henderson & Velleman 1981) from R's `datasets` package, each with two
 seeded weight columns appended, and seeded synthetic fixtures
 `likert_ties`, `nulls` (listwise vs pairwise), `weighted` (zero-weight
-rows), `nonpsd_pairwise`, `heywood` and `reversed_items`. No
+rows), `nonpsd_pairwise`, `heywood`, `reversed_items` and `two_factor`
+(a proper two-factor fit under every weight kind, so weighted Bartlett
+factor scores are pinned on real values). No
 GPL-package data. `mv_fixtures.json` records each fixture's source,
 citation, seed and CSV md5; the `internal/tools/refcohorts` tests fail
 when a CSV drifts from that record or a `.pulse` drifts from its CSV.

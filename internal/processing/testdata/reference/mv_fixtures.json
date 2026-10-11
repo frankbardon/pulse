@@ -94,7 +94,17 @@
       "columns": ["r1", "r2", "r3", "r4", "r5", "w_freq", "w_prob"],
       "note": "five 1-5 Likert items, r2 and r4 reverse-keyed as stored (x' = 1 + 5 - x restores them).",
       "csv_md5": "83e84517071a1f2614997a7e5a8368fe"
+    },
+    {
+      "name": "two_factor",
+      "source": "synthetic",
+      "citation": "none (seeded)",
+      "seed": 801,
+      "rows": 80,
+      "columns": ["v1", "v2", "v3", "v4", "v5", "v6", "w_freq", "w_prob"],
+      "note": "six continuous items on two correlated factors (r = .3; v1-v3 on F1, v4-v6 on F2, two .1 cross-loadings): a proper two-factor fit under every weight kind, for weighted Bartlett factor scores.",
+      "csv_md5": "fc9968d159f3db2ff1c050b11c466f86"
     }
   ]
 }
-// golden-hash: b41346eb61b84e5078cff234f7b597e757dddadc76c45ec9a39cf223f80d780b
+// golden-hash: 794e46f49f34541206601779d60757bdbef505ff07e521684490c4f63a8bf77a

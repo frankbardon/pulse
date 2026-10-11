@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -77,9 +78,11 @@ func factorScoreParams(factor int, method string, factors any, extraction, rotat
 
 // TestFactorScore_MatchesROracle pins every mv_factor_score.json case —
 // attitude (minres unrotated and varimax, principal axis oblimin, ML
-// promax), mtcars (a fit_on subset), weighted (zero-weight rows) and
-// nulls (listwise, ML), under no weight, frequency and probability
-// weights — every factor by both methods through the real processor on
+// promax), mtcars (a fit_on subset), weighted (zero-weight rows),
+// nulls (listwise, ML) and two_factor (TODO #410: a proper two-factor
+// fit under every weight, so weighted Bartlett scores are real values
+// — varimax, oblimin and ML), under no weight, frequency and
+// probability weights — every factor by both methods through the real processor on
 // the streaming two-pass and buffered arms (bit-identical), alternating
 // the member source between inline fields and a named vector.
 func TestFactorScore_MatchesROracle(t *testing.T) {
@@ -114,6 +117,12 @@ func TestFactorScore_MatchesROracle(t *testing.T) {
 				seen["heywood nulled"] = true
 			case heywood:
 				seen["heywood scored"] = true
+			case method == vectors.FactorScoreBartlett && c.Weight != "none" && c.Factors >= 2:
+				// A proper multi-factor weighted Bartlett fit: every
+				// uniqueness well above 0, so every complete row scores.
+				if minU := slices.Min(c.Uniquenesses); minU >= 0.2 {
+					seen["bartlett proper "+c.Weight] = true
+				}
 			}
 			if !c.Converged {
 				seen["not converged"] = true
@@ -188,7 +197,7 @@ func TestFactorScore_MatchesROracle(t *testing.T) {
 			}
 		}
 	}
-	for _, want := range []string{"fit_on", "none", "frequency", "probability", "minres", "principal_axis", "ml", "varimax", "promax", "oblimin", "heywood nulled", "heywood scored", "not converged"} {
+	for _, want := range []string{"fit_on", "none", "frequency", "probability", "minres", "principal_axis", "ml", "varimax", "promax", "oblimin", "heywood nulled", "heywood scored", "not converged", "bartlett proper frequency", "bartlett proper probability"} {
 		if !seen[want] {
 			t.Fatalf("vacuous oracle: no %s case (seen %v)", want, seen)
 		}

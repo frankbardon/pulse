@@ -100,7 +100,7 @@ Filed as TODO items (ids are TODO ids, not GitHub issues).
 | `MAT_DISTANCE` metrics into the shared registry | [U27](U27-vector-metrics-aggregates.md) #407 |
 | ~~One singularity rule across tests and `MAT_PCA`~~ — resolved in U25 | [U30](U30-matrix-extensions-hardening.md) #408 |
 | ~~Extension-test vector validation~~ — resolved in U25 | [U34](U34-extension-validation.md) #409 |
-| Weighted Bartlett factor-score oracle | [U36](U36-reference-oracles.md) #410 |
+| ~~Weighted Bartlett factor-score oracle~~ — resolved in U25 | [U36](U36-reference-oracles.md) #410 |
 | `MAT_DISTANCE` over date and extension groupers | [U30](U30-matrix-extensions-hardening.md) #411 |
 | `statistical-testing.md` hard budget | [U32](U32-docs-audit.md) #412 |
 | `op-test-*` soft budgets | [U32](U32-docs-audit.md) #413 |
