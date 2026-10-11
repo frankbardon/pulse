@@ -356,7 +356,8 @@ func attributeSlotLabel(attr *types.Attribute) string {
 }
 
 // resolveAttributeInputs returns req with every vector-input attribute
-// rewritten for its factory (vectors.ResolveAttributes): Fields = the
+// — a registered extension attribute's included — rewritten for its
+// factory (vectors.ResolveAttributes): Fields = the
 // resolved literal members, Vector cleared, Label = the default label
 // when empty (computed from the slot as written). req itself is
 // returned when no attribute reads a vector or resolution fails (the
@@ -381,6 +382,9 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 			return ""
 		}
 		return t
+	}, func(name string) bool {
+		_, ok := p.exts.LookupAttribute(types.AttributeType(name))
+		return ok
 	})
 	if err != nil {
 		return req

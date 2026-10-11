@@ -91,7 +91,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 
 | Item | Source |
 |---|---|
-| Extension-test vector validation | [U25](U25-multivariate-tests-segmentation.md) #409 |
+| ~~Extension-test vector validation~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #409 |
 
 ## Human inputs & decisions
 
@@ -128,4 +128,4 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#374** — `LateKeyRefuser` on the public `io` facade, so an embedder's keyed reader can arm the late-key refusal (`PULSE_IMPORT_SCHEMA_KEY_LATE`) like the built-in NDJSON and JSON-array readers. Found in U41 (E1-S1).
-- [ ] **#409** (10. Vector & matrix — operators › Follow-ups from U25) Extension statistical tests that take a vector (`vector` / `fields`) are not validated: `ResolveTests` skips non-built-in types, so a bad member list reaches the runtime. Validate extension test vectors as built-ins'
+- [x] **#409** (10. Vector & matrix — operators › Follow-ups from U25) Extension statistical tests that take a vector (`vector` / `fields`) are not validated: `ResolveTests` skips non-built-in types, so a bad member list reaches the runtime. Validate extension test vectors as built-ins'

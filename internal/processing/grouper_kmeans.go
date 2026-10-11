@@ -615,8 +615,9 @@ var (
 // resolveGroupInputs returns req with every vector-input grouper slot
 // (groups and both crosstab axes; vectors.ResolveGroups) rewritten for
 // its factory: Fields = the resolved literal members, Vector cleared,
-// Field = its key column (vectors.GroupKeyField, computed from the
-// slot as written), so every downstream site that names a grouper's
+// and — on a built-in — Field = its key column (vectors.GroupKeyField,
+// computed from the slot as written; an extension grouper keeps its
+// Field), so every downstream site that names a grouper's
 // column — the Data row key, a crosstab axis header, an overlay's host
 // coordinate, a Sort key — reads the key column. req itself is
 // returned when no grouper reads a vector, when every such slot is
@@ -626,7 +627,10 @@ var (
 func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
 	has := false
 	for _, s := range vectors.GroupSlots(req) {
-		if vectors.HasGroupVectorInput(s.Group) && s.Group.Field == "" {
+		// A built-in slot is rewritten once (its key Field set); an
+		// extension slot keeps its Field, and re-resolving its literal
+		// members is a no-op.
+		if vectors.HasGroupVectorInput(s.Group) && (s.Group.Field == "" || !vectors.IsVectorGroup(s.Group.Type)) {
 			has = true
 			break
 		}
@@ -639,6 +643,9 @@ func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
 			return ""
 		}
 		return t
+	}, func(name string) bool {
+		_, ok := p.exts.LookupGrouper(types.GroupType(name))
+		return ok
 	})
 	if err != nil {
 		return req
@@ -655,7 +662,9 @@ func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
 				continue
 			}
 			cp := *g
-			cp.Field = vectors.GroupKeyField(types.GROUP_KMEANS, g)
+			if !in.Extension {
+				cp.Field = vectors.GroupKeyField(types.GROUP_KMEANS, g)
+			}
 			cp.Vector = ""
 			cp.Fields = append([]string(nil), in.Members.Members...)
 			out[i] = &cp

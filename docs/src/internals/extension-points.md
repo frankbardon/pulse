@@ -1077,6 +1077,25 @@ A registration **without** `FieldInputs` widens the retained set to
 Both shapes are correct; only the plan-driven one elides byte
 ranges.
 
+## Vector inputs (`vector` / `fields`)
+
+An extension test, attribute or grouper may read a member set from the
+slot's `vector` (a `Request.Vectors` name) or `fields` (inline names
+and globs), and a test also a second set from `vector2` / `fields2`.
+Predict and the runtime judge those member sets exactly as a
+built-in's: `vector` and `fields` together are refused
+(`reason` `vector_and_fields`, `vector2_and_fields2`), a second set
+needs a first, an undefined vector is `PULSE_VECTOR_UNKNOWN`, and an
+inline member must exist, be numeric (`PULSE_VECTOR_MEMBER_TYPE`) and
+appear once (`PULSE_VECTOR_DUPLICATE`). The factory then receives a
+copy of the spec whose `Fields` / `Fields2` are the resolved literal
+member names and whose `Vector` / `Vector2` are empty, so it never
+resolves a vector itself. Everything else is the operator's: its
+params, `field` / `field2` beside the vector, `split_by` and whether
+the two sets must match in length. A test or attribute that reads a
+vector may leave `field` empty; a grouper keeps its `field`, which
+names its key column.
+
 ## Streamability contract
 
 Embedders declare streamability at registration time; the runtime

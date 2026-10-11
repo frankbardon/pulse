@@ -43,8 +43,17 @@ import (
 //   - A paired form (a second set) is never split: vector2 / fields2
 //     with split_by is refused.
 //   - Any OTHER built-in test — and every post-test — refuses a vector
-//     input. An extension test's slots are its own business and are not
-//     judged.
+//     input.
+//   - A registered extension test (ext) that sets a vector input has its
+//     member sets judged by the same member rules: vector XOR fields
+//     (vector_and_fields), vector2 XOR fields2 (vector2_and_fields2), a
+//     second set only beside a first (no_vector_or_fields), the named
+//     vector (PULSE_VECTOR_UNKNOWN) and the inline fields (ResolveSpec:
+//     existence, numeric type, duplicates). Everything the built-in
+//     rules tie to one operator's statistic — field / field2 beside a
+//     vector, params (missing included), split_by, the equal-length
+//     pairing — is the extension's own business. Its factory, like a
+//     built-in's, receives the resolved literal members.
 //
 // Shape refusals are SERVICE_VALIDATION naming `test` (the slot path)
 // and `reason`.
@@ -95,10 +104,12 @@ func (in TestInput) P() int { return len(in.Members.Members) }
 // schema (Request.Vectors first, like ResolveMatrices) and judges every
 // post-test's. route maps a test type to the built-in it executes as —
 // the instance's view, where a hidden type routes to an unknown name;
-// nil is the identity. The result is index-aligned with req.Tests (the
-// zero TestInput for a test that reads no vector); the first refusal is
-// returned. Like Resolve it reads only the schema.
-func ResolveTests(req *types.Request, schema *encoding.Schema, route func(types.TestType) types.TestType) ([]TestInput, *errors.CodedError) {
+// nil is the identity. ext reports whether a routed type that is not a
+// built-in is a registered extension test (its member sets are then
+// judged); nil means none is. The result is index-aligned with
+// req.Tests (the zero TestInput for a test that reads no vector); the
+// first refusal is returned. Like Resolve it reads only the schema.
+func ResolveTests(req *types.Request, schema *encoding.Schema, route func(types.TestType) types.TestType, ext func(string) bool) ([]TestInput, *errors.CodedError) {
 	if req == nil || (len(req.Tests) == 0 && len(req.PostTests) == 0) {
 		return nil, nil
 	}
@@ -117,7 +128,14 @@ func ResolveTests(req *types.Request, schema *encoding.Schema, route func(types.
 		if t == nil {
 			continue
 		}
-		in, err := resolveTest(testPath(i), t, route(t.Type), req.Vectors, resolved, schema)
+		typ := route(t.Type)
+		var in TestInput
+		var err *errors.CodedError
+		if isExtension(ext, string(typ), slices.Contains(types.AllTestTypes(), typ)) {
+			in, err = resolveExtensionTest(testPath(i), t, req.Vectors, resolved, schema)
+		} else {
+			in, err = resolveTest(testPath(i), t, typ, req.Vectors, resolved, schema)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -203,6 +221,39 @@ func resolveTest(at string, t *types.Test, typ types.TestType, specs []types.Vec
 			return TestInput{}, testInvalid(at, "vector2_length_mismatch",
 				at+" pairs "+strconv.Itoa(len(first.Members))+" members with "+strconv.Itoa(len(second.Members))+"; both sets need the same count",
 				map[string]any{"p": len(first.Members), "p2": len(second.Members)})
+		}
+		in.Members2, in.HasSecond = second, true
+	}
+	return in, nil
+}
+
+// resolveExtensionTest resolves a registered extension test's member
+// sets by the built-in member rules (see the section comment); a slot
+// that sets no vector input reads none.
+func resolveExtensionTest(at string, t *types.Test, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema) (TestInput, *errors.CodedError) {
+	if !HasVectorInput(t) {
+		return TestInput{}, nil
+	}
+	name := string(t.Type)
+	switch {
+	case t.Vector != "" && len(t.Fields) > 0:
+		return TestInput{}, testInvalid(at, "vector_and_fields", at+" sets both vector and fields; set exactly one", nil)
+	case t.Vector2 != "" && len(t.Fields2) > 0:
+		return TestInput{}, testInvalid(at, "vector2_and_fields2", at+" sets both vector2 and fields2; set at most one", nil)
+	case t.Vector == "" && len(t.Fields) == 0:
+		return TestInput{}, testInvalid(at, "no_vector_or_fields",
+			at+" ("+name+") sets vector2 / fields2 without vector or fields; the second member set needs a first",
+			map[string]any{"type": name})
+	}
+	first, err := resolveTestSide(at, "vector", "fields", t.Vector, t.Fields, specs, resolved, schema)
+	if err != nil {
+		return TestInput{}, err
+	}
+	in := TestInput{Members: first}
+	if t.Vector2 != "" || len(t.Fields2) > 0 {
+		second, err := resolveTestSide(at, "vector2", "fields2", t.Vector2, t.Fields2, specs, resolved, schema)
+		if err != nil {
+			return TestInput{}, err
 		}
 		in.Members2, in.HasSecond = second, true
 	}

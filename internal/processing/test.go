@@ -121,8 +121,9 @@ type postTestEntry struct {
 // the leaf the field-reference pass already ran) and are stashed on a
 // COPY of its spec: the factory sees Fields / Fields2 as the resolved
 // literal member lists (Vector / Vector2 cleared), so the factory
-// signature — shared with extension tests — needs no request. The
-// result label is the caller's spec's.
+// signature — shared with extension tests — needs no request. A
+// registered extension test's member sets resolve and rewrite the same
+// way. The result label is the caller's spec's.
 func (p *Processor) buildRowTests(req *types.Request) ([]rowTestEntry, error) {
 	tests := req.Tests
 	if len(tests) == 0 {
@@ -133,6 +134,9 @@ func (p *Processor) buildRowTests(req *types.Request) ([]rowTestEntry, error) {
 			return ""
 		}
 		return t
+	}, func(name string) bool {
+		_, ok := p.exts.LookupRowTest(types.TestType(name))
+		return ok
 	})
 	if verr != nil {
 		return nil, verr

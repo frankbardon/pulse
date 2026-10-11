@@ -36,8 +36,14 @@ import (
 //     components; ATTR_FACTOR_SCORE: FactorScoreParams — factor,
 //     method and MAT_FACTOR's factors, extraction, rotation, kappa,
 //     gamma; the member-count bounds judged once the members resolve).
-//   - Any OTHER built-in attribute refuses a vector input. An extension
-//     attribute's slots are its own business and are not judged.
+//   - Any OTHER built-in attribute refuses a vector input.
+//   - A registered extension attribute (ext) that sets a vector input
+//     has its member set judged by the same member rules: vector XOR
+//     fields (vector_and_fields), the named vector (PULSE_VECTOR_UNKNOWN)
+//     and the inline fields (ResolveSpec: existence, numeric type,
+//     duplicates). field beside a vector and params are its own
+//     business. Its factory, like a built-in's, receives the resolved
+//     literal members.
 //
 // Shape refusals are SERVICE_VALIDATION naming `attribute` (the slot
 // path) and `reason`.
@@ -110,10 +116,12 @@ func (in AttributeInput) Has() bool { return len(in.Members.Members) > 0 }
 // schema (Request.Vectors first, like ResolveTests). route maps an
 // attribute type to the built-in it executes as — the instance's view,
 // where a hidden type routes to an unknown name; nil is the identity.
-// The result is index-aligned with req.Attributes (the zero
-// AttributeInput for an attribute that reads no vector); the first
+// ext reports whether a routed type that is not a built-in is a
+// registered extension attribute (its member set is then judged); nil
+// means none is. The result is index-aligned with req.Attributes (the
+// zero AttributeInput for an attribute that reads no vector); the first
 // refusal is returned. Like Resolve it reads only the schema.
-func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(types.AttributeType) types.AttributeType) ([]AttributeInput, *errors.CodedError) {
+func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(types.AttributeType) types.AttributeType, ext func(string) bool) ([]AttributeInput, *errors.CodedError) {
 	if req == nil || len(req.Attributes) == 0 {
 		return nil, nil
 	}
@@ -129,7 +137,16 @@ func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(t
 		if a == nil {
 			continue
 		}
-		in, err := resolveAttribute(attributePath(i), a, route(a.Type), req.Vectors, resolved, schema)
+		typ := route(a.Type)
+		var in AttributeInput
+		var err *errors.CodedError
+		if isExtension(ext, string(typ), slices.Contains(types.AllAttributeTypes(), typ)) {
+			var m Resolved
+			m, err = resolveExtensionMembers(attributePath(i), a.Vector, a.Fields, req.Vectors, resolved, schema, attributeInvalid)
+			in = AttributeInput{Members: m}
+		} else {
+			in, err = resolveAttribute(attributePath(i), a, typ, req.Vectors, resolved, schema)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -177,6 +194,24 @@ func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, sp
 		return AttributeInput{}, err
 	}
 	return AttributeInput{Members: members, FitOn: fitOn}, nil
+}
+
+// resolveExtensionMembers resolves a registered extension attribute's
+// or grouper's member set by the built-in member rules: vector XOR
+// fields, the named vector, the inline fields. A slot that sets neither
+// reads none (the zero Resolved). invalid builds the category's shape
+// refusal.
+func resolveExtensionMembers(at, vector string, fields []string, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema,
+	invalid func(at, reason, msg string, extra map[string]any) *errors.CodedError) (Resolved, *errors.CodedError) {
+	switch {
+	case vector == "" && len(fields) == 0:
+		return Resolved{}, nil
+	case vector != "" && len(fields) > 0:
+		return Resolved{}, invalid(at, "vector_and_fields", at+" sets both vector and fields; set exactly one", nil)
+	case vector == "":
+		return ResolveSpec(at+".fields", types.VectorSpec{Fields: fields}, schema)
+	}
+	return findVector(at, "vector", vector, specs, resolved)
 }
 
 // findVector looks up a named vector, PULSE_VECTOR_UNKNOWN when no

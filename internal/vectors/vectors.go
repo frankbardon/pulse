@@ -417,3 +417,11 @@ func invalid(at, name, reason, msg string, extra map[string]any) *errors.CodedEr
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_INVALID, msg, details)
 }
+
+// isExtension reports whether a slot's routed type name is a registered
+// extension operator whose vector input the resolvers judge: not a
+// built-in of its category, not routed away (""), and known to ext (nil:
+// no extension is registered).
+func isExtension(ext func(string) bool, name string, builtin bool) bool {
+	return ext != nil && name != "" && !builtin && ext(name)
+}

@@ -210,9 +210,11 @@ func GroupBufferBytes(req *types.Request, schema *encoding.Schema, inst *Instanc
 	if req == nil || records < 0 {
 		return nil
 	}
+	// No extension predicate: an extension grouper's store is its own,
+	// so only the built-in GROUP_KMEANS slots resolve here.
 	inputs, err := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
-	})
+	}, nil)
 	if err != nil || len(inputs) == 0 {
 		return nil
 	}

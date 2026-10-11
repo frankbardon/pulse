@@ -29,10 +29,17 @@ import (
 //   - Params are strict (unknown keys refused): GROUP_KMEANS reads
 //     KMeansParams (k, seed, max_iter, n_init, standardize, missing —
 //     "listwise" only).
-//   - Any OTHER built-in grouper refuses a vector input. An extension
-//     grouper's slots are its own business and are not judged.
-//   - The bucket key column of a vector-input grouper is GroupKeyField:
-//     "<TYPE>_<vector>", or "<TYPE>_<first fields entry as written>".
+//   - Any OTHER built-in grouper refuses a vector input.
+//   - A registered extension grouper (ext) that sets a vector input has
+//     its member set judged by the same member rules: vector XOR fields
+//     (vector_and_fields), the named vector (PULSE_VECTOR_UNKNOWN) and
+//     the inline fields (ResolveSpec: existence, numeric type,
+//     duplicates). field and params are its own business. Its factory,
+//     like a built-in's, receives the resolved literal members
+//     (GroupInput.Extension; its field is kept as written).
+//   - The bucket key column of a built-in vector-input grouper is
+//     GroupKeyField: "<TYPE>_<vector>", or "<TYPE>_<first fields entry
+//     as written>".
 //
 // Shape refusals are SERVICE_VALIDATION naming `group` (the slot path)
 // and `reason`.
@@ -82,8 +89,11 @@ type GroupInput struct {
 	Slot string
 	// Members is the member set (axis order).
 	Members Resolved
-	// KMeans is GROUP_KMEANS's decoded params.
+	// KMeans is GROUP_KMEANS's decoded params (zero on an extension).
 	KMeans KMeansConfig
+	// Extension reports the slot is a registered extension grouper: its
+	// members are resolved, its params and key column its own.
+	Extension bool
 }
 
 // Has reports whether the slot resolved a vector input.
@@ -121,10 +131,12 @@ func GroupSlots(req *types.Request) []GroupSlot {
 // order) against schema (Request.Vectors first, like ResolveTests).
 // route maps a group type to the built-in it executes as — the
 // instance's view, where a hidden type routes to an unknown name; nil
-// is the identity. The result is keyed by the slot's *types.Group and
-// holds only the slots that resolved a vector input; the first refusal
-// is returned. Like Resolve it reads only the schema.
-func ResolveGroups(req *types.Request, schema *encoding.Schema, route func(types.GroupType) types.GroupType) (map[*types.Group]GroupInput, *errors.CodedError) {
+// is the identity. ext reports whether a routed type that is not a
+// built-in is a registered extension grouper (its member set is then
+// judged); nil means none is. The result is keyed by the slot's
+// *types.Group and holds only the slots that resolved a vector input;
+// the first refusal is returned. Like Resolve it reads only the schema.
+func ResolveGroups(req *types.Request, schema *encoding.Schema, route func(types.GroupType) types.GroupType, ext func(string) bool) (map[*types.Group]GroupInput, *errors.CodedError) {
 	slots := GroupSlots(req)
 	if len(slots) == 0 {
 		return nil, nil
@@ -138,7 +150,16 @@ func ResolveGroups(req *types.Request, schema *encoding.Schema, route func(types
 	}
 	var out map[*types.Group]GroupInput
 	for _, s := range slots {
-		in, err := resolveGroup(s.Path, s.Group, route(s.Group.Type), req.Vectors, resolved, schema)
+		typ := route(s.Group.Type)
+		var in GroupInput
+		var err *errors.CodedError
+		if isExtension(ext, string(typ), slices.Contains(types.AllGroupTypes(), typ)) {
+			var m Resolved
+			m, err = resolveExtensionMembers(s.Path, s.Group.Vector, s.Group.Fields, req.Vectors, resolved, schema, groupInvalid)
+			in = GroupInput{Slot: s.Path, Members: m, Extension: true}
+		} else {
+			in, err = resolveGroup(s.Path, s.Group, typ, req.Vectors, resolved, schema)
+		}
 		if err != nil {
 			return nil, err
 		}

@@ -143,7 +143,7 @@ func TestResolveTests_Rules(t *testing.T) {
 			if c.post != nil {
 				req.PostTests = []*types.Test{c.post}
 			}
-			got, err := ResolveTests(req, testInputSchema(), nil)
+			got, err := ResolveTests(req, testInputSchema(), nil, nil)
 			if c.code != "" {
 				if err == nil {
 					t.Fatalf("want %s, resolved %+v", c.code, got)
@@ -182,7 +182,7 @@ func TestResolveTests_SecondSetOnlyOnPairedTypes(t *testing.T) {
 		Vectors: []types.VectorSpec{{Name: "vb", Fields: []string{"b1", "b2"}}},
 		Tests:   []*types.Test{hot(func(t *types.Test) { t.Fields, t.Vector2 = []string{"a1", "a2"}, "vb" })},
 	}
-	_, err := ResolveTests(req, testInputSchema(), nil)
+	_, err := ResolveTests(req, testInputSchema(), nil, nil)
 	if err == nil || err.Details["reason"] != "vector2_not_accepted" {
 		t.Fatalf("refusal = %v", err)
 	}
@@ -233,7 +233,7 @@ func TestResolveTests_SecondSet(t *testing.T) {
 		Vectors: []types.VectorSpec{{Name: "vb", Fields: []string{"b1", "b2"}}},
 		Tests:   []*types.Test{hot(func(t *types.Test) { t.Fields, t.Vector2 = []string{"a1", "a2"}, "vb" })},
 	}
-	got, err := ResolveTests(req, testInputSchema(), nil)
+	got, err := ResolveTests(req, testInputSchema(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestResolveTests_SecondSet(t *testing.T) {
 		t.Fatalf("second set = %+v", got[0])
 	}
 	req.Tests[0].Fields = []string{"a1", "a2", "a3"}
-	_, err = ResolveTests(req, testInputSchema(), nil)
+	_, err = ResolveTests(req, testInputSchema(), nil, nil)
 	if err == nil || err.Details["reason"] != "vector2_length_mismatch" || err.Details["p"] != 3 || err.Details["p2"] != 2 {
 		t.Fatalf("mismatch refusal = %v", err)
 	}
@@ -252,10 +252,10 @@ func TestResolveTests_SecondSet(t *testing.T) {
 // unknown-type refusal.
 func TestResolveTests_HiddenRoutesUnjudged(t *testing.T) {
 	req := &types.Request{Tests: []*types.Test{hot(func(t *types.Test) {})}}
-	if _, err := ResolveTests(req, testInputSchema(), nil); err == nil {
+	if _, err := ResolveTests(req, testInputSchema(), nil, nil); err == nil {
 		t.Fatal("visible type: want no_vector_or_fields")
 	}
-	got, err := ResolveTests(req, testInputSchema(), func(types.TestType) types.TestType { return "" })
+	got, err := ResolveTests(req, testInputSchema(), func(types.TestType) types.TestType { return "" }, nil)
 	if err != nil || got[0].Has() {
 		t.Fatalf("hidden type judged: %v %+v", err, got)
 	}
@@ -288,5 +288,104 @@ func TestTestInputMembers(t *testing.T) {
 	req.Tests[0].Fields = []string{"nope"}
 	if _, ok := TestInputMembers(req, testInputSchema()); ok {
 		t.Fatal("unresolvable inline fields must report ok == false")
+	}
+}
+
+// TestResolve_ExtensionVectorInputs: a registered extension test,
+// attribute or grouper that sets a vector input has its member sets
+// judged by the built-in member rules (shape, undefined vector, inline
+// fields: existence, numeric type, duplicates) — while an unregistered
+// name (ext false) and a nil ext stay unjudged, and the operator's own
+// slots (field beside a vector, params, split_by, unequal pair lengths)
+// are never judged.
+func TestResolve_ExtensionVectorInputs(t *testing.T) {
+	vecs := []types.VectorSpec{{Name: "va", Fields: []string{"a*"}}, {Name: "vb", Fields: []string{"b1", "b2"}}}
+	ext := func(name string) bool {
+		return name == "TEST_ACME_X" || name == "ATTR_ACME_X" || name == "GROUP_ACME_X"
+	}
+	cases := []struct {
+		name     string
+		test     *types.Test
+		attr     *types.Attribute
+		group    *types.Group
+		ext      func(string) bool
+		members  []string
+		members2 []string
+		code     errors.Code
+		reason   string
+	}{
+		{name: "test vector", test: &types.Test{Type: "TEST_ACME_X", Vector: "va"}, ext: ext, members: []string{"a1", "a2", "a3"}},
+		{name: "test own slots unjudged", test: &types.Test{Type: "TEST_ACME_X", Field: "a1", SplitBy: "region", Fields: []string{"b*"}, Fields2: []string{"a1"},
+			Params: json.RawMessage(`{"missing": "pairwise", "anything": 1}`)}, ext: ext, members: []string{"b1", "b2"}, members2: []string{"a1"}},
+		{name: "test unknown field", test: &types.Test{Type: "TEST_ACME_X", Fields: []string{"nope"}}, ext: ext, code: errors.SERVICE_VALIDATION},
+		{name: "test non-numeric member", test: &types.Test{Type: "TEST_ACME_X", Fields: []string{"a1", "region"}}, ext: ext, code: errors.PULSE_VECTOR_MEMBER_TYPE},
+		{name: "test duplicate member", test: &types.Test{Type: "TEST_ACME_X", Fields: []string{"a1", "a*"}}, ext: ext, code: errors.PULSE_VECTOR_DUPLICATE},
+		{name: "test unknown vector", test: &types.Test{Type: "TEST_ACME_X", Vector: "nope"}, ext: ext, code: errors.PULSE_VECTOR_UNKNOWN},
+		{name: "test unknown vector2", test: &types.Test{Type: "TEST_ACME_X", Vector: "va", Vector2: "nope"}, ext: ext, code: errors.PULSE_VECTOR_UNKNOWN},
+		{name: "test vector and fields", test: &types.Test{Type: "TEST_ACME_X", Vector: "va", Fields: []string{"a1"}}, ext: ext, code: errors.SERVICE_VALIDATION, reason: "vector_and_fields"},
+		{name: "test vector2 and fields2", test: &types.Test{Type: "TEST_ACME_X", Vector: "va", Vector2: "vb", Fields2: []string{"b1"}}, ext: ext, code: errors.SERVICE_VALIDATION, reason: "vector2_and_fields2"},
+		{name: "test second without first", test: &types.Test{Type: "TEST_ACME_X", Vector2: "vb"}, ext: ext, code: errors.SERVICE_VALIDATION, reason: "no_vector_or_fields"},
+		{name: "test unregistered unjudged", test: &types.Test{Type: "TEST_ACME_Y", Vector: "nope"}, ext: ext},
+		{name: "test nil ext unjudged", test: &types.Test{Type: "TEST_ACME_X", Vector: "nope"}},
+		{name: "test no vector input", test: &types.Test{Type: "TEST_ACME_X", Field: "a1"}, ext: ext},
+
+		{name: "attribute fields", attr: &types.Attribute{Type: "ATTR_ACME_X", Field: "a1", Fields: []string{"b*"}, Params: json.RawMessage(`{"k": 1}`)}, ext: ext, members: []string{"b1", "b2"}},
+		{name: "attribute unknown field", attr: &types.Attribute{Type: "ATTR_ACME_X", Fields: []string{"nope"}}, ext: ext, code: errors.SERVICE_VALIDATION},
+		{name: "attribute non-numeric", attr: &types.Attribute{Type: "ATTR_ACME_X", Fields: []string{"region"}}, ext: ext, code: errors.PULSE_VECTOR_MEMBER_TYPE},
+		{name: "attribute unknown vector", attr: &types.Attribute{Type: "ATTR_ACME_X", Vector: "nope"}, ext: ext, code: errors.PULSE_VECTOR_UNKNOWN},
+		{name: "attribute vector and fields", attr: &types.Attribute{Type: "ATTR_ACME_X", Vector: "va", Fields: []string{"a1"}}, ext: ext, code: errors.SERVICE_VALIDATION, reason: "vector_and_fields"},
+		{name: "attribute unregistered unjudged", attr: &types.Attribute{Type: "ATTR_ACME_Y", Vector: "nope"}, ext: ext},
+
+		{name: "group vector", group: &types.Group{Type: "GROUP_ACME_X", Field: "a1", Vector: "vb", Params: json.RawMessage(`{"k": 1}`)}, ext: ext, members: []string{"b1", "b2"}},
+		{name: "group duplicate", group: &types.Group{Type: "GROUP_ACME_X", Fields: []string{"b1", "b1"}}, ext: ext, code: errors.PULSE_VECTOR_DUPLICATE},
+		{name: "group unknown vector", group: &types.Group{Type: "GROUP_ACME_X", Vector: "nope"}, ext: ext, code: errors.PULSE_VECTOR_UNKNOWN},
+		{name: "group vector and fields", group: &types.Group{Type: "GROUP_ACME_X", Vector: "va", Fields: []string{"a1"}}, ext: ext, code: errors.SERVICE_VALIDATION, reason: "vector_and_fields"},
+		{name: "group unregistered unjudged", group: &types.Group{Type: "GROUP_ACME_Y", Vector: "nope"}, ext: ext},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{Vectors: vecs}
+			var err *errors.CodedError
+			var m1, m2 []string
+			switch {
+			case c.test != nil:
+				req.Tests = []*types.Test{c.test}
+				var got []TestInput
+				if got, err = ResolveTests(req, testInputSchema(), nil, c.ext); err == nil {
+					m1, m2 = got[0].Members.Members, got[0].Members2.Members
+				}
+			case c.attr != nil:
+				req.Attributes = []*types.Attribute{c.attr}
+				var got []AttributeInput
+				if got, err = ResolveAttributes(req, testInputSchema(), nil, c.ext); err == nil {
+					m1 = got[0].Members.Members
+				}
+			default:
+				req.Groups = []*types.Group{c.group}
+				var got map[*types.Group]GroupInput
+				if got, err = ResolveGroups(req, testInputSchema(), nil, c.ext); err == nil {
+					in := got[c.group]
+					m1 = in.Members.Members
+					if in.Has() && !in.Extension {
+						t.Fatal("an extension grouper's input is not marked Extension")
+					}
+				}
+			}
+			if c.code != "" {
+				if err == nil || err.Code != c.code {
+					t.Fatalf("err = %v, want %s", err, c.code)
+				}
+				if c.reason != "" && err.Details["reason"] != c.reason {
+					t.Fatalf("reason = %v, want %s", err.Details["reason"], c.reason)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected refusal: %v", err)
+			}
+			if !reflect.DeepEqual(m1, c.members) || !reflect.DeepEqual(m2, c.members2) {
+				t.Fatalf("members %v / %v, want %v / %v", m1, m2, c.members, c.members2)
+			}
+		})
 	}
 }

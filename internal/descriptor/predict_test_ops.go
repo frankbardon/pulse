@@ -97,6 +97,11 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 		validateVectorTest(env, t, schema, tier1)
 		return
 	}
+	// A registered extension test reading a vector input (its members
+	// judged at FieldRefRefusals step 8) may name no field.
+	if t.Field == "" && tier1 && vectors.HasVectorInput(t) && isExtensionTestType(opts, t.Type) {
+		return
+	}
 	// Field requirement.
 	if t.Field == "" {
 		env.AddError(string(errors.SERVICE_VALIDATION),

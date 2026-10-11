@@ -99,7 +99,7 @@ Filed as TODO items (ids are TODO ids, not GitHub issues).
 | More GPA rotations | [U30](U30-matrix-extensions-hardening.md) #406 |
 | `MAT_DISTANCE` metrics into the shared registry | [U27](U27-vector-metrics-aggregates.md) #407 |
 | One singularity rule across tests and `MAT_PCA` | [U30](U30-matrix-extensions-hardening.md) #408 |
-| Extension-test vector validation | [U34](U34-extension-validation.md) #409 |
+| ~~Extension-test vector validation~~ — resolved in U25 | [U34](U34-extension-validation.md) #409 |
 | Weighted Bartlett factor-score oracle | [U36](U36-reference-oracles.md) #410 |
 | `MAT_DISTANCE` over date and extension groupers | [U30](U30-matrix-extensions-hardening.md) #411 |
 | `statistical-testing.md` hard budget | [U32](U32-docs-audit.md) #412 |

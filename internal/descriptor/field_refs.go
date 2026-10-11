@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
@@ -137,6 +138,10 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     the inline-fields vector rules and GROUP_KMEANS's params. A vector
 //     grouper's key column (vectors.GroupKeyField) is an output column
 //     at step 5.
+//     A registered extension test, attribute or grouper that sets a
+//     vector input has its member sets judged at steps 8-10 by the same
+//     member rules (shape, undefined vector, inline-fields rules); its
+//     params and other slots stay its own.
 //     Steps 6 to 10 contribute one refusal at most between them.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
@@ -305,7 +310,10 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 				w.checkTotal(attr.Expression, totalcall.FormulaSite)
 				w.checkCoef(attr.Expression, models)
 			}
-			if attrRoute != types.ATTR_FORMULA || attr.Field != "" {
+			// An attribute reading a vector input without a field (a
+			// registered extension's; a built-in is refused at step 9)
+			// names no field column to judge.
+			if (attrRoute != types.ATTR_FORMULA || attr.Field != "") && (attr.Field != "" || !vectors.HasAttributeVectorInput(attr)) {
 				w.check(attr.Field, func() *errors.CodedError {
 					return refusal("attribute references unknown field: "+attr.Field,
 						map[string]any{"field": attr.Field, "attribute": string(attr.Type)})
@@ -563,7 +571,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	// most between them.
 	if _, terr := vectors.ResolveTests(req, schema, func(t types.TestType) types.TestType {
 		return opRoute(inst, t)
-	}); terr != nil {
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Tests })); terr != nil {
 		w.out = append(w.out, terr)
 		return w.out
 	}
@@ -573,7 +581,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	// one refusal at most between them.
 	if _, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
 		return opRoute(inst, t)
-	}); aerr != nil {
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes })); aerr != nil {
 		w.out = append(w.out, aerr)
 		return w.out
 	}
@@ -582,7 +590,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	// Steps 6-10 contribute one refusal at most between them.
 	if _, gerr := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
-	}); gerr != nil {
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Groupers })); gerr != nil {
 		w.out = append(w.out, gerr)
 	}
 	return w.out
@@ -629,6 +637,16 @@ type fieldRefWalk struct {
 	// nothing.
 	inst *InstanceSnapshot
 	out  []*errors.CodedError
+}
+
+// extensionNamed is the vector resolvers' extension predicate for one
+// category: a routed type name the snapshot registers in that category
+// (metas). Nil without a snapshot — no extension is registered.
+func (w *fieldRefWalk) extensionNamed(metas func(*ExtensionsSnapshot) []descriptor.OperatorMeta) func(string) bool {
+	if w.snap == nil {
+		return nil
+	}
+	return func(name string) bool { return snapshotHasName(metas(w.snap), name) }
 }
 
 // aggParamFieldKeys lists, per built-in aggregation, the Params keys
