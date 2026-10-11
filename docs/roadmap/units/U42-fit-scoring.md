@@ -129,3 +129,4 @@ Everything found during this unit and not delivered by it. Each row has a TODO i
 | E2-S3 | The parallel-decode path (`parallel_reduce.go` → `BuildFiltersWithModels`) has no direct test (it needs an mmap'd OS file); the shard path is tested | #394 | [U35](U35-predict-runtime-parity.md) |
 | E2-S1 | No grouper takes explicit numeric ranges, so a train/holdout split that is not a multiple of the `GROUP_RANGE` interval needs a filter or two slots | #395 | [U46](U46-grouped-analysis.md) |
 | E1-S1 | `tool-compose.md` is over its soft budget and does not mention `fits` or `models` | #396 | [U38](U38-skill-sync.md) |
+| E4-S1 | A plain (non-sweep) compose slot silently ignores an unknown grouper key (`"label"` on `GROUP_RANGE`) while a sweep body's strict decode refuses it; refuse it the same way or unify the paths | #397 | [U44](U44-strict-input.md) |
