@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -142,6 +143,16 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			)
 		}
 
+		// covariance: the block's shape and the robust-type refusals —
+		// the runtime's rule itself (internal/regcov.Check, shared) — then
+		// the cluster / order_by field types, which only predict checks
+		// (the engine reads values, never types).
+		if cerr := regcov.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		} else if reg.Covariance.Robust() {
+			checkCovarianceFields(env, reg, schema)
+		}
+
 		// L1-penalized OLS fits (Penalty=="l1" or "elasticnet") produce
 		// analytical standard errors only as a coarse plug-in over the
 		// data-dependent active set. Warn callers so they treat the
@@ -210,4 +221,43 @@ func routedRegression(reg *types.RegressionSpec, inst *InstanceSnapshot) *types.
 	routed := *reg
 	routed.Type = ""
 	return &routed
+}
+
+// checkCovarianceFields type-checks a robust covariance's field
+// references against schema: a cluster field is categorical or an
+// unsigned integer (its levels are the clusters), an order_by field is
+// a date, datetime or analytics-numeric field. An unknown name is the
+// field-reference rule's refusal (FieldRefRefusals) and a derived
+// column is untyped, so only a schema field is checked.
+func checkCovarianceFields(env *descriptor.Envelope, reg *types.RegressionSpec, schema *encoding.Schema) {
+	c := reg.Covariance
+	if c.Cluster != "" {
+		if f := schema.Field(c.Cluster); f != nil && !covarianceClusterType(f.Type) {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"regression covariance cluster field "+c.Cluster+" is not categorical or an unsigned integer (got "+f.Type.String()+")",
+				map[string]any{"field": c.Cluster, "type": f.Type.String(), "regression": string(reg.Type)},
+			)
+		}
+	}
+	if c.OrderBy != "" {
+		if f := schema.Field(c.OrderBy); f != nil && !(f.Type.IsNumericForAnalytics() || f.Type == encoding.FieldTypeDateTime) {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"regression covariance order_by field "+c.OrderBy+" is not a date, datetime or numeric field (got "+f.Type.String()+")",
+				map[string]any{"field": c.OrderBy, "type": f.Type.String(), "regression": string(reg.Type)},
+			)
+		}
+	}
+}
+
+// covarianceClusterType reports whether t can key clusters: a
+// categorical dictionary or an unsigned integer id.
+func covarianceClusterType(t encoding.FieldType) bool {
+	switch t {
+	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32,
+		encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
+		return true
+	}
+	return false
 }

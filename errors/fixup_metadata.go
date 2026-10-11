@@ -166,12 +166,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED: {
-		Message: "vcov: true was set on a regression with no coefficient covariance to report (lasso / elastic net, with or without a Resample / Selection modifier).",
+		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value. details.reason names which.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Regressions", "*", "Vcov"},
-				Hint:   "Drop vcov from this regression, or fit it unpenalized or with penalty \"l2\" (ridge); resample and selection keep vcov. details.penalty names the blocking penalty.",
+				Hint:   "reason penalty with no covariance block: drop vcov from this regression, or fit it unpenalized or with penalty \"l2\" (ridge); resample and selection keep vcov. details.penalty names the blocking penalty.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Regressions", "*", "Covariance"},
+				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection it names (reason penalty, resample, selection); reason type: fit REG_OLS; reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
 			},
 		},
 	},

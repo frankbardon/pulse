@@ -162,6 +162,15 @@ type RegressionSpec struct {
 	// modifier, with PROCESSING_REGRESSION_VCOV_UNSUPPORTED.
 	Vcov bool `json:"vcov,omitempty"`
 
+	// Covariance selects the coefficient covariance estimator behind
+	// StdErrors, PValues, CILower / CIUpper / DF and Vcov (REG_OLS):
+	// classical, hc0–hc3, cluster (CR1 on G − 1 df) or hac (Newey–West).
+	// Absent means classical, byte-identical on the wire. A robust type
+	// forces the buffered path and is refused with
+	// PROCESSING_REGRESSION_VCOV_UNSUPPORTED alongside a Penalty, a
+	// Resample or a Selection. See RegressionCovariance.
+	Covariance *RegressionCovariance `json:"covariance,omitempty"`
+
 	// ConfLevel is the coverage of the coefficient confidence intervals
 	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
 	// selects 0.95. REG_OLS uses a Student-t critical value on the
@@ -330,6 +339,11 @@ type RegressionResult struct {
 	// Correlation is Vcov scaled to unit diagonal (R's cov2cor), present
 	// exactly when Vcov is.
 	Correlation *MatrixValues `json:"correlation,omitempty"`
+
+	// Covariance echoes the robust estimator the standard errors,
+	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),
+	// "auto" lags resolved; absent on a classical fit.
+	Covariance *RegressionCovarianceResult `json:"covariance,omitempty"`
 }
 
 // Streamable reports whether a regression type can run via the
@@ -359,8 +373,8 @@ func (t RegressionType) Streamable() bool {
 // the streaming execution path today. The check folds the type-level
 // Streamable() value with one layer:
 //
-//   - modifier downgrade: any non-empty Resample or Selection forces
-//     the buffered path.
+//   - modifier downgrade: any non-empty Resample or Selection, or a
+//     robust Covariance, forces the buffered path.
 //
 // REG_OLS streams both unpenalized (Phase 1) and penalized
 // (l1 / l2 / elasticnet, Phase 2) — the streaming Gram is identical;
@@ -376,6 +390,11 @@ func (s RegressionSpec) Streamable() bool {
 		return false
 	}
 	if s.Selection != "" {
+		return false
+	}
+	// A robust covariance needs every fitted row's residual: a second
+	// pass over the buffered rows.
+	if s.Covariance.Robust() {
 		return false
 	}
 	switch s.Type {

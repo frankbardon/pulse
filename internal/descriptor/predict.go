@@ -720,7 +720,11 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			continue
 		}
 		if !routedRegression(reg, opts.instance()).Streamable() {
-			reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec")
+			if reg.Covariance.Robust() {
+				reasons = append(reasons, "regression "+string(reg.Type)+" covariance "+string(reg.Covariance.Type)+" requires the buffered path (a second pass for residuals and leverage)")
+			} else {
+				reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec")
+			}
 		}
 	}
 	// Regression slots do not yet compose with groupers, features,

@@ -432,7 +432,7 @@ Theme documents: see the [roadmap index](README.md).
 ### Owner-unit backlog from the worked example (filed under existing units)
 - [ ] **#293** `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list, so ridge can leave a predictor subset unshrunk; add an oracle case · [U36](units/U36-reference-oracles.md)
 - [ ] **#294** Window lag default `null` and post-tests that honour null (`WIN_LAG` `default: 0` biases lag-1 autocorrelation) · [U36](units/U36-reference-oracles.md)
-- [ ] **#295** Clustered and HAC covariance options on `REG_OLS` `Vcov` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#295** Clustered and HAC covariance options on `REG_OLS` `Vcov` · [U25](units/U25-multivariate-tests-segmentation.md)
 - [ ] **#296** Summary of a matrix across groups (mean and range per cell over a grouped matrix result) · [U28](units/U28-matrix-overlays.md)
 - [ ] **#371** Docs from the showcase examples: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent (the retail example measured no gain on 15 fields of 53 bytes); the brand-tracker, A/B and other showcase READMEs are re-verified after the units that simplify them land · [U32](units/U32-docs-audit.md)
 

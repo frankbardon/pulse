@@ -614,6 +614,30 @@
       ],
       "type": "object"
     },
+    "CovarianceLags": {
+      "description": "Newey-West truncation lag (covariance type hac): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows.",
+      "oneOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "const": "auto"
+        }
+      ]
+    },
+    "CovarianceType": {
+      "enum": [
+        "classical",
+        "cluster",
+        "hac",
+        "hc0",
+        "hc1",
+        "hc2",
+        "hc3"
+      ],
+      "type": "string"
+    },
     "CrosstabComponents": {
       "additionalProperties": false,
       "properties": {
@@ -2969,6 +2993,51 @@
       ],
       "type": "object"
     },
+    "RegressionCovariance": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "lags": {
+          "$ref": "#/$defs/CovarianceLags"
+        },
+        "order_by": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/CovarianceType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "RegressionCovarianceResult": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "clusters": {
+          "type": "integer"
+        },
+        "lags": {
+          "type": "integer"
+        },
+        "order_by": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/CovarianceType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -3022,6 +3091,9 @@
         },
         "correlation": {
           "$ref": "#/$defs/MatrixValues"
+        },
+        "covariance": {
+          "$ref": "#/$defs/RegressionCovarianceResult"
         },
         "credible_intervals": {
           "additionalProperties": {
@@ -3169,6 +3241,9 @@
         },
         "conf_level": {
           "type": "number"
+        },
+        "covariance": {
+          "$ref": "#/$defs/RegressionCovariance"
         },
         "credible_level": {
           "type": "number"
@@ -4307,4 +4382,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 5afc61f50a79b4efbe400c4e8f453585ca91665c58250f0d62bddd457f58737b
+// golden-hash: dca335bcfc3a1326ca802aeb5c27709dce7c84ab4a74698cf9fb8330f8487fc6

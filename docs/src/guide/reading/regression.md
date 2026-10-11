@@ -233,11 +233,11 @@ The difference in the outcome's expected value between rows one unit apart on th
 
 #### `std_errors.*`
 
-How much the coefficient would vary from sample to sample; smaller means a more precise estimate. Pulse reports the classic standard error, which assumes residuals of constant spread.
+How much the coefficient would vary from sample to sample; smaller means a more precise estimate. It is the classic standard error, which assumes residuals of constant spread, unless the request's covariance names a robust one.
 
 **Caveats:**
 
-- With heteroscedasticity (residual spread that changes) it can be too small or too large; with dependent rows it is usually too small.
+- Classic: with heteroscedasticity (residual spread that changes) it can be too small or too large, and with dependent rows it is usually too small; covariance hc3 guards the first, cluster (rows grouped by a field) or hac (a series in time) the second, and p_values, the intervals and vcov follow it.
 - For l1 and elasticnet fits it is a plug-in approximation over the kept predictors (Pulse warns); request resample for an empirical one.
 
 #### `p_values.*`
@@ -277,7 +277,7 @@ The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95
 
 #### `df`
 
-Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional.
+Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; under covariance cluster, the number of clusters minus 1.
 
 **Caveats:**
 

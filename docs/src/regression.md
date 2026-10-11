@@ -47,6 +47,7 @@ The Indeed regression taxonomy double-counts (Simple ≡ Linear univariate, Mult
 | `REG_GLM` (binomial / poisson / gamma)            | no         | O(n·p)  | IRLS / Newton requires multiple passes                          |
 | Any regression with `Resample != ""`              | no         | O(n·p)  | LOO / bootstrap refit                                           |
 | Any regression with `Selection != ""`             | no         | O(n·p)  | refit per candidate subset                                      |
+| `REG_OLS` with a robust `covariance` (not `classical`) | no    | O(n·p)  | second pass for residuals / leverage                            |
 
 `pulse_predict` reports per-request streamability on `PredictResult.Streamable`, mirroring the runtime gate.
 
@@ -68,6 +69,7 @@ Ordinary least squares with optional regularization.
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`. Downgrades streaming.                                  |
 | `selection`   | no       | `"forward"`, `"backward"`, or `"stepwise"`. Requires `criterion`. Downgrades streaming. |
 | `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95. Student t on the residual df. |
+| `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
 

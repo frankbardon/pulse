@@ -2,6 +2,7 @@ package regression
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -28,7 +29,8 @@ import (
 //     hand-built specs in tests.
 //
 // A spec is then held to validateConfLevel (0 < conf_level < 1, zero
-// the default) and, when it sets Vcov, to validateVcov.
+// the default), when it sets Vcov to validateVcov, and to the shared
+// covariance rule regcov.Check.
 func ValidateRegression(spec *types.RegressionSpec) error {
 	if err := validateRegressionSpec(spec); err != nil {
 		return err
@@ -38,7 +40,16 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 			return err
 		}
 	}
-	return validateVcov(spec)
+	if err := validateVcov(spec); err != nil {
+		return err
+	}
+	// The covariance block: shape, then the robust-type refusals
+	// (penalty, resample, selection, a type without the estimators) —
+	// the one rule predict applies too (internal/regcov).
+	if cerr := regcov.Check(spec); cerr != nil {
+		return cerr
+	}
+	return nil
 }
 
 // validateVcov refuses Vcov on a fit with no coefficient covariance to

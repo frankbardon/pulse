@@ -167,6 +167,27 @@ func TestNeededFields_RegressionTargetAndPredictors(t *testing.T) {
 	}
 }
 
+// TestNeededFields_RegressionCovarianceKeys: a robust covariance's
+// cluster and order_by fields are decoded — projected out, every row
+// would read them null and drop from the fit.
+func TestNeededFields_RegressionCovarianceKeys(t *testing.T) {
+	schema := mkSchema("y", "x1", "region", "week", "unused")
+	for _, c := range []struct {
+		cov  *types.RegressionCovariance
+		want []string
+	}{
+		{&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "region"}, []string{"region", "x1", "y"}},
+		{&types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "week"}, []string{"week", "x1", "y"}},
+	} {
+		req := &types.Request{Regressions: []*types.RegressionSpec{{
+			Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Covariance: c.cov,
+		}}}
+		if g := sortedFields(NeededFields(req, schema, nil)); !equalStrings(g, c.want) {
+			t.Errorf("%s: fields = %v, want %v", c.cov.Type, g, c.want)
+		}
+	}
+}
+
 func TestNeededFields_FeatureStratifyFromParams(t *testing.T) {
 	schema := mkSchema("a", "label", "unused")
 	req := &types.Request{

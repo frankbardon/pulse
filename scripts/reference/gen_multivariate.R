@@ -848,3 +848,9 @@ source(file.path(script_dir, "gen_kmeans.R"), local = FALSE)
 # unweighted and both weight kinds, plus gen_kmeans.R's blobs3
 # partition). Base R only.
 source(file.path(script_dir, "gen_distance.R"), local = FALSE)
+
+# The robust regression covariance golden (mv_robust_vcov.json: REG_OLS
+# covariance hc0-hc3 / cluster / hac against sandwich + lmtest over
+# seeded rows written into the golden); its sandwich / lmtest pins live
+# there.
+source(file.path(script_dir, "gen_robust_vcov.R"), local = FALSE)

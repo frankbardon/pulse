@@ -88,9 +88,10 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 	{
 		Field: "std_errors.*",
 		Means: "How much the coefficient would vary from sample to sample; smaller means a more precise estimate. " +
-			"Pulse reports the classic standard error, which assumes residuals of constant spread.",
+			"It is the classic standard error, which assumes residuals of constant spread, unless the request's covariance names a robust one.",
 		Caveats: []string{
-			"With heteroscedasticity (residual spread that changes) it can be too small or too large; with dependent rows it is usually too small.",
+			"Classic: with heteroscedasticity (residual spread that changes) it can be too small or too large, and with dependent rows it is usually too small; " +
+				"covariance hc3 guards the first, cluster (rows grouped by a field) or hac (a series in time) the second, and p_values, the intervals and vcov follow it.",
 			"For l1 and elasticnet fits it is a plug-in approximation over the kept predictors (Pulse warns); request resample for an empirical one.",
 		},
 	},
@@ -110,7 +111,8 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 		"exist only for the kept predictors and are approximate.",
 ), regConfLevel, descriptor.Interpretation{
 	Field: "df",
-	Means: "Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional.",
+	Means: "Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; " +
+		"under covariance cluster, the number of clusters minus 1.",
 	Caveats: []string{
 		"Null when it is 0 or below: too few rows (or too small an effective sample) for the predictors, and every bound is then null too.",
 	},

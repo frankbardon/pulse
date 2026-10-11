@@ -916,7 +916,22 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"selection":       enumStringField([]string{"forward", "backward", "stepwise"}, "Subset selection; omit for none."),
 				"criterion":       enumStringField([]string{"aic", "bic"}, "Information criterion; required with selection."),
 				"vcov":            map[string]any{"type": "boolean", "description": "Also emit the coefficient covariance (vcov) and its correlation matrix; replicate covariance under resample, the final refit's under selection; refused on l1 / elasticnet."},
-				"weight":          slotWeightSchema(c),
+				"covariance": map[string]any{
+					"type":        "object",
+					"description": "REG_OLS standard-error estimator; omit for classical. Drives std_errors, p_values, ci_lower / ci_upper and vcov. Robust types run buffered; refused beside penalty, resample or selection.",
+					"properties": map[string]any{
+						"type":     enumStringField(stringSlice(types.AllCovarianceTypes()), "classical, hc0-hc3 (heteroskedasticity-robust), cluster (CR1, df = clusters - 1), hac (Newey-West)."),
+						"cluster":  map[string]any{"type": "string", "description": "type cluster: categorical or unsigned-integer field whose levels are the clusters (at least 2)."},
+						"order_by": map[string]any{"type": "string", "description": "type hac: date, datetime or numeric field ordering the series, unique per row."},
+						"lags": map[string]any{
+							"description": "type hac: truncation lag, a non-negative integer or \"auto\" (default) = floor(4*(n/100)^(2/9)).",
+							"oneOf":       []any{map[string]any{"type": "integer", "minimum": 0}, map[string]any{"const": "auto"}},
+						},
+					},
+					"required":             []string{"type"},
+					"additionalProperties": false,
+				},
+				"weight": slotWeightSchema(c),
 			},
 			"required":             []string{"type", "target"},
 			"additionalProperties": true,

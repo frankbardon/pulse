@@ -292,6 +292,10 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		}
 		addKnown(r.Target)
 		addAllKnown(r.Predictors)
+		if c := r.Covariance; c != nil {
+			addKnown(c.Cluster)
+			addKnown(c.OrderBy)
+		}
 	}
 
 	// Virtual vectors decode every member (internal/vectors, the one

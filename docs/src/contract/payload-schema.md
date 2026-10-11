@@ -505,6 +505,23 @@ without a modifier, with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
 (`details.reason` `penalty`) in predict and at runtime alike. Both slots are in the `standard` preset (not
 `minimal`) and every float in them is rounded by `return.precision`.
 
+## Regression robust covariance
+
+`RegressionSpec` takes an additive `covariance` object `{type, cluster,
+order_by, lags}` and `RegressionResult` an additive `omitempty`
+`covariance` echo `{type, cluster, clusters, order_by, lags}`
+(`format_version` stays `"1.1"`). `type` is the `CovarianceType` enum
+(`classical`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `hac`); `lags` is a
+non-negative integer or `"auto"`. Absent or `classical` is
+byte-identical to a request without the block and echoes nothing. Any
+other type on `REG_OLS` replaces the estimator behind `std_errors`,
+`p_values`, `ci_lower` / `ci_upper` and `vcov` (so √diag(`vcov`) is
+still exactly `std_errors`); under `cluster`, `df` is the cluster count
+minus 1. Shape faults are `PROCESSING_CONFIG`; a robust type beside a
+penalty, `resample` or `selection`, or on another regression type, is
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`details.reason`), in predict
+and at runtime alike. The echo is in the `standard` preset.
+
 ## Regression coefficient intervals
 
 `RegressionSpec` takes an additive `conf_level` float (`0 < c < 1`,
@@ -623,7 +640,7 @@ emitted. Every listed path must resolve against this schema
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` when asked for) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 

@@ -26,6 +26,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `weight` | slot weight | inherited | `null` opts out; both kinds. WLS β (penalty × Σw: kind-free); SE, df = N*−p−1 (fractional), `AdjR2` on N* = Σw (frequency) / Kish n_eff (probability). |
 | `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation` (`MatrixValues`, keys `(intercept)` + predictors); √diag = `StdErrors`. Unpenalized σ̂²(XᵀX)⁻¹ / ridge sandwich, N* basis. Resample: replicate covariance; selection: final refit's. `l1` / `elasticnet` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. |
+| `covariance` | object | absent | `{type, cluster, order_by, lags}` — the estimator behind `StdErrors`, `PValues`, CIs, `Vcov`. `classical` (= absent); `hc0`–`hc3`; `cluster` (CR1 on `cluster`, categorical / unsigned int, `DF` = G−1); `hac` (Newey–West, `order_by` date / datetime / numeric, `lags` int or `"auto"` = ⌊4(n/100)^(2/9)⌋). Weighted: w* rule. |
 
 `resample` / `selection` are top-level modifiers — see `op-reg-mod-resample`, `op-reg-mod-selection`.
 
@@ -35,7 +36,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper` = β ∓ t(`DF`)·SE wherever an SE is (resample: z on its SE, no `DF`), `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (raw rows); weighted adds `SumWeights` (+ `NEff`, probability). Penalized shrunk-to-zero βs drop from `StdErrors`. Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper` = β ∓ t(`DF`)·SE wherever an SE is (resample: z on its SE, no `DF`), `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (raw rows); weighted adds `SumWeights` (+ `NEff`, probability). Penalized shrunk-to-zero βs drop from `StdErrors`. A robust `covariance` adds the `Covariance` echo (`type`, `clusters`, resolved `lags`). Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
 
 <!-- generated: reading-the-output -->
 
@@ -43,6 +44,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 - Weighted: `resample` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`; n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `CILower`/`CIUpper`, `DF`, `AdjR2`, `ResidualStdErr` null.
 - `l1` / `elasticnet` SE is plug-in over the active set — pair with `op-reg-mod-resample`; otherwise `PROCESSING_REGRESSION_APPROXIMATE_SE` warns.
+- Robust `covariance` forces the buffered path (second pass for residuals / leverage); beside `penalty` / `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. A null `cluster` / `order_by` drops the row.
 - Collinearity → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`; drop a predictor or add `l2`.
 - `penalty != ""` + `selection != ""` → `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.
 - Polynomial: stage<!-- feature: FEAT_POLY --> `FEAT_POLY`<!-- /feature --> polynomial columns upstream; degree gate `[2,10]`; standardize first.

@@ -55,9 +55,15 @@ For OLS, ridge, GLM and both modifiers, √diag(Vcov) equals `StdErrors` exactly
 Weighted fits (frequency or probability) use the N* basis the weighted SE uses; see `weighting`.
 <!-- /feature -->
 
+## Robust standard errors
+
+<!-- feature: REG_OLS -->
+`"covariance": {"type": "hc3"}` on `REG_OLS` swaps the estimator behind `std_errors`, `p_values`, the intervals and `vcov` (√diag still = `StdErrors`): `hc0`–`hc3`, `cluster` (CR1, `df` = clusters − 1) or `hac` (Newey–West over `order_by`). Absent = `classical`, byte-identical. Matches R `sandwich` + `lmtest::coeftest`.
+<!-- /feature -->
+
 ## Refusals
 
-`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too.
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` is refused beside any penalty, resample or selection.
 
 Predict and runtime apply the same rule, so predict reports it before any fit. `pulse_errors_lookup` carries the recovery.
 

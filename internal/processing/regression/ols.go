@@ -31,6 +31,10 @@ type olsEngine struct {
 	acc    *olsAccumulator
 	// weights is the slot's stamped weight (zero value: unweighted).
 	weights rowWeights
+	// robust is set when spec.Covariance selects a non-classical
+	// estimator: rows then also need their cluster / order_by values, and
+	// finalize runs the second pass (ols_covariance.go).
+	robust bool
 	// finalized flips when Finalize / FitBuffered has run; further
 	// UpdateRow calls would corrupt the fit and are rejected.
 	finalized bool
@@ -105,6 +109,7 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 		schema:  schema,
 		acc:     acc,
 		weights: weights,
+		robust:  spec.Covariance.Robust(),
 	}, nil
 }
 
@@ -120,24 +125,43 @@ func (e *olsEngine) UpdateRow(rec Record) error {
 			"olsEngine.UpdateRow called after Finalize",
 		)
 	}
-	y, ok := rec.NumericValue(e.spec.Target)
-	if !ok {
-		return nil
-	}
-	x := make([]float64, len(e.spec.Predictors))
-	for i, name := range e.spec.Predictors {
-		v, ok := rec.NumericValue(name)
-		if !ok {
-			return nil
-		}
-		x[i] = v
-	}
-	w, ok := e.weights.of(rec)
+	x, y, w, ok := e.fitRow(rec)
 	if !ok {
 		return nil
 	}
 	e.acc.UpdateRowWeighted(x, y, w)
 	return nil
+}
+
+// fitRow reads rec's predictors, target and weight, ok=false when the
+// row does not enter the fit: a null target or predictor (listwise),
+// under a robust covariance a null cluster / order_by value, or an
+// invalid or zero weight (judged only once the row is otherwise
+// complete). The robust second pass re-reads the fitted rows through
+// it, so both passes see exactly the same rows.
+func (e *olsEngine) fitRow(rec Record) (x []float64, y, w float64, ok bool) {
+	y, ok = rec.NumericValue(e.spec.Target)
+	if !ok {
+		return nil, 0, 0, false
+	}
+	x = make([]float64, len(e.spec.Predictors))
+	for i, name := range e.spec.Predictors {
+		v, ok := rec.NumericValue(name)
+		if !ok {
+			return nil, 0, 0, false
+		}
+		x[i] = v
+	}
+	if e.robust {
+		if _, _, ok := e.robustKeys(rec); !ok {
+			return nil, 0, 0, false
+		}
+	}
+	w, ok = e.weights.of(rec)
+	if !ok {
+		return nil, 0, 0, false
+	}
+	return x, y, w, true
 }
 
 // Finalize closes the streaming fit and returns the populated result.
@@ -151,7 +175,7 @@ func (e *olsEngine) Finalize() (*types.RegressionResult, error) {
 		)
 	}
 	e.finalized = true
-	return e.finalizeFromAccumulator()
+	return e.finalizeFromAccumulator(nil)
 }
 
 // FitBuffered runs the same accumulator pipeline over an in-memory
@@ -171,7 +195,7 @@ func (e *olsEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		}
 	}
 	e.finalized = true
-	return e.finalizeFromAccumulator()
+	return e.finalizeFromAccumulator(records)
 }
 
 // Fit satisfies the Phase 0 Engine interface for code paths that
@@ -189,7 +213,7 @@ func (e *olsEngine) Fit() (*types.RegressionResult, error) {
 		)
 	}
 	e.finalized = true
-	return e.finalizeFromAccumulator()
+	return e.finalizeFromAccumulator(nil)
 }
 
 // finalizeFromAccumulator solves the system and packages the result.
@@ -204,13 +228,38 @@ func (e *olsEngine) Fit() (*types.RegressionResult, error) {
 //
 // All four solvers consume the same streaming Welford accumulator;
 // regularized variants iterate at finalize, not over rows.
-func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
+//
+// records are the rows a buffered fit folded (nil on the streaming
+// path). A robust RegressionSpec.Covariance reads them a second time
+// (olsSandwich): its covariance replaces the classical one behind the
+// standard errors, p-values, intervals and Vcov, and a cluster fit's
+// inference runs on G − 1 df. RegressionSpec.Streamable keeps a robust
+// spec off the streaming path, so records is never nil for one.
+func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.RegressionResult, error) {
 	solve, iters, approxSE, err := e.dispatchSolve()
 	if err != nil {
 		return nil, err
 	}
 	e.convergedIters = iters
 	e.approximateSE = approxSE
+
+	var robust *olsRobust
+	infDF := solve.DF
+	if e.robust {
+		if records == nil {
+			return nil, errors.NewCodedError(
+				errors.PROCESSING_INTERNAL,
+				"REG_OLS robust covariance needs the buffered path (RegressionSpec.Streamable)",
+			)
+		}
+		if robust, err = e.olsSandwich(solve, records); err != nil {
+			return nil, err
+		}
+		solve.StdErrors = robust.stdErrors
+		if robust.fit.hasDF {
+			infDF = robust.fit.df
+		}
+	}
 
 	predictors := e.spec.Predictors
 	coefMap := make(map[string]float64, len(predictors)+1)
@@ -219,7 +268,7 @@ func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
 
 	coefMap[InterceptKey] = solve.Intercept
 	seMap[InterceptKey] = solve.StdErrors[0]
-	pMap[InterceptKey] = pValueForCoefficient(solve.Intercept, solve.StdErrors[0], solve.DF)
+	pMap[InterceptKey] = pValueForCoefficient(solve.Intercept, solve.StdErrors[0], infDF)
 
 	for i, name := range predictors {
 		coefMap[name] = solve.Coefficients[i]
@@ -231,7 +280,7 @@ func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
 			continue
 		}
 		seMap[name] = solve.StdErrors[i+1]
-		pMap[name] = pValueForCoefficient(solve.Coefficients[i], solve.StdErrors[i+1], solve.DF)
+		pMap[name] = pValueForCoefficient(solve.Coefficients[i], solve.StdErrors[i+1], infDF)
 	}
 	if e.approximateSE {
 		// Drop intercept SE/p-value too: under L1 penalization the
@@ -261,8 +310,15 @@ func (e *olsEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
 	// t on the residual df N* − p − 1 (the N* rule, weighting.md): the
 	// same df the p-values read. Lasso / elastic net get intervals only
 	// where they report a (plug-in) standard error.
-	attachIntervals(res, resolvedConfLevel(e.spec), solve.DF, true)
-	if e.spec.Vcov {
+	// A cluster fit reads G − 1 df instead.
+	attachIntervals(res, resolvedConfLevel(e.spec), infDF, true)
+	switch {
+	case robust != nil:
+		res.Covariance = robust.fit.info
+		if e.spec.Vcov {
+			attachVcov(res, predictors, robust.fit.v)
+		}
+	case e.spec.Vcov:
 		attachVcov(res, predictors, olsVcov(solve, e.acc.meanX))
 	}
 	return res, nil

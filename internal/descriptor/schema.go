@@ -225,6 +225,9 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// SweepRank with it).
 	m[reflect.TypeFor[types.SweepMode]()] = stringify(types.AllSweepModes())
 	m[reflect.TypeFor[types.SweepRankOrder]()] = stringify(types.AllSweepRankOrders())
+	// The regression covariance estimators: a closed vocabulary on the
+	// ungated regressions slot.
+	m[reflect.TypeFor[types.CovarianceType]()] = stringify(types.AllCovarianceTypes())
 	// Explain's closed vocabularies: its detail levels, modes, roots and
 	// the finding verdicts.
 	m[reflect.TypeFor[descriptor.ExplainDetail]()] = stringify([]descriptor.ExplainDetail{descriptor.ExplainTerse, descriptor.ExplainFull})
@@ -349,6 +352,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return b.overlayPayloadDef(t)
 	case reflect.TypeFor[types.SlotWeight]():
 		return b.slotWeightDef()
+	case reflect.TypeFor[types.CovarianceLags]():
+		return covarianceLagsDef()
 	}
 	// Registry-backed enum.
 	if vals, ok := b.enums[t]; ok {
@@ -615,6 +620,20 @@ func (b *schemaBuilder) slotWeightDef() any {
 			map[string]any{"type": "string"},
 			map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.WeightSpec]())},
 			map[string]any{"type": "null"},
+		},
+	}
+}
+
+// covarianceLagsDef is RegressionCovariance.lags. types.CovarianceLags
+// has no exported fields (its states are behind constructors), so
+// reflection would describe an empty object; on the wire it is a
+// non-negative integer or "auto" (absent reads as "auto").
+func covarianceLagsDef() any {
+	return map[string]any{
+		"description": "Newey-West truncation lag (covariance type hac): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows.",
+		"oneOf": []any{
+			map[string]any{"type": "integer", "minimum": 0},
+			map[string]any{"const": "auto"},
 		},
 	}
 }

@@ -348,6 +348,17 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 					map[string]any{"field": p, "type": string(reg.Type)})
 			})
 		}
+		if c := reg.Covariance; c != nil {
+			for _, f := range []string{c.Cluster, c.OrderBy} {
+				if f == "" {
+					continue
+				}
+				w.check(f, func() *errors.CodedError {
+					return refusal("regression covariance references unknown field: "+f,
+						map[string]any{"field": f, "type": string(reg.Type)})
+				})
+			}
+		}
 	}
 	for _, grp := range req.Groups {
 		if grp == nil {
