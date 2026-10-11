@@ -50,7 +50,10 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
   `TEST_BARTLETT_SPHERICITY` / `TEST_BOX_M` (U25 E1-S4) read the base-R
   closed forms of `psych::cortest.bartlett` (`det(cor(.))`) and
   `biotools::boxM` (per-level `det(cov(.))`, plus Box's F in SPSS's
-  form), so the script stays base-R only;
+  form), so the script stays base-R only; `TEST_MARDIA` (U25 E1-S5,
+  frequency-only) reads `MVN::mvn(mvnTest = "mardia")`'s closed form in
+  base R (ML covariance, `sum(D^3)/n^2`, `sum(diag(D)^2)/n`), cross-checked
+  against numpy on the same expansion;
 - kind `probability` — the w* closed form in the generator, its moment
   step cross-checked against statsmodels (`DescrStatsW` on w*,
   `CompareMeans`, `proportions_ztest`) and scipy `chi2_contingency`. The

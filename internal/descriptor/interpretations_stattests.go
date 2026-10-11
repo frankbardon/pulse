@@ -30,6 +30,7 @@ var statTestInterpretations = map[string][]descriptor.Interpretation{
 	"TEST_MANOVA":              interpTestManova,
 	"TEST_BARTLETT_SPHERICITY": interpTestBartlettSphericity,
 	"TEST_BOX_M":               interpTestBoxM,
+	"TEST_MARDIA":              interpTestMardia,
 	"TEST_PAIRED_T":            interpTestPairedT,
 	"TEST_PEARSON_R":           interpTestPearsonR,
 	"TEST_PROP_Z":              interpTestPropZ,
@@ -330,6 +331,27 @@ var (
 		{
 			Field: "details.f",
 			Means: "Box's M rescaled to an approximate F on details.df1 and details.df2 degrees of freedom, with its own details.f_p_value; an alternative to the chi-square for small groups.",
+		},
+	}
+
+	interpTestMardia = []descriptor.Interpretation{
+		{
+			Field: "statistic",
+			Means: "The skewness chi-square (default) or the kurtosis z named by variant; " +
+				"a small p-value says the fields are not jointly normal.",
+			Caveats: []string{
+				"A large p only means no departure was detected, which is likely with few rows.",
+				"It is null, with a warning, when there are no more complete rows than fields or a field is constant or the sum of others.",
+			},
+		},
+		interpPValue,
+		{
+			Field: "details.skewness",
+			Means: "Mardia's multivariate skewness, 0 for jointly normal data; it grows as the joint shape leans to one side.",
+		},
+		{
+			Field: "details.kurtosis",
+			Means: "Mardia's multivariate kurtosis, p(p + 2) for p jointly normal fields; above that the tails are heavier than normal, below it lighter.",
 		},
 	}
 

@@ -608,6 +608,15 @@ const (
 	// Streams via one co-moment accumulator per level.
 	TEST_BOX_M TestType = "TEST_BOX_M"
 
+	// TEST_MARDIA is Mardia's test of multivariate normality on a
+	// VECTOR (the members of Vector / Fields, listwise): multivariate
+	// skewness b1p as a χ² on p(p + 1)(p + 2)/6 df (small-sample
+	// corrected when n < 20) and kurtosis b2p as a z. Params.statistic
+	// picks the headline ("skewness" default, or "kurtosis"); both ride
+	// Details. No SplitBy. Buffered: every row's Mahalanobis product
+	// needs the fitted mean and covariance first.
+	TEST_MARDIA TestType = "TEST_MARDIA"
+
 	// TEST_SHAPIRO_WILK is the normality test on Field, computed in the
 	// Shapiro-Francia (W′) form. When SplitBy is set the test runs
 	// per-group; otherwise it runs over the full filtered set. Buffered:
@@ -648,6 +657,7 @@ func AllTestTypes() []TestType {
 		TEST_KS,
 		TEST_MANN_WHITNEY_U,
 		TEST_MANOVA,
+		TEST_MARDIA,
 		TEST_PAIRED_T,
 		TEST_PEARSON_R,
 		TEST_PROP_Z,
@@ -685,7 +695,7 @@ type Test struct {
 
 	// Vector names the Request.Vectors entry whose members a
 	// vector-input test (TEST_HOTELLING_T2, TEST_MANOVA,
-	// TEST_BARTLETT_SPHERICITY, TEST_BOX_M) reads as its p numeric
+	// TEST_BARTLETT_SPHERICITY, TEST_BOX_M, TEST_MARDIA) reads as its p numeric
 	// columns. Exactly one of Vector and Fields is set on a vector-input
 	// test and neither on any other test (SERVICE_VALIDATION); a Vector
 	// no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN. Members
@@ -746,6 +756,7 @@ type Test struct {
 	//   TEST_TUKEY_HSD: {"ms_within": <f64>, "df_within": <f64>}
 	//   TEST_TREND: {"variant": "mann_kendall"} (default)
 	//   TEST_HOTELLING_T2 (one-sample): {"mu": [<p numbers>]} (default zeros)
+	//   TEST_MARDIA: {"statistic": "skewness" | "kurtosis"} (default skewness)
 	//   vector-input tests: {"missing": "listwise"} (the only mode)
 	Params json.RawMessage `json:"params,omitempty"`
 

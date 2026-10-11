@@ -97,6 +97,10 @@ var testParityOps = []testParityOp{
 		raw: []string{"n_dropped"}},
 	{name: "box_m", spec: types.Test{Type: types.TEST_BOX_M, Fields: []string{"x", "y"}, SplitBy: "k"},
 		raw: []string{"n_dropped"}},
+	// Mardia (U25 E1-S5): frequency-only and buffered — the expansion
+	// identity holds, the probability arm is skipped by weight_kinds.
+	{name: "mardia", spec: types.Test{Type: types.TEST_MARDIA, Fields: []string{"x", "y"}},
+		raw: []string{"n_dropped"}},
 }
 
 // build returns the row's request builder over path.

@@ -475,6 +475,33 @@ Roy's largest root, the separation along the single best direction through the f
 
 - Its F is an upper bound (upper_bound is true), so its p-value is a lower bound and overstates the evidence; read it beside Pillai's.
 
+<a id="op-test_mardia"></a>
+
+### `TEST_MARDIA`
+
+Checks whether a set of numeric fields looks jointly normal, through their combined skew and tail weight. See its [catalog entry](../catalog/test.md#op-test_mardia).
+
+#### `statistic`
+
+The skewness chi-square (default) or the kurtosis z named by variant; a small p-value says the fields are not jointly normal.
+
+**Caveats:**
+
+- A large p only means no departure was detected, which is likely with few rows.
+- It is null, with a warning, when there are no more complete rows than fields or a field is constant or the sum of others.
+
+#### `p_value`
+
+Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.skewness`
+
+Mardia's multivariate skewness, 0 for jointly normal data; it grows as the joint shape leans to one side.
+
+#### `details.kurtosis`
+
+Mardia's multivariate kurtosis, p(p + 2) for p jointly normal fields; above that the tails are heavier than normal, below it lighter.
+
 <a id="op-test_paired_t"></a>
 
 ### `TEST_PAIRED_T`

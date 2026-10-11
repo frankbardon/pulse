@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -28,6 +29,8 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 		post   *types.Test
 		code   errors.Code
 		reason string
+		// buffered: the test forces the buffered path (TEST_MARDIA).
+		buffered bool
 	}{
 		{name: "named vector, two-sample", test: hot(func(s *types.Test) { s.Vector, s.SplitBy = "items", "region" })},
 		{name: "inline fields, mu", test: hot(func(s *types.Test) {
@@ -62,6 +65,9 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 		{name: "box m without split_by", test: &types.Test{Type: types.TEST_BOX_M, Vector: "items"}, code: errors.SERVICE_VALIDATION, reason: "split_by_required"},
 		{name: "sphericity", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "items"}},
 		{name: "sphericity with split_by", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "items", SplitBy: "region"}, code: errors.SERVICE_VALIDATION, reason: "split_by_not_accepted"},
+		{name: "mardia", test: &types.Test{Type: types.TEST_MARDIA, Vector: "items", Params: json.RawMessage(`{"statistic": "kurtosis"}`)}, buffered: true},
+		{name: "mardia with split_by", test: &types.Test{Type: types.TEST_MARDIA, Vector: "items", SplitBy: "region"}, code: errors.SERVICE_VALIDATION, reason: "split_by_not_accepted"},
+		{name: "mardia bad statistic", test: &types.Test{Type: types.TEST_MARDIA, Vector: "items", Params: json.RawMessage(`{"statistic": "both"}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "paired with split_by", test: hot(func(s *types.Test) { s.Vector, s.Vector2, s.SplitBy = "items", "items", "region" }), code: errors.SERVICE_VALIDATION, reason: "paired_with_split_by"},
 		{name: "unequal one-sample", test: hot(func(s *types.Test) {
 			s.Vector = "items"
@@ -97,8 +103,12 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 				if len(env.Errors) != 0 || !res.Valid {
 					t.Fatalf("errors = %v, want a valid request", env.Errors)
 				}
-				if !res.Streamable {
-					t.Errorf("a Hotelling test with a streamable aggregation must predict streamable")
+				if c.buffered {
+					if res.Streamable || !strings.Contains(strings.Join(res.StreamableReasons, " "), string(c.test.Type)) {
+						t.Errorf("%s must predict buffered, naming itself: streamable %v, reasons %v", c.test.Type, res.Streamable, res.StreamableReasons)
+					}
+				} else if !res.Streamable {
+					t.Errorf("a streamable vector test with a streamable aggregation must predict streamable")
 				}
 				for _, w := range env.Warnings {
 					if w.Code == string(errors.PULSE_VECTOR_UNREFERENCED) && c.test.Vector != "" {

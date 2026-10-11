@@ -386,7 +386,8 @@ func (t FeatureType) Streamable() bool {
 //     passes when their inputs overlap with an active aggregator.
 //   - Buffered-only tests (TEST_KS, TEST_TUKEY_HSD, TEST_TREND) require a
 //     sorted view, a finalized post-hoc matrix, or an ordered series and
-//     cannot stream. Predict flags requests containing these tests as
+//     cannot stream. TEST_MARDIA keeps every complete row: each one's
+//     Mahalanobis products need the fitted mean and covariance first. Predict flags requests containing these tests as
 //     non-streamable.
 //
 // Tier-2 PostTests are always buffered regardless of TestType: they
@@ -405,7 +406,7 @@ func (t TestType) Streamable() bool {
 		TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR,
 		TEST_KRUSKAL_WALLIS, TEST_SPEARMAN_R, TEST_KENDALL_TAU,
 		TEST_ANOVA_RM, TEST_BROWN_FORSYTHE,
-		TEST_FISHER_EXACT, TEST_SHAPIRO_WILK:
+		TEST_FISHER_EXACT, TEST_SHAPIRO_WILK, TEST_MARDIA:
 		return false
 	}
 	return false

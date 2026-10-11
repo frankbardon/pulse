@@ -126,6 +126,12 @@ func TestResolveTests_Rules(t *testing.T) {
 		{name: "sphericity", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "vb", Params: json.RawMessage(`{"missing": "listwise"}`)}, members: []string{"b1", "b2"}},
 		{name: "sphericity with split_by", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "vb", SplitBy: "region"}, code: errors.SERVICE_VALIDATION, reason: "split_by_not_accepted"},
 		{name: "sphericity unknown param", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "vb", Params: json.RawMessage(`{"mu": [0, 0]}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		// TEST_MARDIA (U25 E1-S5).
+		{name: "mardia", test: &types.Test{Type: types.TEST_MARDIA, Vector: "vb", Params: json.RawMessage(`{"statistic": "kurtosis", "missing": "listwise"}`)}, members: []string{"b1", "b2"}},
+		{name: "mardia with split_by", test: &types.Test{Type: types.TEST_MARDIA, Vector: "vb", SplitBy: "region"}, code: errors.SERVICE_VALIDATION, reason: "split_by_not_accepted"},
+		{name: "mardia bad statistic", test: &types.Test{Type: types.TEST_MARDIA, Vector: "vb", Params: json.RawMessage(`{"statistic": "both"}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "mardia unknown param", test: &types.Test{Type: types.TEST_MARDIA, Vector: "vb", Params: json.RawMessage(`{"mu": [0, 0]}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "mardia pairwise refused", test: &types.Test{Type: types.TEST_MARDIA, Vector: "vb", Params: json.RawMessage(`{"missing": "pairwise"}`)}, code: errors.SERVICE_VALIDATION, reason: "pairwise_unsupported"},
 		{name: "fields on a post-test", post: &types.Test{Type: types.TEST_ANOVA_F, Fields: []string{"a1"}}, code: errors.SERVICE_VALIDATION, reason: "vector_not_accepted"},
 	}
 	for _, c := range cases {

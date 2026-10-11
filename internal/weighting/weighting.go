@@ -172,6 +172,10 @@ var testClasses = map[types.TestType]Class{
 	types.TEST_FISHER_EXACT:   ClassFrequencyOnly,
 	types.TEST_KS:             ClassFrequencyOnly,
 	types.TEST_BROWN_FORSYTHE: ClassFrequencyOnly,
+	// TEST_MARDIA: N = Σw, Σw-weighted x̄ and ML covariance, b1p / b2p
+	// over w_i·w_j / w_i — the unweighted test on the expanded rows. Its
+	// asymptotics are iid-sample results with no design-based form.
+	types.TEST_MARDIA: ClassFrequencyOnly,
 }
 
 // regressionClasses are the built-in regressions whose weighted fit

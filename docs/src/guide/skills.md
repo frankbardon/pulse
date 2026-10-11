@@ -188,6 +188,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-test-ks`](skills/op-test-ks.md): Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy.
 - [`op-test-mann-whitney-u`](skills/op-test-mann-whitney-u.md): Nonparametric two-sample location test; buffered tie-corrected rank sum (Mann-Whitney U).
 - [`op-test-manova`](skills/op-test-manova.md): One-way MANOVA of a mean vector of p numeric members across a SplitBy of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details.
+- [`op-test-mardia`](skills/op-test-mardia.md): Mardia's multivariate normality test on a vector — skewness χ² and kurtosis z; buffered.
 - [`op-test-paired-t`](skills/op-test-paired-t.md): Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d.
 - [`op-test-pearson-r`](skills/op-test-pearson-r.md): Parametric Pearson correlation test between two numeric fields; streamable via online cross-product.
 - [`op-test-prop-z`](skills/op-test-prop-z.md): Two-proportion z-test on the success rate of Field across two SplitBy groups; streamable via success / total counts.

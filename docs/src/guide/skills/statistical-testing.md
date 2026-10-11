@@ -77,7 +77,7 @@ After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tes
 
 ## Streamability
 
-A tier-1 test streams when it can run on online state (mean / variance / n, or contingency counts); rank-, sort- and permutation-based tests are forced buffered. Read the per-test answer from the manifest `tests[].streamable` (declared in `types/streamability.go`) or `pulse_predict` — never from memory. Tier 2 is always buffered, and some families exist on tier 2 only (the manifest lists one entry per tier).
+A tier-1 test streams when it can run on online state (mean / variance / n, or contingency counts); rank-, sort- and permutation-based tests are forced buffered, as is `TEST_MARDIA` (needs the fitted covariance first). Read the per-test answer from the manifest `tests[].streamable` (declared in `types/streamability.go`) or `pulse_predict` — never from memory. Tier 2 is always buffered, and some families exist on tier 2 only (the manifest lists one entry per tier).
 
 ## Composition with aggregators
 

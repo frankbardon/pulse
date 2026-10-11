@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:49c726d22e3ee3a9eb994a304e7a7e1d8f91f8a785e2d5b9d202dfd5eef1d1a8",
+    "feature_set_digest": "fs1:e4ad51b9399a2f575120988d6b09a965133e9ebfd5ee8f841065fc585a67c588",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -5430,6 +5430,50 @@
         ]
       },
       {
+        "name": "TEST_MARDIA",
+        "family": "TEST_MARDIA",
+        "tier": 1,
+        "description": "Mardia's multivariate normality test on a vector (exactly one of Vector / Fields, ≥ 1 member, listwise; no SplitBy). Skewness b1p gives χ² = N·b1p/6 on p(p + 1)(p + 2)/6 df, small-sample corrected when N \u003c 20. Kurtosis b2p gives a z. params.statistic picks the headline; both ride details. Buffered: needs the fitted mean and covariance before any row's products.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "statistic",
+            "type": "enum",
+            "required": false,
+            "default": "skewness",
+            "description": "Headline statistic: the skewness χ² (default) or the kurtosis z; both always appear in details.",
+            "enum_values": [
+              "skewness",
+              "kurtosis"
+            ]
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "intents": [
+          "data_quality",
+          "distribution_shape"
+        ],
+        "weight_kinds": [
+          "frequency"
+        ]
+      },
+      {
         "name": "TEST_PAIRED_T",
         "family": "TEST_PAIRED_T",
         "tier": 1,
@@ -9917,6 +9961,10 @@
         "description": "One-way MANOVA of a mean vector of p numeric members across a SplitBy of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details."
       },
       {
+        "name": "op-test-mardia",
+        "description": "Mardia's multivariate normality test on a vector — skewness χ² and kurtosis z; buffered."
+      },
+      {
         "name": "op-test-paired-t",
         "description": "Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d."
       },
@@ -10381,7 +10429,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 197,
+    "examples_count": 198,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14121,4 +14169,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: bac9455eabccfa15c090f6f8c7f10bf0dfbe0553249b683a84ef48356aee4236
+// golden-hash: 11780c139913e9b91ec0eefd4a199ef65203630ac16f406b22eb55b4b7cde9ed

@@ -43,6 +43,7 @@ var testClass = map[string]string{
 	"TEST_KS":                  classDifference,
 	"TEST_MANN_WHITNEY_U":      classDifference,
 	"TEST_MANOVA":              classDifference,
+	"TEST_MARDIA":              classDifference,
 	"TEST_PAIRED_T":            classDifference,
 	"TEST_PEARSON_R":           classAssociation,
 	"TEST_PROP_Z":              classDifference,

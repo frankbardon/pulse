@@ -38,6 +38,7 @@ its cohort from the shared `.data` directory and assumes
 | `31_manova_profile_by_region.json` | 1 | `TEST_MANOVA` | one-way MANOVA of the revenue_before / revenue / session_minutes profile across the four regions; Pillai headline, Wilks / Hotelling–Lawley / Roy in details |
 | `32_bartlett_sphericity_factorable.json` | 1 | `TEST_BARTLETT_SPHERICITY` | is the revenue_before / revenue / session_minutes set correlated enough to factor; bit-equal to `MAT_PCA`'s Bartlett scalars |
 | `33_box_m_covariance_by_region.json` | 1 | `TEST_BOX_M` | do the four regions share one covariance across the engagement profile (the MANOVA assumption check); chi-square headline, F form in details |
+| `34_mardia_joint_normality.json` | 1 | `TEST_MARDIA` | Mardia's joint-normality check on the revenue_before / revenue / session_minutes profile; skewness χ² headline, kurtosis z in details; buffered |
 
 ## Cohort
 

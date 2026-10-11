@@ -338,6 +338,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("TEST_KS"),
 	op("TEST_MANN_WHITNEY_U"),
 	op("TEST_MANOVA"),
+	op("TEST_MARDIA"),
 	op("TEST_PAIRED_T"),
 	op("TEST_PEARSON_R"),
 	op("TEST_PROP_Z"),

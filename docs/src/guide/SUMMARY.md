@@ -208,6 +208,7 @@
     - [op-test-ks](skills/op-test-ks.md)
     - [op-test-mann-whitney-u](skills/op-test-mann-whitney-u.md)
     - [op-test-manova](skills/op-test-manova.md)
+    - [op-test-mardia](skills/op-test-mardia.md)
     - [op-test-paired-t](skills/op-test-paired-t.md)
     - [op-test-pearson-r](skills/op-test-pearson-r.md)
     - [op-test-prop-z](skills/op-test-prop-z.md)

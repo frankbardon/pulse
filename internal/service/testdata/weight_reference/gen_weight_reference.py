@@ -557,6 +557,8 @@ TEST_SPECS = [
     # and equal covariances across the 3 k levels.
     ("bartlett_sphericity", {"type": "TEST_BARTLETT_SPHERICITY", "fields": ["x", "y"]}),
     ("box_m", {"type": "TEST_BOX_M", "fields": ["x", "y"], "split_by": "k"}),
+    # Mardia (U25 E1-S5) on (x, y): frequency-only — FREQUENCY_ONLY below.
+    ("mardia", {"type": "TEST_MARDIA", "fields": ["x", "y"]}),
 ]
 
 # Request-level slots a case adds beside its tests[0] slot.
@@ -568,7 +570,7 @@ FISHER_OUT = "maybe"
 # Cases with no probability-weighted form (refused under that kind): a
 # frequency reference only, = the unweighted test on the expansion.
 FREQUENCY_ONLY = {"mann_whitney", "wilcoxon_sr", "kruskal", "spearman", "kendall",
-                  "fisher", "ks", "brown_forsythe"}
+                  "fisher", "ks", "brown_forsythe", "mardia"}
 
 
 def kish(w):
@@ -931,6 +933,8 @@ def test_closed_form(case, rows, prob):
         assert not prob, case
         if case in ("fisher", "ks", "brown_forsythe"):
             return exact_closed_form(case, rows, xr)
+        if case == "mardia":
+            return mardia_closed_form(xr)
         return rank_closed_form(case, xr)
     raise ValueError(case)
 
@@ -1075,6 +1079,30 @@ def exact_closed_form(case, rows, xr):
     raise ValueError(case)
 
 
+def mardia_closed_form(xr):
+    """Mardia's test on (x, y) = MVN::mvn(mvnTest = "mardia")'s closed
+    form (ML covariance) on the np.repeat-expanded rows; raw n / Σw per
+    Pulse's details. R on the same expansion must agree (test_cases)."""
+    X = np.array([[r[0], r[1]] for r in xr], dtype=float)
+    w = np.array([r[5] for r in xr])
+    E = np.repeat(X, w.astype(int), axis=0)
+    N, p = E.shape
+    Ec = E - E.mean(axis=0)
+    D = Ec @ np.linalg.solve(Ec.T @ Ec / N, Ec.T)
+    b1p = float((D ** 3).sum() / N ** 2)
+    b2p = float((np.diag(D) ** 2).sum() / N)
+    df = p * (p + 1) * (p + 2) / 6
+    skew = N * b1p / 6
+    if N < 20:
+        skew *= (p + 1) * (N + 1) * (N + 3) / (N * ((N + 1) * (p + 1) - 6))
+    z = (b2p - p * (p + 2)) / math.sqrt(8 * p * (p + 2) / N)
+    pskew = float(scipy.stats.chi2.sf(skew, df))
+    return dict(statistic=skew, df=df, p_value=pskew, skewness=b1p, skewness_chisq=skew,
+                skewness_df=df, skewness_p_value=pskew, kurtosis=b2p, kurtosis_z=z,
+                kurtosis_p_value=float(2 * scipy.stats.norm.sf(abs(z))),
+                n=len(xr), sum_weights=float(w.sum()))
+
+
 def close(a, b, rel=1e-10):
     a, b = float(a), float(b)
     return abs(a - b) <= rel * max(abs(b), 1e-300) or a == b
@@ -1150,6 +1178,13 @@ R_FIGURES.update({
                                                     "determinant": "determinant"}),
     "box_m": ("box_m", {"statistic": "statistic", "df": "df", "p_value": "p_value", "m": "m",
                         "f": "f", "df2": "df2", "f_p_value": "f_p_value"}),
+})
+R_FIGURES.update({
+    # Mardia: MVN::mvn(mvnTest = "mardia")'s closed form in base R on the
+    # expansion.
+    "mardia": ("mardia", {"statistic": "statistic", "df": "df", "p_value": "p_value",
+                          "skewness": "skewness", "kurtosis": "kurtosis", "kurtosis_z": "kurtosis_z",
+                          "kurtosis_p_value": "kurtosis_p_value"}),
 })
 R_FIGURES["welch"] = R_FIGURES["t_split"]
 

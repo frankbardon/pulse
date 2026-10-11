@@ -28,6 +28,7 @@ var statTestPurposes = map[string]descriptor.Purpose{
 	"TEST_MANOVA":              purposeTestManova,
 	"TEST_BARTLETT_SPHERICITY": purposeTestBartlettSphericity,
 	"TEST_BOX_M":               purposeTestBoxM,
+	"TEST_MARDIA":              purposeTestMardia,
 	"TEST_PAIRED_T":            purposeTestPairedT,
 	"TEST_PEARSON_R":           purposeTestPearsonR,
 	"TEST_PROP_Z":              purposeTestPropZ,
@@ -264,6 +265,36 @@ var (
 			"chi-square", "covariance", "degrees-of-freedom", "f-statistic",
 			"homogeneity-of-variance", "independence", "listwise-deletion",
 			"normal-distribution", "p-value", "sample-size", "test-statistic",
+		},
+	}
+
+	purposeTestMardia = descriptor.Purpose{
+		Plain:   "Checks whether a set of numeric fields looks jointly normal, through their combined skew and tail weight.",
+		KnownAs: []string{"mardia's test", "multivariate normality test", "multivariate skewness and kurtosis"},
+		Intents: []string{IntentDistributionShape, IntentDataQuality},
+		Questions: []string{
+			"Before comparing segment profiles, are the metrics close enough to jointly normal?",
+			"Are the distance-based outlier flags safe to read as chi-square p-values?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Check a rating battery's joint shape before a profile comparison or a factor model.",
+			descriptor.DomainScience: "Check the joint normality assumption across outcomes before a MANOVA.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "there is only one numeric field and you want a sharper normality test", Use: "TEST_SHAPIRO_WILK"},
+			{When: "you want whether the groups share one covariance", Use: "TEST_BOX_M"},
+		},
+		Assumptions: []string{
+			"Rows are independent of each other.",
+			"A row with any field missing is dropped from the test (listwise).",
+			"There are more complete rows than fields; below 20 rows the skewness test uses a small-sample correction.",
+			"With many rows even trivial departures are flagged; with few it misses real ones, so look at the shape too.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"chi-square", "covariance", "degrees-of-freedom", "independence", "kurtosis",
+			"listwise-deletion", "normal-distribution", "p-value", "sample-size", "skew",
+			"test-statistic",
 		},
 	}
 

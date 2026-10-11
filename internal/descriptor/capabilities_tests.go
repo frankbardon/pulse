@@ -248,6 +248,18 @@ func testCapabilities() []descriptor.TestMeta {
 			},
 			Requires: []string{"SplitBy"},
 		},
+		{
+			Name:        string(types.TEST_MARDIA),
+			Family:      string(types.TEST_MARDIA),
+			Tier:        1,
+			Description: "Mardia's multivariate normality test on a vector (exactly one of Vector / Fields, ≥ 1 member, listwise; no SplitBy). Skewness b1p gives χ² = N·b1p/6 on p(p + 1)(p + 2)/6 df, small-sample corrected when N < 20. Kurtosis b2p gives a z. params.statistic picks the headline; both ride details. Buffered: needs the fitted mean and covariance before any row's products.",
+			Streamable:  types.TEST_MARDIA.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "statistic", Type: "enum", Required: false, Default: "skewness", EnumValues: []string{"skewness", "kurtosis"}, Description: "Headline statistic: the skewness χ² (default) or the kurtosis z; both always appear in details."},
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+		},
 		// Tier-2 natives: TREND and TUKEY_HSD are exclusively post-tests.
 		{
 			Name:        string(types.TEST_TREND),

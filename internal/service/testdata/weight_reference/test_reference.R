@@ -260,6 +260,24 @@ out("box_m", "f", bF)
 out("box_m", "df2", bdf2)
 out("box_m", "f_p_value", pf(bF, bdf1, bdf2, lower.tail = FALSE))
 
+# TEST_MARDIA on (x, y) (U25 E1-S5): MVN::mvn(mvnTest = "mardia")'s
+# closed form in base R (cov = TRUE: the ML covariance).
+mn <- nrow(xy); mp <- ncol(xy)
+mc <- sweep(xy, 2, colMeans(xy))
+mD <- mc %*% solve(crossprod(mc) / mn) %*% t(mc)
+mb1 <- sum(mD^3) / mn^2; mb2 <- sum(diag(mD)^2) / mn
+mdf <- mp * (mp + 1) * (mp + 2) / 6
+mskew <- mn * mb1 / 6
+if (mn < 20) mskew <- mskew * (mp + 1) * (mn + 1) * (mn + 3) / (mn * ((mn + 1) * (mp + 1) - 6))
+mz <- (mb2 - mp * (mp + 2)) * sqrt(mn / (8 * mp * (mp + 2)))
+out("mardia", "statistic", mskew)
+out("mardia", "df", mdf)
+out("mardia", "p_value", pchisq(mskew, mdf, lower.tail = FALSE))
+out("mardia", "skewness", mb1)
+out("mardia", "kurtosis", mb2)
+out("mardia", "kurtosis_z", mz)
+out("mardia", "kurtosis_p_value", 2 * pnorm(-abs(mz)))
+
 # Inferential overlays (weighting-inferential E3-S3), each on the
 # expanded rows; figure names ARE the Go figure keys
 # ("<layer>/<wire path>", see weight_reference_overlays_test.go). The

@@ -561,6 +561,22 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			r.Matrices = []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}}
 		}), numericSchema},
 		{
+			"TEST_MARDIA buffers",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Tests:        []*types.Test{{Type: types.TEST_MARDIA, Fields: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			"TEST_BARTLETT_SPHERICITY streams beside it",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Tests:        []*types.Test{{Type: types.TEST_BARTLETT_SPHERICITY, Fields: []string{"score", "score"}}},
+			},
+			numericSchema,
+		},
+		{
 			"REG_BAYES_LINEAR with bootstrap modifier buffers",
 			&types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},

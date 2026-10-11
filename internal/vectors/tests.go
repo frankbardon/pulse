@@ -33,12 +33,13 @@ import (
 //     are judged here too (TEST_HOTELLING_T2: HotellingParams — mu's
 //     length, variance "unequal" only on the two-sample form;
 //     TEST_MANOVA / TEST_BOX_M: LevelVectorParams — missing only;
-//     TEST_BARTLETT_SPHERICITY: SphericityParams — missing only), so
-//     predict and the runtime refuse them at the same point.
+//     TEST_BARTLETT_SPHERICITY: SphericityParams — missing only;
+//     TEST_MARDIA: MardiaParams — statistic and missing), so predict
+//     and the runtime refuse them at the same point.
 //   - TEST_MANOVA and TEST_BOX_M compare levels and need split_by
 //     (reason split_by_required); the level count (≥ 2) is a runtime
-//     figure. TEST_BARTLETT_SPHERICITY reads one sample and refuses
-//     split_by (reason split_by_not_accepted).
+//     figure. TEST_BARTLETT_SPHERICITY and TEST_MARDIA read one sample
+//     and refuse split_by (reason split_by_not_accepted).
 //   - A paired form (a second set) is never split: vector2 / fields2
 //     with split_by is refused.
 //   - Any OTHER built-in test — and every post-test — refuses a vector
@@ -51,7 +52,7 @@ import (
 // VectorTestTypes returns the built-in test types that read their
 // columns from Vector / Fields, in AllTestTypes order.
 func VectorTestTypes() []types.TestType {
-	return []types.TestType{types.TEST_BARTLETT_SPHERICITY, types.TEST_BOX_M, types.TEST_HOTELLING_T2, types.TEST_MANOVA}
+	return []types.TestType{types.TEST_BARTLETT_SPHERICITY, types.TEST_BOX_M, types.TEST_HOTELLING_T2, types.TEST_MANOVA, types.TEST_MARDIA}
 }
 
 // secondVectorTypes are the built-in test types that also read a
@@ -185,6 +186,10 @@ func resolveTest(at string, t *types.Test, typ types.TestType, specs []types.Vec
 		}
 	case types.TEST_BARTLETT_SPHERICITY:
 		if err := SphericityParams(at, t); err != nil {
+			return TestInput{}, err
+		}
+	case types.TEST_MARDIA:
+		if _, err := MardiaParams(at, t); err != nil {
 			return TestInput{}, err
 		}
 	}
@@ -371,6 +376,52 @@ func SphericityParams(at string, t *types.Test) *errors.CodedError {
 			map[string]any{"type": string(t.Type), "split_by": t.SplitBy})
 	}
 	return missingOnlyParams(at, t)
+}
+
+// TEST_MARDIA params.statistic values: the headline Statistic / DF /
+// PValue. Both figures always ride Details.
+const (
+	// MardiaSkewness is the default: the multivariate-skewness χ².
+	MardiaSkewness = "skewness"
+	// MardiaKurtosis is the multivariate-kurtosis z.
+	MardiaKurtosis = "kurtosis"
+)
+
+// MardiaParams judges a TEST_MARDIA slot and returns its headline
+// statistic: one sample, so split_by is refused (reason
+// split_by_not_accepted); params carry statistic ("skewness" default,
+// or "kurtosis") and missing (checkTestMissing's rule); unknown keys
+// are refused. Predict and the runtime factory both call it.
+func MardiaParams(at string, t *types.Test) (string, *errors.CodedError) {
+	if t.SplitBy != "" {
+		return "", testInvalid(at, "split_by_not_accepted",
+			at+" ("+string(t.Type)+") tests one sample's joint normality; drop split_by (run one test per level with a filter instead)",
+			map[string]any{"type": string(t.Type), "split_by": t.SplitBy})
+	}
+	raw := bytes.TrimSpace(t.Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return MardiaSkewness, nil
+	}
+	var params struct {
+		Statistic *string `json:"statistic"`
+		Missing   *string `json:"missing"`
+	}
+	if err := decodeStrict(raw, &params); err != nil {
+		return "", testInvalid(at, "bad_params", at+" "+string(t.Type)+" params: "+err.Error()+" (keys: statistic, missing)", nil)
+	}
+	if err := checkTestMissing(at, raw); err != nil {
+		return "", err
+	}
+	if params.Statistic == nil {
+		return MardiaSkewness, nil
+	}
+	switch v := *params.Statistic; v {
+	case MardiaSkewness, MardiaKurtosis:
+		return v, nil
+	default:
+		return "", testInvalid(at, "bad_params", at+" params.statistic must be \"skewness\" or \"kurtosis\"",
+			map[string]any{"param": "statistic", "value": v, "valid": []string{MardiaSkewness, MardiaKurtosis}})
+	}
 }
 
 // missingOnlyParams refuses any params key but missing, then applies

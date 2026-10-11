@@ -333,6 +333,7 @@ func TestStreamability_TestsKnown(t *testing.T) {
 		TEST_MANOVA:              true,
 		TEST_BARTLETT_SPHERICITY: true,
 		TEST_BOX_M:               true,
+		TEST_MARDIA:              false,
 	}
 	for _, tt := range AllTestTypes() {
 		want, ok := expected[tt]

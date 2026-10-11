@@ -124,6 +124,7 @@
     "TEST_KS",
     "TEST_MANN_WHITNEY_U",
     "TEST_MANOVA",
+    "TEST_MARDIA",
     "TEST_PAIRED_T",
     "TEST_PEARSON_R",
     "TEST_PROP_Z",

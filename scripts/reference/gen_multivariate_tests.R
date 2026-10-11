@@ -5,7 +5,8 @@
 # weight utilities exist: it reuses out_dir, num(), numv(), strs(),
 # near(), write_golden(), wvec(), n_star(), wcov(), wmean(), expand() and
 # the fixture data frames (att, mt, wd). Writes <out_dir>/mv_hotelling.json,
-# <out_dir>/mv_manova.json and <out_dir>/mv_box_m.json.
+# <out_dir>/mv_manova.json, <out_dir>/mv_box_m.json and
+# <out_dir>/mv_mardia.json.
 # CI never runs R: everything here is committed.
 #
 # Pinned packages (refused on any other version, like the parent):
@@ -399,3 +400,73 @@ box_doc <- c(box_meta("Box's M",
   "Rows with weight 0 are excluded first; n counts w > 0 rows per level. Per level N*_g = sum(w) (none / frequency) or Kish n_eff (probability), M2*_g = (N*_g / sum(w_g)) * sum w (x - m_g)(x - m_g)', nu_g = N*_g - 1, S_g = M2*_g / nu_g, S_p = sum M2*_g / sum nu_g. m = sum(nu) log|S_p| - sum nu_g log|S_g|; chisq = m (1 - A1) on df = p (p + 1)/2 (k - 1). f / df2 / f_p_value: Box's F on (df, df2); f_branch names the A2 vs A1^2 branch (p = 1 is always a2_lt). log_det per level (sorted) and log_det_pooled are natural logs. Levels sorted as strings."),
   list(cases = box_cases))
 write_golden("mv_box_m", box_doc)
+
+# ----------------------------------------------------------- Mardia
+# TEST_MARDIA (U25 E1-S5): the closed form of MVN::mvn(mvnTest =
+# "mardia") (cov = TRUE: S is the ML covariance, so D = Xc S^-1 Xc' has
+# Mardia's own scaling), in base R — MVN does not install on the pinned
+# toolchain — asserted against psych::mardia, whose S is the unbiased
+# covariance: D_psych = D (n - 1)/n, so b1p_psych = b1p ((n - 1)/n)^3
+# and b2p_psych = b2p ((n - 1)/n)^2. Frequency weights only (the test is
+# frequency-only): N = sum(w), the w-weighted mean and ML covariance,
+# b1p = sum w_i w_j D_ij^3 / N^2, b2p = sum w_i D_ii^2 / N, asserted
+# equal to the unweighted form on the rep() expansion (and psych there).
+# The kurtosis p is 2 pnorm(-|z|) (MVN's 2 (1 - pnorm(|z|)) loses the
+# tail).
+mar_stats <- function(X, w) {
+  X <- as.matrix(X); N <- sum(w); p <- ncol(X)
+  m <- colSums(X * w) / N
+  Xc <- sweep(X, 2, m)
+  S <- crossprod(Xc * sqrt(w)) / N
+  D <- Xc %*% solve(S) %*% t(Xc)
+  b1p <- sum(outer(w, w) * D^3) / N^2
+  b2p <- sum(w * diag(D)^2) / N
+  df <- p * (p + 1) * (p + 2) / 6
+  skew <- N * b1p / 6
+  if (N < 20) skew <- skew * (p + 1) * (N + 1) * (N + 3) / (N * ((N + 1) * (p + 1) - 6))
+  z <- (b2p - p * (p + 2)) * sqrt(N / (8 * p * (p + 2)))
+  list(b1p = b1p, b2p = b2p, skew = skew, df = df, p_skew = pchisq(skew, df, lower.tail = FALSE),
+       z = z, p_kurt = 2 * pnorm(-abs(z)), small = N < 20)
+}
+mar_psych <- function(X, st, what) {
+  X <- as.matrix(X); n <- nrow(X)
+  ps <- psych::mardia(X, plot = FALSE)
+  near(ps$b1p, st$b1p * ((n - 1) / n)^3, 1e-10, paste("psych::mardia b1p", what))
+  near(ps$b2p, st$b2p * ((n - 1) / n)^2, 1e-10, paste("psych::mardia b2p", what))
+}
+mar_cases <- list()
+mar_case <- function(fx, df, cols, kind, rows = NULL) {
+  if (!is.null(rows)) df <- df[seq_len(rows), , drop = FALSE]
+  w <- wvec(df, kind)
+  d <- df[w > 0, , drop = FALSE]; w <- w[w > 0]
+  X <- as.matrix(d[, cols, drop = FALSE])
+  st <- mar_stats(X, w)
+  if (kind == "none") mar_psych(X, st, fx)
+  if (kind == "frequency") {
+    E <- X[rep(seq_len(nrow(X)), w), , drop = FALSE]
+    se <- mar_stats(E, rep(1, nrow(E)))
+    for (k in c("b1p", "b2p", "skew", "z", "p_skew", "p_kurt")) {
+      near(se[[k]], st[[k]], 1e-10, paste("expansion", k, fx))
+    }
+    mar_psych(E, se, paste("expansion", fx))
+  }
+  mar_cases[[length(mar_cases) + 1]] <<- list(
+    fixture = fx, fields = strs(cols), rows = if (is.null(rows)) jnull else num(rows), weight = kind,
+    n = num(nrow(X)), n_star = num(sum(w)), small_sample = st$small,
+    skewness = num(st$b1p), skewness_chisq = num(st$skew), skewness_df = num(st$df),
+    skewness_p_value = num(st$p_skew), kurtosis = num(st$b2p), kurtosis_z = num(st$z),
+    kurtosis_p_value = num(st$p_kurt))
+}
+for (kind in c("none", "frequency")) {
+  mar_case("attitude", att, c("rating", "complaints", "privileges", "learning"), kind)
+  mar_case("mtcars", mt, c("mpg", "hp", "wt"), kind)
+  mar_case("mtcars", mt, c("mpg", "wt"), kind, rows = 12)
+  mar_case("mtcars", mt, c("mpg", "wt"), kind, rows = 6)
+  mar_case("mtcars", mt, "mpg", kind)
+  mar_case("weighted", wd, c("x1", "x2", "x3", "x4"), kind)
+}
+mar_doc <- c(mv_meta("Mardia",
+  "closed form of MVN::mvn(mvnTest = 'mardia') (cov = TRUE) in base R, asserted against psych::mardia (rescaled from its unbiased S) unweighted and on the rep() expansion (frequency)",
+  "Rows with weight 0 are excluded first; n counts w > 0 rows, n_star = sum(w) = N. S = sum w (x - m)(x - m)' / N (ML), D_ij = (x_i - m)' S^-1 (x_j - m). skewness = b1p = sum w_i w_j D_ij^3 / N^2, kurtosis = b2p = sum w_i D_ii^2 / N. skewness_chisq = N b1p / 6, times (p + 1)(N + 1)(N + 3) / (N ((N + 1)(p + 1) - 6)) when small_sample (N < 20), on skewness_df = p (p + 1)(p + 2)/6; kurtosis_z = (b2p - p (p + 2)) sqrt(N / (8 p (p + 2))), kurtosis_p_value = 2 pnorm(-|z|). rows = the fixture's first rows only (null = all). Frequency weights only: the test refuses probability weights."),
+  list(cases = mar_cases))
+write_golden("mv_mardia", mar_doc)
