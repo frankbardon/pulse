@@ -538,6 +538,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#413** Trim the soft-budget overruns in the `op-test-*` multivariate atomic skills (`op-test-hotelling-t2` 1633 B, `op-test-manova` 1435 B against 1200) with the other over-budget atomic bodies · [U32](units/U32-docs-audit.md)
 - [x] **#414** Weight-reference regeneration: rerunning `gen_weight_reference.py` shifts the `REG_*` rows by ulps (only the Hotelling rows were committed), and the R oracle needs Hotelling 1.0.8 plus Hmisc with FLIBS in `Makevars` (ICSNP and MVTests fail to build on R 4.6.1); pin and document the regeneration, or commit the shifted rows · [U36](units/U36-reference-oracles.md)
 - [x] **#415** `ATTR_FACTOR_SCORE`: a refusal (`PULSE_MATRIX_NOT_IDENTIFIED` / `_HEYWOOD`) drops the fit's not-converged note; carry it on the refusal warning · [U30](units/U30-matrix-extensions-hardening.md)
+- [ ] **#416** Atomic skills still over the soft 1200 B body budget after U25: `op-reg-ols` (3658 B), `op-reg-glm` (3283 B) and `op-reg-bayes-linear` (3443 B), which grew with `covariance` in U25, plus `op-mat-correlation`, `op-mat-reliability`, `op-mat-collinearity` and `op-mat-covariance`; trim them with the other over-budget bodies before the budget turns hard · [U38](units/U38-skill-sync.md)
 
 ### E5 — Row-wise vector vocabulary & similarity
 - [ ] **#137** expr-lang vector bindings, `v[i]` and `len`; `vsum` / `vmean` / `vmin` / `vmax` / `vsd` / `vcount`; `dot` / `norm` / `dist` / `cosine`; `argmax` / `argmin` · [U26](units/U26-vector-expr-functions.md)
