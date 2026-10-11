@@ -120,6 +120,12 @@ func TestResolveTests_Rules(t *testing.T) {
 		{name: "manova with a second set", test: &types.Test{Type: types.TEST_MANOVA, Vector: "vb", Vector2: "vb", SplitBy: "region"}, code: errors.SERVICE_VALIDATION, reason: "vector2_not_accepted"},
 		{name: "manova unknown param", test: &types.Test{Type: types.TEST_MANOVA, Vector: "vb", SplitBy: "region", Params: json.RawMessage(`{"mu": [0, 0]}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "manova pairwise refused", test: &types.Test{Type: types.TEST_MANOVA, Vector: "vb", SplitBy: "region", Params: json.RawMessage(`{"missing": "pairwise"}`)}, code: errors.SERVICE_VALIDATION, reason: "pairwise_unsupported"},
+		// TEST_BOX_M / TEST_BARTLETT_SPHERICITY (U25 E1-S4).
+		{name: "box m", test: &types.Test{Type: types.TEST_BOX_M, Vector: "vb", SplitBy: "region"}, members: []string{"b1", "b2"}},
+		{name: "box m without split_by", test: &types.Test{Type: types.TEST_BOX_M, Vector: "vb"}, code: errors.SERVICE_VALIDATION, reason: "split_by_required"},
+		{name: "sphericity", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "vb", Params: json.RawMessage(`{"missing": "listwise"}`)}, members: []string{"b1", "b2"}},
+		{name: "sphericity with split_by", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "vb", SplitBy: "region"}, code: errors.SERVICE_VALIDATION, reason: "split_by_not_accepted"},
+		{name: "sphericity unknown param", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "vb", Params: json.RawMessage(`{"mu": [0, 0]}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "fields on a post-test", post: &types.Test{Type: types.TEST_ANOVA_F, Fields: []string{"a1"}}, code: errors.SERVICE_VALIDATION, reason: "vector_not_accepted"},
 	}
 	for _, c := range cases {

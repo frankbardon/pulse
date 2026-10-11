@@ -198,6 +198,8 @@ skills/op-synth-weighted-categorical.md
 skills/op-test-anova-f.md
 skills/op-test-anova-rm.md
 skills/op-test-anova-welch.md
+skills/op-test-bartlett-sphericity.md
+skills/op-test-box-m.md
 skills/op-test-brown-forsythe.md
 skills/op-test-chisq.md
 skills/op-test-fisher-exact.md

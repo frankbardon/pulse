@@ -4,14 +4,15 @@
 # Sourced by gen_multivariate.R (`make reference`) after its fixtures and
 # weight utilities exist: it reuses out_dir, num(), numv(), strs(),
 # near(), write_golden(), wvec(), n_star(), wcov(), wmean(), expand() and
-# the fixture data frames (att, mt, wd). Writes <out_dir>/mv_hotelling.json
-# and <out_dir>/mv_manova.json.
+# the fixture data frames (att, mt, wd). Writes <out_dir>/mv_hotelling.json,
+# <out_dir>/mv_manova.json and <out_dir>/mv_box_m.json.
 # CI never runs R: everything here is committed.
 #
 # Pinned packages (refused on any other version, like the parent):
 #   Hotelling 1.0.8 (depends on corpcor, pinned by the parent)
-# Install: Rscript -e 'install.packages("Hotelling", lib = Sys.getenv("R_LIBS_USER"),
-#   repos = "https://cloud.r-project.org")'
+#   biotools 4.3 (Box's M)
+# Install: Rscript -e 'install.packages(c("Hotelling", "biotools"),
+#   lib = Sys.getenv("R_LIBS_USER"), repos = "https://cloud.r-project.org")'
 #
 # Conventions (Pulse's one weight rule, .claude/reference/weighting.md):
 #   * A row with weight 0 is EXCLUDED from a test (it never enters n),
@@ -23,10 +24,15 @@
 #     sorted split order; T2 is symmetric in the order anyway.
 
 pinned_tests <- c(Hotelling = "1.0.8")
-for (p in names(pinned_tests)) {
-  have <- tryCatch(as.character(packageVersion(p)), error = function(e) "missing")
-  if (have != pinned_tests[[p]]) {
-    stop(sprintf("package %s is %s, the oracle is pinned to %s (see the header)", p, have, pinned_tests[[p]]))
+# biotools rides only mv_box_m.json's packages (box_meta), so the other
+# goldens keep their metadata.
+pinned_box <- c(biotools = "4.3")
+for (pins in list(pinned_tests, pinned_box)) {
+  for (p in names(pins)) {
+    have <- tryCatch(as.character(packageVersion(p)), error = function(e) "missing")
+    if (have != pins[[p]]) {
+      stop(sprintf("package %s is %s, the oracle is pinned to %s (see the header)", p, have, pins[[p]]))
+    }
   }
 }
 suppressPackageStartupMessages(library(Hotelling))
@@ -296,3 +302,100 @@ man_doc <- c(mvt_meta("one-way MANOVA",
   "Rows with weight 0 are excluded first; n counts w > 0 rows per level. Per level N*_g = sum(w) (none / frequency) or Kish n_eff (probability) and M2*_g = (N*_g / sum(w_g)) * sum w (x - m_g)(x - m_g)'. E = sum_g M2*_g; gm = sum_g N*_g m_g / N*; H = sum_g N*_g (m_g - gm)(m_g - gm)'; q = k - 1 (df_hypothesis), df.res = N* - k (df_residual). eigenvalues: all p of E^-1 H, descending (R's order). Levels sorted as strings. p_value is null when R's summary.manova would print NA (F < 0 or a df <= 0)."),
   list(cases = man_cases))
 write_golden("mv_manova", man_doc)
+
+# ----------------------------------------------------------- Box's M
+# TEST_BOX_M (U25 E1-S4): equality of covariance matrices across a
+# split_by. Per level N*_g, M2*_g = c_g * M2_g (the MANOVA fold),
+# nu_g = N*_g - 1, S_g = M2*_g / nu_g, S_p = sum M2*_g / sum nu_g;
+# M = sum(nu) log|S_p| - sum nu_g log|S_g|; A1 = (2p^2 + 3p - 1) /
+# (6 (p + 1) (k - 1)) (sum 1/nu_g - 1/sum nu); chi2 = M (1 - A1) on
+# p (p + 1) / 2 (k - 1) df. Box's F approximation (SPSS's form): A2 =
+# (p - 1)(p + 2) / (6 (k - 1)) (sum 1/nu_g^2 - 1/(sum nu)^2), df1 = the
+# chi2 df; A2 > A1^2: df2 = (df1 + 2)/(A2 - A1^2), b = df1/(1 - A1 -
+# df1/df2), F = M/b; A2 < A1^2: df2 = (df1 + 2)/(A1^2 - A2), b = df2/(1
+# - A1 + 2/df2), F = df2 M/(df1 (b - M)). Asserted: chi2 / df / p against
+# biotools::boxM unweighted and on the rep() expansion (frequency); the
+# F form reproduces SPSS's iris figures (F = 7.045, df2 = 77566.75).
+# Probability is the one rule hand-computed.
+box_f <- function(M, A1, A2, df1) {
+  d <- A2 - A1^2
+  if (d > 0) {
+    df2 <- (df1 + 2) / d; b <- df1 / (1 - A1 - df1 / df2); F <- M / b
+  } else {
+    df2 <- (df1 + 2) / -d; b <- df2 / (1 - A1 + 2 / df2); F <- df2 * M / (df1 * (b - M))
+  }
+  list(f = F, df2 = df2, fp = pf(F, df1, df2, lower.tail = FALSE), branch = if (d > 0) "a2_gt" else "a2_lt")
+}
+box_stats <- function(parts, p) {
+  k <- length(parts)
+  nu <- sapply(parts, `[[`, "ns") - 1
+  Sp <- Reduce(`+`, lapply(parts, `[[`, "M2")) / sum(nu)
+  ld <- mapply(function(z, v) as.numeric(determinant(z$M2 / v)$modulus), parts, nu)
+  ldp <- as.numeric(determinant(Sp)$modulus)
+  M <- sum(nu) * ldp - sum(nu * ld)
+  A1 <- (2 * p^2 + 3 * p - 1) / (6 * (p + 1) * (k - 1)) * (sum(1 / nu) - 1 / sum(nu))
+  A2 <- (p - 1) * (p + 2) / (6 * (k - 1)) * (sum(1 / nu^2) - 1 / sum(nu)^2)
+  df1 <- p * (p + 1) / 2 * (k - 1)
+  chi <- M * (1 - A1)
+  c(list(m = M, chisq = chi, df = df1, p = pchisq(chi, df1, lower.tail = FALSE), log_det = ld, log_det_pooled = ldp),
+    box_f(M, A1, A2, df1))
+}
+local({
+  X <- as.matrix(iris[, 1:4]); g <- as.character(iris$Species)
+  parts <- lapply(sort(unique(g)), function(l) {
+    Z <- X[g == l, ]; list(ns = nrow(Z), M2 = cov(Z) * (nrow(Z) - 1))
+  })
+  st <- box_stats(parts, 4)
+  near(st$f, 7.045262, 1e-6, "SPSS iris Box F")
+  near(st$df2, 77566.75, 1e-6, "SPSS iris Box df2")
+})
+box_cases <- list()
+box_case <- function(fx, df, cols, split, kind) {
+  w <- wvec(df, kind)
+  d <- df[w > 0, , drop = FALSE]; w <- w[w > 0]
+  lv <- sort(as.character(unique(d[[split]])))
+  p <- length(cols)
+  part <- lapply(lv, function(l) {
+    kk <- as.character(d[[split]]) == l
+    X <- as.matrix(d[kk, cols, drop = FALSE]); wk <- w[kk]
+    ns <- n_star(wk, kind)
+    m <- wmean(X, wk)
+    list(n = nrow(X), ns = ns, M2 = crossprod(sweep(X, 2, m) * sqrt(wk)) * ns / sum(wk))
+  })
+  st <- box_stats(part, p)
+  X <- as.matrix(d[, cols, drop = FALSE]); g <- as.character(d[[split]])
+  chk <- function(X, g, what) {
+    if (p == 1) return(invisible())  # biotools::boxM needs a matrix of >= 2 columns
+    b <- suppressWarnings(biotools::boxM(X, g))
+    near(unname(b$statistic), st$chisq, 1e-10, paste("biotools::boxM chi2", what))
+    near(unname(b$parameter), st$df, 1e-12, paste("biotools::boxM df", what))
+    near(b$p.value, st$p, 1e-10, paste("biotools::boxM p", what))
+  }
+  if (kind == "none") chk(X, g, fx)
+  if (kind == "frequency") {
+    r <- rep(seq_len(nrow(X)), w)
+    chk(X[r, , drop = FALSE], g[r], paste("expansion", fx))
+  }
+  box_cases[[length(box_cases) + 1]] <<- list(
+    fixture = fx, fields = strs(cols), split = split, levels = strs(lv), weight = kind,
+    n = numv(sapply(part, `[[`, "n")), n_star = numv(sapply(part, `[[`, "ns")),
+    m = num(st$m), chisq = num(st$chisq), df = num(st$df), p_value = num(st$p),
+    f = num(st$f), df2 = num(st$df2), f_p_value = num(st$fp), f_branch = st$branch,
+    log_det = numv(st$log_det), log_det_pooled = num(st$log_det_pooled))
+}
+for (kind in w_kinds) {
+  box_case("mtcars", mt, c("mpg", "hp", "wt"), "cyl", kind)
+  box_case("mtcars", mt, c("mpg", "wt", "qsec"), "am", kind)
+  box_case("mtcars", mt, "mpg", "cyl", kind)
+  box_case("weighted", wd, c("x1", "x2", "x3", "x4"), "y_bin", kind)
+}
+box_meta <- function(family, r_fn, note) {
+  m <- mvt_meta(family, r_fn, note)
+  m$packages <- c(m$packages, lapply(as.list(pinned_box), function(v) v))
+  m
+}
+box_doc <- c(box_meta("Box's M",
+  "biotools::boxM (chi-square approximation) asserted unweighted and on the rep() expansion (frequency; p >= 2); Box's F approximation hand-computed in SPSS's form, checked against SPSS's iris figures",
+  "Rows with weight 0 are excluded first; n counts w > 0 rows per level. Per level N*_g = sum(w) (none / frequency) or Kish n_eff (probability), M2*_g = (N*_g / sum(w_g)) * sum w (x - m_g)(x - m_g)', nu_g = N*_g - 1, S_g = M2*_g / nu_g, S_p = sum M2*_g / sum nu_g. m = sum(nu) log|S_p| - sum nu_g log|S_g|; chisq = m (1 - A1) on df = p (p + 1)/2 (k - 1). f / df2 / f_p_value: Box's F on (df, df2); f_branch names the A2 vs A1^2 branch (p = 1 is always a2_lt). log_det per level (sorted) and log_det_pooled are natural logs. Levels sorted as strings."),
+  list(cases = box_cases))
+write_golden("mv_box_m", box_doc)

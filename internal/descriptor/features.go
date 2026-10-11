@@ -327,6 +327,8 @@ var builtinFeatures = withDependencies([]Feature{
 	op("TEST_ANOVA_F"),
 	op("TEST_ANOVA_RM"),
 	op("TEST_ANOVA_WELCH"),
+	op("TEST_BARTLETT_SPHERICITY"),
+	op("TEST_BOX_M"),
 	op("TEST_BROWN_FORSYTHE"),
 	op("TEST_CHISQ"),
 	op("TEST_FISHER_EXACT"),

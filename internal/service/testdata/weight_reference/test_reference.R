@@ -226,6 +226,40 @@ for (tn in c(pillai = "Pillai", wilks = "Wilks", hotelling_lawley = "Hotelling-L
   out("manova", paste0(key, "_p_value"), st[[6]])
 }
 
+# TEST_BARTLETT_SPHERICITY on (x, y) (U25 E1-S4): psych::cortest.bartlett's
+# closed form in base R, -log(det(R)) * (n - 1 - (2p + 5)/6).
+xy <- as.matrix(xs[, c("x", "y")])
+bR <- cor(xy); bn <- nrow(xy); bp <- ncol(xy)
+bchi <- -log(det(bR)) * (bn - 1 - (2 * bp + 5) / 6)
+out("bartlett_sphericity", "statistic", bchi)
+out("bartlett_sphericity", "df", bp * (bp - 1) / 2)
+out("bartlett_sphericity", "p_value", pchisq(bchi, bp * (bp - 1) / 2, lower.tail = FALSE))
+out("bartlett_sphericity", "determinant", det(bR))
+
+# TEST_BOX_M on (x, y) across k (U25 E1-S4): biotools::boxM's chi-square
+# in base R, plus Box's F approximation (SPSS's form).
+bl <- levels(xs$k)
+bnu <- sapply(bl, function(l) sum(xs$k == l) - 1)
+bS <- lapply(bl, function(l) cov(xy[xs$k == l, , drop = FALSE]))
+bSp <- Reduce(`+`, Map(`*`, bS, bnu)) / sum(bnu)
+bM <- sum(bnu) * log(det(bSp)) - sum(bnu * sapply(bS, function(s) log(det(s))))
+bk <- length(bl)
+bA1 <- (2 * bp^2 + 3 * bp - 1) / (6 * (bp + 1) * (bk - 1)) * (sum(1 / bnu) - 1 / sum(bnu))
+bA2 <- (bp - 1) * (bp + 2) / (6 * (bk - 1)) * (sum(1 / bnu^2) - 1 / sum(bnu)^2)
+bdf1 <- bp * (bp + 1) / 2 * (bk - 1)
+if (bA2 - bA1^2 > 0) {
+  bdf2 <- (bdf1 + 2) / (bA2 - bA1^2); bF <- bM / (bdf1 / (1 - bA1 - bdf1 / bdf2))
+} else {
+  bdf2 <- (bdf1 + 2) / (bA1^2 - bA2); bb <- bdf2 / (1 - bA1 + 2 / bdf2); bF <- bdf2 * bM / (bdf1 * (bb - bM))
+}
+out("box_m", "statistic", bM * (1 - bA1))
+out("box_m", "df", bdf1)
+out("box_m", "p_value", pchisq(bM * (1 - bA1), bdf1, lower.tail = FALSE))
+out("box_m", "m", bM)
+out("box_m", "f", bF)
+out("box_m", "df2", bdf2)
+out("box_m", "f_p_value", pf(bF, bdf1, bdf2, lower.tail = FALSE))
+
 # Inferential overlays (weighting-inferential E3-S3), each on the
 # expanded rows; figure names ARE the Go figure keys
 # ("<layer>/<wire path>", see weight_reference_overlays_test.go). The

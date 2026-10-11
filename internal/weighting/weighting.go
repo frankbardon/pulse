@@ -158,6 +158,11 @@ var testClasses = map[types.TestType]Class{
 	// TEST_MANOVA: the same per-level co-moments; E = Σ M2*_g, H from
 	// the N*_g-weighted level means (TEST_ANOVA_F's per-level c_g).
 	types.TEST_MANOVA: ClassAware,
+	// TEST_BARTLETT_SPHERICITY: one weighted co-moment (the matrix
+	// slot's block fold) at N* = Σw or Kish n_eff — MAT_PCA's Bartlett.
+	types.TEST_BARTLETT_SPHERICITY: ClassAware,
+	// TEST_BOX_M: per-level co-moments on w*, ν_g = N*_g − 1.
+	types.TEST_BOX_M: ClassAware,
 
 	types.TEST_MANN_WHITNEY_U: ClassFrequencyOnly,
 	types.TEST_WILCOXON_SR:    ClassFrequencyOnly,

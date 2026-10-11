@@ -32,7 +32,7 @@ branch: multivariate-tests-segmentation
 
 - [x] **#131** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_HOTELLING_T2`
 - [x] **#132** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_MANOVA` (Wilks, Pillai, Hotelling–Lawley, Roy)
-- [ ] **#133** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_BARTLETT_SPHERICITY`
+- [x] **#133** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_BARTLETT_SPHERICITY`
 - [ ] **#134** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_MAHALANOBIS`
 - [ ] **#135** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_PC_SCORE` (two-pass, `fit_on`)
 - [ ] **#136** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `GROUP_KMEANS` (seeded k-means++, Euclidean-only, size-ordered labels)

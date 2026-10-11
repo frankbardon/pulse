@@ -591,6 +591,23 @@ const (
 	// co-moment accumulator per level.
 	TEST_MANOVA TestType = "TEST_MANOVA"
 
+	// TEST_BARTLETT_SPHERICITY is Bartlett's test that the correlation
+	// matrix of a VECTOR (the members of Vector / Fields, listwise) is
+	// the identity — whether the members are correlated enough to
+	// factor. χ² = −ln|R|·(N* − 1 − (2p + 5)/6) on p(p − 1)/2 df, the
+	// shared core MAT_PCA's bartlett_* scalars read, so the two agree
+	// bit for bit on the same rows. No SplitBy. Streams via one
+	// co-moment accumulator.
+	TEST_BARTLETT_SPHERICITY TestType = "TEST_BARTLETT_SPHERICITY"
+
+	// TEST_BOX_M is Box's M test that a VECTOR's covariance matrix (the
+	// members of Vector / Fields, listwise) is equal across the levels
+	// of a categorical SplitBy (≥ 2 levels) — the MANOVA / Hotelling
+	// equal-covariance assumption check. Statistic / DF / PValue are
+	// Box's χ² approximation; Details carry M and the F approximation.
+	// Streams via one co-moment accumulator per level.
+	TEST_BOX_M TestType = "TEST_BOX_M"
+
 	// TEST_SHAPIRO_WILK is the normality test on Field, computed in the
 	// Shapiro-Francia (W′) form. When SplitBy is set the test runs
 	// per-group; otherwise it runs over the full filtered set. Buffered:
@@ -620,6 +637,8 @@ func AllTestTypes() []TestType {
 		TEST_ANOVA_F,
 		TEST_ANOVA_RM,
 		TEST_ANOVA_WELCH,
+		TEST_BARTLETT_SPHERICITY,
+		TEST_BOX_M,
 		TEST_BROWN_FORSYTHE,
 		TEST_CHISQ,
 		TEST_FISHER_EXACT,
@@ -665,7 +684,8 @@ type Test struct {
 	Field2 string `json:"field2,omitempty"`
 
 	// Vector names the Request.Vectors entry whose members a
-	// vector-input test (TEST_HOTELLING_T2, TEST_MANOVA) reads as its p numeric
+	// vector-input test (TEST_HOTELLING_T2, TEST_MANOVA,
+	// TEST_BARTLETT_SPHERICITY, TEST_BOX_M) reads as its p numeric
 	// columns. Exactly one of Vector and Fields is set on a vector-input
 	// test and neither on any other test (SERVICE_VALIDATION); a Vector
 	// no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN. Members

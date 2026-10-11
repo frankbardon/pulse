@@ -1441,7 +1441,7 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 				"rows":          enumStringField(c.AllFields, "Row-axis categorical field for TEST_CHISQ."),
 				"cols":          enumStringField(c.AllFields, "Column-axis categorical field for TEST_CHISQ."),
 				"subject_field": enumStringField(c.AllFields, "Within-subject grouping for TEST_ANOVA_RM."),
-				"vector":        map[string]any{"type": "string", "description": "Vector-input tests (TEST_HOTELLING_T2, TEST_MANOVA): the Request.Vectors entry whose members are the test's columns; exactly one of vector / fields."},
+				"vector":        map[string]any{"type": "string", "description": "Vector-input tests (TEST_HOTELLING_T2, TEST_MANOVA, TEST_BOX_M, TEST_BARTLETT_SPHERICITY): the Request.Vectors entry whose members are the test's columns; exactly one of vector / fields."},
 				"fields":        map[string]any{"type": "array", "description": "Vector-input tests: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}},
 				"vector2":       map[string]any{"type": "string", "description": "Paired vector-input tests: the second member set's Request.Vectors entry (same member count)."},
 				"fields2":       map[string]any{"type": "array", "description": "Paired vector-input tests: the second member set inline.", "items": map[string]any{"type": "string"}},

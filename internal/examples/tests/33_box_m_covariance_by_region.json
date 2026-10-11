@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "Box's M via TEST_BOX_M: do the four regions share one covariance matrix across revenue_before, revenue and session_minutes? The equal-covariance check before TEST_MANOVA. Box's chi-square is the headline statistic and p-value; M and the F approximation (f, df1, df2, f_p_value) ride details. The test is sensitive to non-normal data, so many read only p < 0.001 as a problem.",
+    "intents": [
+      "compare_groups",
+      "data_quality"
+    ],
+    "name": "box_m_engagement_covariance_by_region",
+    "operators": [
+      "TEST_BOX_M"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "multivariate",
+      "homogeneity-test",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "engagement",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_BOX_M",
+      "vector": "engagement",
+      "split_by": "region",
+      "label": "engagement_covariance_by_region"
+    }
+  ]
+}

@@ -319,14 +319,16 @@ Predict echoes the resolved members as `data.resolved_vectors`
 
 `Test` carries four additive slots, the `MatrixSpec` mirror:
 `vector` / `fields` (the member set) and `vector2` / `fields2` (a
-paired second set). A vector-input test (`TEST_HOTELLING_T2`, `TEST_MANOVA`) sets
+paired second set). A vector-input test (`TEST_HOTELLING_T2`, `TEST_MANOVA`,
+`TEST_BOX_M`, `TEST_BARTLETT_SPHERICITY`) sets
 exactly one of `vector` (a `vectors` entry) and `fields` (inline
 names and globs, the `VectorSpec.fields` rules) and no `field`; a
 second set must resolve to the same member count and is accepted only
 by a test that reads one (`TEST_HOTELLING_T2`'s paired form, which
 refuses `split_by` beside it); every other test refuses all four.
-`TEST_MANOVA` requires `split_by` (`details.reason`
-`split_by_required`). Missing
+`TEST_MANOVA` and `TEST_BOX_M` require `split_by` (`details.reason`
+`split_by_required`); `TEST_BARTLETT_SPHERICITY` refuses it
+(`split_by_not_accepted`). Missing
 data is listwise only (`params.missing` other than `"listwise"` is
 refused). Shape refusals are `SERVICE_VALIDATION` with
 `details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`.

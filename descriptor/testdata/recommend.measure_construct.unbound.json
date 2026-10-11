@@ -53,6 +53,36 @@
         ]
       },
       {
+        "operator": "TEST_BARTLETT_SPHERICITY",
+        "category": "test",
+        "level": "advanced",
+        "why": "Checks whether a set of numeric fields are related at all, the first check before summarising them as a few underlying dimensions. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "type": "TEST_BARTLETT_SPHERICITY"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how strongly each pair is related",
+            "use": "MAT_CORRELATION"
+          },
+          {
+            "when": "you want the dimensions themselves",
+            "use": "MAT_PCA"
+          }
+        ]
+      },
+      {
         "operator": "MAT_PCA",
         "category": "matrix",
         "level": "advanced",
@@ -88,9 +118,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 2
+    "candidates_considered": 3
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2b9de9f31e8ba70f074b7f1e89364f0d791f6c414df14655cbab6c49c9c00648
+// golden-hash: 8978d461a6d5a8c9e279c5be2d9b5c5820f54e35061a13f7937041d3d9ef7d4f

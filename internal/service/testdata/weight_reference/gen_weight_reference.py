@@ -553,6 +553,10 @@ TEST_SPECS = [
     ("hotelling_split", {"type": "TEST_HOTELLING_T2", "fields": ["x", "y"], "split_by": "h"}),
     # MANOVA (U25 E1-S3) on the (x, y) mean vector across the 3 k levels.
     ("manova", {"type": "TEST_MANOVA", "fields": ["x", "y"], "split_by": "k"}),
+    # Bartlett sphericity and Box's M (U25 E1-S4) on (x, y): one sample,
+    # and equal covariances across the 3 k levels.
+    ("bartlett_sphericity", {"type": "TEST_BARTLETT_SPHERICITY", "fields": ["x", "y"]}),
+    ("box_m", {"type": "TEST_BOX_M", "fields": ["x", "y"], "split_by": "k"}),
 ]
 
 # Request-level slots a case adds beside its tests[0] slot.
@@ -742,6 +746,70 @@ def test_closed_form(case, rows, prob):
         pv = stats["pillai"]
         out.update(statistic=pv[0], df=pv[2], p_value=out["pillai.p_value"], f=pv[1], df2=pv[3],
                    df_hypothesis=q, df_residual=dfr)
+        return out
+    if case == "bartlett_sphericity":
+        # psych::cortest.bartlett on w*: R = cor on w*, N* = Σw or n_eff,
+        # χ² = −ln|R|·(N* − 1 − (2p + 5)/6) on p(p − 1)/2 df.
+        p = 2
+        X = np.array([[r[0], r[1]] for r in xr], dtype=float)
+        w = np.array([r[5] for r in xr], dtype=float)
+        sw = float(w.sum())
+        nstar = kish(w) if prob else sw
+        m = (w[:, None] * X).sum(axis=0) / sw
+        dev = X - m
+        c = (w[:, None] * dev).T @ dev
+        d = np.sqrt(np.diag(c))
+        R = c / np.outer(d, d)
+        det = float(np.linalg.det(R))
+        chi = -math.log(det) * (nstar - 1 - (2 * p + 5) / 6)
+        df = p * (p - 1) / 2
+        out.update(statistic=chi, df=df, p_value=float(scipy.stats.chi2.sf(chi, df)),
+                   determinant=det, sum_weights=sw, n=len(xr))
+        if prob:
+            out["n_eff"] = nstar
+        return out
+    if case == "box_m":
+        # biotools::boxM on w*: per level ν_g = N*_g − 1, S_g = M2*_g/ν_g,
+        # S_p = Σ M2*_g / Σ ν_g; M = Σν ln|S_p| − Σ ν_g ln|S_g|, χ² = M(1 − A1);
+        # Box's F (SPSS's form) from A1, A2.
+        p, k = 2, len(K_LEVELS)
+        nus, m2s = [], []
+        for g in K_LEVELS:
+            sub = [r for r in xr if r[3] == g]
+            X = np.array([[r[0], r[1]] for r in sub], dtype=float)
+            w = np.array([r[5] for r in sub], dtype=float)
+            sw = float(w.sum())
+            nstar = kish(w) if prob else sw
+            m = (w[:, None] * X).sum(axis=0) / sw
+            dev = X - m
+            m2s.append((nstar / sw) * ((w[:, None] * dev).T @ dev))
+            nus.append(nstar - 1)
+            out[f"n[{g}]"] = len(sub)
+            out[f"sum_weights[{g}]"] = sw
+            if prob:
+                out[f"n_eff[{g}]"] = nstar
+        snu = sum(nus)
+        lds = [float(np.linalg.slogdet(m2 / nu)[1]) for m2, nu in zip(m2s, nus)]
+        ldp = float(np.linalg.slogdet(sum(m2s) / snu)[1])
+        M = snu * ldp - sum(nu * ld for nu, ld in zip(nus, lds))
+        a1 = (2 * p * p + 3 * p - 1) / (6 * (p + 1) * (k - 1)) * (sum(1 / nu for nu in nus) - 1 / snu)
+        a2 = (p - 1) * (p + 2) / (6 * (k - 1)) * (sum(1 / nu ** 2 for nu in nus) - 1 / snu ** 2)
+        df1 = p * (p + 1) / 2 * (k - 1)
+        chi = M * (1 - a1)
+        dd = a2 - a1 * a1
+        if dd > 0:
+            df2 = (df1 + 2) / dd
+            F = M / (df1 / (1 - a1 - df1 / df2))
+        else:
+            df2 = (df1 + 2) / -dd
+            b = df2 / (1 - a1 + 2 / df2)
+            F = df2 * M / (df1 * (b - M))
+        out.update({"statistic": chi, "df": df1, "p_value": float(scipy.stats.chi2.sf(chi, df1)),
+                    "m": M, "df1": df1, "f": F, "df2": df2,
+                    "f_p_value": float(scipy.stats.f.sf(F, df1, df2)),
+                    "log_det_pooled": ldp})
+        for g, ld in zip(K_LEVELS, lds):
+            out[f"log_det[{g}]"] = ld
         return out
     if case == "paired":
         s = Sample([r[0] - r[1] for r in xr], [r[5] for r in xr], prob)
@@ -1074,6 +1142,14 @@ R_FIGURES.update({
     # expansion, all four statistics.
     "manova": ("manova", {f"{t}_{c}": f"{t}.{c}" for t in ("pillai", "wilks", "hotelling_lawley", "roy")
                           for c in ("statistic", "f", "df1", "df2", "p_value")}),
+})
+R_FIGURES.update({
+    # Bartlett sphericity and Box's M (base R closed forms on the
+    # expansion: det(cor(.)), determinant(cov(.)) per level).
+    "bartlett_sphericity": ("bartlett_sphericity", {"statistic": "statistic", "df": "df", "p_value": "p_value",
+                                                    "determinant": "determinant"}),
+    "box_m": ("box_m", {"statistic": "statistic", "df": "df", "p_value": "p_value", "m": "m",
+                        "f": "f", "df2": "df2", "f_p_value": "f_p_value"}),
 })
 R_FIGURES["welch"] = R_FIGURES["t_split"]
 

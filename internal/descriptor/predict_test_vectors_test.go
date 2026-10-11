@@ -58,6 +58,10 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 		{name: "manova", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items", SplitBy: "region"}},
 		{name: "manova without split_by", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items"}, code: errors.SERVICE_VALIDATION, reason: "split_by_required"},
 		{name: "manova bad param", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items", SplitBy: "region", Params: json.RawMessage(`{"variance": "unequal"}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "box m", test: &types.Test{Type: types.TEST_BOX_M, Vector: "items", SplitBy: "region"}},
+		{name: "box m without split_by", test: &types.Test{Type: types.TEST_BOX_M, Vector: "items"}, code: errors.SERVICE_VALIDATION, reason: "split_by_required"},
+		{name: "sphericity", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "items"}},
+		{name: "sphericity with split_by", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "items", SplitBy: "region"}, code: errors.SERVICE_VALIDATION, reason: "split_by_not_accepted"},
 		{name: "paired with split_by", test: hot(func(s *types.Test) { s.Vector, s.Vector2, s.SplitBy = "items", "items", "region" }), code: errors.SERVICE_VALIDATION, reason: "paired_with_split_by"},
 		{name: "unequal one-sample", test: hot(func(s *types.Test) {
 			s.Vector = "items"

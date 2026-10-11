@@ -41,7 +41,7 @@ Frequency weights work everywhere. Probability weights work on the co-moment ope
 
 ## Significance
 
-Matrices carry figures, not p-values. Rank and partial correlation have no raw p or interval yet, and nothing corrects for the many comparisons across the cells of a matrix: a grid of p = 0.05 cells hides false positives. Treat the values as descriptive until matrix p-values and their correction arrive. To test whether whole mean profiles differ (one sample against a target, paired before / after sets, or two groups with pooled or unequal covariance), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value. Across three or more groups run `TEST_MANOVA` (Pillai's trace headline; Wilks, Hotelling–Lawley and Roy beside it).
+Matrices carry figures, not p-values. Rank and partial correlation have no raw p or interval yet, and nothing corrects for the many comparisons across the cells of a matrix: a grid of p = 0.05 cells hides false positives. Treat the values as descriptive until matrix p-values and their correction arrive. To test whether whole mean profiles differ (one sample against a target, paired before / after sets, or two groups with pooled or unequal covariance), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value. Across three or more groups run `TEST_MANOVA` (Pillai's trace headline; Wilks, Hotelling–Lawley and Roy beside it). Check their equal-covariance assumption with `TEST_BOX_M`. `TEST_BARTLETT_SPHERICITY` is PCA's Bartlett test as a standalone test.
 Per-test correction on other operators: [`multiplicity-correction`](multiplicity-correction.md).
 
 ## Sanity checks

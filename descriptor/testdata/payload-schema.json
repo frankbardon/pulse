@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:fdb19998de257d265bb463bfd720beec6f6ef944680299b4a3523fbceeca3d16",
+  "$comment": "feature_set_digest: fs1:49c726d22e3ee3a9eb994a304e7a7e1d8f91f8a785e2d5b9d202dfd5eef1d1a8",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -4060,6 +4060,8 @@
         "TEST_ANOVA_F",
         "TEST_ANOVA_RM",
         "TEST_ANOVA_WELCH",
+        "TEST_BARTLETT_SPHERICITY",
+        "TEST_BOX_M",
         "TEST_BROWN_FORSYTHE",
         "TEST_CHISQ",
         "TEST_FISHER_EXACT",
@@ -4274,4 +4276,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 4deb8e054e1e57a2f190c12f0753b1431606930cdde307f7ed04db798e64a24b
+// golden-hash: adbdc1741f27dd3411b6ddce5621e0b8deff33638b19e5fe5529fc26dae66f5c

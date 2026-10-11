@@ -32,10 +32,13 @@ import (
 //   - An operator's params that depend on the member count or the form
 //     are judged here too (TEST_HOTELLING_T2: HotellingParams — mu's
 //     length, variance "unequal" only on the two-sample form;
-//     TEST_MANOVA: ManovaParams — missing only), so predict and the
-//     runtime refuse them at the same point.
-//   - TEST_MANOVA compares levels and needs split_by (reason
-//     split_by_required); its level count (≥ 2) is a runtime figure.
+//     TEST_MANOVA / TEST_BOX_M: LevelVectorParams — missing only;
+//     TEST_BARTLETT_SPHERICITY: SphericityParams — missing only), so
+//     predict and the runtime refuse them at the same point.
+//   - TEST_MANOVA and TEST_BOX_M compare levels and need split_by
+//     (reason split_by_required); the level count (≥ 2) is a runtime
+//     figure. TEST_BARTLETT_SPHERICITY reads one sample and refuses
+//     split_by (reason split_by_not_accepted).
 //   - A paired form (a second set) is never split: vector2 / fields2
 //     with split_by is refused.
 //   - Any OTHER built-in test — and every post-test — refuses a vector
@@ -48,7 +51,7 @@ import (
 // VectorTestTypes returns the built-in test types that read their
 // columns from Vector / Fields, in AllTestTypes order.
 func VectorTestTypes() []types.TestType {
-	return []types.TestType{types.TEST_HOTELLING_T2, types.TEST_MANOVA}
+	return []types.TestType{types.TEST_BARTLETT_SPHERICITY, types.TEST_BOX_M, types.TEST_HOTELLING_T2, types.TEST_MANOVA}
 }
 
 // secondVectorTypes are the built-in test types that also read a
@@ -176,8 +179,12 @@ func resolveTest(at string, t *types.Test, typ types.TestType, specs []types.Vec
 		if _, err := HotellingParams(at, t.Params, len(first.Members), HotellingFormOf(t)); err != nil {
 			return TestInput{}, err
 		}
-	case types.TEST_MANOVA:
-		if err := ManovaParams(at, t); err != nil {
+	case types.TEST_MANOVA, types.TEST_BOX_M:
+		if err := LevelVectorParams(at, t); err != nil {
+			return TestInput{}, err
+		}
+	case types.TEST_BARTLETT_SPHERICITY:
+		if err := SphericityParams(at, t); err != nil {
 			return TestInput{}, err
 		}
 	}
@@ -340,16 +347,35 @@ func HotellingParams(at string, raw json.RawMessage, p int, form HotellingForm) 
 	return cfg, nil
 }
 
-// ManovaParams judges a TEST_MANOVA slot: split_by is required (the
-// levels it compares; reason split_by_required) and params carry only
-// missing (checkTestMissing's rule); unknown keys are refused. at is
-// the slot path. Predict and the runtime factory both call it.
-func ManovaParams(at string, t *types.Test) *errors.CodedError {
+// LevelVectorParams judges a slot that compares a member set across
+// the levels of split_by (TEST_MANOVA, TEST_BOX_M): split_by is
+// required (reason split_by_required) and params carry only missing
+// (checkTestMissing's rule); unknown keys are refused. at is the slot
+// path. Predict and the runtime factories both call it.
+func LevelVectorParams(at string, t *types.Test) *errors.CodedError {
 	if t.SplitBy == "" {
 		return testInvalid(at, "split_by_required",
-			at+" (TEST_MANOVA) compares the mean vector across the levels of split_by; set split_by to a categorical field",
+			at+" ("+string(t.Type)+") compares the member set across the levels of split_by; set split_by to a categorical field",
 			map[string]any{"type": string(t.Type)})
 	}
+	return missingOnlyParams(at, t)
+}
+
+// SphericityParams judges a TEST_BARTLETT_SPHERICITY slot: one sample,
+// so split_by is refused (reason split_by_not_accepted), and params
+// carry only missing. Predict and the runtime factory both call it.
+func SphericityParams(at string, t *types.Test) *errors.CodedError {
+	if t.SplitBy != "" {
+		return testInvalid(at, "split_by_not_accepted",
+			at+" ("+string(t.Type)+") tests one sample's correlation matrix; drop split_by (run one test per level with a filter instead)",
+			map[string]any{"type": string(t.Type), "split_by": t.SplitBy})
+	}
+	return missingOnlyParams(at, t)
+}
+
+// missingOnlyParams refuses any params key but missing, then applies
+// checkTestMissing.
+func missingOnlyParams(at string, t *types.Test) *errors.CodedError {
 	raw := bytes.TrimSpace(t.Params)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return nil
@@ -358,7 +384,7 @@ func ManovaParams(at string, t *types.Test) *errors.CodedError {
 		Missing *string `json:"missing"`
 	}
 	if err := decodeStrict(raw, &params); err != nil {
-		return testInvalid(at, "bad_params", at+" TEST_MANOVA params: "+err.Error()+" (keys: missing)", nil)
+		return testInvalid(at, "bad_params", at+" "+string(t.Type)+" params: "+err.Error()+" (keys: missing)", nil)
 	}
 	return checkTestMissing(at, raw)
 }

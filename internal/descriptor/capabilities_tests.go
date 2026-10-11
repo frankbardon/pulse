@@ -225,6 +225,29 @@ func testCapabilities() []descriptor.TestMeta {
 			},
 			Requires: []string{"SplitBy"},
 		},
+		{
+			Name:        string(types.TEST_BARTLETT_SPHERICITY),
+			Family:      string(types.TEST_BARTLETT_SPHERICITY),
+			Tier:        1,
+			Description: "Bartlett's sphericity test on a vector's correlation matrix (exactly one of Vector / Fields, ≥ 2 members, listwise; no SplitBy): χ² = −ln|R|·(N* − 1 − (2p + 5)/6) on p(p − 1)/2 df, bit-equal to MAT_PCA's bartlett_* scalars on the same rows. A small p says the members correlate enough to factor.",
+			Streamable:  types.TEST_BARTLETT_SPHERICITY.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+		},
+		{
+			Name:        string(types.TEST_BOX_M),
+			Family:      string(types.TEST_BOX_M),
+			Tier:        1,
+			Description: "Box's M test of one shared covariance matrix across a SplitBy of ≥ 2 levels (exactly one of Vector / Fields, listwise): statistic, df and p are Box's χ² approximation; details carry M and the F approximation (f, df1, df2, f_p_value). The equal-covariance check for TEST_MANOVA and the pooled TEST_HOTELLING_T2.",
+			Streamable:  types.TEST_BOX_M.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+			Requires: []string{"SplitBy"},
+		},
 		// Tier-2 natives: TREND and TUKEY_HSD are exclusively post-tests.
 		{
 			Name:        string(types.TEST_TREND),

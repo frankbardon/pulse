@@ -51,6 +51,38 @@
         ]
       },
       {
+        "operator": "TEST_BARTLETT_SPHERICITY",
+        "category": "test",
+        "level": "advanced",
+        "why": "Checks whether a set of numeric fields are related at all, the first check before summarising them as a few underlying dimensions. It uses revenue (f64), seats (u16) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "fields": [
+                "revenue",
+                "seats",
+                "score"
+              ],
+              "type": "TEST_BARTLETT_SPHERICITY"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want how strongly each pair is related",
+            "use": "MAT_CORRELATION"
+          },
+          {
+            "when": "you want the dimensions themselves",
+            "use": "MAT_PCA"
+          }
+        ]
+      },
+      {
         "operator": "MAT_PCA",
         "category": "matrix",
         "level": "advanced",
@@ -84,9 +116,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 2
+    "candidates_considered": 3
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: a7fe71c062e62ac28eeb425b29476a50d9985dcaf03937c97dd809df106210c5
+// golden-hash: d15639b5ff4eb2aadd8c99408583cf0aa1479ca9facdddd95c9bb2b611c38bc9

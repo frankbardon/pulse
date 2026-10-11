@@ -177,6 +177,8 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-test-anova-f`](skills/op-test-anova-f.md): One-way ANOVA F-test comparing the means of a numeric Field across k groups defined by SplitBy.
 - [`op-test-anova-rm`](skills/op-test-anova-rm.md): Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition.
 - [`op-test-anova-welch`](skills/op-test-anova-welch.md): Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction; streamable per-group Welford.
+- [`op-test-bartlett-sphericity`](skills/op-test-bartlett-sphericity.md): Bartlett's sphericity test on a vector's correlation matrix (is it the identity?); the factorability check, bit-equal to the PCA operator's Bartlett scalars.
+- [`op-test-box-m`](skills/op-test-box-m.md): Box's M test of one shared covariance across a SplitBy of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check.
 - [`op-test-brown-forsythe`](skills/op-test-brown-forsythe.md): Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians.
 - [`op-test-chisq`](skills/op-test-chisq.md): Chi-square independence test on a 2D Rows × Cols contingency table.
 - [`op-test-fisher-exact`](skills/op-test-fisher-exact.md): Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative.

@@ -4611,6 +4611,8 @@ pulse/types: type SweepSpec field Request encoding/json.RawMessage "json:\"reque
 pulse/types: const TEST_ANOVA_F pulse/types.TestType = "TEST_ANOVA_F"
 pulse/types: const TEST_ANOVA_RM pulse/types.TestType = "TEST_ANOVA_RM"
 pulse/types: const TEST_ANOVA_WELCH pulse/types.TestType = "TEST_ANOVA_WELCH"
+pulse/types: const TEST_BARTLETT_SPHERICITY pulse/types.TestType = "TEST_BARTLETT_SPHERICITY"
+pulse/types: const TEST_BOX_M pulse/types.TestType = "TEST_BOX_M"
 pulse/types: const TEST_BROWN_FORSYTHE pulse/types.TestType = "TEST_BROWN_FORSYTHE"
 pulse/types: const TEST_CHISQ pulse/types.TestType = "TEST_CHISQ"
 pulse/types: const TEST_FISHER_EXACT pulse/types.TestType = "TEST_FISHER_EXACT"
@@ -4712,4 +4714,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b4e902035bd4b48ff942f95914f24fd15d0dccb367b3c80672b1cf64c9fe004d
+// golden-hash: e9167cd10df164c0a0e2acf33e9ab9bba48d4ca0707cdd274ae7a05809a0e270

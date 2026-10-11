@@ -495,7 +495,7 @@ var errorOwners = map[errors.Code][]string{
 
 	// Virtual vectors are capability:matrices: with it hidden the
 	// `vectors` slot is refused as an unknown field before any vector is
-	// resolved. A vector-input test (TEST_HOTELLING_T2) resolves its
+	// resolved. A vector-input test (vectors.VectorTestTypes) resolves its
 	// inline `fields` by the same rules and may name an undefined
 	// vector without the slot, so it owns those codes too.
 	errors.PULSE_VECTOR_INVALID:         ownVectorInputs,
@@ -515,9 +515,11 @@ var errorOwners = map[errors.Code][]string{
 	// which only a MAT_ operator emits.
 	errors.PULSE_MATRIX_NOT_PSD:             ownAllMats,
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
-	errors.PULSE_MATRIX_INSUFFICIENT_N:      ownAllMats,
-	errors.PULSE_MATRIX_ZERO_VARIANCE:       ownAllMats,
-	errors.PULSE_MATRIX_NOT_CONVERGED:       ownAllMats,
+	// TEST_BARTLETT_SPHERICITY raises it on its result (MAT_PCA's
+	// Bartlett rule, the shared core).
+	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY")),
+	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
+	errors.PULSE_MATRIX_NOT_CONVERGED:  ownAllMats,
 	// The one-factor fit's withheld-figure warnings: only the operator
 	// that fits it (MAT_RELIABILITY's omega) raises them.
 	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY"),

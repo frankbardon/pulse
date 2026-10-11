@@ -51,7 +51,9 @@ import (
 // weightRefFigureTol: 1e-12 for statistics, df and estimates — R and
 // scipy sum in two passes where Pulse folds Welford recurrences, so they
 // sit a few ulps apart (worst seen on arm64: 1e-14, eta² / Σ of squares);
-// 1e-10 for p-values and t-based CI bounds — R's pt / qt and Pulse's
+// 1e-10 for p-values (any key ending p_value, e.g. TEST_BOX_M's
+// f_p_value, whose F tail at df2 ~ 10⁴ sits ~3e-11 from scipy) and
+// t-based CI bounds — R's pt / qt and Pulse's
 // statdist evaluate the incomplete beta by different series, a tail
 // amplifies the statistic's error by |t·d ln p/dt|, and a CI bound near
 // zero is a difference of two O(1) terms (worst seen: 1.1e-13). Both
@@ -205,7 +207,7 @@ func errPath(path, seg, why string) error {
 func weightRefFigureTol(path string) float64 {
 	last := path[strings.LastIndex(path, ".")+1:]
 	switch {
-	case last == "p_value", strings.HasPrefix(last, "ci_"):
+	case strings.HasSuffix(last, "p_value"), strings.HasPrefix(last, "ci_"):
 		return 1e-10
 	}
 	return 1e-12
@@ -344,6 +346,12 @@ var weightRefTestPointEstimates = map[string][]string{
 	"hotelling_split": {"tests[0].details.mean_diff[0]", "tests[0].details.mean_diff[1]"},
 	// MANOVA: the per-level mean vectors.
 	"manova": {"tests[0].details.means[p][0]", "tests[0].details.means[q][1]", "tests[0].details.means[r][0]"},
+	// Bartlett sphericity: the correlation matrix (hence |R|) reads Σw
+	// ratios only.
+	"bartlett_sphericity": {"tests[0].details.determinant"},
+	// Box's M has no Σw-ratio estimate (every covariance is on N*): its
+	// df and the raw per-level n are the kind-free figures.
+	"box_m": {"tests[0].df", "tests[0].details.n[p]", "tests[0].details.n[q]", "tests[0].details.n[r]"},
 }
 
 // testWeightRefTestsKindsAgree is TestWeightReferenceKindsAgree's

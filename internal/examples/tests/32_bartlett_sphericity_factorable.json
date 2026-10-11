@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "Bartlett's sphericity test via TEST_BARTLETT_SPHERICITY: are revenue_before, revenue and session_minutes correlated enough to summarise as fewer dimensions? A small p says the correlation matrix is not the identity, so the set is worth a principal component analysis. The statistic, df and p equal MAT_PCA's bartlett_* scalars bit for bit on the same rows.",
+    "intents": [
+      "measure_construct"
+    ],
+    "name": "bartlett_sphericity_engagement_factorable",
+    "operators": [
+      "TEST_BARTLETT_SPHERICITY"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "multivariate",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "engagement",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_BARTLETT_SPHERICITY",
+      "vector": "engagement",
+      "label": "engagement_factorable"
+    }
+  ]
+}

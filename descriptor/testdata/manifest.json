@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:fdb19998de257d265bb463bfd720beec6f6ef944680299b4a3523fbceeca3d16",
+    "feature_set_digest": "fs1:49c726d22e3ee3a9eb994a304e7a7e1d8f91f8a785e2d5b9d202dfd5eef1d1a8",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -5085,6 +5085,77 @@
         ]
       },
       {
+        "name": "TEST_BARTLETT_SPHERICITY",
+        "family": "TEST_BARTLETT_SPHERICITY",
+        "tier": 1,
+        "description": "Bartlett's sphericity test on a vector's correlation matrix (exactly one of Vector / Fields, ≥ 2 members, listwise; no SplitBy): χ² = −ln|R|·(N* − 1 − (2p + 5)/6) on p(p − 1)/2 df, bit-equal to MAT_PCA's bartlett_* scalars on the same rows. A small p says the members correlate enough to factor.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "intents": [
+          "measure_construct",
+          "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
+        "name": "TEST_BOX_M",
+        "family": "TEST_BOX_M",
+        "tier": 1,
+        "description": "Box's M test of one shared covariance matrix across a SplitBy of ≥ 2 levels (exactly one of Vector / Fields, listwise): statistic, df and p are Box's χ² approximation; details carry M and the F approximation (f, df1, df2, f_p_value). The equal-covariance check for TEST_MANOVA and the pooled TEST_HOTELLING_T2.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "requires": [
+          "SplitBy"
+        ],
+        "intents": [
+          "compare_groups",
+          "data_quality"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "name": "TEST_BROWN_FORSYTHE",
         "family": "TEST_BROWN_FORSYTHE",
         "tier": 1,
@@ -9802,6 +9873,14 @@
         "description": "Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction; streamable per-group Welford."
       },
       {
+        "name": "op-test-bartlett-sphericity",
+        "description": "Bartlett's sphericity test on a vector's correlation matrix (is it the identity?); the factorability check, bit-equal to the PCA operator's Bartlett scalars."
+      },
+      {
+        "name": "op-test-box-m",
+        "description": "Box's M test of one shared covariance across a SplitBy of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check."
+      },
+      {
         "name": "op-test-brown-forsythe",
         "description": "Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians."
       },
@@ -10302,7 +10381,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 195,
+    "examples_count": 197,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14042,4 +14121,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ac6ec466bc5b934393c1d0486c7aecbd03d3851a92de8d5aa7678f251b998349
+// golden-hash: bac9455eabccfa15c090f6f8c7f10bf0dfbe0553249b683a84ef48356aee4236

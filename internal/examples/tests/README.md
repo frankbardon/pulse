@@ -36,6 +36,8 @@ its cohort from the shared `.data` directory and assumes
 | `29_hotelling_t2_profile.json` | 1 | `TEST_HOTELLING_T2` | revenue and session_minutes as one profile: two-sample by treatment on a named vector, one-sample against a benchmark `mu` |
 | `30_hotelling_t2_paired_unequal.json` | 1 | `TEST_HOTELLING_T2` | paired form (`fields2`, the row-wise difference vector against `mu`) on revenue vs its baseline, and two-sample `variance: unequal` (Krishnamoorthy–Yu) on the engagement profile by treatment |
 | `31_manova_profile_by_region.json` | 1 | `TEST_MANOVA` | one-way MANOVA of the revenue_before / revenue / session_minutes profile across the four regions; Pillai headline, Wilks / Hotelling–Lawley / Roy in details |
+| `32_bartlett_sphericity_factorable.json` | 1 | `TEST_BARTLETT_SPHERICITY` | is the revenue_before / revenue / session_minutes set correlated enough to factor; bit-equal to `MAT_PCA`'s Bartlett scalars |
+| `33_box_m_covariance_by_region.json` | 1 | `TEST_BOX_M` | do the four regions share one covariance across the engagement profile (the MANOVA assumption check); chi-square headline, F form in details |
 
 ## Cohort
 

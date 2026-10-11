@@ -1,0 +1,376 @@
+{
+  "generator": "scripts/reference/gen_multivariate.R (via gen_reference.R)",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0",
+    "Matrix": "1.7.5",
+    "psych": "2.6.9",
+    "car": "3.1.5",
+    "ppcor": "1.1",
+    "perturb": "2.10",
+    "corpcor": "1.6.10",
+    "Hotelling": "1.0.8",
+    "biotools": "4.3"
+  },
+  "primitive": "Box's M",
+  "r_function": "biotools::boxM (chi-square approximation) asserted unweighted and on the rep() expansion (frequency; p >= 2); Box's F approximation hand-computed in SPSS's form, checked against SPSS's iris figures",
+  "note": "Rows with weight 0 are excluded first; n counts w > 0 rows per level. Per level N*_g = sum(w) (none / frequency) or Kish n_eff (probability), M2*_g = (N*_g / sum(w_g)) * sum w (x - m_g)(x - m_g)', nu_g = N*_g - 1, S_g = M2*_g / nu_g, S_p = sum M2*_g / sum nu_g. m = sum(nu) log|S_p| - sum nu_g log|S_g|; chisq = m (1 - A1) on df = p (p + 1)/2 (k - 1). f / df2 / f_p_value: Box's F on (df, df2); f_branch names the A2 vs A1^2 branch (p = 1 is always a2_lt). log_det per level (sorted) and log_det_pooled are natural logs. Levels sorted as strings.",
+  "cases": [
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "hp", "wt"],
+      "split": "cyl",
+      "levels": ["4", "6", "8"],
+      "weight": "none",
+      "n": [
+        11,
+        7,
+        14
+      ],
+      "n_star": [
+        11,
+        7,
+        14
+      ],
+      "m": 30.670277433442777,
+      "chisq": 25.53506239956749,
+      "df": 12,
+      "p_value": 0.012481263768610321,
+      "f": 2.111737224162991,
+      "df2": 1895.0234764084823,
+      "f_p_value": 0.013729117552093694,
+      "f_branch": "a2_gt",
+      "log_det": [
+        6.802011148014028,
+        4.0745851376646236,
+        8.5047427123238215
+      ],
+      "log_det_pooled": 8.0586053448200161
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "wt", "qsec"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "weight": "none",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        19,
+        13
+      ],
+      "m": 14.421167134466927,
+      "chisq": 12.772079966775571,
+      "df": 6,
+      "p_value": 0.046801544052025343,
+      "f": 2.1254534221369581,
+      "df2": 4469.5006586037644,
+      "f_p_value": 0.047351193396540231,
+      "f_branch": "a2_gt",
+      "log_det": [
+        1.7701013716556542,
+        1.017327505636523
+      ],
+      "log_det_pooled": 1.9496973963968993
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg"],
+      "split": "cyl",
+      "levels": ["4", "6", "8"],
+      "weight": "none",
+      "n": [
+        11,
+        7,
+        14
+      ],
+      "n_star": [
+        11,
+        7,
+        14
+      ],
+      "m": 8.8258051366590706,
+      "chisq": 8.3711188007062258,
+      "df": 2,
+      "p_value": 0.015213693015825425,
+      "f": 4.2148593644591257,
+      "df2": 1507.1096617775661,
+      "f_p_value": 0.014948928629610008,
+      "f_branch": "a2_lt",
+      "log_det": [
+        3.0125178764874025,
+        0.74804112766739417,
+        1.8800520763737329
+      ],
+      "log_det_pooled": 2.3406864710481372
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2", "x3", "x4"],
+      "split": "y_bin",
+      "levels": ["0", "1"],
+      "weight": "none",
+      "n": [
+        12,
+        28
+      ],
+      "n_star": [
+        12,
+        28
+      ],
+      "m": 5.1822597662498637,
+      "chisq": 4.4273591993787855,
+      "df": 10,
+      "p_value": 0.92601595304289686,
+      "f": 0.44031266965706845,
+      "df2": 2138.5573777865161,
+      "f_p_value": 0.9271342705455089,
+      "f_branch": "a2_gt",
+      "log_det": [
+        -0.57747924767872183,
+        -1.5687330955767136
+      ],
+      "log_det_pooled": -1.1454159352312459
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "hp", "wt"],
+      "split": "cyl",
+      "levels": ["4", "6", "8"],
+      "weight": "frequency",
+      "n": [
+        11,
+        7,
+        14
+      ],
+      "n_star": [
+        28,
+        21,
+        38
+      ],
+      "m": 104.004980267576,
+      "chisq": 98.249730656411074,
+      "df": 12,
+      "p_value": 1.2252475653397924e-15,
+      "f": 8.1826118975470781,
+      "df2": 21375.320327569101,
+      "f_p_value": 1.3775767969556836e-15,
+      "f_branch": "a2_gt",
+      "log_det": [
+        6.5517634849988937,
+        3.5958504964595432,
+        8.3719694560693458
+      ],
+      "log_det_pooled": 7.8878865972178902
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "wt", "qsec"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "weight": "frequency",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        57,
+        30
+      ],
+      "m": 44.310884906204336,
+      "chisq": 42.363135182286477,
+      "df": 6,
+      "p_value": 1.5588284678314548e-07,
+      "f": 7.0585818284315662,
+      "df2": 22832.400883252056,
+      "f_p_value": 1.5926440916871395e-07,
+      "f_branch": "a2_gt",
+      "log_det": [
+        1.4247259698912129,
+        0.93862643071881646
+      ],
+      "log_det_pooled": 1.7801847730700933
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg"],
+      "split": "cyl",
+      "levels": ["4", "6", "8"],
+      "weight": "frequency",
+      "n": [
+        11,
+        7,
+        14
+      ],
+      "n_star": [
+        28,
+        21,
+        38
+      ],
+      "m": 30.038149994774727,
+      "chisq": 29.526703921170956,
+      "df": 2,
+      "p_value": 3.8757674328081029e-07,
+      "f": 14.797199278936585,
+      "df2": 13797.698692957167,
+      "f_p_value": 3.8066244308217987e-07,
+      "f_branch": "a2_lt",
+      "log_det": [
+        3.1338198220451243,
+        0.68030314316398155,
+        1.997273904280904
+      ],
+      "log_det_pooled": 2.4066247918055494
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2", "x3", "x4"],
+      "split": "y_bin",
+      "levels": ["0", "1"],
+      "weight": "frequency",
+      "n": [
+        11,
+        26
+      ],
+      "n_star": [
+        24,
+        62
+      ],
+      "m": 15.006525256447887,
+      "chisq": 13.97478738385851,
+      "df": 10,
+      "p_value": 0.1741447430846807,
+      "f": 1.3958214926753272,
+      "df2": 9055.0997725639463,
+      "f_p_value": 0.17511732837461205,
+      "f_branch": "a2_gt",
+      "log_det": [
+        -1.3512939793732417,
+        -1.7925390402111077
+      ],
+      "log_det_pooled": -1.4930728300239793
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "hp", "wt"],
+      "split": "cyl",
+      "levels": ["4", "6", "8"],
+      "weight": "probability",
+      "n": [
+        11,
+        7,
+        14
+      ],
+      "n_star": [
+        10.056634508069251,
+        5.0943406642756424,
+        11.017630143881508
+      ],
+      "m": 29.593161746623764,
+      "chisq": 22.999886461938562,
+      "df": 12,
+      "p_value": 0.027726906108817517,
+      "f": 1.8807574059952659,
+      "df2": 824.32666571626669,
+      "f_p_value": 0.033271595639873842,
+      "f_branch": "a2_gt",
+      "log_det": [
+        6.6673604062780285,
+        2.7633159567717502,
+        8.629756408321553
+      ],
+      "log_det_pooled": 8.1032358373673254
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "wt", "qsec"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "weight": "probability",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        15.664219325422824,
+        10.709059592769826
+      ],
+      "m": 11.816214516875355,
+      "chisq": 10.150033544181442,
+      "df": 6,
+      "p_value": 0.11847431905977832,
+      "f": 1.6876219749194914,
+      "df2": 2917.3803753216371,
+      "f_p_value": 0.11988678436819955,
+      "f_branch": "a2_gt",
+      "log_det": [
+        1.9772578680324515,
+        1.3807823656540559
+      ],
+      "log_det_pooled": 2.2244547404302404
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg"],
+      "split": "cyl",
+      "levels": ["4", "6", "8"],
+      "weight": "probability",
+      "n": [
+        11,
+        7,
+        14
+      ],
+      "n_star": [
+        10.056634508069251,
+        5.0943406642756424,
+        11.017630143881508
+      ],
+      "m": 6.6520673150140865,
+      "chisq": 6.1960481285478242,
+      "df": 2,
+      "p_value": 0.045138304723246911,
+      "f": 3.1286723868418838,
+      "df2": 851.15181804672454,
+      "f_p_value": 0.044279740262369555,
+      "f_branch": "a2_lt",
+      "log_det": [
+        3.0130394344190976,
+        0.85770675682291941,
+        1.8099903855506307
+      ],
+      "log_det_pooled": 2.399092279021676
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2", "x3", "x4"],
+      "split": "y_bin",
+      "levels": ["0", "1"],
+      "weight": "probability",
+      "n": [
+        12,
+        26
+      ],
+      "n_star": [
+        8.989053251470736,
+        21.773776408586688
+      ],
+      "m": 5.0946568422249641,
+      "chisq": 4.082977339790431,
+      "df": 10,
+      "p_value": 0.943526088506774,
+      "f": 0.40367164676180234,
+      "df2": 1101.2885410456447,
+      "f_p_value": 0.94534237144848898,
+      "f_branch": "a2_gt",
+      "log_det": [
+        -1.2439750085303838,
+        -1.1777695818954435
+      ],
+      "log_det_pooled": -1.0190321343889324
+    }
+  ]
+}
+// golden-hash: 51a749216e8013cd838285f2f4c46dd126214cb6c86d48f1a6fcf92c7080212f

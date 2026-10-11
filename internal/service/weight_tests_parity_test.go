@@ -91,6 +91,12 @@ var testParityOps = []testParityOp{
 	// MANOVA (U25 E1-S3): the same per-level co-moments on w*.
 	{name: "manova", spec: types.Test{Type: types.TEST_MANOVA, Fields: []string{"x", "y"}, SplitBy: "k"},
 		raw: []string{"n_dropped"}},
+	// Bartlett sphericity and Box's M (U25 E1-S4): one block-folded
+	// co-moment at N* / per-level co-moments on w*.
+	{name: "bartlett_sphericity", spec: types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Fields: []string{"x", "y"}},
+		raw: []string{"n_dropped"}},
+	{name: "box_m", spec: types.Test{Type: types.TEST_BOX_M, Fields: []string{"x", "y"}, SplitBy: "k"},
+		raw: []string{"n_dropped"}},
 }
 
 // build returns the row's request builder over path.

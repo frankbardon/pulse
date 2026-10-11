@@ -197,6 +197,8 @@
     - [op-test-anova-f](skills/op-test-anova-f.md)
     - [op-test-anova-rm](skills/op-test-anova-rm.md)
     - [op-test-anova-welch](skills/op-test-anova-welch.md)
+    - [op-test-bartlett-sphericity](skills/op-test-bartlett-sphericity.md)
+    - [op-test-box-m](skills/op-test-box-m.md)
     - [op-test-brown-forsythe](skills/op-test-brown-forsythe.md)
     - [op-test-chisq](skills/op-test-chisq.md)
     - [op-test-fisher-exact](skills/op-test-fisher-exact.md)

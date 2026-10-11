@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
@@ -237,7 +238,9 @@ type pcaStats struct {
 // explain an N* choice or a null: PULSE_MATRIX_PAIRWISE_N_STAR on a
 // pairwise slot, PULSE_MATRIX_SINGULAR (a warning here) when r cannot
 // be inverted, PULSE_MATRIX_INSUFFICIENT_N (scope "bartlett") when N*
-// leaves Bartlett's multiplier non-positive.
+// leaves Bartlett's multiplier non-positive. Bartlett is the shared
+// core (bartlettSphericity, which TEST_BARTLETT_SPHERICITY also runs);
+// KMO reads its R⁻¹.
 func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.ResponseWarning) {
 	plan := in.Plan()
 	p := r.N()
@@ -248,11 +251,11 @@ func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.R
 		warns = append(warns, pw)
 	}
 
-	prec, err := linalg.InverseSPD(r)
-	if err != nil {
+	b := bartlettSphericity(r, nStar)
+	if b.Singular {
 		details := map[string]any{"matrix": plan.Name, "outputs": []string{"kmo", "kmo_msa", "bartlett_chisq", "bartlett_p"}}
 		var ce *errors.CodedError
-		if stderrors.As(singularMatrixError(err, plan.Name, in.Members()), &ce) {
+		if stderrors.As(singularMatrixError(b.SingularErr, plan.Name, in.Members()), &ce) {
 			for _, key := range []string{"rank", "condition_number", "dependent_fields"} {
 				if v, ok := ce.Details[key]; ok {
 					details[key] = v
@@ -264,6 +267,7 @@ func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.R
 			details))
 		return st, warns
 	}
+	prec := b.Prec
 	// Anti-image correlations a_ij = P_ij / √(P_ii·P_jj) (psych's
 	// cov2cor(solve(r))); the sign is irrelevant (squared).
 	sumR, sumA := 0.0, 0.0
@@ -284,17 +288,14 @@ func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.R
 	}
 	st.kmo = sumR / (sumR + sumA)
 
-	mult := nStar - 1 - float64(2*p+5)/6
-	if !(mult > 0) {
+	if b.Insufficient {
 		warns = append(warns, matrixWarning(errors.PULSE_MATRIX_INSUFFICIENT_N,
-			"matrix "+plan.Name+": Bartlett's test needs an inference size N* above 1 + (2p + 5)/6 = "+strconv.FormatFloat(1+float64(2*p+5)/6, 'g', 6, 64)+
+			"matrix "+plan.Name+": Bartlett's test needs an inference size N* above 1 + (2p + 5)/6 = "+strconv.FormatFloat(b.MinNStar, 'g', 6, 64)+
 				" for "+strconv.Itoa(p)+" members; N* is "+strconv.FormatFloat(nStar, 'g', 6, 64)+", so bartlett_chisq and bartlett_p are null",
-			map[string]any{"matrix": plan.Name, "scope": "bartlett", "n_star": nStar, "min_n_star": 1 + float64(2*p+5)/6}))
+			map[string]any{"matrix": plan.Name, "scope": "bartlett", "n_star": nStar, "min_n_star": b.MinNStar}))
 		return st, warns
 	}
-	det := determinantSPD(r)
-	st.chisq = -math.Log(det) * mult
-	st.p = chiSquareSurvival(st.chisq, st.df)
+	st.chisq, st.p = b.ChiSq, b.PValue
 	return st, warns
 }
 
@@ -307,19 +308,7 @@ func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.R
 func pcaNStar(in *matrixFinalizeInput) (float64, *types.ResponseWarning) {
 	cm := in.CM
 	w := in.slot.weight
-	scale := 1.0
-	var full float64
-	switch {
-	case w == nil:
-		full = float64(cm.N())
-	case w.EffectiveKind() == types.WeightKindProbability:
-		full = cm.NEff()
-		if cm.W() > 0 {
-			scale = cm.NEff() / cm.W()
-		}
-	default:
-		full = cm.W()
-	}
+	full, scale := sphericityNStar(cm, weighting.BasisOf(w))
 	plan := in.Plan()
 	if !plan.Pairwise {
 		return full, nil

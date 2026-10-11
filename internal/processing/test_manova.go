@@ -68,7 +68,7 @@ func newManovaRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 			fmt.Sprintf("alpha %g not in (0, 1)", spec.Alpha),
 			map[string]any{"alpha": spec.Alpha})
 	}
-	if err := vectors.ManovaParams(testLabel(spec), spec); err != nil {
+	if err := vectors.LevelVectorParams(testLabel(spec), spec); err != nil {
 		return nil, err
 	}
 	if schema != nil {
