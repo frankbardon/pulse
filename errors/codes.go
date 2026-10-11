@@ -2927,6 +2927,23 @@ const (
 	// computes nothing. Details carry "name".
 	PULSE_VECTOR_UNREFERENCED Code = "PULSE_VECTOR_UNREFERENCED"
 
+	// PULSE_VECTOR_METRIC_UNKNOWN indicates a distance / similarity
+	// metric the shared metric registry (linalg/metric) refuses: a name
+	// it does not register, a metric with no form in the direction the
+	// consumer asked for (cosine is the one metric with both a
+	// similarity and a distance form; no other metric is transformed
+	// between the two), or a metric the consumer does not accept.
+	// Details carry "metric", "reason" ("unregistered" | "no_form" |
+	// "not_accepted"), "form", "consumer" (when one asked) and "valid"
+	// (the names that would be accepted).
+	PULSE_VECTOR_METRIC_UNKNOWN Code = "PULSE_VECTOR_METRIC_UNKNOWN"
+
+	// PULSE_VECTOR_METRIC_REQUIRED indicates an operator that needs a
+	// distance / similarity metric was given none and has no default to
+	// fall back on. Details carry "form", "consumer" (when one asked)
+	// and "valid" (the names that would be accepted).
+	PULSE_VECTOR_METRIC_REQUIRED Code = "PULSE_VECTOR_METRIC_REQUIRED"
+
 	// PULSE_MATRIX_UNSUPPORTED_SOURCE indicates a `matrices` slot on a
 	// request whose rows are not cohort rows the matrix operators can
 	// fold: a Request carrying Joins (details "source" = "join",
@@ -3631,6 +3648,8 @@ var allCodes = []Code{
 	PULSE_VECTOR_LABELS_MISMATCH,
 	PULSE_VECTOR_UNKNOWN,
 	PULSE_VECTOR_UNREFERENCED,
+	PULSE_VECTOR_METRIC_UNKNOWN,
+	PULSE_VECTOR_METRIC_REQUIRED,
 	PULSE_MATRIX_UNSUPPORTED_SOURCE,
 	PULSE_MATRIX_HOST_CONFLICT,
 	PULSE_MATRIX_NOT_PSD,

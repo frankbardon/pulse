@@ -1491,6 +1491,7 @@ pulse/descriptor: type MatrixCapability field Encodings []string "json:\"encodin
 pulse/descriptor: type MatrixCapability field Kinds []string "json:\"kinds\""
 pulse/descriptor: type MatrixCapability field Limitations []string "json:\"limitations\""
 pulse/descriptor: type MatrixCapability field MergeBlockSize int "json:\"merge_block_size\""
+pulse/descriptor: type MatrixCapability field Metrics []pulse/descriptor.MetricMeta "json:\"metrics\""
 pulse/descriptor: type MatrixCapability field MissingModes []string "json:\"missing_modes\""
 pulse/descriptor: type MatrixCapability field Name string "json:\"name\""
 pulse/descriptor: type MatrixMeta struct
@@ -1527,6 +1528,21 @@ pulse/descriptor: type MatrixPredict field Shape [2]int "json:\"shape\""
 pulse/descriptor: type MatrixPredict field Streamable bool "json:\"streamable\""
 pulse/descriptor: type MatrixPredict field Type pulse/types.MatrixType "json:\"type\""
 pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeable"
+pulse/descriptor: type MetricMeta struct
+pulse/descriptor: type MetricMeta field Complete bool "json:\"complete,omitempty\""
+pulse/descriptor: type MetricMeta field Consumers []string "json:\"consumers\""
+pulse/descriptor: type MetricMeta field Description string "json:\"description\""
+pulse/descriptor: type MetricMeta field Direction string "json:\"direction\""
+pulse/descriptor: type MetricMeta field Domain string "json:\"domain\""
+pulse/descriptor: type MetricMeta field Family string "json:\"family\""
+pulse/descriptor: type MetricMeta field FitStat string "json:\"fit_stat,omitempty\""
+pulse/descriptor: type MetricMeta field Fitted bool "json:\"fitted\""
+pulse/descriptor: type MetricMeta field Forms []string "json:\"forms\""
+pulse/descriptor: type MetricMeta field KindsSuited []string "json:\"kinds_suited\""
+pulse/descriptor: type MetricMeta field Name string "json:\"name\""
+pulse/descriptor: type MetricMeta field PoorFit []string "json:\"poor_fit\""
+pulse/descriptor: type MetricMeta field Scaled bool "json:\"scaled,omitempty\""
+pulse/descriptor: type MetricMeta field ZeroUndefined bool "json:\"zero_undefined,omitempty\""
 pulse/descriptor: const MultiplicityTriggerThreshold untyped int = 10
 pulse/descriptor: func NewEnvelope(data any) *pulse/descriptor.Envelope
 pulse/descriptor: func NewEnvelopeWithRequest(data any, request any) *pulse/descriptor.Envelope
@@ -2438,6 +2454,8 @@ pulse/errors: const PULSE_VECTOR_EMPTY pulse/errors.Code = "PULSE_VECTOR_EMPTY"
 pulse/errors: const PULSE_VECTOR_INVALID pulse/errors.Code = "PULSE_VECTOR_INVALID"
 pulse/errors: const PULSE_VECTOR_LABELS_MISMATCH pulse/errors.Code = "PULSE_VECTOR_LABELS_MISMATCH"
 pulse/errors: const PULSE_VECTOR_MEMBER_TYPE pulse/errors.Code = "PULSE_VECTOR_MEMBER_TYPE"
+pulse/errors: const PULSE_VECTOR_METRIC_REQUIRED pulse/errors.Code = "PULSE_VECTOR_METRIC_REQUIRED"
+pulse/errors: const PULSE_VECTOR_METRIC_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_METRIC_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_NAME_COLLISION pulse/errors.Code = "PULSE_VECTOR_NAME_COLLISION"
 pulse/errors: const PULSE_VECTOR_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_UNREFERENCED pulse/errors.Code = "PULSE_VECTOR_UNREFERENCED"
@@ -2988,6 +3006,102 @@ pulse/linalg: type Vec method (*Vec) At(i int) float64
 pulse/linalg: type Vec method (*Vec) Len() int
 pulse/linalg: type Vec method (*Vec) Set(i int, x float64)
 pulse/linalg: type Vec method (*Vec) Slice() []float64
+pulse/linalg/metric: package metric
+pulse/linalg/metric: func Accepted(c pulse/linalg/metric.Consumer) []string
+pulse/linalg/metric: func Accepts(c pulse/linalg/metric.Consumer, name string) bool
+pulse/linalg/metric: func All() []pulse/linalg/metric.Metric
+pulse/linalg/metric: const Binary pulse/linalg/metric.Kind = "binary"
+pulse/linalg/metric: const Composition pulse/linalg/metric.Kind = "composition"
+pulse/linalg/metric: type Consumer string
+pulse/linalg/metric: type Consumer method (Consumer) Forms() []pulse/linalg/metric.Form
+pulse/linalg/metric: const ConsumerExpr pulse/linalg/metric.Consumer = "expr"
+pulse/linalg/metric: const ConsumerKMeans pulse/linalg/metric.Consumer = "GROUP_KMEANS"
+pulse/linalg/metric: const ConsumerMatDistance pulse/linalg/metric.Consumer = "MAT_DISTANCE"
+pulse/linalg/metric: const ConsumerProfileSimilarity pulse/linalg/metric.Consumer = "ATTR_PROFILE_SIMILARITY"
+pulse/linalg/metric: const ConsumerVecDistance pulse/linalg/metric.Consumer = "ATTR_VEC_DISTANCE"
+pulse/linalg/metric: func Consumers() []pulse/linalg/metric.Consumer
+pulse/linalg/metric: const Distance pulse/linalg/metric.Form = "distance"
+pulse/linalg/metric: type Domain string
+pulse/linalg/metric: const DomainBinary pulse/linalg/metric.Domain = "binary"
+pulse/linalg/metric: type DomainError struct
+pulse/linalg/metric: type DomainError field Index int
+pulse/linalg/metric: type DomainError field Metric string
+pulse/linalg/metric: type DomainError field Reason string
+pulse/linalg/metric: type DomainError field Value float64
+pulse/linalg/metric: type DomainError method (*DomainError) Error() string
+pulse/linalg/metric: type DomainError method (*DomainError) Is(target error) bool
+pulse/linalg/metric: const DomainNonNegative pulse/linalg/metric.Domain = "non_negative"
+pulse/linalg/metric: const DomainReal pulse/linalg/metric.Domain = "real"
+pulse/linalg/metric: var ErrDomain error
+pulse/linalg/metric: var ErrLengthMismatch error
+pulse/linalg/metric: var ErrStats error
+pulse/linalg/metric: type Family string
+pulse/linalg/metric: const FamilyFitted pulse/linalg/metric.Family = "fitted"
+pulse/linalg/metric: const FamilyPlain pulse/linalg/metric.Family = "plain"
+pulse/linalg/metric: const FamilySet pulse/linalg/metric.Family = "set"
+pulse/linalg/metric: type Fit string
+pulse/linalg/metric: const FitColumnMasses pulse/linalg/metric.Fit = "column_masses"
+pulse/linalg/metric: const FitInverseCovariance pulse/linalg/metric.Fit = "inverse_covariance"
+pulse/linalg/metric: const FitNone pulse/linalg/metric.Fit = ""
+pulse/linalg/metric: const FitSD pulse/linalg/metric.Fit = "sd"
+pulse/linalg/metric: type Form string
+pulse/linalg/metric: type Kind string
+pulse/linalg/metric: func Kinds() []pulse/linalg/metric.Kind
+pulse/linalg/metric: type LengthMismatchError struct
+pulse/linalg/metric: type LengthMismatchError field Left int
+pulse/linalg/metric: type LengthMismatchError field Right int
+pulse/linalg/metric: type LengthMismatchError method (*LengthMismatchError) Error() string
+pulse/linalg/metric: type LengthMismatchError method (*LengthMismatchError) Is(target error) bool
+pulse/linalg/metric: func Lookup(name string) (pulse/linalg/metric.Metric, bool)
+pulse/linalg/metric: const Measure pulse/linalg/metric.Kind = "measure"
+pulse/linalg/metric: type Metric struct
+pulse/linalg/metric: type Metric method (Metric) Complete() bool
+pulse/linalg/metric: type Metric method (Metric) Consumers() []pulse/linalg/metric.Consumer
+pulse/linalg/metric: type Metric method (Metric) Description() string
+pulse/linalg/metric: type Metric method (Metric) Direction() pulse/linalg/metric.Form
+pulse/linalg/metric: type Metric method (Metric) Domain() pulse/linalg/metric.Domain
+pulse/linalg/metric: type Metric method (Metric) Eval(f pulse/linalg/metric.Form, a []float64, b []float64, s *pulse/linalg/metric.Stats) (float64, error)
+pulse/linalg/metric: type Metric method (Metric) EvalSets(f pulse/linalg/metric.Form, c pulse/linalg/metric.SetCounts) (float64, error)
+pulse/linalg/metric: type Metric method (Metric) Family() pulse/linalg/metric.Family
+pulse/linalg/metric: type Metric method (Metric) Fit() pulse/linalg/metric.Fit
+pulse/linalg/metric: type Metric method (Metric) Fitted() bool
+pulse/linalg/metric: type Metric method (Metric) Forms() []pulse/linalg/metric.Form
+pulse/linalg/metric: type Metric method (Metric) HasForm(f pulse/linalg/metric.Form) bool
+pulse/linalg/metric: type Metric method (Metric) KindsSuited() []pulse/linalg/metric.Kind
+pulse/linalg/metric: type Metric method (Metric) Name() string
+pulse/linalg/metric: type Metric method (Metric) PoorFit() []pulse/linalg/metric.Kind
+pulse/linalg/metric: type Metric method (Metric) PoorFitFor(k pulse/linalg/metric.Kind) bool
+pulse/linalg/metric: type Metric method (Metric) Scaled() bool
+pulse/linalg/metric: type Metric method (Metric) Valid() bool
+pulse/linalg/metric: type Metric method (Metric) ZeroUndefined() bool
+pulse/linalg/metric: func Names() []string
+pulse/linalg/metric: func Observed(a []float64, b []float64) (int, error)
+pulse/linalg/metric: const ReasonInvalid untyped string = "invalid"
+pulse/linalg/metric: const ReasonLength untyped string = "length"
+pulse/linalg/metric: const ReasonMissing untyped string = "missing"
+pulse/linalg/metric: const ReasonNegative untyped string = "negative"
+pulse/linalg/metric: const ReasonNotBinary untyped string = "not_binary"
+pulse/linalg/metric: const ReasonSetCounts untyped string = "set_counts"
+pulse/linalg/metric: const ReasonZero untyped string = "zero"
+pulse/linalg/metric: func Resolve(name string, f pulse/linalg/metric.Form) (pulse/linalg/metric.Metric, error)
+pulse/linalg/metric: func ResolveFor(c pulse/linalg/metric.Consumer, name string, f pulse/linalg/metric.Form) (pulse/linalg/metric.Metric, error)
+pulse/linalg/metric: const Scale pulse/linalg/metric.Kind = "scale"
+pulse/linalg/metric: type SetCounts struct
+pulse/linalg/metric: type SetCounts field A int
+pulse/linalg/metric: type SetCounts field B int
+pulse/linalg/metric: type SetCounts field Inter int
+pulse/linalg/metric: const Similarity pulse/linalg/metric.Form = "similarity"
+pulse/linalg/metric: type Stats struct
+pulse/linalg/metric: type Stats field ColumnMasses []float64
+pulse/linalg/metric: type Stats field InverseCovariance *pulse/linalg.Sym
+pulse/linalg/metric: type Stats field SD []float64
+pulse/linalg/metric: type StatsError struct
+pulse/linalg/metric: type StatsError field Index int
+pulse/linalg/metric: type StatsError field Metric string
+pulse/linalg/metric: type StatsError field Reason string
+pulse/linalg/metric: type StatsError field Stat pulse/linalg/metric.Fit
+pulse/linalg/metric: type StatsError method (*StatsError) Error() string
+pulse/linalg/metric: type StatsError method (*StatsError) Is(target error) bool
 pulse/mcp/gosdk: package gosdk
 pulse/mcp/gosdk: const CohortURIScheme untyped string = "pulse://"
 pulse/mcp/gosdk: const CohortURITemplate untyped string = "pulse://{+path}"
@@ -4761,4 +4875,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 85859b7705db60b6efc33a615d0d6c311462ca334c069529be44e2737604136c
+// golden-hash: 6a0a940b980457d74d7146772dd1286fc1b13d81eb62c04a9ca1134457e60d7c

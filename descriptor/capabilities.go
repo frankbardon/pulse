@@ -376,6 +376,48 @@ type JoinCapability struct {
 	Limitations []string `json:"limitations"`
 }
 
+// MetricMeta describes one registered distance / similarity metric in
+// Manifest.Matrix.Metrics.
+type MetricMeta struct {
+	// Name is the metric's registered name (the `metric` value).
+	Name string `json:"name"`
+	// Family is "plain", "set" or "fitted".
+	Family string `json:"family"`
+	// Description is a one-line formula.
+	Description string `json:"description"`
+	// Direction is the native form: "similarity" (higher is closer) or
+	// "distance" (lower is closer).
+	Direction string `json:"direction"`
+	// Forms lists every form the metric answers in, native first. A
+	// consumer asking for a form a metric lacks is refused, never
+	// converted.
+	Forms []string `json:"forms"`
+	// KindsSuited lists the vector kinds the metric suits.
+	KindsSuited []string `json:"kinds_suited"`
+	// PoorFit lists the vector kinds the metric fits poorly.
+	PoorFit []string `json:"poor_fit"`
+	// Fitted is true when the metric reads statistics fitted over the
+	// cohort; FitStat names which.
+	Fitted bool `json:"fitted"`
+	// FitStat is "sd", "inverse_covariance" or "column_masses" for a
+	// fitted metric; omitted otherwise.
+	FitStat string `json:"fit_stat,omitempty"`
+	// Domain is "real", "non_negative" or "binary" (0 / 1).
+	Domain string `json:"domain"`
+	// ZeroUndefined is true when a zero element makes the value
+	// undefined (null for the row, counted).
+	ZeroUndefined bool `json:"zero_undefined,omitempty"`
+	// Scaled is true when the element sum over the complete pairs is
+	// rescaled by p / p_observed.
+	Scaled bool `json:"scaled,omitempty"`
+	// Complete is true when any missing element makes the value null.
+	Complete bool `json:"complete,omitempty"`
+	// Consumers lists the surfaces this instance offers that accept the
+	// metric: "expr" (the expression metric functions) or an operator
+	// name. Empty for a registered-but-unexposed metric.
+	Consumers []string `json:"consumers"`
+}
+
 // OverlayCapability is the per-kind manifest entry describing one
 // registered overlay catalog entry. The manifest carries one
 // OverlayCapability per types.AllOverlayKinds() entry under
@@ -596,6 +638,10 @@ type MatrixCapability struct {
 	// MergeBlockSize is the record count of one merge block: rows fold
 	// into per-block partials combined by one fixed tree.
 	MergeBlockSize int `json:"merge_block_size"`
+	// Metrics lists the shared distance / similarity metric registry
+	// (linalg/metric) in canonical order: every metric any consumer
+	// resolves by name.
+	Metrics []MetricMeta `json:"metrics"`
 	// Limitations lists the v1 envelope notes for LLM clients.
 	Limitations []string `json:"limitations"`
 }

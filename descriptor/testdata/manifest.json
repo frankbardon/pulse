@@ -8386,7 +8386,7 @@
         ]
       }
     ],
-    "error_codes_count": 336,
+    "error_codes_count": 338,
     "error_domains": [
       "CLI",
       "DATA",
@@ -8721,6 +8721,8 @@
       "PULSE_VECTOR_INVALID",
       "PULSE_VECTOR_LABELS_MISMATCH",
       "PULSE_VECTOR_MEMBER_TYPE",
+      "PULSE_VECTOR_METRIC_REQUIRED",
+      "PULSE_VECTOR_METRIC_UNKNOWN",
       "PULSE_VECTOR_NAME_COLLISION",
       "PULSE_VECTOR_UNKNOWN",
       "PULSE_VECTOR_UNREFERENCED",
@@ -11722,6 +11724,307 @@
         "pairwise"
       ],
       "merge_block_size": 4096,
+      "metrics": [
+        {
+          "name": "euclidean",
+          "family": "plain",
+          "description": "sqrt(sum((a-b)^2)), the sum rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure",
+            "scale"
+          ],
+          "poor_fit": [
+            "composition"
+          ],
+          "fitted": false,
+          "domain": "real",
+          "scaled": true,
+          "consumers": [
+            "expr",
+            "MAT_DISTANCE",
+            "GROUP_KMEANS"
+          ]
+        },
+        {
+          "name": "sq_euclidean",
+          "family": "plain",
+          "description": "sum((a-b)^2), rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure",
+            "scale"
+          ],
+          "poor_fit": [
+            "composition"
+          ],
+          "fitted": false,
+          "domain": "real",
+          "scaled": true,
+          "consumers": [
+            "expr",
+            "MAT_DISTANCE",
+            "GROUP_KMEANS"
+          ]
+        },
+        {
+          "name": "manhattan",
+          "family": "plain",
+          "description": "sum(|a-b|), rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure",
+            "composition"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "real",
+          "scaled": true,
+          "consumers": [
+            "expr",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "chebyshev",
+          "family": "plain",
+          "description": "max(|a-b|)",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "real",
+          "consumers": [
+            "expr",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "cosine",
+          "family": "plain",
+          "description": "similarity a.b/(|a||b|); distance 1-cos clamped to [0,2]",
+          "direction": "similarity",
+          "forms": [
+            "similarity",
+            "distance"
+          ],
+          "kinds_suited": [
+            "composition",
+            "binary"
+          ],
+          "poor_fit": [
+            "measure",
+            "scale"
+          ],
+          "fitted": false,
+          "domain": "real",
+          "consumers": [
+            "expr",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "correlation",
+          "family": "plain",
+          "description": "Pearson r of the two vectors' elements (centered cosine)",
+          "direction": "similarity",
+          "forms": [
+            "similarity"
+          ],
+          "kinds_suited": [
+            "scale"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "real",
+          "consumers": [
+            "expr"
+          ]
+        },
+        {
+          "name": "hellinger",
+          "family": "plain",
+          "description": "sqrt(sum((sqrt(a/sum a)-sqrt(b/sum b))^2)/2), in [0,1]",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "composition"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "non_negative",
+          "consumers": [
+            "expr",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "aitchison",
+          "family": "plain",
+          "description": "Euclidean distance between the centered log-ratio transforms; a zero part is undefined",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "composition"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "non_negative",
+          "zero_undefined": true,
+          "consumers": [
+            "expr",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "jaccard",
+          "family": "set",
+          "description": "|A and B| / |A or B|",
+          "direction": "similarity",
+          "forms": [
+            "similarity"
+          ],
+          "kinds_suited": [
+            "binary"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "binary",
+          "consumers": [
+            "expr"
+          ]
+        },
+        {
+          "name": "dice",
+          "family": "set",
+          "description": "2|A and B| / (|A|+|B|)",
+          "direction": "similarity",
+          "forms": [
+            "similarity"
+          ],
+          "kinds_suited": [
+            "binary"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "binary",
+          "consumers": [
+            "expr"
+          ]
+        },
+        {
+          "name": "hamming",
+          "family": "set",
+          "description": "the number of elements in exactly one set, rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "binary"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "binary",
+          "scaled": true,
+          "consumers": [
+            "expr"
+          ]
+        },
+        {
+          "name": "overlap",
+          "family": "set",
+          "description": "|A and B| / min(|A|,|B|)",
+          "direction": "similarity",
+          "forms": [
+            "similarity"
+          ],
+          "kinds_suited": [
+            "binary"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "binary",
+          "consumers": [
+            "expr"
+          ]
+        },
+        {
+          "name": "std_euclidean",
+          "family": "fitted",
+          "description": "sqrt(sum(((a-b)/sd)^2)) over fitted per-element SDs, the sum rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure"
+          ],
+          "poor_fit": [
+            "composition"
+          ],
+          "fitted": true,
+          "fit_stat": "sd",
+          "domain": "real",
+          "scaled": true,
+          "consumers": []
+        },
+        {
+          "name": "mahalanobis",
+          "family": "fitted",
+          "description": "sqrt(d' S^-1 d), d = a-b, over a fitted inverse covariance; needs every element",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure"
+          ],
+          "poor_fit": [],
+          "fitted": true,
+          "fit_stat": "inverse_covariance",
+          "domain": "real",
+          "complete": true,
+          "consumers": [
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "chi_square",
+          "family": "fitted",
+          "description": "sqrt(sum((a/sum a - b/sum b)^2 / mass)) over fitted column masses (correspondence-analysis profile distance)",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "composition"
+          ],
+          "poor_fit": [],
+          "fitted": true,
+          "fit_stat": "column_masses",
+          "domain": "non_negative",
+          "consumers": []
+        }
+      ],
       "limitations": [
         "Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
         "A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
@@ -15251,4 +15554,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0204cdb1345949ed89feba80d01729fc891bc7a253e7c7ac1d6bc2f9d882536a
+// golden-hash: 9c44c7f8e9b113ce573464b6048e00fb3cbc3888d105e885ac67f2b8e09fb7af

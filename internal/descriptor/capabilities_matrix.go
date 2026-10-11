@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -253,8 +254,65 @@ func sortMatrices(ms []descriptor.MatrixMeta) []descriptor.MatrixMeta {
 	return out
 }
 
-// matrixCapability is the Manifest.Matrix block.
-func matrixCapability() descriptor.MatrixCapability {
+// metricCapabilities is the shared metric registry (linalg/metric) as
+// manifest entries, in canonical order. offered reports whether the
+// instance offers a consumer; a consumer it does not offer (hidden, or
+// an operator not registered in this build) is left out of every
+// entry's consumers.
+func metricCapabilities(offered func(metric.Consumer) bool) []descriptor.MetricMeta {
+	all := metric.All()
+	out := make([]descriptor.MetricMeta, 0, len(all))
+	for _, m := range all {
+		e := descriptor.MetricMeta{
+			Name:          m.Name(),
+			Family:        string(m.Family()),
+			Description:   m.Description(),
+			Direction:     string(m.Direction()),
+			Forms:         []string{},
+			KindsSuited:   []string{},
+			PoorFit:       []string{},
+			Fitted:        m.Fitted(),
+			FitStat:       string(m.Fit()),
+			Domain:        string(m.Domain()),
+			ZeroUndefined: m.ZeroUndefined(),
+			Scaled:        m.Scaled(),
+			Complete:      m.Complete(),
+			Consumers:     []string{},
+		}
+		for _, f := range m.Forms() {
+			e.Forms = append(e.Forms, string(f))
+		}
+		for _, k := range m.KindsSuited() {
+			e.KindsSuited = append(e.KindsSuited, string(k))
+		}
+		for _, k := range m.PoorFit() {
+			e.PoorFit = append(e.PoorFit, string(k))
+		}
+		for _, c := range m.Consumers() {
+			if offered(c) {
+				e.Consumers = append(e.Consumers, string(c))
+			}
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// metricConsumerOffered reports, from the instance's registered and
+// enabled operator names, whether it offers metric consumer c: "expr"
+// through either expression operator, an operator consumer by name.
+func metricConsumerOffered(names map[string]bool) func(metric.Consumer) bool {
+	return func(c metric.Consumer) bool {
+		if c == metric.ConsumerExpr {
+			return names["ATTR_FORMULA"] || names["FILTER_EXPRESSION"]
+		}
+		return names[string(c)]
+	}
+}
+
+// matrixCapability is the Manifest.Matrix block; offered decides each
+// metric's listed consumers (metricCapabilities).
+func matrixCapability(offered func(metric.Consumer) bool) descriptor.MatrixCapability {
 	encs := make([]string, 0, len(types.AllMatrixEncodings()))
 	for _, e := range types.AllMatrixEncodings() {
 		encs = append(encs, string(e))
@@ -270,6 +328,7 @@ func matrixCapability() descriptor.MatrixCapability {
 		Kinds:           kinds,
 		MissingModes:    vectors.MissingModes(),
 		MergeBlockSize:  linalg.MergeBlockSize,
+		Metrics:         metricCapabilities(offered),
 		Limitations: []string{
 			"Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
 			"A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",

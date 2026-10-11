@@ -379,7 +379,16 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		m.Extensions.RangeTables = []descriptor.RangeTableMeta{}
 	}
 	if on(featMatrices) {
-		c := matrixCapability()
+		names := map[string]bool{}
+		for _, ops := range [][]descriptor.Operator{attrs, filts, grps} {
+			for _, o := range ops {
+				names[o.Name] = true
+			}
+		}
+		for _, mm := range mats {
+			names[mm.Name] = true
+		}
+		c := matrixCapability(metricConsumerOffered(names))
 		m.Matrix = &c
 	}
 	if on(featFacet) {

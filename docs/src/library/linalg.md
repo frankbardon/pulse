@@ -92,6 +92,25 @@ mean := acc.Mean()
 
 Pulse's engine uses exactly this scheme internally, so its parallel and serial runs agree bit for bit.
 
+## Distance and similarity metrics (`linalg/metric`)
+
+`github.com/frankbardon/pulse/linalg/metric` is the one registry of distance and similarity metrics. Every metric Pulse computes between two vectors is defined there once, and every surface that takes a metric name resolves it through the registry. `pulse manifest --json` lists it under `matrix.metrics`.
+
+```go
+import "github.com/frankbardon/pulse/linalg/metric"
+
+m, err := metric.Resolve("cosine", metric.Similarity) // or metric.Distance: 1 - cos, clamped to [0, 2]
+s, err := m.Eval(metric.Similarity, a, b, nil)
+```
+
+- **The 15 metrics.** Plain: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine`, `correlation`, `hellinger`, `aitchison`. Set / binary (0 / 1 values, or `SetCounts` through `EvalSets`): `jaccard`, `dice`, `hamming`, `overlap`. Fitted: `std_euclidean`, `mahalanobis`, `chi_square`. A fitted metric never estimates anything: you pass the SD vector, the inverse covariance (`*linalg.Sym`) or the column masses in `metric.Stats`.
+- **Direction.** Each metric declares its native direction and the forms it can answer in. Asking for a form it lacks (for example `euclidean` as a similarity) is refused with `PULSE_VECTOR_METRIC_UNKNOWN`; nothing is converted silently. `cosine` is the one metric with both forms. An empty name is `PULSE_VECTOR_METRIC_REQUIRED`.
+- **Missing values.** `NaN` marks a missing element and is dropped pairwise. The element-sum distances (`euclidean`, `sq_euclidean`, `manhattan`, `std_euclidean`, `hamming`) are rescaled by `p / p_observed`, as R's `stats::dist()` does. No complete pair gives `NaN`. `mahalanobis` needs every element. Vectors of unequal length are a `*metric.LengthMismatchError`.
+- **Domains.** `hellinger`, `aitchison` and `chi_square` read non-negative values; an `aitchison` zero part is undefined. A violation returns `NaN` with a `*metric.DomainError`, so you can null the row and count it.
+- **Kinds and consumers.** `KindsSuited`, `PoorFit` and `Consumers` (`metric.Accepted`, `metric.ResolveFor`) say which vector kinds a metric suits and which surfaces accept it.
+
+Arithmetic is FMA-free and left to right, so results are identical on every architecture; the one exception is `aitchison`, whose logarithm comes from the standard library and may differ in the last bits on amd64.
+
 ## Errors
 
 Every failure is an `*errors.CodedError`. Look up its prose with `pulse errors lookup CODE`.

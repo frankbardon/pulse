@@ -61,6 +61,10 @@ var (
 	// is reached from the three expression operators; FilterToFile
 	// compiles to FILTER_EXPRESSION, which it hard-depends on.
 	ownExpr = own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA")
+	// ownMetricConsumers: every consumer of the shared metric
+	// registry (linalg/metric) — the expression operators, MAT_DISTANCE
+	// and GROUP_KMEANS.
+	ownMetricConsumers = plus(ownExpr, own("MAT_DISTANCE", "GROUP_KMEANS"))
 	// ownChiSq: the contingency-table checks run in the chi-square /
 	// Fisher row tests and in the crosstab chi-square overlays.
 	ownChiSq = own("TEST_CHISQ", "TEST_FISHER_EXACT", "OVERLAY_CHISQ_COL", "OVERLAY_CHISQ_MATRIX",
@@ -507,6 +511,15 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_VECTOR_NAME_COLLISION:  own(featMatrices),
 	errors.PULSE_VECTOR_UNKNOWN:         ownVectorInputs,
 	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
+
+	// The shared metric registry (linalg/metric) refuses an unknown,
+	// wrong-direction or unaccepted metric, and a missing one, for every
+	// consumer that resolves a metric through it: the expression
+	// operators' metric functions and the operators with a metric
+	// choice. A later operator that takes a metric joins
+	// ownMetricConsumers.
+	errors.PULSE_VECTOR_METRIC_UNKNOWN:  ownMetricConsumers,
+	errors.PULSE_VECTOR_METRIC_REQUIRED: ownMetricConsumers,
 
 	// The matrix-source refusals fire only on a request carrying the
 	// `matrices` slot, which capability:matrices gates; the MAT_ family

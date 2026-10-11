@@ -3643,6 +3643,26 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_VECTOR_METRIC_UNKNOWN: {
+		Message: "A distance or similarity metric was refused: the name is not registered, the metric has no form in the direction the operator needs (only cosine has both a similarity and a distance form; no other metric is converted between the two), or the operator does not accept it. The metric is under `metric`, the cause under `reason`, the direction under `form` and the accepted names under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"params", "metric"},
+				Hint:   "Use one of the metric names listed under `valid`; for the opposite direction pick a metric registered in that direction rather than converting one.",
+			},
+		},
+	},
+	PULSE_VECTOR_METRIC_REQUIRED: {
+		Message: "An operator that compares rows needs a distance or similarity metric and was given none, with no default to fall back on. The direction it needs is under `form` and the accepted names under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"params", "metric"},
+				Hint:   "Set `metric` to one of the names listed under `valid`.",
+			},
+		},
+	},
 	PULSE_MATRIX_UNSUPPORTED_SOURCE: {
 		Message: "A `matrices` slot sits on a request whose rows the matrix operators cannot fold, so the request is refused before any record is read — predict refuses it identically. Matrices read cohort rows directly: a Request that also carries `joins` (details `source` = `join`) and a ProcessChain stage after stage 0 (details `source` = `chain_stage`, which reads the previous stage's output rows; the stage is under `stage` / `stage_name`) are not supported. The number of matrix slots is under `matrices`.",
 		Fixups: []Fixup{
