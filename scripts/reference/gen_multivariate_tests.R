@@ -1,10 +1,11 @@
 # gen_multivariate_tests.R — R oracle for Pulse's multivariate TESTS
-# (U25: TEST_HOTELLING_T2, and the later profile tests).
+# (U25: TEST_HOTELLING_T2, TEST_MANOVA, and the later profile tests).
 #
 # Sourced by gen_multivariate.R (`make reference`) after its fixtures and
 # weight utilities exist: it reuses out_dir, num(), numv(), strs(),
 # near(), write_golden(), wvec(), n_star(), wcov(), wmean(), expand() and
-# the fixture data frames (att, mt, wd). Writes <out_dir>/mv_hotelling.json.
+# the fixture data frames (att, mt, wd). Writes <out_dir>/mv_hotelling.json
+# and <out_dir>/mv_manova.json.
 # CI never runs R: everything here is committed.
 #
 # Pinned packages (refused on any other version, like the parent):
@@ -218,3 +219,80 @@ hot_doc <- c(mvt_meta("Hotelling's T-squared",
   "Rows with weight 0 are excluded first (Pulse's row-test rule), so n counts w > 0 rows. N* = sum(w) under none / frequency, Kish n_eff under probability; S = cov.wt (frequency asserted == the rep() expansion; probability method 'unbiased'). One-sample F = (N* - p)/(p (N* - 1)) T2 on (p, N* - p); two-sample pooled S = ((N1*-1) S1 + (N2*-1) S2)/(N1* + N2* - 2), F = (N - p - 1)/(p (N - 2)) T2 on (p, N - p - 1), N = N1* + N2*. Split levels sorted as strings. n_star is per level (two-sample) or a one-entry list. Paired: one-sample on the difference vector, F on (p, N* - p). Unequal: V_i = S_i / N*_i, St = V_1 + V_2, T2 = d' St^-1 d, nu = (p + p^2) / sum_i (tr[(V_i St^-1)^2] + tr[V_i St^-1]^2) / (N*_i - 1), F = (nu - p + 1)/(nu p) T2 on (p, nu - p + 1). A case without `form` is one_sample (split null) or two_sample_pooled."),
   list(cases = hot_cases))
 write_golden("mv_hotelling", hot_doc)
+
+# ----------------------------------------------------------- MANOVA
+# TEST_MANOVA (U25 E1-S3): one-way MANOVA over a split_by. Per level
+# N*_g (sum w or Kish n_eff) and M2*_g = c_g * M2_g with the level's OWN
+# c_g = N*_g / sum(w_g) (TEST_ANOVA_F's rule); E = sum_g M2*_g,
+# grand mean = sum_g N*_g m_g / N*, H = sum_g N*_g (m_g - gm)(m_g - gm)',
+# q = k - 1, df.res = N* - k. The four statistics are stats:::Pillai /
+# Wilks / HL / Roy on eigen(E^-1 H) with summary.manova's p rule (p only
+# when F >= 0 and both df > 0). Asserted: unweighted against
+# summary(manova(X ~ g), test = ...) for all four; frequency against the
+# same on the rep() expansion; E + H equals the merged (total) SSCP
+# under none / frequency. Probability is the one rule hand-computed.
+man_cases <- list()
+man_stat <- function(eig, q, dfr, fn) {
+  r <- fn(eig, q, dfr)
+  ok <- !is.na(r[2]) && r[2] >= 0 && r[3] > 0 && r[4] > 0
+  list(statistic = num(r[1]), f = num(r[2]), df1 = num(r[3]), df2 = num(r[4]),
+       p_value = if (ok) num(pf(r[2], r[3], r[4], lower.tail = FALSE)) else jnull,
+       raw = c(r, if (ok) pf(r[2], r[3], r[4], lower.tail = FALSE) else NA))
+}
+man_r_tests <- c(pillai = "Pillai", wilks = "Wilks", hotelling_lawley = "Hotelling-Lawley", roy = "Roy")
+man_assert <- function(X, g, st, what) {
+  fit <- manova(X ~ g)
+  for (nm in names(man_r_tests)) {
+    s <- summary(fit, test = man_r_tests[[nm]])$stats[1, 2:6]
+    near(unname(s), st[[nm]]$raw, 1e-10, paste("summary.manova", man_r_tests[[nm]], what))
+  }
+}
+man_case <- function(fx, df, cols, split, kind) {
+  w <- wvec(df, kind)
+  d <- df[w > 0, , drop = FALSE]; w <- w[w > 0]
+  lv <- sort(as.character(unique(d[[split]])))
+  k <- length(lv); p <- length(cols)
+  part <- lapply(lv, function(l) {
+    kk <- as.character(d[[split]]) == l
+    X <- as.matrix(d[kk, cols, drop = FALSE]); wk <- w[kk]
+    ns <- n_star(wk, kind)
+    m <- wmean(X, wk)
+    Xc <- sweep(X, 2, m)
+    list(n = nrow(X), ns = ns, m = m, M2 = crossprod(Xc * sqrt(wk)) * ns / sum(wk))
+  })
+  ns <- sapply(part, `[[`, "ns"); N <- sum(ns)
+  E <- Reduce(`+`, lapply(part, `[[`, "M2"))
+  gm <- Reduce(`+`, lapply(part, function(z) z$ns * z$m)) / N
+  H <- Reduce(`+`, lapply(part, function(z) z$ns * tcrossprod(z$m - gm)))
+  q <- k - 1; dfr <- N - k
+  eig <- Re(eigen(solve(E) %*% H, only.values = TRUE)$values)
+  st <- list(pillai = man_stat(eig, q, dfr, stats:::Pillai), wilks = man_stat(eig, q, dfr, stats:::Wilks),
+             hotelling_lawley = man_stat(eig, q, dfr, stats:::HL), roy = man_stat(eig, q, dfr, stats:::Roy))
+  X <- as.matrix(d[, cols]); g <- factor(as.character(d[[split]]), levels = lv)
+  if (kind != "probability") {
+    tm <- wmean(X, w)
+    Tt <- crossprod(sweep(X, 2, tm) * sqrt(w))
+    near(E + H, Tt, 1e-10, paste("E + H = total SSCP", fx))
+  }
+  if (kind == "none") man_assert(X, g, st, fx)
+  if (kind == "frequency") {
+    r <- rep(seq_len(nrow(X)), w)
+    man_assert(X[r, , drop = FALSE], g[r], st, paste("expansion", fx))
+  }
+  out <- lapply(st, function(z) z[c("statistic", "f", "df1", "df2", "p_value")])
+  man_cases[[length(man_cases) + 1]] <<- c(list(
+    fixture = fx, fields = strs(cols), split = split, levels = strs(lv), weight = kind,
+    n = numv(sapply(part, `[[`, "n")), n_star = numv(ns),
+    df_hypothesis = num(q), df_residual = num(dfr), eigenvalues = numv(eig)), out)
+}
+for (kind in w_kinds) {
+  man_case("mtcars", mt, c("mpg", "hp", "wt", "qsec"), "cyl", kind)
+  man_case("mtcars", mt, c("mpg", "disp", "drat"), "gear", kind)
+  man_case("mtcars", mt, c("mpg", "wt"), "carb", kind)
+  man_case("weighted", wd, c("x1", "x2", "x3", "x4"), "y_bin", kind)
+}
+man_doc <- c(mvt_meta("one-way MANOVA",
+  "stats:::Pillai / Wilks / HL / Roy on eigen(solve(E) %*% H); summary(manova(X ~ g), test = Pillai | Wilks | Hotelling-Lawley | Roy) asserted unweighted and on the rep() expansion (frequency)",
+  "Rows with weight 0 are excluded first; n counts w > 0 rows per level. Per level N*_g = sum(w) (none / frequency) or Kish n_eff (probability) and M2*_g = (N*_g / sum(w_g)) * sum w (x - m_g)(x - m_g)'. E = sum_g M2*_g; gm = sum_g N*_g m_g / N*; H = sum_g N*_g (m_g - gm)(m_g - gm)'; q = k - 1 (df_hypothesis), df.res = N* - k (df_residual). eigenvalues: all p of E^-1 H, descending (R's order). Levels sorted as strings. p_value is null when R's summary.manova would print NA (F < 0 or a df <= 0)."),
+  list(cases = man_cases))
+write_golden("mv_manova", man_doc)

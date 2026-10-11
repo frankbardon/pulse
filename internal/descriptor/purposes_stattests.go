@@ -25,6 +25,7 @@ var statTestPurposes = map[string]descriptor.Purpose{
 	"TEST_KRUSKAL_WALLIS": purposeTestKruskalWallis,
 	"TEST_KS":             purposeTestKS,
 	"TEST_MANN_WHITNEY_U": purposeTestMannWhitneyU,
+	"TEST_MANOVA":         purposeTestManova,
 	"TEST_PAIRED_T":       purposeTestPairedT,
 	"TEST_PEARSON_R":      purposeTestPearsonR,
 	"TEST_PROP_Z":         purposeTestPropZ,
@@ -167,6 +168,38 @@ var (
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
 			"covariance", "degrees-of-freedom", "f-statistic", "independence",
+			"listwise-deletion", "mean", "normal-distribution", "p-value",
+			"sample-size", "test-statistic",
+		},
+	}
+
+	purposeTestManova = descriptor.Purpose{
+		Plain:   "Checks whether several numeric fields, taken together as one profile, differ across two or more groups.",
+		KnownAs: []string{"manova", "multivariate anova", "pillai's trace", "wilks' lambda"},
+		Intents: []string{IntentCompareGroups},
+		Questions: []string{
+			"Do our customer segments differ on the whole set of spend, visit and basket metrics at once?",
+			"Do the three store formats differ on their combined service ratings?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Compare several segments on a battery of rating items in one test.",
+			descriptor.DomainOps:     "Compare several sites on throughput, wait time and error rate together.",
+			descriptor.DomainScience: "Compare several treatment arms on more than one outcome without one ANOVA per outcome.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "there is only one numeric field", Use: "TEST_ANOVA_F"},
+			{When: "there are only two groups and you want the T² figure", Use: "TEST_HOTELLING_T2"},
+		},
+		Assumptions: []string{
+			"Rows are independent of each other, within and across the groups.",
+			"The fields are roughly jointly normal within each group; with many rows the test tolerates departures.",
+			"The groups share one covariance across the fields; Pillai's trace, the headline, is the most forgiving when they do not.",
+			"A row with any field missing is dropped from the test (listwise).",
+			"There are at least as many complete rows as fields plus groups.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"covariance", "degrees-of-freedom", "eigenvalue", "f-statistic", "independence",
 			"listwise-deletion", "mean", "normal-distribution", "p-value",
 			"sample-size", "test-statistic",
 		},

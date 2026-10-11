@@ -45,6 +45,8 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
   `TEST_HOTELLING_T2` (U25 E1-S1) reads `anova(lm(cbind(x, y) ~ 1 | h),
   test = "Hotelling-Lawley")` — exact for an intercept-only model and a
   two-level factor — with T² = HL·(n − 1) / HL·(n − 2);
+  `TEST_MANOVA` (U25 E1-S3) reads `summary(manova(cbind(x, y) ~ k),
+  test = ...)` for Pillai, Wilks, Hotelling-Lawley and Roy;
 - kind `probability` — the w* closed form in the generator, its moment
   step cross-checked against statsmodels (`DescrStatsW` on w*,
   `CompareMeans`, `proportions_ztest`) and scipy `chi2_contingency`. The

@@ -155,6 +155,9 @@ var testClasses = map[types.TestType]Class{
 	// TEST_HOTELLING_T2 folds one weighted co-moment per level and
 	// reads N* and M2* = c·M2 on w* (the frequency formula on w*).
 	types.TEST_HOTELLING_T2: ClassAware,
+	// TEST_MANOVA: the same per-level co-moments; E = Σ M2*_g, H from
+	// the N*_g-weighted level means (TEST_ANOVA_F's per-level c_g).
+	types.TEST_MANOVA: ClassAware,
 
 	types.TEST_MANN_WHITNEY_U: ClassFrequencyOnly,
 	types.TEST_WILCOXON_SR:    ClassFrequencyOnly,

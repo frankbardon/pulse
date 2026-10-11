@@ -330,6 +330,7 @@ func TestStreamability_TestsKnown(t *testing.T) {
 		TEST_SHAPIRO_WILK:   false,
 		TEST_Z_TWO_SAMPLE:   true,
 		TEST_HOTELLING_T2:   true,
+		TEST_MANOVA:         true,
 	}
 	for _, tt := range AllTestTypes() {
 		want, ok := expected[tt]

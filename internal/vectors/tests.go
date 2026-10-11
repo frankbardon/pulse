@@ -31,8 +31,11 @@ import (
 //     else refused.
 //   - An operator's params that depend on the member count or the form
 //     are judged here too (TEST_HOTELLING_T2: HotellingParams — mu's
-//     length, variance "unequal" only on the two-sample form), so
-//     predict and the runtime refuse them at the same point.
+//     length, variance "unequal" only on the two-sample form;
+//     TEST_MANOVA: ManovaParams — missing only), so predict and the
+//     runtime refuse them at the same point.
+//   - TEST_MANOVA compares levels and needs split_by (reason
+//     split_by_required); its level count (≥ 2) is a runtime figure.
 //   - A paired form (a second set) is never split: vector2 / fields2
 //     with split_by is refused.
 //   - Any OTHER built-in test — and every post-test — refuses a vector
@@ -45,7 +48,7 @@ import (
 // VectorTestTypes returns the built-in test types that read their
 // columns from Vector / Fields, in AllTestTypes order.
 func VectorTestTypes() []types.TestType {
-	return []types.TestType{types.TEST_HOTELLING_T2}
+	return []types.TestType{types.TEST_HOTELLING_T2, types.TEST_MANOVA}
 }
 
 // secondVectorTypes are the built-in test types that also read a
@@ -168,8 +171,13 @@ func resolveTest(at string, t *types.Test, typ types.TestType, specs []types.Vec
 	if err != nil {
 		return TestInput{}, err
 	}
-	if typ == types.TEST_HOTELLING_T2 {
+	switch typ {
+	case types.TEST_HOTELLING_T2:
 		if _, err := HotellingParams(at, t.Params, len(first.Members), HotellingFormOf(t)); err != nil {
+			return TestInput{}, err
+		}
+	case types.TEST_MANOVA:
+		if err := ManovaParams(at, t); err != nil {
 			return TestInput{}, err
 		}
 	}
@@ -330,6 +338,29 @@ func HotellingParams(at string, raw json.RawMessage, p int, form HotellingForm) 
 		cfg.Mu = params.Mu
 	}
 	return cfg, nil
+}
+
+// ManovaParams judges a TEST_MANOVA slot: split_by is required (the
+// levels it compares; reason split_by_required) and params carry only
+// missing (checkTestMissing's rule); unknown keys are refused. at is
+// the slot path. Predict and the runtime factory both call it.
+func ManovaParams(at string, t *types.Test) *errors.CodedError {
+	if t.SplitBy == "" {
+		return testInvalid(at, "split_by_required",
+			at+" (TEST_MANOVA) compares the mean vector across the levels of split_by; set split_by to a categorical field",
+			map[string]any{"type": string(t.Type)})
+	}
+	raw := bytes.TrimSpace(t.Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil
+	}
+	var params struct {
+		Missing *string `json:"missing"`
+	}
+	if err := decodeStrict(raw, &params); err != nil {
+		return testInvalid(at, "bad_params", at+" TEST_MANOVA params: "+err.Error()+" (keys: missing)", nil)
+	}
+	return checkTestMissing(at, raw)
 }
 
 // TestInputMembers returns the union of every field req's tier-1 tests read

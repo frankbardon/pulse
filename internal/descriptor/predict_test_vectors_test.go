@@ -55,6 +55,9 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 			s.Params = json.RawMessage(`{"variance": "unequal"}`)
 		})},
 		{name: "paired length mismatch", test: hot(func(s *types.Test) { s.Vector, s.Fields2 = "items", []string{"q_1"} }), code: errors.SERVICE_VALIDATION, reason: "vector2_length_mismatch"},
+		{name: "manova", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items", SplitBy: "region"}},
+		{name: "manova without split_by", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items"}, code: errors.SERVICE_VALIDATION, reason: "split_by_required"},
+		{name: "manova bad param", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items", SplitBy: "region", Params: json.RawMessage(`{"variance": "unequal"}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "paired with split_by", test: hot(func(s *types.Test) { s.Vector, s.Vector2, s.SplitBy = "items", "items", "region" }), code: errors.SERVICE_VALIDATION, reason: "paired_with_split_by"},
 		{name: "unequal one-sample", test: hot(func(s *types.Test) {
 			s.Vector = "items"

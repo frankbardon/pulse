@@ -213,6 +213,18 @@ func testCapabilities() []descriptor.TestMeta {
 				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
 			},
 		},
+		{
+			Name:        string(types.TEST_MANOVA),
+			Family:      string(types.TEST_MANOVA),
+			Tier:        1,
+			Description: "One-way MANOVA of a mean vector (exactly one of Vector / Fields, listwise) across a SplitBy of ≥ 2 levels: statistic, df and p are Pillai's trace; details carry Pillai, Wilks (Rao F), Hotelling–Lawley and Roy (an upper bound), each with f, df1, df2 and p_value.",
+			Streamable:  types.TEST_MANOVA.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+			Requires: []string{"SplitBy"},
+		},
 		// Tier-2 natives: TREND and TUKEY_HSD are exclusively post-tests.
 		{
 			Name:        string(types.TEST_TREND),

@@ -239,6 +239,7 @@ var acceptanceTemplates = map[string]string{
 	"TEST_KRUSKAL_WALLIS": `{"tests":[{"type":"TEST_KRUSKAL_WALLIS","field":"$F","split_by":"g"}]}`,
 	"TEST_KS":             `{"tests":[{"type":"TEST_KS","field":"$F","split_by":"g"}]}`,
 	"TEST_MANN_WHITNEY_U": `{"tests":[{"type":"TEST_MANN_WHITNEY_U","field":"$F","split_by":"g"}]}`,
+	"TEST_MANOVA":         `{"tests":[{"type":"TEST_MANOVA","fields":["$F","x"],"split_by":"g"}]}`,
 	"TEST_PAIRED_T":       `{"tests":[{"type":"TEST_PAIRED_T","field":"$F","field2":"x"}]}`,
 	"TEST_PEARSON_R":      `{"tests":[{"type":"TEST_PEARSON_R","field":"$F","field2":"x"}]}`,
 	"TEST_PROP_Z":         `{"tests":[{"type":"TEST_PROP_Z","field":"$F","split_by":"g","params":{"success":"$S"}}]}`,

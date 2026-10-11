@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:893d5eeca87f5bf51130db1560f0bfe661a48a7a24ec95c6880a2a570bfb3ba1",
+    "feature_set_digest": "fs1:fdb19998de257d265bb463bfd720beec6f6ef944680299b4a3523fbceeca3d16",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -5323,6 +5323,42 @@
         ]
       },
       {
+        "name": "TEST_MANOVA",
+        "family": "TEST_MANOVA",
+        "tier": 1,
+        "description": "One-way MANOVA of a mean vector (exactly one of Vector / Fields, listwise) across a SplitBy of ≥ 2 levels: statistic, df and p are Pillai's trace; details carry Pillai, Wilks (Rao F), Hotelling–Lawley and Roy (an upper bound), each with f, df1, df2 and p_value.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "requires": [
+          "SplitBy"
+        ],
+        "intents": [
+          "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "name": "TEST_PAIRED_T",
         "family": "TEST_PAIRED_T",
         "tier": 1,
@@ -9798,6 +9834,10 @@
         "description": "Nonparametric two-sample location test; buffered tie-corrected rank sum (Mann-Whitney U)."
       },
       {
+        "name": "op-test-manova",
+        "description": "One-way MANOVA of a mean vector of p numeric members across a SplitBy of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details."
+      },
+      {
         "name": "op-test-paired-t",
         "description": "Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d."
       },
@@ -10262,7 +10302,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 194,
+    "examples_count": 195,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14002,4 +14042,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3bd6b0c2d1be5d27fbef05e06806bc36691f76d80727bc63e9e9272a8fa6fcd9
+// golden-hash: ac6ec466bc5b934393c1d0486c7aecbd03d3851a92de8d5aa7678f251b998349

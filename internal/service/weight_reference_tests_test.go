@@ -43,9 +43,9 @@ import (
 // weightRefInferCase — `request` is the JSON slot fragment decoded onto
 // a fresh request, `figures` maps a wire path from the response root
 // (dot-separated keys; `[i]` an index, `[label]` the position of label in
-// the sibling "groups" array) to its reference value — and give the
-// surface a coverage call (weight_coverage_test.go). The runner below is
-// slot-agnostic.
+// the sibling "groups" array, chained for nested arrays: `means[p][0]`)
+// to its reference value — and give the surface a coverage call
+// (weight_coverage_test.go). The runner below is slot-agnostic.
 //
 // Tolerances (relative; absolute when the reference is 0), from
 // weightRefFigureTol: 1e-12 for statistics, df and estimates — R and
@@ -169,23 +169,26 @@ func wirePath(root any, path string) (any, error) {
 		if !indexed {
 			continue
 		}
-		sel = strings.TrimSuffix(sel, "]")
-		arr, ok := cur.([]any)
-		if !ok {
-			return nil, errPath(path, seg, "not an array")
-		}
-		i, err := strconv.Atoi(sel)
-		if err != nil {
-			groups, _ := obj["groups"].([]any)
-			i = slices.Index(groups, any(sel))
-			if i < 0 {
-				return nil, errPath(path, seg, "label not in the sibling groups")
+		// Chained selectors ("means[p][0]") index nested arrays; a
+		// label selector reads the sibling "groups" of the named key.
+		for _, one := range strings.Split(strings.TrimSuffix(sel, "]"), "][") {
+			arr, ok := cur.([]any)
+			if !ok {
+				return nil, errPath(path, seg, "not an array")
 			}
+			i, err := strconv.Atoi(one)
+			if err != nil {
+				groups, _ := obj["groups"].([]any)
+				i = slices.Index(groups, any(one))
+				if i < 0 {
+					return nil, errPath(path, seg, "label not in the sibling groups")
+				}
+			}
+			if i >= len(arr) {
+				return nil, errPath(path, seg, "index out of range")
+			}
+			cur = arr[i]
 		}
-		if i >= len(arr) {
-			return nil, errPath(path, seg, "index out of range")
-		}
-		cur = arr[i]
 	}
 	return cur, nil
 }
@@ -339,6 +342,8 @@ var weightRefTestPointEstimates = map[string][]string{
 	// Hotelling's T²: the (weighted) mean vectors read Σw ratios only.
 	"hotelling_one":   {"tests[0].details.mean[0]", "tests[0].details.mean[1]"},
 	"hotelling_split": {"tests[0].details.mean_diff[0]", "tests[0].details.mean_diff[1]"},
+	// MANOVA: the per-level mean vectors.
+	"manova": {"tests[0].details.means[p][0]", "tests[0].details.means[q][1]", "tests[0].details.means[r][0]"},
 }
 
 // testWeightRefTestsKindsAgree is TestWeightReferenceKindsAgree's

@@ -581,6 +581,16 @@ const (
 	// per level.
 	TEST_HOTELLING_T2 TestType = "TEST_HOTELLING_T2"
 
+	// TEST_MANOVA is the one-way MANOVA of a mean VECTOR (the members
+	// of Vector / Fields, listwise) across the levels of a categorical
+	// SplitBy (≥ 2 levels): within SSCP E = Σ per-level co-moments,
+	// between SSCP H from the level means, and the four statistics on
+	// the eigenvalues of E⁻¹H. Statistic / DF / PValue are Pillai's
+	// trace; Details carry Pillai, Wilks (Rao F), Hotelling–Lawley and
+	// Roy (an upper bound), each with F, df1, df2 and p. Streams via one
+	// co-moment accumulator per level.
+	TEST_MANOVA TestType = "TEST_MANOVA"
+
 	// TEST_SHAPIRO_WILK is the normality test on Field, computed in the
 	// Shapiro-Francia (W′) form. When SplitBy is set the test runs
 	// per-group; otherwise it runs over the full filtered set. Buffered:
@@ -618,6 +628,7 @@ func AllTestTypes() []TestType {
 		TEST_KRUSKAL_WALLIS,
 		TEST_KS,
 		TEST_MANN_WHITNEY_U,
+		TEST_MANOVA,
 		TEST_PAIRED_T,
 		TEST_PEARSON_R,
 		TEST_PROP_Z,
@@ -654,7 +665,7 @@ type Test struct {
 	Field2 string `json:"field2,omitempty"`
 
 	// Vector names the Request.Vectors entry whose members a
-	// vector-input test (TEST_HOTELLING_T2) reads as its p numeric
+	// vector-input test (TEST_HOTELLING_T2, TEST_MANOVA) reads as its p numeric
 	// columns. Exactly one of Vector and Fields is set on a vector-input
 	// test and neither on any other test (SERVICE_VALIDATION); a Vector
 	// no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN. Members

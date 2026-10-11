@@ -114,6 +114,12 @@ func TestResolveTests_Rules(t *testing.T) {
 		{name: "unknown literal", test: hot(func(t *types.Test) { t.Fields = []string{"a1", "nope"} }), code: errors.SERVICE_VALIDATION},
 		{name: "empty glob", test: hot(func(t *types.Test) { t.Fields = []string{"z*"} }), code: errors.PULSE_VECTOR_EMPTY},
 		{name: "vector on a scalar test", test: &types.Test{Type: types.TEST_T, Field: "a1", Vector: "va"}, code: errors.SERVICE_VALIDATION, reason: "vector_not_accepted"},
+		// TEST_MANOVA (U25 E1-S3): split_by required, missing only.
+		{name: "manova", test: &types.Test{Type: types.TEST_MANOVA, Vector: "vb", SplitBy: "region", Params: json.RawMessage(`{"missing": "listwise"}`)}, members: []string{"b1", "b2"}},
+		{name: "manova without split_by", test: &types.Test{Type: types.TEST_MANOVA, Vector: "vb"}, code: errors.SERVICE_VALIDATION, reason: "split_by_required"},
+		{name: "manova with a second set", test: &types.Test{Type: types.TEST_MANOVA, Vector: "vb", Vector2: "vb", SplitBy: "region"}, code: errors.SERVICE_VALIDATION, reason: "vector2_not_accepted"},
+		{name: "manova unknown param", test: &types.Test{Type: types.TEST_MANOVA, Vector: "vb", SplitBy: "region", Params: json.RawMessage(`{"mu": [0, 0]}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "manova pairwise refused", test: &types.Test{Type: types.TEST_MANOVA, Vector: "vb", SplitBy: "region", Params: json.RawMessage(`{"missing": "pairwise"}`)}, code: errors.SERVICE_VALIDATION, reason: "pairwise_unsupported"},
 		{name: "fields on a post-test", post: &types.Test{Type: types.TEST_ANOVA_F, Fields: []string{"a1"}}, code: errors.SERVICE_VALIDATION, reason: "vector_not_accepted"},
 	}
 	for _, c := range cases {

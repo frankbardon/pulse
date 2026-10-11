@@ -217,6 +217,7 @@
     - [op-test-kruskal-wallis](guide/skills/op-test-kruskal-wallis.md)
     - [op-test-ks](guide/skills/op-test-ks.md)
     - [op-test-mann-whitney-u](guide/skills/op-test-mann-whitney-u.md)
+    - [op-test-manova](guide/skills/op-test-manova.md)
     - [op-test-paired-t](guide/skills/op-test-paired-t.md)
     - [op-test-pearson-r](guide/skills/op-test-pearson-r.md)
     - [op-test-prop-z](guide/skills/op-test-prop-z.md)

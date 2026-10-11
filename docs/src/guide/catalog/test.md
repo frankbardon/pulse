@@ -15,6 +15,7 @@ The statistical tests this instance offers: what each is for, the questions it a
 | [`TEST_KRUSKAL_WALLIS`](#op-test_kruskal_wallis) | Rank-based check of whether values tend to be larger in some groups than in others, across two or more groups. | Do satisfaction ratings tend to differ across the four regions? | intermediate | [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when the data are roughly normal and you want to compare averages.<br>[`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when there are only two groups.<br>[`TEST_ANOVA_RM`](#op-test_anova_rm) when the same subjects are measured in every group and the measure is roughly normal (Pulse has no Friedman test for skewed repeated measures; for two conditions use TEST_WILCOXON_SR). |
 | [`TEST_KS`](#op-test_ks) | Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape. | Do order values in the two regions have the same overall distribution? | intermediate | [`TEST_SHAPIRO_WILK`](#op-test_shapiro_wilk) when you want to check one field against the normal distribution.<br>[`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when you only care whether one group's values tend to be larger.<br>[`OVERLAY_KS_VS_POP`](overlay.md#op-overlay_ks_vs_pop) when you compare a subgroup with the whole population. |
 | [`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) | Rank-based check of whether values in one of two groups tend to be larger than in the other. | Do customers on the new plan tend to rate the service higher? | intermediate | [`TEST_WILCOXON_SR`](#op-test_wilcoxon_sr) when the same subjects are measured twice.<br>[`TEST_KRUSKAL_WALLIS`](#op-test_kruskal_wallis) when there are three or more groups.<br>[`TEST_WELCH`](#op-test_welch) when the data are roughly normal and you want the difference in averages.<br>[`TEST_KS`](#op-test_ks) when you care about any difference in the shape of the two distributions. |
+| [`TEST_MANOVA`](#op-test_manova) | Checks whether several numeric fields, taken together as one profile, differ across two or more groups. | Do our customer segments differ on the whole set of spend, visit and basket metrics at once? | advanced | [`TEST_ANOVA_F`](#op-test_anova_f) when there is only one numeric field.<br>[`TEST_HOTELLING_T2`](#op-test_hotelling_t2) when there are only two groups and you want the T² figure. |
 | [`TEST_PAIRED_T`](#op-test_paired_t) | Checks whether the average change between two measurements of the same rows, such as before and after, differs from zero. | On average, did customers' spend differ between the period before and after the loyalty programme started? | intermediate | [`TEST_WELCH`](#op-test_welch) when the two sets of values come from different, unrelated subjects.<br>[`TEST_WILCOXON_SR`](#op-test_wilcoxon_sr) when the per-row differences are skewed or have extreme values.<br>[`TEST_ANOVA_RM`](#op-test_anova_rm) when each subject is measured under three or more conditions. |
 | [`TEST_PEARSON_R`](#op-test_pearson_r) | Measures how strongly two numeric fields rise and fall together along a straight line. | Do customers who spend more also visit more often? | intermediate | [`TEST_SPEARMAN_R`](#op-test_spearman_r) when the link is consistent but curved, or the values are ranks.<br>[`TEST_KENDALL_TAU`](#op-test_kendall_tau) when the sample is small or has many tied values.<br>[`TEST_CHISQ`](#op-test_chisq) when both fields are categories.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want to predict one field from several others.<br>[`TEST_TREND`](#op-test_trend) when you want to know whether one ordered series keeps rising or falling. |
 | [`TEST_PROP_Z`](#op-test_prop_z) | Checks whether the rate of one outcome, such as conversion, differs between two groups. | Does the new checkout convert at a different rate from the old one? | basic | [`TEST_FISHER_EXACT`](#op-test_fisher_exact) when some groups have only a handful of successes or failures.<br>[`TEST_CHISQ`](#op-test_chisq) when there are more than two groups or more than two outcomes.<br>[`TEST_WELCH`](#op-test_welch) when the outcome is a numeric measure rather than a yes/no rate. |
@@ -474,6 +475,44 @@ Rank-based check of whether values in one of two groups tend to be larger than i
 **Glossary:** [`continuity-correction`](../glossary.md#term-continuity-correction), [`independence`](../glossary.md#term-independence), [`median`](../glossary.md#term-median), [`non-parametric`](../glossary.md#term-non-parametric), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`rank-biserial`](../glossary.md#term-rank-biserial), [`test-statistic`](../glossary.md#term-test-statistic), [`ties`](../glossary.md#term-ties), [`two-tailed`](../glossary.md#term-two-tailed)
 
 **Skill:** [`op-test-mann-whitney-u`](../skills/op-test-mann-whitney-u.md)
+
+<a id="op-test_manova"></a>
+
+### `TEST_MANOVA`
+
+Checks whether several numeric fields, taken together as one profile, differ across two or more groups.
+
+**Level:** advanced
+
+**Also known as:** `manova`, `multivariate anova`, `pillai's trace`, `wilks' lambda`
+
+**Questions it answers:**
+
+- Do our customer segments differ on the whole set of spend, visit and basket metrics at once?
+- Do the three store formats differ on their combined service ratings?
+
+**Use cases by domain:**
+
+- *survey:* Compare several segments on a battery of rating items in one test.
+- *ops:* Compare several sites on throughput, wait time and error rate together.
+- *science:* Compare several treatment arms on more than one outcome without one ANOVA per outcome.
+
+**Assumptions:**
+
+- Rows are independent of each other, within and across the groups.
+- The fields are roughly jointly normal within each group; with many rows the test tolerates departures.
+- The groups share one covariance across the fields; Pillai's trace, the headline, is the most forgiving when they do not.
+- A row with any field missing is dropped from the test (listwise).
+- There are at least as many complete rows as fields plus groups.
+
+**Use something else:**
+
+- [`TEST_ANOVA_F`](#op-test_anova_f) when there is only one numeric field.
+- [`TEST_HOTELLING_T2`](#op-test_hotelling_t2) when there are only two groups and you want the T² figure.
+
+**Glossary:** [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`eigenvalue`](../glossary.md#term-eigenvalue), [`f-statistic`](../glossary.md#term-f-statistic), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`mean`](../glossary.md#term-mean), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Skill:** [`op-test-manova`](../skills/op-test-manova.md)
 
 <a id="op-test_paired_t"></a>
 

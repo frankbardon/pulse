@@ -27,6 +27,7 @@ var statTestInterpretations = map[string][]descriptor.Interpretation{
 	"TEST_KRUSKAL_WALLIS": interpTestKruskalWallis,
 	"TEST_KS":             interpTestKS,
 	"TEST_MANN_WHITNEY_U": interpTestMannWhitneyU,
+	"TEST_MANOVA":         interpTestManova,
 	"TEST_PAIRED_T":       interpTestPairedT,
 	"TEST_PEARSON_R":      interpTestPearsonR,
 	"TEST_PROP_Z":         interpTestPropZ,
@@ -257,6 +258,38 @@ var (
 		{
 			Field: "details.f",
 			Means: "T² rescaled to an F statistic on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.",
+		},
+	}
+
+	interpTestManova = []descriptor.Interpretation{
+		{
+			Field: "statistic",
+			Means: "Pillai's trace, between 0 and the smaller of the field count and the group count minus one, sums how much of the fields' joint spread lies between the group average profiles; " +
+				"larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.",
+			Caveats: []string{
+				"It says whether some groups' profiles differ as a whole, not which groups or which fields: compare the per-group averages in details.means.",
+				"It is null, with a warning, when the fields' within-group covariance is singular, for example when one field is constant inside every group or is the sum of others.",
+			},
+		},
+		interpPValue,
+		{
+			Field: "details.f",
+			Means: "Pillai's trace rescaled to an approximate F on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.",
+		},
+		{
+			Field: "details.wilks",
+			Means: "Wilks' lambda, between 0 and 1, the share of the fields' joint spread left inside groups; smaller is stronger evidence, with its own f, df1, df2 and p_value.",
+		},
+		{
+			Field: "details.hotelling_lawley",
+			Means: "The Hotelling–Lawley trace, the between-group spread measured against the within-group spread; larger is stronger evidence, with its own f, df1, df2 and p_value.",
+		},
+		{
+			Field: "details.roy",
+			Means: "Roy's largest root, the separation along the single best direction through the fields, with its own f, df1, df2 and p_value.",
+			Caveats: []string{
+				"Its F is an upper bound (upper_bound is true), so its p-value is a lower bound and overstates the evidence; read it beside Pillai's.",
+			},
 		},
 	}
 

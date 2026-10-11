@@ -212,6 +212,20 @@ out("hotelling_split", "f", a2[["approx F"]][2])
 out("hotelling_split", "df2", a2[["den Df"]][2])
 out("hotelling_split", "p_value", a2[["Pr(>F)"]][2])
 
+# TEST_MANOVA on the (x, y) mean vector across k (U25 E1-S3):
+# summary(manova(...)) for each of the four statistics; figure names are
+# "<statistic>_<column>".
+fm <- manova(cbind(x, y) ~ k, data = xs)
+for (tn in c(pillai = "Pillai", wilks = "Wilks", hotelling_lawley = "Hotelling-Lawley", roy = "Roy")) {
+  key <- names(which(c(pillai = "Pillai", wilks = "Wilks", hotelling_lawley = "Hotelling-Lawley", roy = "Roy") == tn))
+  st <- summary(fm, test = tn)$stats[1, ]
+  out("manova", paste0(key, "_statistic"), st[[2]])
+  out("manova", paste0(key, "_f"), st[[3]])
+  out("manova", paste0(key, "_df1"), st[[4]])
+  out("manova", paste0(key, "_df2"), st[[5]])
+  out("manova", paste0(key, "_p_value"), st[[6]])
+}
+
 # Inferential overlays (weighting-inferential E3-S3), each on the
 # expanded rows; figure names ARE the Go figure keys
 # ("<layer>/<wire path>", see weight_reference_overlays_test.go). The

@@ -31,7 +31,7 @@ branch: multivariate-tests-segmentation
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
 - [x] **#131** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_HOTELLING_T2`
-- [ ] **#132** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_MANOVA` (Wilks, Pillai, Hotelling–Lawley, Roy)
+- [x] **#132** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_MANOVA` (Wilks, Pillai, Hotelling–Lawley, Roy)
 - [ ] **#133** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_BARTLETT_SPHERICITY`
 - [ ] **#134** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_MAHALANOBIS`
 - [ ] **#135** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_PC_SCORE` (two-pass, `fit_on`)
@@ -70,7 +70,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(multivariate-test
 
 ## Acceptance criteria
 
-- [ ] Hotelling/MANOVA match reference outputs on fixtures
+- [x] Hotelling/MANOVA match reference outputs on fixtures
 - [ ] Mahalanobis D² matches a reference computation; streaming correctly forces two-pass/buffered
 - [ ] k-means labels are identical across runs, worker counts and shard orders
 - [ ] All gates for new operators pass

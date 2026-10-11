@@ -386,6 +386,45 @@ Rank-biserial correlation, from -1 to +1: the chance that a random row from the 
 - There are no sourced bands for rank-biserial r that Pulse could verify, so none are attached; (r + 1) / 2 is the probability that a first-group row is larger, ties counting half.
 - It measures how often one group's values exceed the other's, not a difference in medians.
 
+<a id="op-test_manova"></a>
+
+### `TEST_MANOVA`
+
+Checks whether several numeric fields, taken together as one profile, differ across two or more groups. See its [catalog entry](../catalog/test.md#op-test_manova).
+
+#### `statistic`
+
+Pillai's trace, between 0 and the smaller of the field count and the group count minus one, sums how much of the fields' joint spread lies between the group average profiles; larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.
+
+**Caveats:**
+
+- It says whether some groups' profiles differ as a whole, not which groups or which fields: compare the per-group averages in details.means.
+- It is null, with a warning, when the fields' within-group covariance is singular, for example when one field is constant inside every group or is the sum of others.
+
+#### `p_value`
+
+Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.f`
+
+Pillai's trace rescaled to an approximate F on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.
+
+#### `details.wilks`
+
+Wilks' lambda, between 0 and 1, the share of the fields' joint spread left inside groups; smaller is stronger evidence, with its own f, df1, df2 and p_value.
+
+#### `details.hotelling_lawley`
+
+The Hotelling–Lawley trace, the between-group spread measured against the within-group spread; larger is stronger evidence, with its own f, df1, df2 and p_value.
+
+#### `details.roy`
+
+Roy's largest root, the separation along the single best direction through the fields, with its own f, df1, df2 and p_value.
+
+**Caveats:**
+
+- Its F is an upper bound (upper_bound is true), so its p-value is a lower bound and overstates the evidence; read it beside Pillai's.
+
 <a id="op-test_paired_t"></a>
 
 ### `TEST_PAIRED_T`

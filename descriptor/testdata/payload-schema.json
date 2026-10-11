@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:893d5eeca87f5bf51130db1560f0bfe661a48a7a24ec95c6880a2a570bfb3ba1",
+  "$comment": "feature_set_digest: fs1:fdb19998de257d265bb463bfd720beec6f6ef944680299b4a3523fbceeca3d16",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -4068,6 +4068,7 @@
         "TEST_KRUSKAL_WALLIS",
         "TEST_KS",
         "TEST_MANN_WHITNEY_U",
+        "TEST_MANOVA",
         "TEST_PAIRED_T",
         "TEST_PEARSON_R",
         "TEST_PROP_Z",
@@ -4273,4 +4274,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: bbdc5de1e2d774e8acdd54789aa93bcba824af19bb83749c80c4d309c2964a25
+// golden-hash: 4deb8e054e1e57a2f190c12f0753b1431606930cdde307f7ed04db798e64a24b

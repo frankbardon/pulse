@@ -551,6 +551,8 @@ TEST_SPECS = [
     ("hotelling_one", {"type": "TEST_HOTELLING_T2", "fields": ["x", "y"],
                        "params": {"mu": [TEST_MU, TEST_MU]}}),
     ("hotelling_split", {"type": "TEST_HOTELLING_T2", "fields": ["x", "y"], "split_by": "h"}),
+    # MANOVA (U25 E1-S3) on the (x, y) mean vector across the 3 k levels.
+    ("manova", {"type": "TEST_MANOVA", "fields": ["x", "y"], "split_by": "k"}),
 ]
 
 # Request-level slots a case adds beside its tests[0] slot.
@@ -690,6 +692,56 @@ def test_closed_form(case, rows, prob):
                     "n[a]": va["n"], "n[b]": vb["n"]})
         if prob:
             out.update({"n_eff[a]": va["nstar"], "n_eff[b]": vb["nstar"]})
+        return out
+    if case == "manova":
+        # Per-level N*_g and M2*_g = c_g·M2_g (TEST_ANOVA_F's rule):
+        # E = Σ M2*_g, H = Σ N*_g (m_g − gm)(m_g − gm)ᵀ, gm = Σ N*_g m_g / N*;
+        # the four statistics are R's stats:::Pillai / Wilks / HL / Roy.
+        p = 2
+        levels = []
+        for g in K_LEVELS:
+            sub = [r for r in xr if r[3] == g]
+            X = np.array([[r[0], r[1]] for r in sub], dtype=float)
+            w = np.array([r[5] for r in sub], dtype=float)
+            sw = float(w.sum())
+            nstar = kish(w) if prob else sw
+            m = (w[:, None] * X).sum(axis=0) / sw
+            dev = X - m
+            m2s = (nstar / sw) * ((w[:, None] * dev).T @ dev)
+            levels.append((g, len(sub), sw, nstar, m, m2s))
+            out[f"n[{g}]"] = len(sub)
+            out[f"sum_weights[{g}]"] = sw
+            if prob:
+                out[f"n_eff[{g}]"] = nstar
+        k = len(levels)
+        ntot = sum(lv[3] for lv in levels)
+        gm = sum(lv[3] * lv[4] for lv in levels) / ntot
+        E = sum(lv[5] for lv in levels)
+        H = sum(lv[3] * np.outer(lv[4] - gm, lv[4] - gm) for lv in levels)
+        q, dfr = k - 1, ntot - k
+        eig = sorted(np.linalg.eigvals(np.linalg.solve(E, H)).real.tolist(), reverse=True)
+        s_ = min(p, q)
+        nn = 0.5 * (dfr - p - 1)
+        mm = 0.5 * (abs(p - q) - 1)
+        t1, t2 = 2 * mm + s_ + 1, 2 * nn + s_ + 1
+        V = sum(l / (1 + l) for l in eig)
+        stats = {"pillai": (V, (t2 / t1 * V) / (s_ - V), s_ * t1, s_ * t2)}
+        lam = float(np.prod([1 / (1 + l) for l in eig]))
+        w3 = p * p + q * q - 5
+        w3 = math.sqrt(((p * q) ** 2 - 4) / w3) if w3 > 0 else 1
+        wdf2 = (dfr - 0.5 * (p - q + 1)) * w3 - 2 * ((p * q - 2) / 4)
+        stats["wilks"] = (lam, ((lam ** (-1 / w3) - 1) * wdf2) / p / q, p * q, wdf2)
+        U = sum(eig)
+        h2 = 2 * (s_ * nn + 1)
+        stats["hotelling_lawley"] = (U, (h2 * U) / s_ / s_ / t1, s_ * t1, h2)
+        r1 = max(p, q)
+        stats["roy"] = (max(eig), ((dfr - r1 + q) * max(eig)) / r1, r1, dfr - r1 + q)
+        for name, (st, F, d1, d2) in stats.items():
+            out.update({f"{name}.statistic": st, f"{name}.f": F, f"{name}.df1": d1, f"{name}.df2": d2,
+                        f"{name}.p_value": float(scipy.stats.f.sf(F, d1, d2))})
+        pv = stats["pillai"]
+        out.update(statistic=pv[0], df=pv[2], p_value=out["pillai.p_value"], f=pv[1], df2=pv[3],
+                   df_hypothesis=q, df_residual=dfr)
         return out
     if case == "paired":
         s = Sample([r[0] - r[1] for r in xr], [r[5] for r in xr], prob)
@@ -1016,6 +1068,12 @@ R_FIGURES.update({
     # an intercept test and for a two-level factor).
     "hotelling_one": ("hotelling_one", {"t2": "statistic", "f": "f", "df2": "df2", "p_value": "p_value"}),
     "hotelling_split": ("hotelling_split", {"t2": "statistic", "f": "f", "df2": "df2", "p_value": "p_value"}),
+})
+R_FIGURES.update({
+    # MANOVA from summary(manova(cbind(x, y) ~ k), test = ...) on the
+    # expansion, all four statistics.
+    "manova": ("manova", {f"{t}_{c}": f"{t}.{c}" for t in ("pillai", "wilks", "hotelling_lawley", "roy")
+                          for c in ("statistic", "f", "df1", "df2", "p_value")}),
 })
 R_FIGURES["welch"] = R_FIGURES["t_split"]
 

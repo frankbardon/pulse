@@ -4619,6 +4619,7 @@ pulse/types: const TEST_KENDALL_TAU pulse/types.TestType = "TEST_KENDALL_TAU"
 pulse/types: const TEST_KRUSKAL_WALLIS pulse/types.TestType = "TEST_KRUSKAL_WALLIS"
 pulse/types: const TEST_KS pulse/types.TestType = "TEST_KS"
 pulse/types: const TEST_MANN_WHITNEY_U pulse/types.TestType = "TEST_MANN_WHITNEY_U"
+pulse/types: const TEST_MANOVA pulse/types.TestType = "TEST_MANOVA"
 pulse/types: const TEST_PAIRED_T pulse/types.TestType = "TEST_PAIRED_T"
 pulse/types: const TEST_PEARSON_R pulse/types.TestType = "TEST_PEARSON_R"
 pulse/types: const TEST_PROP_Z pulse/types.TestType = "TEST_PROP_Z"
@@ -4711,4 +4712,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 308c385a155ce9f940cd58d428dfb097e44735716197305aa6b00d7ae9f8690e
+// golden-hash: b4e902035bd4b48ff942f95914f24fd15d0dccb367b3c80672b1cf64c9fe004d

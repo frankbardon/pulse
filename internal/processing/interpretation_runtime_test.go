@@ -64,6 +64,7 @@ var interpretationProbes = map[string][]string{
 	"TEST_HOTELLING_T2":   {"details.f"},
 	"TEST_KRUSKAL_WALLIS": {"details.effect_size.epsilon_squared"},
 	"TEST_MANN_WHITNEY_U": {"details.effect_size.rank_biserial", "details.z"},
+	"TEST_MANOVA":         {"details.f", "details.hotelling_lawley", "details.roy", "details.wilks"},
 	"TEST_PAIRED_T":       {"details.ci_high", "details.ci_low", "details.effect_size.cohens_d", "details.mean_diff"},
 	"TEST_PEARSON_R":      {"details.ci_high", "details.ci_low"},
 	"TEST_PROP_Z":         {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h"},
@@ -181,6 +182,22 @@ func hotellingProbeRow(split bool) func(t *testing.T) *types.TestResult {
 	}
 }
 
+// manovaProbeRow runs TEST_MANOVA over pairedXY as a 2-member vector
+// split into three levels by row index.
+func manovaProbeRow(t *testing.T) *types.TestResult {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x", Type: encoding.FieldTypeF64},
+		{Name: "y", Type: encoding.FieldTypeF64},
+		{Name: "g", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+	}}
+	spec := &types.Test{Type: types.TEST_MANOVA, Fields: []string{"x", "y"}, SplitBy: "g"}
+	return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+		for i, p := range pairedXY {
+			mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"x": p[0], "y": p[1]}, "g", []string{"a", "b", "c"}[i%3]))
+		}
+	})
+}
+
 func pairedPost(typ types.TestType) func(t *testing.T) *types.TestResult {
 	return func(t *testing.T) *types.TestResult {
 		rows := make([]map[string]any, len(pairedXY))
@@ -252,6 +269,7 @@ var testProbeFixtures = []testProbeFixture{
 	{types.TEST_PAIRED_T, tierRow, "sleep_pairs", pairedRow(types.TEST_PAIRED_T)},
 	{types.TEST_HOTELLING_T2, tierRow, "sleep_pairs_one_sample", hotellingProbeRow(false)},
 	{types.TEST_HOTELLING_T2, tierRow, "sleep_pairs_two_sample", hotellingProbeRow(true)},
+	{types.TEST_MANOVA, tierRow, "sleep_pairs_three_levels", manovaProbeRow},
 	{types.TEST_WILCOXON_SR, tierRow, "sleep_pairs", pairedRow(types.TEST_WILCOXON_SR)},
 	{types.TEST_PEARSON_R, tierRow, "sleep_pairs", pairedRow(types.TEST_PEARSON_R)},
 	{types.TEST_SPEARMAN_R, tierRow, "sleep_pairs", pairedRow(types.TEST_SPEARMAN_R)},

@@ -88,6 +88,9 @@ var testParityOps = []testParityOp{
 	{name: "hotelling_unequal", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}, SplitBy: "h",
 		Params: json.RawMessage(`{"variance":"unequal"}`)},
 		raw: []string{"n_dropped"}},
+	// MANOVA (U25 E1-S3): the same per-level co-moments on w*.
+	{name: "manova", spec: types.Test{Type: types.TEST_MANOVA, Fields: []string{"x", "y"}, SplitBy: "k"},
+		raw: []string{"n_dropped"}},
 }
 
 // build returns the row's request builder over path.

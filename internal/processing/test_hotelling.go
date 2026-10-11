@@ -182,22 +182,30 @@ func (h *hotellingRow) Finalize() (*types.TestResult, error) {
 }
 
 // nStar is a level's N* under the test's basis.
-func (h *hotellingRow) nStar(c *linalg.CoMoment) float64 {
-	if h.basis == weighting.Probability {
+func (h *hotellingRow) nStar(c *linalg.CoMoment) float64 { return levelNStar(h.basis, c) }
+
+// scaledM2 is a level's co-moment matrix on w* (levelScaledM2).
+func (h *hotellingRow) scaledM2(c *linalg.CoMoment) [][]float64 { return levelScaledM2(h.basis, c) }
+
+// levelNStar is one co-moment level's N* under basis: Kish n_eff
+// (probability) or Σw (unweighted / frequency).
+func levelNStar(basis weighting.Basis, c *linalg.CoMoment) float64 {
+	if basis == weighting.Probability {
 		return c.NEff()
 	}
 	return c.W()
 }
 
-// scaledM2 is a level's co-moment matrix on w*: M2* = c·M2, read as
-// Cov(0)·N* under probability (Cov(0) = M2/Σw) and Cov(0)·Σw otherwise.
-func (h *hotellingRow) scaledM2(c *linalg.CoMoment) [][]float64 {
+// levelScaledM2 is a level's co-moment matrix on w*: M2* = c·M2 with
+// the level's own c = N*/Σw, read as Cov(0)·N* under probability
+// (Cov(0) = M2/Σw) and Cov(0)·Σw otherwise.
+func levelScaledM2(basis weighting.Basis, c *linalg.CoMoment) [][]float64 {
 	cov := c.Cov(0)
 	scale := c.W()
-	if h.basis == weighting.Probability {
+	if basis == weighting.Probability {
 		scale = c.NEff()
 	}
-	p := len(h.members)
+	p := c.P()
 	out := make([][]float64, p)
 	for i := range out {
 		out[i] = make([]float64, p)
@@ -224,30 +232,7 @@ func quadForm(m [][]float64, den float64, d []float64) (float64, bool) {
 			s[i][j] = m[i][j] / den
 		}
 	}
-	sd := make([]float64, p)
-	for i := range sd {
-		v := s[i][i]
-		if !(v > 0) || math.IsInf(v, 0) {
-			return 0, false
-		}
-		sd[i] = math.Sqrt(v)
-	}
-	r := make([][]float64, p)
-	for i := range r {
-		r[i] = make([]float64, p)
-		for j := range r[i] {
-			r[i][j] = s[i][j] / (sd[i] * sd[j])
-		}
-	}
-	rs, err := linalg.NewSymFromRows(r)
-	if err != nil {
-		return 0, false
-	}
-	eig, err := linalg.SymEigen(rs)
-	if err != nil {
-		return 0, false
-	}
-	if p > 0 && eig.Values.At(p-1) <= linalg.RankTolerance(p, p, eig.Values.At(0)) {
+	if rankDeficient(s) {
 		return 0, false
 	}
 	sym, err := linalg.NewSymFromRows(s)
@@ -263,6 +248,39 @@ func quadForm(m [][]float64, den float64, d []float64) (float64, bool) {
 		q += float64(di * y.At(i))
 	}
 	return q, true
+}
+
+// rankDeficient is the one singular DECISION for a symmetric
+// covariance-shaped s (p × p): a zero or non-finite diagonal entry, or
+// a smallest eigenvalue of s's correlation form at or below the one
+// rank tolerance (linalg.RankTolerance over gonum SymEigen — portable
+// decisions). TEST_HOTELLING_T2 and TEST_MANOVA share it.
+func rankDeficient(s [][]float64) bool {
+	p := len(s)
+	sd := make([]float64, p)
+	for i := range sd {
+		v := s[i][i]
+		if !(v > 0) || math.IsInf(v, 0) {
+			return true
+		}
+		sd[i] = math.Sqrt(v)
+	}
+	r := make([][]float64, p)
+	for i := range r {
+		r[i] = make([]float64, p)
+		for j := range r[i] {
+			r[i][j] = s[i][j] / (sd[i] * sd[j])
+		}
+	}
+	rs, err := linalg.NewSymFromRows(r)
+	if err != nil {
+		return true
+	}
+	eig, err := linalg.SymEigen(rs)
+	if err != nil {
+		return true
+	}
+	return p > 0 && eig.Values.At(p-1) <= linalg.RankTolerance(p, p, eig.Values.At(0))
 }
 
 // singular marks res's figures undefined and attaches the warning.
@@ -536,7 +554,7 @@ func (h *hotellingRow) finalizeTwoSampleUnequal() (*types.TestResult, error) {
 // noteWeights writes sum_weights (and n_eff under kind probability)
 // beside `n`: scalars for the one-sample form, per-level arrays for
 // the two-sample one; no-op unweighted.
-func (h *hotellingRow) noteWeights(details map[string]any, levels []*linalg.CoMoment, split bool) {
+func (h *testWeight) noteWeights(details map[string]any, levels []*linalg.CoMoment, split bool) {
 	if !h.basis.Weighted() {
 		return
 	}
