@@ -89,6 +89,8 @@ func TestResolve_Refusals(t *testing.T) {
 		{"bad regex", []types.VectorSpec{{Name: "v", Pattern: "q_("}}, errors.PULSE_VECTOR_INVALID, "reason", "bad_pattern"},
 		{"unknown literal", []types.VectorSpec{{Name: "v", Fields: []string{"q_9"}}}, errors.SERVICE_VALIDATION, "field", "q_9"},
 		{"duplicate name", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}}, {Name: "v", Fields: []string{"q_2"}}}, errors.PULSE_VECTOR_DUPLICATE, "name", "v"},
+		{"name collides with a field", []types.VectorSpec{{Name: "score", Fields: []string{"q_1"}}}, errors.PULSE_VECTOR_NAME_COLLISION, "field", "score"},
+		{"collision judged before shape", []types.VectorSpec{{Name: "q_2"}}, errors.PULSE_VECTOR_NAME_COLLISION, "vector", "vectors[0]"},
 		{"duplicate literal", []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "q_1"}}}, errors.PULSE_VECTOR_DUPLICATE, "field", "q_1"},
 		{"literal repeated by a glob", []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "q_*"}}}, errors.PULSE_VECTOR_DUPLICATE, "field", "q_1"},
 		{"empty pattern resolution", []types.VectorSpec{{Name: "v", Pattern: "^nope"}}, errors.PULSE_VECTOR_EMPTY, "pattern", "^nope"},
@@ -261,5 +263,42 @@ func TestMemberTypeAllowed(t *testing.T) {
 	}
 	if !MemberTypeAllowed(encoding.FieldTypePackedBool, types.VectorCoerceBinary) {
 		t.Error("packed_bool under binary must be allowed")
+	}
+}
+
+// TestReferenced_CountsExpressionReads: a vector read only by an
+// expression slot (ATTR_FORMULA, FILTER_EXPRESSION, a total() argument,
+// a vector attribute's fit_on expression filter) is referenced, so it
+// raises no PULSE_VECTOR_UNREFERENCED; a callee, a field, a string
+// literal or a let binding of the same spelling is not a reference.
+func TestReferenced_CountsExpressionReads(t *testing.T) {
+	vecs := []types.VectorSpec{{Name: "battery"}, {Name: "other"}}
+	cases := []struct {
+		name string
+		req  types.Request
+		want []string // Unreferenced
+	}{
+		{"formula", types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "m", Expression: `vcount(battery) >= 6 ? vmean(battery) : nil`}}}, []string{"other"}},
+		{"filter", types.Request{Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: `vsd(other) > 0`}}}, []string{"battery"}},
+		{"total arg", types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "s", Expression: `q1 / total(vsum(battery))`}}}, []string{"other"}},
+		{"fit_on", types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Label: "d", Fields: []string{"q1", "q2"},
+			Params: []byte(`{"fit_on":[{"type":"FILTER_EXPRESSION","expression":"vsd(battery) > 0"}]}`)}}}, []string{"other"}},
+		{"both", types.Request{
+			Filterers:  []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: `vsd(other) > 0`}},
+			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "m", Expression: `vmean(battery)`}}}, nil},
+		{"not a read", types.Request{
+			Filterers:  []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "battery", Expression: `battery`}},
+			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "m", Expression: `battery("x") + len("other") + (let other = 1; other)`}}},
+			[]string{"battery", "other"}},
+		{"unparsable", types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "m", Expression: `vmean(battery`}}}, []string{"battery", "other"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := c.req
+			req.Vectors = vecs
+			if got := Unreferenced(&req); !slices.Equal(got, c.want) {
+				t.Errorf("Unreferenced = %v, want %v", got, c.want)
+			}
+		})
 	}
 }

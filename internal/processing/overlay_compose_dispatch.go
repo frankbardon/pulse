@@ -255,6 +255,13 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 				}
 				return nil, nil, errors.NewCodedErrorWithDetails(cerr.Code, cerr.Message, details)
 			}
+			// A vector built-in is refused here too, at the point
+			// predict-compose (descriptor.composeFormulaBuiltinRefusal)
+			// refuses it: a host whose shape never compiles the formula
+			// would otherwise answer an empty layer.
+			if cerr := composeOverlayBuiltinRefusal(spec, formula, i); cerr != nil {
+				return nil, nil, cerr
+			}
 		}
 		// Reference must resolve to a known label AND a non-nil slot.
 		// LookupReference owns the canonical-code dispatch for the

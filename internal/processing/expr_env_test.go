@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
 )
 
 // Direct unit coverage for reflectiveExprTrampoline + asExprFunc +
@@ -240,9 +241,10 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 // setExprHelperCount is the number of always-on options contributed by
 // ExprOptions: the eight set helpers (has_any / has_all / has_none /
 // popcount / set_union / set_intersect / set_diff / set_xor) plus the
-// `%` float-modulo builtin and its patcher (expr_mod.go). Bump this
-// constant when the roster changes.
-const setExprHelperCount = 8 + 2
+// `%` float-modulo builtin and its patcher (expr_mod.go), plus one per
+// reserved vector / scalar-maths built-in (internal/exprbuiltins). Bump
+// this constant when the set-helper roster changes.
+var setExprHelperCount = 8 + 2 + len(exprbuiltins.Names())
 
 func TestExprOptions_NilRegistry(t *testing.T) {
 	var r *ExtensionRegistry

@@ -579,7 +579,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			RefKinds: []string{},
 			Description: "Custom user-defined overlay via expr-lang formula; namespace varies by host shape; buffered-only. " +
 				"The handler compiles `OverlaySpec.Params[\"formula\"]` ONCE per spec via expr-lang/expr (the same " +
-				"evaluator that backs ATTR_FORMULA and FILTER_EXPRESSION — embedder ExprFunctions registered at " +
+				"evaluator that backs ATTR_FORMULA and FILTER_EXPRESSION — the scalar built-ins sqrt / log / exp / pow, the set helpers, lookup() with a registered LookupTable and embedder ExprFunctions registered at " +
 				"pulse.New time are reachable from FORMULA expressions with no additional registration) then runs " +
 				"the compiled program per cell / entry / scalar against a per-host-shape variable namespace " +
 				"(MATRIX hosts: cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; SERIES " +
@@ -589,7 +589,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"coercion: float64 / float32 / int / int64 widen natively; bool widens to 0.0 / 1.0; everything " +
 				"else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time identifier validation walks " +
 				"the parsed AST via expr-lang/expr/parser + expr-lang/expr/ast and rejects every identifier not " +
-				"in the per-shape variable table (types.FormulaNamespace) or the embedder ExprFunctions function " +
+				"in the per-shape variable table (types.FormulaNamespace), sqrt / log / exp / pow, the set helpers, lookup() (with a LookupTable), or the embedder ExprFunctions function " +
 				"set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. INHERENTLY BUFFERED at v1 across every host shape " +
 				"— the variable namespace depends on post-fold state (margins / totals / SDs are not available " +
 				"mid-stream); a streamable variant under a distinct kind constant may land in future work without " +

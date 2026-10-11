@@ -1,9 +1,13 @@
 package descriptor
 
 import (
+	"strings"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
@@ -439,6 +443,14 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// (processing.ApplyComposeOverlaysWithRequests) refuses at the same
 	// point, before reference resolution, under the same code.
 	if cerr := composeFormulaTotalRefusal(spec, specIdx, opts.overlayRoute(spec.Kind)); cerr != nil {
+		addCodedError(env, cerr)
+		return
+	}
+	// Gate 0c: a Compose-host OVERLAY_FORMULA may not call a vector
+	// built-in (exprbuiltins.OverlayRefused) — the request-host gate's
+	// callee rule. The runtime compile refuses the same formula under
+	// the same code.
+	if cerr := composeFormulaBuiltinRefusal(spec, specIdx, opts.overlayRoute(spec.Kind)); cerr != nil {
 		addCodedError(env, cerr)
 		return
 	}
@@ -1156,6 +1168,34 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 	}
 	return out
+}
+
+// composeFormulaBuiltinRefusal is PULSE_OVERLAY_FORMULA_INVALID_IDENT
+// for a Compose-host OVERLAY_FORMULA whose Params["formula"] calls a
+// reserved built-in outside the overlay scalar-maths subset (the first
+// such callee, internal/exprident.FirstCallee with
+// exprbuiltins.OverlayRefused — the runtime compile's own rule). nil
+// for any other kind, a missing / non-string / unparsable formula (the
+// parse error surfaces elsewhere) or a formula calling none. route is
+// the instance's route of spec.Kind.
+func composeFormulaBuiltinRefusal(spec *types.ComposeOverlaySpec, specIdx int, route types.OverlayKind) *errors.CodedError {
+	if route != types.OverlayKindFormula {
+		return nil
+	}
+	formula, _ := spec.Params["formula"].(string)
+	refused := exprident.FirstCallee(formula, exprbuiltins.OverlayRefused)
+	if refused == "" {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
+		"overlay "+string(spec.Kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
+		map[string]any{
+			"index":              specIdx,
+			"kind":               string(spec.Kind),
+			"unknown_identifier": refused,
+			"allowed_builtins":   exprbuiltins.OverlayNames(),
+			"formula":            formula,
+		})
 }
 
 // composeFormulaTotalRefusal is PULSE_FORMULA_TOTAL_SITE for a

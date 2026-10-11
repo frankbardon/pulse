@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -266,7 +267,14 @@ type expressionFilterer struct {
 	exts *ExtensionRegistry
 	// models are the request's bound models coef() reads (nil: none).
 	models *model.Set
+	// vecs are the request's resolved named vectors the expression may
+	// read (nil: none), injected before Build.
+	vecs []vectors.Resolved
 }
+
+// bindVectors satisfies vectorBinder: the expression reads the
+// request's named vectors as []float64 identifiers.
+func (f *expressionFilterer) bindVectors(vecs []vectors.Resolved) { f.vecs = vecs }
 
 // bindModels satisfies modelBinder: coef() reads the request's bound
 // models (injected before Build).
@@ -301,14 +309,14 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	if err := f.exts.coefStaticRefusal(filter.Expression, f.models); err != nil {
 		return nil, err
 	}
-	prog, err := newExprProgram(filter.Expression, "filter", schema, f.exts.exprOptionsWithModels(f.models))
+	prog, err := newExprProgram(filter.Expression, "filter", schema, f.vecs, f.exts.exprOptionsWithModels(f.models))
 	if err != nil {
 		return nil, err
 	}
 	return func(record *Record) (bool, error) {
 		output, nullInput, err := prog.runRecord(record)
 		if err != nil {
-			if nullInput && modelRefusal(err) == nil {
+			if nullInput && exprRefusal(err) == nil {
 				// A null operand made the predicate UNKNOWN: drop the
 				// row, as SQL WHERE does.
 				return false, nil
@@ -319,6 +327,9 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 		if !ok {
 			if nullInput && output == nil {
 				return false, nil
+			}
+			if _, vec := output.([]float64); vec {
+				return false, vectorResultError("filter")
 			}
 			return false, errors.NewCodedError(errors.PROCESSING_RUNTIME,
 				fmt.Sprintf("filter expression must return bool, got %T", output))

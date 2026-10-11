@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404]
+todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419]
 branch: predict-runtime-parity
 ---
 
@@ -106,6 +106,13 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 |---|---|
 | Per-Groups tests | [U25](U25-multivariate-tests-segmentation.md) #404 |
 
+## Handed on from U26
+
+| Item | Source |
+|---|---|
+| Overlay-formula unknown-callee parity (request and compose hosts) | [U26](U26-vector-expr-functions.md) #418 |
+| Static vector length mismatch at predict | [U26](U26-vector-expr-functions.md) #419 |
+
 ## Human inputs & decisions
 
 - **Open:** multi-entry `Groups` — execute them (and how: nested, independent) or refuse. Decide in E1-S2.
@@ -174,3 +181,10 @@ Filed from [U43 handed on](U43-post-aggregation-ratios.md#handed-on); tick in [`
 
 - [ ] **#400** — Predict-compose does not run per-slot `Request.Overlays` validation: a slot-level `OVERLAY_FORMULA` on a non-crosstab host is refused at runtime (`PULSE_OVERLAY_KIND_UNKNOWN`) but predict-compose is silent (pre-existing). Found in U43 (E2-S2).
 - [ ] **#404** (10. Vector & matrix — operators › Follow-ups from U25) Per-`Groups` statistical tests: `TEST_HOTELLING_T2`, `TEST_MANOVA`, `TEST_BOX_M`, `TEST_MARDIA`, `TEST_BARTLETT_SPHERICITY` and the fitted attributes on multi-entry `Groups`, decided with #200
+
+## Inherited from U26
+
+Filed from [U26 handed on](U26-vector-expr-functions.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#418** (10. Vector & matrix — operators › Follow-ups from U26) Overlay-formula callee parity: request-host `OVERLAY_FORMULA` predict reports an unknown callee (neither built-in nor embedder) as `PULSE_OVERLAY_FORMULA_INVALID_IDENT` while the runtime gives a parse error; compose-host predict checks no unknown callee beyond the vector built-ins. Found in U26 (E2-S2).
+- [ ] **#419** (10. Vector & matrix — operators › Follow-ups from U26) Static `PROCESSING_VECTOR_LENGTH_MISMATCH` at predict for `dot` / `dist` / `cosine` over named vectors of known, differing lengths (runtime already refuses). Found in U26 (E2-S2).

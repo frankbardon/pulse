@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
@@ -546,8 +547,9 @@ func validateTestTiers(regs []TestRegistration) error {
 	return nil
 }
 
-// validateExprFunctions asserts every ExprFunction has Name + Fn and
-// no duplicate names.
+// validateExprFunctions asserts every ExprFunction has Name + Fn, no
+// duplicate names, and no reserved built-in name (total, and every
+// internal/exprbuiltins name).
 func validateExprFunctions(fns []ExprFunction) error {
 	seen := make(map[string]struct{}, len(fns))
 	for i, fn := range fns {
@@ -573,6 +575,16 @@ func validateExprFunctions(fns []ExprFunction) error {
 				errors.PULSE_EXTENSION_NAME_RESERVED,
 				fmt.Sprintf("extension expr function name %q is reserved for the built-in cohort-total term", fn.Name),
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{totalcall.Func}},
+			)
+		}
+		if exprbuiltins.IsReserved(fn.Name) {
+			// A reserved vector / scalar-maths built-in (vsum, dot,
+			// sqrt, ...): filter precompute assumes it pure and the docs
+			// pin its semantics, so an embedder may not shadow it.
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_NAME_RESERVED,
+				fmt.Sprintf("extension expr function name %q is reserved for a built-in expression function; rename it", fn.Name),
+				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": exprbuiltins.Names()},
 			)
 		}
 		if _, dup := seen[fn.Name]; dup {

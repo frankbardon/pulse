@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Score a battery of numeric fields row by row through a named vector on experiment.pulse: the vector names revenue_before, revenue and session_minutes once, ATTR_FORMULA takes the mean of the valid members only when at least 2 of 3 answered (vcount(spend) >= 2 ? vmean(spend) : nil — fewer is a null score, not a 0) and flags a flat profile with vsd(spend) == 0, the straight-lining check of a rating battery. Both are averaged per treatment arm.",
+    "intents": [
+      "data_quality",
+      "prepare"
+    ],
+    "name": "attr_vector_battery_score",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_SUM",
+      "ATTR_FORMULA",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "data-quality",
+      "feature-engineering",
+      "multivariate",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "spend",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "battery_mean",
+      "expression": "vcount(spend) >= 2 ? vmean(spend) : nil"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "flat_profile",
+      "expression": "vsd(spend) == 0 ? 1 : 0"
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "battery_mean",
+      "label": "avg_battery_mean"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "flat_profile",
+      "label": "flat_profiles"
+    }
+  ]
+}

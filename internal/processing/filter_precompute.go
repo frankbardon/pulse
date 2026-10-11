@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -398,13 +399,23 @@ func (v *exprPurityVisitor) Visit(node *exprast.Node) {
 	v.idents = append(v.idents, id.Value)
 }
 
-// exprPureSetBuiltins are the set built-ins setExprOptions registers.
-var exprPureSetBuiltins = map[string]bool{
-	"has_any": true, "has_all": true, "has_none": true,
-	"popcount": true, "set_union": true, "set_intersect": true,
-	"set_diff": true, "set_xor": true,
-	exprModFuncName: true, // the builtin `%` rewrites into (expr_mod.go)
-}
+// exprPureSetBuiltins are the built-ins setExprOptions registers, all
+// pure: the set helpers, the `%` rewrite target and every reserved
+// vector / scalar-maths built-in (internal/exprbuiltins — the one list,
+// so a new built-in can never silently drop a filter off the precompute
+// fast path).
+var exprPureSetBuiltins = func() map[string]bool {
+	m := map[string]bool{
+		exprModFuncName: true, // the builtin `%` rewrites into (expr_mod.go)
+	}
+	for _, name := range exprbuiltins.SetHelperNames() {
+		m[name] = true
+	}
+	for _, name := range exprbuiltins.Names() {
+		m[name] = true
+	}
+	return m
+}()
 
 // pureFunc reports whether a call to name is a pure function of its
 // arguments. An embedder ExprFunction is never assumed pure (it may read

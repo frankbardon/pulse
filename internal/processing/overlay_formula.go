@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/expr-lang/expr"
 	exprast "github.com/expr-lang/expr/ast"
@@ -11,6 +12,8 @@ import (
 	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -688,20 +691,26 @@ func compileFormulaProgram(spec *types.OverlaySpec, formula string, protoEnv map
 // `PULSE_OVERLAY_FORMULA_PARSE_ERROR` CodedError. An expression
 // referencing an embedder function that the registry did NOT supply
 // surfaces as a parse-time undefined-identifier error from expr-lang
-// (no separate `PULSE_OVERLAY_FORMULA_INVALID_IDENT` code at v1; the
-// existing `PULSE_OVERLAY_FORMULA_PARSE_ERROR` carries the offending
-// identifier in the parser's error message).
+// (the existing `PULSE_OVERLAY_FORMULA_PARSE_ERROR` carries the
+// offending identifier in the parser's error message). A reserved
+// vector built-in (vsum ... vnormalize) is refused BEFORE compile with
+// `PULSE_OVERLAY_FORMULA_INVALID_IDENT`, matching the predict gate;
+// only the scalar-maths built-ins (sqrt / log / exp / pow) reach it.
 func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string, protoEnv map[string]any, exts *ExtensionRegistry) (*formulaProgram, error) {
 	if cerr := totalcall.Refusal(formula, string(types.OverlayKindFormula)); cerr != nil {
+		return nil, cerr
+	}
+	if cerr := overlayBuiltinRefusal(spec, formula); cerr != nil {
 		return nil, cerr
 	}
 	opts := []expr.Option{expr.Env(protoEnv)}
 	if exts != nil {
 		opts = append(opts, exts.ExprOptions()...)
 	} else {
-		// Cells are float64: `%` needs the float-modulo patcher even
-		// without a registry (expr_mod.go).
-		opts = append(opts, exprModOptions()...)
+		// The shared built-ins (set helpers, vector / scalar maths) and
+		// the `%` patcher — cells are float64 — even without a registry
+		// (expr_mod.go).
+		opts = append(opts, setExprOptions()...)
 	}
 	program, err := expr.Compile(formula, opts...)
 	if err != nil {
@@ -718,6 +727,40 @@ func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string
 		formula: formula,
 		program: program,
 	}, nil
+}
+
+// overlayBuiltinRefusal refuses a FORMULA calling a reserved built-in
+// outside the overlay scalar subset (exprbuiltins.OverlayRefused — the
+// vector families) with PULSE_OVERLAY_FORMULA_INVALID_IDENT, the code
+// the predict gate raises for the same formula. A formula that fails
+// to parse returns nil so expr.Compile reports the parse error.
+func overlayBuiltinRefusal(spec *types.OverlaySpec, formula string) *errors.CodedError {
+	refused := exprident.FirstCallee(formula, exprbuiltins.OverlayRefused)
+	if refused == "" {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(
+		errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
+		"overlay "+string(spec.Kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
+		map[string]any{
+			"kind":               string(spec.Kind),
+			"unknown_identifier": refused,
+			"allowed_builtins":   exprbuiltins.OverlayNames(),
+			"formula":            formula,
+		})
+}
+
+// composeOverlayBuiltinRefusal is overlayBuiltinRefusal for a
+// Compose-host spec at index i: PULSE_OVERLAY_FORMULA_INVALID_IDENT for
+// the first vector built-in the formula calls (details also carry
+// "index"), nil when it calls none.
+func composeOverlayBuiltinRefusal(spec *types.ComposeOverlaySpec, formula string, i int) *errors.CodedError {
+	cerr := overlayBuiltinRefusal(&types.OverlaySpec{Kind: spec.Kind}, formula)
+	if cerr == nil {
+		return nil
+	}
+	cerr.Details["index"] = i
+	return cerr
 }
 
 // buildFormulaPrototypeEnvMatrix returns the prototype env the

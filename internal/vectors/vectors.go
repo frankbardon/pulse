@@ -4,7 +4,8 @@
 // PULSE_VECTOR_* codes.
 //
 // It is NO-EXECUTE: it reads only the schema, never a record, and
-// imports nothing but the standard library, errors, encoding and types.
+// imports nothing but the standard library, errors, encoding, types and
+// the parse-only internal/exprident (an expression's vector references).
 // Predict (internal/descriptor), the runtime (internal/service, via the
 // descriptor's field-reference pass) and projection
 // (internal/processing.NeededFields) all call it, so the three cannot
@@ -12,7 +13,9 @@
 //
 // Resolution rules (the contract):
 //
-//   - Vector names are non-empty and unique per request.
+//   - Vector names are non-empty, unique per request and never a
+//     schema field's name (an expression binds a named vector as an
+//     identifier beside the fields: PULSE_VECTOR_NAME_COLLISION).
 //   - Exactly one of Fields and Pattern is set.
 //   - A Fields entry without a glob metacharacter (`*`, `?`, `[`) is a
 //     literal member and keeps its position (caller order is axis order);
@@ -28,9 +31,9 @@
 //   - Labels, when set, carry one entry per resolved member.
 //
 // Checks run spec by spec in request order; within one spec in the
-// order: name, duplicate name, fields/pattern shape, coerce, expansion
-// (unknown literal, bad glob / regex, duplicate member), empty, member
-// types, labels. The first failure is returned.
+// order: name, duplicate name, field-name collision, fields/pattern
+// shape, coerce, expansion (unknown literal, bad glob / regex, duplicate
+// member), empty, member types, labels. The first failure is returned.
 package vectors
 
 import (
@@ -41,6 +44,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -78,6 +82,11 @@ func Resolve(specs []types.VectorSpec, schema *encoding.Schema) ([]Resolved, *er
 				map[string]any{"name": spec.Name, "indices": []int{first, i}})
 		}
 		seen[spec.Name] = i
+		if schema != nil && schema.Field(spec.Name) != nil {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_NAME_COLLISION,
+				"vector name "+strconv.Quote(spec.Name)+" ("+at+") is also a schema field's name; an expression could not tell the two apart",
+				map[string]any{"vector": at, "name": spec.Name, "field": spec.Name})
+		}
 		r, err := ResolveSpec(at, spec, schema)
 		if err != nil {
 			return nil, err
@@ -189,10 +198,14 @@ func Find(resolved []Resolved, name string) (Resolved, bool) {
 
 // Referenced returns the vector names req's operator slots reference:
 // every Request.Matrices spec's `vector`, every tier-1 test's
-// `vector` / `vector2`, every attribute's `vector` and every grouper
-// slot's `vector` (groups and both crosstab axes). It is the one
-// reference set, so the unreferenced-vector warning and every consumer
-// read one answer.
+// `vector` / `vector2`, every attribute's `vector`, every grouper
+// slot's `vector` (groups and both crosstab axes), and every
+// Request.Vectors name an expression reads as a free identifier — an
+// ATTR_FORMULA expression, a FILTER_EXPRESSION filterer's expression
+// (Request.Filterers and a vector attribute's params.fit_on) and so a
+// total() argument inside either (internal/exprident.Free, the walk the
+// expression program binds by). It is the one reference set, so the
+// unreferenced-vector warning and every consumer read one answer.
 func Referenced(req *types.Request) map[string]bool {
 	refs := map[string]bool{}
 	if req == nil {
@@ -226,7 +239,50 @@ func Referenced(req *types.Request) map[string]bool {
 			refs[s.Group.Vector] = true
 		}
 	}
+	exprReferenced(req, refs)
 	return refs
+}
+
+// exprReferenced adds to refs every Request.Vectors name an expression
+// slot of req reads as a free identifier. A name that is no vector (a
+// field, an attribute label) is not added; an unparsable expression
+// adds nothing (its compile refuses the request).
+func exprReferenced(req *types.Request, refs map[string]bool) {
+	if len(req.Vectors) == 0 {
+		return
+	}
+	names := make(map[string]bool, len(req.Vectors))
+	for _, v := range req.Vectors {
+		names[v.Name] = true
+	}
+	scan := func(src string) {
+		if src == "" {
+			return
+		}
+		idents, _, _ := exprident.Free(src)
+		for _, id := range idents {
+			if names[id] {
+				refs[id] = true
+			}
+		}
+	}
+	filters := func(fs []*types.Filterer) {
+		for _, f := range fs {
+			if f != nil && f.Type == types.FILTER_EXPRESSION {
+				scan(f.Expression)
+			}
+		}
+	}
+	filters(req.Filterers)
+	for _, a := range req.Attributes {
+		if a == nil {
+			continue
+		}
+		if a.Type == types.ATTR_FORMULA {
+			scan(a.Expression)
+		}
+		filters(AttributeFitOn(a.Type, a))
+	}
 }
 
 // Unreferenced returns, in request order, the names of req's vectors no

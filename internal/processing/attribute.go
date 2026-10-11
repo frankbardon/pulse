@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -242,6 +243,9 @@ type formulaAttribute struct {
 	// models are the request's bound models coef() reads (nil: none),
 	// set by bindModels before prepare compiles.
 	models *model.Set
+	// vecs are the request's resolved named vectors the formula may
+	// read (nil: none), set by bindVectors before prepare compiles.
+	vecs []vectors.Resolved
 	// totals is the cohort-total state of a formula that calls
 	// total(expr) (formula_total.go); nil for a row-local formula.
 	totals *formulaTotals
@@ -296,7 +300,7 @@ func (a *formulaAttribute) prepare() error {
 			a.prog, a.progErr = a.prepareTotals()
 			return
 		}
-		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.exts.exprOptionsWithModels(a.models))
+		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.vecs, a.exts.exprOptionsWithModels(a.models))
 	})
 	return a.progErr
 }
@@ -307,6 +311,10 @@ func (a *formulaAttribute) bindModels(models *model.Set) error {
 	a.models = models
 	return nil
 }
+
+// bindVectors satisfies vectorBinder: the formula reads the request's
+// named vectors as []float64 identifiers.
+func (a *formulaAttribute) bindVectors(vecs []vectors.Resolved) { a.vecs = vecs }
 
 func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, error) {
 	if err := a.prepare(); err != nil {
@@ -330,8 +338,12 @@ func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, 
 // Row evaluates the compiled formula against a single record. A null
 // referenced field binds as nil (expr_program.go): `x ?? 0` and
 // `x == nil ? a : b` guard it; an operator that cannot take nil raises
-// PROCESSING_RUNTIME "evaluating formula expression" — an attribute has
-// no null output, so the formula never invents a number for the row.
+// PROCESSING_RUNTIME "evaluating formula expression", so the formula
+// never invents a number for the row. A formula whose RESULT is nil
+// (`vcount(v) >= 6 ? vmean(v) : nil`, or a bare null field) yields a
+// null attribute value: Row returns AttributeNull, which every arm
+// writes as a null under the label (SetAttributeOutput), so a
+// downstream aggregation skips the row and counts it in n_null.
 func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 	if err := a.prepare(); err != nil {
 		return 0, err
@@ -339,6 +351,9 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 	output, _, err := a.prog.runRecord(r)
 	if err != nil {
 		return 0, err
+	}
+	if output == nil {
+		return AttributeNull, nil
 	}
 	return formulaNumber(output)
 }
@@ -360,6 +375,8 @@ func formulaNumber(output any) (float64, error) {
 			return 1.0, nil
 		}
 		return 0.0, nil
+	case []float64:
+		return 0, vectorResultError("formula")
 	default:
 		return 0, errors.NewCodedError(errors.PROCESSING_RUNTIME,
 			fmt.Sprintf("formula expression returned unsupported type %T", output))
@@ -395,24 +412,78 @@ func EmitsNull(computer AttributeComputer) bool {
 	return ok && ne.EmitsNull()
 }
 
+// attributeNullBits is AttributeNull's bit pattern: a quiet NaN with a
+// payload no IEEE operation produces from ordinary operands.
+const attributeNullBits = 0x7FF8_4E55_4C4C_0001
+
+// AttributeNull is the value an attribute's Row / Compute returns for
+// "no value on this row" WITHOUT being a NullEmitter — ATTR_FORMULA's
+// nil result. Every arm writes it as a null (IsAttributeNull), whatever
+// the computer's EmitsNull; any other NaN keeps its NullEmitter rule.
+var AttributeNull = math.Float64frombits(attributeNullBits)
+
+// IsAttributeNull reports whether v is AttributeNull (bit-exact: an
+// ordinary NaN is not).
+func IsAttributeNull(v float64) bool { return math.Float64bits(v) == attributeNullBits }
+
+// attributeOutputNull reports whether an attribute output v is written
+// as a null: AttributeNull always, any NaN when nullable (EmitsNull).
+func attributeOutputNull(v float64, nullable bool) bool {
+	return IsAttributeNull(v) || (nullable && math.IsNaN(v))
+}
+
 // SetAttributeOutput writes one attribute value under label on a
-// row-at-a-time arm: a NULL when nullable (EmitsNull) and v is NaN,
-// otherwise the value with any prior null mark cleared (Record.Set).
+// row-at-a-time arm: a NULL when v is AttributeNull, or when nullable
+// (EmitsNull) and v is NaN; otherwise the value with any prior null
+// mark cleared (Record.Set).
 func SetAttributeOutput(rec *Record, label string, v float64, nullable bool) {
-	if nullable && math.IsNaN(v) {
+	if attributeOutputNull(v, nullable) {
 		rec.SetNull(label)
 		return
 	}
 	rec.Set(label, v)
 }
 
+// vectorBinder is implemented by the expression operators
+// (ATTR_FORMULA, FILTER_EXPRESSION): bindVectors hands them the
+// request's resolved named vectors (ExprVectors) before they compile.
+type vectorBinder interface {
+	bindVectors(vecs []vectors.Resolved)
+}
+
+// ExprVectors resolves req's named vectors (Request.Vectors) against
+// schema for the expression operators: nil when the request defines
+// none, or when one fails to resolve (the field-reference pass refused
+// that request before any build).
+func ExprVectors(req *types.Request, schema *encoding.Schema) []vectors.Resolved {
+	if req == nil || len(req.Vectors) == 0 {
+		return nil
+	}
+	resolved, err := vectors.Resolve(req.Vectors, schema)
+	if err != nil {
+		return nil
+	}
+	return resolved
+}
+
 // BindAttribute injects the registry and the request's bound models
 // into a freshly built attribute and runs its build-time preparation,
 // so a compile error or an unresolvable model surfaces before any record
-// is read. models may be nil (nothing bound).
+// is read. models may be nil (nothing bound). It binds no named
+// vectors: BindAttributeWithVectors does.
 func BindAttribute(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set) error {
+	return BindAttributeWithVectors(computer, exts, models, nil)
+}
+
+// BindAttributeWithVectors is BindAttribute that also hands an
+// expression attribute the request's resolved named vectors
+// (ExprVectors; nil: none).
+func BindAttributeWithVectors(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error {
 	if aware, ok := computer.(ExtensionAware); ok {
 		aware.SetExtensions(exts)
+	}
+	if vb, ok := computer.(vectorBinder); ok {
+		vb.bindVectors(vecs)
 	}
 	if mb, ok := computer.(modelBinder); ok {
 		if err := mb.bindModels(models); err != nil {
@@ -420,7 +491,7 @@ func BindAttribute(computer AttributeComputer, exts *ExtensionRegistry, models *
 		}
 	}
 	if fb, ok := computer.(fitOnBinder); ok {
-		if err := fb.bindFitOn(exts, models); err != nil {
+		if err := fb.bindFitOn(exts, models, vecs); err != nil {
 			return err
 		}
 	}
@@ -430,10 +501,10 @@ func BindAttribute(computer AttributeComputer, exts *ExtensionRegistry, models *
 	return nil
 }
 
-// bindAttribute is BindAttribute with this processor's registry and
-// bound models.
+// bindAttribute is BindAttributeWithVectors with this processor's
+// registry, bound models and the run's named vectors.
 func (p *Processor) bindAttribute(computer AttributeComputer) error {
-	return BindAttribute(computer, p.exts, p.models)
+	return BindAttributeWithVectors(computer, p.exts, p.models, p.exprVectors)
 }
 
 type percentileAttribute struct{}

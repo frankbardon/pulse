@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprident"
+	"github.com/frankbardon/pulse/internal/vectors"
 )
 
 // Compile-once expr-lang programs for FILTER_EXPRESSION and ATTR_FORMULA.
@@ -97,6 +100,12 @@ type exprProgram struct {
 	// wholeEnv is set when the expression reads $env: it then needs the
 	// record's whole AllValues map, not just the named fields.
 	wholeEnv bool
+	// vecs are the request's named vectors (Request.Vectors) the
+	// expression references, each bound per row as a []float64 (nil:
+	// none — the binding path then costs nothing). frames recycles the
+	// per-row member buffers.
+	vecs   []exprVectorBinding
+	frames sync.Pool
 
 	typed   atomic.Pointer[vm.Program]
 	untyped atomic.Pointer[vm.Program]
@@ -108,13 +117,21 @@ type exprProgram struct {
 }
 
 // newExprProgram builds an expression's program against schema. When
-// every name the expression references is a schema field (or the
-// expression does not parse), it compiles now and returns any compile
-// error; otherwise the compile is deferred to the first record.
-func newExprProgram(src, what string, schema *encoding.Schema, opts []expr.Option) (*exprProgram, error) {
+// every name the expression references is a schema field or one of the
+// request's named vectors (vecs, resolved by internal/vectors; nil:
+// none), or the expression does not parse, it compiles now and returns
+// any compile error; otherwise the compile is deferred to the first
+// record.
+func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Resolved, opts []expr.Option) (*exprProgram, error) {
+	if err := vectorStaticRefusal(src, what); err != nil {
+		return nil, err
+	}
 	p := &exprProgram{src: src, what: what, opts: opts, decl: exprPrototype(schema)}
 	refs, wholeEnv, parsed := exprFreeIdentifiers(src)
 	p.refs, p.wholeEnv = refs, wholeEnv
+	if err := p.bindVectors(vecs); err != nil {
+		return nil, err
+	}
 	deferred := false
 	if parsed {
 		for _, name := range refs {
@@ -151,20 +168,123 @@ func (p *exprProgram) compileError(err error) error {
 }
 
 func (p *exprProgram) evalError(err error) error {
-	if mr := modelRefusal(err); mr != nil {
-		// A coef() refusal is the request's, under its own code.
-		return mr
+	if r := exprRefusal(err); r != nil {
+		// A coef() refusal, an unequal-length vector pair or an
+		// invalid vnormalize mode is the request's, under its own code.
+		return r
 	}
 	return errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
 		fmt.Sprintf("evaluating %s expression: %s", p.what, p.src))
 }
 
-// settleInputs keeps the referenced names the declaration binds.
+// settleInputs keeps the referenced names the declaration binds — the
+// named vectors excepted: a vector is always bound (a null member is a
+// NaN element), so it never makes a row a null-input row.
 func (p *exprProgram) settleInputs() {
 	for _, name := range p.refs {
-		if _, ok := p.decl[name]; ok {
+		if _, ok := p.decl[name]; ok && !p.isVector(name) {
 			p.inputs = append(p.inputs, name)
 		}
+	}
+}
+
+// exprVectorBinding is one named vector an expression reads: its
+// identifier and its member fields in axis order.
+type exprVectorBinding struct {
+	name    string
+	members []string
+}
+
+// exprVectorFrame is one row's member buffers, index-aligned with
+// exprProgram.vecs. Frames are recycled through exprProgram.frames, so
+// each worker reuses its buffers row after row; that is safe because no
+// built-in retains or returns its argument (internal/vecmath returns a
+// NEW slice) and a vector as the expression's result is refused.
+//
+// boxed holds each buffer already converted to an interface value: the
+// slice header never changes (only its elements are rewritten), so the
+// env reuses the box and a row binds without allocating.
+type exprVectorFrame struct {
+	bufs  [][]float64
+	boxed []any
+}
+
+var exprVectorType = exprtypes.TypeOf([]float64(nil))
+
+// bindVectors declares every named vector the expression references
+// (and no schema field shadows: a vector named like a field is refused
+// earlier, PULSE_VECTOR_NAME_COLLISION) as a []float64 identifier. An
+// unreferenced vector binds nothing. A vector that is the whole
+// expression is refused here, at build: a result is a scalar.
+func (p *exprProgram) bindVectors(vecs []vectors.Resolved) error {
+	if len(vecs) == 0 || len(p.refs) == 0 {
+		return nil
+	}
+	for _, name := range p.refs {
+		if _, field := p.decl[name]; field {
+			continue
+		}
+		v, ok := vectors.Find(vecs, name)
+		if !ok {
+			continue
+		}
+		p.vecs = append(p.vecs, exprVectorBinding{name: name, members: v.Members})
+		p.decl[name] = exprVectorType
+	}
+	if len(p.vecs) == 0 {
+		return nil
+	}
+	if tree, err := exprparser.Parse(p.src); err == nil {
+		if id, ok := tree.Node.(*exprast.IdentifierNode); ok && p.isVector(id.Value) {
+			return vectorResultError(p.what)
+		}
+	}
+	p.frames.New = func() any {
+		f := &exprVectorFrame{bufs: make([][]float64, len(p.vecs)), boxed: make([]any, len(p.vecs))}
+		for i := range p.vecs {
+			f.bufs[i] = make([]float64, len(p.vecs[i].members))
+			f.boxed[i] = f.bufs[i]
+		}
+		return f
+	}
+	return nil
+}
+
+// isVector reports whether name is a bound named vector.
+func (p *exprProgram) isVector(name string) bool {
+	for i := range p.vecs {
+		if p.vecs[i].name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// fillVectors binds every named vector into env from r: member i reads
+// its field's numeric value, a null (or absent) member reads NaN, so a
+// row whose members are all null binds an all-NaN vector, never nil.
+// The returned frame goes back through releaseVectors once the
+// evaluation is done.
+func (p *exprProgram) fillVectors(env map[string]any, r *Record) *exprVectorFrame {
+	f := p.frames.Get().(*exprVectorFrame)
+	for i := range p.vecs {
+		b := &p.vecs[i]
+		buf := f.bufs[i]
+		for j, m := range b.members {
+			if x, ok := r.NumericValue(m); ok {
+				buf[j] = x
+			} else {
+				buf[j] = math.NaN()
+			}
+		}
+		env[b.name] = f.boxed[i]
+	}
+	return f
+}
+
+func (p *exprProgram) releaseVectors(f *exprVectorFrame) {
+	if f != nil {
+		p.frames.Put(f)
 	}
 }
 
@@ -240,7 +360,21 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 	if p.typed.Load() == nil || p.wholeEnv || r.allValuesCache != nil {
 		// Deferred compile, $env, or a record whose AllValues map is
 		// already built (a buffered record another expression read).
-		return p.run(r.AllValues())
+		if len(p.vecs) == 0 {
+			return p.run(r.AllValues())
+		}
+		// The AllValues map is the record's shared cache: bind the
+		// vectors into a pooled copy, never into the cache.
+		env := exprEnvPool.Get().(map[string]any)
+		for k, v := range r.AllValues() {
+			env[k] = v
+		}
+		f := p.fillVectors(env, r)
+		out, nullInput, err = p.run(env)
+		p.releaseVectors(f)
+		clear(env)
+		exprEnvPool.Put(env)
+		return out, nullInput, err
 	}
 	env := exprEnvPool.Get().(map[string]any)
 	for _, name := range p.inputs {
@@ -250,7 +384,12 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 			nullInput = true
 		}
 	}
+	var f *exprVectorFrame
+	if len(p.vecs) > 0 {
+		f = p.fillVectors(env, r)
+	}
 	out, err = p.eval(env, nullInput)
+	p.releaseVectors(f)
 	clear(env)
 	exprEnvPool.Put(env)
 	return out, nullInput, err
@@ -345,65 +484,11 @@ func exprValueType(f *encoding.Field) reflect.Type {
 }
 
 // exprFreeIdentifiers returns the names an expression reads from its
-// env: every identifier that is not a callee, a let binding or $env,
-// plus `$env.name` / `$env["name"]` members; usesEnv reports any use of
-// $env. parsed=false when the expression does not parse (the compile then
-// reports the syntax error).
+// env (internal/exprident.Free — the one walk the vector-reference count
+// and the predict layer also read): every identifier that is not a
+// callee, a let binding or $env, plus `$env.name` / `$env["name"]`
+// members; usesEnv reports any use of $env. parsed=false when the
+// expression does not parse (the compile then reports the syntax error).
 func exprFreeIdentifiers(src string) (names []string, usesEnv, parsed bool) {
-	tree, err := exprparser.Parse(src)
-	if err != nil {
-		return nil, false, false
-	}
-	v := &exprFreeIdentVisitor{skip: map[*exprast.IdentifierNode]bool{}, lets: map[string]bool{}, seen: map[string]bool{}}
-	// Walk is post-order: a node's children are visited before it, so
-	// mark callees / let names / $env members in a first pass.
-	exprast.Walk(&tree.Node, &exprFreeIdentMarker{v: v})
-	exprast.Walk(&tree.Node, v)
-	return v.names, v.usesEnv, true
-}
-
-type exprFreeIdentMarker struct{ v *exprFreeIdentVisitor }
-
-func (m *exprFreeIdentMarker) Visit(node *exprast.Node) {
-	switch n := (*node).(type) {
-	case *exprast.CallNode:
-		if id, ok := n.Callee.(*exprast.IdentifierNode); ok {
-			m.v.skip[id] = true
-		}
-	case *exprast.VariableDeclaratorNode:
-		m.v.lets[n.Name] = true
-	case *exprast.MemberNode:
-		if id, ok := n.Node.(*exprast.IdentifierNode); ok && id.Value == "$env" {
-			if s, ok := n.Property.(*exprast.StringNode); ok {
-				m.v.add(s.Value)
-			}
-		}
-	}
-}
-
-type exprFreeIdentVisitor struct {
-	usesEnv bool
-	skip    map[*exprast.IdentifierNode]bool
-	lets    map[string]bool
-	seen    map[string]bool
-	names   []string
-}
-
-func (v *exprFreeIdentVisitor) add(name string) {
-	if !v.seen[name] {
-		v.seen[name] = true
-		v.names = append(v.names, name)
-	}
-}
-
-func (v *exprFreeIdentVisitor) Visit(node *exprast.Node) {
-	id, ok := (*node).(*exprast.IdentifierNode)
-	if !ok || v.skip[id] || v.lets[id.Value] {
-		return
-	}
-	if id.Value == "$env" {
-		v.usesEnv = true
-		return
-	}
-	v.add(id.Value)
+	return exprident.Free(src)
 }

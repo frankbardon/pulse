@@ -541,14 +541,19 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#416** Atomic skills still over the soft 1200 B body budget after U25: `op-reg-ols` (3658 B), `op-reg-glm` (3283 B) and `op-reg-bayes-linear` (3443 B), which grew with `covariance` in U25, plus `op-mat-correlation`, `op-mat-reliability`, `op-mat-collinearity` and `op-mat-covariance`; trim them with the other over-budget bodies before the budget turns hard · [U38](units/U38-skill-sync.md)
 
 ### E5 — Row-wise vector vocabulary & similarity
-- [ ] **#137** expr-lang vector bindings, `v[i]` and `len`; `vsum` / `vmean` / `vmin` / `vmax` / `vsd` / `vcount`; `dot` / `norm` / `dist` / `cosine`; `argmax` / `argmin` · [U26](units/U26-vector-expr-functions.md)
-- [ ] **#138** Scalar maths functions `sqrt`, `log`, `exp`, `abs`, `pow` · [U26](units/U26-vector-expr-functions.md)
-- [ ] **#139** Centering functions `vcenter`, `vzscore`, `vnormalize` · [U26](units/U26-vector-expr-functions.md)
-- [ ] **#140** Set similarity `jaccard`, `dice`, `hamming`, `overlap` on `set_*` fields · [U26](units/U26-vector-expr-functions.md)
+- [x] **#137** expr-lang vector bindings, `v[i]` and `len`; `vsum` / `vmean` / `vmin` / `vmax` / `vsd` / `vcount`; `dot` / `norm` / `dist` / `cosine`; `argmax` / `argmin` · [U26](units/U26-vector-expr-functions.md)
+- [x] **#138** Scalar maths functions `sqrt`, `log`, `exp`, `abs`, `pow` · [U26](units/U26-vector-expr-functions.md)
+- [x] **#139** Centering functions `vcenter`, `vzscore`, `vnormalize` · [U26](units/U26-vector-expr-functions.md)
+- [x] **#140** Set similarity `jaccard`, `dice`, `hamming`, `overlap` on `set_*` fields · [U26](units/U26-vector-expr-functions.md)
 - [ ] **#141** Shared metric registry `linalg/metric` · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#142** Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`; also owns `PULSE_ADVISORY_COSINE_ON_SCALE` (moved from U22) · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#143** `ATTR_SCALE_SCORE` · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#144** `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option) · [U27](units/U27-vector-metrics-aggregates.md)
+
+#### Follow-ups from U26
+- [ ] **#417** Reference vectors from a `LookupTable`: let expression and profile similarity compare a row's vector or set against a stored reference profile (deferred from U26) · [U27](units/U27-vector-metrics-aggregates.md)
+- [ ] **#418** Overlay-formula callee parity: request-host `OVERLAY_FORMULA` predict reports an unknown callee (neither built-in nor embedder) as `PULSE_OVERLAY_FORMULA_INVALID_IDENT` while the runtime gives a parse error; compose-host predict checks no unknown callee beyond the vector built-ins. Found in U26 (E2-S2) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#419** Static `PROCESSING_VECTOR_LENGTH_MISMATCH` at predict for `dot` / `dist` / `cosine` over named vectors of known, differing lengths (runtime already refuses). Found in U26 (E2-S2) · [U35](units/U35-predict-runtime-parity.md)
 
 ### E6 — Matrix operations on results (overlays)
 - [ ] **#145** MATRIX_RESULT overlay host and the `Ref.Matrix` reference family · [U28](units/U28-matrix-overlays.md)

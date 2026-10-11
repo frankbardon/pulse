@@ -44,4 +44,4 @@ Floor only: universal `{n_in, n_out, n_null_input}` (`response-components`). `n_
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `expression-language` (embedder `ExprFunctions`, `LookupTables`), `aggregation-design`, `response-components`
+- Skills: `expression-language` (maths / vector functions, `ExprFunctions`, `LookupTables`), `aggregation-design`, `response-components`

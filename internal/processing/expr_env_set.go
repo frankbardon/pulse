@@ -5,7 +5,9 @@ import (
 	"sort"
 
 	"github.com/expr-lang/expr"
+
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
 )
 
 // Built-in set expression helpers for ATTR_FORMULA / FILTER_EXPRESSION.
@@ -24,20 +26,32 @@ import (
 // the returned slice is deterministic (alphabetical) and duplicate
 // labels are de-duplicated.
 
-// setExprOptions returns the always-on set helper Options. Call sites
-// prepend this to extension-supplied options so the helpers are
-// uniformly visible.
+// setExprOptions returns the always-on built-in Options: the set
+// helpers, the reserved vector / scalar-maths built-ins
+// (expr_env_vector.go) and the `%` patcher. Call sites prepend this to
+// extension-supplied options so the built-ins are uniformly visible.
 func setExprOptions() []expr.Option {
-	return append([]expr.Option{
-		expr.Function("has_any", setHasAnyBuiltin),
-		expr.Function("has_all", setHasAllBuiltin),
-		expr.Function("has_none", setHasNoneBuiltin),
-		expr.Function("popcount", setPopcountBuiltin),
-		expr.Function("set_union", setUnionBuiltin),
-		expr.Function("set_intersect", setIntersectBuiltin),
-		expr.Function("set_diff", setDiffBuiltin),
-		expr.Function("set_xor", setXorBuiltin),
-	}, exprModOptions()...) // `%` over float64 fields (expr_mod.go)
+	names := exprbuiltins.SetHelperNames()
+	opts := make([]expr.Option, 0, len(names))
+	for _, name := range names {
+		opts = append(opts, expr.Function(name, setHelperImpls[name]))
+	}
+	opts = append(opts, vectorExprOptions()...)
+	return append(opts, exprModOptions()...) // `%` over float64 fields (expr_mod.go)
+}
+
+// setHelperImpls implements every exprbuiltins.SetHelperNames entry
+// (TestSetHelpers_EveryNameImplemented pins both directions), so the
+// overlay predict gate's list and the registered set never drift.
+var setHelperImpls = map[string]func(args ...any) (any, error){
+	"has_any":       setHasAnyBuiltin,
+	"has_all":       setHasAllBuiltin,
+	"has_none":      setHasNoneBuiltin,
+	"popcount":      setPopcountBuiltin,
+	"set_union":     setUnionBuiltin,
+	"set_intersect": setIntersectBuiltin,
+	"set_diff":      setDiffBuiltin,
+	"set_xor":       setXorBuiltin,
 }
 
 // argToStringSet coerces a single argument into a string-set

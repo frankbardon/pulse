@@ -180,6 +180,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_VECTOR_LENGTH_MISMATCH: {
+		Message: "A pairwise vector expression function (dot, dist or cosine) received two vectors of different lengths; the run fails instead of returning NaN. details.function names the call, details.left and details.right the two lengths.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Attributes", "*", "Expression"},
+				Hint:   "Make both vector arguments list the same number of elements in the same order, e.g. dot([a, b, c], [1, 0, 0]); pad a missing position with nil (read as NaN and skipped pairwise) rather than dropping it.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Filterers", "*", "Expression"},
+				Hint:   "The same rule applies in a FILTER_EXPRESSION or a total() argument: compare vectors of equal length only.",
+			},
+		},
+	},
 
 	// ---------- SERVICE ----------
 	SERVICE_VALIDATION: {
@@ -3580,6 +3595,16 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"vectors", "*", "fields"},
 				Hint:   "Drop the literal entry a glob already covers, or narrow the glob so the member appears once.",
+			},
+		},
+	},
+	PULSE_VECTOR_NAME_COLLISION: {
+		Message: "A vector's name is also a schema field's name, or a feature output, attribute or window label of the same request. An expression (a formula attribute, an expression filter, a total() argument) reads a named vector as an identifier beside those columns, so a vector may not share one's name. The vector is under `vector` / `name`; a field under `field`, a derived column under `label` with its slot (`feature`, `attribute`, or `window` / `window_index`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "name"},
+				Hint:   "Rename the vector to a name no schema field or output label uses (for example add a `_vec` suffix), and update every slot and expression that names it.",
 			},
 		},
 	},

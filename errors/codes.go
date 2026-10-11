@@ -81,6 +81,13 @@ const (
 	// details.penalty names the penalty. The modifiers themselves report
 	// a covariance (the replicate one, or the final refit's).
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
+
+	// PROCESSING_VECTOR_LENGTH_MISMATCH indicates a pairwise vector
+	// expression function (dot, dist, cosine) was handed two vectors of
+	// unequal length. The run fails rather than reading the pair as NaN;
+	// two literal arrays of unequal length are refused when the
+	// expression compiles. details carry function, left and right.
+	PROCESSING_VECTOR_LENGTH_MISMATCH Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 )
 
 // SERVICE domain - HTTP/API layer and service operations
@@ -2893,6 +2900,17 @@ const (
 	// or "vector" and "field" (the repeated member).
 	PULSE_VECTOR_DUPLICATE Code = "PULSE_VECTOR_DUPLICATE"
 
+	// PULSE_VECTOR_NAME_COLLISION indicates a vector whose name is also
+	// a schema field's name, or a feature output, attribute or window
+	// label of the same request. An expression (ATTR_FORMULA,
+	// FILTER_EXPRESSION, a total() argument) binds a named vector as an
+	// identifier beside those columns, so the name must say which one it
+	// means. Refused identically by predict and the runtime before any
+	// record is read. Details carry "vector", "name" and "field" (a
+	// schema field) or "label" plus the claiming slot ("feature",
+	// "attribute", or "window" / "window_index").
+	PULSE_VECTOR_NAME_COLLISION Code = "PULSE_VECTOR_NAME_COLLISION"
+
 	// PULSE_VECTOR_LABELS_MISMATCH indicates a vector whose `labels`
 	// count differs from its resolved member count. Details carry
 	// "vector", "name", "labels" and "members" (both counts) and
@@ -3306,6 +3324,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
+	PROCESSING_VECTOR_LENGTH_MISMATCH,
 	// SERVICE
 	SERVICE_VALIDATION,
 	SERVICE_RESOURCE,
@@ -3608,6 +3627,7 @@ var allCodes = []Code{
 	PULSE_VECTOR_EMPTY,
 	PULSE_VECTOR_MEMBER_TYPE,
 	PULSE_VECTOR_DUPLICATE,
+	PULSE_VECTOR_NAME_COLLISION,
 	PULSE_VECTOR_LABELS_MISMATCH,
 	PULSE_VECTOR_UNKNOWN,
 	PULSE_VECTOR_UNREFERENCED,

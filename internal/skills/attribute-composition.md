@@ -34,10 +34,10 @@ Decide what the new column must say about a row, then pick from the manifest `co
 
 1. **Labels must be unique** — never a schema field, feature output or earlier label. Shadowing → `SERVICE_VALIDATION`, runtime and predict.
 2. **No in-slot chaining.** A formula cannot reference another attribute's label. To stage a derived value into another formula, use Compose / ProcessChain.
-3. **Two-pass attributes** — anything scoring a row against the column or a model — need a pre-pass over filter-passing rows to compute aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients) before pass 2 emits per-row output. The orchestrator handles this transparently — no full-dataset buffering.
+3. **Two-pass attributes** — anything scoring a row against the column or a model — need a pre-pass over filter-passing rows to compute aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients) before pass 2 emits per-row output. Handled transparently — no full-dataset buffering.
 4. **Row-local attributes** (formula, calendar part, set membership / popcount) stream — one pass, no state.
-5. **Null inputs propagate.** Null source → null output for most attributes. A formula is stricter — referencing a null field raises `PROCESSING_RUNTIME` unless guarded by `??`.
-6. **Output is coerced to a scalar.** Numbers pass through; `bool` → `1.0` / `0.0`; anything else errors. Attributes do not emit Rich payloads.
+5. **Null inputs propagate.** Null source → null output for most attributes. A formula is stricter — arithmetic on a null field raises `PROCESSING_RUNTIME` unless guarded by `??`.
+6. **Output is coerced to a scalar.** Numbers pass through; `bool` → `1.0` / `0.0`; a formula's `nil` → null; anything else errors. Attributes do not emit Rich payloads.
 
 ## ATTR vs FEAT
 
@@ -50,11 +50,25 @@ Both add columns. Split:
 | Output column | `label` (rebindable) | fixed per FEAT |
 | Use for | per-record scoring, formulas, regression diagnostics | encoding (one-hot, target, frequency), transforms (log, sqrt, bucketize), date features |
 
-Rule: if a downstream filterer or test needs the derived value filterable, use FEAT. Otherwise ATTR. They coexist — FEAT output is in scope for both `filterers` and `attributes`.
+Rule: a derived value a filterer must see is a FEAT; otherwise ATTR. They coexist — FEAT output is in scope for both `filterers` and `attributes`.
 
 ## Formula expressions
 
-The formula attribute evaluates a per-row `expr-lang` expression: categoricals bind as label strings, `set_*` fields as label lists, a null field as `nil` (guard with `??`, or unguarded arithmetic raises `PROCESSING_RUNTIME`), and there is no `sqrt` / `log` / `exp`. Binding table, operators, functions, set helpers and embedder `ExprFunctions` / `lookup(...)`: `expression-language`.
+The formula attribute evaluates a per-row `expr-lang` expression: categoricals bind as label strings, `set_*` fields as label lists, a null field as `nil` (guard with `??`). Binding table, operators, functions (vector reductions, scalar maths), set helpers and embedder `ExprFunctions` / `lookup(...)`: `expression-language`.
+
+<!-- feature: capability:matrices, ATTR_FORMULA -->
+**Worked example — a rating battery.** Name the items once; each row gets the mean of its valid items when ≥ 6 of 8 answered (else null, never 0) and a straight-lining flag:
+
+```json
+"vectors": [{"name": "battery", "fields": ["q*"]}],
+"attributes": [
+  {"type": "ATTR_FORMULA", "label": "battery_mean", "expression": "vcount(battery) >= 6 ? vmean(battery) : nil"},
+  {"type": "ATTR_FORMULA", "label": "flat", "expression": "vsd(battery) == 0"}
+]
+```
+
+As a filter expression, `vsd(battery) > 0` drops flat responders. A vector named like a field or a feature / attribute / window label is `PULSE_VECTOR_NAME_COLLISION`; one only an expression reads raises no unreferenced warning.
+<!-- /feature -->
 
 ## Streamability
 

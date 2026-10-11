@@ -79,7 +79,7 @@ func (a *formulaAttribute) prepareTotals() (*exprProgram, error) {
 	argOpts := a.exts.exprOptionsWithModels(a.models)
 	for i, key := range t.keys {
 		t.index[key] = i
-		prog, err := newExprProgram(key, "formula total() argument", a.schema, argOpts)
+		prog, err := newExprProgram(key, "formula total() argument", a.schema, a.vecs, argOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func (a *formulaAttribute) prepareTotals() (*exprProgram, error) {
 		expr.Function(totalcall.Func, t.read, new(func(int) float64)),
 		expr.Patch(&totalPatcher{index: t.index}),
 	)
-	return newExprProgram(a.expression, "formula", a.schema, opts)
+	return newExprProgram(a.expression, "formula", a.schema, a.vecs, opts)
 }
 
 // read is the patched total(i): slot i's published sum. Reading before
@@ -133,7 +133,7 @@ func (a *formulaTotalAttribute) PrePass(r *Record, _ string) error {
 	for i, prog := range t.args {
 		out, nullInput, err := prog.runRecord(r)
 		if err != nil {
-			if nullInput && modelRefusal(err) == nil {
+			if nullInput && exprRefusal(err) == nil {
 				continue // a null referenced field: the row is skipped
 			}
 			return err
@@ -143,6 +143,9 @@ func (a *formulaTotalAttribute) PrePass(r *Record, _ string) error {
 		}
 		v, err := formulaNumber(out)
 		if err != nil {
+			if _, vec := out.([]float64); vec {
+				return vectorResultError("formula total() argument")
+			}
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
 				"formula total() argument must be numeric: total("+t.keys[i]+")",
 				map[string]any{"argument": t.keys[i]})

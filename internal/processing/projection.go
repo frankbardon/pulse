@@ -99,6 +99,11 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	}
 
 	known := schemaFieldSet(schema)
+	// An expression reads a named vector as one identifier standing for
+	// its members (exprProgram.bindVectors): appendExprIdents expands it,
+	// or the members would decode as null and the expression would
+	// silently fold NaN.
+	vecMembers := exprVectorMembers(req, schema)
 
 	addKnown := func(name string) {
 		if _, ok := known[name]; ok {
@@ -126,7 +131,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		}
 		addKnown(f.Field)
 		if f.Type == types.FILTER_EXPRESSION && f.Expression != "" {
-			if !appendExprIdents(out, f.Expression, known) {
+			if !appendExprIdents(out, f.Expression, known, vecMembers) {
 				out.Widen()
 				return out
 			}
@@ -193,7 +198,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			}
 		}
 		if a.Type == types.ATTR_FORMULA && a.Expression != "" {
-			if !appendExprIdents(out, a.Expression, known) {
+			if !appendExprIdents(out, a.Expression, known, vecMembers) {
 				out.Widen()
 				return out
 			}
@@ -204,7 +209,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		for _, f := range vectors.AttributeFitOn(a.Type, a) {
 			addKnown(f.Field)
 			if f.Type == types.FILTER_EXPRESSION && f.Expression != "" {
-				if !appendExprIdents(out, f.Expression, known) {
+				if !appendExprIdents(out, f.Expression, known, vecMembers) {
 					out.Widen()
 					return out
 				}
@@ -538,24 +543,43 @@ func schemaFieldSet(schema *encoding.Schema) map[string]struct{} {
 	return m
 }
 
+// exprVectorMembers maps each of req's named vectors to its resolved
+// members (nil when the request defines none or one fails to resolve —
+// that request is refused before any decode).
+func exprVectorMembers(req *types.Request, schema *encoding.Schema) map[string][]string {
+	resolved := ExprVectors(req, schema)
+	if len(resolved) == 0 {
+		return nil
+	}
+	m := make(map[string][]string, len(resolved))
+	for _, r := range resolved {
+		m[r.Name] = r.Members
+	}
+	return m
+}
+
 // appendExprIdents parses src as an expr-lang expression and adds every
-// identifier that matches a schema field name to out. Returns false
-// when the expression fails to parse — caller must widen the set.
-func appendExprIdents(out FieldSet, src string, known map[string]struct{}) bool {
+// identifier that matches a schema field name to out, and every member
+// of an identifier that names a request vector (vecs: name -> members;
+// nil: none). Returns false when the expression fails to parse — caller
+// must widen the set.
+func appendExprIdents(out FieldSet, src string, known map[string]struct{}, vecs map[string][]string) bool {
 	tree, err := exprparser.Parse(src)
 	if err != nil {
 		return false
 	}
-	exprast.Walk(&tree.Node, &exprIdentVisitor{out: out, known: known})
+	exprast.Walk(&tree.Node, &exprIdentVisitor{out: out, known: known, vecs: vecs})
 	return true
 }
 
 // exprIdentVisitor collects IdentifierNode values that match schema
-// field names. Member access (e.g., date.year) is rooted at the base
-// identifier so the underlying source field is captured.
+// field names, expanding a named vector to its members. Member access
+// (e.g., date.year) is rooted at the base identifier so the underlying
+// source field is captured.
 type exprIdentVisitor struct {
 	out   FieldSet
 	known map[string]struct{}
+	vecs  map[string][]string
 }
 
 func (v *exprIdentVisitor) Visit(node *exprast.Node) {
@@ -565,6 +589,12 @@ func (v *exprIdentVisitor) Visit(node *exprast.Node) {
 	}
 	if _, ok := v.known[id.Value]; ok {
 		v.out.Add(id.Value)
+		return
+	}
+	for _, m := range v.vecs[id.Value] {
+		if _, ok := v.known[m]; ok {
+			v.out.Add(m)
+		}
 	}
 }
 

@@ -3,7 +3,6 @@ package processing
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -13,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
@@ -86,6 +86,12 @@ type Processor struct {
 	// the names an ATTR_REG_PREDICT slot resolves when its attributes
 	// are bound. Nil binds nothing. Set through SetModels.
 	models *model.Set
+
+	// exprVectors are the current run's resolved named vectors
+	// (Request.Vectors, ExprVectors) the expression operators bind as
+	// []float64 identifiers; set by prepare, nil when the request
+	// defines none.
+	exprVectors []vectors.Resolved
 }
 
 // SetModels installs the request's bound models (nil: none). The
@@ -1479,14 +1485,15 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 // Shared between streaming and buffered paths to keep error semantics
 // identical.
 func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc, error) {
-	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models)
+	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models, p.exprVectors)
 }
 
 // buildFilterFuncsWith compiles filterers against schema with the
-// registry exts and the bound models — the one filter build, shared by
-// the request's filter chain and a fitted attribute's params.fit_on
-// (fitOnBinder).
-func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set) ([]FilterFunc, error) {
+// registry exts, the bound models and the request's resolved named
+// vectors — the one filter build, shared by the request's filter chain,
+// a fitted attribute's params.fit_on (fitOnBinder) and the service's
+// per-worker builds (BuildFiltersWithVectors).
+func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) ([]FilterFunc, error) {
 	if len(filterers) == 0 {
 		return nil, nil
 	}
@@ -1505,6 +1512,9 @@ func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, 
 			if err := mb.bindModels(models); err != nil {
 				return nil, err
 			}
+		}
+		if vb, ok := builder.(vectorBinder); ok {
+			vb.bindVectors(vecs)
 		}
 		fn, err := builder.Build(f, schema)
 		if err != nil {
@@ -1958,9 +1968,10 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 		nullable := EmitsNull(computer)
 		for i, r := range records {
 			if i < len(values) {
-				if nullable && math.IsNaN(values[i]) {
-					// A null output (NullEmitter): the row has no value
-					// under the label, so aggregations skip it.
+				if attributeOutputNull(values[i], nullable) {
+					// A null output (AttributeNull, or a NullEmitter's
+					// NaN): the row has no value under the label, so
+					// aggregations skip it.
 					r.SetNull(label)
 					continue
 				}

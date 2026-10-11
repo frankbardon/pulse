@@ -1169,3 +1169,50 @@ func TestExtensions_OverlayKinds_FormulaLookupTable(t *testing.T) {
 		t.Errorf("Cells[0][0].Value = %v, want 10.0", got)
 	}
 }
+
+// TestOverlay_Formula_BuiltinSubset pins the overlay runtime to the
+// predict gate: scalar-maths built-ins evaluate, vector built-ins are
+// refused with PULSE_OVERLAY_FORMULA_INVALID_IDENT, with and without an
+// extension registry.
+func TestOverlay_Formula_BuiltinSubset(t *testing.T) {
+	host := newFormulaHost(1, 1, func(_, _ int) float64 { return 4.0 })
+	cases := []struct {
+		name      string
+		formula   string
+		want      float64
+		wantIdent string // "" = accepted
+	}{
+		{"sqrt", "sqrt(cell)", 2, ""},
+		{"log", "log(cell)", math.Log(4), ""},
+		{"exp", "exp(cell)", math.Exp(4), ""},
+		{"pow", "pow(cell, 2)", 16, ""},
+		{"vmean_refused", "vmean([cell, 1.0])", 0, "vmean"},
+		{"dot_refused", "dot([cell], [cell])", 0, "dot"},
+		{"nested_refused", "sqrt(vsum([cell]))", 0, "vsum"},
+	}
+	for _, reg := range []struct {
+		name string
+		exts *ExtensionRegistry
+	}{{"no_registry", nil}, {"registry", &ExtensionRegistry{}}} {
+		for _, tc := range cases {
+			t.Run(reg.name+"/"+tc.name, func(t *testing.T) {
+				spec := newFormulaSpec("subset", tc.formula)
+				layer, _, err := applyFormulaWithExtensions(&spec, host, reg.exts)
+				if tc.wantIdent != "" {
+					coded := requireFormulaCoded(t, err, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT)
+					if got, _ := coded.Details["unknown_identifier"].(string); got != tc.wantIdent {
+						t.Errorf("unknown_identifier = %q, want %q", got, tc.wantIdent)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("applyFormula: %v", err)
+				}
+				got, _ := layer.Payload.Matrix.Cells[0][0].Value.(float64)
+				if math.Abs(got-tc.want) > 1e-12 {
+					t.Errorf("value = %v, want %v", got, tc.want)
+				}
+			})
+		}
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -304,11 +305,12 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 
 	// Pre-build per-shard operators. Each shard worker gets its own
 	// instance set so there's no shared mutable state across workers.
-	filterFns, err := processing.BuildFiltersWithModels(req.Filterers, schema, s.extensions, model.SetFrom(ctx))
+	vecs := processing.ExprVectors(req, schema)
+	filterFns, err := processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 	if err != nil {
 		return nil, err
 	}
-	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx))
+	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx), vecs)
 	if err != nil {
 		return nil, err
 	}
@@ -604,9 +606,10 @@ type rowLocalAttrSpec struct {
 }
 
 // buildRowLocalAttrSpecs builds one worker's row-local attributes, bound
-// (processing.BindAttribute) to the registry and the request's bound
-// models, labelled by the processor's own default-label rule.
-func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set) ([]rowLocalAttrSpec, error) {
+// (processing.BindAttributeWithVectors) to the registry, the request's
+// bound models and its resolved named vectors (processing.ExprVectors),
+// labelled by the processor's own default-label rule.
+func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) ([]rowLocalAttrSpec, error) {
 	if len(attrs) == 0 {
 		return nil, nil
 	}
@@ -621,7 +624,7 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		if err != nil {
 			return nil, err
 		}
-		if err := processing.BindAttribute(computer, exts, models); err != nil {
+		if err := processing.BindAttributeWithVectors(computer, exts, models, vecs); err != nil {
 			return nil, err
 		}
 		rl, ok := computer.(processing.RowLocalAttribute)

@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -274,6 +275,14 @@ func BuildFilters(filterers []*types.Filterer, schema *encoding.Schema, exts *Ex
 // expressions read bound models through coef() — a Compose slot's fits
 // (model.SetFrom on the slot's ctx). Nil binds nothing.
 func BuildFiltersWithModels(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set) ([]FilterFunc, error) {
+	return BuildFiltersWithVectors(filterers, schema, exts, models, nil)
+}
+
+// BuildFiltersWithVectors is BuildFiltersWithModels for a request that
+// defines named vectors: a FILTER_EXPRESSION reads each one it names as
+// a []float64 identifier. vecs is ExprVectors(req, schema); nil binds
+// nothing.
+func BuildFiltersWithVectors(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) ([]FilterFunc, error) {
 	if len(filterers) == 0 {
 		return nil, nil
 	}
@@ -292,6 +301,9 @@ func BuildFiltersWithModels(filterers []*types.Filterer, schema *encoding.Schema
 			if err := mb.bindModels(models); err != nil {
 				return nil, err
 			}
+		}
+		if vb, ok := builder.(vectorBinder); ok {
+			vb.bindVectors(vecs)
 		}
 		fn, err := builder.Build(f, schema)
 		if err != nil {

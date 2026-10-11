@@ -104,6 +104,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_REGRESSION_INVALID_LINK:      own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA: ownAllRegs,
 	errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED:  own("REG_OLS"),
+	errors.PROCESSING_VECTOR_LENGTH_MISMATCH:       ownExpr,
 	errors.SERVICE_VALIDATION:                      shared,
 	errors.SERVICE_RESOURCE:                        shared,
 	errors.SERVICE_REGISTRY:                        shared,
@@ -503,6 +504,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_VECTOR_MEMBER_TYPE:     ownVectorInputs,
 	errors.PULSE_VECTOR_DUPLICATE:       ownVectorInputs,
 	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
+	errors.PULSE_VECTOR_NAME_COLLISION:  own(featMatrices),
 	errors.PULSE_VECTOR_UNKNOWN:         ownVectorInputs,
 	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
 
