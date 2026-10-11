@@ -1110,7 +1110,9 @@ const (
 	// bare suffix with no file name ("name_missing"), or climbing above
 	// the filesystem root ("escapes_root"). Refused identically by
 	// predict and the runtime before any record is read. Details carry
-	// "path", "reason" and "regression" (the spec index) or "fit".
+	// "path", "reason" and "regression" (the spec index) or "fit". Two
+	// saves in one request or Compose batch naming the same file are
+	// refused too (reason "duplicate", details "sites" naming both).
 	PULSE_MODEL_SAVE_INVALID Code = "PULSE_MODEL_SAVE_INVALID"
 
 	// PULSE_MODEL_WRITE_FAILED indicates a model file save that failed

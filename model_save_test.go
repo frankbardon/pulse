@@ -213,3 +213,76 @@ func TestModelSave_WarningsOutsideComposeReturn(t *testing.T) {
 		t.Fatalf("unnamed save: %+v %v", f, err)
 	}
 }
+
+// TestModelSave_BatchPathParity: two saves naming one file (in a
+// request, or across a Compose batch's fits and slots) and a later
+// slot's bad save path are refused by predict exactly as the runtime
+// refuses them — the batch ones before any fit runs, so nothing is
+// written.
+func TestModelSave_BatchPathParity(t *testing.T) {
+	fsys := fitsFacadeFS(t)
+	p, err := New(Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	cohort, err := afero.ReadFile(fsys, fitsFacadeCohort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	same := func(what string, rerr error, pe descxEnvelopeError) {
+		t.Helper()
+		var ce *perr.CodedError
+		if !stderrors.As(rerr, &ce) || string(ce.Code) != pe.code || ce.Message != pe.message || !reflect.DeepEqual(ce.Details, pe.details) {
+			t.Errorf("%s: runtime %v\npredict %+v", what, rerr, pe)
+		}
+	}
+	dup := facadeFitRequest("0", "90")
+	dup.Regressions[0].Save = "r" + model.FileSuffix
+	dup.Regressions = append(dup.Regressions, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"week"}, Save: "./r" + model.FileSuffix})
+	env, err := p.PredictBytes(ctx, cohort, dup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pe *descxEnvelopeError
+	for _, e := range env.Errors {
+		if e.Code == string(perr.PULSE_MODEL_SAVE_INVALID) {
+			pe = &descxEnvelopeError{e.Code, e.Message, e.Details}
+		}
+	}
+	if pe == nil || pe.details["reason"] != model.ReasonSaveDuplicate {
+		t.Fatalf("predict errors %+v", env.Errors)
+	}
+	_, rerr := p.Process(ctx, dup)
+	same("Process", rerr, *pe)
+
+	fit := func() []types.FitSpec {
+		return []types.FitSpec{{Name: "f", Request: facadeFitRequest("0", "90"), Save: "f" + model.FileSuffix}}
+	}
+	badSlot := facadeFitSlot("bad")
+	badSlot.Regressions = []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Save: "bad.json"}}
+	dupSlot := facadeFitSlot("dup")
+	dupSlot.Regressions = []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Save: "f" + model.FileSuffix}}
+	for name, c := range map[string]*ComposedRequest{
+		"slot path":      {Fits: fit(), Requests: []*Request{facadeFitSlot("a"), badSlot}},
+		"duplicate save": {Fits: fit(), Requests: []*Request{dupSlot}},
+	} {
+		env, err := p.PredictCompose(ctx, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(env.Errors) != 1 || env.Errors[0].Code != string(perr.PULSE_MODEL_SAVE_INVALID) {
+			t.Fatalf("%s: predict errors %+v", name, env.Errors)
+		}
+		pe := descxEnvelopeError{env.Errors[0].Code, env.Errors[0].Message, env.Errors[0].Details}
+		_, rerr := p.Compose(ctx, c)
+		same(name+"/Compose", rerr, pe)
+		_, rerr = p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2})
+		same(name+"/ComposeParallel", rerr, pe)
+	}
+	for _, f := range []string{"r", "f"} {
+		if ok, _ := afero.Exists(fsys, f+model.FileSuffix); ok {
+			t.Fatalf("a refused save wrote %s", f)
+		}
+	}
+}

@@ -209,6 +209,14 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 		result.Valid = false
 		return env, req
 	}
+	// Then every save in the batch — the runtime's
+	// model.CheckComposeBatch, run before any fit or slot; nothing past
+	// it runs on a refusal.
+	if berr := model.CheckComposeBatch(req.Fits, req.Requests); berr != nil {
+		addCodedError(env, berr)
+		result.Valid = false
+		return env, req
+	}
 	// One label namespace across explicit and sweep slots, checked
 	// whether or not the batch declares overlays or a sweep — the
 	// runtime (applyComposeLabelDefaults) refuses a collision before any

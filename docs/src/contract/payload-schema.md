@@ -623,7 +623,12 @@ for batch-level diagnostics, always emitted (a `warnings` keep path the
 Compose-level `return` cannot exclude) — for a `fits` save
 (`details.fit`). Both `save` keys are
 gated by `capability:model_save`; the file itself is not payload-reachable,
-so `format_version` stays `"1.1"`.
+so `format_version` stays `"1.1"`. Two saves naming one file in a request
+or a Compose batch are refused (`reason: duplicate`, `details.sites`
+naming both writers), and a batch judges every save path — fits and
+slots — before any fit or slot runs (a slot's fault gains
+`details.request`). Materialize and ProcessChain admit no regression, so
+neither ever writes a model file.
 
 ### Item fan-out (`for_each`)
 

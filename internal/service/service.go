@@ -642,9 +642,10 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := mergegate.MatrixRefusal(req); err != nil {
 		return nil, markLocated(err)
 	}
-	// Every regression `save` path, shared with predict
-	// (model.CheckRegressionSaves): refused before any record is read.
-	if cerr := model.CheckRegressionSaves(req.Regressions); cerr != nil {
+	// Every regression `save` path and their uniqueness, shared with
+	// predict (model.CheckRequestSaves): refused before any record is
+	// read.
+	if cerr := model.CheckRequestSaves(req); cerr != nil {
 		return nil, markLocated(cerr)
 	}
 
@@ -1151,6 +1152,12 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// gate (predict runs the same model.CheckFits).
 	if err := model.CheckFits(composed.Fits); err != nil {
 		return nil, err
+	}
+	// Then every save in the batch (model.CheckComposeBatch — every
+	// slot's save path, every save's uniqueness), before any fit or slot
+	// runs, so no fit or slot writes in a batch a later path refuses.
+	if cerr := model.CheckComposeBatch(composed.Fits, composed.Requests); cerr != nil {
+		return nil, cerr
 	}
 	multPlan, err := s.resolveComposeMultiplicity(composed)
 	if err != nil {

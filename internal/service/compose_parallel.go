@@ -105,6 +105,10 @@ func (s *Service) composeParallel(
 	if err := model.CheckFits(composed.Fits); err != nil {
 		return nil, err
 	}
+	// Every save in the batch, exactly as on the serial path.
+	if cerr := model.CheckComposeBatch(composed.Fits, composed.Requests); cerr != nil {
+		return nil, cerr
+	}
 	multPlan, err := s.resolveComposeMultiplicity(composed)
 	if err != nil {
 		return nil, err

@@ -50,7 +50,7 @@ A **fit** is a named regression that a Compose batch runs ONCE, before any slot,
 
 ## Saving
 
-`save: "models/mmm.pulse-model.json"` on an entry (or on any regression spec) writes the fitted model as a versioned model file under the data root once it has run: atomic, full precision, named after the fit. The path must end `.pulse-model.json` and stay under the root (`PULSE_MODEL_SAVE_INVALID`, checked before any fit runs); a failed write is `PULSE_MODEL_WRITE_FAILED`; replacing a file succeeds with `PULSE_MODEL_OVERWRITTEN` in the compose response's `warnings` (`details.fit`).
+`save: "models/mmm.pulse-model.json"` on an entry (or on any regression spec) writes the fitted model as a versioned model file under the data root once it has run: atomic, full precision, named after the fit. The path must end `.pulse-model.json` and stay under the root (`PULSE_MODEL_SAVE_INVALID`, checked before any fit runs); a failed write is `PULSE_MODEL_WRITE_FAILED`; replacing a file succeeds with `PULSE_MODEL_OVERWRITTEN` in the compose response's `warnings` (`details.fit`). Two saves naming one file anywhere in the batch are refused (`reason: duplicate`, `details.sites`); every save path — fits and slots — is checked before any fit or slot runs.
 
 ## Refusals
 

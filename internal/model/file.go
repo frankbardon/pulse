@@ -361,22 +361,36 @@ func (f *File) Result() *types.RegressionResult {
 // cleaned). A violation is PULSE_MODEL_SAVE_INVALID with details.path
 // and details.reason. Nil for a valid path.
 func CheckSavePath(p string) *errors.CodedError {
+	if reason, what := checkModelPath(p); reason != "" {
+		return saveInvalid(p, reason, what)
+	}
+	return nil
+}
+
+// checkModelPath is the one model-file path rule, shared by a `save`
+// (CheckSavePath) and a `models` entry (CheckModelRefs): the violated
+// reason and its phrase, or "" for a valid path.
+func checkModelPath(p string) (reason, what string) {
 	if strings.TrimSpace(p) == "" {
-		return saveInvalid(p, ReasonSavePathEmpty, "is blank")
+		return ReasonSavePathEmpty, "is blank"
 	}
 	slashed := filepath.ToSlash(p)
 	base := path.Base(slashed)
 	if !strings.HasSuffix(base, FileSuffix) || strings.HasSuffix(slashed, "/") {
-		return saveInvalid(p, ReasonSaveSuffix, fmt.Sprintf("does not name a %s file", FileSuffix))
+		return ReasonSaveSuffix, fmt.Sprintf("does not name a %s file", FileSuffix)
 	}
 	if base == FileSuffix {
-		return saveInvalid(p, ReasonSaveNameMissing, fmt.Sprintf("has no file name before %s", FileSuffix))
+		return ReasonSaveNameMissing, fmt.Sprintf("has no file name before %s", FileSuffix)
 	}
 	if c := path.Clean(slashed); c == ".." || strings.HasPrefix(c, "../") {
-		return saveInvalid(p, ReasonSaveEscapesRoot, "climbs above the filesystem root")
+		return ReasonSaveEscapesRoot, "climbs above the filesystem root"
 	}
-	return nil
+	return "", ""
 }
+
+// cleanModelPath is p as the filesystem sees it — the key two `save`
+// paths are compared by.
+func cleanModelPath(p string) string { return path.Clean(filepath.ToSlash(p)) }
 
 // CheckRegressionSaves applies CheckSavePath to every RegressionSpec
 // that sets Save, in order; the first fault wins and gains

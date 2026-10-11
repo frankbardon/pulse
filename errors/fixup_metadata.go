@@ -1693,7 +1693,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SAVE_INVALID: {
-		Message: "A `save` path (on a regression or a `fits` entry) cannot name a model file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` with a name before the suffix, and never climbs above the root with `..`. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`), the offending regression's index under `regression` or the fit's under `fit`.",
+		Message: "A `save` path (on a regression or a `fits` entry) cannot name a model file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two models to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1704,6 +1704,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "save"},
 				Hint:   "Give the fit's `save` a `.pulse-model.json` path under the data root.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"regressions", "*", "save"},
+				Hint:   "For `duplicate`, give each saving regression or fit its own file (e.g. one per fit name), or drop the extra `save`.",
 			},
 		},
 	},
