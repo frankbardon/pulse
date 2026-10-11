@@ -117,7 +117,9 @@ tzdata:
 # twins (internal/tools/refcohorts), then appends the `// golden-hash:`
 # footer TestGoldensNotHandEdited checks. Needs Rscript + jsonlite and
 # the pinned psych / car / ppcor / perturb / corpcor / Matrix / Hotelling /
-# GPArotation / sandwich / lmtest (versions and install lines in the scripts' headers). Manual target: CI
+# GPArotation / sandwich / lmtest / biotools (the full list with versions,
+# install lines and the Homebrew Fortran workaround:
+# docs/src/internals/regenerating-goldens.md, The R toolchain). Manual target: CI
 # never runs R, the goldens are committed. Consumed by
 # internal/processing/reference_oracle_test.go,
 # internal/statdist/reference_oracle_test.go and the matrix-operator

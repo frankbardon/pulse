@@ -10,19 +10,75 @@ Python or R; the generated Go file is the oracle. Never hand-edit it.
 
 ```sh
 cd internal/service/testdata/weight_reference
-# once: R 4.6.1 + Hmisc 5.3.0 in a private library (see hmisc_quantile.R)
-mkdir -p rlib
-R_LIBS=rlib Rscript -e 'install.packages("remotes", repos = "https://cloud.r-project.org")' \
-  -e 'remotes::install_version("Hmisc", "5.3.0", repos = "https://cloud.r-project.org")'
-R_LIBS=rlib uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
+# once: Hmisc 5.3.0 in a private library (never commit it); see
+# "R toolchain" below for the Homebrew Fortran workaround
+R_LIBS=/tmp/rlib Rscript -e 'install.packages("remotes", lib = "/tmp/rlib", repos = "https://cloud.r-project.org")' \
+  -e 'remotes::install_version("Hmisc", "5.3.0", lib = "/tmp/rlib", repos = "https://cloud.r-project.org", upgrade = "never")'
+R_LIBS=/tmp/rlib uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
 gofmt -w ../../weight_reference_values_test.go
 go test ../.. -run TestWeightReference
 ```
 
-(Keep `rlib/` out of the commit.) Pinned toolchain: Python 3.12, numpy
-2.3.3, scipy 1.16.2, statsmodels 0.14.5, scikit-learn 1.7.2; R 4.6.1,
-Hmisc 5.3.0 (the R scripts refuse any other R / Hmisc version). The script's docstring maps
+To CHECK the committed values without rewriting them, run the generator
+with `--check`: it regenerates in memory and compares figure by figure
+with `../../weight_reference_values_test.go`, failing (exit 1) on any
+structural difference or any figure further than 1e-12 relative from
+the committed one (absolute when it is 0) — `weightRefTol`, the tolerance
+`TestWeightReferenceValues` holds Pulse to. The provenance consts are
+reported, not compared. It needs the same toolchain; once uv's cache
+holds the pinned wheels it runs without network (`--offline`):
+
+```sh
+R_LIBS=/tmp/rlib uv run --offline --no-project gen_weight_reference.py --check
+```
+
+### Pinned toolchain and the last ulps
+
+Python 3.12, numpy 2.3.3, scipy 1.16.2, statsmodels 0.14.5, scikit-learn
+1.7.2 (PEP 723 header); R 4.6.1 with base `stats` and Hmisc 5.3.0 (the R
+scripts refuse any other R / Hmisc version). The script's docstring maps
 each Pulse definition onto the library call configured to match it.
+
+The pins fix every figure to well inside the test tolerance, but NOT to
+the last bit. The probability-kind closed forms, the penalised β
+(scikit-learn), the Bayes posterior and the pseudo-R² run through
+numpy / scipy linear algebra, whose BLAS / LAPACK backend comes with the
+wheel — Apple Accelerate on macOS arm64, OpenBLAS on Linux — and changes
+with the OS release. A regeneration on another machine therefore shifts
+those rows by a few ulps — measured 2026-10-11, moving from an earlier
+macOS to macOS 27.0.1 on Accelerate: 232 figures, worst 2.2e-14
+relative, all in `REG_OLS` / `REG_GLM` / ridge / `ATTR_REG_*` under
+probability weights and ridge / Bayes / the GLM pseudo-R² under
+frequency weights; the same machine reproduces its own output byte for
+byte. The figures computed in R, the descriptive and test rows and the
+exact-rational ones did not move. `weightRefProvenance` records the
+backend and platform that wrote the committed file; `--check` is the
+portable agreement test. Commit a regeneration whenever the generator
+or a fixture changes, so the file is exactly one generator run.
+
+### R toolchain
+
+The weight references need only base R plus Hmisc. Hmisc compiles
+Fortran: on Homebrew R 4.6.1 its link fails with `library 'emutls_w'
+not found` (or `'gfortran'`), because R's recorded `FLIBS` names a gcc
+target directory that does not exist (`R CMD config FLIBS` says
+`aarch64-apple-darwin27`, Homebrew gcc 16 installs
+`aarch64-apple-darwin23`). Point a TEMPORARY Makevars at the real one
+for the install only — never commit it, and do not leave it in
+`~/.R/Makevars`:
+
+```sh
+GCC=$(brew --prefix gcc)/lib/gcc/current
+TRIPLE=$(ls "$GCC/gcc")                     # e.g. aarch64-apple-darwin23
+VER=$(ls "$GCC/gcc/$TRIPLE")                # e.g. 16
+printf 'FLIBS = -L%s/gcc/%s/%s -L%s/gcc -L%s -lemutls_w -lheapt_w -lgfortran -lquadmath\n' \
+  "$GCC" "$TRIPLE" "$VER" "$GCC" "$GCC" > /tmp/Makevars.pulse
+R_MAKEVARS_USER=/tmp/Makevars.pulse R_LIBS=/tmp/rlib Rscript -e '...install line above...'
+```
+
+The multivariate R oracle (`make reference`) has its own pinned package
+list and the same workaround: `docs/src/internals/regenerating-goldens.md`
+(The R toolchain).
 
 ## Weighted significance tests
 

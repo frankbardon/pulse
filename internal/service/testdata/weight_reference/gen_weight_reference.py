@@ -23,6 +23,15 @@ R 4.6.1 with Hmisc 5.3.0 on R_LIBS — see that script's header):
     R_LIBS=<lib with Hmisc 5.3.0> uv run --no-project gen_weight_reference.py
     gofmt -w ../../weight_reference_values_test.go
 
+--check regenerates in memory and compares with the committed file
+(structure exact, every figure within 1e-12 relative, weightRefTol),
+exiting 1 on a disagreement. The pins hold every figure well inside
+that, not to the last bit: the closed forms' linear algebra runs on the
+wheel's BLAS / LAPACK (Accelerate on macOS arm64, OpenBLAS on Linux),
+which moves with the OS release, so another machine shifts the
+regression rows by a few ulps (README.md, "Pinned toolchain and the
+last ulps"); weightRefProvenance records the backend and platform.
+
 Reference per family, and how each maps onto Pulse's documented
 definition:
 
@@ -2325,6 +2334,15 @@ def figure_path(name):
     return "details." + name
 
 
+def blas_provenance():
+    """numpy's BLAS / LAPACK backend and the platform: the closed forms'
+    last ulps follow the backend (Apple Accelerate on macOS arm64 wheels,
+    OpenBLAS on Linux) and its OS release, not only the pinned versions."""
+    import platform
+    deps = np.show_config(mode="dicts")["Build Dependencies"]
+    return f'blas {deps["blas"]["name"]}, lapack {deps["lapack"]["name"]} on {platform.platform()}'
+
+
 def gofloat(v):
     if isinstance(v, float) and math.isnan(v):
         return "math.NaN()"
@@ -2343,7 +2361,7 @@ def emit(out, tout, oout, rout):
     w("")
     w("// weightRefProvenance records the generating toolchain.")
     w(f'const weightRefProvenance = "python {sys.version.split()[0]}, numpy {np.__version__}, '
-      f'scipy {scipy.__version__}, statsmodels {statsmodels.__version__}; {HMISC[0]}"')
+      f'scipy {scipy.__version__}, statsmodels {statsmodels.__version__}; {HMISC[0]}; {blas_provenance()}"')
     w("")
     w(f"// weightRefPScale is c in the probability twin p = c·f.")
     w(f"const weightRefPScale = {P_SCALE!r}")
@@ -2453,9 +2471,71 @@ def emit(out, tout, oout, rout):
     return "\n".join(lines) + "\n"
 
 
+# CHECK_REL_TOL is TestWeightReferenceValues' weightRefTol: --check
+# accepts a regenerated figure within it of the committed one (absolute
+# when the committed figure is 0), so a BLAS-backend ulp drift passes
+# and anything a test could notice fails.
+CHECK_REL_TOL = 1e-12
+_FLOAT = r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?"
+
+
+def check_against(committed, generated):
+    """Compare a regenerated values file with the committed one.
+
+    The provenance consts are reported, not compared (they name the
+    platform and BLAS). Every other line must match after whitespace is
+    collapsed (gofmt only realigns) and each number is replaced by a
+    placeholder; paired numbers must agree within CHECK_REL_TOL. Returns
+    (problems, drifted, worst relative difference).
+    """
+    import re
+
+    def body(text):
+        out = []
+        for line in text.splitlines():
+            line = " ".join(line.split())
+            if not line or line.startswith("const weightRef") and "Provenance" in line:
+                continue
+            out.append(line)
+        return out
+
+    num = re.compile(r"(?<![\w.])" + _FLOAT)
+    a, b = body(committed), body(generated)
+    problems, drifted, worst = [], 0, 0.0
+    if len(a) != len(b):
+        return [f"line count differs: committed {len(a)}, generated {len(b)}"], 0, 0.0
+    for i, (la, lb) in enumerate(zip(a, b)):
+        if num.sub("#", la) != num.sub("#", lb):
+            problems.append(f"line {i}: structure differs")
+            continue
+        for xa, xb in zip(num.findall(la), num.findall(lb)):
+            fa, fb = float(xa), float(xb)
+            if fa == fb:
+                continue
+            drifted += 1
+            diff = abs(fa - fb)
+            rel = diff / abs(fa) if fa != 0 else diff
+            worst = max(worst, rel)
+            if rel > CHECK_REL_TOL:
+                problems.append(f"line {i}: {xa} vs {xb} (relative {rel:.3g})")
+    return problems, drifted, worst
+
+
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     dst = os.path.join(here, "..", "..", "weight_reference_values_test.go")
+    text = emit(cases(), test_cases(), overlay_cases(), regression_cases())
+    if "--check" in sys.argv[1:]:
+        with open(dst) as fh:
+            problems, drifted, worst = check_against(fh.read(), text)
+        print(f"check: {drifted} figures drifted, worst relative difference {worst:.3g} (tolerance {CHECK_REL_TOL:g})")
+        for p in problems[:50]:
+            print("  " + p)
+        if problems:
+            print(f"check FAILED: {len(problems)} disagreements with {os.path.normpath(dst)}")
+            sys.exit(1)
+        print("check passed: the committed values equal the generator's within tolerance")
+        sys.exit(0)
     with open(dst, "w") as fh:
-        fh.write(emit(cases(), test_cases(), overlay_cases(), regression_cases()))
+        fh.write(text)
     print("wrote", os.path.normpath(dst))
