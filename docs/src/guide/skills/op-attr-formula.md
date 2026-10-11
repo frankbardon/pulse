@@ -50,10 +50,9 @@ One `float64` per record (bools → `1.0` / `0.0`). Null binds `nil`: guard `x ?
 - Misuse: `total()` in an expression filter or overlay formula (Compose host too) → `PULSE_FORMULA_TOTAL_SITE`; nested → `_TOTAL_NESTED`; arity ≠ 1 → `_TOTAL_ARITY`. An embedder `ExprFunction` named `total` → `PULSE_EXTENSION_NAME_RESERVED`.
 - Compiled once; bad syntax / types → `PROCESSING_RUNTIME` at build.
 - Categorical → STRING (`==` / `in`); `set_*` → `[]string` (`"a" in tags`, `has_any(tags, "a", "b")`).
-- No `sqrt` / `log` / `exp` / trig — use `**` or FEAT.
 - `%` on a field: float `math.Mod` (`score % 1`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: [`attribute-composition`](attribute-composition.md), [`expression-language`](expression-language.md) (embedder `ExprFunctions`, `lookup(...)`)
+- Skills: [`attribute-composition`](attribute-composition.md), [`expression-language`](expression-language.md) (maths / vector functions, `ExprFunctions`, `lookup(...)`)

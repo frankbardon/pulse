@@ -56,4 +56,4 @@ Floor only: universal `{n_in, n_out, n_null_input}` ([`response-components`](res
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: [`expression-language`](expression-language.md) (embedder `ExprFunctions`, `LookupTables`), [`aggregation-design`](aggregation-design.md), [`response-components`](response-components.md)
+- Skills: [`expression-language`](expression-language.md) (maths / vector functions, `ExprFunctions`, `LookupTables`), [`aggregation-design`](aggregation-design.md), [`response-components`](response-components.md)

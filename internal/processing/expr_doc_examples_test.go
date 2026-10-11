@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
 )
 
 // TestExprDocExamples_Compile compiles every FILTER_EXPRESSION /
@@ -27,7 +28,8 @@ import (
 //   - Go `Expression: "..."` string literals (a non-literal such as
 //     fmt.Sprintf is skipped);
 //   - inline (single-backtick, outside fenced blocks) spans that call a
-//     set helper or `contains(`, test `"label" in field`, or show a
+//     set helper, `contains(` or a reserved vector / scalar-maths
+//     built-in (exprbuiltins.Names; expression-host pages only), test `"label" in field`, or show a
 //     `field % n` modulo.
 //
 // An example naming a field the synthetic schema lacks fails rather
@@ -79,6 +81,7 @@ func docExprSchema() *encoding.Schema {
 		cat("study", "s1", "s2"),
 		{Name: "wave_date", Type: encoding.FieldTypeDate, Nullable: true},
 		num("weight_kg"), num("height_m"), num("score"),
+		num("q1"), num("q2"), num("q3"),
 		set("tags", "a", "b", "c"),
 		set("issuers", "VISA", "MC", "AMEX"),
 	}}
@@ -92,7 +95,13 @@ var (
 	docFenceRe      = regexp.MustCompile("(?ms)^\\s*```.*?^\\s*```")
 	docInlineCodeRe = regexp.MustCompile("`([^`\n]+)`")
 	docSetCallRe    = regexp.MustCompile(`^(contains|has_any|has_all|has_none|popcount|set_union|set_intersect|set_diff|set_xor)\(.*\)$`)
-	docInLabelRe    = regexp.MustCompile(`^"[^"]+" in [A-Za-z_][A-Za-z0-9_]*$`)
+	// docBuiltinCallRe: an inline call of a reserved vector /
+	// scalar-maths built-in (vmean(...), pow(...), ...).
+	docBuiltinCallRe = regexp.MustCompile(`^(` + strings.Join(exprbuiltins.Names(), "|") + `)\(.*\)$`)
+	docExprHostPages = map[string]bool{
+		"expression-language.md": true, "op-attr-formula.md": true, "op-filter-expression.md": true,
+	}
+	docInLabelRe = regexp.MustCompile(`^"[^"]+" in [A-Za-z_][A-Za-z0-9_]*$`)
 	// docModRe: an inline `field % n` example (float modulo, expr_mod.go).
 	docModRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]* % [0-9.]+( == [0-9.]+)?$`)
 )
@@ -153,12 +162,49 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 				add(where, s)
 			}
 		}
+		// Built-in calls are harvested only from the expression hosts'
+		// pages: elsewhere `sqrt(...)` / `exp(...)` spans are maths
+		// notation (overlay and synth formulas), not expressions.
+		exprHost := docExprHostPages[filepath.Base(path)]
 		for _, m := range docInlineCodeRe.FindAllStringSubmatch(docFenceRe.ReplaceAllString(text, ""), -1) {
 			span := strings.TrimSpace(m[1])
-			if docSetCallRe.MatchString(span) || docInLabelRe.MatchString(span) || docModRe.MatchString(span) {
+			if docSetCallRe.MatchString(span) || (exprHost && docBuiltinCallRe.MatchString(span)) || docInLabelRe.MatchString(span) || docModRe.MatchString(span) {
 				add(path, span)
 			}
 		}
 	}
 	return out
+}
+
+// TestExprBuiltinsDocumented pins the inventory: every reserved
+// vector / scalar-maths built-in is named, backticked, in the
+// expression-language skill, so a function added to exprbuiltins
+// without a documented row fails here.
+func TestExprBuiltinsDocumented(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "internal", "skills", "expression-language.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range exprbuiltins.Names() {
+		re := regexp.MustCompile("`" + regexp.QuoteMeta(name) + "[`(]")
+		if !re.Match(raw) {
+			t.Errorf("expression-language.md does not document the built-in %q (want a `%s` or `%s(` span)", name, name, name)
+		}
+	}
+}
+
+// TestExprDocExamples_HarvestsBuiltinCalls guards the harvest itself:
+// the inventory's inline built-in calls must reach the compile check.
+func TestExprDocExamples_HarvestsBuiltinCalls(t *testing.T) {
+	want := map[string]bool{"vmax(vzscore([q1, q2, q3]))": false, "pow(score, 2)": false}
+	for _, ex := range harvestDocExpressions(t) {
+		if _, ok := want[ex.src]; ok {
+			want[ex.src] = true
+		}
+	}
+	for src, got := range want {
+		if !got {
+			t.Errorf("inline built-in call %q was not harvested", src)
+		}
+	}
 }
