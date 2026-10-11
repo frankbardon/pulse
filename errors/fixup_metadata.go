@@ -1603,17 +1603,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_NAME_COLLISION: {
-		Message: "Two bound models share a name: every `fits` entry name must be unique in the request, because slots reference a model by that name alone. The name is under `name`, the second entry's index under `fit`.",
+		Message: "Two bound models share a name: `fits` entries and `models` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` entry names both bindings under `sources` (each {slot, index} plus a model's path).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "name"},
 				Hint:   "Rename one of the colliding fits and update the references to it.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "name"},
+				Hint:   "Load the model under a name no fit or other entry uses, and update the references to it.",
+			},
 		},
 	},
 	PULSE_MODEL_UNKNOWN: {
-		Message: "A reference names a model no fit binds in this request. Names resolve against the ComposedRequest `fits` entries (one namespace). The unknown name is under `name`, the bound names under `available`.",
+		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` entries (one namespace). The unknown name is under `name`, the bound names under `available`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1733,7 +1738,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_FILE_INVALID: {
-		Message: "A model file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` (`version_missing`), or its version-1 document has an unknown key, a mistyped value or a structural fault such as a predictor without a coefficient (`schema`). The file is under `path`.",
+		Message: "A model file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` (`version_missing`), or its version-1 document has an unknown key, a mistyped value or a structural fault such as a predictor without a coefficient (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model` and its name under `name`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -1747,6 +1752,31 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "Re-save the model with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
+			},
+		},
+	},
+	PULSE_MODEL_REF_INVALID: {
+		Message: "A `models` entry cannot name a model file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json`, with a file name before the suffix and no `..` above the root. The entry's index is under `model`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "path"},
+				Hint:   "Point `path` at the file a `save` wrote, e.g. `models/mmm.pulse-model.json`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "name"},
+				Hint:   "Give the entry the name its scoring references use.",
+			},
+		},
+	},
+	PULSE_MODEL_FILE_UNREADABLE: {
+		Message: "A `models` entry's file cannot be read: it does not exist (reason `missing`) or reading it failed — a directory, permissions or an I/O fault (`unreadable`). Every model file is read before any record is read (in a batch or chain, before anything runs), so nothing ran. The file is under `path`, the entry's index under `model` and its name under `name`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "path"},
+				Hint:   "Point `path` at an existing model file under the data root (a regression or fit `save` writes one).",
 			},
 		},
 	},

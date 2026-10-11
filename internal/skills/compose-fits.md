@@ -56,6 +56,12 @@ A **fit** is a named regression that a Compose batch runs ONCE, before any slot,
 `save: "models/mmm.pulse-model.json"` on an entry (or on any regression spec) writes the fitted model as a versioned model file under the data root once it has run: atomic, full precision, named after the fit. The path must end `.pulse-model.json` and stay under the root (`PULSE_MODEL_SAVE_INVALID`, checked before any fit runs); a failed write is `PULSE_MODEL_WRITE_FAILED`; replacing a file succeeds with `PULSE_MODEL_OVERWRITTEN` in the compose response's `warnings` (`details.fit`). Two saves naming one file anywhere in the batch are refused (`reason: duplicate`, `details.sites`); every save path — fits and slots — is checked before any fit or slot runs.
 <!-- /feature -->
 
+<!-- feature: capability:models -->
+## Loading
+
+`models: [{name: "mmm", path: "models/mmm.pulse-model.json"}]` on any request (slot, fit request, process, chain stage, facet) loads a saved model under `name` into the same namespace: references resolve it exactly like a fit (bit for bit), on any cohort holding its predictor columns (provenance is informational). Every file is read before anything runs — in a batch, before any fit — so a load sees the file as it was before the batch. Refusals: `PULSE_MODEL_REF_INVALID` (no name, bad path), `PULSE_MODEL_FILE_UNREADABLE`, `PULSE_MODEL_FILE_INVALID`, `PULSE_MODEL_VERSION_UNSUPPORTED`, and `PULSE_MODEL_NAME_COLLISION` for a name a fit or another entry binds (`details.sources` names both).
+<!-- /feature -->
+
 ## Refusals
 
 - `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (with `count`), `grouped`. Checked before any fit or slot runs.

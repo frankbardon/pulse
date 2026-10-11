@@ -175,6 +175,15 @@ type PredictOptions struct {
 	// finding.
 	RecordCounter func(path string) (int64, error)
 
+	// ModelLoader reads a model file's bytes at a path relative to the
+	// instance filesystem root — the facade passes the runtime's own
+	// read (Service.ReadModelFile). Predict uses it for every `models`
+	// entry (Request, FacetRequest, Compose slots and fits, chain
+	// stages): the file is decoded and version-checked by the runtime's
+	// rule and its terms judged against the scoring frame. Nil refuses
+	// every entry as PULSE_MODEL_FILE_UNREADABLE (reason unreadable).
+	ModelLoader ModelFileReader
+
 	// Instance is the instance feature set. The request-time overlay
 	// kind gates (Request, Compose and Facet hosts) report a kind it
 	// hides exactly as a kind not in the catalog. Nil hides nothing.
@@ -371,6 +380,14 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if merr := mergegate.MatrixRefusal(req); merr != nil {
 		addCodedError(env, merr)
 	}
+	// The request's `models` — the runtime loads them right after its
+	// save-path rule (validateRegressions reports that one), before any
+	// record is read: read and decoded through opts.ModelLoader, the
+	// loaded terms then judged by the field-reference pass below.
+	models, unloadedModels, lerr := predictModels(req.Models, nil, opts)
+	if lerr != nil {
+		addCodedError(env, lerr)
+	}
 
 	// Multiplicity resolution — the same single pass the runtime runs
 	// right after the join-count rule, before any dispatch
@@ -438,7 +455,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// Field references — the one rule the runtime refuses with at the
 	// same point (after defaults and zones, against the schema the
 	// request executes over). Every unknown name is reported.
-	for _, ce := range fieldRefRefusals(req, schema, extensionsFromOpts(opts), opts.Instance) {
+	for _, ce := range dropUnloadedUnknowns(fieldRefRefusalsWithModels(req, schema, extensionsFromOpts(opts), opts.Instance, models), unloadedModels) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 

@@ -1,6 +1,6 @@
 ---
 name: op-attr-reg-predict
-description: Per-row score from a bound model (a compose `fits` entry) — no refit; whole model or a terms subset.
+description: Per-row score from a bound model (a compose `fits` entry or a loaded `models` file) — no refit; whole model or a terms subset.
 kind: operator
 category: ATTR
 operator: ATTR_REG_PREDICT
@@ -41,6 +41,7 @@ One `f64` per record; null when a column the score reads is null. Training rows 
 - A coefficient bound is not a prediction interval. A term with no bound scores null.
 - Row-local: streams, merges, materializes. Row weight ignored (the fit's own applied).
 - Under selection a dropped feature scores 0.
+- Save, then load: `save: "models/m.pulse-model.json"` on the fit; a later request declares `models: [{name: "m", path: "models/m.pulse-model.json"}]` and scores `fit: "m"` — bit-equal to the in-compose fit, any cohort with the same predictor columns.
 
 ## See
 

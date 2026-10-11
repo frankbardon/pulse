@@ -30,3 +30,25 @@ type FitSpec struct {
 	// capability:model_save. Empty writes nothing.
 	Save string `json:"save,omitempty"`
 }
+
+// ModelRef is one entry of Request.Models (and FacetRequest.Models): a
+// model file a `save` wrote, loaded under Name for this request. The
+// name joins the request's bound-model namespace — the one a Compose
+// `fits` list binds — so ATTR_REG_PREDICT `fit` and coef() resolve it
+// exactly like a fit of the same name; a name bound twice (by another
+// entry or a fit) is PULSE_MODEL_NAME_COLLISION.
+//
+// The file is read (through the instance filesystem) and decoded before
+// any record is read — in a Compose batch or a chain, before any fit
+// or slot runs, so a load always sees the file as it was before the
+// batch. Its provenance is informational: a model trained on one cohort
+// scores any cohort holding its predictor columns.
+type ModelRef struct {
+	// Name binds the model for the request. Required; unique across
+	// the request's models and any Compose fit.
+	Name string `json:"name"`
+
+	// Path is the model file, relative to the data root, ending
+	// .pulse-model.json — the save-path rule.
+	Path string `json:"path"`
+}

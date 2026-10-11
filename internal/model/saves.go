@@ -10,9 +10,10 @@ import (
 // saves.go is the batch half of the `save` rule: every save in a
 // request or Compose batch is judged before anything runs — its path
 // (CheckSavePath) and its uniqueness (two saves naming one file would
-// let the later write silently replace the earlier one). The runtime
-// and predict call the same functions, so both refuse the same tree
-// with the same error.
+// let the later write silently replace the earlier one) — and every
+// `models` entry of a batch or chain before any fit, slot or stage
+// runs. The runtime and predict call the same functions, so both refuse
+// the same tree with the same error.
 
 // ReasonSaveDuplicate is the PULSE_MODEL_SAVE_INVALID reason of a second
 // save naming a file an earlier save in the same tree writes.
@@ -79,7 +80,11 @@ func CheckRequestSaves(req *types.Request) *errors.CodedError {
 //     details.request = the slot index) — the fits' own were CheckFits';
 //  2. the uniqueness of every save in the batch — fits[i],
 //     fits[i].request.regressions[j], requests[k].regressions[j]
-//     (CheckSaveDuplicates).
+//     (CheckSaveDuplicates);
+//  3. every fit request's `models` (CheckModelRefs, nothing bound
+//     outside it — a fit runs before the batch binds; details.fit);
+//  4. every slot's `models` against the fits' names (CheckModelRefs,
+//     details.request).
 //
 // requests are the effective slots (sweep slots included).
 func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.CodedError {
@@ -102,5 +107,46 @@ func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.
 	for k, req := range requests {
 		sites = append(sites, RequestSaveSites(fmt.Sprintf("requests[%d].", k), req)...)
 	}
-	return CheckSaveDuplicates(sites)
+	if cerr := CheckSaveDuplicates(sites); cerr != nil {
+		return cerr
+	}
+	for i, f := range fits {
+		if f.Request == nil {
+			continue
+		}
+		if cerr := CheckModelRefs(f.Request.Models, nil); cerr != nil {
+			cerr.Details["fit"] = i
+			return cerr
+		}
+	}
+	cat := CatalogFromFits(fits)
+	for k, req := range requests {
+		if req == nil {
+			continue
+		}
+		if cerr := CheckModelRefs(req.Models, cat); cerr != nil {
+			cerr.Details["request"] = k
+			return cerr
+		}
+	}
+	return nil
+}
+
+// CheckChainModels is the chain pre-pass rule, run by the runtime
+// before the cohort opens and by PredictChain: every stage's `models`
+// (each stage its own namespace; details.stage). A chain writes no
+// model file — the chain gate refuses a regression on every stage
+// (PULSE_CHAIN_NOT_MERGEABLE), stage 0 before it runs — so its saves
+// need no rule here.
+func CheckChainModels(stages []*types.ChainStage) *errors.CodedError {
+	for i, st := range stages {
+		if st == nil || st.Request == nil {
+			continue
+		}
+		if cerr := CheckModelRefs(st.Request.Models, nil); cerr != nil {
+			cerr.Details["stage"] = i
+			return cerr
+		}
+	}
+	return nil
 }

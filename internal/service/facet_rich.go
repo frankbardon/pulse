@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -51,8 +52,14 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if len(req.Fields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "facet schema requires a non-empty fields list")
 	}
-	// A hidden FacetRequest.Overlays slot is an unknown field.
+	// A hidden FacetRequest.Overlays / Models slot is an unknown field.
 	if err := s.slotRefusal(req); err != nil {
+		return nil, err
+	}
+	// The request's `models` (for its filterers' coef()), loaded before
+	// any record is read — predict loads them at the same point.
+	ctx, err := s.bindRequestModels(ctx, req.Models)
+	if err != nil {
 		return nil, err
 	}
 	mult, err := descx.ResolveFacetMultiplicity(req, s.defaultMultiplicity, s.instance)
@@ -74,7 +81,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkFacetFieldRefs(req, schema); err != nil {
+	if err := s.checkFacetFieldRefs(ctx, req, schema); err != nil {
 		return nil, err
 	}
 	// Instance resource limits: a set MaxEstimatedMemory refuses before
@@ -115,12 +122,13 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	}
 
 	// Build additive accumulators with the field's own clauses stripped.
-	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema, s.extensions, s.Limits())
+	models := model.SetFrom(ctx)
+	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema, s.extensions, models, s.Limits())
 	if err != nil {
 		return nil, err
 	}
 
-	baseFilterFns, err := processing.BuildFilters(req.Filterers, schema, s.extensions)
+	baseFilterFns, err := processing.BuildFiltersWithModels(req.Filterers, schema, s.extensions, models)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +346,7 @@ func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types
 // resolve through exts — the same instance registry the base filters
 // use — so an extension filterer works and a hidden one is refused
 // here exactly as an unregistered one is.
-func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema, exts *processing.ExtensionRegistry, l limits.Limits) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
+func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, l limits.Limits) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
 	if len(req.AdditiveFields) == 0 {
 		return nil, nil, nil
 	}
@@ -352,7 +360,7 @@ func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema,
 		}
 		entries = append(entries, &additiveEntry{field: name, acc: &fieldAcc{name: name, kind: acc}})
 		scopeFilters := stripFieldFromFilterers(req.Filterers, name)
-		fns, err := processing.BuildFilters(scopeFilters, schema, exts)
+		fns, err := processing.BuildFiltersWithModels(scopeFilters, schema, exts, models)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -648,6 +648,13 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if cerr := model.CheckRequestSaves(req); cerr != nil {
 		return nil, markLocated(cerr)
 	}
+	// The request's `models`: every file read and decoded, bound beside
+	// what ctx already binds (a Compose pre-pass binds a slot's ahead),
+	// before any record is read — predict loads them at the same point.
+	ctx, err := s.bindRequestModels(ctx, req.Models)
+	if err != nil {
+		return nil, markLocated(err)
+	}
 
 	// The multiplicity blocks resolve before any dispatch (every arm —
 	// crosstab, join, shard, parallel decode, serial — shares it); a
@@ -1153,11 +1160,12 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err := model.CheckFits(composed.Fits); err != nil {
 		return nil, err
 	}
-	// Then every save in the batch (model.CheckComposeBatch — every
-	// slot's save path, every save's uniqueness), before any fit or slot
-	// runs, so no fit or slot writes in a batch a later path refuses.
-	if cerr := model.CheckComposeBatch(composed.Fits, composed.Requests); cerr != nil {
-		return nil, cerr
+	// Then the batch's saves and loads (model.CheckComposeBatch — every
+	// slot's save path, every save's uniqueness, every `models` entry)
+	// and every model file read, before any fit or slot runs.
+	pre, err := s.composeModelsPrepass(composed)
+	if err != nil {
+		return nil, err
 	}
 	multPlan, err := s.resolveComposeMultiplicity(composed)
 	if err != nil {
@@ -1190,7 +1198,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	}
 	// The fit pre-pass: every fit runs once, as a standalone request,
 	// before any slot; every slot then carries the bound models.
-	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, 1)
+	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, pre, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -1202,7 +1210,11 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	ei.Lap(observe.PhasePlan)
 	responses := make([]*types.Response, len(requests))
 	for i, req := range requests {
-		slotCtx, end := startChild(bindSlotModels(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), models, req), i, req)
+		slotSet, err := pre.slotSet(models, i)
+		if err != nil {
+			return nil, err
+		}
+		slotCtx, end := startChild(bindSlotModels(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), slotSet, req), i, req)
 		resp, err := s.Process(slotCtx, req)
 		end(err)
 		if err != nil {

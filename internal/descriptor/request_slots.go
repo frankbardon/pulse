@@ -42,6 +42,7 @@ import (
 //   - every item `for_each` (Window, Feature, Attribute) —
 //     capability:for_each
 //   - every `save` (RegressionSpec, FitSpec) — capability:model_save
+//   - Request.Models and FacetRequest.Models — capability:models
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
@@ -106,6 +107,10 @@ const saveKey = "save"
 // modelSaveSlotGate is the one gate every `save` key shares.
 var modelSaveSlotGate = gatedSlot{key: saveKey, visible: capabilityGate(featModelSave)}
 
+// modelsSlotGate gates the `models` key on a Request and a
+// FacetRequest; both ride capability:models.
+var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels)}
+
 // gatedSlots maps each request root (by its Go type) to its gated
 // slots, plus the nested slot objects that carry a gated key of their
 // own (the per-slot `weight`). The nested entries are what the payload
@@ -120,6 +125,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "matrices", visible: capabilityGate(featMatrices)},
 		weightSlotGate,
 		multiplicitySlotGate,
+		modelsSlotGate,
 	},
 	reflect.TypeOf(types.Aggregation{}):        {weightSlotGate},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
@@ -177,6 +183,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	},
 	reflect.TypeOf(types.FacetRequest{}): {
 		{key: "overlays", visible: overlayGate(featFacet)},
+		modelsSlotGate,
 	},
 	// Explain carries every other root as a slot: a root whose
 	// capability is hidden is not a slot of it, request and result alike.
@@ -368,6 +375,9 @@ func setSlots(v any) []string {
 		if r.Multiplicity != nil {
 			out = append(out, multiplicityKey)
 		}
+		if len(r.Models) > 0 {
+			out = append(out, "models")
+		}
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
@@ -388,6 +398,9 @@ func setSlots(v any) []string {
 	case *types.FacetRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
+		}
+		if r != nil && len(r.Models) > 0 {
+			out = append(out, "models")
 		}
 	}
 	return out

@@ -99,6 +99,7 @@ func TestSignature_RuntimeMatchesPredict(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		b.Source = FitSource(0) // the runtime's pre-pass stamps it
 		set := &Set{}
 		if err := set.Add(b); err != nil {
 			t.Fatal(err)

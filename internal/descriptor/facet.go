@@ -118,6 +118,14 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		result.Valid = false
 		return env
 	}
+	// The request's `models` — the runtime loads them right after the
+	// slot gate; a refusal stops it there.
+	models, _, lerr := predictModels(req.Models, nil, opts)
+	if lerr != nil {
+		addCodedError(env, lerr)
+		result.Valid = false
+		return env
+	}
 	// Multiplicity on the overlays — the pass FacetSchema runs right
 	// after the slot gate (ResolveFacetMultiplicity).
 	facetPlan, merr := ResolveFacetMultiplicity(req, opts.DefaultMultiplicity, opts.instance())
@@ -238,7 +246,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	if _, zerr := ResolveFacetZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader, opts.instance()); zerr != nil {
 		addCodedError(env, zerr)
 	}
-	for _, ce := range fieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema, snap, opts.instance()) {
+	for _, ce := range fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers}, schema, snap, opts.instance(), models) {
 		addCodedError(env, ce)
 	}
 

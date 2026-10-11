@@ -1044,9 +1044,11 @@ const (
 	PULSE_FIT_INVALID Code = "PULSE_FIT_INVALID"
 
 	// PULSE_MODEL_NAME_COLLISION indicates two bound models sharing a
-	// name — two ComposedRequest `fits` entries today; the one model
-	// namespace every name reference resolves against. Details carry
-	// "name" and the colliding "fit" index.
+	// name in the one model namespace every name reference resolves
+	// against: two ComposedRequest `fits` entries (details "name" and
+	// the colliding "fit" index), or a Request `models` entry whose name
+	// a fit or an earlier `models` entry already binds (details "name"
+	// and "sources" — both bindings, each {slot, index[, path]}).
 	PULSE_MODEL_NAME_COLLISION Code = "PULSE_MODEL_NAME_COLLISION"
 
 	// PULSE_MODEL_UNKNOWN indicates a reference to a model name no fit
@@ -1133,13 +1135,29 @@ const (
 	// ("version_missing"), or a version-1 document with an unknown key,
 	// a mistyped value or a structural fault — no type or target, a
 	// predictor without a coefficient or outside terms, a malformed vcov
-	// ("schema"). Details carry "path" and "reason".
+	// ("schema"). Details carry "path" and "reason" (plus "model" and
+	// "name" when a Request `models` entry loads it).
 	PULSE_MODEL_FILE_INVALID Code = "PULSE_MODEL_FILE_INVALID"
 
 	// PULSE_MODEL_VERSION_UNSUPPORTED indicates a model file whose
 	// model_format_version this build does not read. Details carry
 	// "path", "version" and "supported".
 	PULSE_MODEL_VERSION_UNSUPPORTED Code = "PULSE_MODEL_VERSION_UNSUPPORTED"
+
+	// PULSE_MODEL_REF_INVALID indicates a Request `models` entry that
+	// cannot name a model file: no name (reason "name_empty") or a path
+	// the save-path rule refuses ("path_empty", "suffix",
+	// "name_missing", "escapes_root"). Refused identically by predict and
+	// the runtime before any file or record is read. Details carry
+	// "model" (the entry index), "name", "path" and "reason".
+	PULSE_MODEL_REF_INVALID Code = "PULSE_MODEL_REF_INVALID"
+
+	// PULSE_MODEL_FILE_UNREADABLE indicates a Request `models` entry
+	// whose file cannot be read: absent (reason "missing") or unreadable
+	// — a directory, a permission or I/O fault ("unreadable"). Refused
+	// identically by predict and the runtime before any record is read.
+	// Details carry "model", "name", "path" and "reason".
+	PULSE_MODEL_FILE_UNREADABLE Code = "PULSE_MODEL_FILE_UNREADABLE"
 
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
 	// window, feature or attribute item: no axes, an axis name that is
@@ -3397,6 +3415,8 @@ var allCodes = []Code{
 	PULSE_MODEL_OVERWRITTEN,
 	PULSE_MODEL_FILE_INVALID,
 	PULSE_MODEL_VERSION_UNSUPPORTED,
+	PULSE_MODEL_REF_INVALID,
+	PULSE_MODEL_FILE_UNREADABLE,
 	PULSE_FOR_EACH_INVALID,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,

@@ -105,9 +105,10 @@ func (s *Service) composeParallel(
 	if err := model.CheckFits(composed.Fits); err != nil {
 		return nil, err
 	}
-	// Every save in the batch, exactly as on the serial path.
-	if cerr := model.CheckComposeBatch(composed.Fits, composed.Requests); cerr != nil {
-		return nil, cerr
+	// The batch's saves and loads, exactly as on the serial path.
+	pre, err := s.composeModelsPrepass(composed)
+	if err != nil {
+		return nil, err
 	}
 	multPlan, err := s.resolveComposeMultiplicity(composed)
 	if err != nil {
@@ -141,9 +142,17 @@ func (s *Service) composeParallel(
 
 	// The fit pre-pass, exactly as on the serial path but with the fits
 	// themselves running concurrently on the same worker cap.
-	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, o.MaxWorkers)
+	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, pre, o.MaxWorkers)
 	if err != nil {
 		return nil, err
+	}
+	// Every slot's bound set — the fits plus its own loaded models —
+	// before the pool starts.
+	slotSets := make([]*model.Set, len(requests))
+	for i := range requests {
+		if slotSets[i], err = pre.slotSet(models, i); err != nil {
+			return nil, err
+		}
 	}
 
 	// Per-slot result and error storage; never shared across slots so no
@@ -188,7 +197,7 @@ func (s *Service) composeParallel(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			reqCtx := bindSlotModels(rankSlotContext(composeSlotContext(runCtx, vetoes, multPlan, i), rank, i), models, req)
+			reqCtx := bindSlotModels(rankSlotContext(composeSlotContext(runCtx, vetoes, multPlan, i), rank, i), slotSets[i], req)
 			if o.PerRequestTimeout > 0 {
 				var reqCancel context.CancelFunc
 				reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)

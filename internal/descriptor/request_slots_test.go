@@ -25,6 +25,7 @@ func allSlotsRequest() *types.Request {
 		Overlays: []types.OverlaySpec{{Kind: types.OverlayKindShareOfRow, Weight: types.NullSlotWeight()}},
 		Weight:   &types.WeightSpec{Field: "w"},
 		Vectors:  []types.VectorSpec{{Name: "v", Fields: []string{"x"}}},
+		Models:   []types.ModelRef{{Name: "m", Path: "m.pulse-model.json"}},
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "x", Weight: types.SlotWeightField("w")},
 		},
@@ -52,13 +53,13 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 	}{
 		{"nil hides nothing", nil, &types.Request{}, nil},
 		{"unscoped hides nothing", UnscopedInstanceSnapshot(&ExtensionsSnapshot{}), &types.Request{}, nil},
-		{"process only", scopedOnly(featProcess, "AGG_COUNT"), &types.Request{}, []string{"crosstab", "joins", "matrices", "multiplicity", "overlays", "vectors", "weight"}},
-		{"crosstab with a matrix kind", scopedOnly(featProcess, featCrosstab, "OVERLAY_SHARE_OF_ROW"), types.Request{}, []string{"joins", "matrices", "multiplicity", "vectors", "weight"}},
-		{"joins only", scopedOnly(featProcess, featJoins), &types.Request{}, []string{"crosstab", "matrices", "multiplicity", "overlays", "vectors", "weight"}},
-		{"crosstab host without a kind", scopedOnly(featProcess, featCrosstab), &types.Request{}, []string{"joins", "matrices", "multiplicity", "overlays", "vectors", "weight"}},
-		{"series kind via compose", scopedOnly(featProcess, featCompose, "OVERLAY_DELTA_VS_PRIOR"), &types.Request{}, []string{"crosstab", "joins", "matrices", "multiplicity", "vectors", "weight"}},
-		{"kind enabled but its host hidden", scopedOnly(featProcess, featCompose, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, []string{"crosstab", "joins", "matrices", "multiplicity", "overlays", "vectors", "weight"}},
-		{"weighting enabled", scopedOnly(featProcess, featWeighting), &types.Request{}, []string{"crosstab", "joins", "matrices", "multiplicity", "overlays", "vectors"}},
+		{"process only", scopedOnly(featProcess, "AGG_COUNT"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "overlays", "vectors", "weight"}},
+		{"crosstab with a matrix kind", scopedOnly(featProcess, featCrosstab, "OVERLAY_SHARE_OF_ROW"), types.Request{}, []string{"joins", "matrices", "models", "multiplicity", "vectors", "weight"}},
+		{"joins only", scopedOnly(featProcess, featJoins), &types.Request{}, []string{"crosstab", "matrices", "models", "multiplicity", "overlays", "vectors", "weight"}},
+		{"crosstab host without a kind", scopedOnly(featProcess, featCrosstab), &types.Request{}, []string{"joins", "matrices", "models", "multiplicity", "overlays", "vectors", "weight"}},
+		{"series kind via compose", scopedOnly(featProcess, featCompose, "OVERLAY_DELTA_VS_PRIOR"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "vectors", "weight"}},
+		{"kind enabled but its host hidden", scopedOnly(featProcess, featCompose, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "overlays", "vectors", "weight"}},
+		{"weighting enabled", scopedOnly(featProcess, featWeighting), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "overlays", "vectors"}},
 		{"nested aggregation weight", scopedOnly(featProcess), &types.Aggregation{}, []string{"weight"}},
 		{"nested test weight", scopedOnly(featProcess), &types.Test{}, []string{"multiplicity", "weight"}},
 		{"nested regression weight", scopedOnly(featProcess), &types.RegressionSpec{}, []string{"save", "weight"}},
@@ -73,8 +74,8 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"nested overlay weight", scopedOnly(featProcess), &types.OverlaySpec{}, []string{"multiplicity", "weight"}},
 		{"nested group weight", scopedOnly(featProcess), &types.Group{}, []string{"weight"}},
 		{"nested weight with weighting", scopedOnly(featProcess, featWeighting), &types.Group{}, nil},
-		{"multiplicity enabled", scopedOnly(featProcess, featMultiplicity), &types.Request{}, []string{"crosstab", "joins", "matrices", "overlays", "vectors", "weight"}},
-		{"matrices enabled", scopedOnly(featProcess, featMatrices), &types.Request{}, []string{"crosstab", "joins", "multiplicity", "overlays", "weight"}},
+		{"multiplicity enabled", scopedOnly(featProcess, featMultiplicity), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "overlays", "vectors", "weight"}},
+		{"matrices enabled", scopedOnly(featProcess, featMatrices), &types.Request{}, []string{"crosstab", "joins", "models", "multiplicity", "overlays", "weight"}},
 		{"nested matrix weight", scopedOnly(featProcess), &types.MatrixSpec{}, []string{"weight"}},
 		{"nested test multiplicity enabled", scopedOnly(featProcess, featMultiplicity), &types.Test{}, []string{"weight"}},
 		{"nested overlay multiplicity enabled", scopedOnly(featProcess, featMultiplicity), &types.OverlaySpec{}, []string{"weight"}},
@@ -90,8 +91,10 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"compose fits result enabled", scopedOnly(featCompose, featComposeSweep, featComposeFits), &types.ComposedResponse{}, nil},
 		{"chain overlays", scopedOnly(featProcessChain, "OVERLAY_DELTA_VS_STAGE"), &types.ChainRequest{}, nil},
 		{"chain overlays hidden", scopedOnly(featProcessChain), &types.ChainRequest{}, []string{"overlays"}},
-		{"facet overlays", scopedOnly(featFacet, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, nil},
-		{"facet overlays hidden", scopedOnly(featFacet, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.FacetRequest{}, []string{"overlays"}},
+		{"facet overlays", scopedOnly(featFacet, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, []string{"models"}},
+		{"facet overlays hidden", scopedOnly(featFacet, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.FacetRequest{}, []string{"models", "overlays"}},
+		{"facet models enabled", scopedOnly(featFacet, featModels, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, nil},
+		{"request models enabled", scopedOnly(featProcess, featModels, featCrosstab, featJoins, featWeighting, featMultiplicity, featMatrices, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, nil},
 		{"sample has no gated slot", scopedOnly(), &types.SampleRequest{}, nil},
 	}
 	for _, c := range cases {
@@ -119,7 +122,7 @@ func TestSlotRefusal_DefaultInstanceRefusesNothing(t *testing.T) {
 		allSlotsRequest(),
 		&types.ComposedRequest{Requests: []*types.Request{allSlotsRequest()}, Overlays: []types.ComposeOverlaySpec{{}}, Sweep: &types.SweepSpec{}, Fits: []types.FitSpec{{Name: "f", Request: allSlotsRequest()}}},
 		&types.ChainRequest{Stages: []*types.ChainStage{{Request: allSlotsRequest()}}, Overlays: []*types.ChainOverlaySpec{{}}},
-		&types.FacetRequest{Overlays: []types.OverlaySpec{{}}},
+		&types.FacetRequest{Overlays: []types.OverlaySpec{{}}, Models: []types.ModelRef{{Name: "m"}}},
 	}
 	for _, inst := range []*InstanceSnapshot{nil, UnscopedInstanceSnapshot(&ExtensionsSnapshot{})} {
 		for _, r := range roots {

@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:dfe42ce41bd34d4289a03b7e82066cc458496b737dac7b390e9237be732e8720",
+  "$comment": "feature_set_digest: fs1:d5e7bac111ec01c2d685b6ff2a1d3e0abf2c7730947606476b5fd0c8fe0e8fd5",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -1382,6 +1382,15 @@
             "null"
           ]
         },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelRef"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "numeric_percentiles": {
           "items": {
             "type": "number"
@@ -2203,6 +2212,22 @@
         "kind",
         "row_keys",
         "values"
+      ],
+      "type": "object"
+    },
+    "ModelRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
       ],
       "type": "object"
     },
@@ -3298,6 +3323,15 @@
             "null"
           ]
         },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelRef"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
         },
@@ -4214,4 +4248,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: e258d73a6193d0756bd7e17dff4361afaef333df0fd76d53734fb1d092526feb
+// golden-hash: c6ece83e59095ffec7bb3473b87ec430fc21c5b1cb3e672501776dd5bc9f23ec

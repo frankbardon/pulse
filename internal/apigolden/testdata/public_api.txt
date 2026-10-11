@@ -332,6 +332,7 @@ pulse: type FacetRequest field HistogramBins int "json:\"histogram_bins,omitempt
 pulse: type FacetRequest field HistogramRange [2]float64 "json:\"histogram_range,omitempty\""
 pulse: type FacetRequest field IncludeHistogram bool "json:\"include_histogram,omitempty\""
 pulse: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
+pulse: type FacetRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
@@ -822,6 +823,7 @@ pulse: type Request field Joins []*pulse/types.JoinSpec "json:\"joins,omitempty\
 pulse: type Request field Label string "json:\"label,omitempty\""
 pulse: type Request field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse: type Request field Matrices []pulse/types.MatrixSpec "json:\"matrices,omitempty\""
+pulse: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
@@ -2273,11 +2275,13 @@ pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SING
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
 pulse/errors: const PULSE_MODEL_FILE_INVALID pulse/errors.Code = "PULSE_MODEL_FILE_INVALID"
+pulse/errors: const PULSE_MODEL_FILE_UNREADABLE pulse/errors.Code = "PULSE_MODEL_FILE_UNREADABLE"
 pulse/errors: const PULSE_MODEL_INTERVALS_UNAVAILABLE pulse/errors.Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
 pulse/errors: const PULSE_MODEL_NAME_COLLISION pulse/errors.Code = "PULSE_MODEL_NAME_COLLISION"
 pulse/errors: const PULSE_MODEL_OVERWRITTEN pulse/errors.Code = "PULSE_MODEL_OVERWRITTEN"
 pulse/errors: const PULSE_MODEL_PREDICTOR_MISSING pulse/errors.Code = "PULSE_MODEL_PREDICTOR_MISSING"
 pulse/errors: const PULSE_MODEL_PREDICTOR_NOT_NUMERIC pulse/errors.Code = "PULSE_MODEL_PREDICTOR_NOT_NUMERIC"
+pulse/errors: const PULSE_MODEL_REF_INVALID pulse/errors.Code = "PULSE_MODEL_REF_INVALID"
 pulse/errors: const PULSE_MODEL_SAVE_INVALID pulse/errors.Code = "PULSE_MODEL_SAVE_INVALID"
 pulse/errors: const PULSE_MODEL_SCORE_INVALID pulse/errors.Code = "PULSE_MODEL_SCORE_INVALID"
 pulse/errors: const PULSE_MODEL_STAT_UNKNOWN pulse/errors.Code = "PULSE_MODEL_STAT_UNKNOWN"
@@ -3966,6 +3970,7 @@ pulse/types: type FacetRequest field HistogramBins int "json:\"histogram_bins,om
 pulse/types: type FacetRequest field HistogramRange [2]float64 "json:\"histogram_range,omitempty\""
 pulse/types: type FacetRequest field IncludeHistogram bool "json:\"include_histogram,omitempty\""
 pulse/types: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
+pulse/types: type FacetRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse/types: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
@@ -4190,6 +4195,9 @@ pulse/types: type MatrixValues field Labels []string "json:\"labels,omitempty\""
 pulse/types: type MatrixValues field RowKeys []string "json:\"row_keys\""
 pulse/types: type MatrixValues field Values [][]float64 "json:\"values\""
 pulse/types: type MatrixValues method (MatrixValues) MarshalJSON() ([]byte, error)
+pulse/types: type ModelRef struct
+pulse/types: type ModelRef field Name string "json:\"name\""
+pulse/types: type ModelRef field Path string "json:\"path\""
 pulse/types: type Multiplicity struct
 pulse/types: type Multiplicity field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Multiplicity field Family pulse/types.MultiplicityFamily "json:\"family,omitempty\""
@@ -4492,6 +4500,7 @@ pulse/types: type Request field Joins []*pulse/types.JoinSpec "json:\"joins,omit
 pulse/types: type Request field Label string "json:\"label,omitempty\""
 pulse/types: type Request field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse/types: type Request field Matrices []pulse/types.MatrixSpec "json:\"matrices,omitempty\""
+pulse/types: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
@@ -4693,4 +4702,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 990c1fcce8ae5fefdd5be8734454f8466ea5c631e583228b746f23b502279cdc
+// golden-hash: 81a63d55ba4f97eada11dab73a9da960a8059124cdab44b2804f8d43b7ca143b

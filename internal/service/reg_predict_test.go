@@ -114,7 +114,7 @@ func (v *valueSink) Row(_ int64, derived []any) error {
 func TestRegPredict_MaterializeAdmitsBoundScore(t *testing.T) {
 	svc := fitsService(t)
 	ctx := context.Background()
-	set, _, _, err := svc.runComposeFits(ctx, []types.FitSpec{{Name: "m", Request: fitRequest("0", "90")}}, 1)
+	set, _, _, err := svc.runComposeFits(ctx, []types.FitSpec{{Name: "m", Request: fitRequest("0", "90")}}, nil, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

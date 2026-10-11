@@ -85,7 +85,9 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// fits run before Compose slots, and a fit is one regression
 		"capability:compose_fits": {{"capability:compose"}, {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"}},
 		// a save writes a fitted regression, from any request host
-		"capability:model_save":        {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"}},
+		"capability:model_save": {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"}},
+		// a load feeds a scoring reference, from any request host or a facet
+		"capability:models":            {{"capability:process", "capability:compose", "capability:process_chain", "capability:facet"}, {"ATTR_FORMULA", "ATTR_REG_PREDICT", "FILTER_EXPRESSION"}},
 		"ATTR_REG_FITTED":              {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_LEVERAGE":            {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_RESIDUAL":            {requestHosts, {"REG_OLS"}},

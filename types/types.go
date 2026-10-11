@@ -1134,6 +1134,15 @@ type Request struct {
 	// capability:matrices. See MatrixSpec.
 	Matrices []MatrixSpec `json:"matrices,omitempty"`
 
+	// Models loads saved model files (a regression `save`) by name, into
+	// the one bound-model namespace a Compose `fits` list also binds:
+	// ATTR_REG_PREDICT and coef() resolve a loaded name exactly like a
+	// fit of the same name. Every file is read, version-checked and
+	// decoded before any record is read; a name already bound (another
+	// entry, or a Compose fit) is PULSE_MODEL_NAME_COLLISION. Gated by
+	// capability:models. See ModelRef.
+	Models []ModelRef `json:"models,omitempty"`
+
 	// Joins describes pushdown hash-join legs attached to the primary
 	// cohort. v1 supports exactly one inner join per Request; multi-
 	// join chains and the left/outer/anti kinds land in a follow-up.

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:dfe42ce41bd34d4289a03b7e82066cc458496b737dac7b390e9237be732e8720",
+    "feature_set_digest": "fs1:d5e7bac111ec01c2d685b6ff2a1d3e0abf2c7730947606476b5fd0c8fe0e8fd5",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -7386,7 +7386,7 @@
         ]
       }
     ],
-    "error_codes_count": 328,
+    "error_codes_count": 330,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7559,11 +7559,13 @@
       "PULSE_MATRIX_UNSUPPORTED_SOURCE",
       "PULSE_MATRIX_ZERO_VARIANCE",
       "PULSE_MODEL_FILE_INVALID",
+      "PULSE_MODEL_FILE_UNREADABLE",
       "PULSE_MODEL_INTERVALS_UNAVAILABLE",
       "PULSE_MODEL_NAME_COLLISION",
       "PULSE_MODEL_OVERWRITTEN",
       "PULSE_MODEL_PREDICTOR_MISSING",
       "PULSE_MODEL_PREDICTOR_NOT_NUMERIC",
+      "PULSE_MODEL_REF_INVALID",
       "PULSE_MODEL_SAVE_INVALID",
       "PULSE_MODEL_SCORE_INVALID",
       "PULSE_MODEL_STAT_UNKNOWN",
@@ -9278,7 +9280,7 @@
       },
       {
         "name": "op-attr-reg-predict",
-        "description": "Per-row score from a bound model (a compose `fits` entry) — no refit; whole model or a terms subset."
+        "description": "Per-row score from a bound model (a compose `fits` entry or a loaded `models` file) — no refit; whole model or a terms subset."
       },
       {
         "name": "op-attr-reg-residual",
@@ -13939,4 +13941,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c7985a30539a0ef5830d02aea81abcb0c95d91204f985b44f13562957210838d
+// golden-hash: 0b129f49d76847bb2e03c4a22c152d473dfe0e654ce77cca6f6bd71e4fec0bdc

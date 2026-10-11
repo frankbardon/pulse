@@ -38,7 +38,7 @@ var slotModelsObserver func(label string, set *model.Set)
 // the fit's name; a save on the fit request's own regression is written
 // by its Process. Each overwrite comes back as a PULSE_MODEL_OVERWRITTEN
 // warning with details.fit, in entry order — ComposedResponse.Warnings.
-func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, workers int) (*model.Set, map[string]*types.RegressionResult, []*types.ResponseWarning, error) {
+func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre *composeModels, workers int) (*model.Set, map[string]*types.RegressionResult, []*types.ResponseWarning, error) {
 	n := len(fits)
 	if n == 0 {
 		return nil, nil, nil, nil
@@ -50,7 +50,14 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, work
 		if fitRunObserver != nil {
 			fitRunObserver(fits[i].Name)
 		}
-		resp, err := s.Process(ctx, model.FitRequest(fits[i]))
+		// The fit request's own `models`, loaded by the pre-pass: a fit
+		// runs before the batch binds anything, so they are all it sees.
+		fitSet, err := pre.fitSet(i)
+		if err != nil {
+			errs[i] = err
+			return
+		}
+		resp, err := s.Process(withModelsBound(ctx, fitSet), model.FitRequest(fits[i]))
 		if err != nil {
 			errs[i] = err
 			return
@@ -132,6 +139,7 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, work
 		if err != nil {
 			return nil, nil, nil, fitFailure(fits, i, err)
 		}
+		b.Source = model.FitSource(i)
 		if err := set.Add(b); err != nil {
 			// CheckFits already refused a duplicate name; reaching
 			// here is an invariant violation, still reported coded.
@@ -161,12 +169,82 @@ func fitFailure(fits []types.FitSpec, i int, err error) error {
 	return fmt.Errorf("fit %q: %w", fits[i].Name, descx.RefusalAt(err, "fit", i))
 }
 
-// bindSlotModels returns slot ctx carrying the batch's bound-model set
-// (unchanged when the batch declares no fits).
+// bindSlotModels returns slot ctx carrying the slot's final bound-model
+// set — the batch's fits plus the slot's own loaded `models` — marked
+// loaded, so the slot's Process does not load them again.
 func bindSlotModels(ctx context.Context, set *model.Set, req *types.Request) context.Context {
-	ctx = model.WithSet(ctx, set)
+	ctx = withModelsBound(ctx, set)
 	if slotModelsObserver != nil && req != nil {
 		slotModelsObserver(req.Label, model.SetFrom(ctx))
 	}
 	return ctx
+}
+
+// composeModels is the Compose pre-pass's loaded model files: each fit
+// request's and each slot's `models`, read and decoded before any fit
+// or slot runs, index-aligned with the batch's fits and slots.
+type composeModels struct {
+	fits     []types.FitSpec
+	requests []*types.Request
+	fitFiles [][]*model.File
+	slots    [][]*model.File
+}
+
+// composeModelsPrepass runs the batch rule (model.CheckComposeBatch —
+// the one PredictCompose runs) and then reads every `models` file, fit
+// requests first, then slots, each refusal located by details.fit /
+// details.request.
+func (s *Service) composeModelsPrepass(composed *types.ComposedRequest) (*composeModels, error) {
+	if cerr := model.CheckComposeBatch(composed.Fits, composed.Requests); cerr != nil {
+		return nil, cerr
+	}
+	pre := &composeModels{
+		fits:     composed.Fits,
+		requests: composed.Requests,
+		fitFiles: make([][]*model.File, len(composed.Fits)),
+		slots:    make([][]*model.File, len(composed.Requests)),
+	}
+	for i, f := range composed.Fits {
+		if f.Request == nil {
+			continue
+		}
+		files, err := s.loadModelFiles(f.Request.Models)
+		if err != nil {
+			return nil, descx.RefusalAt(err, "fit", i)
+		}
+		pre.fitFiles[i] = files
+	}
+	for k, req := range composed.Requests {
+		if req == nil {
+			continue
+		}
+		files, err := s.loadModelFiles(req.Models)
+		if err != nil {
+			return nil, descx.RefusalAt(err, "request", k)
+		}
+		pre.slots[k] = files
+	}
+	return pre, nil
+}
+
+// fitSet is fit i's bound-model set: its request's own loaded models
+// (nil when it loads none).
+func (p *composeModels) fitSet(i int) (*model.Set, error) {
+	if p == nil || p.fits[i].Request == nil || len(p.fits[i].Request.Models) == 0 {
+		return nil, nil
+	}
+	return (*model.Set)(nil).WithModels(p.fits[i].Request.Models, p.fitFiles[i])
+}
+
+// slotSet is slot k's bound-model set: the batch's fits plus the slot's
+// own loaded models.
+func (p *composeModels) slotSet(fits *model.Set, k int) (*model.Set, error) {
+	if p == nil || p.requests[k] == nil || len(p.requests[k].Models) == 0 {
+		return fits, nil
+	}
+	set, err := fits.WithModels(p.requests[k].Models, p.slots[k])
+	if err != nil {
+		return nil, descx.RefusalAt(err, "request", k)
+	}
+	return set, nil
 }

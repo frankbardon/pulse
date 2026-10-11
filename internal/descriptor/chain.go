@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -145,6 +146,15 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		return env
 	}
 	req = expanded
+	// Then every stage's `models` — the runtime's model.CheckChainModels
+	// and its model-file reads, before the cohort opens; nothing past it
+	// runs on a refusal.
+	stageModels, serr := loadChainModels(req.Stages, opts)
+	if serr != nil {
+		addCodedError(env, serr)
+		result.Valid = false
+		return env
+	}
 	// Multiplicity per stage — each stage is a standalone Request with
 	// its own `request` family (ResolveMultiplicity), located by stage.
 	for i, st := range req.Stages {
@@ -266,7 +276,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			}
 		}
 		if fieldsReached {
-			refs := fieldRefRefusals(fieldReq, fieldSchema, extensionsFromOpts(opts), opts.instance())
+			refs := fieldRefRefusalsWithModels(fieldReq, fieldSchema, extensionsFromOpts(opts), opts.instance(), stageModels[i])
 			for _, ce := range refs {
 				addCodedError(env, RefusalAt(ce, "stage", i))
 			}
@@ -301,6 +311,27 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		result.Valid = false
 	}
 	return env
+}
+
+// loadChainModels is the runtime chain pre-pass's model half:
+// model.CheckChainModels, then every stage's model files read (located
+// details.stage). It returns each stage's catalog, index-aligned.
+func loadChainModels(stages []*types.ChainStage, opts *PredictOptions) ([]model.Catalog, error) {
+	if cerr := model.CheckChainModels(stages); cerr != nil {
+		return nil, cerr
+	}
+	out := make([]model.Catalog, len(stages))
+	for i, st := range stages {
+		if st == nil || st.Request == nil {
+			continue
+		}
+		files, cerr := opts.loadModelFiles(st.Request.Models)
+		if cerr != nil {
+			return nil, RefusalAt(cerr, "stage", i)
+		}
+		out[i] = loadedCatalog(nil, st.Request.Models, files)
+	}
+	return out, nil
 }
 
 // ValidateChainFromBytes is a convenience wrapper that creates a

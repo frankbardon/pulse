@@ -1580,6 +1580,7 @@ func (p *Pulse) predictBytes(ctx context.Context, data []byte, req *Request) (*d
 		DisableComponents:     p.svc.DisableComponents(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
 		RecordCounter:         p.predictRecordCounter(ctx),
+		ModelLoader:           p.svc,
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 	}), nil
 }
@@ -1615,6 +1616,7 @@ func (p *Pulse) predictOptions(ctx context.Context, sidecar sidecarFacts) descx.
 		DisableComponents:     p.svc.DisableComponents(),
 		SchemaLoader:          p.predictSchemaLoader(ctx),
 		RecordCounter:         p.predictRecordCounter(ctx),
+		ModelLoader:           p.svc,
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 		// Echoed (never applied) when no weight resolves; measure levels
 		// feed the measure-level advisories only.

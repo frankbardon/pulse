@@ -63,6 +63,13 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if err := descx.MaterializeSlotRefusal(req); err != nil {
 		return err
 	}
+	// The request's `models`, loaded before any record is read (a
+	// regression `save` never reaches here: regressions are refused
+	// above, so a materialize run writes no model file).
+	ctx, err := s.bindRequestModels(ctx, req.Models)
+	if err != nil {
+		return err
+	}
 	if len(req.Features) == 0 && len(req.Attributes) == 0 && len(req.Windows) == 0 {
 		_, err := descx.MaterializeColumns(req, nil, s.instance, "")
 		return err

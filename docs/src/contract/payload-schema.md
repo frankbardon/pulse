@@ -630,6 +630,28 @@ slots — before any fit or slot runs (a slot's fault gains
 `details.request`). Materialize and ProcessChain admit no regression, so
 neither ever writes a model file.
 
+### Loading models (`models`)
+
+`Request.models` and `FacetRequest.models` are `omitempty` arrays of
+`ModelRef {name, path}`: each loads a model file a `save` wrote, under
+`name`, into the namespace a Compose `fits` list binds, so
+`ATTR_REG_PREDICT` `fit` and `coef()` resolve a loaded name exactly like
+a fit (bit-for-bit the same scores). Every file is read, version-checked
+and decoded before any record is read — in a Compose batch or a chain,
+before any fit, slot or stage runs, so a load always sees the file as it
+was before the run. Refusals, predict and runtime alike:
+`PULSE_MODEL_REF_INVALID` (no name, or a path the save-path rule
+refuses; `details.model`, `reason`), `PULSE_MODEL_FILE_UNREADABLE`
+(`missing` / `unreadable`), `PULSE_MODEL_FILE_INVALID` /
+`PULSE_MODEL_VERSION_UNSUPPORTED` (with `details.model` and `name`),
+`PULSE_MODEL_NAME_COLLISION` (a name a fit or an earlier entry binds;
+`details.sources` names both), then the scoring rules
+(`PULSE_MODEL_PREDICTOR_MISSING` / `_NOT_NUMERIC` against the scoring
+frame). Provenance is informational: a model fit on one cohort scores any
+cohort holding its predictor columns. A fit request's own `models` are
+all it sees (fits run before the batch binds); each chain stage loads its
+own. Gated by `capability:models`; `format_version` stays `"1.1"`.
+
 ### Item fan-out (`for_each`)
 
 `Window`, `Feature` and `Attribute` each carry an optional `for_each`

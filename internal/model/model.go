@@ -91,6 +91,11 @@ type Bound struct {
 
 	// Result is the fit's full RegressionResult (shared, read-only).
 	Result *types.RegressionResult
+
+	// Source is where the name was bound: a `fits` entry or a `models`
+	// entry (the zero value when unknown). A name collision names both
+	// bindings' sources.
+	Source Source
 }
 
 // Bind builds the Bound for a finished fit: spec is the regression as

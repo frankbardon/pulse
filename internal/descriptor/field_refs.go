@@ -52,10 +52,18 @@ func ScopedFieldRefRefusalWithModels(req *types.Request, schema *encoding.Schema
 // ScopedFacetFieldRefRefusals is FacetFieldRefRefusals for one
 // instance, on ScopedFieldRefRefusal's terms.
 func ScopedFacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, inst *InstanceSnapshot) []*errors.CodedError {
+	return ScopedFacetFieldRefRefusalsWithModels(req, schema, inst, nil)
+}
+
+// ScopedFacetFieldRefRefusalsWithModels is ScopedFacetFieldRefRefusals
+// for a FacetRequest whose filterers' coef() calls resolve against
+// models — the runtime's loaded set, predict's static catalog of the
+// request's `models`. Nil binds nothing.
+func ScopedFacetFieldRefRefusalsWithModels(req *types.FacetRequest, schema *encoding.Schema, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
 	if req == nil {
 		return nil
 	}
-	return fieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema, inst.Extensions(), inst)
+	return fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers}, schema, inst.Extensions(), inst, models)
 }
 
 // FacetFieldRefRefusals is FieldRefRefusals for a FacetRequest: its

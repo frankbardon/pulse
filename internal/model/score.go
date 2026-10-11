@@ -78,6 +78,9 @@ type Signature struct {
 	// must hold. Under Selection it is the candidate set, a superset of
 	// the predictors the fit keeps (a dropped candidate scores 0).
 	Terms []string
+
+	// Source is where the name is bound (a `fits` or `models` entry).
+	Source Source
 }
 
 // Catalog resolves bound names to their Signatures: the runtime's Set,
@@ -103,7 +106,7 @@ func (s *Set) Signature(name string) (Signature, bool) {
 
 // Signature is b's static face.
 func (b *Bound) Signature() Signature {
-	return Signature{Name: b.Name, Type: b.Type, Terms: append([]string(nil), b.Terms...)}
+	return Signature{Name: b.Name, Type: b.Type, Terms: append([]string(nil), b.Terms...), Source: b.Source}
 }
 
 // FitCatalog is the static Catalog of a ComposedRequest `fits` list —
@@ -114,12 +117,12 @@ type FitCatalog map[string]Signature
 // CatalogFromFits builds the FitCatalog of fits.
 func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 	out := make(FitCatalog, len(fits))
-	for _, f := range fits {
+	for i, f := range fits {
 		if f.Name == "" || f.Request == nil || len(f.Request.Regressions) != 1 || f.Request.Regressions[0] == nil {
 			continue
 		}
 		reg := f.Request.Regressions[0]
-		out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Terms: append([]string(nil), reg.Predictors...)}
+		out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i)}
 	}
 	return out
 }

@@ -339,6 +339,7 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 	if labels := buildLabelsSchema(c, inst); labels != nil {
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
+	requestObject["properties"].(map[string]any)["models"] = modelsSchema("Saved model files loaded by name for the filterers' coef() calls (one namespace).")
 	dropHiddenSlots(requestObject, &types.FacetRequest{}, inst)
 	dropHiddenMultiplicity(requestObject, inst)
 	return json.Marshal(requestObject)
@@ -748,6 +749,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	props["regressions"] = regressionsSchema(c, inst)
 	props["vectors"] = vectorsSchema()
 	props["matrices"] = matricesSchema(c, inst)
+	props["models"] = modelsSchema("Saved model files loaded by name, before any record is read, into the namespace Compose `fits` bind: ATTR_REG_PREDICT `fit` and coef() resolve a loaded name like a fit. A name bound twice is PULSE_MODEL_NAME_COLLISION.")
 
 	itemProps := func(slot string) map[string]any {
 		arr, _ := props[slot].(map[string]any)
@@ -916,6 +918,25 @@ func addModelSave(arr map[string]any, inst *descx.InstanceSnapshot, desc string)
 	}
 	props := arr["items"].(map[string]any)["properties"].(map[string]any)
 	props["save"] = map[string]any{"type": "string", "description": desc}
+}
+
+// modelsSchema is Request.models / FacetRequest.models
+// (types.ModelRef): model files a `save` wrote, loaded by name. Dropped
+// with the slot when capability:models is hidden (dropHiddenSlots).
+func modelsSchema(desc string) map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": desc,
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
+				"path": map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json."},
+			},
+			"required":             []string{"name", "path"},
+			"additionalProperties": false,
+		},
+	}
 }
 
 // vectorsSchema is Request.vectors (types.VectorSpec). Members may be

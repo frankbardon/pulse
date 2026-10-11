@@ -83,8 +83,8 @@ func (s *Service) checkFieldRefs(ctx context.Context, req *types.Request, schema
 // filterers (internal/descriptor.FacetFieldRefRefusals — the rule
 // ValidateFacet reports). FacetSchema calls it right after
 // resolveFacetZones, before any record is read.
-func (s *Service) checkFacetFieldRefs(req *types.FacetRequest, schema *encoding.Schema) error {
-	if all := descx.ScopedFacetFieldRefRefusals(req, schema, s.instance); len(all) > 0 {
+func (s *Service) checkFacetFieldRefs(ctx context.Context, req *types.FacetRequest, schema *encoding.Schema) error {
+	if all := descx.ScopedFacetFieldRefRefusalsWithModels(req, schema, s.instance, model.SetFrom(ctx)); len(all) > 0 {
 		return markLocated(all[0])
 	}
 	return nil
