@@ -42,7 +42,7 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `vsum` `vmean` `vmin` `vmax` `norm` (L2) | float |
 | `vcount` | int count of valid elements |
 | `vsd` | sample SD (ddof 1); < 2 valid → NaN |
-| `dot` `dist` `cosine` (two vectors) | pairwise-complete; zero norm → `cosine` NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` |
+| `dot` `dist` `cosine` (vector pair) | pairwise-complete; zero norm → `cosine` NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` |
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
 | `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level → `PROCESSING_CONFIG` |
 | `sqrt` `log` (natural) `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
