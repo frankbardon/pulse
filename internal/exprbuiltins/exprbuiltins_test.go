@@ -60,3 +60,42 @@ func TestExprbuiltinsImportBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestOverlaySubset(t *testing.T) {
+	cases := []struct {
+		name    string
+		allowed bool
+		refused bool
+	}{
+		{"sqrt", true, false},
+		{"log", true, false},
+		{"exp", true, false},
+		{"pow", true, false},
+		{"vmean", false, true},
+		{"vsum", false, true},
+		{"dot", false, true},
+		{"cosine", false, true},
+		{"argmax", false, true},
+		{"vnormalize", false, true},
+		{"abs", false, false},
+		{"pct_change", false, false},
+	}
+	for _, tc := range cases {
+		if got := OverlayAllowed(tc.name); got != tc.allowed {
+			t.Errorf("OverlayAllowed(%q) = %v, want %v", tc.name, got, tc.allowed)
+		}
+		if got := OverlayRefused(tc.name); got != tc.refused {
+			t.Errorf("OverlayRefused(%q) = %v, want %v", tc.name, got, tc.refused)
+		}
+	}
+	for _, n := range OverlayNames() {
+		if !IsReserved(n) {
+			t.Errorf("overlay name %q is not a reserved built-in", n)
+		}
+	}
+	names := OverlayNames()
+	names[0] = "mutated"
+	if OverlayNames()[0] == "mutated" {
+		t.Error("OverlayNames() returned the backing slice")
+	}
+}

@@ -379,3 +379,57 @@ func TestFormulaNamespace_PerShape(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateOverlay_FormulaBuiltinSubset pins the overlay subset of
+// the reserved built-ins: scalar maths passes predict, every vector
+// family name fires the unknown-function arm.
+func TestValidateOverlay_FormulaBuiltinSubset(t *testing.T) {
+	cases := []struct {
+		name      string
+		formula   string
+		wantIdent string // "" = accepted
+	}{
+		{"sqrt", "sqrt(cell)", ""},
+		{"log", "log(cell + 1)", ""},
+		{"exp", "exp(cell / sd_grand)", ""},
+		{"pow", "pow(cell, 2)", ""},
+		{"vmean_refused", "vmean([cell, margin_row])", "vmean"},
+		{"dot_refused", "dot([cell], [margin_row])", "dot"},
+		{"vnormalize_refused", "sqrt(cell) + vsum(vnormalize([cell], \"l1\"))", "vsum"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			params, _ := json.Marshal(map[string]any{"formula": tc.formula})
+			req := &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{{
+					Kind:   types.OverlayKindFormula,
+					Scope:  types.OverlayScopeCell,
+					Params: params,
+				}},
+			}
+			env := descriptor.NewEnvelope(nil)
+			ValidateOverlays(env, req, nil, nil)
+			if tc.wantIdent == "" {
+				for _, e := range env.Errors {
+					t.Errorf("unexpected error %s: %s", e.Code, e.Message)
+				}
+				return
+			}
+			found := false
+			for _, e := range env.Errors {
+				if e.Code != string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT) {
+					continue
+				}
+				got, _ := e.Details["unknown_identifier"].(string)
+				if got != tc.wantIdent && !(tc.name == "vnormalize_refused" && got == "vnormalize") {
+					t.Errorf("unknown_identifier = %q, want %q", got, tc.wantIdent)
+				}
+				found = true
+			}
+			if !found {
+				t.Fatalf("want PULSE_OVERLAY_FORMULA_INVALID_IDENT; got %v", env.Errors)
+			}
+		})
+	}
+}

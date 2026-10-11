@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -326,8 +327,17 @@ func hasBaselinePosition(spec *types.OverlaySpec) bool {
 // `CallNode` callees. Stdlib references therefore pass through without
 // any explicit table lookup; an unknown user function still fires the
 // gate.
+//
+// Pulse's reserved built-ins are CallNodes too: only the scalar-maths
+// subset (`exprbuiltins.OverlayNames` — sqrt / log / exp / pow) widens
+// the set. The vector families (vsum ... vnormalize) stay out, so they
+// fire the unknown-function arm exactly as the runtime compile refuses
+// them.
 func buildFormulaAllowedFuncs(opts *PredictOptions) map[string]struct{} {
 	out := map[string]struct{}{}
+	for _, name := range exprbuiltins.OverlayNames() {
+		out[name] = struct{}{}
+	}
 	snap := extensionsFromOpts(opts)
 	if snap == nil {
 		return out

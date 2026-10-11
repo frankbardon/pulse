@@ -58,3 +58,36 @@ func Names() []string {
 // IsReserved reports whether name is a reserved built-in expression
 // function.
 func IsReserved(name string) bool { return reservedSet[name] }
+
+// overlayAllowed is the scalar-maths subset of [reserved] OVERLAY_FORMULA
+// may call. Overlay formulas see only scalar host figures (cell,
+// margins, value, ...), so the vector reductions, geometry, position
+// and transform families are refused there; both the predict gate
+// (internal/descriptor) and the runtime compile (internal/processing)
+// read this one list so they never disagree.
+var overlayAllowed = []string{"sqrt", "log", "exp", "pow"}
+
+// overlayAllowedSet indexes overlayAllowed for OverlayAllowed.
+var overlayAllowedSet = func() map[string]bool {
+	m := make(map[string]bool, len(overlayAllowed))
+	for _, n := range overlayAllowed {
+		m[n] = true
+	}
+	return m
+}()
+
+// OverlayNames returns a copy of the reserved built-ins OVERLAY_FORMULA
+// may call, in declaration order.
+func OverlayNames() []string {
+	out := make([]string, len(overlayAllowed))
+	copy(out, overlayAllowed)
+	return out
+}
+
+// OverlayAllowed reports whether OVERLAY_FORMULA may call the reserved
+// built-in name. It is false for every non-reserved name.
+func OverlayAllowed(name string) bool { return overlayAllowedSet[name] }
+
+// OverlayRefused reports whether name is a reserved built-in that
+// OVERLAY_FORMULA must refuse (reserved, but outside the overlay subset).
+func OverlayRefused(name string) bool { return reservedSet[name] && !overlayAllowedSet[name] }
