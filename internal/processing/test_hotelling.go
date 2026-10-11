@@ -250,39 +250,6 @@ func quadForm(m [][]float64, den float64, d []float64) (float64, bool) {
 	return q, true
 }
 
-// rankDeficient is the one singular DECISION for a symmetric
-// covariance-shaped s (p × p): a zero or non-finite diagonal entry, or
-// a smallest eigenvalue of s's correlation form at or below the one
-// rank tolerance (linalg.RankTolerance over gonum SymEigen — portable
-// decisions). TEST_HOTELLING_T2 and TEST_MANOVA share it.
-func rankDeficient(s [][]float64) bool {
-	p := len(s)
-	sd := make([]float64, p)
-	for i := range sd {
-		v := s[i][i]
-		if !(v > 0) || math.IsInf(v, 0) {
-			return true
-		}
-		sd[i] = math.Sqrt(v)
-	}
-	r := make([][]float64, p)
-	for i := range r {
-		r[i] = make([]float64, p)
-		for j := range r[i] {
-			r[i][j] = s[i][j] / (sd[i] * sd[j])
-		}
-	}
-	rs, err := linalg.NewSymFromRows(r)
-	if err != nil {
-		return true
-	}
-	eig, err := linalg.SymEigen(rs)
-	if err != nil {
-		return true
-	}
-	return p > 0 && eig.Values.At(p-1) <= linalg.RankTolerance(p, p, eig.Values.At(0))
-}
-
 // singular marks res's figures undefined and attaches the warning.
 func (h *hotellingRow) singular(res *types.TestResult, what string) {
 	res.Statistic = math.NaN()

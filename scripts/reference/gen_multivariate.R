@@ -860,3 +860,9 @@ source(file.path(script_dir, "gen_robust_vcov.R"), local = FALSE)
 # Muller sandwich posterior in closed form); reuses gen_robust_vcov.R's
 # helpers and pins, so it is sourced after it.
 source(file.path(script_dir, "gen_robust_vcov_glm.R"), local = FALSE)
+
+# The singular-decision golden (mv_singularity.json: the one
+# rank-tolerance rule against Matrix::rankMatrix and base::chol on a
+# borderline near-singular draw, a full-rank control and an exact
+# dependency; TODO #408). Matrix + base R only.
+source(file.path(script_dir, "gen_singularity.R"), local = FALSE)

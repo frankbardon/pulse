@@ -83,8 +83,9 @@ import (
 // 0.005 floor) adds PULSE_MATRIX_HEYWOOD (the fit is kept); an
 // extraction or rotation at its cap adds PULSE_MATRIX_NOT_CONVERGED
 // (solver fa_minres / fa_pa / fa_ml / varimax / gpa_oblimin); ml on a
-// singular R nulls the fit (sphericityStats' PULSE_MATRIX_SINGULAR names
-// it); an undefined input nulls every figure.
+// singular R (the one rule, singular_rule.go) nulls the fit
+// (sphericityStats' PULSE_MATRIX_SINGULAR names it); an undefined input
+// nulls every figure.
 
 // Factor solver settings — documented constants, never request knobs.
 const (
@@ -568,7 +569,7 @@ func finalizeFactor(in *matrixFinalizeInput) (matrixOutput, error) {
 		return out, nil
 	}
 	if ml {
-		if _, err := linalg.Cholesky(g); err != nil {
+		if _, err := linalg.Cholesky(g); err != nil || singularUnderRule(g) != nil {
 			// Singular: sphericityStats has warned PULSE_MATRIX_SINGULAR
 			// naming the withheld fit.
 			faNullFit(in, &out, p, k, stats, float64(k))

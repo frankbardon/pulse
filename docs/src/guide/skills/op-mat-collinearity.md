@@ -48,7 +48,7 @@ Integer / float members.
 ## Gotchas
 
 - Uncentered (default) flags collinearity with the intercept; VIF is the same either way.
-- Exactly collinear predictors: fatal `PULSE_MATRIX_SINGULAR` with `dependent_fields`. Non-PSD pairwise R: fatal `PULSE_MATRIX_NOT_PSD` unless `repair`.
+- Exactly or near-exactly collinear predictors (rank tolerance): fatal `PULSE_MATRIX_SINGULAR` with `dependent_fields`. Non-PSD pairwise R: fatal `PULSE_MATRIX_NOT_PSD` unless `repair`.
 - VIF unbanded: 5 / 10 are rules of thumb only.
 
 ## See

@@ -46,8 +46,10 @@ type sphericity struct {
 	// Prec is R⁻¹ (linalg.InverseSPD), nil when Singular — MAT_PCA's
 	// KMO reads it.
 	Prec *linalg.Sym
-	// Singular: R has no inverse (a member is a linear combination of
-	// others); SingularErr is InverseSPD's coded error.
+	// Singular: R is singular under the one rule (singular_rule.go: a
+	// member is an exact or near-exact linear combination of others);
+	// SingularErr is the rule's coded error (or, defensively,
+	// InverseSPD's).
 	Singular    bool
 	SingularErr error
 	// Insufficient: N* ≤ MinNStar leaves the multiplier non-positive.
@@ -55,15 +57,21 @@ type sphericity struct {
 }
 
 // bartlettSphericity is the shared Bartlett core over the correlation r
-// at inference size nStar. The singular DECISION is linalg.InverseSPD's
-// (the reference Cholesky), so a caller that also needs R⁻¹ reads Prec
-// rather than inverting twice; the statistic is
+// at inference size nStar. The singular DECISION is the one rule
+// (singularUnderRule — the vector tests' and fitted attributes' rule),
+// so a near-exact dependency whose Cholesky still succeeds is singular
+// here too; R⁻¹ is the reference InverseSPD, so a caller that also
+// needs it reads Prec rather than inverting twice; the statistic is
 // χ² = −ln|R|·(N* − 1 − (2p + 5)/6), |R| = determinantSPD(r).
 func bartlettSphericity(r *linalg.Sym, nStar float64) sphericity {
 	p := r.N()
 	st := sphericity{
 		ChiSq: math.NaN(), PValue: math.NaN(), Det: math.NaN(),
 		DF: float64(p * (p - 1) / 2), NStar: nStar, MinNStar: 1 + float64(2*p+5)/6,
+	}
+	if err := singularUnderRule(r); err != nil {
+		st.Singular, st.SingularErr = true, err
+		return st
 	}
 	prec, err := linalg.InverseSPD(r)
 	if err != nil {
