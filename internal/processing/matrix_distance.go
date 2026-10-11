@@ -1,12 +1,15 @@
 package processing
 
 import (
+	stderrors "errors"
 	"math"
+	"slices"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -204,7 +207,6 @@ func finalizeDistance(in *matrixFinalizeInput) (matrixOutput, error) {
 	d := m.dist
 	plan := in.Plan()
 	cm := in.CM
-	p := len(m.cols)
 	keys := d.order()
 	k := len(keys)
 	buckets := make([]distanceBucket, k)
@@ -262,16 +264,12 @@ func finalizeDistance(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 		if len(flat) > 0 && cm.N() >= 2 && cm.W() > 0 {
 			warns = append(warns, matrixWarning(errors.PULSE_MATRIX_ZERO_VARIANCE,
-				"matrix "+plan.Name+" has members with zero spread; standardized distances touching them are null",
+				"matrix "+plan.Name+" has members with zero spread; they have no z-score, so the standardized distances skip them (the element sums rescaled by p/p_observed)",
 				map[string]any{"matrix": plan.Name, "members": flat}))
 		}
 		std = make([][]float64, k)
 		for i := range buckets {
-			z := make([]float64, p)
-			for j := range z {
-				z[j] = (buckets[i].centroid[j] - mean[j]) / sd[j]
-			}
-			std[i] = z
+			std[i] = standardizeCentroid(buckets[i].centroid, mean, sd)
 		}
 		points = std
 	}
@@ -286,21 +284,34 @@ func finalizeDistance(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 	}
 
-	var dist func(a, b int) float64
+	// The metric resolves through the linalg/metric registry (decode
+	// already refused anything the MAT_DISTANCE consumer does not
+	// accept). mahalanobis reads the pooled within-bucket covariance's
+	// inverse over the RAW centroids; every other metric the points.
+	met, err := metric.ResolveFor(metric.ConsumerMatDistance, plan.Metric, metric.Distance)
+	if err != nil {
+		return matrixOutput{}, err
+	}
 	var pooled *linalg.Sym
-	switch plan.Metric {
-	case vectors.DistanceMahalanobis:
+	var stats *metric.Stats
+	if met.Fit() == metric.FitInverseCovariance {
 		var inv *linalg.Sym
 		var w *types.ResponseWarning
 		pooled, inv, w = pooledInverse(plan.Name, m.cols, buckets, scale, nStar)
 		if w != nil {
 			warns = append(warns, w)
 		}
-		dist = func(a, b int) float64 {
-			return mahalanobisDistance(inv, buckets[a].centroid, buckets[b].centroid)
+		if inv != nil {
+			stats = &metric.Stats{InverseCovariance: inv}
 		}
-	default:
-		dist = func(a, b int) float64 { return pointDistance(plan.Metric, points[a], points[b]) }
+		points = make([][]float64, k)
+		for i := range buckets {
+			points[i] = buckets[i].centroid
+		}
+	}
+	dom := &distanceDomain{}
+	dist := func(a, b int) float64 {
+		return centroidDistance(met, stats, plan.MinValid, points[a], points[b], buckets[a].key, buckets[b].key, dom)
 	}
 	warns = append(warns, d.warnings...)
 
@@ -316,6 +327,9 @@ func finalizeDistance(in *matrixFinalizeInput) (matrixOutput, error) {
 			}
 			cells[a][b], cells[b][a] = v, v
 		}
+	}
+	if w := dom.warning(plan.Name, plan.Metric); w != nil {
+		warns = append(warns, w)
 	}
 	out := matrixOutput{Primary: bucketMatrix(keys, plan.Encoding, cells), Warnings: warns}
 	if in.WantVectors() {
@@ -337,6 +351,22 @@ func finalizeDistance(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 	}
 	return out, nil
+}
+
+// standardizeCentroid is c z-scored by mean and sd, member by member.
+// A member with no positive, finite spread has no z-score: it is a
+// MISSING coordinate (NaN), dropped pairwise by the metric — never the
+// ±Inf a rounding residual over a zero sd would give.
+func standardizeCentroid(c, mean, sd []float64) []float64 {
+	z := make([]float64, len(c))
+	for j := range z {
+		if !(sd[j] > 0) || math.IsInf(sd[j], 0) {
+			z[j] = math.NaN()
+			continue
+		}
+		z[j] = (c[j] - mean[j]) / sd[j]
+	}
+	return z
 }
 
 // memberSD is each member's standard deviation over the bucketed rows:
@@ -363,51 +393,69 @@ func memberSD(cm *linalg.CoMoment, nStar float64, weight *types.WeightSpec) []fl
 	return out
 }
 
-// pointDistance is metric between points a and b (FMA-free sums over
-// the members in axis order); NaN when either carries an undefined
-// coordinate, and for cosine when either has zero length.
-func pointDistance(metric string, a, b []float64) float64 {
-	for j := range a {
-		if math.IsNaN(a[j]) || math.IsNaN(b[j]) || math.IsInf(a[j], 0) || math.IsInf(b[j], 0) {
-			return math.NaN()
-		}
+// centroidDistance is met between centroids a and b (bucket keys ka,
+// kb) under the registry's pairwise-complete policy: a coordinate
+// undefined on either side (a massless bucket's centroid, a zero-spread
+// member's z-score) is dropped and the Scaled metrics' element sum is
+// rescaled by p/p_observed; fewer than minValid complete pairs, or none,
+// is null. mahalanobis (Complete) is null on any missing coordinate and
+// when the pooled inverse is undefined (stats nil). A value outside the
+// metric's domain (a negative coordinate under hellinger / aitchison, an
+// aitchison zero part) is null and recorded in dom for the
+// PULSE_MATRIX_METRIC_DOMAIN warning. ±Inf is an ordinary value.
+func centroidDistance(met metric.Metric, stats *metric.Stats, minValid int, a, b []float64, ka, kb string, dom *distanceDomain) float64 {
+	if obs, _ := metric.Observed(a, b); obs == 0 || obs < minValid {
+		return math.NaN()
 	}
-	switch metric {
-	case vectors.DistanceCosine:
-		var ab, aa, bb float64
-		for j := range a {
-			ab += float64(a[j] * b[j])
-			aa += float64(a[j] * a[j])
-			bb += float64(b[j] * b[j])
-		}
-		if aa == 0 || bb == 0 {
-			return math.NaN()
-		}
-		c := ab / float64(math.Sqrt(aa)*math.Sqrt(bb))
-		c = math.Max(-1, math.Min(1, c))
-		return 1 - c
-	case vectors.DistanceManhattan:
-		var s float64
-		for j := range a {
-			s += math.Abs(a[j] - b[j])
-		}
-		return s
-	case vectors.DistanceChebyshev:
-		var s float64
-		for j := range a {
-			s = math.Max(s, math.Abs(a[j]-b[j]))
-		}
-		return s
+	if met.Fitted() && stats == nil {
+		return math.NaN()
 	}
-	var s float64
-	for j := range a {
-		dj := a[j] - b[j]
-		s += float64(dj * dj)
+	v, err := met.Eval(metric.Distance, a, b, stats)
+	if err != nil {
+		var de *metric.DomainError
+		if stderrors.As(err, &de) {
+			dom.add(ka, kb, de.Reason)
+		}
+		return math.NaN()
 	}
-	if metric == vectors.DistanceSqEuclidean {
-		return s
+	return v
+}
+
+// distanceSortedKeys returns m's keys in ascending order.
+func distanceSortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
 	}
-	return math.Sqrt(s)
+	slices.Sort(out)
+	return out
+}
+
+// distanceDomain collects the centroid pairs a metric's domain refused.
+type distanceDomain struct {
+	buckets map[string]bool
+	reasons map[string]bool
+	pairs   int
+}
+
+func (d *distanceDomain) add(ka, kb, reason string) {
+	if d.buckets == nil {
+		d.buckets, d.reasons = map[string]bool{}, map[string]bool{}
+	}
+	d.buckets[ka], d.buckets[kb] = true, true
+	d.reasons[reason] = true
+	d.pairs++
+}
+
+// warning is PULSE_MATRIX_METRIC_DOMAIN when any pair was refused: the
+// buckets involved and the reasons, both sorted.
+func (d *distanceDomain) warning(name, metricName string) *types.ResponseWarning {
+	if d.pairs == 0 {
+		return nil
+	}
+	return matrixWarning(errors.PULSE_MATRIX_METRIC_DOMAIN,
+		"matrix "+name+": some centroids hold values outside the "+metricName+" metric's domain (a negative coordinate, or an aitchison zero part); the distances touching them are null",
+		map[string]any{"matrix": name, "metric": metricName, "pairs": d.pairs, "buckets": distanceSortedKeys(d.buckets), "reasons": distanceSortedKeys(d.reasons)})
 }
 
 // pooledInverse is the pooled within-bucket covariance on w* —
@@ -467,35 +515,6 @@ func pooledInverse(name string, members []string, buckets []distanceBucket, scal
 		return pooled, nil, singular()
 	}
 	return pooled, inv, nil
-}
-
-// mahalanobisDistance is √(dᵀ S⁻¹ d), d = a − b, over the inverse
-// pooled covariance (nil: undefined). A rounding-negative quadratic
-// form is 0.
-func mahalanobisDistance(inv *linalg.Sym, a, b []float64) float64 {
-	if inv == nil {
-		return math.NaN()
-	}
-	p := len(a)
-	d := make([]float64, p)
-	for j := range d {
-		d[j] = a[j] - b[j]
-		if math.IsNaN(d[j]) || math.IsInf(d[j], 0) {
-			return math.NaN()
-		}
-	}
-	var q float64
-	for i := 0; i < p; i++ {
-		var row float64
-		for j := 0; j < p; j++ {
-			row += float64(inv.At(i, j) * d[j])
-		}
-		q += float64(d[i] * row)
-	}
-	if q < 0 {
-		q = 0
-	}
-	return math.Sqrt(q)
 }
 
 // bucketMatrix renders the k × k distances keyed by the bucket labels

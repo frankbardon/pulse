@@ -12,7 +12,7 @@
     "corpcor": "1.6.10"
   },
   "primitive": "centroid distances (MAT_DISTANCE)",
-  "r_function": "weighted.mean() centroids per bucket; stats::dist() euclidean / manhattan / maximum, squared euclidean, cosine 1 - a.b/(|a||b|), sqrt(stats::mahalanobis()) over the pooled within-bucket covariance; standardize z-scores the centroids by the bucketed rows' mean and sd (scale()).",
+  "r_function": "weighted.mean() centroids per bucket; stats::dist() euclidean / manhattan / maximum, squared euclidean (sq_euclidean), cosine 1 - a.b/(|a||b|), hellinger and aitchison (clr) on all-positive raw centroids (else null), sqrt(stats::mahalanobis()) over the pooled within-bucket covariance; standardize z-scores the centroids by the bucketed rows' mean and sd (scale()).",
   "note": "Weights follow the one rule: w* = w * N*/sum(w), N* = sum(w) (frequency, asserted on the rep()-expanded rows) or Kish n_eff (probability); centroids are kind-free weighted means, the sd and the pooled covariance are frequency formulas on w*. buckets = each row's bucket number in Pulse's emission order (1-based); sizes = per-bucket sum of weights, counts = rows. mahalanobis reads the raw centroids whatever standardize says (it is affine-invariant).",
   "cases": [
     {
@@ -464,7 +464,7 @@
             0
           ]
         ],
-        "sqeuclidean": [
+        "sq_euclidean": [
           [
             0,
             83.983733655699965,
@@ -529,6 +529,40 @@
           [
             0.0050149943302298938,
             0.012804034449973911,
+            0
+          ]
+        ],
+        "hellinger": [
+          [
+            0,
+            0.09647810825481544,
+            0.11013831199711643
+          ],
+          [
+            0.09647810825481544,
+            0,
+            0.10902203943540348
+          ],
+          [
+            0.11013831199711643,
+            0.10902203943540348,
+            0
+          ]
+        ],
+        "aitchison": [
+          [
+            0,
+            0.66581718626428299,
+            1.1271722437945255
+          ],
+          [
+            0.66581718626428299,
+            0,
+            0.80028034224463418
+          ],
+          [
+            1.1271722437945255,
+            0.80028034224463418,
             0
           ]
         ],
@@ -1000,7 +1034,7 @@
             0
           ]
         ],
-        "sqeuclidean": [
+        "sq_euclidean": [
           [
             0,
             3.9175237916830854,
@@ -1068,6 +1102,8 @@
             0
           ]
         ],
+        "hellinger": null,
+        "aitchison": null,
         "mahalanobis": [
           [
             0,
@@ -1597,7 +1633,7 @@
             0
           ]
         ],
-        "sqeuclidean": [
+        "sq_euclidean": [
           [
             0,
             4.1583669045082532,
@@ -1665,6 +1701,8 @@
             0
           ]
         ],
+        "hellinger": null,
+        "aitchison": null,
         "mahalanobis": [
           [
             0,
@@ -2194,7 +2232,7 @@
             0
           ]
         ],
-        "sqeuclidean": [
+        "sq_euclidean": [
           [
             0,
             4.1215559535696409,
@@ -2262,6 +2300,8 @@
             0
           ]
         ],
+        "hellinger": null,
+        "aitchison": null,
         "mahalanobis": [
           [
             0,
@@ -2586,7 +2626,7 @@
             0
           ]
         ],
-        "sqeuclidean": [
+        "sq_euclidean": [
           [
             0,
             16.862992359567905,
@@ -2690,6 +2730,8 @@
             0
           ]
         ],
+        "hellinger": null,
+        "aitchison": null,
         "mahalanobis": [
           [
             0,
@@ -3044,7 +3086,7 @@
             0
           ]
         ],
-        "sqeuclidean": [
+        "sq_euclidean": [
           [
             0,
             38.931177486399989,
@@ -3112,6 +3154,40 @@
             0
           ]
         ],
+        "hellinger": [
+          [
+            0,
+            0.59890653679955741,
+            0.12952856104182831
+          ],
+          [
+            0.59890653679955741,
+            0,
+            0.47904921413936441
+          ],
+          [
+            0.12952856104182831,
+            0.47904921413936441,
+            0
+          ]
+        ],
+        "aitchison": [
+          [
+            0,
+            2.8796385269102216,
+            0.72729732274254077
+          ],
+          [
+            2.8796385269102216,
+            0,
+            2.1523412041676804
+          ],
+          [
+            0.72729732274254077,
+            2.1523412041676804,
+            0
+          ]
+        ],
         "mahalanobis": [
           [
             0,
@@ -3133,4 +3209,4 @@
     }
   ]
 }
-// golden-hash: d3af94e512d003241ec68421bf50abdf1fbd9269787f57c509495c608b411516
+// golden-hash: 1061a77b62e59e23560a02b25c8403904f927c83ebbaa00d56cda2e28fd51ac0

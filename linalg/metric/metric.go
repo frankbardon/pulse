@@ -90,8 +90,9 @@ type Consumer string
 
 // The registry's consumers.
 const (
-	// ConsumerExpr: the expression metric functions. Row-local metrics
-	// only, in either form.
+	// ConsumerExpr: the expression metric functions — exactly the
+	// metrics a function exposes: dist (euclidean), cosine (its
+	// similarity form only), jaccard, dice, hamming and overlap.
 	ConsumerExpr Consumer = "expr"
 	// ConsumerVecDistance: ATTR_VEC_DISTANCE. Distance form; the
 	// row-local metrics plus std_euclidean and mahalanobis.
@@ -140,8 +141,11 @@ type definition struct {
 	scaled        bool
 	complete      bool
 	consumers     []Consumer
-	eval          func(d *definition, f Form, a, b []float64, s *Stats) (float64, error)
-	sets          func(f Form, c SetCounts) float64
+	// narrow restricts, per consumer, the forms that consumer may ask
+	// the metric for (absent: every form the consumer asks for).
+	narrow map[Consumer][]Form
+	eval   func(d *definition, f Form, a, b []float64, s *Stats) (float64, error)
+	sets   func(f Form, c SetCounts) float64
 }
 
 // Metric is one registered metric. The zero Metric is invalid (Valid
@@ -172,49 +176,49 @@ var registry = []*definition{
 		description: "sum((a-b)^2), rescaled by p/p_observed",
 		suited:      []Kind{Measure, Scale}, poor: []Kind{Composition},
 		domain: DomainReal, scaled: true,
-		consumers: []Consumer{cE, cV, cM, cK}, eval: evalSquares,
+		consumers: []Consumer{cV, cM, cK}, eval: evalSquares,
 	},
 	{
 		name: "manhattan", family: FamilyPlain, direction: Distance, forms: []Form{Distance},
 		description: "sum(|a-b|), rescaled by p/p_observed",
 		suited:      []Kind{Measure, Composition}, poor: []Kind{},
 		domain: DomainReal, scaled: true,
-		consumers: []Consumer{cE, cV, cM}, eval: evalManhattan,
+		consumers: []Consumer{cV, cM}, eval: evalManhattan,
 	},
 	{
 		name: "chebyshev", family: FamilyPlain, direction: Distance, forms: []Form{Distance},
 		description: "max(|a-b|)",
 		suited:      []Kind{Measure}, poor: []Kind{},
 		domain:    DomainReal,
-		consumers: []Consumer{cE, cV, cM}, eval: evalChebyshev,
+		consumers: []Consumer{cV, cM}, eval: evalChebyshev,
 	},
 	{
 		name: "cosine", family: FamilyPlain, direction: Similarity, forms: []Form{Similarity, Distance},
 		description: "similarity a.b/(|a||b|); distance 1-cos clamped to [0,2]",
 		suited:      []Kind{Composition, Binary}, poor: []Kind{Measure, Scale},
 		domain:    DomainReal,
-		consumers: []Consumer{cE, cV, cP, cM}, eval: evalCosine,
+		consumers: []Consumer{cE, cV, cP, cM}, narrow: map[Consumer][]Form{cE: {Similarity}}, eval: evalCosine,
 	},
 	{
 		name: "correlation", family: FamilyPlain, direction: Similarity, forms: []Form{Similarity},
 		description: "Pearson r of the two vectors' elements (centered cosine)",
 		suited:      []Kind{Scale}, poor: []Kind{},
 		domain:    DomainReal,
-		consumers: []Consumer{cE, cP}, eval: evalCorrelation,
+		consumers: []Consumer{cP}, eval: evalCorrelation,
 	},
 	{
 		name: "hellinger", family: FamilyPlain, direction: Distance, forms: []Form{Distance},
 		description: "sqrt(sum((sqrt(a/sum a)-sqrt(b/sum b))^2)/2), in [0,1]",
 		suited:      []Kind{Composition}, poor: []Kind{},
 		domain:    DomainNonNegative,
-		consumers: []Consumer{cE, cV, cM}, eval: evalHellinger,
+		consumers: []Consumer{cV, cM}, eval: evalHellinger,
 	},
 	{
 		name: "aitchison", family: FamilyPlain, direction: Distance, forms: []Form{Distance},
 		description: "Euclidean distance between the centered log-ratio transforms; a zero part is undefined",
 		suited:      []Kind{Composition}, poor: []Kind{},
 		domain: DomainNonNegative, zeroUndefined: true,
-		consumers: []Consumer{cE, cV, cM}, eval: evalAitchison,
+		consumers: []Consumer{cV, cM}, eval: evalAitchison,
 	},
 	{
 		name: "jaccard", family: FamilySet, direction: Similarity, forms: []Form{Similarity},
@@ -335,9 +339,7 @@ func Resolve(name string, f Form) (Metric, error) {
 // PULSE_VECTOR_METRIC_REQUIRED), its "valid" detail the names c accepts
 // in form f.
 func ResolveFor(c Consumer, name string, f Form) (Metric, error) {
-	valid := namesWith(func(d *definition) bool {
-		return slices.Contains(consumerForms[c], f) && slices.Contains(d.consumers, c) && slices.Contains(d.forms, f)
-	})
+	valid := namesWith(func(d *definition) bool { return d.serves(c, f) })
 	if name == "" {
 		return Metric{}, required(f, c, valid)
 	}
@@ -351,6 +353,19 @@ func ResolveFor(c Consumer, name string, f Form) (Metric, error) {
 		return Metric{}, refusal(name, reasonNotAccepted, f, c, valid)
 	}
 	return Metric{def: d}, nil
+}
+
+// serves reports whether consumer c accepts d in form f: c asks for f,
+// d answers in f, c is one of d's consumers and no per-consumer
+// narrowing excludes f.
+func (d *definition) serves(c Consumer, f Form) bool {
+	if !slices.Contains(consumerForms[c], f) || !slices.Contains(d.consumers, c) || !slices.Contains(d.forms, f) {
+		return false
+	}
+	if forms, ok := d.narrow[c]; ok {
+		return slices.Contains(forms, f)
+	}
+	return true
 }
 
 // Accepts reports whether consumer c accepts the metric name (in any

@@ -34,7 +34,7 @@ The shared metric registry `linalg/metric`, vector `kind` (measure/scale/composi
 - [ ] **#142** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`
 - [ ] **#143** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) `ATTR_SCALE_SCORE`
 - [ ] **#144** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option)
-- [ ] **#407** (10. Vector & matrix — operators › Follow-ups from U25) Fold `MAT_DISTANCE`'s local metric list (`euclidean`, `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis`) into the shared `linalg/metric` registry once it lands; one definition per metric
+- [x] **#407** (10. Vector & matrix — operators › Follow-ups from U25) Fold `MAT_DISTANCE`'s local metric list (`euclidean`, `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis`) into the shared `linalg/metric` registry once it lands; one definition per metric
 - [ ] **#417** (10. Vector & matrix — operators › Follow-ups from U26) Reference vectors from a `LookupTable`: let expression and profile similarity compare a row's vector or set against a stored reference profile (deferred from U26)
 
 ## Scope

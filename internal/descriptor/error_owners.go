@@ -534,6 +534,9 @@ var errorOwners = map[errors.Code][]string{
 	// Bartlett rule, the shared core).
 	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), vectorAttributeOwners()),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
+	// Only MAT_DISTANCE resolves a non-negative-domain metric
+	// (hellinger, aitchison) over centroids.
+	errors.PULSE_MATRIX_METRIC_DOMAIN: own("MAT_DISTANCE"),
 	// ATTR_PC_SCORE's varimax rotation and ATTR_FACTOR_SCORE's
 	// extraction or rotation can stop at their caps (a fit-scoped
 	// warning; the scores stand);

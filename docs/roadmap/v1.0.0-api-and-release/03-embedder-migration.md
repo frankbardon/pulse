@@ -453,6 +453,20 @@ In progress for U42. Contract: `.claude/reference/execution-modes.md` (Scoring a
 |---|---|---|---|---|
 | `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL` and `ATTR_REG_LEVERAGE` wrote `0` for a row with a null predictor (and `ATTR_REG_RESIDUAL` for a null target), so a downstream `AGG_AVERAGE` / `AGG_SUM` / error figure averaged those rows in as zeros | the row's output is null (as `ATTR_REG_PREDICT`): a downstream aggregation counts it in `n_null` and skips it, and a materialized or streamed row carries `null`. A null target alone still gets a fitted value and a leverage; a row the weighted refit excludes keeps leverage `0` | behaviour change | none if every input row is complete. Otherwise averages over the column change (they now cover only the defined rows) and `n` / `n_null` move | U42 |
 
+## Changes from U27 (vector metrics and aggregates)
+
+In progress for U27. Contract: `.claude/reference/matrix-and-vectors.md` (Metric registry, `MAT_DISTANCE`); skills `op-mat-distance`, `op-group-kmeans`, `expression-language`. `format_version` stays `"1.1"`. Every metric now resolves through the public `linalg/metric` registry (manifest `matrix.metrics`); no consumer keeps a local list or kernel.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `MAT_DISTANCE` `params.metric` `"sqeuclidean"` | `"sq_euclidean"` (the registry spelling); `"sqeuclidean"` is refused with `SERVICE_VALIDATION` `reason` `bad_params`, `details.valid` the registry's `MAT_DISTANCE` list. No alias | behaviour change (rename) | respell the metric; the components operator key `metric` and the manifest enum carry the new name | U27 |
+| `MAT_DISTANCE` accepted `euclidean`, `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis` | adds `hellinger` and `aitchison` (compositions; refused beside `standardize`); the enum is `metric.Accepted(metric.ConsumerMatDistance)` | added | none | U27 |
+| a `MAT_DISTANCE` pair whose centroids had ANY undefined (NaN) or infinite coordinate was null — in practice every standardized distance touching a zero-spread member | pairwise-complete (the registry's one policy): an undefined coordinate is dropped and the element sums (`euclidean`, `sq_euclidean`, `manhattan`) are rescaled by p / p_observed (R `stats::dist()`); a zero-spread member under `standardize` has no z-score and is skipped; `mahalanobis` still needs every coordinate. ±Inf is an ordinary value (an infinite centroid gives an infinite distance, not null) | behaviour change (values) | expect defined distances where nulls were; set `params.min_valid` to the member count to restore "null unless every member is defined" | U27 |
+| (none) | `MAT_DISTANCE` `params.min_valid` (int, default 1, 1 … p): the fewest complete member pairs a distance needs, null below it | added | none | U27 |
+| (none) | `errors.PULSE_MATRIX_METRIC_DOMAIN` (per-matrix warning: a negative centroid coordinate under `hellinger` / `aitchison`, or an aitchison zero part; the cells touching it are null) | added | `pulse errors lookup CODE`; the manifest error list changed | U27 |
+| the manifest `matrix.metrics` listed `expr` as a consumer of every row-local metric (E1-S1 interim) | `expr` lists exactly the metrics an expression function exposes — `euclidean` (`dist`), `cosine` (similarity only), `jaccard`, `dice`, `hamming`, `overlap` | behaviour (manifest) | none; the manifest golden changed | U27 |
+| the expression `dist(a, b)` summed the complete pairs without rescaling (unreleased U26 behaviour) | `dist` is the registry's `euclidean`: a partial pair is rescaled by p / p_observed, as `MAT_DISTANCE` | behaviour change (values, partial vectors only) | none for complete vectors (bits unchanged) | U27 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

@@ -3005,6 +3005,13 @@ const (
 	// covariance row and column are 0.
 	PULSE_MATRIX_ZERO_VARIANCE Code = "PULSE_MATRIX_ZERO_VARIANCE"
 
+	// PULSE_MATRIX_METRIC_DOMAIN is a per-matrix WARNING: MAT_DISTANCE's
+	// metric reads non-negative values (hellinger, aitchison) and some
+	// centroids hold a negative coordinate, or an aitchison zero part
+	// whose log-ratio is undefined (details "metric", "pairs",
+	// "buckets", "reasons"), so the distances touching them are null.
+	PULSE_MATRIX_METRIC_DOMAIN Code = "PULSE_MATRIX_METRIC_DOMAIN"
+
 	// PULSE_MATRIX_NOT_CONVERGED is a per-matrix WARNING: an iterative
 	// matrix routine stopped at its documented iteration cap before
 	// meeting its convergence tolerance, so its figures are the last
@@ -3656,6 +3663,7 @@ var allCodes = []Code{
 	PULSE_MATRIX_LISTWISE_HEAVY_DROP,
 	PULSE_MATRIX_INSUFFICIENT_N,
 	PULSE_MATRIX_ZERO_VARIANCE,
+	PULSE_MATRIX_METRIC_DOMAIN,
 	PULSE_MATRIX_NOT_CONVERGED,
 	PULSE_MATRIX_HEYWOOD,
 	PULSE_MATRIX_NOT_IDENTIFIED,

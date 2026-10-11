@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,10 +36,10 @@ func TestResolveMatrices_Distance(t *testing.T) {
 			t.Fatalf("refused: %v", err)
 		}
 		a, b := got[0], got[1]
-		if a.Metric != DistanceEuclidean || a.Standardize || a.Between == nil || a.Between.Field != "region" || !slices.Equal(a.Between.Include, []string{"a"}) || !a.Streamable || !a.Mergeable {
+		if a.Metric != DistanceDefaultMetric || a.MinValid != 1 || a.Standardize || a.Between == nil || a.Between.Field != "region" || !slices.Equal(a.Between.Include, []string{"a"}) || !a.Streamable || !a.Mergeable {
 			t.Errorf("category between = %+v / %+v", a, a.Between)
 		}
-		if b.Metric != DistanceCosine || !b.Standardize || b.Between.Vector != "" || !slices.Equal(b.Between.Fields, []string{"score", "mid"}) || b.Streamable || b.Mergeable {
+		if b.Metric != "cosine" || !b.Standardize || b.Between.Vector != "" || !slices.Equal(b.Between.Fields, []string{"score", "mid"}) || b.Streamable || b.Mergeable {
 			t.Errorf("k-means between = %+v / %+v", b, b.Between)
 		}
 		if !Referenced(req)["seg"] {
@@ -48,6 +49,28 @@ func TestResolveMatrices_Distance(t *testing.T) {
 			t.Errorf("MatrixMembers = %v, %v; want the between field", m, ok)
 		}
 	})
+	// Every metric the registry's MAT_DISTANCE consumer accepts
+	// resolves (the list is the registry's, not local), and min_valid
+	// is kept.
+	t.Run("registry metrics", func(t *testing.T) {
+		for _, name := range metric.Accepted(metric.ConsumerMatDistance) {
+			got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{
+				distanceMatrixSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "metric": "` + name + `", "min_valid": 2}`),
+			}}, testSchema(), nil)
+			if err != nil {
+				t.Fatalf("%s refused: %v", name, err)
+			}
+			if got[0].Metric != name || got[0].MinValid != 2 {
+				t.Errorf("%s: metric %q min_valid %d", name, got[0].Metric, got[0].MinValid)
+			}
+		}
+		_, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{
+			distanceMatrixSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "metric": "nope"}`),
+		}}, testSchema(), nil)
+		if valid, _ := detailsOf(err)["valid"].([]string); !slices.Equal(valid, metric.Accepted(metric.ConsumerMatDistance)) {
+			t.Errorf("valid = %v, want the registry's MAT_DISTANCE list", detailsOf(err)["valid"])
+		}
+	})
 	cases := []struct {
 		name, params, reason string
 		code                 errors.Code
@@ -55,6 +78,13 @@ func TestResolveMatrices_Distance(t *testing.T) {
 		{"no params", ``, "between_required", errors.SERVICE_VALIDATION},
 		{"no between", `{"metric": "manhattan"}`, "between_required", errors.SERVICE_VALIDATION},
 		{"bad metric", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "metric": "hamming"}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"pre-registry sqeuclidean spelling", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "metric": "sqeuclidean"}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"similarity-only metric", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "metric": "correlation"}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"hellinger beside standardize", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "metric": "hellinger", "standardize": true}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"aitchison beside standardize", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "metric": "aitchison", "standardize": true}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"min_valid zero", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "min_valid": 0}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"min_valid above the members", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "min_valid": 3}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"min_valid not an integer", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "min_valid": 1.5}`, "bad_params", errors.SERVICE_VALIDATION},
 		{"pairwise", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "missing": "pairwise"}`, "pairwise_unsupported", errors.SERVICE_VALIDATION},
 		{"unknown key", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "ddof": 1}`, "bad_params", errors.SERVICE_VALIDATION},
 		{"between unknown key", `{"between": {"type": "GROUP_CATEGORY", "field": "region", "nope": 1}}`, "bad_params", errors.SERVICE_VALIDATION},

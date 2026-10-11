@@ -7281,15 +7281,24 @@
             "type": "enum",
             "required": false,
             "default": "euclidean",
-            "description": "euclidean (stats::dist), sqeuclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, null for a zero-length one) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing). The list is local to MAT_DISTANCE.",
+            "description": "A linalg/metric registry name (capabilities.matrix.metrics, consumer MAT_DISTANCE), in the distance form: euclidean (stats::dist), sq_euclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, clamped to [0, 2]; null for a zero-length one), hellinger and aitchison (compositions: non-negative centroids, refused beside standardize; a negative coordinate or an aitchison zero part nulls the distance with PULSE_MATRIX_METRIC_DOMAIN) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing; null on any undefined coordinate). An undefined coordinate (a zero-spread member under standardize) is dropped pairwise and the element sums rescaled by p/p_observed (R stats::dist()).",
             "enum_values": [
               "euclidean",
-              "sqeuclidean",
+              "sq_euclidean",
               "manhattan",
               "chebyshev",
               "cosine",
+              "hellinger",
+              "aitchison",
               "mahalanobis"
             ]
+          },
+          {
+            "name": "min_valid",
+            "type": "int",
+            "required": false,
+            "default": 1,
+            "description": "The fewest complete member pairs (coordinates defined on both centroids) a distance needs, 1 to the member count; below it the distance is null."
           },
           {
             "name": "standardize",
@@ -8386,7 +8395,7 @@
         ]
       }
     ],
-    "error_codes_count": 338,
+    "error_codes_count": 339,
     "error_domains": [
       "CLI",
       "DATA",
@@ -8555,6 +8564,7 @@
       "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_INSUFFICIENT_N",
       "PULSE_MATRIX_LISTWISE_HEAVY_DROP",
+      "PULSE_MATRIX_METRIC_DOMAIN",
       "PULSE_MATRIX_NOT_CONVERGED",
       "PULSE_MATRIX_NOT_IDENTIFIED",
       "PULSE_MATRIX_NOT_PSD",
@@ -10492,7 +10502,7 @@
       },
       {
         "name": "op-mat-distance",
-        "description": "Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids."
+        "description": "Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; any registry metric MAT_DISTANCE accepts (euclidean, sq_euclidean, manhattan, chebyshev, cosine, hellinger, aitchison, mahalanobis); optional standardize; weighted centroids."
       },
       {
         "name": "op-mat-factor",
@@ -11768,7 +11778,6 @@
           "domain": "real",
           "scaled": true,
           "consumers": [
-            "expr",
             "MAT_DISTANCE",
             "GROUP_KMEANS"
           ]
@@ -11790,7 +11799,6 @@
           "domain": "real",
           "scaled": true,
           "consumers": [
-            "expr",
             "MAT_DISTANCE"
           ]
         },
@@ -11809,7 +11817,6 @@
           "fitted": false,
           "domain": "real",
           "consumers": [
-            "expr",
             "MAT_DISTANCE"
           ]
         },
@@ -11851,9 +11858,7 @@
           "poor_fit": [],
           "fitted": false,
           "domain": "real",
-          "consumers": [
-            "expr"
-          ]
+          "consumers": []
         },
         {
           "name": "hellinger",
@@ -11870,7 +11875,6 @@
           "fitted": false,
           "domain": "non_negative",
           "consumers": [
-            "expr",
             "MAT_DISTANCE"
           ]
         },
@@ -11890,7 +11894,6 @@
           "domain": "non_negative",
           "zero_undefined": true,
           "consumers": [
-            "expr",
             "MAT_DISTANCE"
           ]
         },
@@ -15554,4 +15557,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9c44c7f8e9b113ce573464b6048e00fb3cbc3888d105e885ac67f2b8e09fb7af
+// golden-hash: faa74557196e7bd44f0a7700c927e6c5650cf77fc2b389aaed91da9faf20b7ce

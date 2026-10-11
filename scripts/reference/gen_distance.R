@@ -16,9 +16,15 @@
 #     and sd on w* = w * N* / sum(w) (N* = sum(w) frequency, Kish n_eff
 #     probability; unweighted: scale()), asserted against scale() and,
 #     under frequency weights, against the rep()-expanded rows;
-#   * per metric the k x k matrix over those points: stats::dist()
-#     "euclidean" / "manhattan" / "maximum" (chebyshev), the squared
-#     euclidean, cosine 1 - a.b / (|a| |b|), and mahalanobis
+#   * per metric the k x k matrix over those points, keyed by the
+#     linalg/metric registry name: stats::dist() "euclidean" /
+#     "manhattan" / "maximum" (chebyshev), the squared euclidean
+#     (sq_euclidean), cosine 1 - a.b / (|a| |b|), hellinger
+#     sqrt(sum((sqrt(a/sum a) - sqrt(b/sum b))^2) / 2) and aitchison
+#     (the euclidean distance between the clr transforms) — both null
+#     unless every point is positive (standardized centroids are signed:
+#     Pulse refuses the pair; a negative raw centroid nulls the cell with
+#     PULSE_MATRIX_METRIC_DOMAIN) — and mahalanobis
 #     sqrt(stats::mahalanobis(c_a, c_b, S)) on the RAW centroids with S
 #     the pooled within-bucket covariance on w*,
 #     sum_b sum_i w*_i (x_i - c_b)(x_i - c_b)' / (sum(w*) - k) —
@@ -75,6 +81,15 @@ dist_case <- function(name, X, g, k, kind, standardize, w = NULL) {
     near(S, crossprod(resid(fit)) / (nrow(X) - k), 1e-10, paste(name, "pooled vs lm residual"))
   }
   maha <- sapply(seq_len(k), function(b) sqrt(stats::mahalanobis(cent, cent[b, ], S)))
+  positive <- !standardize && all(P > 0)
+  pairwise <- function(f) {
+    M <- matrix(0, k, k)
+    for (a in seq_len(k)) for (b in seq_len(k)) M[a, b] <- f(P[a, ], P[b, ])
+    M
+  }
+  hell <- pairwise(function(a, b) sqrt(sum((sqrt(a / sum(a)) - sqrt(b / sum(b)))^2) / 2))
+  clr <- function(x) log(x) - mean(log(x))
+  aitch <- pairwise(function(a, b) sqrt(sum((clr(a) - clr(b))^2)))
   dist_cases[[length(dist_cases) + 1]] <<- list(
     name = name, k = num(k), kind = kind, standardize = standardize,
     rows = numm(X), buckets = numv(g), weights = if (is.null(w)) jnull else numv(w),
@@ -83,10 +98,12 @@ dist_case <- function(name, X, g, k, kind, standardize, w = NULL) {
     pooled_covariance = numm(S),
     distances = list(
       euclidean = numm(D("euclidean")),
-      sqeuclidean = numm(D("euclidean")^2),
+      sq_euclidean = numm(D("euclidean")^2),
       manhattan = numm(D("manhattan")),
       chebyshev = numm(D("maximum")),
       cosine = numm(cosd),
+      hellinger = if (positive) numm(hell) else jnull,
+      aitchison = if (positive) numm(aitch) else jnull,
       mahalanobis = numm(maha)
     )
   )
@@ -112,7 +129,7 @@ gb <- as.integer(unlist(blobs$clusters))
 dist_case("kmeans_blobs3", Xb, gb, 3, "none", FALSE)
 
 dist_doc <- c(mv_meta("centroid distances (MAT_DISTANCE)",
-  "weighted.mean() centroids per bucket; stats::dist() euclidean / manhattan / maximum, squared euclidean, cosine 1 - a.b/(|a||b|), sqrt(stats::mahalanobis()) over the pooled within-bucket covariance; standardize z-scores the centroids by the bucketed rows' mean and sd (scale()).",
+  "weighted.mean() centroids per bucket; stats::dist() euclidean / manhattan / maximum, squared euclidean (sq_euclidean), cosine 1 - a.b/(|a||b|), hellinger and aitchison (clr) on all-positive raw centroids (else null), sqrt(stats::mahalanobis()) over the pooled within-bucket covariance; standardize z-scores the centroids by the bucketed rows' mean and sd (scale()).",
   "Weights follow the one rule: w* = w * N*/sum(w), N* = sum(w) (frequency, asserted on the rep()-expanded rows) or Kish n_eff (probability); centroids are kind-free weighted means, the sd and the pooled covariance are frequency formulas on w*. buckets = each row's bucket number in Pulse's emission order (1-based); sizes = per-bucket sum of weights, counts = rows. mahalanobis reads the raw centroids whatever standardize says (it is affine-invariant)."),
   list(cases = dist_cases))
 write_golden("mv_distance", dist_doc)

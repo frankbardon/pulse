@@ -71,13 +71,13 @@ var (
 // declarations is every metric's expected declaration.
 var declarations = map[string]decl{
 	"euclidean":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kM, kS}, []metric.Kind{kC}, metric.FitNone, metric.DomainReal, true, false, false, []metric.Consumer{cE, cV, cM, cK}},
-	"sq_euclidean":  {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kM, kS}, []metric.Kind{kC}, metric.FitNone, metric.DomainReal, true, false, false, []metric.Consumer{cE, cV, cM, cK}},
-	"manhattan":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kM, kC}, []metric.Kind{}, metric.FitNone, metric.DomainReal, true, false, false, []metric.Consumer{cE, cV, cM}},
-	"chebyshev":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kM}, []metric.Kind{}, metric.FitNone, metric.DomainReal, false, false, false, []metric.Consumer{cE, cV, cM}},
+	"sq_euclidean":  {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kM, kS}, []metric.Kind{kC}, metric.FitNone, metric.DomainReal, true, false, false, []metric.Consumer{cV, cM, cK}},
+	"manhattan":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kM, kC}, []metric.Kind{}, metric.FitNone, metric.DomainReal, true, false, false, []metric.Consumer{cV, cM}},
+	"chebyshev":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kM}, []metric.Kind{}, metric.FitNone, metric.DomainReal, false, false, false, []metric.Consumer{cV, cM}},
 	"cosine":        {metric.FamilyPlain, sim, []metric.Form{sim, dist}, []metric.Kind{kC, kB}, []metric.Kind{kM, kS}, metric.FitNone, metric.DomainReal, false, false, false, []metric.Consumer{cE, cV, cP, cM}},
-	"correlation":   {metric.FamilyPlain, sim, []metric.Form{sim}, []metric.Kind{kS}, []metric.Kind{}, metric.FitNone, metric.DomainReal, false, false, false, []metric.Consumer{cE, cP}},
-	"hellinger":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kC}, []metric.Kind{}, metric.FitNone, metric.DomainNonNegative, false, false, false, []metric.Consumer{cE, cV, cM}},
-	"aitchison":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kC}, []metric.Kind{}, metric.FitNone, metric.DomainNonNegative, false, false, true, []metric.Consumer{cE, cV, cM}},
+	"correlation":   {metric.FamilyPlain, sim, []metric.Form{sim}, []metric.Kind{kS}, []metric.Kind{}, metric.FitNone, metric.DomainReal, false, false, false, []metric.Consumer{cP}},
+	"hellinger":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kC}, []metric.Kind{}, metric.FitNone, metric.DomainNonNegative, false, false, false, []metric.Consumer{cV, cM}},
+	"aitchison":     {metric.FamilyPlain, dist, []metric.Form{dist}, []metric.Kind{kC}, []metric.Kind{}, metric.FitNone, metric.DomainNonNegative, false, false, true, []metric.Consumer{cV, cM}},
 	"jaccard":       {metric.FamilySet, sim, []metric.Form{sim}, []metric.Kind{kB}, []metric.Kind{}, metric.FitNone, metric.DomainBinary, false, false, false, []metric.Consumer{cE, cP}},
 	"dice":          {metric.FamilySet, sim, []metric.Form{sim}, []metric.Kind{kB}, []metric.Kind{}, metric.FitNone, metric.DomainBinary, false, false, false, []metric.Consumer{cE, cP}},
 	"hamming":       {metric.FamilySet, dist, []metric.Form{dist}, []metric.Kind{kB}, []metric.Kind{}, metric.FitNone, metric.DomainBinary, true, false, false, []metric.Consumer{cE, cV}},
@@ -186,12 +186,13 @@ func TestConsumerAcceptanceRules(t *testing.T) {
 			}
 		}
 	}
-	// Every row-local metric is reachable from the expression layer, and
-	// every row-local distance-form metric from ATTR_VEC_DISTANCE.
+	// expr lists exactly the metrics an expression function exposes
+	// (dist, cosine, jaccard, dice, hamming, overlap); every row-local
+	// distance-form metric is reachable from ATTR_VEC_DISTANCE.
+	if got, want := metric.Accepted(metric.ConsumerExpr), []string{"euclidean", "cosine", "jaccard", "dice", "hamming", "overlap"}; !slices.Equal(got, want) {
+		t.Errorf("Accepted(expr) = %v, want %v", got, want)
+	}
 	for _, m := range metric.All() {
-		if !m.Fitted() && !metric.Accepts(metric.ConsumerExpr, m.Name()) {
-			t.Errorf("expr does not accept row-local %s", m.Name())
-		}
 		if !m.Fitted() && m.HasForm(metric.Distance) && !metric.Accepts(metric.ConsumerVecDistance, m.Name()) {
 			t.Errorf("ATTR_VEC_DISTANCE does not accept row-local distance %s", m.Name())
 		}
@@ -318,6 +319,9 @@ func TestResolveFor_PerConsumer(t *testing.T) {
 		{cV, "chi_square", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},
 		{cE, "std_euclidean", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},
 		{cE, "cosine", sim, "", ""},
+		{cE, "cosine", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},
+		{cE, "euclidean", dist, "", ""},
+		{cE, "manhattan", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},
 		{cE, "nope", sim, perr.PULSE_VECTOR_METRIC_UNKNOWN, "unregistered"},
 		{cM, "hamming", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},
 		{cM, "", dist, perr.PULSE_VECTOR_METRIC_REQUIRED, ""},

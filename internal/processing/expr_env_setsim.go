@@ -6,13 +6,14 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/vecmath"
+	"github.com/frankbardon/pulse/linalg/metric"
 )
 
 // Set-similarity built-ins: jaccard, dice, hamming, overlap. Each takes
 // two label sets and compares them BY LABEL, so two set fields with
 // different dictionaries compare correctly. The counting rules live in
-// internal/vecmath (LabelOverlap + the kernels); these closures adapt
+// the linalg/metric registry (consumer "expr": SetCounts + EvalSets);
+// labelSetCounts counts label lists, and these closures adapt
 // arguments.
 //
 // An argument is one of:
@@ -68,7 +69,7 @@ func setSimArgOf(fn string, i int, a any) (setSimArg, error) {
 
 // setSimOverlap coerces the two arguments and counts them. null is true
 // when either side is a null set.
-func setSimOverlap(fn string, args []any) (o vecmath.SetOverlap, null bool, err error) {
+func setSimOverlap(fn string, args []any) (o metric.SetCounts, null bool, err error) {
 	if len(args) != 2 {
 		return o, false, builtinArityError(fn, 2, len(args))
 	}
@@ -85,7 +86,7 @@ func setSimOverlap(fn string, args []any) (o vecmath.SetOverlap, null bool, err 
 	}
 	switch {
 	case a.isMask && b.isMask:
-		return vecmath.SetOverlap{
+		return metric.SetCounts{
 			A:     a.mask.PopCount(),
 			B:     b.mask.PopCount(),
 			Inter: a.mask.Intersect(b.mask).PopCount(),
@@ -95,10 +96,43 @@ func setSimOverlap(fn string, args []any) (o vecmath.SetOverlap, null bool, err 
 			fmt.Sprintf("%s(): cannot compare a dictionary-less set (a raw bitmask, no labels) with a label set; give both arguments labels or both dictionary-less", fn),
 			map[string]any{"function": fn})
 	}
-	return vecmath.LabelOverlap(a.labels, b.labels), false, nil
+	return labelSetCounts(a.labels, b.labels), false, nil
 }
 
-func setSimilarity(fn string, k func(vecmath.SetOverlap) float64) exprBuiltinFunc {
+// labelSetCounts counts the distinct members of a and b and of their
+// intersection. Duplicates within one list count once; order is
+// irrelevant. Neither input is mutated.
+func labelSetCounts(a, b []string) metric.SetCounts {
+	inA := make(map[string]struct{}, len(a))
+	for _, s := range a {
+		inA[s] = struct{}{}
+	}
+	inB := make(map[string]struct{}, len(b))
+	inter := 0
+	for _, s := range b {
+		if _, dup := inB[s]; dup {
+			continue
+		}
+		inB[s] = struct{}{}
+		if _, ok := inA[s]; ok {
+			inter++
+		}
+	}
+	return metric.SetCounts{A: len(inA), B: len(inB), Inter: inter}
+}
+
+// setMetric evaluates the registry set metric r over counts that
+// setSimOverlap built from two real sets; a refusal (impossible counts)
+// is a PROCESSING_INTERNAL fault.
+func setMetric(fn string, r exprMetricRef, o metric.SetCounts) (float64, error) {
+	v, err := r.m.EvalSets(r.form, o)
+	if err != nil {
+		return 0, errors.WrapCodedError(err, errors.PROCESSING_INTERNAL, fn+"(): "+err.Error())
+	}
+	return v, nil
+}
+
+func setSimilarity(fn string, r exprMetricRef) exprBuiltinFunc {
 	return func(args ...any) (any, error) {
 		o, null, err := setSimOverlap(fn, args)
 		if err != nil {
@@ -107,9 +141,12 @@ func setSimilarity(fn string, k func(vecmath.SetOverlap) float64) exprBuiltinFun
 		if null {
 			return math.NaN(), nil
 		}
-		return k(o), nil
+		return setMetric(fn, r, o)
 	}
 }
+
+// exprHamming is the registry's hamming, resolved once.
+var exprHamming = exprMetric("hamming", metric.Distance)
 
 // setHammingBuiltin returns an int count, NaN when either set is null.
 func setHammingBuiltin(args ...any) (any, error) {
@@ -120,5 +157,9 @@ func setHammingBuiltin(args ...any) (any, error) {
 	if null {
 		return math.NaN(), nil
 	}
-	return vecmath.Hamming(o), nil
+	v, err := setMetric("hamming", exprHamming, o)
+	if err != nil {
+		return nil, err
+	}
+	return int(v), nil
 }

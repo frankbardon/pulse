@@ -423,9 +423,11 @@ integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default),
 or `oblimin`, `kappa` (promax only) and `gamma` (oblimin only), and
 `repair` `"nearest"`; `MAT_DISTANCE` only: `between` (required) a grouper
 spec as in `groups` — any built-in but `GROUP_DATE` / `GROUP_DATE_RANGES`,
-no own `weight` or `tz` — `metric` `euclidean` (default), `sqeuclidean`,
-`manhattan`, `chebyshev`, `cosine` or `mahalanobis`, `standardize`
-(boolean, default `false`), listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+no own `weight` or `tz` — `metric` a `linalg/metric` registry name
+(`capabilities.matrix.metrics`, consumer `MAT_DISTANCE`): `euclidean`
+(default), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine`,
+`hellinger`, `aitchison` or `mahalanobis`, `standardize` (boolean, default
+`false`), `min_valid` (integer 1 … p, default 1), listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,

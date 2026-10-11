@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -125,9 +126,15 @@ type Matrix struct {
 	// stamped weight (GROUP_KMEANS only: the other groupers' keys do not
 	// read a weight).
 	Between *types.Group
-	// Metric is MAT_DISTANCE's params.metric (DistanceEuclidean by
+	// Metric is MAT_DISTANCE's params.metric, a linalg/metric registry
+	// name the MAT_DISTANCE consumer accepts (DistanceDefaultMetric by
 	// default); "" on every other type.
 	Metric string
+	// MinValid is MAT_DISTANCE's params.min_valid: the fewest complete
+	// member pairs (coordinates defined on both centroids) a distance
+	// needs; below it the cell is null. 1 by default; 0 on every other
+	// type.
+	MinValid int
 	// Standardize is MAT_DISTANCE's params.standardize: z-score every
 	// member over the bucketed rows before the centroids are compared.
 	Standardize bool
@@ -136,22 +143,11 @@ type Matrix struct {
 	betweenRaw json.RawMessage
 }
 
-// MAT_DISTANCE metrics (params.metric). The list is local to
-// MAT_DISTANCE; U27's shared metric registry folds it in later.
-const (
-	DistanceEuclidean   = "euclidean"
-	DistanceSqEuclidean = "sqeuclidean"
-	DistanceManhattan   = "manhattan"
-	DistanceChebyshev   = "chebyshev"
-	DistanceCosine      = "cosine"
-	DistanceMahalanobis = "mahalanobis"
-)
-
-// DistanceMetrics returns MAT_DISTANCE's params.metric values, default
-// first.
-func DistanceMetrics() []string {
-	return []string{DistanceEuclidean, DistanceSqEuclidean, DistanceManhattan, DistanceChebyshev, DistanceCosine, DistanceMahalanobis}
-}
+// DistanceDefaultMetric is MAT_DISTANCE's params.metric default. The
+// accepted names are the linalg/metric registry's MAT_DISTANCE consumer
+// list (metric.Accepted(metric.ConsumerMatDistance)): there is no local
+// metric list.
+const DistanceDefaultMetric = "euclidean"
 
 // DistanceBetweenTypes returns the built-in groupers MAT_DISTANCE's
 // params.between accepts, in AllGroupTypes order: every built-in. The
@@ -484,12 +480,13 @@ type collinearityParams struct {
 
 // distanceParams is MAT_DISTANCE's params object: the between grouper
 // (resolved by resolveDistance once the members are known), the metric,
-// standardize and the missing-data knobs (listwise only); any other key
+// standardize, min_valid and the missing-data knobs (listwise only); any other key
 // is refused.
 type distanceParams struct {
 	Between     json.RawMessage `json:"between"`
 	Metric      *string         `json:"metric"`
 	Standardize *bool           `json:"standardize"`
+	MinValid    *int            `json:"min_valid"`
 	missingParams
 }
 
@@ -640,7 +637,8 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 	case types.MAT_FACTOR:
 		m.Extraction = FactorExtractionMinres
 	case types.MAT_DISTANCE:
-		m.Metric = DistanceEuclidean
+		m.Metric = DistanceDefaultMetric
+		m.MinValid = 1
 	}
 	if empty {
 		if spec.Type == types.MAT_DISTANCE {
@@ -974,9 +972,15 @@ func resolveFactor(at string, m *Matrix) *errors.CodedError {
 }
 
 // decodeDistance applies MAT_DISTANCE's params.metric (default
-// "euclidean") and params.standardize (default false), and keeps
-// params.between for resolveDistance. A missing between is
-// between_required; an unknown metric bad_params.
+// "euclidean"), params.standardize (default false) and params.min_valid
+// (default 1), and keeps params.between for resolveDistance. A missing
+// between is between_required. The metric resolves through the
+// linalg/metric registry for the MAT_DISTANCE consumer in the distance
+// form: an unknown or unaccepted name is bad_params (details.valid the
+// registry's list). A non-negative-domain metric (hellinger, aitchison)
+// is refused beside standardize — z-scored centroids are signed — and a
+// min_valid below 1 is bad_params (its ceiling, the member count, is
+// resolveDistance's).
 func decodeDistance(at string, p distanceParams, m *Matrix) *errors.CodedError {
 	raw := bytes.TrimSpace(p.Between)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
@@ -984,14 +988,26 @@ func decodeDistance(at string, p distanceParams, m *Matrix) *errors.CodedError {
 	}
 	m.betweenRaw = raw
 	if p.Metric != nil {
-		if !slices.Contains(DistanceMetrics(), *p.Metric) {
-			return matrixInvalid(at, "bad_params", at+" params.metric must be one of "+strings.Join(DistanceMetrics(), ", "),
-				map[string]any{"param": "metric", "value": *p.Metric, "valid": DistanceMetrics()})
+		if _, err := metric.ResolveFor(metric.ConsumerMatDistance, *p.Metric, metric.Distance); err != nil {
+			valid := metric.Accepted(metric.ConsumerMatDistance)
+			return matrixInvalid(at, "bad_params", at+" params.metric must be one of "+strings.Join(valid, ", "),
+				map[string]any{"param": "metric", "value": *p.Metric, "valid": valid})
 		}
 		m.Metric = *p.Metric
 	}
 	if p.Standardize != nil {
 		m.Standardize = *p.Standardize
+	}
+	if mm, _ := metric.Lookup(m.Metric); m.Standardize && mm.Domain() == metric.DomainNonNegative {
+		return matrixInvalid(at, "bad_params", at+" params.metric "+strconv.Quote(m.Metric)+" reads non-negative values and cannot follow standardize (z-scored centroids are signed); drop standardize or pick another metric",
+			map[string]any{"param": "metric", "value": m.Metric, "standardize": true})
+	}
+	if p.MinValid != nil {
+		if *p.MinValid < 1 {
+			return matrixInvalid(at, "bad_params", at+" params.min_valid must be at least 1",
+				map[string]any{"param": "min_valid", "value": *p.MinValid})
+		}
+		m.MinValid = *p.MinValid
 	}
 	return nil
 }
@@ -1031,6 +1047,10 @@ func resolveDistance(at string, specs []types.VectorSpec, resolved []Resolved, s
 	if m.Pairwise {
 		return matrixInvalid(at, "pairwise_unsupported", at+" params.missing \"pairwise\" is not supported on MAT_DISTANCE: every centroid must rest on the same rows; use \"listwise\"",
 			map[string]any{"param": "missing", "value": MissingPairwise, "valid": []string{MissingListwise}})
+	}
+	if p := len(m.Members.Members); m.MinValid > p {
+		return matrixInvalid(at, "bad_params", at+" params.min_valid "+strconv.Itoa(m.MinValid)+" exceeds the "+strconv.Itoa(p)+" members",
+			map[string]any{"param": "min_valid", "value": m.MinValid, "members": p})
 	}
 	bt := at + ".params.between"
 	var g types.Group

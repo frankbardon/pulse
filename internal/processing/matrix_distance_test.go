@@ -10,7 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -113,9 +113,22 @@ func distNearRows(t *testing.T, where string, got *types.MatrixValues, want [][]
 // (reproducing R's partition, keys cluster_1..3).
 func TestMatrixDistance_MatchesROracle(t *testing.T) {
 	doc := loadReference[distanceOracle](t, "mv_distance")
-	sawKMeans := false
+	sawKMeans, sawCompositional := false, 0
 	for _, c := range doc.Cases {
-		for _, metric := range vectors.DistanceMetrics() {
+		for _, metric := range metric.Accepted(metric.ConsumerMatDistance) {
+			if c.Distances[metric] == nil {
+				// hellinger / aitchison: the oracle writes them only
+				// over all-positive raw centroids (refused beside
+				// standardize; a negative centroid is
+				// TestMatrixDistance_MetricDomain's).
+				if metric != "hellinger" && metric != "aitchison" {
+					t.Fatalf("%s: oracle has no %s distances", c.Name, metric)
+				}
+				continue
+			}
+			if metric == "hellinger" || metric == "aitchison" {
+				sawCompositional++
+			}
 			t.Run(c.Name+"/"+metric, func(t *testing.T) {
 				p := len(c.Rows[0])
 				schema, members := distanceSchema(p)
@@ -179,7 +192,7 @@ func TestMatrixDistance_MatchesROracle(t *testing.T) {
 				} else if _, ok := res.Auxiliary["centroids_standardized"]; ok {
 					t.Error("centroids_standardized without standardize")
 				}
-				if metric == vectors.DistanceMahalanobis {
+				if metric == "mahalanobis" {
 					distNearRows(t, "pooled_covariance", res.Auxiliary["pooled_covariance"], c.PooledCov)
 				} else if _, ok := res.Auxiliary["pooled_covariance"]; ok {
 					t.Error("pooled_covariance off mahalanobis")
@@ -193,6 +206,9 @@ func TestMatrixDistance_MatchesROracle(t *testing.T) {
 	}
 	if !sawKMeans {
 		t.Fatal("oracle has no k-means case")
+	}
+	if sawCompositional == 0 {
+		t.Fatal("oracle has no hellinger / aitchison case")
 	}
 }
 

@@ -3733,6 +3733,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_METRIC_DOMAIN: {
+		Message: "MAT_DISTANCE's metric reads non-negative values (hellinger, aitchison) and some bucket centroids hold a negative coordinate, or an aitchison zero part whose log-ratio is undefined. The distances touching those centroids are null; details carry `matrix`, `metric`, `pairs` (the refused centroid pairs), `buckets` and `reasons` (`negative`, `zero`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices", "*", "params", "metric"},
+				Hint:   "Drop `params.metric` (euclidean) or pick a metric defined on signed values (manhattan, cosine) for members that can be negative; for aitchison, replace zero parts before comparing compositions.",
+			},
+		},
+	},
 	PULSE_MATRIX_NOT_CONVERGED: {
 		Message: "An iterative matrix routine stopped at its documented iteration cap before meeting its convergence tolerance, so the figures it returned are its last iterate, not an optimum. Raised as a per-matrix warning by the one-factor minres fit behind reliability ω, by the nearest-correlation repair (`params.repair` = `nearest`, beside its PULSE_MATRIX_NOT_PSD warning; the repaired matrix is still positive definite but may not be the nearest), by a factor analysis's extraction (`solver` `fa_minres` / `fa_pa` / `fa_ml`; principal axis stops after psych's 50 iterations) and by a loading rotation (`varimax` / `gpa_oblimin`); a fitted factor or component score attribute raises it fit-scoped (`details.scope` `fit`) and still scores every row from the last iterate. A k-means grouper raises it as a response warning (`solver` `kmeans_lloyd`, `group` naming its key column in place of `matrix`) when its best start reaches `params.max_iter`; its clusters are the last iterate — raise `max_iter`. Details carry `matrix`, `solver`, `iterations`, `max_iterations` and `tolerance`. The cap and tolerance are fixed constants, not request knobs.",
 		Fixups: []Fixup{
