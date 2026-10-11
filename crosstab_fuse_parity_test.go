@@ -158,6 +158,11 @@ func fusionParityCorpus() []fusionCase {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "f"}}
 	}))
 	add("formula_empty", with(func(r *types.Request) { r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f"}} }))
+	// A total(expr) formula takes the two-pass drive; both arms decline
+	// it (the ATTR_FORMULA bail) with the same reasons.
+	add("formula_total", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score / total(score)", Label: "f"}}
+	}))
 	add("filter_expression", with(func(r *types.Request) {
 		r.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "score > 1"}}
 	}))

@@ -857,6 +857,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_EXTRA_PASS: {
+		Message: "An ATTR_FORMULA calls total(expr), so the run makes an extra pre-pass over the filtered rows to sum each argument before it evaluates any row; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Attributes", "*", "Expression"},
+				Hint:   "No change is needed when the cohort-wide total is what you want. To skip the extra pass, divide two sums after aggregation with AGG_RATIO, or replace total(expr) with a constant read from an earlier run.",
+			},
+		},
+	},
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
 		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
 		Fixups: []Fixup{

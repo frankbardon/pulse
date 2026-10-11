@@ -29,6 +29,7 @@ func processChainCapability() descriptor.ProcessChainCapability {
 		RejectionRules: []string{
 			"chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
 			"chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
+			"chain rejects an ATTR_FORMULA whose expression calls total(expr) (a cohort-total pre-pass, not row-local)",
 			"chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
 			"chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
 			"chain rejects built-in aggregators over decimal128 targets",

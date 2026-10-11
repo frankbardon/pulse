@@ -188,6 +188,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC:  own(advisoryQuantityOperators()...),
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
+	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
 	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:        shared,
 	// Raised by recommend AND by the core examples search's intent
 	// filter, which every instance carries.

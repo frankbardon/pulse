@@ -470,6 +470,13 @@ const (
 	// details.suggested is the request patch {"weight":{"field":...}}.
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED Code = "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED"
 
+	// PULSE_ADVISORY_EXTRA_PASS is a predict advisory: an ATTR_FORMULA
+	// calls total(expr), so the run adds a pre-pass over the
+	// post-filter rows to sum each argument before any row is
+	// evaluated. One per such formula; details carry the slot, the
+	// formula label, the distinct total() arguments and added_scans.
+	PULSE_ADVISORY_EXTRA_PASS Code = "PULSE_ADVISORY_EXTRA_PASS"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -3344,6 +3351,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC,
 	PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
+	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,

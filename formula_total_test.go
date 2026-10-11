@@ -412,3 +412,95 @@ func TestFormulaTotal_PartitionedRouting(t *testing.T) {
 		})
 	}
 }
+
+// TestFormulaTotal_ComposeOverlayRefusal: a Compose-host OVERLAY_FORMULA
+// calling total() is PULSE_FORMULA_TOTAL_SITE on predict-compose and on
+// Compose alike (both before reference resolution); the same spec
+// without total() passes both.
+func TestFormulaTotal_ComposeOverlayRefusal(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
+	p, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	slot := func(label string) *types.Request {
+		return &types.Request{Label: label, Cohort: &types.Cohort{Filename: "ft.pulse"},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "qty", Label: "s"}}}
+	}
+	batch := func(formula string) *pulse.ComposedRequest {
+		return &pulse.ComposedRequest{
+			Requests: []*types.Request{slot("a"), slot("b")},
+			Overlays: []types.ComposeOverlaySpec{{Kind: types.OverlayKindFormula, Reference: "a", Targets: []string{"b"},
+				Params: map[string]any{"formula": formula}}},
+		}
+	}
+	code := string(errors.PULSE_FORMULA_TOTAL_SITE)
+	env, err := p.PredictCompose(ctx, batch("value / total(value)"))
+	if err != nil {
+		t.Fatalf("PredictCompose: %v", err)
+	}
+	if len(env.Errors) != 1 || env.Errors[0].Code != code || env.Errors[0].Details["index"] != 0 ||
+		env.Errors[0].Details["site"] != string(types.OverlayKindFormula) {
+		t.Errorf("predict-compose errors %+v, want one %s at index 0, site OVERLAY_FORMULA", env.Errors, code)
+	}
+	if _, err := p.Compose(ctx, batch("value / total(value)")); !errors.HasCode(err, errors.PULSE_FORMULA_TOTAL_SITE) {
+		t.Errorf("Compose: %v, want %s", err, code)
+	}
+	env, err = p.PredictCompose(ctx, batch("value / 2"))
+	if err != nil || len(env.Errors) != 0 {
+		t.Errorf("plain formula: predict-compose err=%v errors=%+v, want none", err, env.Errors)
+	}
+	if _, err := p.Compose(ctx, batch("value / 2")); err != nil {
+		t.Errorf("plain formula: Compose: %v", err)
+	}
+}
+
+// TestFormulaTotal_ExtraPassAdvisory: Pulse.Predict reports one
+// PULSE_ADVISORY_EXTRA_PASS per total formula — never a warning, never
+// escalated by Strict — and an instance suppressing the code drops it.
+func TestFormulaTotal_ExtraPassAdvisory(t *testing.T) {
+	ctx := context.Background()
+	code := string(errors.PULSE_ADVISORY_EXTRA_PASS)
+	req := ftReq("ft.pulse", &types.Attribute{Type: types.ATTR_FORMULA, Expression: "score / total(score)", Label: "out"})
+	for _, tc := range []struct {
+		name     string
+		opts     pulse.Options
+		advisory bool
+	}{
+		{"default", pulse.Options{}, true},
+		{"strict", pulse.Options{Strict: true}, true},
+		{"suppressed", pulse.Options{SuppressAdvisories: []string{code}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fsys := afero.NewMemMapFs()
+			writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
+			tc.opts.FS = fsys
+			p, err := pulse.New(tc.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := p.Predict(ctx, req)
+			if err != nil {
+				t.Fatalf("Predict: %v", err)
+			}
+			var got []string
+			for _, a := range res.Advisories {
+				got = append(got, a.Code)
+			}
+			if tc.advisory {
+				if len(got) != 1 || got[0] != code || res.Advisories[0].Details["label"] != "out" ||
+					res.Advisories[0].Details["added_scans"] != 1 {
+					t.Fatalf("advisories %+v, want one %s for out adding 1 scan", res.Advisories, code)
+				}
+			} else if len(got) != 0 {
+				t.Fatalf("advisories %v, want none", got)
+			}
+			if !res.Valid || !res.Streamable {
+				t.Errorf("valid=%v streamable=%v (reasons %v), want a valid streamable request", res.Valid, res.Streamable, res.StreamableReasons)
+			}
+		})
+	}
+}

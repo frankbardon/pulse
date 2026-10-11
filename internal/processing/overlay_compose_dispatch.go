@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -241,6 +242,20 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// instance feature set hides routes as never registered
 		// (falling through to the stub, as an unknown kind does).
 		route := exts.overlayRoute(spec.Kind)
+		// total() is ATTR_FORMULA's alone: a Compose-host
+		// OVERLAY_FORMULA calling it is PULSE_FORMULA_TOTAL_SITE, refused
+		// before reference resolution — the order predict-compose
+		// (descriptor.composeFormulaTotalRefusal) refuses it in.
+		if route == types.OverlayKindFormula {
+			formula, _ := spec.Params["formula"].(string)
+			if cerr := totalcall.Refusal(formula, string(types.OverlayKindFormula)); cerr != nil {
+				details := map[string]any{"index": i, "kind": string(spec.Kind)}
+				for k, v := range cerr.Details {
+					details[k] = v
+				}
+				return nil, nil, errors.NewCodedErrorWithDetails(cerr.Code, cerr.Message, details)
+			}
+		}
 		// Reference must resolve to a known label AND a non-nil slot.
 		// LookupReference owns the canonical-code dispatch for the
 		// reference arm — empty label, unknown label, or nil slot all

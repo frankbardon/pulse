@@ -532,6 +532,34 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			},
 			numericSchema,
 		},
+		// ATTR_FORMULA's total(expr) term takes the two-pass drive
+		// (post-aggregation-ratios E1-S3): alone it streams; beside a
+		// grouper, feature, regression, tier-1 test or matrix it buffers,
+		// exactly like ATTR_ZSCORE. A plain formula stays row-local.
+		{"lone total formula streams", ftotReq(nil), numericSchema},
+		{"plain formula streams", &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "share"}},
+			Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score / 2", Label: "share"}},
+		}, numericSchema},
+		{"plain formula with a grouper streams", ftotReq(func(r *types.Request) {
+			r.Attributes[0].Expression = "score / 2"
+			r.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "score", Interval: 10}}
+		}), numericSchema},
+		{"total formula with a grouper buffers", ftotReq(func(r *types.Request) {
+			r.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "score", Interval: 10}}
+		}), numericSchema},
+		{"total formula with a feature buffers", ftotReq(func(r *types.Request) {
+			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "score", Label: "ls"}}
+		}), numericSchema},
+		{"total formula with a regression buffers", ftotReq(func(r *types.Request) {
+			r.Regressions = []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}}}
+		}), numericSchema},
+		{"total formula with a tier-1 test buffers", ftotReq(func(r *types.Request) {
+			r.Tests = []*types.Test{{Type: types.TEST_T, Field: "score"}}
+		}), numericSchema},
+		{"total formula with a matrix buffers", ftotReq(func(r *types.Request) {
+			r.Matrices = []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}}
+		}), numericSchema},
 		{
 			"REG_BAYES_LINEAR with bootstrap modifier buffers",
 			&types.Request{
@@ -741,4 +769,17 @@ func TestPredict_RegressionRegularizedSelectionWarning(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ftotReq is a streamable request whose one attribute is an ATTR_FORMULA
+// calling total(score), mutated by mut when non-nil.
+func ftotReq(mut func(*types.Request)) *types.Request {
+	r := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "share"}},
+		Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score / total(score)", Label: "share"}},
+	}
+	if mut != nil {
+		mut(r)
+	}
+	return r
 }

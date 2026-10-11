@@ -148,6 +148,7 @@ suggested fix. They never change execution, `valid` or `--strict`.
 | `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | an SPSS nominal field is averaged as a number |
 | `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | a parametric test runs on an SPSS ordinal field |
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | the cohort names a weight variable and the request uses none |
+| `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, which adds a pre-pass over the filtered rows |
 
 Silence a code for the whole instance with `Options.SuppressAdvisories`;
 an unknown code is refused at `pulse.New` with
