@@ -6,6 +6,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 |---|---|---|---|---|
 | [`ATTR_CODE_IN`](#op-attr_code_in) | Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base. | What share of all respondents gave a top-two-box answer (codes 4 or 5)? | basic | [`FILTER_INCLUDE`](filterer.md#op-filter_include) when you want to keep only the rows with those codes.<br>[`AGG_FREQUENCY`](aggregator.md#op-agg_frequency) when you want how often a single value occurs.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when the field is a multi-select. |
 | [`ATTR_DATE_PART`](#op-attr_date_part) | Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour. | Which month of the year does each order fall in, so seasons can be compared across years? | basic | [`GROUP_DATE`](grouper.md#op-group_date) when you only want rows grouped by day, week, month or year.<br>[`FEAT_DATE_FEATURES`](feature.md#op-feat_date_features) when you want several calendar columns at once, including weekday. |
+| [`ATTR_FACTOR_SCORE`](#op-attr_factor_score) | Adds to every row its score on one factor behind several related numeric fields: an estimate of the hidden trait they measure together. | What is each respondent's score on the satisfaction factor behind these rating questions? | advanced | [`MAT_FACTOR`](matrix.md#op-mat_factor) when you want how many factors there are and which fields load on each.<br>[`ATTR_PC_SCORE`](#op-attr_pc_score) when you want a summary of all the fields' variance rather than a common trait. |
 | [`ATTR_FORMULA`](#op-attr_formula) | Adds a number to every row computed from the row's own fields with an expression, such as price * qty. | What is each order's line total from its price and quantity? | intermediate | [`FILTER_EXPRESSION`](filterer.md#op-filter_expression) when you want to keep or drop rows by a rule rather than add a column.<br>[`FEAT_LOG`](feature.md#op-feat_log) when you want the logarithm of a field. |
 | [`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) | Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together. | Which respondents gave an unusual pattern of answers across the whole battery, even if no single answer is extreme? | advanced | [`ATTR_ZSCORE`](#op-attr_zscore) when only one field matters.<br>[`TEST_HOTELLING_T2`](test.md#op-test_hotelling_t2) when you want how far apart groups are, not single rows. |
 | [`ATTR_NORMALIZED`](#op-attr_normalized) | Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the largest. | How can fields on very different scales be put on one 0-to-1 scale before combining them? | basic | [`ATTR_PERCENTILE`](#op-attr_percentile) when the field has extreme values that would squeeze the rest of the range.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want distance from the mean in standard deviations.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want a composite on the scales' fixed endpoints (1-5, 0-10), such as (x - 1) / 4. |
@@ -88,6 +89,42 @@ Adds a calendar part of a date or timestamp to every row, such as the year, the 
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-attr-date-part`](../skills/op-attr-date-part.md)
+
+<a id="op-attr_factor_score"></a>
+
+### `ATTR_FACTOR_SCORE`
+
+Adds to every row its score on one factor behind several related numeric fields: an estimate of the hidden trait they measure together.
+
+**Level:** advanced
+
+**Also known as:** `factor score`, `regression factor score`, `Thurstone score`, `Bartlett score`, `latent score`
+
+**Questions it answers:**
+
+- What is each respondent's score on the satisfaction factor behind these rating questions?
+- Can I score every row on the two constructs a factor analysis found, to compare segments on them?
+
+**Use cases by domain:**
+
+- *survey:* Score each respondent on the constructs an attitude battery measures, then crosstab or test the scores by segment.
+- *science:* Estimate each subject's standing on a latent trait from several noisy indicators before a later model.
+
+**Assumptions:**
+
+- The factors come from one fit over every row that passed the filters (or the subset fit_on selects), never per group; every filtered row is scored.
+- The fit is MAT_FACTOR's with the same settings, so factor numbers and directions match its loadings: read them before naming a score.
+- A row missing any of the fields is left out of the fit and gets no score (listwise deletion).
+- There must be more complete rows than fields, the factor count must be identified, and no field may be constant or a sum of the others; otherwise every score is empty, with a warning.
+
+**Use something else:**
+
+- [`MAT_FACTOR`](matrix.md#op-mat_factor) when you want how many factors there are and which fields load on each.
+- [`ATTR_PC_SCORE`](#op-attr_pc_score) when you want a summary of all the fields' variance rather than a common trait.
+
+**Glossary:** [`factor`](../glossary.md#term-factor), [`loading`](../glossary.md#term-loading), [`correlation`](../glossary.md#term-correlation), [`z-score`](../glossary.md#term-z-score), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Skill:** [`op-attr-factor-score`](../skills/op-attr-factor-score.md)
 
 <a id="op-attr_formula"></a>
 

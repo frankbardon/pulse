@@ -381,6 +381,17 @@ const (
 	// the fitted-attribute rules of ATTR_MAHALANOBIS (fit_on, listwise,
 	// null member → null, singular or N* ≤ p → every score null).
 	ATTR_PC_SCORE AttributeType = "ATTR_PC_SCORE"
+
+	// ATTR_FACTOR_SCORE emits each row's score on one common factor
+	// (params.factor, 1-based) of the p members of Vector / Fields: an
+	// inline MAT_FACTOR fit of the fit rows' correlation (params
+	// factors, extraction, rotation, kappa, gamma — MAT_FACTOR's knobs,
+	// order and sign), scored by params.method "regression" (Thurstone,
+	// the default) or "bartlett" on the members standardized by the fit.
+	// Two-pass with the fitted-attribute rules of ATTR_MAHALANOBIS
+	// (fit_on, listwise, null member → null, singular or N* ≤ p → every
+	// score null).
+	ATTR_FACTOR_SCORE AttributeType = "ATTR_FACTOR_SCORE"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -388,6 +399,7 @@ func AllAttributeTypes() []AttributeType {
 	return []AttributeType{
 		ATTR_CODE_IN,
 		ATTR_DATE_PART,
+		ATTR_FACTOR_SCORE,
 		ATTR_FORMULA,
 		ATTR_MAHALANOBIS,
 		ATTR_NORMALIZED,
@@ -1061,20 +1073,21 @@ type Attribute struct {
 	// regression attribute family (ATTR_REG_FITTED / RESIDUAL / LEVERAGE)
 	// which read Target + Predictors instead; when empty the output Label
 	// defaults to "<TYPE>_<Target>". A vector-input attribute
-	// (ATTR_MAHALANOBIS, ATTR_PC_SCORE) reads Vector / Fields and refuses
-	// Field.
+	// (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE) reads Vector /
+	// Fields and refuses Field.
 	Field string `json:"field"`
 
 	// Vector names the Request.Vectors entry whose members a
-	// vector-input attribute (ATTR_MAHALANOBIS, ATTR_PC_SCORE) reads as
-	// its p numeric
+	// vector-input attribute (ATTR_MAHALANOBIS, ATTR_PC_SCORE,
+	// ATTR_FACTOR_SCORE) reads as its p numeric
 	// columns. Exactly one of Vector and Fields is set on a vector-input
 	// attribute and neither on any other attribute (SERVICE_VALIDATION);
 	// a Vector no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN.
 	// Members resolve by the VectorSpec rules (the MatrixSpec.Vector /
 	// Fields and Test.Vector / Fields mirror), against source columns
 	// only, and missing data is listwise only. The default Label is
-	// "<TYPE>_<Vector>" (ATTR_PC_SCORE appends "_PC<component>").
+	// "<TYPE>_<Vector>" (ATTR_PC_SCORE appends "_PC<component>",
+	// ATTR_FACTOR_SCORE "_F<factor>").
 	Vector string `json:"vector,omitempty"`
 
 	// Fields lists a vector-input attribute's inline members (literal
@@ -1090,7 +1103,8 @@ type Attribute struct {
 
 	// Params holds type-specific configuration as raw JSON.
 	// Each attribute type defines its own params schema. The fitted
-	// vector attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE) share two keys:
+	// vector attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE,
+	// ATTR_FACTOR_SCORE) share two keys:
 	//   fit_on: "filtered" (default: fit on every filtered row) or an
 	//     inline array of Filterer objects selecting the subset of the
 	//     filtered rows the fit folds; every filtered row is scored.
@@ -1099,6 +1113,9 @@ type Attribute struct {
 	// adds component (1-based, required), on ("correlation" default or
 	// "covariance"), rotation ("none" default or "varimax") and
 	// components (the k rotated within; required with varimax).
+	// ATTR_FACTOR_SCORE adds factor (1-based, required), method
+	// ("regression" default or "bartlett") and MAT_FACTOR's factors,
+	// extraction, rotation, kappa and gamma.
 	Params json.RawMessage `json:"params,omitempty"`
 
 	// --- Regression-attribute fields (Option A: each ATTR_REG_* carries

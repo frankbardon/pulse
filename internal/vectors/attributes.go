@@ -33,8 +33,9 @@ import (
 //     mode; "pairwise" refused). An operator adds its own keys
 //     (ATTR_MAHALANOBIS: MahalanobisParams — output "d2" | "p";
 //     ATTR_PC_SCORE: PCScoreParams — component, on, rotation,
-//     components, the member-count bounds judged once the members
-//     resolve).
+//     components; ATTR_FACTOR_SCORE: FactorScoreParams — factor,
+//     method and MAT_FACTOR's factors, extraction, rotation, kappa,
+//     gamma; the member-count bounds judged once the members resolve).
 //   - Any OTHER built-in attribute refuses a vector input. An extension
 //     attribute's slots are its own business and are not judged.
 //
@@ -44,7 +45,7 @@ import (
 // VectorAttributeTypes returns the built-in attribute types that read
 // their columns from Vector / Fields, in AllAttributeTypes order.
 func VectorAttributeTypes() []types.AttributeType {
-	return []types.AttributeType{types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE}
+	return []types.AttributeType{types.ATTR_FACTOR_SCORE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE}
 }
 
 // IsVectorAttribute reports whether t is a built-in vector-input
@@ -62,16 +63,23 @@ func HasAttributeVectorInput(a *types.Attribute) bool {
 // attribute whose route is typ: "<TYPE>_<vector>", or
 // "<TYPE>_<first fields entry as written>" for inline fields, and on
 // ATTR_PC_SCORE a "_PC<component>" suffix (when params.component
-// decodes) so two components of one vector never share a label. ok is
-// false for any other type (the caller's own label rule applies).
+// decodes) and on ATTR_FACTOR_SCORE a "_F<factor>" suffix (when
+// params.factor decodes) so two components or factors of one vector
+// never share a label. ok is false for any other type (the caller's own
+// label rule applies).
 func VectorAttributeLabel(typ types.AttributeType, a *types.Attribute) (string, bool) {
 	if a == nil || !IsVectorAttribute(typ) {
 		return "", false
 	}
 	suffix := ""
-	if typ == types.ATTR_PC_SCORE {
+	switch typ {
+	case types.ATTR_PC_SCORE:
 		if cfg, err := PCScoreParams("", a.Params); err == nil {
 			suffix = "_PC" + strconv.Itoa(cfg.Component)
+		}
+	case types.ATTR_FACTOR_SCORE:
+		if cfg, err := FactorScoreParams("", a.Params); err == nil {
+			suffix = "_F" + strconv.Itoa(cfg.Factor)
 		}
 	}
 	if a.Vector != "" {
@@ -196,6 +204,9 @@ func fittedParams(at string, typ types.AttributeType, raw json.RawMessage) ([]*t
 	case types.ATTR_PC_SCORE:
 		cfg, err := PCScoreParams(at, raw)
 		return cfg.FitOn, err
+	case types.ATTR_FACTOR_SCORE:
+		cfg, err := FactorScoreParams(at, raw)
+		return cfg.FitOn, err
 	}
 	return nil, nil
 }
@@ -203,14 +214,21 @@ func fittedParams(at string, typ types.AttributeType, raw json.RawMessage) ([]*t
 // fittedMemberBounds judges typ's member-count params against the p
 // resolved members (fittedParams has accepted raw).
 func fittedMemberBounds(at string, typ types.AttributeType, raw json.RawMessage, p int) *errors.CodedError {
-	if typ != types.ATTR_PC_SCORE {
-		return nil
+	switch typ {
+	case types.ATTR_PC_SCORE:
+		cfg, err := PCScoreParams(at, raw)
+		if err != nil {
+			return err
+		}
+		return cfg.CheckMembers(at, p)
+	case types.ATTR_FACTOR_SCORE:
+		cfg, err := FactorScoreParams(at, raw)
+		if err != nil {
+			return err
+		}
+		return cfg.CheckMembers(at, p)
 	}
-	cfg, err := PCScoreParams(at, raw)
-	if err != nil {
-		return err
-	}
-	return cfg.CheckMembers(at, p)
+	return nil
 }
 
 // FitOnFiltered is params.fit_on's default: fit on every filtered row.
@@ -431,6 +449,120 @@ func (cfg PCScoreConfig) CheckMembers(at string, p int) *errors.CodedError {
 	}
 	return attributeInvalid(at, "component_out_of_range",
 		at+" params."+param+" is "+strconv.Itoa(v)+" but the "+strconv.Itoa(p)+" members have only "+strconv.Itoa(p)+" components",
+		map[string]any{"param": param, "value": v, "members": p})
+}
+
+// ATTR_FACTOR_SCORE params.method values.
+const (
+	// FactorScoreRegression is the default: Thurstone's regression
+	// scores, weights R⁻¹·S (S = LΦ, the structure).
+	FactorScoreRegression = "regression"
+	// FactorScoreBartlett is Bartlett's weighted least-squares scores,
+	// weights U⁻²L(LᵀU⁻²L)⁻¹ (U² the uniquenesses).
+	FactorScoreBartlett = "bartlett"
+)
+
+// FactorScoreMethods returns params.method's values, default first.
+func FactorScoreMethods() []string { return []string{FactorScoreRegression, FactorScoreBartlett} }
+
+// FactorScoreConfig is ATTR_FACTOR_SCORE's decoded params.
+type FactorScoreConfig struct {
+	// Factor is the 1-based factor scored (required).
+	Factor int
+	// Method is FactorScoreRegression (default) or FactorScoreBartlett.
+	Method string
+	// Factors, Extraction, Rotation ("" for none), Kappa and Gamma are
+	// the inline fit's MAT_FACTOR knobs, decoded by MAT_FACTOR's rule
+	// (factors "kaiser" by default, extraction "minres").
+	Factors    FactorCount
+	Extraction string
+	Rotation   string
+	Kappa      float64
+	Gamma      float64
+	// FitOn is the fit_on filterer list; nil fits on every filtered row.
+	FitOn []*types.Filterer
+}
+
+// FactorScoreParams decodes ATTR_FACTOR_SCORE's params: factor (an
+// integer ≥ 1, required), method ("regression" default, or
+// "bartlett"), MAT_FACTOR's factors / extraction / rotation / kappa /
+// gamma (the same rule and defaults; no repair — the fit is listwise),
+// fit_on and missing (FittedCommon). A fixed factors below factor is
+// refused; the bounds against the member count are CheckMembers.
+// Unknown keys are refused. at is the slot path. Predict and the
+// runtime factory both call it.
+func FactorScoreParams(at string, raw json.RawMessage) (FactorScoreConfig, *errors.CodedError) {
+	raw = bytes.TrimSpace(raw)
+	required := func() (FactorScoreConfig, *errors.CodedError) {
+		return FactorScoreConfig{}, attributeInvalid(at, "bad_params", at+" ATTR_FACTOR_SCORE params.factor is required (the 1-based factor to score)",
+			map[string]any{"param": "factor"})
+	}
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return required()
+	}
+	var params struct {
+		FittedCommon
+		Factor     *json.Number    `json:"factor"`
+		Method     *string         `json:"method"`
+		Factors    json.RawMessage `json:"factors"`
+		Extraction *string         `json:"extraction"`
+		Rotation   *string         `json:"rotation"`
+		Kappa      *float64        `json:"kappa"`
+		Gamma      *float64        `json:"gamma"`
+	}
+	if err := decodeStrict(raw, &params); err != nil {
+		return FactorScoreConfig{}, attributeInvalid(at, "bad_params",
+			at+" ATTR_FACTOR_SCORE params: "+err.Error()+" (keys: factor, method, factors, extraction, rotation, kappa, gamma, fit_on, missing)", nil)
+	}
+	fitOn, err := params.resolve(at)
+	if err != nil {
+		return FactorScoreConfig{}, err
+	}
+	if params.Factor == nil {
+		return required()
+	}
+	f, ok := positiveInt(*params.Factor)
+	if !ok {
+		return FactorScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.factor must be an integer ≥ 1",
+			map[string]any{"param": "factor", "value": params.Factor.String()})
+	}
+	cfg := FactorScoreConfig{Factor: f, Method: FactorScoreRegression, FitOn: fitOn}
+	if params.Method != nil {
+		switch v := *params.Method; v {
+		case FactorScoreRegression, FactorScoreBartlett:
+			cfg.Method = v
+		default:
+			return FactorScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.method must be \"regression\" or \"bartlett\"",
+				map[string]any{"param": "method", "value": v, "valid": FactorScoreMethods()})
+		}
+	}
+	m := Matrix{Type: types.MAT_FACTOR, Extraction: FactorExtractionMinres}
+	fp := factorParams{Factors: params.Factors, Extraction: params.Extraction, Rotation: params.Rotation, Kappa: params.Kappa, Gamma: params.Gamma}
+	if err := decodeFactorWith(at, fp, &m, attributeInvalid); err != nil {
+		return FactorScoreConfig{}, err
+	}
+	cfg.Factors, cfg.Extraction, cfg.Rotation, cfg.Kappa, cfg.Gamma = m.Factors, m.Extraction, m.Rotation, m.Kappa, m.Gamma
+	if !cfg.Factors.Kaiser() && cfg.Factors.K < cfg.Factor {
+		return FactorScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.factors must be at least params.factor ("+strconv.Itoa(cfg.Factor)+"): the scored factor is one of the k fitted",
+			map[string]any{"param": "factors", "value": cfg.Factors.K})
+	}
+	return cfg, nil
+}
+
+// CheckMembers refuses a factor (or a fixed factors count) beyond the p
+// members: a p-member battery has at most p factors. Whether k factors
+// are identified on p members (MAT_FACTOR's (p − k)² ≥ p + k) is the
+// fit's call, as on MAT_FACTOR.
+func (cfg FactorScoreConfig) CheckMembers(at string, p int) *errors.CodedError {
+	param, v := "factor", cfg.Factor
+	if cfg.Factors.K > v {
+		param, v = "factors", cfg.Factors.K
+	}
+	if v <= p {
+		return nil
+	}
+	return attributeInvalid(at, "factor_out_of_range",
+		at+" params."+param+" is "+strconv.Itoa(v)+" but the "+strconv.Itoa(p)+" members carry at most "+strconv.Itoa(p)+" factors",
 		map[string]any{"param": param, "value": v, "members": p})
 }
 

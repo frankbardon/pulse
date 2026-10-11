@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:2089cd9e52a0e28284b79f485b34489acb4351caa2e1a5651ded3b1fa4673841",
+    "feature_set_digest": "fs1:6238d134fdbccb3e7e237d284ad6a8729b6c2ec2ab8a36a59c2f6a5b754dc170",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -2912,6 +2912,119 @@
           "zone": "capable",
           "intents": [
             "change_over_time",
+            "prepare"
+          ]
+        },
+        {
+          "name": "ATTR_FACTOR_SCORE",
+          "category": "attribute",
+          "description": "Per-row score on one common factor of the p members of vector / fields (exactly one; listwise) from a cohort-wide inline MAT_FACTOR fit of the fit rows' (weighted) correlation — the same factors, extraction and rotation knobs, so the same loadings, order and sign — scored by the regression (Thurstone) or Bartlett method on the members standardized by the fit. Every filtered row is scored; a null member scores null; a singular fit, N* ≤ p, an unidentified factor count or a factor the Kaiser rule does not keep nulls every score with a warning; a Heywood case or an iteration cap scores with a warning. Two-pass.",
+          "params": [
+            {
+              "name": "factor",
+              "type": "int",
+              "required": true,
+              "description": "The factor to score, 1-based in MAT_FACTOR's column order (F1 accounts for the most variance), at most params.factors and the member count."
+            },
+            {
+              "name": "method",
+              "type": "enum",
+              "required": false,
+              "default": "regression",
+              "description": "regression: Thurstone's least-squares estimate, weights R⁻¹·LΦ (psych factor.scores \"Thurstone\"; shrunk toward 0, the most accurate per row). bartlett: weighted least squares, weights U⁻²L(LᵀU⁻²L)⁻¹ (psych \"Bartlett\"; unbiased for the factor, noisier); a uniqueness at or below 0 nulls every Bartlett score.",
+              "enum_values": [
+                "regression",
+                "bartlett"
+              ]
+            },
+            {
+              "name": "factors",
+              "type": "any",
+              "required": false,
+              "default": "kaiser",
+              "description": "MAT_FACTOR's factors: a positive integer k (at least params.factor, at most the member count) or \"kaiser\" (the fit correlation's eigenvalues above 1)."
+            },
+            {
+              "name": "extraction",
+              "type": "enum",
+              "required": false,
+              "default": "minres",
+              "description": "MAT_FACTOR's extraction: minres, principal_axis or ml.",
+              "enum_values": [
+                "minres",
+                "principal_axis",
+                "ml"
+              ]
+            },
+            {
+              "name": "rotation",
+              "type": "enum",
+              "required": false,
+              "default": "none",
+              "description": "MAT_FACTOR's rotation: none, varimax, promax or oblimin; an oblique rotation's factor correlation enters the regression weights.",
+              "enum_values": [
+                "none",
+                "varimax",
+                "promax",
+                "oblimin"
+              ]
+            },
+            {
+              "name": "kappa",
+              "type": "float",
+              "required": false,
+              "default": 4,
+              "description": "Promax power, above 1; rotation promax only."
+            },
+            {
+              "name": "gamma",
+              "type": "float",
+              "required": false,
+              "default": 0,
+              "description": "Oblimin gamma, finite; rotation oblimin only."
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one factor score per record (mean 0 over the fit rows; null when a member is null or the fit cannot score)",
+          "streamable": true,
+          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "measure_construct",
             "prepare"
           ]
         },
@@ -8406,6 +8519,7 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
@@ -8489,6 +8603,7 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
@@ -8572,6 +8687,7 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
@@ -8655,6 +8771,7 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
@@ -8737,6 +8854,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
@@ -8819,6 +8937,7 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
@@ -8901,6 +9020,7 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
@@ -8980,6 +9100,7 @@
         ],
         "compatible_attributes": [
           "ATTR_DATE_PART",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
@@ -9814,6 +9935,10 @@
       {
         "name": "op-attr-date-part",
         "description": "Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field."
+      },
+      {
+        "name": "op-attr-factor-score",
+        "description": "Per-row score on one common factor of a vector of numeric members, from an inline fit with the factor-analysis matrix operator's knobs, loadings, order and sign; regression or Bartlett scores; fit_on fits on a subset and still scores every row."
       },
       {
         "name": "op-attr-formula",
@@ -10792,7 +10917,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 201,
+    "examples_count": 202,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14582,4 +14707,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1c158655f8c185738119c6f735de554feb092cb2c81e9a14d84f2799fe11aae8
+// golden-hash: e54aae5231b98f6a44b13d5f01a542ec2e716b15ddc4d56334868510ff0d5ea5

@@ -519,15 +519,18 @@ var errorOwners = map[errors.Code][]string{
 	// Bartlett rule, the shared core).
 	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), vectorAttributeOwners()),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
-	// ATTR_PC_SCORE's varimax rotation can stop at its sweep cap (a
-	// fit-scoped warning; the scores stand).
-	errors.PULSE_MATRIX_NOT_CONVERGED: plus(ownAllMats, own("ATTR_PC_SCORE")),
+	// ATTR_PC_SCORE's varimax rotation and ATTR_FACTOR_SCORE's
+	// extraction or rotation can stop at their caps (a fit-scoped
+	// warning; the scores stand).
+	errors.PULSE_MATRIX_NOT_CONVERGED: plus(ownAllMats, own("ATTR_PC_SCORE", "ATTR_FACTOR_SCORE")),
 	// The factor-fit warnings: only the operators that fit a factor
 	// model raise them — MAT_RELIABILITY's one-factor omega (withheld)
 	// and MAT_FACTOR's k-factor fit (a Heywood fit kept as fitted, an
-	// unidentified count nulled).
-	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY", "MAT_FACTOR"),
-	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY", "MAT_FACTOR"),
+	// unidentified count nulled), and ATTR_FACTOR_SCORE's inline fit of
+	// it (a Heywood fit scored, Bartlett over ψ ≤ 0 nulled; an
+	// unidentified or Kaiser-short count nulled).
+	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE"),
+	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE"),
 	// Bartlett's test (and MAT_FACTOR's empirical chi-square) over a
 	// pairwise matrix reads the smallest pair.
 	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA", "MAT_FACTOR"),

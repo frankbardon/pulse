@@ -388,6 +388,15 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Params: json.RawMessage(`{"output":"p"}`)}, s, emitsRegRecords(s))
 		return append(d2, p...)
 	},
+	string(types.ATTR_FACTOR_SCORE): func(t *testing.T) emitted {
+		// Factor scores: unbounded reals, regression and Bartlett.
+		s := mahaSchema()
+		reg := attrEmitted(t, &types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "out", Fields: []string{"x", "y", "z"},
+			Params: json.RawMessage(`{"factor":1,"factors":1}`)}, s, mahaRecords(s, mahaRows, mahaGroups))
+		bart := attrEmitted(t, &types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "out", Fields: []string{"x", "y", "z"},
+			Params: json.RawMessage(`{"factor":1,"factors":1,"method":"bartlett","extraction":"ml"}`)}, s, mahaRecords(s, mahaRows, mahaGroups))
+		return append(reg, bart...)
+	},
 	string(types.ATTR_PC_SCORE): func(t *testing.T) emitted {
 		// Standardized scores: unbounded reals, unrotated and varimax.
 		s := regSchema()

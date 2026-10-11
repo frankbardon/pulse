@@ -268,6 +268,7 @@ var builtinFeatures = withDependencies([]Feature{
 	// Attributes — types.AllAttributeTypes().
 	op("ATTR_CODE_IN"),
 	op("ATTR_DATE_PART"),
+	op("ATTR_FACTOR_SCORE"),
 	op("ATTR_FORMULA"),
 	op("ATTR_MAHALANOBIS"),
 	op("ATTR_NORMALIZED"),

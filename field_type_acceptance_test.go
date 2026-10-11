@@ -179,6 +179,7 @@ var acceptanceTemplates = map[string]string{
 	"ATTR_SET_HAS":      `{"attributes":[{"type":"ATTR_SET_HAS","field":"$F","label":"o","params":{"label":"a"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_CODE_IN":      `{"attributes":[{"type":"ATTR_CODE_IN","field":"$F","label":"o","params":{"codes":["$V"]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_MAHALANOBIS":  `{"attributes":[{"type":"ATTR_MAHALANOBIS","fields":["$F","x"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_FACTOR_SCORE": `{"attributes":[{"type":"ATTR_FACTOR_SCORE","fields":["$F","x","y"],"label":"o","params":{"factor":1,"factors":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_PC_SCORE":     `{"attributes":[{"type":"ATTR_PC_SCORE","fields":["$F","x"],"label":"o","params":{"component":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 
 	// Features.

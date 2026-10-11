@@ -316,13 +316,13 @@ func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, 
 // internal/processing/attribute.go, attribute_reg.go and
 // attribute_fitted.go: ZSCORE/TSCORE/NORMALIZED need population stats;
 // ATTR_REG_FITTED/RESIDUAL/LEVERAGE need a finalize-time regression fit;
-// the fitted vector attributes (MAHALANOBIS, PC_SCORE) a finalize-time co-moment
+// the fitted vector attributes (MAHALANOBIS, PC_SCORE, FACTOR_SCORE) a finalize-time co-moment
 // fit; FORMULA/DATE_PART are pure row-local.
 func requiresTwoPass(t types.AttributeType) bool {
 	switch t {
 	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
 		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE,
-		types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE:
+		types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE:
 		return true
 	}
 	return false

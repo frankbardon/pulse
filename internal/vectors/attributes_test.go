@@ -15,6 +15,12 @@ func pcs(params string, mod func(*types.Attribute)) *types.Attribute {
 	return a
 }
 
+func fsa(params string, mod func(*types.Attribute)) *types.Attribute {
+	a := &types.Attribute{Type: types.ATTR_FACTOR_SCORE, Params: json.RawMessage(params)}
+	mod(a)
+	return a
+}
+
 func maha(mod func(*types.Attribute)) *types.Attribute {
 	a := &types.Attribute{Type: types.ATTR_MAHALANOBIS}
 	mod(a)
@@ -93,6 +99,19 @@ func TestResolveAttributes_Rules(t *testing.T) {
 		{name: "pc score promax", attr: pcs(`{"component": 1, "rotation": "promax", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "pc score bad on", attr: pcs(`{"component": 1, "on": "ranks"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "pc score output key", attr: pcs(`{"component": 1, "output": "p"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		// ATTR_FACTOR_SCORE: factor + method, MAT_FACTOR's knobs by
+		// MAT_FACTOR's rule, then the member-count bounds (va has 3).
+		{name: "factor score", attr: fsa(`{"factor": 1, "factors": 1, "method": "bartlett", "extraction": "ml", "fit_on": [{"type": "FILTER_TRUE"}]}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}, fitOn: 1},
+		{name: "factor score kaiser oblimin", attr: fsa(`{"factor": 2, "rotation": "oblimin", "gamma": 0.5}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "factor score promax kappa", attr: fsa(`{"factor": 2, "factors": 3, "rotation": "promax", "kappa": 3}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "factor score no factor", attr: fsa(`{"factors": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "factor score no params", attr: fsa(``, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "factor score factor beyond factors", attr: fsa(`{"factor": 2, "factors": 1}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "factor score factor beyond p", attr: fsa(`{"factor": 4}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "factor_out_of_range"},
+		{name: "factor score factors beyond p", attr: fsa(`{"factor": 1, "factors": 4}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "factor_out_of_range"},
+		{name: "factor score bad method", attr: fsa(`{"factor": 1, "method": "tenberge"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "factor score kappa without promax", attr: fsa(`{"factor": 1, "kappa": 3}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "factor score repair key", attr: fsa(`{"factor": 1, "repair": "nearest"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -154,6 +173,9 @@ func TestVectorAttributeLabel(t *testing.T) {
 		{pcs(`{"component": 1, "rotation": "varimax", "components": 2}`, func(a *types.Attribute) { a.Fields = []string{"q*"} }), "ATTR_PC_SCORE_q*_PC1", true},
 		// Undecodable params: the base rule (the slot is refused elsewhere).
 		{pcs(`{"component": "x"}`, func(a *types.Attribute) { a.Vector = "battery" }), "ATTR_PC_SCORE_battery", true},
+		{fsa(`{"factor": 2}`, func(a *types.Attribute) { a.Vector = "battery" }), "ATTR_FACTOR_SCORE_battery_F2", true},
+		{fsa(`{"factor": 1, "method": "bartlett"}`, func(a *types.Attribute) { a.Fields = []string{"q*"} }), "ATTR_FACTOR_SCORE_q*_F1", true},
+		{fsa(`{"factors": 2}`, func(a *types.Attribute) { a.Vector = "battery" }), "ATTR_FACTOR_SCORE_battery", true},
 		{&types.Attribute{Type: types.ATTR_ZSCORE, Field: "x"}, "", false},
 	}
 	for _, c := range cases {

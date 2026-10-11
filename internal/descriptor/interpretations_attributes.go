@@ -21,6 +21,7 @@ import "github.com/frankbardon/pulse/descriptor"
 var attributeInterpretations = map[string][]descriptor.Interpretation{
 	"ATTR_MAHALANOBIS":  interpAttrMahalanobis,
 	"ATTR_PC_SCORE":     interpAttrPCScore,
+	"ATTR_FACTOR_SCORE": interpAttrFactorScore,
 	"ATTR_NORMALIZED":   interpAttrNormalized,
 	"ATTR_PERCENTILE":   interpAttrPercentile,
 	"ATTR_REG_FITTED":   interpAttrRegFitted,
@@ -237,6 +238,21 @@ var (
 				"On the correlation every field counts equally; on the covariance a field with a large spread dominates the score.",
 				"The fit is over every filtered row (or the fit_on subset), not the row's group, so scores are comparable across groups. Under a row weight the fit is weighted; a row with no usable weight is left out of the fit but still scored.",
 				"A row missing any field reads null, and every row reads null, with a warning, when the fit has no more complete rows than fields or a field is constant or a combination of others.",
+			},
+		},
+	}
+
+	interpAttrFactorScore = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The row's estimated score on the chosen factor, on the scale of the fields standardized over the fitted rows: " +
+				"0 is an average row, positive is toward the end where the fields loading positively on the factor are high.",
+			Caveats: []string{
+				"The direction is MAT_FACTOR's convention (each factor's loadings sum positive), not a meaning: check its loadings on the same fields before calling a high score good or bad.",
+				"A factor score is an estimate, not the factor itself: regression scores are shrunk toward 0 (their spread is below 1), Bartlett scores are unbiased but noisier.",
+				"After an oblique rotation (promax, oblimin) the factors correlate, so scores on two factors move together.",
+				"The fit is over every filtered row (or the fit_on subset), not the row's group, so scores are comparable across groups. Under a row weight the fit is weighted; a row with no usable weight is left out of the fit but still scored.",
+				"A row missing any field reads null, and every row reads null, with a warning, when the fit cannot score (too few rows, a constant or redundant field, a factor count the fields cannot identify).",
 			},
 		},
 	}

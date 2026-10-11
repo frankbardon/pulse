@@ -67,6 +67,10 @@ func TestPredict_VectorAttributeInputs(t *testing.T) {
 		{name: "pc score beyond the members", attrs: []*types.Attribute{{Type: types.ATTR_PC_SCORE, Vector: "items", Params: json.RawMessage(`{"component": 4}`)}},
 			code: errors.SERVICE_VALIDATION, reason: "component_out_of_range"},
 		{name: "pc score without component", attrs: []*types.Attribute{{Type: types.ATTR_PC_SCORE, Vector: "items"}}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "factor score", attrs: []*types.Attribute{{Type: types.ATTR_FACTOR_SCORE, Vector: "items", Params: json.RawMessage(`{"factor": 1, "factors": 1, "method": "bartlett", "rotation": "varimax"}`)}}},
+		{name: "factor score beyond the members", attrs: []*types.Attribute{{Type: types.ATTR_FACTOR_SCORE, Vector: "items", Params: json.RawMessage(`{"factor": 4}`)}},
+			code: errors.SERVICE_VALIDATION, reason: "factor_out_of_range"},
+		{name: "factor score without factor", attrs: []*types.Attribute{{Type: types.ATTR_FACTOR_SCORE, Vector: "items"}}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "vector on a scalar attribute", attrs: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "q_1", Vector: "items"}}, code: errors.SERVICE_VALIDATION, reason: "vector_not_accepted"},
 	}
 	schema := &encoding.Schema{Fields: []encoding.Field{
@@ -145,6 +149,7 @@ func TestAttributeDefaultLabel_VectorAttributes(t *testing.T) {
 		{&types.Attribute{Type: types.ATTR_MAHALANOBIS, Vector: "items"}, "ATTR_MAHALANOBIS_items"},
 		{&types.Attribute{Type: types.ATTR_MAHALANOBIS, Fields: []string{"q_2", "q_1"}}, "ATTR_MAHALANOBIS_q_2"},
 		{&types.Attribute{Type: types.ATTR_PC_SCORE, Vector: "items", Params: json.RawMessage(`{"component": 2}`)}, "ATTR_PC_SCORE_items_PC2"},
+		{&types.Attribute{Type: types.ATTR_FACTOR_SCORE, Vector: "items", Params: json.RawMessage(`{"factor": 2}`)}, "ATTR_FACTOR_SCORE_items_F2"},
 	} {
 		if got := attributeDefaultLabel(c.attr, nil); got != c.want {
 			t.Errorf("label %q, want %q", got, c.want)

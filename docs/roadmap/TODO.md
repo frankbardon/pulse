@@ -518,8 +518,8 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#131** `TEST_HOTELLING_T2` · [U25](units/U25-multivariate-tests-segmentation.md)
 - [x] **#132** `TEST_MANOVA` (Wilks, Pillai, Hotelling–Lawley, Roy) · [U25](units/U25-multivariate-tests-segmentation.md)
 - [x] **#133** `TEST_BARTLETT_SPHERICITY` · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#134** `ATTR_MAHALANOBIS` · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#135** `ATTR_PC_SCORE` (two-pass, `fit_on`) · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#134** `ATTR_MAHALANOBIS` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#135** `ATTR_PC_SCORE` (two-pass, `fit_on`) · [U25](units/U25-multivariate-tests-segmentation.md)
 - [ ] **#136** `GROUP_KMEANS` (seeded k-means++, Euclidean-only, size-ordered labels) · [U25](units/U25-multivariate-tests-segmentation.md)
 
 ### E5 — Row-wise vector vocabulary & similarity

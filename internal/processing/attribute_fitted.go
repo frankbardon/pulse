@@ -95,11 +95,14 @@ func (s fittedState) cov() [][]float64 {
 	return m
 }
 
-// fitRefusal is a model's reason to null every score: the warning code
-// and the sentence after the slot label.
+// fitRefusal is a model's reason to null every score (or, from
+// fitNoter, a usable fit's caveat): the warning code, the sentence after
+// the slot label and any code-specific details (added beside the fit's
+// own figures, never replacing them).
 type fitRefusal struct {
-	code errors.Code
-	msg  string
+	code    errors.Code
+	msg     string
+	details map[string]any
 }
 
 // fittedModel is the operator half of a fitted vector attribute.
@@ -269,16 +272,28 @@ func (a *fittedVectorAttribute) Finalize() error {
 		return nil
 	}
 	if ref := a.model.fit(st); ref != nil {
-		a.warnings = append(a.warnings, a.fitWarning(ref.code, st, a.label+": "+ref.msg))
+		a.warnings = append(a.warnings, a.refusalWarning(ref, st))
 		return nil
 	}
 	if n, ok := a.model.(fitNoter); ok {
 		for _, note := range n.fitNotes() {
-			a.warnings = append(a.warnings, a.fitWarning(note.code, st, a.label+": "+note.msg))
+			a.warnings = append(a.warnings, a.refusalWarning(note, st))
 		}
 	}
 	a.usable = true
 	return nil
+}
+
+// refusalWarning is ref's fit-scoped warning: the fit's figures plus
+// ref's own details (a key the fit already sets is kept).
+func (a *fittedVectorAttribute) refusalWarning(ref *fitRefusal, st fittedState) *types.ResponseWarning {
+	w := a.fitWarning(ref.code, st, a.label+": "+ref.msg)
+	for k, v := range ref.details {
+		if _, taken := w.Details[k]; !taken {
+			w.Details[k] = v
+		}
+	}
+	return w
 }
 
 // fitWarning builds a fit-scoped warning carrying the fit's figures.

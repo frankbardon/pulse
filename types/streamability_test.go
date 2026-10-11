@@ -183,6 +183,7 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 		ATTR_REG_PREDICT:  true,
 		ATTR_MAHALANOBIS:  true,
 		ATTR_PC_SCORE:     true,
+		ATTR_FACTOR_SCORE: true,
 	}
 	for _, a := range AllAttributeTypes() {
 		want, ok := expected[a]

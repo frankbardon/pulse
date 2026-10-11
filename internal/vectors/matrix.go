@@ -761,6 +761,17 @@ func resolvePCA(at string, m *Matrix) *errors.CodedError {
 // default 0). A kappa without promax or a gamma without oblimin is
 // refused rather than ignored. Every refusal is bad_params.
 func decodeFactor(at string, p factorParams, m *Matrix) *errors.CodedError {
+	return decodeFactorWith(at, p, m, matrixInvalid)
+}
+
+// invalidFunc builds a slot's SERVICE_VALIDATION refusal (matrixInvalid,
+// attributeInvalid): the factor knobs are judged by one rule whichever
+// slot carries them.
+type invalidFunc func(at, reason, msg string, extra map[string]any) *errors.CodedError
+
+// decodeFactorWith is decodeFactor refusing through invalid
+// (ATTR_FACTOR_SCORE's inline fit shares MAT_FACTOR's knobs).
+func decodeFactorWith(at string, p factorParams, m *Matrix, matrixInvalid invalidFunc) *errors.CodedError {
 	if p.Extraction != nil {
 		switch *p.Extraction {
 		case FactorExtractionMinres, FactorExtractionPrincipalAxis, FactorExtractionML:

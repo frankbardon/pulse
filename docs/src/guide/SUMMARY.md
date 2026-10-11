@@ -84,6 +84,7 @@
     - [op-agg-zscore](skills/op-agg-zscore.md)
     - [op-attr-code-in](skills/op-attr-code-in.md)
     - [op-attr-date-part](skills/op-attr-date-part.md)
+    - [op-attr-factor-score](skills/op-attr-factor-score.md)
     - [op-attr-formula](skills/op-attr-formula.md)
     - [op-attr-mahalanobis](skills/op-attr-mahalanobis.md)
     - [op-attr-normalized](skills/op-attr-normalized.md)

@@ -163,6 +163,16 @@ positive target; the `w` / `f` / `p` weight columns):
   `DescrStatsW(w*, ddof = 1)` and unit variance asserted. The score
   divides by the members' w* spread, so the kinds again differ by one
   constant factor.
+- `ATTR_FACTOR_SCORE` (U25 E3-S3, members x1, y, yb — never null,
+  where the one-factor model is exactly identified and proper under every
+  weight column; factor 1, regression scores) — frequency: base R `cor`
+  / `solve` on the expanded rows, the loadings in closed form
+  l_i = √(r_ij r_ik / r_jk) and the score zᵀR⁻¹l (`reg_reference.R`);
+  probability: the same closed form on w* with the covariance
+  cross-checked with statsmodels `DescrStatsW(w*, ddof = 1)` and the
+  exact fit R = llᵀ + diag(1 − l²) asserted. The weights are kind-free
+  and z divides by the w* spread, so the kinds differ by one constant
+  factor.
 
 An attribute case reads each row's value back as an opted-out `AGG_SUM`
 grouped by the fixture's `id`; its figures are keyed `data[<id>].v`.

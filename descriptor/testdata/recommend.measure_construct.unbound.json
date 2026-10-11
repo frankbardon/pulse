@@ -157,6 +157,44 @@
         ]
       },
       {
+        "operator": "ATTR_FACTOR_SCORE",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row its score on one factor behind several related numeric fields: an estimate of the hidden trait they measure together. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "params": {
+                "factor": "\u003cfactor\u003e"
+              },
+              "type": "ATTR_FACTOR_SCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "factor",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many factors there are and which fields load on each",
+            "use": "MAT_FACTOR"
+          },
+          {
+            "when": "you want a summary of all the fields' variance rather than a common trait",
+            "use": "ATTR_PC_SCORE"
+          }
+        ]
+      },
+      {
         "operator": "ATTR_PC_SCORE",
         "category": "attribute",
         "level": "advanced",
@@ -196,9 +234,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 5
+    "candidates_considered": 6
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9582dfdd25b646cb03d4c71d962adc30992d916b07559dd221020981c262451a
+// golden-hash: a3613a44372f1eab297cae5d0e44b13dd30ff6deafa84d449c2b727a390947da

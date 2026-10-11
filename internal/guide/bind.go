@@ -102,6 +102,7 @@ var needWhy = map[string]string{
 	"degree":     "Choose the polynomial degree.",
 	"codes":      "List the codes to look for.",
 	"component":  "Choose which component to score, counting from 1 for the largest.",
+	"factor":     "Choose which factor to score, counting from 1 for the one that accounts for the most variance.",
 	"label":      "Name the option to look for.",
 	"ratios":     "Give the split ratios.",
 	"boundaries": "List the cutpoints that split the values into buckets.",

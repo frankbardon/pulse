@@ -85,6 +85,7 @@ skills/op-agg-welford.md
 skills/op-agg-zscore.md
 skills/op-attr-code-in.md
 skills/op-attr-date-part.md
+skills/op-attr-factor-score.md
 skills/op-attr-formula.md
 skills/op-attr-mahalanobis.md
 skills/op-attr-normalized.md

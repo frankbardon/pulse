@@ -108,6 +108,16 @@ is pinned to R on the sorted expansion (frequency) or Hmisc
 wtd.quantile(normwt=TRUE) (probability); counts and highs follow from an
 exact rational transcription of Pulse's cut ⌊⌊C − 1⌋·k/W⌋.
 
+ATTR_FACTOR_SCORE (U25 E3-S3) — members x1, y, yb (complete on every
+row; the one-factor model is exactly identified and proper there under
+every weight column): factor 1, regression scores. The loadings are the
+closed form l_i = sqrt(r_ij r_ik / r_jk) (minres, principal axis and ML
+all reach this exact fit), weights R^-1 l; frequency = R on the expanded
+rows (reg_reference.R, base R: cor / solve on the expansion), probability
+= the w* closed form with the covariance cross-checked with statsmodels
+DescrStatsW(w*, ddof=1) and the exact fit R = ll' + diag(1 - l^2)
+asserted.
+
 ATTR_PC_SCORE (U25 E3-S2) — on the same fixture and members: component 1
 of the correlation, every row with x2 present scored; frequency = R
 prcomp(scale. = TRUE) predict() / sdev on the expanded complete rows,
@@ -1980,6 +1990,41 @@ def mahalanobis_closed_form(ws, kind):
     return out
 
 
+FACTOR_FIELDS = ["x1", "y", "yb"]
+
+
+def factor_score_closed_form(ws, kind):
+    """ATTR_FACTOR_SCORE factor 1 (factors 1, regression) per row id:
+    the fit rows are every row with a valid positive weight (the members
+    are never null); R the w* correlation, the exactly identified
+    one-factor loadings l_i = sqrt(r_ij r_ik / r_jk) (asserted proper and
+    an exact fit), weights R^-1 l, score z'R^-1 l with z the row
+    standardized by the w* mean and ddof = 1 spread."""
+    idx = [i for i in range(len(REG_ROWS)) if valid(ws[i], kind) and ws[i] > 0]
+    X = np.array([[REG_ROWS[i][REG_COL[c]] for c in FACTOR_FIELDS] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    nstar = kish(w) if kind == "probability" else sw
+    mean = (w[:, None] * X).sum(axis=0) / sw
+    dev = X - mean
+    cov = dev.T @ (w[:, None] * dev) * (nstar / sw) / (nstar - 1)
+    d1 = DescrStatsW(X, weights=w * nstar / sw, ddof=1)
+    assert np.allclose(d1.cov, cov, rtol=1e-12), (kind, d1.cov, cov)
+    sd = np.sqrt(np.diag(cov))
+    r = cov / np.outer(sd, sd)
+    load = np.array([math.sqrt(r[0, 1] * r[0, 2] / r[1, 2]),
+                     math.sqrt(r[0, 1] * r[1, 2] / r[0, 2]),
+                     math.sqrt(r[0, 2] * r[1, 2] / r[0, 1])])
+    assert all(0 < v < 1 for v in load), (kind, load)
+    assert np.allclose(np.outer(load, load) + np.diag(1 - load ** 2), r, atol=1e-12), (kind, r, load)
+    wts = np.linalg.solve(r, load)
+    out = {}
+    for row in REG_ROWS:
+        z = (np.array([row[REG_COL[c]] for c in FACTOR_FIELDS]) - mean) / sd
+        out[row[0]] = float(z @ wts)
+    return out
+
+
 def pc_score_closed_form(ws, kind):
     """ATTR_PC_SCORE component 1 of the correlation per row id (x2
     present): eigen-decompose the w* correlation of the fit rows
@@ -2197,6 +2242,18 @@ def regression_cases():
                "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
                "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
         out.append(dict(weight=wname, kind=kind, name="attr_pc_score", request=req,
+                        figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        figs = factor_score_closed_form(ws, kind)
+        if prob:
+            src = ("closed form: the exactly identified one-factor loadings of the w* correlation, regression weights R^-1 l, "
+                   "covariance cross-checked with statsmodels " + statsmodels.__version__ + " DescrStatsW(w*, ddof=1)")
+        else:
+            adopt_r("attr_factor_score", figs, rfigs["attr_factor_score"])
+            src = f"{RREG[0]} cor / solve on the rep()-expanded rows: one-factor closed form, regression scores (reg_reference.R)"
+        req = {"attributes": [{"type": "ATTR_FACTOR_SCORE", "fields": FACTOR_FIELDS, "label": "attr", "params": {"factor": 1, "factors": 1}}],
+               "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+               "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+        out.append(dict(weight=wname, kind=kind, name="attr_factor_score", request=req,
                         figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
         for k in QUANTILE_KS:
             case = f"group_quantile_k{k}"

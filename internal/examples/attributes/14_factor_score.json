@@ -1,0 +1,76 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Per-row scores on the one common factor behind revenue_before, revenue and session_minutes on experiment.pulse via ATTR_FACTOR_SCORE, each from an inline fit with MAT_FACTOR's knobs (so the same loadings, order and sign as MAT_FACTOR on the same rows). f1_regression is the regression (Thurstone) score of the default minres fit; f1_bartlett is the Bartlett score of a maximum-likelihood fit (params.extraction \"ml\"). session_minutes shares almost nothing with the revenue pair, so both fits are Heywood cases and each slot warns PULSE_MATRIX_HEYWOOD (fit scope): the minres fit puts revenue_before's uniqueness below 0, so its regression scores still run (about +1.06 on control and -1.18 on variant, with a spread above 1 because the loadings are improper) while a Bartlett score over it would be null; the ML fit holds that uniqueness at its 0.005 floor, so its Bartlett score is essentially standardized revenue_before (about 0 on both arms). On a longer battery set params.factors and a rotation (two factors need at least five members). The fit is cohort-wide, never per treatment; grouping runs the request buffered.",
+    "intents": [
+      "measure_construct",
+      "prepare"
+    ],
+    "name": "attr_factor_score",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_STDDEV",
+      "ATTR_FACTOR_SCORE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "multivariate",
+      "feature-engineering",
+      "buffered-pipeline"
+    ]
+  },
+  "attributes": [
+    {
+      "type": "ATTR_FACTOR_SCORE",
+      "label": "f1_regression",
+      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "params": {
+        "factor": 1,
+        "factors": 1
+      }
+    },
+    {
+      "type": "ATTR_FACTOR_SCORE",
+      "label": "f1_bartlett",
+      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "params": {
+        "factor": 1,
+        "factors": 1,
+        "extraction": "ml",
+        "method": "bartlett"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "f1_regression",
+      "label": "mean_f1_regression"
+    },
+    {
+      "type": "AGG_STDDEV",
+      "field": "f1_regression",
+      "label": "sd_f1_regression"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "f1_bartlett",
+      "label": "mean_f1_bartlett"
+    },
+    {
+      "type": "AGG_STDDEV",
+      "field": "f1_bartlett",
+      "label": "sd_f1_bartlett"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  }
+}

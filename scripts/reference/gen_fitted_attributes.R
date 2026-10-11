@@ -6,10 +6,13 @@
 # weight utilities exist: it reuses out_dir, num(), numv(), numx(),
 # strs(), near(), write_golden(), mv_meta(), wvec(), n_star(), wcov(),
 # wmean(), expand(), sign_fix(), rot_canon() (gen_rotation.R) and the
-# fixture data frames (att, mt, wd, nl). Writes
-# <out_dir>/mv_mahalanobis.json and <out_dir>/mv_pc_score.json. CI never
-# runs R: everything here is committed. Base R (stats) plus the parent's
-# pinned psych (the rotated-score cross-check) — no new package pin.
+# fixture data frames (att, mt, wd, nl), and gen_factor.R's fa_quiet(),
+# fa_flip(), fa_ml_exact(), fa_ml_loadings() and fa_rotations(). Writes
+# <out_dir>/mv_mahalanobis.json, <out_dir>/mv_pc_score.json and
+# <out_dir>/mv_factor_score.json. CI never runs R: everything here is
+# committed. Base R (stats) plus the parent's pinned psych (the
+# rotated-score cross-check and factor.scores) and gen_rotation.R's
+# GPArotation — no new package pin.
 #
 # Conventions (Pulse's one weight rule, .claude/reference/weighting.md):
 #   * The FIT folds the rows that are complete on every member (listwise),
@@ -159,3 +162,95 @@ pc_doc <- c(mv_meta("principal component scores (fitted row score)",
   "Fit rows: complete on every member, w > 0, and (fit_on) fit_on.field == fit_on.level. S = the ddof = 1 covariance on w* (wcov). Eigenvectors carry Pulse's sign rule (largest-magnitude component positive). scores is rows x components: every component (rotation none) or the k rotated (varimax, after Pulse's order-and-sign rule); a row null on any member is null in every column (row order = the fixture's)."),
   list(cases = pc_cases))
 write_golden("mv_pc_score", pc_doc)
+
+# --------------------------------------------------------- factor scores
+# ATTR_FACTOR_SCORE (U25 E3-S3). The fit rows are Mahalanobis's
+# (listwise, w > 0, fit_on); R = cov2cor(S), S = wcov() on the fit rows.
+# The loadings are MAT_FACTOR's oracle loadings on R (mv_factor.json's
+# construction, gen_factor.R): minres = its exact optimum (psych::fa
+# fm = "pa", min.err = 1e-14), principal_axis = psych::fa(fm = "pa")
+# with psych's defaults, ml = fa_ml_exact + fa_ml_loadings; each put
+# through Pulse's rotation definitions and rot_canon (fa_rotations),
+# so order and sign are MAT_FACTOR's. The weights are
+# psych::factor.scores(R, f = L, Phi = Phi, method = "Thurstone" |
+# "Bartlett")$weights (asserted against solve(R, L Phi) and
+# U^-2 L (L' U^-2 L)^-1), and every row complete on the members is
+# scored Z %*% w, Z = (x - centre) / sqrt(diag(S)). Asserted (unweighted):
+# psych::factor.scores(x = fit rows, ...)$scores (scale() of the fit rows)
+# and, on the pa-extracted fits, psych::fa(x = fit rows, scores = ...)$scores
+# (columns matched by |r| = 1, sign-aligned).
+fs_cases <- list()
+fs_case <- function(fx, df, cols, kind, k, extraction, rotation = "none", fit_col = NULL, fit_level = NULL) {
+  w <- wvec(df, kind)
+  X <- as.matrix(df[, cols, drop = FALSE])
+  complete <- stats::complete.cases(X)
+  fit <- complete & w > 0
+  if (!is.null(fit_col)) fit <- fit & !is.na(df[[fit_col]]) & df[[fit_col]] == fit_level
+  Xf <- X[fit, , drop = FALSE]; wf <- w[fit]
+  p <- length(cols)
+  centre <- wmean(Xf, wf)
+  S <- wcov(Xf, wf, kind)
+  R <- cov2cor(S)
+  label <- paste(fx, kind, extraction, rotation, k)
+  converged <- TRUE
+  A <- switch(extraction,
+    minres = fa_flip(fa_quiet(r = R, nfactors = k, fm = "pa", rotate = "none", min.err = 1e-14, max.iter = 1e6)),
+    principal_axis = {
+      pa <- fa_quiet(r = R, nfactors = k, fm = "pa", rotate = "none")
+      converged <- length(pa$communality.iterations) < 50
+      fa_flip(pa)
+    },
+    ml = fa_ml_loadings(fa_ml_exact(R, k), R, k))
+  L <- A; Phi <- diag(k)
+  if (rotation != "none" && k >= 2) {
+    rot <- fa_rotations(A, k)[[rotation]]
+    L <- rot$loadings; Phi <- rot$phi
+  }
+  Z <- sweep(sweep(X, 2, centre, "-"), 2, sqrt(diag(S)), "/")
+  u2 <- 1 - diag(L %*% Phi %*% t(L))
+  one <- function(method) {
+    W <- psych::factor.scores(R, f = L, Phi = Phi, method = method)$weights
+    W <- unname(as.matrix(W))
+    manual <- if (method == "Thurstone") solve(R, L %*% Phi) else
+      diag(1 / u2, p) %*% L %*% solve(t(L) %*% diag(1 / u2, p) %*% L)
+    near(W, manual, 1e-10, paste("weights", method, label))
+    sc <- Z %*% W
+    if (kind == "none") {
+      ps <- psych::factor.scores(Xf, f = L, Phi = Phi, method = method)$scores
+      near(unname(ps), sc[fit, , drop = FALSE], 1e-10, paste("factor.scores on x", method, label))
+      if (extraction != "ml") {
+        fa_args <- list(r = Xf, nfactors = k, fm = "pa", rotate = rotation, scores = method, n.rotations = 1)
+        if (extraction == "minres") fa_args <- c(fa_args, list(min.err = 1e-14, max.iter = 1e6))
+        if (rotation != "promax") {
+          g <- do.call(fa_quiet, fa_args)
+          a <- align_cols(g$scores, sc[fit, , drop = FALSE])
+          near(sweep(g$scores[, abs(a), drop = FALSE], 2, sign(a), "*"), sc[fit, , drop = FALSE], 1e-7,
+               paste("psych::fa scores", method, label))
+        }
+      }
+    }
+    sc
+  }
+  fs_cases[[length(fs_cases) + 1]] <<- list(
+    fixture = fx, fields = strs(cols), weight = kind, factors = num(k),
+    extraction = extraction, rotation = rotation, converged = converged,
+    fit_on = if (is.null(fit_col)) jnull else list(field = fit_col, level = num(fit_level)),
+    n_fit = num(sum(fit)), loadings = numm(L), phi = numm(Phi), uniquenesses = numv(u2),
+    regression = numm(one("Thurstone")), bartlett = numm(one("Bartlett"))
+  )
+}
+for (kind in w_kinds) {
+  attn <- names(datasets::attitude)
+  fs_case("attitude", att, attn, kind, 2, "minres")
+  fs_case("attitude", att, attn, kind, 2, "minres", "varimax")
+  fs_case("attitude", att, attn, kind, 3, "principal_axis", "oblimin")
+  fs_case("attitude", att, attn, kind, 2, "ml", "promax")
+  fs_case("mtcars", mt, c("mpg", "disp", "hp", "wt", "qsec"), kind, 2, "principal_axis", "varimax", fit_col = "am", fit_level = 0)
+  fs_case("weighted", wd, c("x1", "x2", "x3", "x4"), kind, 1, "minres")
+  fs_case("nulls", nl, c("x1", "x2", "x3", "x4"), kind, 1, "ml")
+}
+fs_doc <- c(mv_meta("factor scores (fitted row score)",
+  "psych::factor.scores(R, f = L, Phi = Phi, method = 'Thurstone' | 'Bartlett')$weights on the fit rows' (weighted) correlation R, L / Phi MAT_FACTOR's oracle loadings (gen_factor.R: exact minres, psych principal axis, exact ML; stats::varimax / stats::promax(m = 4) / GPArotation::oblimin through rot_canon); scores = scale-by-the-fit(x) %*% weights. Asserted against solve(R, L Phi) and U^-2 L (L' U^-2 L)^-1, psych::factor.scores on the fit rows, and psych::fa(scores = ...)$scores (unweighted, principal-axis fits, sign-aligned).",
+  "Fit rows: complete on every member, w > 0, and (fit_on) fit_on.field == fit_on.level. S = the ddof = 1 covariance on w* (wcov); R = cov2cor(S); Z = (x - weighted fit mean) / sqrt(diag(S)). loadings / phi are the fitted (rotated) pattern and factor correlation (identity when orthogonal), uniquenesses = 1 - diag(L Phi L'); converged is FALSE when principal axis used all 50 of psych's iterations (its last iterate is the loadings). regression / bartlett are rows x factors (row order = the fixture's); a row null on any member is null in every column."),
+  list(cases = fs_cases))
+write_golden("mv_factor_score", fs_doc)

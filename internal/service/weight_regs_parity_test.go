@@ -97,6 +97,11 @@ var regParityOps = []regParityOp{
 	// rules, grouped and flat.
 	{name: "attr_pc_score", attr: types.ATTR_PC_SCORE, tol: 1e-10},
 	{name: "attr_pc_score_flat", attr: types.ATTR_PC_SCORE, flat: true, tol: 1e-10},
+	// ATTR_FACTOR_SCORE (U25 E3-S3) on (x, y, g), factor 1 of a one-factor
+	// minres fit of the w* correlation, regression scores on the w*
+	// standardized members: the same fit rules, grouped and flat.
+	{name: "attr_factor_score", attr: types.ATTR_FACTOR_SCORE, tol: 1e-9},
+	{name: "attr_factor_score_flat", attr: types.ATTR_FACTOR_SCORE, flat: true, tol: 1e-9},
 }
 
 func (o regParityOp) surface() (weightSurface, string) {
@@ -132,6 +137,9 @@ func (o regParityOp) build(path string) func() *types.Request {
 		}
 		if o.attr == types.ATTR_PC_SCORE {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}, Params: json.RawMessage(`{"component":1}`)}
+		}
+		if o.attr == types.ATTR_FACTOR_SCORE {
+			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y", "g"}, Params: json.RawMessage(`{"factor":1,"factors":1}`)}
 		}
 		req.Attributes = []*types.Attribute{attr}
 		if o.flat {

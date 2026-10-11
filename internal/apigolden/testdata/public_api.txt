@@ -3705,6 +3705,7 @@ pulse/types: const AGG_WELFORD pulse/types.AggregationType = "AGG_WELFORD"
 pulse/types: const AGG_ZSCORE pulse/types.AggregationType = "AGG_ZSCORE"
 pulse/types: const ATTR_CODE_IN pulse/types.AttributeType = "ATTR_CODE_IN"
 pulse/types: const ATTR_DATE_PART pulse/types.AttributeType = "ATTR_DATE_PART"
+pulse/types: const ATTR_FACTOR_SCORE pulse/types.AttributeType = "ATTR_FACTOR_SCORE"
 pulse/types: const ATTR_FORMULA pulse/types.AttributeType = "ATTR_FORMULA"
 pulse/types: const ATTR_MAHALANOBIS pulse/types.AttributeType = "ATTR_MAHALANOBIS"
 pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
@@ -4720,4 +4721,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7481cff452b1be765889165e0e7fb0432be3d462ff966786c66afdc58936ca41
+// golden-hash: edec938f96d42333eaa4e25931917b4af121093a2686967558a2510477373ebf

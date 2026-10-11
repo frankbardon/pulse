@@ -2973,7 +2973,8 @@ const (
 	// nearest-correlation repair (params.repair "nearest"), beside its
 	// PULSE_MATRIX_NOT_PSD warning, by MAT_FACTOR's extraction (solver
 	// "fa_minres" / "fa_pa" / "fa_ml") and by a rotation (MAT_PCA, MAT_FACTOR:
-	// "varimax" / "gpa_oblimin"). Details carry "matrix", "solver",
+	// "varimax" / "gpa_oblimin"); ATTR_PC_SCORE and ATTR_FACTOR_SCORE raise
+	// it fit-scoped and still score. Details carry "matrix", "solver",
 	// "iterations", "max_iterations" and "tolerance".
 	PULSE_MATRIX_NOT_CONVERGED Code = "PULSE_MATRIX_NOT_CONVERGED"
 
@@ -2985,7 +2986,9 @@ const (
 	// repaired (its maximum-likelihood extraction bounds ψ below at
 	// 0.005, so there a member held at that floor is the Heywood case).
 	// Details carry "matrix", "output", "members" and "uniquenesses"
-	// (the offending members' 1 − communality).
+	// (the offending members' 1 − communality). ATTR_FACTOR_SCORE raises
+	// it fit-scoped: regression scores stand, Bartlett scores over a
+	// uniqueness ≤ 0 are all null.
 	PULSE_MATRIX_HEYWOOD Code = "PULSE_MATRIX_HEYWOOD"
 
 	// PULSE_MATRIX_NOT_IDENTIFIED is a per-matrix WARNING: a model the
@@ -2996,7 +2999,9 @@ const (
 	// "matrix", "output", "members", "min_members"); MAT_FACTOR's k
 	// factors need (p − k)² ≥ p + k, so its loadings and fit figures
 	// are null otherwise (details "matrix", "output", "members",
-	// "factors", "max_factors").
+	// "factors", "max_factors"). ATTR_FACTOR_SCORE raises it fit-scoped
+	// and nulls every score, also when factors "kaiser" keeps fewer than
+	// params.factor.
 	PULSE_MATRIX_NOT_IDENTIFIED Code = "PULSE_MATRIX_NOT_IDENTIFIED"
 
 	// PULSE_MATRIX_PAIRWISE_N_STAR is a per-matrix WARNING: an
