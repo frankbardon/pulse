@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Pro-rata scale factor: each record's share of the cohort total via total(), summed back to a fixed budget.",
+    "intents": [
+      "prepare"
+    ],
+    "name": "attr_formula_total_prorata",
+    "operators": [
+      "AGG_SUM",
+      "ATTR_FORMULA"
+    ],
+    "tags": [
+      "feature-engineering",
+      "proportion-analysis"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "allocated",
+      "label": "sum_allocated"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "field": "income",
+      "label": "allocated",
+      "expression": "income * 1000000 / total(income)"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+}
