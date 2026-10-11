@@ -63,7 +63,8 @@
         "rg_Pacific_NW",
         "rg_South_Central",
         "rg_Southeast"
-      ]
+      ],
+      "save": "models/mmm_final.pulse-model.json"
     }
   ],
   "attributes": [
