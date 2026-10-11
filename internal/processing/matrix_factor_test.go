@@ -58,6 +58,14 @@ type faOut struct {
 	Rotations      map[string]faRotOut `json:"rotations"`
 	Iterations     *int                `json:"iterations"`
 	Converged      *bool               `json:"converged"`
+	// Maximum likelihood only: the uniquenesses the optimiser left and
+	// psych::fa.stats' likelihood figures on the loadings.
+	Psi             []float64 `json:"psi"`
+	LikelihoodChisq float64   `json:"likelihood_chisq"`
+	LikelihoodP     *float64  `json:"likelihood_p"`
+	TLI             *float64  `json:"tli"`
+	RMSEA           *float64  `json:"rmsea"`
+	BIC             *float64  `json:"bic"`
 }
 
 type factorCase struct {
@@ -74,6 +82,8 @@ type factorCase struct {
 	Minres        faOut       `json:"minres"`
 	MinresExact   *faOut      `json:"minres_exact"`
 	PrincipalAxis faOut       `json:"principal_axis"`
+	ML            faOut       `json:"ml"`
+	MLExact       faOut       `json:"ml_exact"`
 }
 
 func (c factorCase) name() string { return fmt.Sprintf("%s/%s/k%d", c.Fixture, c.Weight, c.K) }
@@ -242,7 +252,7 @@ func TestFactorMinres_MatchesPsych(t *testing.T) {
 // uncapped fit converges.
 func TestFactorSolvers_NotConvergedAtCap(t *testing.T) {
 	doc := loadReference[factorCase](t, "mv_factor")
-	c := doc.Cases[1] // attitude k = 2: minres needs > 1 Newton step, pa > 1 iteration
+	c := doc.Cases[1] // attitude k = 2: minres and ml need > 1 Newton step, pa > 1 iteration
 	r := c.sym(t)
 	for _, s := range []struct {
 		solver string
@@ -250,6 +260,7 @@ func TestFactorSolvers_NotConvergedAtCap(t *testing.T) {
 	}{
 		{"fa_minres", func(n int) (faFit, error) { return faMinresSolve(r, c.K, n) }},
 		{"fa_pa", func(n int) (faFit, error) { return faPrincipalAxisSolve(r, c.K, n) }},
+		{"fa_ml", func(n int) (faFit, error) { return faMLSolve(r, c.K, n) }},
 	} {
 		capped, err := s.run(1)
 		if err != nil {
@@ -268,8 +279,8 @@ func TestFactorSolvers_NotConvergedAtCap(t *testing.T) {
 	}
 }
 
-// TestFactorMinres_DispatchAndShape: the extraction dispatch names both
-// methods, and a fit's loadings are p × k with every column summing
+// TestFactorMinres_DispatchAndShape: the extraction dispatch names every
+// method, and a fit's loadings are p × k with every column summing
 // positive and communalities = row sums of squares.
 func TestFactorMinres_DispatchAndShape(t *testing.T) {
 	for _, name := range vectors.FactorExtractions() {

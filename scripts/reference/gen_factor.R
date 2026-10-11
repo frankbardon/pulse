@@ -1,6 +1,7 @@
 # gen_factor.R — R oracle for Pulse's MAT_FACTOR (U25 E2-S2: exploratory
 # factor analysis by minres and principal-axis extraction, then the
-# shared rotation engine).
+# shared rotation engine; E2-S3: maximum-likelihood extraction and its
+# fit indices).
 #
 # Sourced by gen_multivariate.R (`make reference`) after gen_rotation.R:
 # it reuses out_dir, num(), numx(), numv(), numm(), strs(), near(),
@@ -38,6 +39,15 @@
 #     residual SS sum_{i != j} res^2.
 #   * kmo = psych::KMO(R)$MSA; bartlett = psych::cortest.bartlett(R,
 #     n = n_star).
+#   * ml: psych::fa(R, k, fm = "ml", rotate = "none", n.obs = n_star)
+#     (L-BFGS-B over psi in [0.005, 1] from 1 - SMC, default factr —
+#     stops early), psi = 1 - its communalities; ml_exact: the optimum
+#     itself (fa_ml_exact: L-BFGS-B at factr = pgtol = 0, then Newton on
+#     the free psi with stats::optimHess to a free gradient < 1e-13),
+#     stats::factanal asserted within 1e-6 where it can start. Each
+#     entry's likelihood figures are psych::fa.stats(r = R, f = L,
+#     n.obs = n_star) on its loadings: STATISTIC, PVAL, TLI, RMSEA[1],
+#     BIC (null at dof <= 0).
 
 fa_quiet <- function(...) {
   suppressWarnings(suppressMessages(psych::fa(...)))
@@ -75,6 +85,76 @@ fa_flip <- function(f) {
   L <- unname(unclass(f$loadings))
   L <- matrix(as.numeric(L), nrow = nrow(L))
   L
+}
+
+
+# ---- maximum likelihood (U25 E2-S3)
+# psych::fa(fm = "ml")'s objective and gradient (psych's internal FAfn /
+# FAgr, = stats::factanal's factanal.fit.mle): F(psi) = sum_{m>k}(e_m -
+# log e_m) - (p - k), e the eigenvalues of Psi^-1/2 R Psi^-1/2.
+fa_ml_fn <- function(Psi, S, nf) {
+  sc <- diag(1 / sqrt(Psi)); E <- eigen(sc %*% S %*% sc, symmetric = TRUE, only.values = TRUE)
+  e <- E$values[-(1:nf)]
+  -(sum(log(e) - e) - nf + nrow(S))
+}
+fa_ml_gr <- function(Psi, S, nf) {
+  sc <- diag(1 / sqrt(Psi)); E <- eigen(sc %*% S %*% sc, symmetric = TRUE)
+  load <- E$vectors[, 1:nf, drop = FALSE] %*% diag(sqrt(pmax(E$values[1:nf] - 1, 0)), nf)
+  load <- diag(sqrt(Psi)) %*% load
+  g <- load %*% t(load) + diag(Psi) - S
+  diag(g) / Psi^2
+}
+# fa_ml_loadings is psych's FAout plus psych::fa's sign (columns summing
+# positive) and order (descending colSums(L^2), k > 1) rule.
+fa_ml_loadings <- function(Psi, S, nf) {
+  sc <- diag(1 / sqrt(Psi)); E <- eigen(sc %*% S %*% sc, symmetric = TRUE)
+  L <- diag(sqrt(Psi)) %*% E$vectors[, 1:nf, drop = FALSE] %*% diag(sqrt(pmax(E$values[1:nf] - 1, 0)), nf)
+  s <- sign(colSums(L)); s[s == 0] <- 1
+  L <- L %*% diag(s, nf)
+  if (nf > 1) L <- L[, order(colSums(L^2), decreasing = TRUE), drop = FALSE]
+  L
+}
+# fa_ml_exact is the optimum on the box [0.005, 1] (psych's bounds):
+# L-BFGS-B from psych's start (1 - SMC) at factr = pgtol = 0, then Newton
+# steps on the free psi with stats::optimHess's finite-difference Hessian
+# of the analytic gradient until the free gradient is below 1e-13 — an
+# independent route to the point Pulse's exact-Hessian solver reaches.
+fa_ml_exact <- function(R, k) {
+  p <- ncol(R)
+  o <- optim(pmin(pmax(1 - psych::smc(R), 0.005), 1), fa_ml_fn, fa_ml_gr, method = "L-BFGS-B", lower = 0.005, upper = 1,
+             control = list(parscale = rep(0.01, p), factr = 0, pgtol = 0, maxit = 1e5), S = R, nf = k)
+  psi <- o$par
+  for (it in 1:100) {
+    g <- fa_ml_gr(psi, R, k)
+    free <- !((psi <= 0.005 & g > 0) | (psi >= 1 & g < 0))
+    if (max(abs(g[free])) < 1e-13) break
+    H <- optimHess(psi, fa_ml_fn, fa_ml_gr, S = R, nf = k, control = list(ndeps = rep(1e-6, p)))
+    psi[free] <- pmin(pmax(psi[free] - solve(H[free, free, drop = FALSE], g[free]), 0.005), 1)
+  }
+  g <- fa_ml_gr(psi, R, k)
+  free <- !((psi <= 0.005 & g > 0) | (psi >= 1 & g < 0))
+  if (max(abs(g[free])) >= 1e-10) stop("exact ML did not converge: ", max(abs(g[free])))
+  psi
+}
+# fa_ml_entry records an ML solution: the loadings / communalities /
+# uniquenesses / variance, psi, the empirical residual figures (fa_stats)
+# and the likelihood figures of psych::fa.stats on these loadings
+# (STATISTIC, dof, PVAL, TLI, RMSEA[1], BIC; null at dof <= 0).
+fa_ml_entry <- function(R, L, psi, ns, k) {
+  st <- fa_stats(R, L, ns)
+  fs <- suppressWarnings(suppressMessages(psych::fa.stats(r = R, f = L, n.obs = ns)))
+  near(fs$dof, st$df, 0, "ml dof")
+  pos <- st$df > 0
+  h <- rowSums(L^2)
+  e <- list(unrotated = numm(L), communalities = numv(h), uniquenesses = numv(1 - h), variance = numv(colSums(L^2)),
+            psi = numv(psi),
+            rmsr = num(st$rmsr), empirical_chisq = num(st$chisq), df = num(st$df), empirical_p = numx(st$p),
+            objective = num(fs$objective), likelihood_chisq = num(fs$STATISTIC),
+            likelihood_p = numx(if (pos) fs$PVAL else NA_real_), tli = numx(if (pos) fs$TLI else NA_real_),
+            rmsea = numx(if (pos) fs$RMSEA[[1]] else NA_real_), bic = numx(if (pos) fs$BIC else NA_real_))
+  rot <- fa_rotations(L, k)
+  if (!is.null(rot)) e$rotations <- fa_enc_rot(rot)
+  e
 }
 
 factor_cases <- list()
@@ -134,6 +214,24 @@ add_factor <- function(fx, df, cols, kind, k, exact = TRUE) {
   e$iterations <- num(length(pa$communality.iterations))
   e$converged <- length(pa$communality.iterations) < 50
   out$principal_axis <- e
+
+  # Maximum likelihood: psych's own fit (L-BFGS-B, default factr; psi =
+  # 1 - communalities, psych's result.res$par) and the exact optimum.
+  ml <- fa_quiet(r = R, nfactors = k, fm = "ml", rotate = "none", n.obs = ns)
+  ml_psi <- 1 - ml$communalities
+  near(fa_ml_loadings(ml_psi, R, k), fa_flip(ml), 1e-10, paste("ml loadings rule", fx))
+  e <- fa_ml_entry(R, fa_flip(ml), ml_psi, ns, k)
+  near(fa_stats(R, fa_flip(ml), ns)$chisq, ml$chi, 1e-10, paste("ml chi", fx))
+  near(as.numeric(e$likelihood_chisq), ml$STATISTIC, 1e-10, paste("ml STATISTIC", fx))
+  out$ml <- e
+  ex_psi <- fa_ml_exact(R, k)
+  ex_L <- fa_ml_loadings(ex_psi, R, k)
+  out$ml_exact <- fa_ml_entry(R, ex_L, ex_psi, ns, k)
+  # stats::factanal (its own start, (1 - k/(2p)) / diag(R^-1)) reaches the
+  # same optimum at a tight factr where it can start at all.
+  fl <- tryCatch(factanal(covmat = R, factors = k, n.obs = ns,
+                          control = list(opt = list(factr = 1e-3, pgtol = 0, maxit = 1e5))), error = function(err) NULL)
+  if (!is.null(fl)) near(fl$uniquenesses, ex_psi, 1e-6, paste("factanal uniquenesses", fx))
   factor_cases[[length(factor_cases) + 1]] <<- out
 }
 add_factor("attitude", att, names(datasets::attitude), "none", 1)
@@ -147,8 +245,8 @@ add_factor("likert_ties", lk, paste0("q", 1:6), "none", 2)
 add_factor("weighted", wd, paste0("x", 1:4), "frequency", 1)
 add_factor("heywood", hw, c("h1", "h2", "h3"), "none", 1, exact = FALSE)
 
-factor_meta <- mv_meta("exploratory factor analysis (minres, principal axis) with rotation",
-  "psych::fa(r = R, nfactors = k, fm = 'minres' | 'pa', rotate = 'none', n.obs = n_star); stats::varimax, stats::promax(m = 4), GPArotation::oblimin(gam = 0) on the unrotated loadings",
-  "R = the fixture's listwise (weighted) correlation; n_star = N / sum(w) / Kish n_eff. minres = psych's L-BFGS-B fit (stops early); minres_exact = its exact optimum, the principal-axis fixed point (fm = 'pa', min.err = 1e-14). principal_axis = psych's default iteration (SMC start, min.err 0.001, max.iter 50; converged = fewer than 50 iterations). unrotated = psych's loadings, columns flipped to sum positive; communalities = rowSums(L^2), uniquenesses = 1 - communalities, variance = colSums(L^2). rotations = Pulse's engine definitions put through rot_canon (descending variance diag(Phi L'L), then each column summing positive); psych::fa's own varimax / oblimin asserted equal; psych's 'promax' (kaiser + GPArotation::Varimax) is not stats::promax and is not used. rmsr / empirical_chisq / df / empirical_p = psych fa.stats rms / chi / dof / EPVAL (asserted); objective = sum_{i != j} res^2. kmo = psych::KMO; bartlett = psych::cortest.bartlett(R, n = n_star). The heywood case has no exact optimum (its minres optimum is improper) and is compared on detection only.")
+factor_meta <- mv_meta("exploratory factor analysis (minres, principal axis, maximum likelihood) with rotation",
+  "psych::fa(r = R, nfactors = k, fm = 'minres' | 'pa' | 'ml', rotate = 'none', n.obs = n_star); psych::fa.stats(r = R, f = L, n.obs = n_star); stats::varimax, stats::promax(m = 4), GPArotation::oblimin(gam = 0) on the unrotated loadings",
+  "R = the fixture's listwise (weighted) correlation; n_star = N / sum(w) / Kish n_eff. minres = psych's L-BFGS-B fit (stops early); minres_exact = its exact optimum, the principal-axis fixed point (fm = 'pa', min.err = 1e-14). principal_axis = psych's default iteration (SMC start, min.err 0.001, max.iter 50; converged = fewer than 50 iterations). unrotated = psych's loadings, columns flipped to sum positive; communalities = rowSums(L^2), uniquenesses = 1 - communalities, variance = colSums(L^2). rotations = Pulse's engine definitions put through rot_canon (descending variance diag(Phi L'L), then each column summing positive); psych::fa's own varimax / oblimin asserted equal; psych's 'promax' (kaiser + GPArotation::Varimax) is not stats::promax and is not used. rmsr / empirical_chisq / df / empirical_p = psych fa.stats rms / chi / dof / EPVAL (asserted); objective = sum_{i != j} res^2. kmo = psych::KMO; bartlett = psych::cortest.bartlett(R, n = n_star). The heywood case has no exact optimum (its minres optimum is improper) and is compared on detection only. ml = psych::fa(fm = 'ml') (L-BFGS-B over psi in [0.005, 1] from 1 - SMC, default factr: stops early); psi = 1 - its communalities (psych's optimiser output); its loadings asserted equal to psych's FAout + sign + descending-variance order rule. ml_exact = the optimum itself: L-BFGS-B at factr = pgtol = 0, then Newton on the free psi with optimHess until the free gradient is below 1e-13; stats::factanal at factr 1e-3 asserted within 1e-6 where it starts. Each ML entry's likelihood figures are psych::fa.stats on its loadings: objective = tr(M^-1 R) - log det(M^-1 R) - p (M = LL' with unit diagonal), likelihood_chisq = STATISTIC (objective * ((N - 1) - (2p + 5)/6 - 2k/3), 0 when negative), likelihood_p = PVAL, tli = TLI, rmsea = RMSEA[1] (point estimate), bic = BIC; the last four null at df <= 0.")
 factor_meta$packages <- c(factor_meta$packages, lapply(as.list(pinned_rot), function(v) v))
 write_golden("mv_factor", c(factor_meta, list(cases = factor_cases)))

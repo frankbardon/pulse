@@ -102,7 +102,7 @@ Each cell is a loading: how strongly the row's measure is tied to the column's f
 
 - Unrotated loadings put most measures on the first factor; a rotation gives a cleaner pattern without changing how well the factors fit (the communalities).
 - Under an oblique rotation the factors correlate (auxiliary.factor_correlation), so loadings on correlated factors overlap.
-- A uniqueness at or below 0 (a Heywood case, flagged with a warning) means the fit is improper; try fewer factors or drop a near-duplicate measure.
+- A uniqueness at or below 0, or held at the maximum-likelihood floor (a Heywood case, flagged with a warning), means the fit is improper; try fewer factors or drop a near-duplicate measure.
 
 #### `scalars.kmo`
 
@@ -155,6 +155,46 @@ The empirical chi-square: the sum of the squared leftover correlations times the
 
 - It rests on the inference size: the rows (listwise), the summed weight or the effective sample size under a weight, or the smallest pair under pairwise deletion.
 - Null p when df is 0 or below: the model then has no spare correlations to test against.
+
+#### `scalars.likelihood_p`
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `scalars.likelihood_chisq`
+
+Maximum likelihood only: the likelihood-ratio chi-square, with Bartlett's correction, of the k-factor model against a free correlation table, on df degrees of freedom. A small p says the factors leave correlation unexplained.
+
+**Caveats:**
+
+- With many rows it flags even trivial misfit; read tli and rmsea beside it.
+- It assumes the measures are multivariate normal and rests on the inference size (the rows, the summed weight or the effective sample size).
+
+#### `scalars.tli`
+
+Maximum likelihood only: the Tucker-Lewis index, how much better the factor model fits per degree of freedom than a model of unrelated measures. Near 1 or above means a close fit; it is not capped at 1.
+
+**Caveats:**
+
+- No convention bands it here; cut-offs such as .95 come from confirmatory models under specific conditions.
+- Null when df is 0 or below.
+
+#### `scalars.rmsea`
+
+Maximum likelihood only: the root-mean-square error of approximation, the misfit per degree of freedom after allowing for sampling, as a point estimate. 0 means no misfit beyond chance; smaller is better.
+
+**Caveats:**
+
+- No convention bands it here; cut-offs such as .05 or .08 are rules of thumb, and no interval is given.
+- Null when df is 0 or below; with few rows or few df it is unstable.
+
+#### `scalars.bic`
+
+Maximum likelihood only: the Bayesian information criterion of the fit, the likelihood chi-square minus df times the log of the inference size. Compare it across factor counts on the same measures: the lower value is preferred.
+
+**Caveats:**
+
+- Only differences between fits of the same measures and rows mean anything; the value alone does not.
+- Null when df is 0 or below.
 
 <a id="op-mat_partial_correlation"></a>
 

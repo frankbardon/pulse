@@ -18,9 +18,9 @@ var matrixInterpretations = map[string][]descriptor.Interpretation{
 }
 
 // interpMatFactor bands KMO by Kaiser (1974), as MAT_PCA does, and
-// leaves the loadings and the residual figures unbanded: loading and
-// residual cut-offs are rules of thumb, not verified conventions
-// (excluded in testdata/conventions.json).
+// leaves the loadings, the residual figures and the maximum-likelihood
+// fit indices unbanded: their cut-offs are rules of thumb, not verified
+// conventions (excluded in testdata/conventions.json).
 var interpMatFactor = []descriptor.Interpretation{
 	{
 		Field: "primary.values",
@@ -32,7 +32,7 @@ var interpMatFactor = []descriptor.Interpretation{
 		Caveats: []string{
 			"Unrotated loadings put most measures on the first factor; a rotation gives a cleaner pattern without changing how well the factors fit (the communalities).",
 			"Under an oblique rotation the factors correlate (auxiliary.factor_correlation), so loadings on correlated factors overlap.",
-			"A uniqueness at or below 0 (a Heywood case, flagged with a warning) means the fit is improper; try fewer factors or drop a near-duplicate measure.",
+			"A uniqueness at or below 0, or held at the maximum-likelihood floor (a Heywood case, flagged with a warning), means the fit is improper; try fewer factors or drop a near-duplicate measure.",
 		},
 	},
 	bandedBy(ConventionKaiserKMO, descriptor.Interpretation{
@@ -70,6 +70,42 @@ var interpMatFactor = []descriptor.Interpretation{
 		Caveats: []string{
 			"It rests on the inference size: the rows (listwise), the summed weight or the effective sample size under a weight, or the smallest pair under pairwise deletion.",
 			"Null p when df is 0 or below: the model then has no spare correlations to test against.",
+		},
+	},
+	{
+		Field:  "scalars.likelihood_p",
+		Shared: SharedPValue,
+	},
+	{
+		Field: "scalars.likelihood_chisq",
+		Means: "Maximum likelihood only: the likelihood-ratio chi-square, with Bartlett's correction, of the k-factor model against a free correlation table, on df degrees of freedom. A small p says the factors leave correlation unexplained.",
+		Caveats: []string{
+			"With many rows it flags even trivial misfit; read tli and rmsea beside it.",
+			"It assumes the measures are multivariate normal and rests on the inference size (the rows, the summed weight or the effective sample size).",
+		},
+	},
+	{
+		Field: "scalars.tli",
+		Means: "Maximum likelihood only: the Tucker-Lewis index, how much better the factor model fits per degree of freedom than a model of unrelated measures. Near 1 or above means a close fit; it is not capped at 1.",
+		Caveats: []string{
+			"No convention bands it here; cut-offs such as .95 come from confirmatory models under specific conditions.",
+			"Null when df is 0 or below.",
+		},
+	},
+	{
+		Field: "scalars.rmsea",
+		Means: "Maximum likelihood only: the root-mean-square error of approximation, the misfit per degree of freedom after allowing for sampling, as a point estimate. 0 means no misfit beyond chance; smaller is better.",
+		Caveats: []string{
+			"No convention bands it here; cut-offs such as .05 or .08 are rules of thumb, and no interval is given.",
+			"Null when df is 0 or below; with few rows or few df it is unstable.",
+		},
+	},
+	{
+		Field: "scalars.bic",
+		Means: "Maximum likelihood only: the Bayesian information criterion of the fit, the likelihood chi-square minus df times the log of the inference size. Compare it across factor counts on the same measures: the lower value is preferred.",
+		Caveats: []string{
+			"Only differences between fits of the same measures and rows mean anything; the value alone does not.",
+			"Null when df is 0 or below.",
 		},
 	},
 }

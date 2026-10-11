@@ -26,7 +26,7 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression ([`regression-inference`](regression-inference.md)).
 
-Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres or principal axis; varimax, promax or oblimin); `MAT_PCA` `rotation: varimax` gives a simpler loading pattern.
+Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; varimax, promax or oblimin); `MAT_PCA` `rotation: varimax` gives a simpler loading pattern.
 
 ## Missing data
 

@@ -547,7 +547,8 @@ func TestResolveMatrices_PCARotation(t *testing.T) {
 }
 
 // TestResolveMatrices_Factor: MAT_FACTOR's params — factors (an integer
-// up to p, or "kaiser", the default), extraction (minres default),
+// up to p, or "kaiser", the default), extraction (minres default,
+// principal_axis, ml),
 // rotation with promax-only kappa (default 4) and oblimin-only gamma,
 // repair and the missing-data knobs — and its refusals, every one
 // bad_params. A decomposition operator: pairwise PSD risk from 3
@@ -574,6 +575,7 @@ func TestResolveMatrices_Factor(t *testing.T) {
 		{"", 0, FactorExtractionMinres, "", 0, 0},
 		{`{"factors": "kaiser"}`, 0, FactorExtractionMinres, "", 0, 0},
 		{`{"factors": 2, "extraction": "principal_axis"}`, 2, FactorExtractionPrincipalAxis, "", 0, 0},
+		{`{"factors": 2, "extraction": "ml", "rotation": "oblimin"}`, 2, FactorExtractionML, RotationOblimin, 0, 0},
 		{`{"factors": 2, "rotation": "none"}`, 2, FactorExtractionMinres, "", 0, 0},
 		{`{"factors": 2, "rotation": "varimax"}`, 2, FactorExtractionMinres, RotationVarimax, 0, 0},
 		{`{"factors": 2, "rotation": "promax"}`, 2, FactorExtractionMinres, RotationPromax, 4, 0},
@@ -605,7 +607,8 @@ func TestResolveMatrices_Factor(t *testing.T) {
 		`{"factors": 6}`,
 		`{"factors": "two"}`,
 		`{"factors": [2]}`,
-		`{"extraction": "ml"}`,
+		`{"extraction": "ML"}`,
+		`{"extraction": "mle"}`,
 		`{"extraction": "pa"}`,
 		`{"rotation": "quartimax"}`,
 		`{"rotation": "Varimax"}`,
@@ -626,7 +629,7 @@ func TestResolveMatrices_Factor(t *testing.T) {
 	if got := FactorRotations(); len(got) != 4 || got[0] != RotationNone {
 		t.Errorf("FactorRotations() = %v", got)
 	}
-	if got := FactorExtractions(); len(got) != 2 || got[0] != FactorExtractionMinres {
+	if got := FactorExtractions(); len(got) != 3 || got[0] != FactorExtractionMinres || got[2] != FactorExtractionML {
 		t.Errorf("FactorExtractions() = %v", got)
 	}
 }

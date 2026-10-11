@@ -7,6 +7,7 @@ import (
 	"math"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -15,7 +16,8 @@ import (
 )
 
 // matrix_factor_test.go is MAT_FACTOR end to end: the R oracle
-// (psych::fa minres and principal axis on the fixtures' correlations,
+// (psych::fa minres, principal axis and maximum likelihood on the
+// fixtures' correlations,
 // then stats::varimax / stats::promax / GPArotation::oblimin;
 // unweighted and both weight kinds), the identification, Heywood and
 // not-converged guards, the Kaiser rule, the rotation-free shape and
@@ -27,6 +29,7 @@ import (
 const (
 	factorPATol    = 1e-9
 	factorExactTol = 1e-7
+	factorMLTol    = 1e-8
 	factorGPATol   = 1e-4
 )
 
@@ -48,6 +51,13 @@ type factorFit struct {
 	Rotations      map[string]factorRot `json:"rotations"`
 	Iterations     *int                 `json:"iterations"`
 	Converged      *bool                `json:"converged"`
+	// Maximum likelihood only.
+	Psi             []float64 `json:"psi"`
+	LikelihoodChisq float64   `json:"likelihood_chisq"`
+	LikelihoodP     *float64  `json:"likelihood_p"`
+	TLI             *float64  `json:"tli"`
+	RMSEA           *float64  `json:"rmsea"`
+	BIC             *float64  `json:"bic"`
 }
 
 type factorOracle struct {
@@ -63,6 +73,7 @@ type factorOracle struct {
 	Minres        factorFit  `json:"minres"`
 	MinresExact   *factorFit `json:"minres_exact"`
 	PrincipalAxis factorFit  `json:"principal_axis"`
+	MLExact       factorFit  `json:"ml_exact"`
 }
 
 func factorSpec(name string, fields []string, params map[string]any, weight string) types.MatrixSpec {
@@ -121,9 +132,11 @@ func factorKeys(k int) []string {
 // accounted, rmsr / empirical chi-square / df / p, KMO and Bartlett,
 // and the fit's iterations / convergence (principal axis: psych's own
 // count). Principal axis is compared with psych within factorPATol;
-// minres with psych's exact optimum within factorExactTol (oblimin
-// within GPA's stopping band, factorGPATol). The Heywood fixture is the
-// subject of TestMatrixFactor_Guards.
+// minres with psych's exact optimum within factorExactTol; ml with the
+// exact ML optimum within factorMLTol, plus its likelihood chi-square,
+// p, TLI, RMSEA and BIC (absent on the other extractions); oblimin over
+// minres or ml within GPA's stopping band, factorGPATol. The Heywood
+// fixture's minres run is the subject of TestMatrixFactor_Guards.
 func TestMatrixFactor_MatchesROracle(t *testing.T) {
 	cases, dir := loadFactorOracle(t)
 	cfg := fixtureFS(t, dir)
@@ -131,11 +144,14 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 		for _, ext := range vectors.FactorExtractions() {
 			want := c.PrincipalAxis
 			tol := factorPATol
-			if ext == vectors.FactorExtractionMinres {
+			switch ext {
+			case vectors.FactorExtractionMinres:
 				if c.MinresExact == nil {
 					continue
 				}
 				want, tol = *c.MinresExact, factorExactTol
+			case vectors.FactorExtractionML:
+				want, tol = c.MLExact, factorMLTol
 			}
 			rotations := []string{vectors.RotationNone}
 			if c.K >= 2 {
@@ -153,7 +169,7 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 						t.Fatalf("primary shape %+v", res.Primary)
 					}
 					rt := tol
-					if rot == vectors.RotationOblimin && ext == vectors.FactorExtractionMinres {
+					if rot == vectors.RotationOblimin && ext != vectors.FactorExtractionPrincipalAxis {
 						rt = factorGPATol
 					}
 					variance := want.Variance
@@ -220,11 +236,28 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 							t.Errorf("NOT_CONVERGED warning presence %v, psych converged %v", matWarningCodes(res), *want.Converged)
 						}
 					} else if s["converged"] != 1 {
-						t.Errorf("minres converged %v", s["converged"])
+						t.Errorf("%s converged %v", ext, s["converged"])
+					}
+					for _, key := range []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic"} {
+						if _, ok := s[key]; ok != (ext == vectors.FactorExtractionML) {
+							t.Errorf("%s: scalar %s present %v", ext, key, ok)
+						}
+					}
+					if ext == vectors.FactorExtractionML {
+						factorNear(t, tol, "likelihood_chisq", s["likelihood_chisq"], want.LikelihoodChisq)
+						for key, w := range map[string]*float64{"likelihood_p": want.LikelihoodP, "tli": want.TLI, "rmsea": want.RMSEA, "bic": want.BIC} {
+							if w == nil {
+								if !math.IsNaN(s[key]) {
+									t.Errorf("%s %v, want null (df %v)", key, s[key], want.DF)
+								}
+								continue
+							}
+							factorNear(t, tol, key, s[key], *w)
+						}
 					}
 					heywood := false
-					for _, u := range want.Uniquenesses {
-						heywood = heywood || u <= 0
+					for i, u := range want.Uniquenesses {
+						heywood = heywood || u <= 0 || (want.Psi != nil && want.Psi[i] <= 0.005)
 					}
 					if (findWarning(res, errors.PULSE_MATRIX_HEYWOOD) != nil) != heywood {
 						t.Errorf("HEYWOOD warning presence %v, oracle Heywood %v", matWarningCodes(res), heywood)
@@ -246,6 +279,10 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 //   - Not converged: attitude under probability weights at k = 2 runs
 //     principal axis to psych's 50-iteration cap: PULSE_MATRIX_NOT_CONVERGED
 //     with solver fa_pa, converged 0.
+//   - ML Heywood: the heywood fixture's one-factor ML fit pins a
+//     uniqueness at the 0.005 floor — PULSE_MATRIX_HEYWOOD with the
+//     floor message; df 0 nulls likelihood_p, tli, rmsea and bic while
+//     the likelihood chi-square stays.
 //   - Kaiser: the default count equals the eigenvalues above 1.
 func TestMatrixFactor_Guards(t *testing.T) {
 	cases, dir := loadFactorOracle(t)
@@ -283,6 +320,15 @@ func TestMatrixFactor_Guards(t *testing.T) {
 	w = findWarning(nc, errors.PULSE_MATRIX_NOT_CONVERGED)
 	if w == nil || w.Details["solver"] != "fa_pa" || w.Details["max_iterations"] != 50 || nc.Scalars["converged"] != 0 || nc.Scalars["iterations"] != 50 {
 		t.Fatalf("not converged: warnings %v (%+v), scalars %v", matWarningCodes(nc), w, nc.Scalars)
+	}
+
+	mlhw := run("heywood", []string{"h1", "h2", "h3"}, map[string]any{"factors": 1, "extraction": "ml"}, "none")
+	w = findWarning(mlhw, errors.PULSE_MATRIX_HEYWOOD)
+	if w == nil || len(w.Details["members"].([]string)) == 0 || !strings.Contains(w.Message, "0.005 floor") {
+		t.Fatalf("ml heywood: warnings %v (%+v)", matWarningCodes(mlhw), w)
+	}
+	if s := mlhw.Scalars; math.IsNaN(s["likelihood_chisq"]) || !math.IsNaN(s["likelihood_p"]) || !math.IsNaN(s["tli"]) || !math.IsNaN(s["rmsea"]) || !math.IsNaN(s["bic"]) || s["df"] != 0 {
+		t.Errorf("ml heywood (df 0): scalars %v", s)
 	}
 
 	pca := processMatrices(t, cfg, &types.Request{
@@ -342,7 +388,7 @@ func TestMatrixFactor_Refusals(t *testing.T) {
 		`{"factors": 0}`,
 		`{"factors": 8}`,
 		`{"factors": "all"}`,
-		`{"extraction": "ml"}`,
+		`{"extraction": "mle"}`,
 		`{"rotation": "quartimax"}`,
 		`{"kappa": 3}`,
 		`{"rotation": "oblimin", "kappa": 3}`,
@@ -358,5 +404,59 @@ func TestMatrixFactor_Refusals(t *testing.T) {
 		if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "bad_params" {
 			t.Errorf("%s: error %v, want SERVICE_VALIDATION bad_params", params, err)
 		}
+	}
+}
+
+// TestMatrixFactor_MLGuards: the maximum-likelihood-only paths.
+//
+//   - Singular: a member that is the sum of two others leaves the
+//     correlation singular, so ML (which needs it positive definite)
+//     withholds the fit — null loadings, vectors and ML scalars — and
+//     PULSE_MATRIX_SINGULAR names them; minres still fits it.
+//   - Insufficient: probability weights with Kish n_eff 3 clear
+//     Bartlett's 1 + (2p + 5)/6 but not the likelihood's extra 2k/3, so
+//     the likelihood figures are null with PULSE_MATRIX_INSUFFICIENT_N
+//     scope "likelihood" while Bartlett's test and the loadings compute.
+func TestMatrixFactor_MLGuards(t *testing.T) {
+	rows := make([][5]float64, 12)
+	for i := range rows {
+		a, b := float64(i), float64(i*i%7)
+		rows[i] = [5]float64{a, b, a + b, 1, 1}
+	}
+	cfg := writeMatrixCohort(t, "dep.pulse", rows)
+	fit := func(ext string) types.MatrixResult {
+		return processMatrices(t, cfg, &types.Request{
+			Cohort:   &types.Cohort{Filename: "dep.pulse"},
+			Matrices: []types.MatrixSpec{factorSpec("fa", []string{"x1", "x2", "x3"}, map[string]any{"factors": 1, "extraction": ext}, "none")},
+		}).Matrices[0]
+	}
+	sing := fit("ml")
+	w := findWarning(sing, errors.PULSE_MATRIX_SINGULAR)
+	if w == nil || !reflect.DeepEqual(w.Details["outputs"], []string{"kmo", "bartlett_chisq", "bartlett_p", "loadings", "communalities", "uniquenesses", "variance_accounted", "likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic"}) {
+		t.Fatalf("singular ml: warnings %v (%+v)", matWarningCodes(sing), w)
+	}
+	if !math.IsNaN(sing.Primary.Values[0][0]) || !math.IsNaN(sing.Scalars["likelihood_chisq"]) || !math.IsNaN(sing.Scalars["tli"]) || !math.IsNaN(relFloats(t, sing.Vectors["communalities"])[0]) {
+		t.Errorf("singular ml: fit not null: %v %v", sing.Primary.Values, sing.Scalars)
+	}
+	if mr := fit("minres"); math.IsNaN(mr.Primary.Values[0][0]) {
+		t.Errorf("singular minres: loadings %v, want fitted", mr.Primary.Values)
+	}
+
+	small := [][5]float64{{1, 2, 1, 1, 1}, {2, 1, 3, 1, 1}, {4, 5, 2, 1, 1}, {3, 3, 5, 1, 3}}
+	scfg := writeMatrixCohort(t, "small.pulse", small)
+	spec := factorSpec("fa", []string{"x1", "x2", "x3"}, map[string]any{"factors": 1, "extraction": "ml"}, "none")
+	spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "p", Kind: types.WeightKindProbability})
+	ins := processMatrices(t, scfg, &types.Request{Cohort: &types.Cohort{Filename: "small.pulse"}, Matrices: []types.MatrixSpec{spec}}).Matrices[0]
+	w = findWarning(ins, errors.PULSE_MATRIX_INSUFFICIENT_N)
+	if w == nil || w.Details["scope"] != "likelihood" || w.Details["min_n_star"] != 3.5 {
+		t.Fatalf("insufficient: warnings %v (%+v)", matWarningCodes(ins), w)
+	}
+	for _, key := range []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic"} {
+		if !math.IsNaN(ins.Scalars[key]) {
+			t.Errorf("insufficient: %s %v, want null", key, ins.Scalars[key])
+		}
+	}
+	if math.IsNaN(ins.Scalars["bartlett_chisq"]) || math.IsNaN(ins.Primary.Values[0][0]) {
+		t.Errorf("insufficient: bartlett %v loadings %v, want computed", ins.Scalars["bartlett_chisq"], ins.Primary.Values)
 	}
 }

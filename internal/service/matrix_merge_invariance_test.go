@@ -115,12 +115,17 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 		}
 	}
 	// MAT_FACTOR fits one factor (the most three members identify):
-	// minres listwise; the pairwise variant repairs its input like the
-	// other decomposition operators and runs principal axis, so both
-	// extractions ride the gate. Each is a pure function of the merged
-	// correlation (its eigensolves gonum-backed, same-machine stable).
+	// minres listwise unweighted, maximum likelihood listwise weighted
+	// (with its likelihood figures); the pairwise variant repairs its
+	// input like the other decomposition operators and runs principal
+	// axis, so every extraction rides the gate. Each is a pure function
+	// of the merged correlation (its eigensolves gonum-backed,
+	// same-machine stable).
 	if v.matrixType() == types.MAT_FACTOR {
 		spec.Params = json.RawMessage(`{"max_drop_share": 0, "factors": 1}`)
+		if v.weighted {
+			spec.Params = json.RawMessage(`{"max_drop_share": 0, "factors": 1, "extraction": "ml"}`)
+		}
 		if v.pairwise {
 			spec.Params = json.RawMessage(`{"missing": "pairwise", "factors": 1, "repair": "nearest", "extraction": "principal_axis"}`)
 		}
@@ -274,7 +279,11 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 			}
 		}
 	} else if req.Matrices[0].Type == types.MAT_FACTOR {
-		for _, k := range []string{"rmsr", "empirical_chisq", "df", "empirical_p", "kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "iterations", "converged", "factors_retained"} {
+		keys := []string{"rmsr", "empirical_chisq", "df", "empirical_p", "kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "iterations", "converged", "factors_retained"}
+		if _, ml := m.Scalars["likelihood_chisq"]; ml {
+			keys = append(keys, "likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic")
+		}
+		for _, k := range keys {
 			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
 		}
 		for k, n := range map[string]int{"communalities": 3, "uniquenesses": 3, "variance_accounted": 1} {

@@ -43,10 +43,15 @@ import (
 //     until the summed communality moves by at most faPATol (0.001)
 //     within faPAMaxIter (50) iterations; the loadings are the last
 //     iterate's.
+//   - ml (faML, matrix_factor_ml.go): Jöreskog's maximum likelihood over
+//     the uniquenesses on psych's [0.005, 1] box, solved to the exact
+//     optimum by projected Newton; its columns are ordered by variance
+//     accounted (psych::fa's rule; the eigen order need not be it).
 //
 // The unrotated loadings are signed so each column sums positive (a zero
-// sum keeps the solver's sign) and ordered by descending eigenvalue,
-// psych::fa's rule. params.rotation rotates them through the shared
+// sum keeps the solver's sign) and ordered by descending eigenvalue
+// (minres, principal axis; there that is the variance order), psych::fa's
+// rule. params.rotation rotates them through the shared
 // rotation engine (matrix_rotate.go), whose sign-and-order rule is the
 // same.
 //
@@ -67,13 +72,19 @@ import (
 //     test — kmo, bartlett_chisq / bartlett_df / bartlett_p (the shared
 //     sphericityStats core over the guarded R), iterations, converged
 //     (1 or 0), factors_retained. res = R − LLᵀ, N* the weighting.md
-//     inference size (pcaNStar).
+//     inference size (pcaNStar). ml adds likelihood_chisq /
+//     likelihood_p, tli, rmsea and bic (faMLFitIndices, psych's
+//     fa.stats; null at df ≤ 0, all null with
+//     PULSE_MATRIX_INSUFFICIENT_N scope "likelihood" when N* ≤ 1 +
+//     (2p + 5)/6 + 2k/3).
 //
 // Guards: (p − k)² < p + k (vectors.FactorIdentified) nulls the fit with
-// PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness ≤ 0 adds
-// PULSE_MATRIX_HEYWOOD (the fit is kept); an extraction or rotation at
-// its cap adds PULSE_MATRIX_NOT_CONVERGED (solver fa_minres / fa_pa /
-// varimax / gpa_oblimin); an undefined input nulls every figure.
+// PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness ≤ 0 (ml: one held at its
+// 0.005 floor) adds PULSE_MATRIX_HEYWOOD (the fit is kept); an
+// extraction or rotation at its cap adds PULSE_MATRIX_NOT_CONVERGED
+// (solver fa_minres / fa_pa / fa_ml / varimax / gpa_oblimin); ml on a
+// singular R nulls the fit (sphericityStats' PULSE_MATRIX_SINGULAR names
+// it); an undefined input nulls every figure.
 
 // Factor solver settings — documented constants, never request knobs.
 const (
@@ -95,6 +106,11 @@ type faFit struct {
 	Loadings [][]float64
 	// Communalities is diag(LLᵀ).
 	Communalities []float64
+	// Bounded flags the members whose uniqueness the maximum-likelihood
+	// solver left at its faMLLower floor (nil for the other
+	// extractions): the ML Heywood case; Psi is that solver's final ψ.
+	Bounded []bool
+	Psi     []float64
 	// Solver names the routine for PULSE_MATRIX_NOT_CONVERGED;
 	// Iterations / MaxIterations / Tolerance its run and caps;
 	// Converged false when it stopped at the cap.
@@ -110,11 +126,11 @@ type faFit struct {
 type faExtractor func(r *linalg.Sym, k int) (faFit, error)
 
 // faExtractors is the extraction dispatch, keyed by params.extraction
-// (vectors.FactorExtraction*). A new method (maximum likelihood) adds
-// its solver here.
+// (vectors.FactorExtraction*); a new method adds its solver here.
 var faExtractors = map[string]faExtractor{
 	vectors.FactorExtractionMinres:        faMinres,
 	vectors.FactorExtractionPrincipalAxis: faPrincipalAxis,
+	vectors.FactorExtractionML:            faML,
 }
 
 // faEigen is the k leading eigenpairs of r with h on its diagonal.
@@ -525,13 +541,21 @@ func finalizeFactor(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 	}
 
-	nStar, pw := pcaNStar(in, []string{"bartlett_chisq", "bartlett_p", "empirical_chisq", "empirical_p"},
-		"Bartlett's test and the empirical chi-square use")
+	ml := plan.Extraction == vectors.FactorExtractionML
+	nStarOutputs, nStarUses := []string{"bartlett_chisq", "bartlett_p", "empirical_chisq", "empirical_p"}, "Bartlett's test and the empirical chi-square use"
+	singularOutputs, singularTail := []string{"kmo", "bartlett_chisq", "bartlett_p"},
+		"KMO and Bartlett's test are null; the factors are still fitted (the squared-multiple-correlation start falls back to each member's largest correlation)"
+	if ml {
+		nStarOutputs = append(nStarOutputs, faMLScalars...)
+		nStarUses = "Bartlett's test, the empirical chi-square and the likelihood fit figures use"
+		singularOutputs = append(append(singularOutputs, "loadings", "communalities", "uniquenesses", "variance_accounted"), faMLScalars...)
+		singularTail = "KMO, Bartlett's test and the maximum-likelihood fit (which needs a positive-definite correlation) are null"
+	}
+	nStar, pw := pcaNStar(in, nStarOutputs, nStarUses)
 	if pw != nil {
 		out.Warnings = append(out.Warnings, pw)
 	}
-	stats, statWarns := sphericityStats(in, g, nStar, []string{"kmo", "bartlett_chisq", "bartlett_p"},
-		"KMO and Bartlett's test are null; the factors are still fitted (the squared-multiple-correlation start falls back to each member's largest correlation)")
+	stats, statWarns := sphericityStats(in, g, nStar, singularOutputs, singularTail)
 	out.Warnings = append(out.Warnings, statWarns...)
 
 	if !vectors.FactorIdentified(p, k) {
@@ -542,6 +566,14 @@ func finalizeFactor(in *matrixFinalizeInput) (matrixOutput, error) {
 				"factors": k, "max_factors": vectors.MaxIdentifiedFactors(p)}))
 		faNullFit(in, &out, p, k, stats, float64(k))
 		return out, nil
+	}
+	if ml {
+		if _, err := linalg.Cholesky(g); err != nil {
+			// Singular: sphericityStats has warned PULSE_MATRIX_SINGULAR
+			// naming the withheld fit.
+			faNullFit(in, &out, p, k, stats, float64(k))
+			return out, nil
+		}
 	}
 	if k == 0 {
 		// The Kaiser rule kept nothing: the zero-factor model leaves
@@ -559,20 +591,27 @@ func finalizeFactor(in *matrixFinalizeInput) (matrixOutput, error) {
 		return matrixOutput{}, err
 	}
 	if !fit.Converged {
+		stop := "stopped at its " + strconv.Itoa(fit.MaxIterations) + "-iteration cap before converging"
+		if fit.Iterations < fit.MaxIterations {
+			stop = "stopped after " + strconv.Itoa(fit.Iterations) + " iterations, short of its tolerance, when no step improved the fit"
+		}
 		out.Warnings = append(out.Warnings, notConvergedWarning(plan.Name, fit.Solver, fit.Iterations, fit.MaxIterations, fit.Tolerance,
-			"matrix "+plan.Name+": the "+plan.Extraction+" extraction stopped at its "+strconv.Itoa(fit.MaxIterations)+"-iteration cap before converging; the loadings are the last iterate, not a solution"))
+			"matrix "+plan.Name+": the "+plan.Extraction+" extraction "+stop+"; the loadings are the last iterate, not a solution"))
 	}
 	var heywood []string
 	var psis []float64
 	for i, h := range fit.Communalities {
-		if psi := 1 - h; psi <= 0 {
+		if psi := 1 - h; psi <= 0 || (fit.Bounded != nil && fit.Bounded[i]) {
 			heywood = append(heywood, in.Members()[i])
 			psis = append(psis, psi)
 		}
 	}
 	if len(heywood) > 0 {
-		out.Warnings = append(out.Warnings, matrixWarning(errors.PULSE_MATRIX_HEYWOOD,
-			"matrix "+plan.Name+": a Heywood case — the fit gives "+strconv.Itoa(len(heywood))+" member(s) a uniqueness at or below 0 (communality at least 1, an impossible negative error variance); the loadings are reported as fitted, not repaired",
+		msg := "matrix " + plan.Name + ": a Heywood case — the fit gives " + strconv.Itoa(len(heywood)) + " member(s) a uniqueness at or below 0 (communality at least 1, an impossible negative error variance); the loadings are reported as fitted, not repaired"
+		if ml {
+			msg = "matrix " + plan.Name + ": a Heywood case — the maximum-likelihood fit pins " + strconv.Itoa(len(heywood)) + " member(s)' uniqueness at its " + strconv.FormatFloat(faMLLower, 'g', -1, 64) + " floor (the likelihood wants it at or below 0, an impossible negative error variance); the loadings are reported as fitted, not repaired"
+		}
+		out.Warnings = append(out.Warnings, matrixWarning(errors.PULSE_MATRIX_HEYWOOD, msg,
 			map[string]any{"matrix": plan.Name, "output": "loadings", "members": heywood, "uniquenesses": psis}))
 	}
 	var rot *rotationResult
@@ -651,7 +690,27 @@ func faWriteFit(in *matrixFinalizeInput, out *matrixOutput, fit faFit, rot *rota
 		out.Scalars["iterations"] = float64(fit.Iterations)
 		out.Scalars["converged"] = converged
 	}
+	if plan.Extraction == vectors.FactorExtractionML {
+		st := faMLFitIndices(r, fit.Loadings, nStar)
+		if in.WantScalars() {
+			out.Scalars["likelihood_chisq"] = st.ChiSq
+			out.Scalars["likelihood_p"] = st.P
+			out.Scalars["tli"] = st.TLI
+			out.Scalars["rmsea"] = st.RMSEA
+			out.Scalars["bic"] = st.BIC
+		}
+		if st.Insufficient {
+			out.Warnings = append(out.Warnings, matrixWarning(errors.PULSE_MATRIX_INSUFFICIENT_N,
+				"matrix "+plan.Name+": the likelihood chi-square needs an inference size N* above 1 + (2p + 5)/6 + 2k/3 = "+strconv.FormatFloat(st.MinNStar, 'g', 6, 64)+
+					" for "+strconv.Itoa(p)+" members and "+strconv.Itoa(k)+" factors; N* is "+strconv.FormatFloat(nStar, 'g', 6, 64)+", so likelihood_chisq, likelihood_p, tli, rmsea and bic are null",
+				map[string]any{"matrix": plan.Name, "scope": "likelihood", "n_star": nStar, "min_n_star": st.MinNStar}))
+		}
+	}
 }
+
+// faMLScalars are the scalars only the maximum-likelihood extraction
+// writes.
+var faMLScalars = []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic"}
 
 // faNullFit fills out with a withheld fit: k null columns (k may be 0),
 // null vectors and fit scalars, beside the sphericity figures stats.
@@ -678,7 +737,11 @@ func faNullFit(in *matrixFinalizeInput, out *matrixOutput, p, k int, stats pcaSt
 	}
 	if in.WantScalars() {
 		out.Scalars = faScalars(stats, retained)
-		for _, key := range []string{"rmsr", "empirical_chisq", "empirical_p", "iterations", "converged"} {
+		keys := []string{"rmsr", "empirical_chisq", "empirical_p", "iterations", "converged"}
+		if plan.Extraction == vectors.FactorExtractionML {
+			keys = append(keys, faMLScalars...)
+		}
+		for _, key := range keys {
 			out.Scalars[key] = math.NaN()
 		}
 		out.Scalars["df"] = float64(p*(p-1)/2 - p*k + k*(k-1)/2)

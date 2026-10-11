@@ -186,13 +186,16 @@ correlation: where PCA summarises all of the spread, a factor model
 explains only the spread the members share, leaving each its own
 uniqueness. `params.factors` is the number of factors — an integer (at
 most the member count) or `"kaiser"`, the default (the correlation's
-eigenvalues above 1). `params.extraction` picks the solver, both
+eigenvalues above 1). `params.extraction` picks the solver, each
 starting from the squared multiple correlations: `"minres"` (the
 default) minimises the off-diagonal residuals, as `psych::fa(fm =
 "minres")` does — Pulse solves to the exact optimum, where psych's
 optimiser stops about 1e-5 short — and `"principal_axis"` iterates the
 communalities on the diagonal exactly as `psych::fa(fm = "pa")` does
-(until their sum moves by at most 0.001, at most 50 iterations).
+(until their sum moves by at most 0.001, at most 50 iterations), and
+`"ml"` is Jöreskog's maximum likelihood over the uniquenesses, each held
+in [0.005, 1], as `stats::factanal` and `psych::fa(fm = "ml")` fit it —
+again solved to the exact optimum where their optimiser stops short.
 
 The `primary` is the p × k loadings, a **rectangular** matrix with
 `column_keys` `F1` … `Fk`, each column signed so its loadings sum
@@ -211,18 +214,27 @@ the correlations the factors leave unexplained), the empirical residual
 chi-square (`empirical_chisq`, `df`, `empirical_p` — psych's residual
 size, not a likelihood test; `empirical_p` is null when `df` ≤ 0), `kmo`
 and Bartlett's test as on `MAT_PCA`, the fit's `iterations` and
-`converged` (1 or 0) and `factors_retained`.
+`converged` (1 or 0) and `factors_retained`. Maximum likelihood adds
+the likelihood test and fit indices psych reports: `likelihood_chisq`
+(the Bartlett-corrected likelihood-ratio chi-square on `df`) and its
+`likelihood_p`, the Tucker-Lewis index `tli`, the RMSEA point estimate
+`rmsea` (no interval) and `bic` — the last four null when `df` ≤ 0. They
+need a positive-definite correlation (a singular one nulls the ML fit
+with `PULSE_MATRIX_SINGULAR`) and an inference size above 1 + (2p +
+5)/6 + 2k/3 (below it they are null with `PULSE_MATRIX_INSUFFICIENT_N`).
 
 A count the members cannot identify — (p − k)² < p + k, so one factor
 needs 3 members, two need 5 and three need 6 — returns null loadings
 and fit figures with `PULSE_MATRIX_NOT_IDENTIFIED` (KMO and Bartlett
 still compute). A member whose uniqueness falls to 0 or below (a
-Heywood case) is reported as fitted with `PULSE_MATRIX_HEYWOOD`, and an
+Heywood case; under `"ml"`, held at the 0.005 floor) is reported as
+fitted with `PULSE_MATRIX_HEYWOOD`, and an
 extraction or rotation that stops at its iteration cap warns
 `PULSE_MATRIX_NOT_CONVERGED`. Like the partial correlation, a non-PSD
 pairwise input is refused unless `params.repair` is `"nearest"`.
 Weighted under frequency and probability weights. KMO is read against
-Kaiser's (1974) bands; the loadings and `rmsr` are unbanded.
+Kaiser's (1974) bands; the loadings, `rmsr`, `tli` and `rmsea` are
+unbanded.
 
 ## Collinearity
 

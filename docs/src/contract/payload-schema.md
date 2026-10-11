@@ -377,8 +377,8 @@ refused on a covariance) or `{"variance": share}` — required on a
 covariance — and `repair` `"nearest"`; `MAT_COLLINEARITY` only:
 `center` (boolean, default `false`: Belsley uncentered with the
 intercept) and `repair` `"nearest"`; `MAT_FACTOR` only: `factors` an
-integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default)
-or `principal_axis`, `rotation` `none` (default), `varimax`, `promax`
+integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default),
+`principal_axis` or `ml`, `rotation` `none` (default), `varimax`, `promax`
 or `oblimin`, `kappa` (promax only) and `gamma` (oblimin only), and
 `repair` `"nearest"`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
@@ -403,7 +403,9 @@ keyed `F1` … `Fk`, always `full`), `vectors.communalities` /
 factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
 `kmo`, `bartlett_chisq`, `bartlett_df`, `bartlett_p`, `iterations`,
 `converged`, `factors_retained` (`df`, `iterations`, `converged` and
-`factors_retained` are never rounded by `return.precision`).
+`factors_retained` are never rounded by `return.precision`), plus, under
+`extraction` `ml` only, `likelihood_chisq`, `likelihood_p`, `tli`,
+`rmsea` and `bic` (the last four null at `df` ≤ 0).
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
 `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on
@@ -414,8 +416,10 @@ factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
 Bartlett; `MAT_COLLINEARITY` fatal like the partial correlation, and a
 singular correlation is a fatal `_SINGULAR` naming `dependent_fields`;
 `MAT_FACTOR` fatal like the partial correlation, plus `_PAIRWISE_N_STAR`,
-`_NOT_IDENTIFIED` (null fit), `_HEYWOOD` (fit kept), `_NOT_CONVERGED`
-and a `_SINGULAR` warning that nulls KMO and Bartlett). `components.matrices` carries one
+`_NOT_IDENTIFIED` (null fit), `_HEYWOOD` (fit kept), `_NOT_CONVERGED`,
+a `_SINGULAR` warning that nulls KMO and Bartlett (and, under `ml`, the
+whole fit) and, under `ml`, `_INSUFFICIENT_N` scope `likelihood` that
+nulls the likelihood figures). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,
 group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
 sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and

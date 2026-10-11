@@ -20,7 +20,7 @@ var matrixPurposes = map[string]descriptor.Purpose{
 
 var purposeMatFactor = descriptor.Purpose{
 	Plain:   "Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores.",
-	KnownAs: []string{"exploratory factor analysis", "efa", "principal axis factoring", "minres"},
+	KnownAs: []string{"exploratory factor analysis", "efa", "principal axis factoring", "minres", "maximum likelihood factor analysis", "factanal"},
 	Intents: []string{IntentMeasureConstruct},
 	Questions: []string{
 		"Do these twelve attitude questions reflect two or three underlying qualities, and which questions go with which?",

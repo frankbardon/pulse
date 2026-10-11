@@ -6812,7 +6812,7 @@
       },
       {
         "name": "MAT_FACTOR",
-        "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\") or iterated principal axes (principal_axis; fm = \"pa\"), both from the squared multiple correlations, then rotated (params.rotation none, varimax, promax or oblimin). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (promax and oblimin only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
+        "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\"), iterated principal axes (principal_axis; fm = \"pa\") or maximum likelihood (ml; stats::factanal, fm = \"ml\"), each from the squared multiple correlations, then rotated (params.rotation none, varimax, promax or oblimin). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (promax and oblimin only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors; ml adds the Bartlett-corrected likelihood chi-square (likelihood_chisq, on df) and its p (likelihood_p), the Tucker-Lewis index (tli), the RMSEA point estimate (rmsea) and BIC. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 (ml: held at its 0.005 floor) is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
         "accepts_types": [
           "f32",
           "f64",
@@ -6836,10 +6836,11 @@
             "type": "enum",
             "required": false,
             "default": "minres",
-            "description": "minres: minimise the off-diagonal residuals over the communalities (psych fm = \"minres\"; Pulse solves to the exact optimum, where psych's optimiser stops about 1e-5 short). principal_axis: iterate the communalities on the diagonal until their sum moves by at most 0.001, at most 50 iterations (psych fm = \"pa\"). Both start from the squared multiple correlations; iterations and converged report the run.",
+            "description": "minres: minimise the off-diagonal residuals over the communalities (psych fm = \"minres\"; Pulse solves to the exact optimum, where psych's optimiser stops about 1e-5 short). principal_axis: iterate the communalities on the diagonal until their sum moves by at most 0.001, at most 50 iterations (psych fm = \"pa\"). ml: maximum likelihood over the uniquenesses, each held in [0.005, 1] (stats::factanal, psych fm = \"ml\"; Pulse solves to the exact optimum, where their optimiser stops about 1e-5 short); adds likelihood_chisq, likelihood_p, tli, rmsea and bic, and needs a positive-definite correlation (a singular one nulls the fit with PULSE_MATRIX_SINGULAR). Each starts from the squared multiple correlations; iterations and converged report the run.",
             "enum_values": [
               "minres",
-              "principal_axis"
+              "principal_axis",
+              "ml"
             ]
           },
           {
@@ -6912,6 +6913,7 @@
             "bartlett_chisq",
             "bartlett_df",
             "bartlett_p",
+            "bic",
             "converged",
             "df",
             "empirical_chisq",
@@ -6919,7 +6921,11 @@
             "factors_retained",
             "iterations",
             "kmo",
-            "rmsr"
+            "likelihood_chisq",
+            "likelihood_p",
+            "rmsea",
+            "rmsr",
+            "tli"
           ]
         },
         "streamable": true,
@@ -9823,7 +9829,7 @@
       },
       {
         "name": "op-mat-factor",
-        "description": "Exploratory factor analysis of a battery — minres or principal-axis extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett; listwise or pairwise, weighted."
+        "description": "Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA and BIC; listwise or pairwise, weighted."
       },
       {
         "name": "op-mat-partial-correlation",
@@ -14408,4 +14414,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c5f8544155d350735cc8e1a04f8eb8d702fafdd29227c8c4308e2711fdae6cb0
+// golden-hash: 201cf1fc96fbc55cd832bcdb0acf41cc232d0c5388e0f5546466b5cc32f9b38a

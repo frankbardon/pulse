@@ -3664,7 +3664,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_INSUFFICIENT_N: {
-		Message: "A matrix or, under pairwise deletion, one or more pairs rest on fewer than 2 rows or on no weight mass, so their cells are undefined (null) or degenerate. Details: `scope` `matrix` with `n` and `sum_weights`, or `scope` `pairs` with `pairs` [{row, col, n}].",
+		Message: "A matrix or, under pairwise deletion, one or more pairs rest on fewer than 2 rows or on no weight mass, so their cells are undefined (null) or degenerate. Details: `scope` `matrix` with `n` and `sum_weights`, or `scope` `pairs` with `pairs` [{row, col, n}]. Scope `bartlett` (a PCA or factor analysis) and `likelihood` (a maximum-likelihood factor analysis, which needs N* above 1 + (2p + 5)/6 + 2k/3) carry `n_star` and `min_n_star`: the inference size is too small for that test, whose figures are null.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -3684,7 +3684,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_NOT_CONVERGED: {
-		Message: "An iterative matrix routine stopped at its documented iteration cap before meeting its convergence tolerance, so the figures it returned are its last iterate, not an optimum. Raised as a per-matrix warning by the one-factor minres fit behind reliability ω, by the nearest-correlation repair (`params.repair` = `nearest`, beside its PULSE_MATRIX_NOT_PSD warning; the repaired matrix is still positive definite but may not be the nearest), by a factor analysis's extraction (`solver` `fa_minres` / `fa_pa`; principal axis stops after psych's 50 iterations) and by a loading rotation (`varimax` / `gpa_oblimin`). Details carry `matrix`, `solver`, `iterations`, `max_iterations` and `tolerance`. The cap and tolerance are fixed constants, not request knobs.",
+		Message: "An iterative matrix routine stopped at its documented iteration cap before meeting its convergence tolerance, so the figures it returned are its last iterate, not an optimum. Raised as a per-matrix warning by the one-factor minres fit behind reliability ω, by the nearest-correlation repair (`params.repair` = `nearest`, beside its PULSE_MATRIX_NOT_PSD warning; the repaired matrix is still positive definite but may not be the nearest), by a factor analysis's extraction (`solver` `fa_minres` / `fa_pa` / `fa_ml`; principal axis stops after psych's 50 iterations) and by a loading rotation (`varimax` / `gpa_oblimin`). Details carry `matrix`, `solver`, `iterations`, `max_iterations` and `tolerance`. The cap and tolerance are fixed constants, not request knobs.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -3699,7 +3699,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_HEYWOOD: {
-		Message: "A factor fit gave at least one member a uniqueness at or below zero (a Heywood case: the member's loading is at least its own standard deviation, an impossible negative error variance). A reliability's one-factor fit withholds the figure built on it (`omega` is null; alpha and the item statistics are unaffected); a factor analysis keeps its loadings as fitted, never repaired, so read them with care. Details carry `matrix`, `output`, `members` and `uniquenesses`.",
+		Message: "A factor fit gave at least one member a uniqueness at or below zero (a Heywood case: the member's loading is at least its own standard deviation, an impossible negative error variance). A reliability's one-factor fit withholds the figure built on it (`omega` is null; alpha and the item statistics are unaffected); a factor analysis keeps its loadings as fitted, never repaired, so read them with care; its maximum-likelihood extraction holds each uniqueness at or above 0.005, so there a member held at that floor is the Heywood case. Details carry `matrix`, `output`, `members` and `uniquenesses`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -3729,7 +3729,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_PAIRWISE_N_STAR: {
-		Message: "An inferential figure over a pairwise matrix needs one sample size, but under pairwise deletion every cell rests on its own rows, so the figure uses the smallest pair's inference size (pair N unweighted, pair sum of weights under frequency weights, scaled to Kish n_eff under probability weights) — the conservative choice: Bartlett's sphericity test, and a factor analysis's empirical chi-square. Details carry `matrix`, `outputs`, `n_star` and the pair as `row` / `col`.",
+		Message: "An inferential figure over a pairwise matrix needs one sample size, but under pairwise deletion every cell rests on its own rows, so the figure uses the smallest pair's inference size (pair N unweighted, pair sum of weights under frequency weights, scaled to Kish n_eff under probability weights) — the conservative choice: Bartlett's sphericity test, and a factor analysis's empirical chi-square and maximum-likelihood fit figures. Details carry `matrix`, `outputs`, `n_star` and the pair as `row` / `col`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,

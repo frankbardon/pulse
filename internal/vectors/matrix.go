@@ -102,8 +102,8 @@ type Matrix struct {
 	// rule (the default).
 	Factors FactorCount
 	// Extraction is MAT_FACTOR's params.extraction:
-	// FactorExtractionMinres (the default) or
-	// FactorExtractionPrincipalAxis; "" on every other type.
+	// FactorExtractionMinres (the default), FactorExtractionPrincipalAxis
+	// or FactorExtractionML; "" on every other type.
 	Extraction string
 	// Kappa is MAT_FACTOR's promax power (params.kappa, default
 	// FactorDefaultKappa; promax only) and Gamma its oblimin γ
@@ -144,9 +144,9 @@ func FactorRotations() []string {
 	return []string{RotationNone, RotationVarimax, RotationPromax, RotationOblimin}
 }
 
-// MAT_FACTOR extraction methods (params.extraction). Both start from
+// MAT_FACTOR extraction methods (params.extraction). Each starts from
 // the squared multiple correlations; the solvers live in
-// internal/processing/matrix_factor.go.
+// internal/processing/matrix_factor.go and matrix_factor_ml.go.
 const (
 	// FactorExtractionMinres is the minimum-residual fit (psych
 	// fm = "minres"), the default.
@@ -154,12 +154,16 @@ const (
 	// FactorExtractionPrincipalAxis is iterated principal axes (psych
 	// fm = "pa").
 	FactorExtractionPrincipalAxis = "principal_axis"
+	// FactorExtractionML is Jöreskog's maximum-likelihood fit over the
+	// uniquenesses (stats::factanal, psych fm = "ml"); it adds the
+	// likelihood chi-square and the fit indices.
+	FactorExtractionML = "ml"
 )
 
 // FactorExtractions returns MAT_FACTOR's params.extraction values,
 // default first.
 func FactorExtractions() []string {
-	return []string{FactorExtractionMinres, FactorExtractionPrincipalAxis}
+	return []string{FactorExtractionMinres, FactorExtractionPrincipalAxis, FactorExtractionML}
 }
 
 // FactorsKaiser is MAT_FACTOR's params.factors "kaiser" (the default):
@@ -759,10 +763,10 @@ func resolvePCA(at string, m *Matrix) *errors.CodedError {
 func decodeFactor(at string, p factorParams, m *Matrix) *errors.CodedError {
 	if p.Extraction != nil {
 		switch *p.Extraction {
-		case FactorExtractionMinres, FactorExtractionPrincipalAxis:
+		case FactorExtractionMinres, FactorExtractionPrincipalAxis, FactorExtractionML:
 			m.Extraction = *p.Extraction
 		default:
-			return matrixInvalid(at, "bad_params", at+" params.extraction must be \"minres\" or \"principal_axis\"",
+			return matrixInvalid(at, "bad_params", at+" params.extraction must be \"minres\", \"principal_axis\" or \"ml\"",
 				map[string]any{"param": "extraction", "value": *p.Extraction, "valid": FactorExtractions()})
 		}
 	}

@@ -87,9 +87,11 @@ const (
 	// correlation matrix: params.factors k (an integer, or "kaiser",
 	// the default: the eigenvalues of R above 1) common factors
 	// extracted by params.extraction "minres" (the default, the
-	// minimum-residual fit, psych fm = "minres") or "principal_axis"
-	// (iterated principal axes, psych fm = "pa"), both from the squared
-	// multiple correlations, then rotated by params.rotation "none"
+	// minimum-residual fit, psych fm = "minres"), "principal_axis"
+	// (iterated principal axes, psych fm = "pa") or "ml" (maximum
+	// likelihood, stats::factanal; adds the likelihood chi-square, TLI,
+	// RMSEA and BIC scalars), each from the squared multiple
+	// correlations, then rotated by params.rotation "none"
 	// (the default), "varimax", "promax" (params.kappa, default 4) or
 	// "oblimin" (params.gamma, default 0). The primary is the p × k
 	// rotated loadings (MatrixKindRectangular, columns "F1" … "Fk");
@@ -228,7 +230,7 @@ type MatrixSpec struct {
 	// "components": k | "kaiser" | {"variance": share}, "repair":
 	// "nearest"; MAT_COLLINEARITY: "center": bool, "repair": "nearest";
 	// MAT_FACTOR: "factors": k | "kaiser", "extraction": "minres" |
-	// "principal_axis", "rotation": "none" | "varimax" | "promax" |
+	// "principal_axis" | "ml", "rotation": "none" | "varimax" | "promax" |
 	// "oblimin", "kappa" (promax), "gamma" (oblimin), "repair":
 	// "nearest").
 	Params json.RawMessage `json:"params,omitempty"`

@@ -37,7 +37,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - `MAT_COLLINEARITY` — VIF, tolerance, Belsley condition indices + variance decomposition; `params.center`.
 <!-- /feature -->
 <!-- feature: MAT_FACTOR -->
-- `MAT_FACTOR` — factor loadings (rectangular p × k), communalities, uniquenesses, rmsr; `params.factors`, `extraction`, `rotation`.
+- `MAT_FACTOR` — factor loadings (rectangular p × k), communalities, uniquenesses, rmsr (`ml`: likelihood chi-square, TLI, RMSEA, BIC); `params.factors`, `extraction`, `rotation`.
 <!-- /feature -->
 <!-- feature: MAT_PCA -->
 - `MAT_PCA` — loadings (rectangular p × k), eigenvalues, KMO, Bartlett; `params.components` k / `kaiser` / `{variance}`.

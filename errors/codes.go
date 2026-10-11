@@ -2953,7 +2953,10 @@ const (
 	// have fewer than 2 rows or no weight mass, so their cells are
 	// undefined (null) or degenerate; on MAT_PCA scope "bartlett"
 	// (details "n_star", "min_n_star"): the inference size is too small
-	// for Bartlett's test, whose chi-square and p are null.
+	// for Bartlett's test, whose chi-square and p are null; on MAT_FACTOR's
+	// maximum-likelihood extraction scope "likelihood" (same details):
+	// N* ≤ 1 + (2p + 5)/6 + 2k/3, so the likelihood chi-square, its p,
+	// TLI, RMSEA and BIC are null.
 	PULSE_MATRIX_INSUFFICIENT_N Code = "PULSE_MATRIX_INSUFFICIENT_N"
 
 	// PULSE_MATRIX_ZERO_VARIANCE is a per-matrix WARNING: one or more
@@ -2969,7 +2972,7 @@ const (
 	// Emitted by the one-factor minres fit (reliability ω), by the
 	// nearest-correlation repair (params.repair "nearest"), beside its
 	// PULSE_MATRIX_NOT_PSD warning, by MAT_FACTOR's extraction (solver
-	// "fa_minres" / "fa_pa") and by a rotation (MAT_PCA, MAT_FACTOR:
+	// "fa_minres" / "fa_pa" / "fa_ml") and by a rotation (MAT_PCA, MAT_FACTOR:
 	// "varimax" / "gpa_oblimin"). Details carry "matrix", "solver",
 	// "iterations", "max_iterations" and "tolerance".
 	PULSE_MATRIX_NOT_CONVERGED Code = "PULSE_MATRIX_NOT_CONVERGED"
@@ -2979,8 +2982,10 @@ const (
 	// deviation — an impossible negative error variance).
 	// MAT_RELIABILITY withholds the figure built on its one-factor fit
 	// (omega is null); MAT_FACTOR reports its loadings as fitted, never
-	// repaired. Details carry "matrix", "output", "members" and
-	// "uniquenesses" (the offending members' ψ).
+	// repaired (its maximum-likelihood extraction bounds ψ below at
+	// 0.005, so there a member held at that floor is the Heywood case).
+	// Details carry "matrix", "output", "members" and "uniquenesses"
+	// (the offending members' 1 − communality).
 	PULSE_MATRIX_HEYWOOD Code = "PULSE_MATRIX_HEYWOOD"
 
 	// PULSE_MATRIX_NOT_IDENTIFIED is a per-matrix WARNING: a model the
@@ -2998,7 +3003,8 @@ const (
 	// inferential figure over a pairwise matrix needs one sample size
 	// while every cell rests on its own rows, so it uses the smallest
 	// pair's inference size (MAT_PCA's Bartlett test; MAT_FACTOR's
-	// Bartlett test and empirical chi-square). Details carry
+	// Bartlett test, empirical chi-square and maximum-likelihood fit
+	// figures). Details carry
 	// "matrix", "outputs", "n_star", "row" and "col" (the pair).
 	PULSE_MATRIX_PAIRWISE_N_STAR Code = "PULSE_MATRIX_PAIRWISE_N_STAR"
 

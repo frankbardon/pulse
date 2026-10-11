@@ -134,7 +134,7 @@ Which hidden qualities a set of related measures reflects, and how strongly each
 
 **Level:** advanced
 
-**Also known as:** `exploratory factor analysis`, `efa`, `principal axis factoring`, `minres`
+**Also known as:** `exploratory factor analysis`, `efa`, `principal axis factoring`, `minres`, `maximum likelihood factor analysis`, `factanal`
 
 **Questions it answers:**
 
