@@ -228,6 +228,10 @@ var matrixClasses = map[types.MatrixType]Class{
 	// to unit diagonal (uncentered Belsley): scale-free ratios, so the
 	// two kinds agree.
 	types.MAT_COLLINEARITY: ClassAware,
+	// MAT_FACTOR factors the weighted correlation (scale-free, so the
+	// kinds agree); Bartlett's test and the empirical chi-square read
+	// N* = Σw (frequency) or Kish n_eff (probability), as MAT_PCA.
+	types.MAT_FACTOR: ClassAware,
 }
 
 // MatrixClassOf is a matrix spec's weight class: its type's

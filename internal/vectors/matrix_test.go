@@ -545,3 +545,108 @@ func TestResolveMatrices_PCARotation(t *testing.T) {
 		t.Errorf("PCARotations() = %v", got)
 	}
 }
+
+// TestResolveMatrices_Factor: MAT_FACTOR's params — factors (an integer
+// up to p, or "kaiser", the default), extraction (minres default),
+// rotation with promax-only kappa (default 4) and oblimin-only gamma,
+// repair and the missing-data knobs — and its refusals, every one
+// bad_params. A decomposition operator: pairwise PSD risk from 3
+// members.
+func TestResolveMatrices_Factor(t *testing.T) {
+	items := []string{"q_1", "q_2", "q_3", "score", "mid"}
+	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
+		spec := types.MatrixSpec{Type: types.MAT_FACTOR, Fields: fields}
+		if params != "" {
+			spec.Params = json.RawMessage(params)
+		}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	for _, c := range []struct {
+		params             string
+		k                  int
+		extraction, rotate string
+		kappa, gamma       float64
+	}{
+		{"", 0, FactorExtractionMinres, "", 0, 0},
+		{`{"factors": "kaiser"}`, 0, FactorExtractionMinres, "", 0, 0},
+		{`{"factors": 2, "extraction": "principal_axis"}`, 2, FactorExtractionPrincipalAxis, "", 0, 0},
+		{`{"factors": 2, "rotation": "none"}`, 2, FactorExtractionMinres, "", 0, 0},
+		{`{"factors": 2, "rotation": "varimax"}`, 2, FactorExtractionMinres, RotationVarimax, 0, 0},
+		{`{"factors": 2, "rotation": "promax"}`, 2, FactorExtractionMinres, RotationPromax, 4, 0},
+		{`{"factors": 2, "rotation": "promax", "kappa": 2.5}`, 2, FactorExtractionMinres, RotationPromax, 2.5, 0},
+		{`{"factors": 2, "rotation": "oblimin", "gamma": 0.5}`, 2, FactorExtractionMinres, RotationOblimin, 0, 0.5},
+		{`{"factors": 5, "repair": "nearest", "missing": "pairwise"}`, 5, FactorExtractionMinres, "", 0, 0},
+	} {
+		m, err := resolve(items, c.params)
+		if err != nil {
+			t.Fatalf("%s: %v", c.params, err)
+		}
+		if m.Factors.K != c.k || m.Factors.Kaiser() != (c.k == 0) || m.Extraction != c.extraction || m.Rotation != c.rotate || m.Kappa != c.kappa || m.Gamma != c.gamma {
+			t.Errorf("%s: factors %+v extraction %q rotation %q kappa %v gamma %v", c.params, m.Factors, m.Extraction, m.Rotation, m.Kappa, m.Gamma)
+		}
+		if !m.Decomposition() || !m.Streamable || !m.Mergeable {
+			t.Errorf("%s: decomposition %v streamable %v mergeable %v", c.params, m.Decomposition(), m.Streamable, m.Mergeable)
+		}
+	}
+	if m, _ := resolve(items[:3], `{"missing": "pairwise"}`); !m.PSDRisk() {
+		t.Error("3-member pairwise factor analysis carries no PSD risk")
+	}
+	if m, _ := resolve(items[:2], `{"missing": "pairwise"}`); m.PSDRisk() {
+		t.Error("2-member pairwise factor analysis carries PSD risk")
+	}
+	for _, params := range []string{
+		`{"factors": 0}`,
+		`{"factors": -1}`,
+		`{"factors": 1.5}`,
+		`{"factors": 6}`,
+		`{"factors": "two"}`,
+		`{"factors": [2]}`,
+		`{"extraction": "ml"}`,
+		`{"extraction": "pa"}`,
+		`{"rotation": "quartimax"}`,
+		`{"rotation": "Varimax"}`,
+		`{"kappa": 4}`,
+		`{"rotation": "varimax", "kappa": 4}`,
+		`{"rotation": "promax", "kappa": 1}`,
+		`{"rotation": "promax", "gamma": 0}`,
+		`{"gamma": 0}`,
+		`{"rotation": "oblimin", "kappa": 4}`,
+		`{"repair": "clip"}`,
+		`{"components": 2}`,
+		`{"on": "covariance"}`,
+	} {
+		if _, err := resolve(items, params); err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "bad_params" {
+			t.Errorf("%s: error %v, want bad_params", params, err)
+		}
+	}
+	if got := FactorRotations(); len(got) != 4 || got[0] != RotationNone {
+		t.Errorf("FactorRotations() = %v", got)
+	}
+	if got := FactorExtractions(); len(got) != 2 || got[0] != FactorExtractionMinres {
+		t.Errorf("FactorExtractions() = %v", got)
+	}
+}
+
+// TestFactorIdentified: (p − k)² ≥ p + k, the non-negative model
+// degrees of freedom; one factor needs 3 members, two need 5, three 6.
+func TestFactorIdentified(t *testing.T) {
+	for _, c := range []struct {
+		p, k int
+		want bool
+	}{
+		{2, 1, false}, {3, 1, true}, {4, 2, false}, {5, 2, true}, {5, 3, false}, {6, 3, true}, {7, 3, true}, {7, 4, false}, {11, 6, true}, {11, 7, false},
+	} {
+		if got := FactorIdentified(c.p, c.k); got != c.want {
+			t.Errorf("FactorIdentified(%d, %d) = %v, want %v", c.p, c.k, got, c.want)
+		}
+	}
+	for p, want := range map[int]int{1: 0, 2: 0, 3: 1, 4: 1, 5: 2, 6: 3, 7: 3, 11: 6} {
+		if got := MaxIdentifiedFactors(p); got != want {
+			t.Errorf("MaxIdentifiedFactors(%d) = %d, want %d", p, got, want)
+		}
+	}
+}

@@ -2,10 +2,10 @@
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a result in which every member is compared with
-every member. Six operators ship: `MAT_COVARIANCE`,
+every member. Seven operators ship: `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
 `params.method`), `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY`,
-`MAT_PCA` and `MAT_COLLINEARITY`. All are additive: a request without
+`MAT_PCA`, `MAT_FACTOR` and `MAT_COLLINEARITY`. All are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -178,6 +178,51 @@ loadings. Eigenvalues, the explained and cumulative shares, the
 communalities (unchanged by an orthogonal rotation), the eigenvectors,
 KMO and Bartlett are never rotated. A single kept component is left as
 is. Without the knob the output is byte-identical to before.
+
+## Factor analysis
+
+`MAT_FACTOR` is an exploratory factor analysis of the members'
+correlation: where PCA summarises all of the spread, a factor model
+explains only the spread the members share, leaving each its own
+uniqueness. `params.factors` is the number of factors — an integer (at
+most the member count) or `"kaiser"`, the default (the correlation's
+eigenvalues above 1). `params.extraction` picks the solver, both
+starting from the squared multiple correlations: `"minres"` (the
+default) minimises the off-diagonal residuals, as `psych::fa(fm =
+"minres")` does — Pulse solves to the exact optimum, where psych's
+optimiser stops about 1e-5 short — and `"principal_axis"` iterates the
+communalities on the diagonal exactly as `psych::fa(fm = "pa")` does
+(until their sum moves by at most 0.001, at most 50 iterations).
+
+The `primary` is the p × k loadings, a **rectangular** matrix with
+`column_keys` `F1` … `Fk`, each column signed so its loadings sum
+positive. `params.rotation` rotates them with the same engine as
+`MAT_PCA`: `"varimax"` (orthogonal, `stats::varimax`), `"promax"`
+(oblique, `stats::promax` with power `params.kappa`, default 4) or
+`"oblimin"` (oblique, `GPArotation::oblimin` with `params.gamma`,
+default 0). Rotated, the columns are ordered by the variance each
+accounts for, the unrotated loadings move to `auxiliary.unrotated`, and
+an oblique rotation adds `auxiliary.factor_correlation` — the k × k
+correlation of the factors, a square matrix keyed `F1` … `Fk`.
+`vectors` carry each member's `communalities` (unchanged by any
+rotation) and `uniquenesses` (1 − communality) and each factor's
+`variance_accounted`; `scalars` carry `rmsr` (the root-mean-square of
+the correlations the factors leave unexplained), the empirical residual
+chi-square (`empirical_chisq`, `df`, `empirical_p` — psych's residual
+size, not a likelihood test; `empirical_p` is null when `df` ≤ 0), `kmo`
+and Bartlett's test as on `MAT_PCA`, the fit's `iterations` and
+`converged` (1 or 0) and `factors_retained`.
+
+A count the members cannot identify — (p − k)² < p + k, so one factor
+needs 3 members, two need 5 and three need 6 — returns null loadings
+and fit figures with `PULSE_MATRIX_NOT_IDENTIFIED` (KMO and Bartlett
+still compute). A member whose uniqueness falls to 0 or below (a
+Heywood case) is reported as fitted with `PULSE_MATRIX_HEYWOOD`, and an
+extraction or rotation that stops at its iteration cap warns
+`PULSE_MATRIX_NOT_CONVERGED`. Like the partial correlation, a non-PSD
+pairwise input is refused unless `params.repair` is `"nearest"`.
+Weighted under frequency and probability weights. KMO is read against
+Kaiser's (1974) bands; the loadings and `rmsr` are unbanded.
 
 ## Collinearity
 

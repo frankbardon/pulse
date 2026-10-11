@@ -38,6 +38,8 @@ func TestPredict_Matrices(t *testing.T) {
 			{Name: "pcac", Type: types.MAT_PCA, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"on": "covariance", "components": {"variance": 0.9}, "missing": "pairwise"}`)},
 			{Name: "coll", Type: types.MAT_COLLINEARITY, Vector: "v", Params: json.RawMessage(`{"missing": "pairwise"}`)},
 			{Name: "coll2", Type: types.MAT_COLLINEARITY, Fields: []string{"q_1", "q_3"}, Params: json.RawMessage(`{"center": true, "missing": "pairwise"}`)},
+			{Name: "fa", Type: types.MAT_FACTOR, Vector: "v", Params: json.RawMessage(`{"factors": 1, "rotation": "promax", "missing": "pairwise"}`)},
+			{Name: "fak", Type: types.MAT_FACTOR, Fields: []string{"q_1", "q_3"}, Params: pairwise},
 		},
 	}
 	env := predictFromBytes(vectorPredictCohort(t, matrixFixtureRecords), req, nil)
@@ -102,6 +104,14 @@ func TestPredict_Matrices(t *testing.T) {
 			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
 			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
 		{Name: "coll2", Type: types.MAT_COLLINEARITY, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+		// A factor analysis's primary is the p × k loadings: [p, k] for
+		// an integer params.factors, the [p, p] bound under the Kaiser
+		// rule; its PSD risk is the correlation rule (p >= 3).
+		{Name: "fa", Type: types.MAT_FACTOR, Shape: [2]int{3, 1}, AxisKeys: []string{"q_2", "q_1", "q_3"},
+			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
+			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+		{Name: "fak", Type: types.MAT_FACTOR, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
 			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
 	}
 	// Ungrouped: one bucket, p² cells, one accumulator per merge block.

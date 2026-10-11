@@ -83,6 +83,29 @@ const (
 	// PULSE_MATRIX_SINGULAR. Weighted under frequency and probability
 	// weights. No p-values.
 	MAT_COLLINEARITY MatrixType = "MAT_COLLINEARITY"
+	// MAT_FACTOR is an exploratory factor analysis of the members'
+	// correlation matrix: params.factors k (an integer, or "kaiser",
+	// the default: the eigenvalues of R above 1) common factors
+	// extracted by params.extraction "minres" (the default, the
+	// minimum-residual fit, psych fm = "minres") or "principal_axis"
+	// (iterated principal axes, psych fm = "pa"), both from the squared
+	// multiple correlations, then rotated by params.rotation "none"
+	// (the default), "varimax", "promax" (params.kappa, default 4) or
+	// "oblimin" (params.gamma, default 0). The primary is the p × k
+	// rotated loadings (MatrixKindRectangular, columns "F1" … "Fk");
+	// auxiliary.unrotated the unrotated loadings (rotated runs) and
+	// auxiliary.factor_correlation the k × k factor correlation
+	// (oblique rotations only); vectors carry the communalities,
+	// uniquenesses and the variance each factor accounts for; scalars
+	// the root-mean-square residual, the empirical residual chi-square
+	// (not a likelihood test), KMO, Bartlett's sphericity test and the
+	// fit's iterations / convergence. A k the battery cannot identify,
+	// (p − k)² < p + k, nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED;
+	// a uniqueness at or below 0 is reported as is with
+	// PULSE_MATRIX_HEYWOOD. A decomposition operator (the shared PSD
+	// guard, params.repair "nearest"). Weighted under frequency and
+	// probability weights.
+	MAT_FACTOR MatrixType = "MAT_FACTOR"
 )
 
 // AllMatrixTypes returns every built-in matrix operator in alphabetical
@@ -92,6 +115,7 @@ func AllMatrixTypes() []MatrixType {
 		MAT_COLLINEARITY,
 		MAT_CORRELATION,
 		MAT_COVARIANCE,
+		MAT_FACTOR,
 		MAT_PARTIAL_CORRELATION,
 		MAT_PCA,
 		MAT_RELIABILITY,
@@ -106,7 +130,7 @@ func AllMatrixTypes() []MatrixType {
 // MatrixSpec.Streamable, which its params may turn off.
 func (t MatrixType) Streamable() bool {
 	switch t {
-	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -121,7 +145,7 @@ func (t MatrixType) Streamable() bool {
 // Streamable: the merge gate reads MatrixSpec.Mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
-	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -151,12 +175,15 @@ type MatrixKind string
 const (
 	// MatrixKindSquareSymmetric is a p × p matrix whose rows and
 	// columns are the same members in the same order, with
-	// Values[r][c] == Values[c][r].
+	// Values[r][c] == Values[c][r]. MAT_FACTOR's
+	// auxiliary.factor_correlation is the one square matrix keyed by
+	// something else: its rows and columns are the factors "F1" … "Fk",
+	// and it is always written full.
 	MatrixKindSquareSymmetric MatrixKind = "square_symmetric"
 	// MatrixKindRectangular is a p × k matrix whose rows are the
 	// members (RowKeys) and whose columns are something else
-	// (ColumnKeys: MAT_PCA's components "PC1" … "PCk";
-	// MAT_COLLINEARITY's dimensions "D1" … "Dk", whose uncentered
+	// (ColumnKeys: MAT_PCA's components "PC1" … "PCk"; MAT_FACTOR's
+	// factors "F1" … "Fk"; MAT_COLLINEARITY's dimensions "D1" … "Dk", whose uncentered
 	// variance decomposition also leads its rows with the intercept,
 	// RowKeys "(intercept)" then the members). It is always
 	// written full — Values[r] has k entries — whatever the spec's
@@ -199,7 +226,11 @@ type MatrixSpec struct {
 	// [fields], "scale_min" / "scale_max": numbers, "repair":
 	// "nearest"; MAT_PCA: "on": "correlation" | "covariance",
 	// "components": k | "kaiser" | {"variance": share}, "repair":
-	// "nearest"; MAT_COLLINEARITY: "center": bool, "repair": "nearest").
+	// "nearest"; MAT_COLLINEARITY: "center": bool, "repair": "nearest";
+	// MAT_FACTOR: "factors": k | "kaiser", "extraction": "minres" |
+	// "principal_axis", "rotation": "none" | "varimax" | "promax" |
+	// "oblimin", "kappa" (promax), "gamma" (oblimin), "repair":
+	// "nearest").
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot

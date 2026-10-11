@@ -83,6 +83,46 @@
         ]
       },
       {
+        "operator": "MAT_FACTOR",
+        "category": "matrix",
+        "level": "advanced",
+        "why": "Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "MAT_FACTOR"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want summaries of all the spread, not just what the measures share",
+            "use": "MAT_PCA"
+          },
+          {
+            "when": "you already know the items measure one quality and want its reliability",
+            "use": "MAT_RELIABILITY"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the items of one factor are to be added up into a score",
+            "use": "MAT_RELIABILITY"
+          }
+        ]
+      },
+      {
         "operator": "MAT_PCA",
         "category": "matrix",
         "level": "advanced",
@@ -118,9 +158,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 3
+    "candidates_considered": 4
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8978d461a6d5a8c9e279c5be2d9b5c5820f54e35061a13f7937041d3d9ef7d4f
+// golden-hash: c4711588a7d716605428d0eb31ccf0cbf6a471fb27cad5e3b1e1c17030d666f8

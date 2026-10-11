@@ -3684,7 +3684,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_NOT_CONVERGED: {
-		Message: "An iterative matrix routine stopped at its documented iteration cap before meeting its convergence tolerance, so the figures it returned are its last iterate, not an optimum. Raised as a per-matrix warning by the one-factor minres fit behind reliability ω and by the nearest-correlation repair (`params.repair` = `nearest`, beside its PULSE_MATRIX_NOT_PSD warning; the repaired matrix is still positive definite but may not be the nearest). Details carry `matrix`, `solver`, `iterations`, `max_iterations` and `tolerance`. The cap and tolerance are fixed constants, not request knobs.",
+		Message: "An iterative matrix routine stopped at its documented iteration cap before meeting its convergence tolerance, so the figures it returned are its last iterate, not an optimum. Raised as a per-matrix warning by the one-factor minres fit behind reliability ω, by the nearest-correlation repair (`params.repair` = `nearest`, beside its PULSE_MATRIX_NOT_PSD warning; the repaired matrix is still positive definite but may not be the nearest), by a factor analysis's extraction (`solver` `fa_minres` / `fa_pa`; principal axis stops after psych's 50 iterations) and by a loading rotation (`varimax` / `gpa_oblimin`). Details carry `matrix`, `solver`, `iterations`, `max_iterations` and `tolerance`. The cap and tolerance are fixed constants, not request knobs.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -3699,27 +3699,37 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_HEYWOOD: {
-		Message: "A one-factor fit gave at least one member a uniqueness at or below zero (a Heywood case: the member's loading is at least its own standard deviation, an impossible negative error variance), so the figure built on the fit is withheld and null: MAT_RELIABILITY's `omega`. Alpha and the item statistics do not use the fit and are unaffected. Details carry `matrix`, `output`, `members` and `uniquenesses`.",
+		Message: "A factor fit gave at least one member a uniqueness at or below zero (a Heywood case: the member's loading is at least its own standard deviation, an impossible negative error variance). A reliability's one-factor fit withholds the figure built on it (`omega` is null; alpha and the item statistics are unaffected); a factor analysis keeps its loadings as fitted, never repaired, so read them with care. Details carry `matrix`, `output`, `members` and `uniquenesses`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"vectors", "*", "fields"},
 				Hint:   "A Heywood case usually means a member is almost a copy of another, or the battery has too few items to pin the factor down: drop the near-duplicate member, or add items, and rerun.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "factors"},
+				Hint:   "In a factor analysis, extract one factor fewer: too many factors for the battery is the other usual cause.",
+			},
 		},
 	},
 	PULSE_MATRIX_NOT_IDENTIFIED: {
-		Message: "A model the operator fits is not identified on this many members, so the figure it would give is withheld and null: MAT_RELIABILITY's `omega` needs a one-factor fit, which needs at least 3 items (2 items have one correlation for two loadings). Alpha and the item statistics still compute. Details carry `matrix`, `output`, `members` and `min_members`.",
+		Message: "A model the operator fits is not identified on this many members, so the figure it would give is withheld and null. A reliability's `omega` needs a one-factor fit, which needs at least 3 items (2 items have one correlation for two loadings); alpha and the item statistics still compute (details `matrix`, `output`, `members`, `min_members`). A factor analysis's k factors need (p - k)^2 >= p + k (1 factor needs 3 members, 2 need 5, 3 need 6), so its loadings and fit figures are null; KMO and Bartlett's test still compute (details `matrix`, `output`, `members`, `factors`, `max_factors`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"vectors", "*", "fields"},
 				Hint:   "Add a third item to the vector to get omega; with two items, read `alpha` (Spearman-Brown for two items) instead.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "factors"},
+				Hint:   "In a factor analysis, set params.factors to at most details.max_factors, or add members to the vector.",
+			},
 		},
 	},
 	PULSE_MATRIX_PAIRWISE_N_STAR: {
-		Message: "An inferential figure over a pairwise matrix needs one sample size, but under pairwise deletion every cell rests on its own rows, so the figure uses the smallest pair's inference size (pair N unweighted, pair sum of weights under frequency weights, scaled to Kish n_eff under probability weights) — the conservative choice: MAT_PCA's Bartlett test. Details carry `matrix`, `outputs`, `n_star` and the pair as `row` / `col`.",
+		Message: "An inferential figure over a pairwise matrix needs one sample size, but under pairwise deletion every cell rests on its own rows, so the figure uses the smallest pair's inference size (pair N unweighted, pair sum of weights under frequency weights, scaled to Kish n_eff under probability weights) — the conservative choice: Bartlett's sphericity test, and a factor analysis's empirical chi-square. Details carry `matrix`, `outputs`, `n_star` and the pair as `row` / `col`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,

@@ -7,6 +7,7 @@ The matrix operators this instance offers: what each is for, the questions it an
 | [`MAT_COLLINEARITY`](#op-mat_collinearity) | Whether candidate predictors overlap so much that a regression on them would give unstable coefficients, and which ones are tangled. | Before I model satisfaction on these eight ratings, are any of them so related that their effects cannot be told apart? | intermediate | [`REG_OLS`](regression.md#op-reg_ols) when you want the fitted effects of the predictors on an outcome.<br>[`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which measures go together, pair by pair. |
 | [`MAT_CORRELATION`](#op-mat_correlation) | How closely every pair of numeric fields moves together, in a line or in rank order, as one square table of values from -1 to 1. | Which of these ten rating items go together most strongly? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value or confidence interval for one pair.<br>[`MAT_COVARIANCE`](#op-mat_covariance) when you want the joint spread in the fields' own units.<br>[`TEST_SPEARMAN_R`](test.md#op-test_spearman_r) when you need a p-value for one pair's rank correlation.<br>[`TEST_KENDALL_TAU`](test.md#op-test_kendall_tau) when you need a p-value for one pair's Kendall tau.<br>[`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) when you want each pair's link with other fields held fixed. |
 | [`MAT_COVARIANCE`](#op-mat_covariance) | How every pair in a set of numeric fields varies together, as one square table with each field's variance on the diagonal. | How do these five rating scales vary together across respondents? | intermediate | [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want how closely two numeric fields follow a straight line together, on a scale from -1 to 1.<br>[`AGG_WELFORD`](aggregator.md#op-agg_welford) when you want the spread of one field on its own. |
+| [`MAT_FACTOR`](#op-mat_factor) | Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores. | Do these twelve attitude questions reflect two or three underlying qualities, and which questions go with which? | advanced | [`MAT_PCA`](#op-mat_pca) when you want summaries of all the spread, not just what the measures share.<br>[`MAT_RELIABILITY`](#op-mat_reliability) when you already know the items measure one quality and want its reliability. |
 | [`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) | How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. | Does satisfaction still track price once delivery time is held fixed? | advanced | [`MAT_CORRELATION`](#op-mat_correlation) when you want each pair's link with nothing held fixed.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want how much each field moves the outcome, in its own units.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value for one pair. |
 | [`MAT_PCA`](#op-mat_pca) | How many underlying dimensions a set of related measures covers and which measures belong to each, so a few summaries can stand in for many. | How many distinct things do these twelve rating questions actually measure? | advanced | [`MAT_RELIABILITY`](#op-mat_reliability) when you want to check that one set of items measures a single quality reliably.<br>[`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which measures go together, pair by pair. |
 | [`MAT_RELIABILITY`](#op-mat_reliability) | How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest. | Are these five satisfaction questions reliable enough to average into one score? | intermediate | [`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which items go together, pair by pair.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want a p-value for one pair of items. |
@@ -124,6 +125,46 @@ How every pair in a set of numeric fields varies together, as one square table w
 **Glossary:** [`covariance`](../glossary.md#term-covariance), [`variance`](../glossary.md#term-variance), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
 
 **Skill:** [`op-mat-covariance`](../skills/op-mat-covariance.md)
+
+<a id="op-mat_factor"></a>
+
+### `MAT_FACTOR`
+
+Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores.
+
+**Level:** advanced
+
+**Also known as:** `exploratory factor analysis`, `efa`, `principal axis factoring`, `minres`
+
+**Questions it answers:**
+
+- Do these twelve attitude questions reflect two or three underlying qualities, and which questions go with which?
+- Which items in this battery tie weakly to every quality and could be dropped?
+
+**Use cases by domain:**
+
+- *survey:* Finding the themes behind a long attitude battery and which questions belong to each, before averaging them into scale scores.
+- *science:* Checking whether a set of test scores reflects one general ability or several separate ones.
+
+**Assumptions:**
+
+- The measures are numeric and related by straight-line links; a factor is a pattern in the shared spread; it does not show that an underlying cause exists.
+- You choose how many factors to keep; read the variance each accounts for and the residual figures, and try one more and one fewer.
+- Read KMO and Bartlett's test first: weakly related measures give unstable factors.
+- A row with any measure missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.
+
+**Use something else:**
+
+- [`MAT_PCA`](#op-mat_pca) when you want summaries of all the spread, not just what the measures share.
+- [`MAT_RELIABILITY`](#op-mat_reliability) when you already know the items measure one quality and want its reliability.
+
+**Follow up with:**
+
+- [`MAT_RELIABILITY`](#op-mat_reliability) when the items of one factor are to be added up into a score.
+
+**Glossary:** [`factor`](../glossary.md#term-factor), [`loading`](../glossary.md#term-loading), [`eigenvalue`](../glossary.md#term-eigenvalue), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
+
+**Skill:** [`op-mat-factor`](../skills/op-mat-factor.md)
 
 <a id="op-mat_partial_correlation"></a>
 

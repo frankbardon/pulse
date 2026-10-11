@@ -83,6 +83,44 @@
         ]
       },
       {
+        "operator": "MAT_FACTOR",
+        "category": "matrix",
+        "level": "advanced",
+        "why": "Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores. It uses revenue (f64), seats (u16) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "revenue",
+                "seats",
+                "score"
+              ],
+              "type": "MAT_FACTOR"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you want summaries of all the spread, not just what the measures share",
+            "use": "MAT_PCA"
+          },
+          {
+            "when": "you already know the items measure one quality and want its reliability",
+            "use": "MAT_RELIABILITY"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the items of one factor are to be added up into a score",
+            "use": "MAT_RELIABILITY"
+          }
+        ]
+      },
+      {
         "operator": "MAT_PCA",
         "category": "matrix",
         "level": "advanced",
@@ -116,9 +154,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 3
+    "candidates_considered": 4
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: d15639b5ff4eb2aadd8c99408583cf0aa1479ca9facdddd95c9bb2b611c38bc9
+// golden-hash: c6fc2a9f3507d0ffb675de061739246aa870bd0ed2b702e8fa8669a71ce7e28d

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:e4ad51b9399a2f575120988d6b09a965133e9ebfd5ee8f841065fc585a67c588",
+    "feature_set_digest": "fs1:d8a8c7ae4ae88c95273ccda53b85e154a8001290a7321133fafb98001ec8f130",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -6811,6 +6811,178 @@
         ]
       },
       {
+        "name": "MAT_FACTOR",
+        "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\") or iterated principal axes (principal_axis; fm = \"pa\"), both from the squared multiple correlations, then rotated (params.rotation none, varimax, promax or oblimin). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (promax and oblimin only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
+        "accepts_types": [
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "params": [
+          {
+            "name": "factors",
+            "type": "any",
+            "required": false,
+            "default": "kaiser",
+            "description": "How many factors to extract: a positive integer k (at most the member count; a k the members cannot identify, (p - k)^2 \u003c p + k, returns a null fit with PULSE_MATRIX_NOT_IDENTIFIED) or \"kaiser\" (as many as the correlation has eigenvalues above 1)."
+          },
+          {
+            "name": "extraction",
+            "type": "enum",
+            "required": false,
+            "default": "minres",
+            "description": "minres: minimise the off-diagonal residuals over the communalities (psych fm = \"minres\"; Pulse solves to the exact optimum, where psych's optimiser stops about 1e-5 short). principal_axis: iterate the communalities on the diagonal until their sum moves by at most 0.001, at most 50 iterations (psych fm = \"pa\"). Both start from the squared multiple correlations; iterations and converged report the run.",
+            "enum_values": [
+              "minres",
+              "principal_axis"
+            ]
+          },
+          {
+            "name": "rotation",
+            "type": "enum",
+            "required": false,
+            "default": "none",
+            "description": "none: the unrotated loadings. varimax: orthogonal, Kaiser-normalized (stats::varimax). promax: oblique, varimax then a power target (stats::promax, params.kappa). oblimin: oblique, gradient projection (GPArotation::oblimin, params.gamma). Rotated loadings become the primary; the unrotated move to auxiliary.unrotated; an oblique rotation adds auxiliary.factor_correlation. Communalities do not change.",
+            "enum_values": [
+              "none",
+              "varimax",
+              "promax",
+              "oblimin"
+            ]
+          },
+          {
+            "name": "kappa",
+            "type": "float",
+            "required": false,
+            "default": 4,
+            "description": "Promax power, a finite number above 1 (stats::promax m). Accepted with rotation promax only."
+          },
+          {
+            "name": "gamma",
+            "type": "float",
+            "required": false,
+            "default": 0,
+            "description": "Oblimin gamma, finite: 0 quartimin (the default), 0.5 biquartimin, 1 covarimin. Accepted with rotation oblimin only."
+          },
+          {
+            "name": "repair",
+            "type": "enum",
+            "required": false,
+            "description": "nearest: factor the nearest correlation matrix when the (pairwise) correlation is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD).",
+            "enum_values": [
+              "nearest"
+            ]
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N).",
+            "enum_values": [
+              "listwise",
+              "pairwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          }
+        ],
+        "output_keys": {
+          "primary": "loadings",
+          "auxiliary": [
+            "factor_correlation",
+            "n",
+            "unrotated"
+          ],
+          "vectors": [
+            "communalities",
+            "uniquenesses",
+            "variance_accounted"
+          ],
+          "scalars": [
+            "bartlett_chisq",
+            "bartlett_df",
+            "bartlett_p",
+            "converged",
+            "df",
+            "empirical_chisq",
+            "empirical_p",
+            "factors_retained",
+            "iterations",
+            "kmo",
+            "rmsr"
+          ]
+        },
+        "streamable": true,
+        "mergeable": true,
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "intents": [
+          "measure_construct"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "name": "MAT_PARTIAL_CORRELATION",
         "description": "Partial correlation matrix: each pair's Pearson correlation with other fields held fixed, from the precision matrix of the folded columns' correlation (listwise or pairwise). params.control \"all\" (default) controls each pair for every other member; a field list controls each pair for exactly those fields and drops any member it names from the output. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\", a singular one is PULSE_MATRIX_SINGULAR. Weighted under frequency and probability weights. No p-values.",
         "accepts_types": [
@@ -9650,6 +9822,10 @@
         "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped)."
       },
       {
+        "name": "op-mat-factor",
+        "description": "Exploratory factor analysis of a battery — minres or principal-axis extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett; listwise or pairwise, weighted."
+      },
+      {
         "name": "op-mat-partial-correlation",
         "description": "Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair \"nearest\", singular input refused."
       },
@@ -10442,7 +10618,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 198,
+    "examples_count": 199,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -10879,7 +11055,7 @@
         "Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
         "A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
         "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
-        "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
+        "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
         "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT."
       ]
     },
@@ -13818,6 +13994,56 @@
           ],
           "mergeability": "mergeable"
         },
+        "MAT_FACTOR": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "MAT_PARTIAL_CORRELATION": {
           "keys": [
             {
@@ -14182,4 +14408,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4f467536fa5027e91988afa64da4e14cc7ba826cdd45961bf6703dcf7936535d
+// golden-hash: c5f8544155d350735cc8e1a04f8eb8d702fafdd29227c8c4308e2711fdae6cb0

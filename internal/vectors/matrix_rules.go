@@ -41,7 +41,9 @@ import (
 //     pairwise correlation (VIF inverts it; Belsley's diagnostics
 //     decompose it, or the uncentered moment matrix rebuilt from it,
 //     which is PSD whenever it is); the risk is the fatal refusal or
-//     the repair warning.
+//     the repair warning;
+//   - MAT_FACTOR at p ≥ 3 — a decomposition operator over the pairwise
+//     correlation; the risk is the fatal refusal or the repair warning.
 func (m Matrix) PSDRisk() bool {
 	if !m.Pairwise {
 		return false
@@ -55,7 +57,7 @@ func (m Matrix) PSDRisk() bool {
 			return p >= 2
 		}
 		return p >= 3
-	case types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY, types.MAT_COLLINEARITY:
+	case types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY, types.MAT_COLLINEARITY, types.MAT_FACTOR:
 		return p >= 3
 	}
 	return false

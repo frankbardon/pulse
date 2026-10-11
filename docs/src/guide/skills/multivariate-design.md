@@ -21,19 +21,20 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | Is a link left once the other fields (or `control`) are held fixed? | `MAT_PARTIAL_CORRELATION` |
 | Do these items measure one scale (alpha, omega, which item to drop)? | `MAT_RELIABILITY` |
 | How many dimensions carry the variance; is the battery factorable (KMO, Bartlett)? | `MAT_PCA` |
+| Which hidden qualities do the items reflect (factor analysis, rotation)? | `MAT_FACTOR` |
 | Are candidate predictors too redundant to fit together (VIF, condition index)? | `MAT_COLLINEARITY` |
 
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression ([`regression-inference`](regression-inference.md)).
 
-Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. Latent-factor analysis is not shipped: PCA is a variance summary, not a factor model; `MAT_PCA` `rotation: varimax` gives a simpler loading pattern.
+Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres or principal axis; varimax, promax or oblimin); `MAT_PCA` `rotation: varimax` gives a simpler loading pattern.
 
 ## Missing data
 
 - `listwise` (default): one row set for every cell; the matrix is PSD by construction. Prefer it when few rows drop; `max_drop_share` warns when many do.
 - `pairwise`: each cell uses its own rows (`auxiliary.n` has the counts). It keeps more data but the matrix can fail to be PSD.
-- Decompositions (partial correlation, PCA, collinearity, the omega of reliability) refuse a non-PSD pairwise input with `PULSE_MATRIX_NOT_PSD`. `params.repair: "nearest"` projects it to the nearest correlation matrix (Higham) and warns with the size of the change; a repair stopped at its cap also warns `PULSE_MATRIX_NOT_CONVERGED`. Reliability keeps alpha and nulls omega instead of refusing.
+- Decompositions (partial correlation, PCA, factor analysis, collinearity, the omega of reliability) refuse a non-PSD pairwise input with `PULSE_MATRIX_NOT_PSD`. `params.repair: "nearest"` projects it to the nearest correlation matrix (Higham) and warns with the size of the change; a repair stopped at its cap also warns `PULSE_MATRIX_NOT_CONVERGED`. Reliability keeps alpha and nulls omega instead of refusing.
 - A singular matrix is refused as `PULSE_MATRIX_SINGULAR` with `rank`, `condition_number` and `dependent_fields`: drop or combine the named fields, do not repair.
-- Pairwise inference sizes use a conservative N* (the smallest pair); `PULSE_MATRIX_PAIRWISE_N_STAR` says so on PCA.
+- Pairwise inference sizes use a conservative N* (the smallest pair); `PULSE_MATRIX_PAIRWISE_N_STAR` says so on PCA and factor analysis.
 
 ## Weights
 
@@ -54,6 +55,7 @@ Per-test correction on other operators: [`multiplicity-correction`](multiplicity
 
 - [`matrix-results`](matrix-results.md) — slot, encodings, refusals.
 - [`op-mat-pca`](op-mat-pca.md)
+- [`op-mat-factor`](op-mat-factor.md)
 - [`op-mat-reliability`](op-mat-reliability.md)
 - [`op-mat-collinearity`](op-mat-collinearity.md)
 - [`regression-inference`](regression-inference.md) — coefficient covariance.

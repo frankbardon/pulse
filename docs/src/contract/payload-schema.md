@@ -343,7 +343,7 @@ refused). Shape refusals are `SERVICE_VALIDATION` with
 scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
 `type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
-`MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`,
+`MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_FACTOR`,
 `MAT_COLLINEARITY`, `MAT_RELIABILITY`); `encoding` is `full` (default) or `upper`. Every
 matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
 column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
@@ -351,6 +351,7 @@ whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
 diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
 (`MAT_PCA`'s p × k loadings and eigenvectors: `row_keys` the members,
 `column_keys` `PC1` … `PCk`, k possibly 0, always written `full`;
+`MAT_FACTOR`'s p × k loadings: `column_keys` `F1` … `Fk`;
 `MAT_COLLINEARITY`'s variance decomposition: a row per variable —
 `(intercept)` first unless `center` — and `column_keys` `D1` … `Dq`).
 Undefined cells and scalars (no mass, too few rows, a determinant of a
@@ -375,7 +376,11 @@ items; `MAT_PCA` only: `on` `correlation` (default) or `covariance`,
 refused on a covariance) or `{"variance": share}` — required on a
 covariance — and `repair` `"nearest"`; `MAT_COLLINEARITY` only:
 `center` (boolean, default `false`: Belsley uncentered with the
-intercept) and `repair` `"nearest"`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+intercept) and `repair` `"nearest"`; `MAT_FACTOR` only: `factors` an
+integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default)
+or `principal_axis`, `rotation` `none` (default), `varimax`, `promax`
+or `oblimin`, `kappa` (promax only) and `gamma` (oblimin only), and
+`repair` `"nearest"`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
@@ -391,7 +396,14 @@ scalars are never rounded by `return.precision`); `MAT_COLLINEARITY`
 adds `auxiliary.variance_decomposition` (rows sum to 1),
 `vectors.vif` / `tolerance` (one per member) and `condition_indices`
 (one per dimension, ascending) and `scalars` `condition_number`,
-`max_vif`.
+`max_vif`; `MAT_FACTOR` adds `auxiliary.unrotated` (rotated runs) and
+`auxiliary.factor_correlation` (promax / oblimin: `square_symmetric`
+keyed `F1` … `Fk`, always `full`), `vectors.communalities` /
+`uniquenesses` (one per member) and `variance_accounted` (one per
+factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
+`kmo`, `bartlett_chisq`, `bartlett_df`, `bartlett_p`, `iterations`,
+`converged`, `factors_retained` (`df`, `iterations`, `converged` and
+`factors_retained` are never rounded by `return.precision`).
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
 `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on
@@ -400,7 +412,10 @@ adds `auxiliary.variance_decomposition` (rows sum to 1),
 `_NOT_IDENTIFIED`; `MAT_PCA` fatal like the partial correlation, plus
 `_PAIRWISE_N_STAR` and a `_SINGULAR` warning that nulls KMO and
 Bartlett; `MAT_COLLINEARITY` fatal like the partial correlation, and a
-singular correlation is a fatal `_SINGULAR` naming `dependent_fields`). `components.matrices` carries one
+singular correlation is a fatal `_SINGULAR` naming `dependent_fields`;
+`MAT_FACTOR` fatal like the partial correlation, plus `_PAIRWISE_N_STAR`,
+`_NOT_IDENTIFIED` (null fit), `_HEYWOOD` (fit kept), `_NOT_CONVERGED`
+and a `_SINGULAR` warning that nulls KMO and Bartlett). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,
 group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
 sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and

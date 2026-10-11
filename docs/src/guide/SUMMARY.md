@@ -127,6 +127,7 @@
     - [op-mat-collinearity](skills/op-mat-collinearity.md)
     - [op-mat-correlation](skills/op-mat-correlation.md)
     - [op-mat-covariance](skills/op-mat-covariance.md)
+    - [op-mat-factor](skills/op-mat-factor.md)
     - [op-mat-partial-correlation](skills/op-mat-partial-correlation.md)
     - [op-mat-pca](skills/op-mat-pca.md)
     - [op-mat-reliability](skills/op-mat-reliability.md)

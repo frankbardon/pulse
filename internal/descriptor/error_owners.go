@@ -520,12 +520,15 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY")),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
 	errors.PULSE_MATRIX_NOT_CONVERGED:  ownAllMats,
-	// The one-factor fit's withheld-figure warnings: only the operator
-	// that fits it (MAT_RELIABILITY's omega) raises them.
-	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY"),
-	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY"),
-	// Bartlett's test over a pairwise matrix reads the smallest pair.
-	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA"),
+	// The factor-fit warnings: only the operators that fit a factor
+	// model raise them — MAT_RELIABILITY's one-factor omega (withheld)
+	// and MAT_FACTOR's k-factor fit (a Heywood fit kept as fitted, an
+	// unidentified count nulled).
+	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY", "MAT_FACTOR"),
+	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY", "MAT_FACTOR"),
+	// Bartlett's test (and MAT_FACTOR's empirical chi-square) over a
+	// pairwise matrix reads the smallest pair.
+	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA", "MAT_FACTOR"),
 
 	// Response shaping: `return` is a plain request slot, not a feature.
 	errors.PULSE_RETURN_INVALID:        shared,

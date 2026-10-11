@@ -71,8 +71,6 @@ var exampleIntentExemptions = []guidanceExemption{}
 // glossaryOrphanExemptions — glossary terms no built-in Purpose links
 // (TestGlossary_OrphanReport). Key: the term ID.
 var glossaryOrphanExemptions = []guidanceExemption{
-	// Matrix operators (correlation matrix, reliability, PCA).
-	{Key: "factor", Owner: "U25", Why: "Defined as a latent factor (factor analysis), not a categorical grouping field, so GROUP_CATEGORY does not link it; the MAT_FACTOR operator (roadmap TODO #262, U25: factor analysis and rotation) does."},
 	// Segmentation.
 	{Key: "centroid", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},
 	{Key: "distance", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},

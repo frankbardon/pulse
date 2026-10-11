@@ -83,6 +83,11 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			// upper bound [p, p].
 			mp.Shape[1] = m.Components.K
 		}
+		if m.Type == types.MAT_FACTOR && !m.Factors.Kaiser() {
+			// The p × k loadings of an integer params.factors; the
+			// Kaiser rule keeps the [p, p] bound.
+			mp.Shape[1] = m.Factors.K
+		}
 		var rowBytes int64
 		if m.RowBytes() > 0 && records >= 0 {
 			rowBytes = limits.MatrixRowBufferBytes(records, m.RowBytes())

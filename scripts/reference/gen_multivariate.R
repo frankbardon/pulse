@@ -826,3 +826,8 @@ source(file.path(script_dir, "gen_multivariate_tests.R"), local = FALSE)
 # The rotation golden (mv_rotation.json: varimax, promax, oblimin over
 # PCA loadings of the same fixtures); its GPArotation pin lives there.
 source(file.path(script_dir, "gen_rotation.R"), local = FALSE)
+
+# The factor-analysis golden (mv_factor.json: MAT_FACTOR minres and
+# principal-axis extraction, then the rotation engine's criteria); it
+# reuses gen_rotation.R's rot_canon and GPArotation pin.
+source(file.path(script_dir, "gen_factor.R"), local = FALSE)

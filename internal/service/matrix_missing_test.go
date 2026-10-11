@@ -356,6 +356,14 @@ func TestMatrixWarnings_InsufficientN(t *testing.T) {
 				}
 				return
 			}
+			if typ == types.MAT_FACTOR {
+				// Likewise a factor analysis: no factors (kaiser
+				// default), null communalities.
+				if len(pw.Primary.ColumnKeys) != 0 || !math.IsNaN(pw.Vectors["communalities"].([]float64)[0]) || pw.Auxiliary["n"].Values[0][2] != 1 {
+					t.Errorf("thin pair factor analysis = %v / %v (n %v), want undefined", pw.Primary.ColumnKeys, pw.Vectors["communalities"], pw.Auxiliary["n"].Values[0][2])
+				}
+				return
+			}
 			if !math.IsNaN(pw.Primary.Values[0][2]) || pw.Auxiliary["n"].Values[0][2] != 1 {
 				t.Errorf("thin pair cell = %v (n %v), want null over 1 row", pw.Primary.Values[0][2], pw.Auxiliary["n"].Values[0][2])
 			}
@@ -384,6 +392,14 @@ func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 					// decomposition: no components, null eigenvalues.
 					if len(res.Primary.ColumnKeys) != 0 || !math.IsNaN(res.Vectors["eigenvalues"].([]float64)[0]) {
 						t.Errorf("PCA over a constant member = %v / %v, want undefined", res.Primary.ColumnKeys, res.Vectors["eigenvalues"])
+					}
+					return
+				}
+				if typ == types.MAT_FACTOR {
+					// Nor a factor analysis: no factors, null
+					// communalities.
+					if len(res.Primary.ColumnKeys) != 0 || !math.IsNaN(res.Vectors["communalities"].([]float64)[0]) {
+						t.Errorf("factor analysis over a constant member = %v / %v, want undefined", res.Primary.ColumnKeys, res.Vectors["communalities"])
 					}
 					return
 				}

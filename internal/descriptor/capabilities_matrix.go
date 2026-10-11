@@ -118,6 +118,28 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			ComponentSchema: matrixSchema(),
 		},
 		{
+			Name:         string(types.MAT_FACTOR),
+			Description:  "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\") or iterated principal axes (principal_axis; fm = \"pa\"), both from the squared multiple correlations, then rotated (params.rotation none, varimax, promax or oblimin). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (promax and oblimin only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors. A count the members cannot identify ((p - k)^2 < p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
+			AcceptsTypes: memberTypes,
+			Params: append([]descriptor.Param{
+				{Name: "factors", Type: "any", Required: false, Default: vectors.FactorsKaiser, Description: "How many factors to extract: a positive integer k (at most the member count; a k the members cannot identify, (p - k)^2 < p + k, returns a null fit with PULSE_MATRIX_NOT_IDENTIFIED) or \"kaiser\" (as many as the correlation has eigenvalues above 1)."},
+				{Name: "extraction", Type: "enum", Required: false, Default: vectors.FactorExtractionMinres, EnumValues: vectors.FactorExtractions(), Description: "minres: minimise the off-diagonal residuals over the communalities (psych fm = \"minres\"; Pulse solves to the exact optimum, where psych's optimiser stops about 1e-5 short). principal_axis: iterate the communalities on the diagonal until their sum moves by at most 0.001, at most 50 iterations (psych fm = \"pa\"). Both start from the squared multiple correlations; iterations and converged report the run."},
+				{Name: "rotation", Type: "enum", Required: false, Default: vectors.RotationNone, EnumValues: vectors.FactorRotations(), Description: "none: the unrotated loadings. varimax: orthogonal, Kaiser-normalized (stats::varimax). promax: oblique, varimax then a power target (stats::promax, params.kappa). oblimin: oblique, gradient projection (GPArotation::oblimin, params.gamma). Rotated loadings become the primary; the unrotated move to auxiliary.unrotated; an oblique rotation adds auxiliary.factor_correlation. Communalities do not change."},
+				{Name: "kappa", Type: "float", Required: false, Default: vectors.FactorDefaultKappa, Description: "Promax power, a finite number above 1 (stats::promax m). Accepted with rotation promax only."},
+				{Name: "gamma", Type: "float", Required: false, Default: 0, Description: "Oblimin gamma, finite: 0 quartimin (the default), 0.5 biquartimin, 1 covarimin. Accepted with rotation oblimin only."},
+				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: factor the nearest correlation matrix when the (pairwise) correlation is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD)."},
+			}, missing...),
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "loadings",
+				Auxiliary: []string{"factor_correlation", "n", "unrotated"},
+				Vectors:   []string{"communalities", "uniquenesses", "variance_accounted"},
+				Scalars:   []string{"bartlett_chisq", "bartlett_df", "bartlett_p", "converged", "df", "empirical_chisq", "empirical_p", "factors_retained", "iterations", "kmo", "rmsr"},
+			},
+			Streamable:      types.MAT_FACTOR.Streamable(),
+			Mergeable:       types.MAT_FACTOR.Mergeable(),
+			ComponentSchema: matrixSchema(),
+		},
+		{
 			Name:         string(types.MAT_COVARIANCE),
 			Description:  "Covariance matrix of a vector's members (listwise or pairwise): sample covariance by default, weighted under frequency and probability weights.",
 			AcceptsTypes: memberTypes,
@@ -226,7 +248,7 @@ func matrixCapability() descriptor.MatrixCapability {
 			"Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
 			"A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
 			"A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
-			"A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
+			"A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
 			"A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
 		},
 	}

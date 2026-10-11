@@ -15,6 +15,36 @@ var matrixPurposes = map[string]descriptor.Purpose{
 	"MAT_RELIABILITY":         purposeMatReliability,
 	"MAT_PCA":                 purposeMatPCA,
 	"MAT_COLLINEARITY":        purposeMatCollinearity,
+	"MAT_FACTOR":              purposeMatFactor,
+}
+
+var purposeMatFactor = descriptor.Purpose{
+	Plain:   "Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores.",
+	KnownAs: []string{"exploratory factor analysis", "efa", "principal axis factoring", "minres"},
+	Intents: []string{IntentMeasureConstruct},
+	Questions: []string{
+		"Do these twelve attitude questions reflect two or three underlying qualities, and which questions go with which?",
+		"Which items in this battery tie weakly to every quality and could be dropped?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey:  "Finding the themes behind a long attitude battery and which questions belong to each, before averaging them into scale scores.",
+		descriptor.DomainScience: "Checking whether a set of test scores reflects one general ability or several separate ones.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you want summaries of all the spread, not just what the measures share", Use: "MAT_PCA"},
+		{When: "you already know the items measure one quality and want its reliability", Use: "MAT_RELIABILITY"},
+	},
+	FollowUps: []descriptor.Alternative{
+		{When: "the items of one factor are to be added up into a score", Use: "MAT_RELIABILITY"},
+	},
+	Assumptions: []string{
+		"The measures are numeric and related by straight-line links; a factor is a pattern in the shared spread; it does not show that an underlying cause exists.",
+		"You choose how many factors to keep; read the variance each accounts for and the residual figures, and try one more and one fewer.",
+		"Read KMO and Bartlett's test first: weakly related measures give unstable factors.",
+		"A row with any measure missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.",
+	},
+	Level:    descriptor.LevelAdvanced,
+	Glossary: []string{"factor", "loading", "eigenvalue", "correlation", "listwise-deletion", "pairwise-deletion"},
 }
 
 var purposeMatCollinearity = descriptor.Purpose{

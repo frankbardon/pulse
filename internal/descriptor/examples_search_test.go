@@ -125,6 +125,7 @@ func TestExamplesSearch_Relevance(t *testing.T) {
 		{query: "is this scale reliable? check internal consistency", wantOp: "MAT_RELIABILITY"},
 		{query: "principal components", wantOp: "MAT_PCA"},
 		{query: "variance inflation", wantOp: "MAT_COLLINEARITY"},
+		{query: "exploratory factor analysis", wantOp: "MAT_FACTOR"},
 	}
 	for _, c := range cases {
 		hits, err := snap.ExamplesSearch(examples.Query{Query: c.query})

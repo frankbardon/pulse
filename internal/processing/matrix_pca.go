@@ -301,18 +301,30 @@ type pcaStats struct {
 // core (bartlettSphericity, which TEST_BARTLETT_SPHERICITY also runs);
 // KMO reads its R⁻¹.
 func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.ResponseWarning) {
+	nStar, pw := pcaNStar(in, []string{"bartlett_chisq", "bartlett_p"}, "Bartlett's test uses")
+	var warns []*types.ResponseWarning
+	if pw != nil {
+		warns = append(warns, pw)
+	}
+	st, sw := sphericityStats(in, r, nStar, []string{"kmo", "kmo_msa", "bartlett_chisq", "bartlett_p"},
+		"KMO, the per-member MSA and Bartlett's test are null; the components are still defined (a zero eigenvalue marks the dependency)")
+	return st, append(warns, sw...)
+}
+
+// sphericityStats is KMO and Bartlett's test over r at inference size
+// nStar, shared by MAT_PCA and MAT_FACTOR: a singular r nulls both with
+// a PULSE_MATRIX_SINGULAR warning listing outputs (its message ends
+// with singularTail, the operator's own consequence); too small an N*
+// nulls Bartlett with PULSE_MATRIX_INSUFFICIENT_N (scope "bartlett").
+func sphericityStats(in *matrixFinalizeInput, r *linalg.Sym, nStar float64, outputs []string, singularTail string) (pcaStats, []*types.ResponseWarning) {
 	plan := in.Plan()
 	p := r.N()
 	st := pcaStats{kmo: math.NaN(), chisq: math.NaN(), p: math.NaN(), df: float64(p * (p - 1) / 2), msa: nanVector(p)}
 	var warns []*types.ResponseWarning
-	nStar, pw := pcaNStar(in)
-	if pw != nil {
-		warns = append(warns, pw)
-	}
 
 	b := bartlettSphericity(r, nStar)
 	if b.Singular {
-		details := map[string]any{"matrix": plan.Name, "outputs": []string{"kmo", "kmo_msa", "bartlett_chisq", "bartlett_p"}}
+		details := map[string]any{"matrix": plan.Name, "outputs": outputs}
 		var ce *errors.CodedError
 		if stderrors.As(singularMatrixError(b.SingularErr, plan.Name, in.Members()), &ce) {
 			for _, key := range []string{"rank", "condition_number", "dependent_fields"} {
@@ -322,7 +334,7 @@ func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.R
 			}
 		}
 		warns = append(warns, matrixWarning(errors.PULSE_MATRIX_SINGULAR,
-			"matrix "+plan.Name+": the correlation is singular (a member is a linear combination of others), so it has no inverse and no determinant above 0: KMO, the per-member MSA and Bartlett's test are null; the components are still defined (a zero eigenvalue marks the dependency)",
+			"matrix "+plan.Name+": the correlation is singular (a member is a linear combination of others), so it has no inverse and no determinant above 0: "+singularTail,
 			details))
 		return st, warns
 	}
@@ -358,13 +370,14 @@ func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.R
 	return st, warns
 }
 
-// pcaNStar is Bartlett's inference size (weighting.md "Weighted
-// inference"): listwise N (unweighted), Σw (frequency) or Kish n_eff
-// (probability); pairwise the smallest pair's — min over i ≤ j of the
-// pair's Σw scaled by N*/Σw (so PairN unweighted, pair Σw under
-// frequency, pair Σw·n_eff/Σw under probability) — with the
-// PULSE_MATRIX_PAIRWISE_N_STAR warning naming it.
-func pcaNStar(in *matrixFinalizeInput) (float64, *types.ResponseWarning) {
+// pcaNStar is the inference size of a matrix's inferential figures
+// (weighting.md "Weighted inference"): listwise N (unweighted), Σw
+// (frequency) or Kish n_eff (probability); pairwise the smallest
+// pair's — min over i ≤ j of the pair's Σw scaled by N*/Σw (so PairN
+// unweighted, pair Σw under frequency, pair Σw·n_eff/Σw under
+// probability) — with the PULSE_MATRIX_PAIRWISE_N_STAR warning naming
+// it, its outputs and what uses it (uses: "Bartlett's test uses").
+func pcaNStar(in *matrixFinalizeInput, outputs []string, uses string) (float64, *types.ResponseWarning) {
 	cm := in.CM
 	w := in.slot.weight
 	full, scale := sphericityNStar(cm, weighting.BasisOf(w))
@@ -387,9 +400,9 @@ func pcaNStar(in *matrixFinalizeInput) (float64, *types.ResponseWarning) {
 		}
 	}
 	return best, matrixWarning(errors.PULSE_MATRIX_PAIRWISE_N_STAR,
-		"matrix "+plan.Name+": under pairwise deletion each correlation rests on its own rows, so Bartlett's test uses the smallest pair's inference size ("+strconv.FormatFloat(best, 'g', 6, 64)+
+		"matrix "+plan.Name+": under pairwise deletion each correlation rests on its own rows, so "+uses+" the smallest pair's inference size ("+strconv.FormatFloat(best, 'g', 6, 64)+
 			", pair "+members[bi]+" × "+members[bj]+"), the conservative choice; listwise deletion gives one N for every cell",
-		map[string]any{"matrix": plan.Name, "outputs": []string{"bartlett_chisq", "bartlett_p"}, "n_star": best, "row": members[bi], "col": members[bj]})
+		map[string]any{"matrix": plan.Name, "outputs": outputs, "n_star": best, "row": members[bi], "col": members[bj]})
 }
 
 // covToCorr scales the symmetric s by its own diagonal (cov2cor).

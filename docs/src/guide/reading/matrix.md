@@ -83,6 +83,79 @@ The determinant of the correlation table: 1 when no member is linearly related t
 - Null when the table is not positive definite, including when any cell is null.
 - No published convention bands it; a value near 0 flags near-redundant members.
 
+<a id="op-mat_factor"></a>
+
+### `MAT_FACTOR`
+
+Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores. See its [catalog entry](../catalog/matrix.md#op-mat_factor).
+
+#### `primary.values`
+
+Each cell is a loading: how strongly the row's measure is tied to the column's factor. Without a rotation, or with varimax, it is the correlation between the two; under promax or oblimin it is the measure's own tie to that factor with the other factors held fixed. A factor is named by the measures with the largest loadings.
+
+**Sign:**
+
+- `+`: the measure rises with the factor
+- `-`: the measure falls as the factor rises; a factor's overall sign is a convention (each column is made to sum positive)
+
+**Caveats:**
+
+- Unrotated loadings put most measures on the first factor; a rotation gives a cleaner pattern without changing how well the factors fit (the communalities).
+- Under an oblique rotation the factors correlate (auxiliary.factor_correlation), so loadings on correlated factors overlap.
+- A uniqueness at or below 0 (a Heywood case, flagged with a warning) means the fit is improper; try fewer factors or drop a near-duplicate measure.
+
+#### `scalars.kmo`
+
+The Kaiser-Meyer-Olkin measure of sampling adequacy: how much of the measures' correlation is shared across the whole set rather than tied to single pairs, from 0 to 1. Higher means a factor analysis is more worthwhile.
+
+**Bands** (convention: Kaiser (1974); a labelled convention, not a rule):
+
+| Value | Label |
+|---|---|
+| below 0.5 | unacceptable |
+| from 0.5 to below 0.6 | miserable |
+| from 0.6 to below 0.7 | mediocre |
+| from 0.7 to below 0.8 | middling |
+| from 0.8 to below 0.9 | meritorious |
+| 0.9 and above | marvelous |
+
+**Caveats:**
+
+- Null when the correlation table is singular (a measure is an exact combination of others).
+
+#### `scalars.bartlett_p`
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `scalars.bartlett_chisq`
+
+Bartlett's test statistic: how far the correlation table is from one in which no measure is related to any other. Large values mean the measures are related enough to factor.
+
+**Caveats:**
+
+- With many rows it is almost always large; read KMO for how worthwhile the analysis is.
+
+#### `scalars.rmsr`
+
+The root-mean-square residual: the typical size of the correlations the factors leave unexplained, on the correlation scale. Smaller means the factors reproduce the correlations more closely.
+
+**Caveats:**
+
+- No convention bands it here; it always shrinks as factors are added, so weigh it against how readable the extra factor is.
+
+#### `scalars.empirical_p`
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `scalars.empirical_chisq`
+
+The empirical chi-square: the sum of the squared leftover correlations times the inference size. It measures the residual size, on df degrees of freedom, and is not a likelihood test of the model.
+
+**Caveats:**
+
+- It rests on the inference size: the rows (listwise), the summed weight or the effective sample size under a weight, or the smallest pair under pairwise deletion.
+- Null p when df is 0 or below: the model then has no spare correlations to test against.
+
 <a id="op-mat_partial_correlation"></a>
 
 ### `MAT_PARTIAL_CORRELATION`

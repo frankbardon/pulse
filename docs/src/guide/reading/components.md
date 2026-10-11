@@ -702,6 +702,14 @@ Only the floor keys.
 |---|---|---|---|
 | `ddof` | int | always | The delta degrees of freedom the covariance used (params.ddof, default 1). |
 
+<a id="op-mat_factor"></a>
+
+#### `MAT_FACTOR`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_factor).
+
+Only the floor keys.
+
 <a id="op-mat_partial_correlation"></a>
 
 #### `MAT_PARTIAL_CORRELATION`

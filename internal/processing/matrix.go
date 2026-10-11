@@ -362,6 +362,7 @@ var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
 	types.MAT_RELIABILITY:         finalizeReliability,
 	types.MAT_PCA:                 finalizePCA,
 	types.MAT_COLLINEARITY:        finalizeCollinearity,
+	types.MAT_FACTOR:              finalizeFactor,
 }
 
 // finalizeCovariance is MAT_COVARIANCE: M2 / (W − ddof), NaN where

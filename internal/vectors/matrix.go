@@ -98,6 +98,17 @@ type Matrix struct {
 	// Rotation is MAT_PCA's params.rotation: "" (none, the default) or
 	// RotationVarimax.
 	Rotation string
+	// Factors is MAT_FACTOR's params.factors: a fixed K or the Kaiser
+	// rule (the default).
+	Factors FactorCount
+	// Extraction is MAT_FACTOR's params.extraction:
+	// FactorExtractionMinres (the default) or
+	// FactorExtractionPrincipalAxis; "" on every other type.
+	Extraction string
+	// Kappa is MAT_FACTOR's promax power (params.kappa, default
+	// FactorDefaultKappa; promax only) and Gamma its oblimin γ
+	// (params.gamma, default 0; oblimin only).
+	Kappa, Gamma float64
 	// Center is MAT_COLLINEARITY's params.center: false (the default)
 	// runs Belsley's diagnostics on the scaled, UNCENTERED predictors
 	// with an intercept column; true on the scaled, centered ones (the
@@ -126,6 +137,63 @@ const (
 
 // PCARotations returns MAT_PCA's params.rotation values, default first.
 func PCARotations() []string { return []string{RotationNone, RotationVarimax} }
+
+// FactorRotations returns MAT_FACTOR's params.rotation values, default
+// first.
+func FactorRotations() []string {
+	return []string{RotationNone, RotationVarimax, RotationPromax, RotationOblimin}
+}
+
+// MAT_FACTOR extraction methods (params.extraction). Both start from
+// the squared multiple correlations; the solvers live in
+// internal/processing/matrix_factor.go.
+const (
+	// FactorExtractionMinres is the minimum-residual fit (psych
+	// fm = "minres"), the default.
+	FactorExtractionMinres = "minres"
+	// FactorExtractionPrincipalAxis is iterated principal axes (psych
+	// fm = "pa").
+	FactorExtractionPrincipalAxis = "principal_axis"
+)
+
+// FactorExtractions returns MAT_FACTOR's params.extraction values,
+// default first.
+func FactorExtractions() []string {
+	return []string{FactorExtractionMinres, FactorExtractionPrincipalAxis}
+}
+
+// FactorsKaiser is MAT_FACTOR's params.factors "kaiser" (the default):
+// as many factors as the correlation has eigenvalues above 1.
+const FactorsKaiser = "kaiser"
+
+// FactorDefaultKappa is MAT_FACTOR's default promax power (stats::promax
+// m = 4).
+const FactorDefaultKappa = 4
+
+// FactorCount is MAT_FACTOR's resolved params.factors: K > 0 is a fixed
+// count; K == 0 is the Kaiser rule, decided on the data.
+type FactorCount struct {
+	K int
+}
+
+// Kaiser reports the data-driven Kaiser rule.
+func (f FactorCount) Kaiser() bool { return f.K == 0 }
+
+// FactorIdentified reports whether k common factors are identified on
+// p members: the model's degrees of freedom
+// p(p − 1)/2 − p·k + k(k − 1)/2 = ((p − k)² − (p + k))/2 are not
+// negative.
+func FactorIdentified(p, k int) bool { return (p-k)*(p-k)-(p+k) >= 0 }
+
+// MaxIdentifiedFactors is the largest k FactorIdentified admits on p
+// members (0 below 3 members, where not even one factor is).
+func MaxIdentifiedFactors(p int) int {
+	k := 0
+	for FactorIdentified(p, k+1) && k+1 <= p {
+		k++
+	}
+	return k
+}
 
 // MAT_PCA retention rules (PCAComponents.Rule).
 const (
@@ -212,14 +280,14 @@ func (m Matrix) Decomposition() bool { return IsDecomposition(m.Type) }
 // IsDecomposition reports whether t is a decomposition operator (see
 // Matrix.Decomposition): MAT_PARTIAL_CORRELATION, MAT_PCA (it
 // eigen-decomposes its correlation or covariance), MAT_COLLINEARITY (it
-// inverts and eigen-decomposes the predictors' correlation), and
-// MAT_RELIABILITY,
+// inverts and eigen-decomposes the predictors' correlation), MAT_FACTOR
+// (it factors the correlation), and MAT_RELIABILITY,
 // whose McDonald's omega factors the inter-item correlation (there the
 // guard's refusal nulls omega with a warning instead of failing the
 // matrix: alpha needs no PSD input).
 func IsDecomposition(t types.MatrixType) bool {
 	switch t {
-	case types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY, types.MAT_PCA, types.MAT_COLLINEARITY:
+	case types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY, types.MAT_PCA, types.MAT_COLLINEARITY, types.MAT_FACTOR:
 		return true
 	}
 	return false
@@ -322,6 +390,20 @@ type pcaParams struct {
 	On         *string         `json:"on"`
 	Components json.RawMessage `json:"components"`
 	Rotation   *string         `json:"rotation"`
+	Repair     *string         `json:"repair"`
+	missingParams
+}
+
+// factorParams is MAT_FACTOR's params object: the factor count (an
+// integer or "kaiser"), the extraction, the rotation with its kappa /
+// gamma, the repair choice and the missing-data knobs; any other key is
+// refused.
+type factorParams struct {
+	Factors    json.RawMessage `json:"factors"`
+	Extraction *string         `json:"extraction"`
+	Rotation   *string         `json:"rotation"`
+	Kappa      *float64        `json:"kappa"`
+	Gamma      *float64        `json:"gamma"`
 	Repair     *string         `json:"repair"`
 	missingParams
 }
@@ -442,6 +524,9 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 		if err := resolvePCA(at, &m); err != nil {
 			return nil, err
 		}
+		if err := resolveFactor(at, &m); err != nil {
+			return nil, err
+		}
 		out = append(out, m)
 	}
 	return out, nil
@@ -460,6 +545,8 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 	case types.MAT_PCA:
 		m.On = PCAOnCorrelation
 		m.Components = PCAComponents{Rule: PCAComponentsKaiser}
+	case types.MAT_FACTOR:
+		m.Extraction = FactorExtractionMinres
 	}
 	if empty {
 		return nil
@@ -542,6 +629,18 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if err := decodePCA(at, p, m); err != nil {
+			return err
+		}
+		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		miss = p.missingParams
+	case types.MAT_FACTOR:
+		var p factorParams
+		if err := decodeStrict(raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if err := decodeFactor(at, p, m); err != nil {
 			return err
 		}
 		if err := decodeRepair(at, p.Repair, m); err != nil {
@@ -646,6 +745,97 @@ func resolvePCA(at string, m *Matrix) *errors.CodedError {
 	if p := len(m.Members.Members); m.Components.K > p {
 		return matrixInvalid(at, "bad_params", at+" params.components "+strconv.Itoa(m.Components.K)+" exceeds the "+strconv.Itoa(p)+" members (a battery has as many components as members)",
 			map[string]any{"param": "components", "value": m.Components.K, "members": p})
+	}
+	return nil
+}
+
+// decodeFactor applies MAT_FACTOR's params: factors (a positive integer,
+// checked against p in resolveFactor, or "kaiser", the default),
+// extraction ("minres", the default, or "principal_axis"), rotation
+// ("none", the default, "varimax", "promax" or "oblimin"), kappa (promax
+// only, finite and > 1, default 4) and gamma (oblimin only, finite,
+// default 0). A kappa without promax or a gamma without oblimin is
+// refused rather than ignored. Every refusal is bad_params.
+func decodeFactor(at string, p factorParams, m *Matrix) *errors.CodedError {
+	if p.Extraction != nil {
+		switch *p.Extraction {
+		case FactorExtractionMinres, FactorExtractionPrincipalAxis:
+			m.Extraction = *p.Extraction
+		default:
+			return matrixInvalid(at, "bad_params", at+" params.extraction must be \"minres\" or \"principal_axis\"",
+				map[string]any{"param": "extraction", "value": *p.Extraction, "valid": FactorExtractions()})
+		}
+	}
+	if p.Rotation != nil {
+		switch *p.Rotation {
+		case RotationNone:
+		case RotationVarimax, RotationPromax, RotationOblimin:
+			m.Rotation = *p.Rotation
+		default:
+			return matrixInvalid(at, "bad_params", at+" params.rotation must be \"none\", \"varimax\", \"promax\" or \"oblimin\"",
+				map[string]any{"param": "rotation", "value": *p.Rotation, "valid": FactorRotations()})
+		}
+	}
+	if m.Rotation == RotationPromax {
+		m.Kappa = FactorDefaultKappa
+	}
+	if p.Kappa != nil {
+		if m.Rotation != RotationPromax {
+			return matrixInvalid(at, "bad_params", at+" params.kappa applies to rotation \"promax\" only",
+				map[string]any{"param": "kappa", "rotation": m.Rotation})
+		}
+		if k := *p.Kappa; !(k > 1) || math.IsInf(k, 0) {
+			return matrixInvalid(at, "bad_params", at+" params.kappa must be a finite number above 1",
+				map[string]any{"param": "kappa", "value": k})
+		}
+		m.Kappa = *p.Kappa
+	}
+	if p.Gamma != nil {
+		if m.Rotation != RotationOblimin {
+			return matrixInvalid(at, "bad_params", at+" params.gamma applies to rotation \"oblimin\" only",
+				map[string]any{"param": "gamma", "rotation": m.Rotation})
+		}
+		if g := *p.Gamma; math.IsNaN(g) || math.IsInf(g, 0) {
+			return matrixInvalid(at, "bad_params", at+" params.gamma must be a finite number",
+				map[string]any{"param": "gamma", "value": g})
+		}
+		m.Gamma = *p.Gamma
+	}
+	raw := bytes.TrimSpace(p.Factors)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil
+	}
+	bad := func(value any) *errors.CodedError {
+		return matrixInvalid(at, "bad_params", at+" params.factors must be a positive integer or \"kaiser\"",
+			map[string]any{"param": "factors", "value": value, "valid": []string{"a positive integer", FactorsKaiser}})
+	}
+	if raw[0] == '"' {
+		var str string
+		if err := json.Unmarshal(raw, &str); err != nil || str != FactorsKaiser {
+			return bad(string(raw))
+		}
+		return nil
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err != nil || f != math.Trunc(f) || f < 1 || f > math.MaxInt32 {
+		return bad(string(raw))
+	}
+	m.Factors = FactorCount{K: int(f)}
+	return nil
+}
+
+// resolveFactor refuses a MAT_FACTOR integer params.factors above the
+// member count (bad_params). A count the battery cannot identify
+// (FactorIdentified) is not refused here: the run reports it with
+// PULSE_MATRIX_NOT_IDENTIFIED and null fit figures, as for a Kaiser
+// count decided on the data.
+func resolveFactor(at string, m *Matrix) *errors.CodedError {
+	if m.Type != types.MAT_FACTOR || m.Factors.Kaiser() {
+		return nil
+	}
+	if p := len(m.Members.Members); m.Factors.K > p {
+		return matrixInvalid(at, "bad_params", at+" params.factors "+strconv.Itoa(m.Factors.K)+" exceeds the "+strconv.Itoa(p)+" members",
+			map[string]any{"param": "factors", "value": m.Factors.K, "members": p})
 	}
 	return nil
 }

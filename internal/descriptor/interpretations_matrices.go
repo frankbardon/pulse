@@ -14,6 +14,64 @@ var matrixInterpretations = map[string][]descriptor.Interpretation{
 	"MAT_RELIABILITY":         interpMatReliability,
 	"MAT_PCA":                 interpMatPCA,
 	"MAT_COLLINEARITY":        interpMatCollinearity,
+	"MAT_FACTOR":              interpMatFactor,
+}
+
+// interpMatFactor bands KMO by Kaiser (1974), as MAT_PCA does, and
+// leaves the loadings and the residual figures unbanded: loading and
+// residual cut-offs are rules of thumb, not verified conventions
+// (excluded in testdata/conventions.json).
+var interpMatFactor = []descriptor.Interpretation{
+	{
+		Field: "primary.values",
+		Means: "Each cell is a loading: how strongly the row's measure is tied to the column's factor. Without a rotation, or with varimax, it is the correlation between the two; under promax or oblimin it is the measure's own tie to that factor with the other factors held fixed. A factor is named by the measures with the largest loadings.",
+		Sign: map[string]string{
+			"+": "the measure rises with the factor",
+			"-": "the measure falls as the factor rises; a factor's overall sign is a convention (each column is made to sum positive)",
+		},
+		Caveats: []string{
+			"Unrotated loadings put most measures on the first factor; a rotation gives a cleaner pattern without changing how well the factors fit (the communalities).",
+			"Under an oblique rotation the factors correlate (auxiliary.factor_correlation), so loadings on correlated factors overlap.",
+			"A uniqueness at or below 0 (a Heywood case, flagged with a warning) means the fit is improper; try fewer factors or drop a near-duplicate measure.",
+		},
+	},
+	bandedBy(ConventionKaiserKMO, descriptor.Interpretation{
+		Field: "scalars.kmo",
+		Means: "The Kaiser-Meyer-Olkin measure of sampling adequacy: how much of the measures' correlation is shared across the whole set rather than tied to single pairs, from 0 to 1. Higher means a factor analysis is more worthwhile.",
+		Caveats: []string{
+			"Null when the correlation table is singular (a measure is an exact combination of others).",
+		},
+	}),
+	{
+		Field:  "scalars.bartlett_p",
+		Shared: SharedPValue,
+	},
+	{
+		Field: "scalars.bartlett_chisq",
+		Means: "Bartlett's test statistic: how far the correlation table is from one in which no measure is related to any other. Large values mean the measures are related enough to factor.",
+		Caveats: []string{
+			"With many rows it is almost always large; read KMO for how worthwhile the analysis is.",
+		},
+	},
+	{
+		Field: "scalars.rmsr",
+		Means: "The root-mean-square residual: the typical size of the correlations the factors leave unexplained, on the correlation scale. Smaller means the factors reproduce the correlations more closely.",
+		Caveats: []string{
+			"No convention bands it here; it always shrinks as factors are added, so weigh it against how readable the extra factor is.",
+		},
+	},
+	{
+		Field:  "scalars.empirical_p",
+		Shared: SharedPValue,
+	},
+	{
+		Field: "scalars.empirical_chisq",
+		Means: "The empirical chi-square: the sum of the squared leftover correlations times the inference size. It measures the residual size, on df degrees of freedom, and is not a likelihood test of the model.",
+		Caveats: []string{
+			"It rests on the inference size: the rows (listwise), the summed weight or the effective sample size under a weight, or the smallest pair under pairwise deletion.",
+			"Null p when df is 0 or below: the model then has no spare correlations to test against.",
+		},
+	},
 }
 
 // interpMatCollinearity leaves every figure unbanded: VIF's 5 / 10 and

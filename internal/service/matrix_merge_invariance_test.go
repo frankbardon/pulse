@@ -114,6 +114,17 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 			spec.Params = json.RawMessage(`{"missing": "pairwise", "components": 3, "repair": "nearest", "rotation": "varimax"}`)
 		}
 	}
+	// MAT_FACTOR fits one factor (the most three members identify):
+	// minres listwise; the pairwise variant repairs its input like the
+	// other decomposition operators and runs principal axis, so both
+	// extractions ride the gate. Each is a pure function of the merged
+	// correlation (its eigensolves gonum-backed, same-machine stable).
+	if v.matrixType() == types.MAT_FACTOR {
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "factors": 1}`)
+		if v.pairwise {
+			spec.Params = json.RawMessage(`{"missing": "pairwise", "factors": 1, "repair": "nearest", "extraction": "principal_axis"}`)
+		}
+	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
 	}
@@ -135,7 +146,8 @@ type matrixRun struct {
 	auxN     []uint64
 	pairs    []types.MatrixPair
 	pairBits []uint64
-	// relBits are MAT_RELIABILITY's / MAT_PCA's / MAT_COLLINEARITY's
+	// relBits are MAT_RELIABILITY's / MAT_PCA's / MAT_COLLINEARITY's /
+	// MAT_FACTOR's
 	// scalars and vectors (and PCA's eigenvectors, collinearity's
 	// variance decomposition), in a fixed key order.
 	relBits   []uint64
@@ -261,6 +273,21 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 				out.relBits = append(out.relBits, math.Float64bits(x))
 			}
 		}
+	} else if req.Matrices[0].Type == types.MAT_FACTOR {
+		for _, k := range []string{"rmsr", "empirical_chisq", "df", "empirical_p", "kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "iterations", "converged", "factors_retained"} {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		for k, n := range map[string]int{"communalities": 3, "uniquenesses": 3, "variance_accounted": 1} {
+			vs, ok := m.Vectors[k].([]float64)
+			if !ok || len(vs) != n {
+				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
+			}
+		}
+		for _, k := range []string{"communalities", "uniquenesses", "variance_accounted"} {
+			for _, x := range m.Vectors[k].([]float64) {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
 	} else if m.Vectors != nil {
 		t.Fatalf("%s emitted vectors %v", req.Matrices[0].Type, m.Vectors)
 	}
@@ -342,7 +369,7 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 	switch v.matrixType() {
 	case types.MAT_CORRELATION, types.MAT_RELIABILITY:
 		cov = c.Corr()
-	case types.MAT_PCA:
+	case types.MAT_PCA, types.MAT_FACTOR:
 		return nil // the loadings are an eigensolver's output: no FMA-free anchor
 	case types.MAT_COLLINEARITY:
 		if v.pairwise {
