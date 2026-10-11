@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U26]
 soft_depends_on: []
 blocks: [U29]
-todo_items: [141, 142, 143, 144, 407]
+todo_items: [141, 142, 143, 144, 407, 417]
 branch: vector-metrics-aggregates
 ---
 
@@ -35,6 +35,7 @@ The shared metric registry `linalg/metric`, vector `kind` (measure/scale/composi
 - [ ] **#143** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) `ATTR_SCALE_SCORE`
 - [ ] **#144** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option)
 - [ ] **#407** (10. Vector & matrix — operators › Follow-ups from U25) Fold `MAT_DISTANCE`'s local metric list (`euclidean`, `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis`) into the shared `linalg/metric` registry once it lands; one definition per metric
+- [ ] **#417** (10. Vector & matrix — operators › Follow-ups from U26) Reference vectors from a `LookupTable`: let expression and profile similarity compare a row's vector or set against a stored reference profile (deferred from U26)
 
 ## Scope
 
@@ -80,6 +81,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(vector-metrics-ag
 | Item | Source |
 |---|---|
 | `MAT_DISTANCE` metrics into the registry | [U25](U25-multivariate-tests-segmentation.md) #407 |
+
+## Handed on from U26
+
+| Item | Source |
+|---|---|
+| `LookupTable`-sourced reference vectors for expression / profile similarity | [U26](U26-vector-expr-functions.md) #417 |
 
 ## Human inputs & decisions
 
