@@ -419,6 +419,11 @@ func BindAttribute(computer AttributeComputer, exts *ExtensionRegistry, models *
 			return err
 		}
 	}
+	if fb, ok := computer.(fitOnBinder); ok {
+		if err := fb.bindFitOn(exts, models); err != nil {
+			return err
+		}
+	}
 	if p, ok := computer.(attributePreparer); ok {
 		return p.prepare()
 	}

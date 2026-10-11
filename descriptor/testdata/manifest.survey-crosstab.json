@@ -2142,6 +2142,7 @@
           "regressions[*].selected_features",
           "regressions[*].vcov",
           "regressions[*].correlation",
+          "regressions[*].covariance",
           "overlays"
         ]
       },
@@ -2233,4 +2234,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f74e9ca89bb9a1381a5b2a866ed0b9525a4f1e00a23611da146728773e783b05
+// golden-hash: c0a8c22a01bd6232324c2a277fd10ca99f570aaf34a128ee8d0a8ed2f346da67

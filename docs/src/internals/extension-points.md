@@ -377,6 +377,15 @@ probe verifies the claim in BOTH directions
 to `false` — so a multi-key factory is refused rather than silently
 admitted as single-key.
 
+A registered grouper is also a `MAT_DISTANCE` `params.between`, judged
+like a built-in (its `vector` / `fields` by the member rules and handed
+to the factory as literal `Fields`; a `field` must name a schema column;
+no own `weight` or `tz`). No extra hook is needed: the engine buckets
+the rows with your buffered `Group` in one whole-set pass at finalize,
+so the spec is buffered and serial whatever `Streamable` declares, its
+bucket keys alphabetical (or the `include` order). Projection reads the
+`FieldInputs` hook exactly as for a `groups` slot.
+
 Groupers and filterers are authored against `extend` too. A grouper's
 buffered `Group(rows extend.Rows, field)` returns
 `map[string][]int` — row INDICES into `rows`, which the adapter maps
@@ -1076,6 +1085,25 @@ A registration **without** `FieldInputs` widens the retained set to
 `*`, producing a full-coverage plan with no `SkipBytes` segments.
 Both shapes are correct; only the plan-driven one elides byte
 ranges.
+
+## Vector inputs (`vector` / `fields`)
+
+An extension test, attribute or grouper may read a member set from the
+slot's `vector` (a `Request.Vectors` name) or `fields` (inline names
+and globs), and a test also a second set from `vector2` / `fields2`.
+Predict and the runtime judge those member sets exactly as a
+built-in's: `vector` and `fields` together are refused
+(`reason` `vector_and_fields`, `vector2_and_fields2`), a second set
+needs a first, an undefined vector is `PULSE_VECTOR_UNKNOWN`, and an
+inline member must exist, be numeric (`PULSE_VECTOR_MEMBER_TYPE`) and
+appear once (`PULSE_VECTOR_DUPLICATE`). The factory then receives a
+copy of the spec whose `Fields` / `Fields2` are the resolved literal
+member names and whose `Vector` / `Vector2` are empty, so it never
+resolves a vector itself. Everything else is the operator's: its
+params, `field` / `field2` beside the vector, `split_by` and whether
+the two sets must match in length. A test or attribute that reads a
+vector may leave `field` empty; a grouper keeps its `field`, which
+names its key column.
 
 ## Streamability contract
 

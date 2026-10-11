@@ -240,7 +240,7 @@ const (
 // Mergeable reports whether this group type's per-key state can be
 // combined across partitions of the input. CATEGORY and RANGE (online)
 // derive their key purely from the row's value so per-shard buckets
-// merge by key-union; QUANTILE/DATE depend on the full set or a
+// merge by key-union; QUANTILE/DATE/KMEANS depend on the full set or a
 // finalize-time bucketization that the parallel reducer cannot
 // replicate piecewise. ROUNDED could be mergeable in principle but is
 // deferred — the parallel orchestrator only opts in on combinations
@@ -250,7 +250,7 @@ func (t GroupType) Mergeable() bool {
 	case GROUP_CATEGORY, GROUP_RANGE, GROUP_DATE_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
-	case GROUP_ROUNDED, GROUP_QUANTILE, GROUP_DATE:
+	case GROUP_ROUNDED, GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS:
 		return false
 	}
 	return false
@@ -262,7 +262,8 @@ func (t GroupType) Mergeable() bool {
 //   - Row-local: FORMULA, DATE_PART (and REG_PREDICT, whose model is
 //     bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
-//   - Two-pass: ZSCORE, TSCORE, NORMALIZED implement
+//   - Two-pass: ZSCORE, TSCORE, NORMALIZED (and the fitted vector
+//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE) implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
 //     records, Finalize, then per-row Row() in pass 2 (iter.Reset()).
 //   - Buffered-only: PERCENTILE needs a sorted view of every value;
@@ -279,7 +280,8 @@ func (t AttributeType) Streamable() bool {
 		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
 		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE,
 		ATTR_SET_POPCOUNT, ATTR_SET_HAS,
-		ATTR_CODE_IN, ATTR_REG_PREDICT:
+		ATTR_CODE_IN, ATTR_REG_PREDICT,
+		ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE:
 		return true
 	case ATTR_PERCENTILE:
 		return false
@@ -305,7 +307,7 @@ func (t FiltererType) Streamable() bool {
 
 // Streamable reports whether this group type can emit groups before the
 // input is exhausted. CATEGORY/ROUNDED/RANGE bucket per row;
-// QUANTILE/DATE require finalize-time work over the full set.
+// QUANTILE/DATE/KMEANS require finalize-time work over the full set.
 //
 // The streaming Process path does not currently emit grouped output even
 // for streamable groupers — Request.Streamable returns false whenever
@@ -316,7 +318,7 @@ func (t GroupType) Streamable() bool {
 	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, GROUP_DATE_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
-	case GROUP_QUANTILE, GROUP_DATE:
+	case GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS:
 		return false
 	}
 	return false
@@ -347,7 +349,7 @@ func (t GroupType) FansOut() bool {
 	case GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_CATEGORY, GROUP_DATE, GROUP_DATE_RANGES,
-		GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED,
+		GROUP_KMEANS, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED,
 		GROUP_SET_VALUE:
 		return false
 	}
@@ -386,7 +388,8 @@ func (t FeatureType) Streamable() bool {
 //     passes when their inputs overlap with an active aggregator.
 //   - Buffered-only tests (TEST_KS, TEST_TUKEY_HSD, TEST_TREND) require a
 //     sorted view, a finalized post-hoc matrix, or an ordered series and
-//     cannot stream. Predict flags requests containing these tests as
+//     cannot stream. TEST_MARDIA keeps every complete row: each one's
+//     Mahalanobis products need the fitted mean and covariance first. Predict flags requests containing these tests as
 //     non-streamable.
 //
 // Tier-2 PostTests are always buffered regardless of TestType: they
@@ -398,13 +401,14 @@ func (t TestType) Streamable() bool {
 	switch t {
 	case TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F,
 		TEST_PEARSON_R, TEST_PAIRED_T, TEST_PROP_Z,
-		TEST_ANOVA_WELCH, TEST_Z_TWO_SAMPLE:
+		TEST_ANOVA_WELCH, TEST_Z_TWO_SAMPLE, TEST_HOTELLING_T2,
+		TEST_MANOVA, TEST_BARTLETT_SPHERICITY, TEST_BOX_M:
 		return true
 	case TEST_KS, TEST_TUKEY_HSD, TEST_TREND,
 		TEST_MANN_WHITNEY_U, TEST_WILCOXON_SR,
 		TEST_KRUSKAL_WALLIS, TEST_SPEARMAN_R, TEST_KENDALL_TAU,
 		TEST_ANOVA_RM, TEST_BROWN_FORSYTHE,
-		TEST_FISHER_EXACT, TEST_SHAPIRO_WILK:
+		TEST_FISHER_EXACT, TEST_SHAPIRO_WILK, TEST_MARDIA:
 		return false
 	}
 	return false

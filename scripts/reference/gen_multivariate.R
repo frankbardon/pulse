@@ -42,6 +42,8 @@
 #   heywood         seeded draw from a one-factor-implied loading > 1
 #                   (Heywood / ultra-Heywood under minres)
 #   reversed_items  seeded Likert 1-5 battery with two reverse-keyed items
+#   two_factor      seeded two-factor battery (six items, r(F1, F2) = .3),
+#                   a proper fit under every weight kind (TODO #410)
 # The two vendored fixtures gain two SEEDED weight columns (w_freq,
 # w_prob) that are not part of the original data; the header says so.
 #
@@ -244,6 +246,28 @@ rv <- write_fixture("reversed_items", rv, "synthetic", "none (seeded)", 701,
 for (j in c("r1", "r2", "r3", "r4", "r5")) {
   if (min(rv[[j]]) != 1 || max(rv[[j]]) != 5) stop("reversed_items: ", j, " must span 1..5 so psych's observed-range reversal equals the declared 1..5")
 }
+
+# two_factor (TODO #410): a clean, well-identified two-factor battery so
+# ATTR_FACTOR_SCORE's weighted Bartlett scores are pinned on real values —
+# the other weighted factor-score fixtures are mostly Heywood cases,
+# whose Bartlett scores are null. Six items, two correlated factors
+# (r = .3), simple structure with two small cross-loadings, uniqueness
+# .3-.5 by construction; gen_fitted_attributes.R asserts every fit's
+# uniquenesses stay >= 0.2 under every weight kind and extraction. The
+# global RNG state is restored afterwards so no later draw moves.
+tf_rng <- get(".Random.seed", envir = globalenv())
+set.seed(801)
+tf_n <- 80
+tf_f <- matrix(rnorm(tf_n * 2), tf_n) %*% chol(matrix(c(1, .3, .3, 1), 2))
+tf_L <- rbind(c(.75, 0), c(.7, 0), c(.65, .1), c(0, .75), c(.1, .7), c(0, .65))
+tf <- as.data.frame(round(tf_f %*% t(tf_L) + matrix(rnorm(tf_n * 6), tf_n) %*% diag(sqrt(1 - rowSums(tf_L^2) - 0.06)), 6))
+names(tf) <- paste0("v", 1:6)
+w <- seeded_weights(tf_n, 802)
+tf$w_freq <- w$w_freq; tf$w_prob <- w$w_prob
+tf <- write_fixture("two_factor", tf, "synthetic", "none (seeded)", 801,
+  "six continuous items on two correlated factors (r = .3; v1-v3 on F1, v4-v6 on F2, two .1 cross-loadings): a proper two-factor fit under every weight kind, for weighted Bartlett factor scores.")
+assign(".Random.seed", tf_rng, envir = globalenv())
+rm(tf_rng, tf_f, tf_L, tf_n)
 
 fixture_doc <- c(mv_meta("fixtures", "datasets::attitude, datasets::mtcars, set.seed() draws",
   "Every fixture the multivariate goldens reference. csv_md5 pins the committed CSV; the .pulse twin is written from it by internal/tools/refcohorts."),
@@ -818,3 +842,51 @@ write_golden("mv_pca", pca_doc)
 write_golden("mv_collinearity", col_doc)
 write_golden("mv_vcov", vc_doc)
 write_golden("mv_near_pd", npd_doc)
+
+# The multivariate TEST goldens (mv_hotelling.json, …) reuse the
+# fixtures and weight utilities above; their pins live in that script.
+source(file.path(script_dir, "gen_multivariate_tests.R"), local = FALSE)
+
+# The rotation golden (mv_rotation.json: varimax, promax, oblimin over
+# PCA loadings of the same fixtures); its GPArotation pin lives there.
+source(file.path(script_dir, "gen_rotation.R"), local = FALSE)
+
+# The factor-analysis golden (mv_factor.json: MAT_FACTOR minres and
+# principal-axis extraction, then the rotation engine's criteria); it
+# reuses gen_rotation.R's rot_canon and GPArotation pin.
+source(file.path(script_dir, "gen_factor.R"), local = FALSE)
+
+# The fitted-attribute goldens (mv_mahalanobis.json: ATTR_MAHALANOBIS D²
+# and its chi-square tail; mv_pc_score.json: ATTR_PC_SCORE standardized
+# component scores, unrotated and varimax — every row scored off a fit
+# over the listwise, positive-weight, fit_on rows).
+source(file.path(script_dir, "gen_fitted_attributes.R"), local = FALSE)
+
+# The k-means golden (mv_kmeans.json: GROUP_KMEANS against
+# stats::kmeans from fixed starts on separable seeded blobs, and the
+# best-of-starts within-SS on attitude). Base R only.
+source(file.path(script_dir, "gen_kmeans.R"), local = FALSE)
+
+# The centroid-distance golden (mv_distance.json: MAT_DISTANCE's
+# centroids and every metric against stats::dist / stats::mahalanobis,
+# unweighted and both weight kinds, plus gen_kmeans.R's blobs3
+# partition). Base R only.
+source(file.path(script_dir, "gen_distance.R"), local = FALSE)
+
+# The robust regression covariance golden (mv_robust_vcov.json: REG_OLS
+# covariance hc0-hc3 / cluster / hac against sandwich + lmtest over
+# seeded rows written into the golden); its sandwich / lmtest pins live
+# there.
+source(file.path(script_dir, "gen_robust_vcov.R"), local = FALSE)
+
+# The robust GLM / Bayes linear covariance golden (mv_robust_vcov_glm.json:
+# REG_GLM binomial / poisson against sandwich on glm, REG_BAYES_LINEAR's
+# Muller sandwich posterior in closed form); reuses gen_robust_vcov.R's
+# helpers and pins, so it is sourced after it.
+source(file.path(script_dir, "gen_robust_vcov_glm.R"), local = FALSE)
+
+# The singular-decision golden (mv_singularity.json: the one
+# rank-tolerance rule against Matrix::rankMatrix and base::chol on a
+# borderline near-singular draw, a full-rank control and an exact
+# dependency; TODO #408). Matrix + base R only.
+source(file.path(script_dir, "gen_singularity.R"), local = FALSE)

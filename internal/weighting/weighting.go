@@ -121,6 +121,13 @@ var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_REG_FITTED:   ClassAware,
 	types.ATTR_REG_RESIDUAL: ClassAware,
 	types.ATTR_REG_LEVERAGE: ClassAware,
+
+	// The fitted vector attributes fold one weighted co-moment for the
+	// fit and read N* and M2* = c·M2 on w* (TEST_HOTELLING_T2's rule);
+	// the weight shapes the fit only, every row is scored.
+	types.ATTR_MAHALANOBIS:  ClassAware,
+	types.ATTR_PC_SCORE:     ClassAware,
+	types.ATTR_FACTOR_SCORE: ClassAware,
 }
 
 // testClasses are the built-in tests whose weighted computation exists
@@ -152,6 +159,17 @@ var testClasses = map[types.TestType]Class{
 	types.TEST_PEARSON_R:    ClassAware,
 	types.TEST_PROP_Z:       ClassAware,
 	types.TEST_CHISQ:        ClassAware,
+	// TEST_HOTELLING_T2 folds one weighted co-moment per level and
+	// reads N* and M2* = c·M2 on w* (the frequency formula on w*).
+	types.TEST_HOTELLING_T2: ClassAware,
+	// TEST_MANOVA: the same per-level co-moments; E = Σ M2*_g, H from
+	// the N*_g-weighted level means (TEST_ANOVA_F's per-level c_g).
+	types.TEST_MANOVA: ClassAware,
+	// TEST_BARTLETT_SPHERICITY: one weighted co-moment (the matrix
+	// slot's block fold) at N* = Σw or Kish n_eff — MAT_PCA's Bartlett.
+	types.TEST_BARTLETT_SPHERICITY: ClassAware,
+	// TEST_BOX_M: per-level co-moments on w*, ν_g = N*_g − 1.
+	types.TEST_BOX_M: ClassAware,
 
 	types.TEST_MANN_WHITNEY_U: ClassFrequencyOnly,
 	types.TEST_WILCOXON_SR:    ClassFrequencyOnly,
@@ -161,6 +179,10 @@ var testClasses = map[types.TestType]Class{
 	types.TEST_FISHER_EXACT:   ClassFrequencyOnly,
 	types.TEST_KS:             ClassFrequencyOnly,
 	types.TEST_BROWN_FORSYTHE: ClassFrequencyOnly,
+	// TEST_MARDIA: N = Σw, Σw-weighted x̄ and ML covariance, b1p / b2p
+	// over w_i·w_j / w_i — the unweighted test on the expanded rows. Its
+	// asymptotics are iid-sample results with no design-based form.
+	types.TEST_MARDIA: ClassFrequencyOnly,
 }
 
 // regressionClasses are the built-in regressions whose weighted fit
@@ -213,6 +235,29 @@ var matrixClasses = map[types.MatrixType]Class{
 	// to unit diagonal (uncentered Belsley): scale-free ratios, so the
 	// two kinds agree.
 	types.MAT_COLLINEARITY: ClassAware,
+	// MAT_FACTOR factors the weighted correlation (scale-free, so the
+	// kinds agree); Bartlett's test and the empirical chi-square read
+	// N* = Σw (frequency) or Kish n_eff (probability), as MAT_PCA.
+	types.MAT_FACTOR: ClassAware,
+	// MAT_DISTANCE compares weighted centroids (weighted means, kind
+	// free); standardize divides by the w* spread and mahalanobis reads
+	// the w*-pooled within-bucket covariance (N* = Σw frequency, Kish
+	// n_eff probability), the one weighted-inference rule. A
+	// GROUP_KMEANS between makes the spec frequency-only
+	// (DistanceClassOf).
+	types.MAT_DISTANCE: ClassAware,
+}
+
+// DistanceClassOf is a MAT_DISTANCE spec's weight class given its
+// params.between grouper type: GROUP_KMEANS reads the weight as w
+// coincident points (frequency only, as the grouper itself), so the
+// spec is ClassFrequencyOnly; any other between leaves MAT_DISTANCE's
+// own class.
+func DistanceClassOf(between types.GroupType) Class {
+	if between == types.GROUP_KMEANS {
+		return ClassFrequencyOnly
+	}
+	return ClassOf(string(types.MAT_DISTANCE))
 }
 
 // MatrixClassOf is a matrix spec's weight class: its type's
@@ -277,6 +322,11 @@ var operatorClasses = func() map[string]Class {
 	// (Hmisc wtd.quantile; probability weights rescaled to the row
 	// count, normwt = TRUE) under both kinds (U12 E5-S2).
 	m[string(types.GROUP_QUANTILE)] = ClassAware
+	// GROUP_KMEANS clusters the frequency-expanded rows (a row of
+	// weight w is w coincident points: weighted centroids, mass-weighted
+	// k-means++ draws and within-SS); a probability weight is refused
+	// permanently (kindRefusalReasons).
+	m[string(types.GROUP_KMEANS)] = ClassFrequencyOnly
 	for _, w := range types.AllWindowTypes() {
 		m[string(w)] = ClassNotWeightable
 	}
@@ -314,6 +364,18 @@ func KindsOfClass(c Class) []types.WeightKind {
 	}
 	return nil
 }
+
+// kindRefusalReasons are the PERMANENT probability-weight refusals of
+// frequency-only operators that state why (the reason rides the
+// PULSE_WEIGHT_UNSUPPORTED refusal's message and details.reason). Every
+// key must be ClassFrequencyOnly (TestKindRefusalReasons_AreFrequencyOnly).
+var kindRefusalReasons = map[string]string{
+	string(types.GROUP_KMEANS): "k-means has no probability-weighted form: a sampling weight does not make a row several coincident points, and no reference implementation defines design-weighted clusters",
+}
+
+// KindRefusalReason returns why the named frequency-only built-in
+// refuses a probability weight permanently, "" when it states none.
+func KindRefusalReason(op string) string { return kindRefusalReasons[op] }
 
 // RefusalReason returns why the named built-in operator is refused
 // permanently under a weight, "" when it is not (a pending ClassRefuse

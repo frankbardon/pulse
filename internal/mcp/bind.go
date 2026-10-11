@@ -763,12 +763,16 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	}
 	itemProps("filterers")["params"] = map[string]any{"description": "Operator-specific configuration (e.g. FILTER_DATE_RANGES' inline `ranges`)."}
 	itemProps("groups")["include"] = groupIncludeSchema()
+	itemProps("groups")["vector"] = groupVectorSchema()
+	itemProps("groups")["fields"] = groupFieldsSchema()
 	attr := itemProps("attributes")
 	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE).")
 	attr["predictors"] = map[string]any{"type": "array", "description": "Independent variables for the regression attributes; at least one.", "items": enumStringField(c.Numeric, "")}
 	attr["penalty"] = enumStringField([]string{"l1", "l2", "elasticnet"}, "Regression-attribute OLS penalty; omit for none. ATTR_REG_LEVERAGE refuses one.")
 	attr["alpha"] = map[string]any{"type": "number", "description": "Penalty strength (> 0) when penalty is set."}
 	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
+	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE): the Request.Vectors entry whose members are the attribute's columns; exactly one of vector / fields."}
+	attr["fields"] = map[string]any{"type": "array", "description": "Vector-input attributes: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	itemProps("windows")["frame"] = frameSchema()
 	if inst.Enabled(descx.FeatureForEach) {
 		for _, slot := range []string{"features", "attributes", "windows"} {
@@ -789,6 +793,8 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 				np[k] = v
 			}
 			np["include"] = groupIncludeSchema()
+			np["vector"] = groupVectorSchema()
+			np["fields"] = groupFieldsSchema()
 			np["tz"] = slotZone
 			nItems := make(map[string]any, len(items))
 			for k, v := range items {
@@ -806,6 +812,16 @@ func zoneSchema(description string) map[string]any {
 }
 
 // groupIncludeSchema is Group.include: the bucket allowlist.
+// groupVectorSchema / groupFieldsSchema declare a grouper slot's
+// vector input (GROUP_KMEANS), on groups and both crosstab axes.
+func groupVectorSchema() map[string]any {
+	return map[string]any{"type": "string", "description": "Vector-input groupers (GROUP_KMEANS): the Request.Vectors entry whose members are clustered; exactly one of vector / fields, and no field."}
+}
+
+func groupFieldsSchema() map[string]any {
+	return map[string]any{"type": "array", "description": "Vector-input groupers (GROUP_KMEANS): inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
+}
+
 func groupIncludeSchema() map[string]any {
 	return map[string]any{
 		"type":        "array",
@@ -900,7 +916,22 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"selection":       enumStringField([]string{"forward", "backward", "stepwise"}, "Subset selection; omit for none."),
 				"criterion":       enumStringField([]string{"aic", "bic"}, "Information criterion; required with selection."),
 				"vcov":            map[string]any{"type": "boolean", "description": "Also emit the coefficient covariance (vcov) and its correlation matrix; replicate covariance under resample, the final refit's under selection; refused on l1 / elasticnet."},
-				"weight":          slotWeightSchema(c),
+				"covariance": map[string]any{
+					"type":        "object",
+					"description": "REG_OLS / REG_GLM / REG_BAYES_LINEAR standard-error estimator; omit for classical. Drives std_errors, p_values, ci_lower / ci_upper and vcov (Bayes: Muller sandwich posterior replaces the posterior covariance). Robust types run buffered; refused beside penalty, resample or selection.",
+					"properties": map[string]any{
+						"type":     enumStringField(stringSlice(types.AllCovarianceTypes()), "classical, hc0-hc3 (heteroskedasticity-robust), cluster (CR1; REG_OLS df = clusters - 1), hac (Newey-West)."),
+						"cluster":  map[string]any{"type": "string", "description": "type cluster: categorical or unsigned-integer field whose levels are the clusters (at least 2)."},
+						"order_by": map[string]any{"type": "string", "description": "type hac: date, datetime or numeric field ordering the series, unique per row."},
+						"lags": map[string]any{
+							"description": "type hac: truncation lag, a non-negative integer or \"auto\" (default) = floor(4*(n/100)^(2/9)).",
+							"oneOf":       []any{map[string]any{"type": "integer", "minimum": 0}, map[string]any{"const": "auto"}},
+						},
+					},
+					"required":             []string{"type"},
+					"additionalProperties": false,
+				},
+				"weight": slotWeightSchema(c),
 			},
 			"required":             []string{"type", "target"},
 			"additionalProperties": true,
@@ -1441,6 +1472,10 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 				"rows":          enumStringField(c.AllFields, "Row-axis categorical field for TEST_CHISQ."),
 				"cols":          enumStringField(c.AllFields, "Column-axis categorical field for TEST_CHISQ."),
 				"subject_field": enumStringField(c.AllFields, "Within-subject grouping for TEST_ANOVA_RM."),
+				"vector":        map[string]any{"type": "string", "description": "Vector-input tests (TEST_HOTELLING_T2, TEST_MANOVA, TEST_BOX_M, TEST_BARTLETT_SPHERICITY, TEST_MARDIA): the Request.Vectors entry whose members are the test's columns; exactly one of vector / fields."},
+				"fields":        map[string]any{"type": "array", "description": "Vector-input tests: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}},
+				"vector2":       map[string]any{"type": "string", "description": "Paired vector-input tests: the second member set's Request.Vectors entry (same member count)."},
+				"fields2":       map[string]any{"type": "array", "description": "Paired vector-input tests: the second member set inline.", "items": map[string]any{"type": "string"}},
 				"alpha":         map[string]any{"type": "number"},
 				"label":         map[string]any{"type": "string"},
 				"order_by":      map[string]any{"type": "array", "items": orderKeySchema(c.NumericOrDate)},

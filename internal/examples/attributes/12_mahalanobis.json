@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Per-row Mahalanobis distance across age and income on customers.pulse via ATTR_MAHALANOBIS: D² from a cohort-wide fit (its mean over the rows is about p = 2), and its chi-square upper tail (output p) from a fit restricted by fit_on to the north and south regions — every filtered row is still scored, so east and west customers are measured against the north/south profile. The minimum p flags the most unusual age-income combination.",
+    "intents": [
+      "data_quality"
+    ],
+    "name": "attr_mahalanobis",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_MAX",
+      "AGG_MIN",
+      "ATTR_MAHALANOBIS",
+      "FILTER_INCLUDE"
+    ],
+    "tags": [
+      "outlier-detection",
+      "multivariate",
+      "streaming-friendly"
+    ]
+  },
+  "attributes": [
+    {
+      "type": "ATTR_MAHALANOBIS",
+      "label": "d2",
+      "fields": ["age", "income"]
+    },
+    {
+      "type": "ATTR_MAHALANOBIS",
+      "label": "p_outlier",
+      "fields": ["age", "income"],
+      "params": {
+        "output": "p",
+        "fit_on": [{"type": "FILTER_INCLUDE", "field": "region", "values": ["north", "south"]}]
+      }
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "d2",
+      "label": "mean_d2"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "d2",
+      "label": "max_d2"
+    },
+    {
+      "type": "AGG_MIN",
+      "field": "p_outlier",
+      "label": "min_p"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+}

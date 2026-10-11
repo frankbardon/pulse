@@ -152,6 +152,15 @@
         "field": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "l1_ratio": {
           "type": "number"
         },
@@ -180,6 +189,9 @@
           "$ref": "#/$defs/AttributeType"
         },
         "tz": {
+          "type": "string"
+        },
+        "vector": {
           "type": "string"
         }
       },
@@ -235,6 +247,30 @@
         "filename"
       ],
       "type": "object"
+    },
+    "CovarianceLags": {
+      "description": "Newey-West truncation lag (covariance type hac): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows.",
+      "oneOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "const": "auto"
+        }
+      ]
+    },
+    "CovarianceType": {
+      "enum": [
+        "classical",
+        "cluster",
+        "hac",
+        "hc0",
+        "hc1",
+        "hc2",
+        "hc3"
+      ],
+      "type": "string"
     },
     "CrosstabComponents": {
       "additionalProperties": false,
@@ -556,6 +592,15 @@
         "field": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "include": {
           "items": {
             "type": "string"
@@ -575,6 +620,9 @@
           "$ref": "#/$defs/GroupType"
         },
         "tz": {
+          "type": "string"
+        },
+        "vector": {
           "type": "string"
         }
       },
@@ -1176,6 +1224,51 @@
       "properties": {},
       "type": "object"
     },
+    "RegressionCovariance": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "lags": {
+          "$ref": "#/$defs/CovarianceLags"
+        },
+        "order_by": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/CovarianceType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "RegressionCovarianceResult": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "clusters": {
+          "type": "integer"
+        },
+        "lags": {
+          "type": "integer"
+        },
+        "order_by": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/CovarianceType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -1229,6 +1322,9 @@
         },
         "correlation": {
           "$ref": "#/$defs/MatrixValues"
+        },
+        "covariance": {
+          "$ref": "#/$defs/RegressionCovarianceResult"
         },
         "credible_intervals": {
           "additionalProperties": {
@@ -1376,6 +1472,9 @@
         },
         "conf_level": {
           "type": "number"
+        },
+        "covariance": {
+          "$ref": "#/$defs/RegressionCovariance"
         },
         "credible_level": {
           "type": "number"
@@ -1891,6 +1990,24 @@
         "field2": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "fields2": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -1917,6 +2034,12 @@
         },
         "type": {
           "$ref": "#/$defs/TestType"
+        },
+        "vector": {
+          "type": "string"
+        },
+        "vector2": {
+          "type": "string"
         }
       },
       "required": [
@@ -2057,4 +2180,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 44660161c050c63ea45c4d58a15f02651a7b07fc5d1a08ef551149bebcf7ebba
+// golden-hash: 5e95f432bd1be735c1a19837a47d5a95a4c0e2b5d3a19c4038e34a4d3dc71c6a

@@ -47,13 +47,11 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // records is the cohort's record count (-1 when unknown): a buffered
 // spec's RowBufferBytes is records × vectors.Matrix.RowBytes, added to
 // EstimatedBytes.
-func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, blocks, records int64) {
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, records int64) {
 	if req == nil || len(req.Matrices) == 0 {
 		return
 	}
-	plans, err := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
-		return isBuiltinMatrixType(opRoute(inst, t))
-	})
+	plans, err := resolveMatricesFor(req, schema, snap, inst)
 	if err != nil {
 		return
 	}
@@ -83,6 +81,26 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			// upper bound [p, p].
 			mp.Shape[1] = m.Components.K
 		}
+		if m.Type == types.MAT_FACTOR && !m.Factors.Kaiser() {
+			// The p × k loadings of an integer params.factors; the
+			// Kaiser rule keeps the [p, p] bound.
+			mp.Shape[1] = m.Factors.K
+		}
+		side := int64(p)
+		if m.Type == types.MAT_DISTANCE {
+			// The k × k bucket distances: the bucket labels are the
+			// data's, so no axis key is known before the run; k is the
+			// between grouper's bucket bound when the schema fixes it
+			// (EstimateBuckets), else 0.
+			side = 0
+			if k, _, ok := vectors.EstimateBuckets([]*types.Group{m.Between}, schema); ok {
+				side = k
+			}
+			mp.Shape = [2]int{int(side), int(side)}
+			mp.AxisKeys = []string{}
+			axisLabels = nil
+			m.ExplicitLabels = false
+		}
 		var rowBytes int64
 		if m.RowBytes() > 0 && records >= 0 {
 			rowBytes = limits.MatrixRowBufferBytes(records, m.RowBytes())
@@ -91,10 +109,10 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 		}
 		if known {
 			b := buckets
-			cells := b * int64(p) * int64(p)
+			cells := b * side * side
 			mp.EstimatedBuckets, mp.EstimatedCells = &b, &cells
 			if blocks >= 0 {
-				bytes := limits.MatrixStateBytes(blocks, b, m.AccumulatorBytes())
+				bytes := limits.MatrixStateBytes(blocks, b, m.AccumulatorBytes()*m.StateCount(schema))
 				if bytes > math.MaxInt64-rowBytes {
 					bytes = math.MaxInt64
 				} else {

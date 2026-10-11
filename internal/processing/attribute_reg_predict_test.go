@@ -122,7 +122,7 @@ func TestRegPredict_EqualsRegFittedBitForBit(t *testing.T) {
 				{Type: types.ATTR_REG_FITTED, Label: "f", Target: "y", Predictors: fitted,
 					Penalty: spec.Penalty, Alpha: spec.Alpha, L1Ratio: spec.L1Ratio},
 			}
-			if err := p.applyAttributes(attrs, recs); err != nil {
+			if _, err := p.applyAttributes(attrs, recs); err != nil {
 				t.Fatal(err)
 			}
 			compared := 0

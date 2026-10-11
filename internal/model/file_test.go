@@ -169,7 +169,7 @@ func TestModelFile_RoundTripBitExact(t *testing.T) {
 	sameFloatMap(t, "ci_lower", r.CILower, res.CILower)
 	sameFloatMap(t, "ci_upper", r.CIUpper, res.CIUpper)
 	sameFloats(t, "scalars", []float64{r.DF, r.ConfLevel, r.SumWeights, r.NEff}, []float64{res.DF, res.ConfLevel, res.SumWeights, res.NEff})
-	if r.NObs != res.NObs || got.Provenance != prov || got.ModelFormatVersion != FileFormatVersion {
+	if r.NObs != res.NObs || got.Provenance != prov || got.ModelFormatVersion != 1 || r.Covariance != nil {
 		t.Errorf("n_obs / provenance / version: %d %+v %d", r.NObs, got.Provenance, got.ModelFormatVersion)
 	}
 	for i := range res.Vcov.Values {
@@ -203,6 +203,67 @@ func TestModelFile_RoundTripBitExact(t *testing.T) {
 	// Not a scoring figure: p-values and R² are not saved.
 	if strings.Contains(string(data), "p_values") || strings.Contains(string(data), "r2") {
 		t.Errorf("file carries non-scoring figures:\n%s", data)
+	}
+}
+
+// TestModelFile_RobustCovarianceRoundTrip: a fit whose standard errors
+// came from a robust covariance (RegressionSpec.Covariance) saves the
+// estimator that produced them — type, cluster field and level count,
+// order_by field and resolved lag — as model_format_version 2, and
+// reads it back on the Result and the Bound with every figure
+// bit-identical; a classical fit stays version 1 with no covariance key.
+func TestModelFile_RobustCovarianceRoundTrip(t *testing.T) {
+	lags := 3
+	echoes := []*types.RegressionCovarianceResult{
+		{Type: types.CovarianceHC3},
+		{Type: types.CovarianceCluster, Cluster: "region", Clusters: 8},
+		{Type: types.CovarianceHAC, OrderBy: "week", Lags: &lags},
+	}
+	for _, typ := range []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR} {
+		for _, echo := range echoes {
+			t.Run(string(typ)+"/"+string(echo.Type), func(t *testing.T) {
+				spec, res := fullFit()
+				spec.Type, res.Type = typ, typ
+				res.Covariance = echo
+				f, err := NewFile("m", spec, res, Provenance{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, data := roundTrip(t, f)
+				if got.ModelFormatVersion != 2 || !strings.Contains(string(data), `"model_format_version": 2`) {
+					t.Fatalf("version %d, want 2:\n%s", got.ModelFormatVersion, data)
+				}
+				r := got.Result()
+				if !reflect.DeepEqual(r.Covariance, echo) {
+					t.Fatalf("covariance read back %+v, want %+v", r.Covariance, echo)
+				}
+				if echo.Lags != nil && r.Covariance.Lags == echo.Lags {
+					t.Error("the read-back lag aliases the saved result's")
+				}
+				sameFloatMap(t, "std_errors", r.StdErrors, res.StdErrors)
+				sameFloatMap(t, "ci_lower", r.CILower, res.CILower)
+				for i := range res.Vcov.Values {
+					sameFloats(t, "vcov", r.Vcov.Values[i], res.Vcov.Values[i])
+				}
+				loaded, err := got.Bind("m")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(loaded.Result.Covariance, echo) {
+					t.Errorf("bound result covariance %+v, want %+v", loaded.Result.Covariance, echo)
+				}
+				re, _ := got.Encode()
+				if !bytes.Equal(data, re) {
+					t.Fatalf("re-encode differs:\n%s\n%s", data, re)
+				}
+			})
+		}
+	}
+	spec, res := fullFit()
+	f, _ := NewFile("m", spec, res, Provenance{})
+	data, _ := f.Encode()
+	if !strings.Contains(string(data), `"model_format_version": 1`) || strings.Contains(string(data), `"covariance":`) {
+		t.Fatalf("a classical fit must stay version 1 without a covariance key:\n%s", data)
 	}
 }
 
@@ -311,7 +372,21 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		{"no version", edit(func(m map[string]any) { delete(m, "model_format_version") }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"null version", edit(func(m map[string]any) { m["model_format_version"] = nil }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"string version", edit(func(m map[string]any) { m["model_format_version"] = "1" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 2 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 3 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"v2 without covariance", edit(func(m map[string]any) { m["model_format_version"] = 2 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v1 with covariance", edit(func(m map[string]any) { m["covariance"] = map[string]any{"type": "hc3"} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"classical covariance", edit(func(m map[string]any) {
+			m["model_format_version"] = 2
+			m["covariance"] = map[string]any{"type": "classical"}
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"unknown covariance type", edit(func(m map[string]any) {
+			m["model_format_version"] = 2
+			m["covariance"] = map[string]any{"type": "hc9"}
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"unknown covariance key", edit(func(m map[string]any) {
+			m["model_format_version"] = 2
+			m["covariance"] = map[string]any{"type": "hc3", "kernel": "bartlett"}
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"zero version", edit(func(m map[string]any) { m["model_format_version"] = 0 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
 		{"unknown key", edit(func(m map[string]any) { m["coefficient"] = 1 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"bad float string", edit(func(m map[string]any) { m["df"] = "NaN" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
@@ -343,7 +418,7 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		t.Fatalf("the unedited file must decode: %v", err)
 	}
 	_, err := DecodeFile("p", []byte(edit(func(m map[string]any) { m["model_format_version"] = 7 })))
-	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{FileFormatVersion}) || ce.Details["version"] != 7 {
+	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1, 2}) || ce.Details["version"] != 7 {
 		t.Fatalf("version details = %v", ce.Details)
 	}
 }

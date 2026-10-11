@@ -59,6 +59,10 @@ type matrixSlot struct {
 	// compute is the run's plan: which result sub-parts and whether
 	// the Components entry finalize renders (result).
 	compute ComputePlan
+	// dist is a MAT_DISTANCE slot's between-grouper state (one
+	// co-moment set per bucket); nil on every other type. Its base
+	// state (state) then folds every BUCKETED row once.
+	dist *distanceState
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
@@ -91,6 +95,9 @@ type matrixPlanSet struct {
 	plans   []vectors.Matrix
 	weights []*types.WeightSpec
 	compute ComputePlan
+	// schema and exts build a MAT_DISTANCE slot's between grouper.
+	schema *encoding.Schema
+	exts   *ExtensionRegistry
 }
 
 // resolveMatrixPlans resolves req.Matrices against schema (nil when
@@ -107,13 +114,23 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	// Every built-in type the instance offers resolves, streamable or
 	// not: a buffered spec (vectors.Matrix.Streamable false) gets a row
 	// buffer, never an unknown_type refusal.
-	plans, verr := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
+	plans, verr := vectors.ResolveMatricesRouted(req, schema, func(t types.MatrixType) bool {
 		return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
+	}, func(t types.GroupType) types.GroupType {
+		if exts.isHidden(string(t)) {
+			return ""
+		}
+		return t
+	}, func(name string) bool {
+		// A registered extension grouper is a MAT_DISTANCE between like
+		// a built-in (ResolveGroups' ext).
+		_, ok := exts.LookupGrouper(types.GroupType(name))
+		return ok
 	})
 	if verr != nil {
 		return nil, verr
 	}
-	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans)), compute: compute}
+	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans)), compute: compute, schema: schema, exts: exts}
 	for i := range plans {
 		set.weights[i] = req.Matrices[i].Weight.Spec()
 	}
@@ -142,7 +159,14 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			x:       make([]float64, len(cols)),
 			compute: s.compute,
 		}
-		if !plan.Streamable {
+		switch {
+		case plan.Type == types.MAT_DISTANCE:
+			// The between grouper keys (or keeps) the rows; the slot
+			// keeps no member-row buffer of its own.
+			if slots[i].dist, err = newDistanceState(plan, s.weights[i], s.schema, s.exts); err != nil {
+				return nil, err
+			}
+		case !plan.Streamable:
 			slots[i].rows = newMatrixRows(len(cols), plan.Pairwise)
 		}
 		workMatrixAccumulators.Add(1)
@@ -158,6 +182,23 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 // and skips the row. A weight of 0 is valid: the row counts toward n
 // and adds no mass. The field argument is ignored (BlockMerger shape).
 func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
+	if m.dist != nil {
+		return m.dist.update(m, r)
+	}
+	w, err := m.readRow(r)
+	if err != nil {
+		return err
+	}
+	if m.rows != nil {
+		m.rows.add(m.x, w)
+	}
+	return m.state.Add(r, m.x, w)
+}
+
+// readRow reads r's members into m.x (a null member NaN; MAT_RELIABILITY
+// scored and keyed), counts the row dropped / all-null, and returns its
+// weight: 1 unweighted, NaN when the row weight is invalid.
+func (m *matrixSlot) readRow(r *Record) (float64, error) {
 	null, all := false, true
 	for i, f := range m.cols {
 		v, ok := r.NumericValue(f)
@@ -171,7 +212,7 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 	}
 	if m.plan.HasScale {
 		if err := m.scoreReliability(); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	if null && !m.plan.Pairwise {
@@ -188,10 +229,7 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 		}
 		w = wv
 	}
-	if m.rows != nil {
-		m.rows.add(m.x, w)
-	}
-	return m.state.Add(r, m.x, w)
+	return w, nil
 }
 
 // scoreReliability applies MAT_RELIABILITY's declared scale range to
@@ -232,6 +270,11 @@ func (m *matrixSlot) BlockMoments() *BlockCoMoments { return m.state }
 // Response.Components.Matrices entry under Matrices (nil otherwise).
 // A skipped sub-part is never built: absent on the wire, zero in Go.
 func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, error) {
+	if m.dist != nil {
+		if err := m.dist.prepare(m); err != nil {
+			return types.MatrixResult{}, nil, err
+		}
+	}
 	cm, err := m.state.Tree()
 	if err != nil {
 		return types.MatrixResult{}, nil, err
@@ -349,6 +392,9 @@ func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
 	if m.plan.Type == types.MAT_COVARIANCE {
 		c.Operator = map[string]any{"ddof": m.plan.DDOF}
 	}
+	if m.dist != nil {
+		m.distanceComponents(c)
+	}
 	return c
 }
 
@@ -362,6 +408,8 @@ var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
 	types.MAT_RELIABILITY:         finalizeReliability,
 	types.MAT_PCA:                 finalizePCA,
 	types.MAT_COLLINEARITY:        finalizeCollinearity,
+	types.MAT_FACTOR:              finalizeFactor,
+	types.MAT_DISTANCE:            finalizeDistance,
 }
 
 // finalizeCovariance is MAT_COVARIANCE: M2 / (W − ddof), NaN where

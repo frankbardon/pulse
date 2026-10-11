@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -43,25 +44,30 @@ type PostTestFactory func(spec *types.Test, schema *encoding.Schema) (PostTest, 
 // Only tier-1-capable tests appear here. A type missing from this registry
 // either has no tier-1 implementation yet or is exclusively tier 2.
 var rowTestRegistry = map[types.TestType]RowTestFactory{
-	types.TEST_T:              newTTestRow,
-	types.TEST_WELCH:          newTTestRow,
-	types.TEST_CHISQ:          newChiSqRow,
-	types.TEST_ANOVA_F:        newAnovaRow,
-	types.TEST_KS:             newKSRow,
-	types.TEST_PAIRED_T:       newPairedTRow,
-	types.TEST_PROP_Z:         newPropZRow,
-	types.TEST_PEARSON_R:      newPearsonRRow,
-	types.TEST_MANN_WHITNEY_U: newMannWhitneyRow,
-	types.TEST_WILCOXON_SR:    newWilcoxonSRRow,
-	types.TEST_KRUSKAL_WALLIS: newKruskalWallisRow,
-	types.TEST_SPEARMAN_R:     newSpearmanRRow,
-	types.TEST_KENDALL_TAU:    newKendallTauRow,
-	types.TEST_ANOVA_WELCH:    newAnovaWelchRow,
-	types.TEST_ANOVA_RM:       newAnovaRMRow,
-	types.TEST_BROWN_FORSYTHE: newBrownForsytheRow,
-	types.TEST_FISHER_EXACT:   newFisherExactRow,
-	types.TEST_SHAPIRO_WILK:   newShapiroWilkRow,
-	types.TEST_Z_TWO_SAMPLE:   newZTestRow,
+	types.TEST_T:                   newTTestRow,
+	types.TEST_WELCH:               newTTestRow,
+	types.TEST_CHISQ:               newChiSqRow,
+	types.TEST_ANOVA_F:             newAnovaRow,
+	types.TEST_KS:                  newKSRow,
+	types.TEST_PAIRED_T:            newPairedTRow,
+	types.TEST_PROP_Z:              newPropZRow,
+	types.TEST_PEARSON_R:           newPearsonRRow,
+	types.TEST_MANN_WHITNEY_U:      newMannWhitneyRow,
+	types.TEST_WILCOXON_SR:         newWilcoxonSRRow,
+	types.TEST_KRUSKAL_WALLIS:      newKruskalWallisRow,
+	types.TEST_SPEARMAN_R:          newSpearmanRRow,
+	types.TEST_KENDALL_TAU:         newKendallTauRow,
+	types.TEST_ANOVA_WELCH:         newAnovaWelchRow,
+	types.TEST_ANOVA_RM:            newAnovaRMRow,
+	types.TEST_BROWN_FORSYTHE:      newBrownForsytheRow,
+	types.TEST_FISHER_EXACT:        newFisherExactRow,
+	types.TEST_SHAPIRO_WILK:        newShapiroWilkRow,
+	types.TEST_Z_TWO_SAMPLE:        newZTestRow,
+	types.TEST_HOTELLING_T2:        newHotellingRow,
+	types.TEST_MANOVA:              newManovaRow,
+	types.TEST_BARTLETT_SPHERICITY: newBartlettSphericityRow,
+	types.TEST_BOX_M:               newBoxMRow,
+	types.TEST_MARDIA:              newMardiaRow,
 }
 
 // postTestRegistry maps test types to their post-test factory functions.
@@ -106,13 +112,34 @@ type postTestEntry struct {
 }
 
 // buildRowTests constructs RowTest instances for the tier-1 tests
-// (Request.Tests) the ComputePlan computes; a skipped one is never
-// constructed, so it folds nothing and raises nothing. Returns
-// PULSE_TEST_UNKNOWN_TYPE if any built TestType is not registered as a
-// row test.
-func (p *Processor) buildRowTests(tests []*types.Test) ([]rowTestEntry, error) {
+// (req.Tests, req being the stamped request) the ComputePlan computes;
+// a skipped one is never constructed, so it folds nothing and raises
+// nothing. Returns PULSE_TEST_UNKNOWN_TYPE if any built TestType is not
+// registered as a row test.
+//
+// A vector-input test's members resolve here (vectors.ResolveTests,
+// the leaf the field-reference pass already ran) and are stashed on a
+// COPY of its spec: the factory sees Fields / Fields2 as the resolved
+// literal member lists (Vector / Vector2 cleared), so the factory
+// signature — shared with extension tests — needs no request. A
+// registered extension test's member sets resolve and rewrite the same
+// way. The result label is the caller's spec's.
+func (p *Processor) buildRowTests(req *types.Request) ([]rowTestEntry, error) {
+	tests := req.Tests
 	if len(tests) == 0 {
 		return nil, nil
+	}
+	inputs, verr := vectors.ResolveTests(req, p.schema, func(t types.TestType) types.TestType {
+		if p.exts.isHidden(string(t)) {
+			return ""
+		}
+		return t
+	}, func(name string) bool {
+		_, ok := p.exts.LookupRowTest(types.TestType(name))
+		return ok
+	})
+	if verr != nil {
+		return nil, verr
 	}
 	out := make([]rowTestEntry, 0, len(tests))
 	for i, t := range tests {
@@ -125,7 +152,11 @@ func (p *Processor) buildRowTests(tests []*types.Test) ([]rowTestEntry, error) {
 				fmt.Sprintf("test type %s is not registered as a row test", t.Type),
 				map[string]any{"type": string(t.Type), "tier": "tests"})
 		}
-		inst, err := factory(t, p.schema)
+		spec := t
+		if i < len(inputs) && inputs[i].Has() {
+			spec = withResolvedMembers(t, inputs[i])
+		}
+		inst, err := factory(spec, p.schema)
 		if err != nil {
 			return nil, err
 		}
@@ -133,6 +164,18 @@ func (p *Processor) buildRowTests(tests []*types.Test) ([]rowTestEntry, error) {
 		out = append(out, rowTestEntry{spec: t, test: inst, label: testLabel(t), idx: i})
 	}
 	return out, nil
+}
+
+// withResolvedMembers returns a copy of t whose Fields / Fields2 are
+// the resolved member lists of in (Vector / Vector2 cleared).
+func withResolvedMembers(t *types.Test, in vectors.TestInput) *types.Test {
+	cp := *t
+	cp.Vector, cp.Fields = "", append([]string(nil), in.Members.Members...)
+	cp.Vector2, cp.Fields2 = "", nil
+	if in.HasSecond {
+		cp.Fields2 = append([]string(nil), in.Members2.Members...)
+	}
+	return &cp
 }
 
 // buildPostTests constructs PostTest instances for the tier-2 tests

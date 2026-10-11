@@ -167,7 +167,7 @@ Everything the MMM worked example needed outside Pulse and this unit does not de
 | 15 | The decay identifiability reading is an eyeball of the grid | #298 | U40 follow-up |
 | 16 | Ridge cannot leave a predictor subset unpenalised | #293 | [U36](U36-reference-oracles.md) |
 | 17 | `WIN_LAG` default 0 biases lag-1 autocorrelation; post-tests cannot skip null | #294 | [U36](U36-reference-oracles.md) |
-| 18 | OLS standard errors ignore cross-group correlation; no clustered or HAC option | #295 | [U25](U25-multivariate-tests-segmentation.md) |
+| 18 | OLS standard errors ignore cross-group correlation; no clustered or HAC option | #295 | [U25](U25-multivariate-tests-segmentation.md) (done: `RegressionSpec.Covariance`; the example clusters on the week, HAC being refused on a pooled panel) |
 | 21 | Cross-check tables assembled from per-group matrices by hand | #296 | [U28](U28-matrix-overlays.md) |
 | - | An empty Compose (no `requests`, no `sweep`) predicts valid; the runtime refuses it with `SERVICE_VALIDATION` | #299 | [U35](U35-predict-runtime-parity.md) |
 | - | A sweep rank cannot read an `omitempty` figure that is exactly 0; the slot is excluded as `missing` | #300 | [U35](U35-predict-runtime-parity.md) |

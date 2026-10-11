@@ -280,6 +280,14 @@ const (
 	// StreamingGrouper). This is the survey-friendly default
 	// ("respondents per option").
 	GROUP_SET_PER_ELEMENT GroupType = "GROUP_SET_PER_ELEMENT"
+
+	// GROUP_KMEANS segments records into params.k clusters by seeded,
+	// deterministic k-means over the p members of Vector / Fields
+	// (Euclidean; z-scored by default). Keys are cluster_1..cluster_k,
+	// numbered by descending cluster size and emitted in that order; a
+	// row with a null member is skipped (n_null). Buffered and
+	// non-mergeable: the fit needs every row.
+	GROUP_KMEANS GroupType = "GROUP_KMEANS"
 )
 
 // AllGroupTypes returns all defined group types.
@@ -288,6 +296,7 @@ func AllGroupTypes() []GroupType {
 		GROUP_CATEGORY,
 		GROUP_DATE,
 		GROUP_DATE_RANGES,
+		GROUP_KMEANS,
 		GROUP_QUANTILE,
 		GROUP_RANGE,
 		GROUP_ROUNDED,
@@ -359,6 +368,39 @@ const (
 	// Accepts categorical_* (codes are dictionary labels) and u4..u64
 	// (codes are whole numbers). Row-local and streamable.
 	ATTR_CODE_IN AttributeType = "ATTR_CODE_IN"
+
+	// ATTR_MAHALANOBIS emits each row's Mahalanobis distance from a
+	// fitted centre across the p members of Vector / Fields: D² =
+	// (x − μ)ᵀ S⁻¹ (x − μ), μ the (weighted) fit mean and S the ddof = 1
+	// covariance, or (params.output "p") the χ² upper tail of D² on p
+	// degrees of freedom. Two-pass: the fit folds one co-moment over the
+	// filtered rows params.fit_on admits ("filtered", the default, or an
+	// inline filterer list); every filtered row is scored. A null member
+	// gives a null score; a singular fit or N* ≤ p nulls every score with
+	// a warning.
+	ATTR_MAHALANOBIS AttributeType = "ATTR_MAHALANOBIS"
+
+	// ATTR_PC_SCORE emits each row's score on one principal component
+	// (params.component, 1-based) of the p members of Vector / Fields,
+	// standardized to unit variance on the fit population: the
+	// eigen-decomposition of the fit's correlation (params.on, the
+	// default) or covariance, with MAT_PCA's order and sign convention.
+	// params.rotation "varimax" scores the component after rotating the
+	// params.components leading ones (MAT_PCA's rotation). Two-pass with
+	// the fitted-attribute rules of ATTR_MAHALANOBIS (fit_on, listwise,
+	// null member → null, singular or N* ≤ p → every score null).
+	ATTR_PC_SCORE AttributeType = "ATTR_PC_SCORE"
+
+	// ATTR_FACTOR_SCORE emits each row's score on one common factor
+	// (params.factor, 1-based) of the p members of Vector / Fields: an
+	// inline MAT_FACTOR fit of the fit rows' correlation (params
+	// factors, extraction, rotation, kappa, gamma — MAT_FACTOR's knobs,
+	// order and sign), scored by params.method "regression" (Thurstone,
+	// the default) or "bartlett" on the members standardized by the fit.
+	// Two-pass with the fitted-attribute rules of ATTR_MAHALANOBIS
+	// (fit_on, listwise, null member → null, singular or N* ≤ p → every
+	// score null).
+	ATTR_FACTOR_SCORE AttributeType = "ATTR_FACTOR_SCORE"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -366,8 +408,11 @@ func AllAttributeTypes() []AttributeType {
 	return []AttributeType{
 		ATTR_CODE_IN,
 		ATTR_DATE_PART,
+		ATTR_FACTOR_SCORE,
 		ATTR_FORMULA,
+		ATTR_MAHALANOBIS,
 		ATTR_NORMALIZED,
+		ATTR_PC_SCORE,
 		ATTR_PERCENTILE,
 		ATTR_REG_FITTED,
 		ATTR_REG_LEVERAGE,
@@ -571,6 +616,52 @@ const (
 	// requires the full contingency table.
 	TEST_FISHER_EXACT TestType = "TEST_FISHER_EXACT"
 
+	// TEST_HOTELLING_T2 is Hotelling's T² test on a mean VECTOR: the
+	// members of Vector / Fields (p numeric columns, listwise). With no
+	// SplitBy it is the one-sample test of the mean vector against
+	// params.mu (length p, default zeros), F = (n−p)/(p(n−1))·T² on
+	// (p, n−p); with a SplitBy of exactly two levels it is the
+	// two-sample test of equal mean vectors under a pooled covariance,
+	// exact F on (p, n₁+n₂−p−1). Streams via one co-moment accumulator
+	// per level.
+	TEST_HOTELLING_T2 TestType = "TEST_HOTELLING_T2"
+
+	// TEST_MANOVA is the one-way MANOVA of a mean VECTOR (the members
+	// of Vector / Fields, listwise) across the levels of a categorical
+	// SplitBy (≥ 2 levels): within SSCP E = Σ per-level co-moments,
+	// between SSCP H from the level means, and the four statistics on
+	// the eigenvalues of E⁻¹H. Statistic / DF / PValue are Pillai's
+	// trace; Details carry Pillai, Wilks (Rao F), Hotelling–Lawley and
+	// Roy (an upper bound), each with F, df1, df2 and p. Streams via one
+	// co-moment accumulator per level.
+	TEST_MANOVA TestType = "TEST_MANOVA"
+
+	// TEST_BARTLETT_SPHERICITY is Bartlett's test that the correlation
+	// matrix of a VECTOR (the members of Vector / Fields, listwise) is
+	// the identity — whether the members are correlated enough to
+	// factor. χ² = −ln|R|·(N* − 1 − (2p + 5)/6) on p(p − 1)/2 df, the
+	// shared core MAT_PCA's bartlett_* scalars read, so the two agree
+	// bit for bit on the same rows. No SplitBy. Streams via one
+	// co-moment accumulator.
+	TEST_BARTLETT_SPHERICITY TestType = "TEST_BARTLETT_SPHERICITY"
+
+	// TEST_BOX_M is Box's M test that a VECTOR's covariance matrix (the
+	// members of Vector / Fields, listwise) is equal across the levels
+	// of a categorical SplitBy (≥ 2 levels) — the MANOVA / Hotelling
+	// equal-covariance assumption check. Statistic / DF / PValue are
+	// Box's χ² approximation; Details carry M and the F approximation.
+	// Streams via one co-moment accumulator per level.
+	TEST_BOX_M TestType = "TEST_BOX_M"
+
+	// TEST_MARDIA is Mardia's test of multivariate normality on a
+	// VECTOR (the members of Vector / Fields, listwise): multivariate
+	// skewness b1p as a χ² on p(p + 1)(p + 2)/6 df (small-sample
+	// corrected when n < 20) and kurtosis b2p as a z. Params.statistic
+	// picks the headline ("skewness" default, or "kurtosis"); both ride
+	// Details. No SplitBy. Buffered: every row's Mahalanobis product
+	// needs the fitted mean and covariance first.
+	TEST_MARDIA TestType = "TEST_MARDIA"
+
 	// TEST_SHAPIRO_WILK is the normality test on Field, computed in the
 	// Shapiro-Francia (W′) form. When SplitBy is set the test runs
 	// per-group; otherwise it runs over the full filtered set. Buffered:
@@ -600,13 +691,18 @@ func AllTestTypes() []TestType {
 		TEST_ANOVA_F,
 		TEST_ANOVA_RM,
 		TEST_ANOVA_WELCH,
+		TEST_BARTLETT_SPHERICITY,
+		TEST_BOX_M,
 		TEST_BROWN_FORSYTHE,
 		TEST_CHISQ,
 		TEST_FISHER_EXACT,
+		TEST_HOTELLING_T2,
 		TEST_KENDALL_TAU,
 		TEST_KRUSKAL_WALLIS,
 		TEST_KS,
 		TEST_MANN_WHITNEY_U,
+		TEST_MANOVA,
+		TEST_MARDIA,
 		TEST_PAIRED_T,
 		TEST_PEARSON_R,
 		TEST_PROP_Z,
@@ -641,6 +737,31 @@ type Test struct {
 	// the correlation between Field and Field2 is reported. Empty for
 	// every other test.
 	Field2 string `json:"field2,omitempty"`
+
+	// Vector names the Request.Vectors entry whose members a
+	// vector-input test (TEST_HOTELLING_T2, TEST_MANOVA,
+	// TEST_BARTLETT_SPHERICITY, TEST_BOX_M, TEST_MARDIA) reads as its p numeric
+	// columns. Exactly one of Vector and Fields is set on a vector-input
+	// test and neither on any other test (SERVICE_VALIDATION); a Vector
+	// no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN. Members
+	// resolve by the VectorSpec rules, the MatrixSpec.Vector / Fields
+	// mirror, and missing data is listwise only (params.missing
+	// "pairwise" is refused).
+	Vector string `json:"vector,omitempty"`
+
+	// Fields lists a vector-input test's inline members (literal names
+	// and / or glob entries, the VectorSpec.Fields rules). See Vector.
+	Fields []string `json:"fields,omitempty"`
+
+	// Vector2 names the Request.Vectors entry of a vector-input test's
+	// SECOND member set (the paired form); exactly one of Vector2 and
+	// Fields2 at most, only beside Vector / Fields, and resolving to
+	// the same member count p. A test type that reads no second set
+	// refuses it (SERVICE_VALIDATION).
+	Vector2 string `json:"vector2,omitempty"`
+
+	// Fields2 lists the second member set inline. See Vector2.
+	Fields2 []string `json:"fields2,omitempty"`
 
 	// SplitBy is a categorical field whose distinct values partition Field
 	// into groups. Required for two-sample TEST_T / TEST_WELCH and for
@@ -679,6 +800,9 @@ type Test struct {
 	//   TEST_T / TEST_WELCH (two-sample): {"variant": "welch"} (default)
 	//   TEST_TUKEY_HSD: {"ms_within": <f64>, "df_within": <f64>}
 	//   TEST_TREND: {"variant": "mann_kendall"} (default)
+	//   TEST_HOTELLING_T2 (one-sample): {"mu": [<p numbers>]} (default zeros)
+	//   TEST_MARDIA: {"statistic": "skewness" | "kurtosis"} (default skewness)
+	//   vector-input tests: {"missing": "listwise"} (the only mode)
 	Params json.RawMessage `json:"params,omitempty"`
 
 	// Weight is the per-slot weight override: absent inherits
@@ -896,8 +1020,26 @@ type Group struct {
 	// Type is the grouping operation to perform.
 	Type GroupType `json:"type"`
 
-	// Field is the name of the data field to group by.
+	// Field is the name of the data field to group by. A vector-input
+	// grouper (GROUP_KMEANS) reads Vector / Fields instead and refuses
+	// Field; its key column is named "<TYPE>_<Vector>" (or
+	// "<TYPE>_<first Fields entry as written>").
 	Field string `json:"field"`
+
+	// Vector names the Request.Vectors entry whose members a
+	// vector-input grouper (GROUP_KMEANS) reads as its p numeric
+	// columns. Exactly one of Vector and Fields is set on a vector-input
+	// grouper and neither on any other grouper (SERVICE_VALIDATION); a
+	// Vector no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN.
+	// Members resolve by the VectorSpec rules (the MatrixSpec, Test and
+	// Attribute Vector / Fields mirror), against source columns only;
+	// a row with any null member is skipped (listwise).
+	Vector string `json:"vector,omitempty"`
+
+	// Fields lists a vector-input grouper's inline members (literal
+	// names and / or glob entries, the VectorSpec.Fields rules). See
+	// Vector.
+	Fields []string `json:"fields,omitempty"`
 
 	// Interval is used by GROUP_ROUNDED and GROUP_RANGE to define the bucket width.
 	Interval float64 `json:"interval,omitempty"`
@@ -944,7 +1086,9 @@ type Group struct {
 	// mainly to opt OUT: GROUP_QUANTILE's cutpoints have no weighted
 	// form yet, so any weight in force refuses it unless the slot sets
 	// `null` (it then cuts unweighted). Absent inherits Request.Weight,
-	// then pulse.Options.DefaultWeight. No other grouper reads a weight.
+	// then pulse.Options.DefaultWeight. GROUP_KMEANS reads a frequency
+	// weight (each row is w coincident points; a probability weight is
+	// refused). No other grouper reads a weight.
 	// See SlotWeight.
 	Weight SlotWeight `json:"weight,omitzero"`
 }
@@ -957,8 +1101,28 @@ type Attribute struct {
 	// Field is the name of the source data field. Optional for the
 	// regression attribute family (ATTR_REG_FITTED / RESIDUAL / LEVERAGE)
 	// which read Target + Predictors instead; when empty the output Label
-	// defaults to "<TYPE>_<Target>".
+	// defaults to "<TYPE>_<Target>". A vector-input attribute
+	// (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE) reads Vector /
+	// Fields and refuses Field.
 	Field string `json:"field"`
+
+	// Vector names the Request.Vectors entry whose members a
+	// vector-input attribute (ATTR_MAHALANOBIS, ATTR_PC_SCORE,
+	// ATTR_FACTOR_SCORE) reads as its p numeric
+	// columns. Exactly one of Vector and Fields is set on a vector-input
+	// attribute and neither on any other attribute (SERVICE_VALIDATION);
+	// a Vector no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN.
+	// Members resolve by the VectorSpec rules (the MatrixSpec.Vector /
+	// Fields and Test.Vector / Fields mirror), against source columns
+	// only, and missing data is listwise only. The default Label is
+	// "<TYPE>_<Vector>" (ATTR_PC_SCORE appends "_PC<component>",
+	// ATTR_FACTOR_SCORE "_F<factor>").
+	Vector string `json:"vector,omitempty"`
+
+	// Fields lists a vector-input attribute's inline members (literal
+	// names and / or glob entries, the VectorSpec.Fields rules). The
+	// default Label is "<TYPE>_<first entry as written>". See Vector.
+	Fields []string `json:"fields,omitempty"`
 
 	// Label is the output name for the derived attribute.
 	Label string `json:"label,omitempty"`
@@ -967,7 +1131,20 @@ type Attribute struct {
 	Expression string `json:"expression,omitempty"`
 
 	// Params holds type-specific configuration as raw JSON.
-	// Each attribute type defines its own params schema.
+	// Each attribute type defines its own params schema. The fitted
+	// vector attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE,
+	// ATTR_FACTOR_SCORE) share two keys:
+	//   fit_on: "filtered" (default: fit on every filtered row) or an
+	//     inline array of Filterer objects selecting the subset of the
+	//     filtered rows the fit folds; every filtered row is scored.
+	//   missing: "listwise" (the only mode).
+	// ATTR_MAHALANOBIS adds output: "d2" (default) or "p". ATTR_PC_SCORE
+	// adds component (1-based, required), on ("correlation" default or
+	// "covariance"), rotation ("none" default or "varimax") and
+	// components (the k rotated within; required with varimax).
+	// ATTR_FACTOR_SCORE adds factor (1-based, required), method
+	// ("regression" default or "bartlett") and MAT_FACTOR's factors,
+	// extraction, rotation, kappa and gamma.
 	Params json.RawMessage `json:"params,omitempty"`
 
 	// --- Regression-attribute fields (Option A: each ATTR_REG_* carries

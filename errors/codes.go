@@ -2953,7 +2953,15 @@ const (
 	// have fewer than 2 rows or no weight mass, so their cells are
 	// undefined (null) or degenerate; on MAT_PCA scope "bartlett"
 	// (details "n_star", "min_n_star"): the inference size is too small
-	// for Bartlett's test, whose chi-square and p are null.
+	// for Bartlett's test, whose chi-square and p are null; on MAT_FACTOR's
+	// maximum-likelihood extraction scope "likelihood" (same details):
+	// N* ≤ 1 + (2p + 5)/6 + 2k/3, so the likelihood chi-square, its p,
+	// TLI, RMSEA and BIC are null; on MAT_DISTANCE scope "buckets"
+	// (details "buckets"): those buckets carry no weighted complete row,
+	// so their centroids and distances are null, and scope "pooled"
+	// (details "n_star", "buckets"): mahalanobis has no more rows than
+	// buckets, so the pooled within-bucket covariance and every distance
+	// are null.
 	PULSE_MATRIX_INSUFFICIENT_N Code = "PULSE_MATRIX_INSUFFICIENT_N"
 
 	// PULSE_MATRIX_ZERO_VARIANCE is a per-matrix WARNING: one or more
@@ -2966,32 +2974,49 @@ const (
 	// matrix routine stopped at its documented iteration cap before
 	// meeting its convergence tolerance, so its figures are the last
 	// iterate rather than an optimum — never a silent best effort.
-	// Emitted by the one-factor minres fit (reliability ω) and by the
+	// Emitted by the one-factor minres fit (reliability ω), by the
 	// nearest-correlation repair (params.repair "nearest"), beside its
-	// PULSE_MATRIX_NOT_PSD warning. Details carry "matrix", "solver",
-	// "iterations", "max_iterations" and "tolerance".
+	// PULSE_MATRIX_NOT_PSD warning, by MAT_FACTOR's extraction (solver
+	// "fa_minres" / "fa_pa" / "fa_ml") and by a rotation (MAT_PCA, MAT_FACTOR:
+	// "varimax" / "gpa_oblimin"); ATTR_PC_SCORE and ATTR_FACTOR_SCORE raise
+	// it fit-scoped and still score; GROUP_KMEANS raises it as a
+	// Response warning (solver "kmeans_lloyd", "group" in place of
+	// "matrix") when its best start hits params.max_iter. Details carry
+	// "matrix", "solver", "iterations", "max_iterations" and "tolerance".
 	PULSE_MATRIX_NOT_CONVERGED Code = "PULSE_MATRIX_NOT_CONVERGED"
 
-	// PULSE_MATRIX_HEYWOOD is a per-matrix WARNING: a one-factor fit
-	// put a member's uniqueness at or below zero (|loading| ≥ its
-	// standard deviation — an impossible negative error variance), so
-	// the figures built on the fit are withheld: MAT_RELIABILITY's
-	// omega is null. Details carry "matrix", "output", "members" and
-	// "uniquenesses" (the offending members' ψ).
+	// PULSE_MATRIX_HEYWOOD is a per-matrix WARNING: a factor fit put a
+	// member's uniqueness at or below zero (|loading| ≥ its standard
+	// deviation — an impossible negative error variance).
+	// MAT_RELIABILITY withholds the figure built on its one-factor fit
+	// (omega is null); MAT_FACTOR reports its loadings as fitted, never
+	// repaired (its maximum-likelihood extraction bounds ψ below at
+	// 0.005, so there a member held at that floor is the Heywood case).
+	// Details carry "matrix", "output", "members" and "uniquenesses"
+	// (the offending members' 1 − communality). ATTR_FACTOR_SCORE raises
+	// it fit-scoped: regression scores stand, Bartlett scores over a
+	// uniqueness ≤ 0 are all null.
 	PULSE_MATRIX_HEYWOOD Code = "PULSE_MATRIX_HEYWOOD"
 
 	// PULSE_MATRIX_NOT_IDENTIFIED is a per-matrix WARNING: a model the
 	// operator fits is not identified on this many members, so the
 	// figure it would give is withheld: MAT_RELIABILITY's omega needs
 	// a one-factor fit, which needs at least 3 items (2 items have one
-	// correlation for two loadings), so with 2 it is null. Details
-	// carry "matrix", "output", "members" and "min_members".
+	// correlation for two loadings), so with 2 it is null (details
+	// "matrix", "output", "members", "min_members"); MAT_FACTOR's k
+	// factors need (p − k)² ≥ p + k, so its loadings and fit figures
+	// are null otherwise (details "matrix", "output", "members",
+	// "factors", "max_factors"). ATTR_FACTOR_SCORE raises it fit-scoped
+	// and nulls every score, also when factors "kaiser" keeps fewer than
+	// params.factor.
 	PULSE_MATRIX_NOT_IDENTIFIED Code = "PULSE_MATRIX_NOT_IDENTIFIED"
 
 	// PULSE_MATRIX_PAIRWISE_N_STAR is a per-matrix WARNING: an
 	// inferential figure over a pairwise matrix needs one sample size
 	// while every cell rests on its own rows, so it uses the smallest
-	// pair's inference size (MAT_PCA's Bartlett test). Details carry
+	// pair's inference size (MAT_PCA's Bartlett test; MAT_FACTOR's
+	// Bartlett test, empirical chi-square and maximum-likelihood fit
+	// figures). Details carry
 	// "matrix", "outputs", "n_star", "row" and "col" (the pair).
 	PULSE_MATRIX_PAIRWISE_N_STAR Code = "PULSE_MATRIX_PAIRWISE_N_STAR"
 

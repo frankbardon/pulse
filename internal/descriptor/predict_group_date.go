@@ -5,13 +5,15 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/dategroup"
 	"github.com/frankbardon/pulse/internal/datepart"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
-// validateGroupDateParams reports every GROUP_DATE slot (Request.Groups
-// and the crosstab axes) whose params or field the runtime factory
-// refuses — through dategroup, the one reading the factory itself
-// calls, so the code and message are the runtime's own. schema is the
+// validateGroupDateParams reports every GROUP_DATE slot (Request.Groups,
+// the crosstab axes and a MAT_DISTANCE params.between) whose params or
+// field the runtime factory refuses — through dategroup, the one
+// reading the factory itself calls, so the code and message are the
+// runtime's own. schema is the
 // one the request executes over (the joined schema under a join).
 func validateGroupDateParams(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) {
 	if req == nil {
@@ -38,6 +40,16 @@ func validateGroupDateParams(env *descriptor.Envelope, req *types.Request, schem
 		}
 		for _, g := range ct.Columns {
 			check(g)
+		}
+	}
+	// A MAT_DISTANCE params.between GROUP_DATE is built by the same
+	// factory (internal/processing newDistanceState).
+	for _, m := range req.Matrices {
+		if opRoute(inst, m.Type) != types.MAT_DISTANCE {
+			continue
+		}
+		if g, ok := vectors.SpecBetween(m); ok {
+			check(&g)
 		}
 	}
 }

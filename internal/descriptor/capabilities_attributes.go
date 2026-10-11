@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -209,6 +210,131 @@ func attributeCapabilities() []descriptor.Operator {
 			EmitsType:     "packed_bool",
 			EmitsTypeNote: "one 0/1 per record (0 when the value is null)",
 			Streamable:    true,
+		},
+		{
+			Name:        string(types.ATTR_MAHALANOBIS),
+			Category:    "attribute",
+			Description: "Per-row Mahalanobis distance D² = (x − μ)ᵀS⁻¹(x − μ) across the p members of vector / fields (exactly one; listwise), from a cohort-wide fit: the (weighted) mean and ddof = 1 covariance of the filtered rows params.fit_on admits. Every filtered row is scored; a null member scores null; a singular fit or N* ≤ p nulls every score with a warning. Two-pass.",
+			Params: []descriptor.Param{
+				{
+					Name:        "output",
+					Type:        "enum",
+					Default:     "d2",
+					EnumValues:  []string{"d2", "p"},
+					Description: "d2: the squared distance; p: its chi-square upper tail on p degrees of freedom (the outlier p-value under joint normality).",
+				},
+				{
+					Name:        "fit_on",
+					Type:        "any",
+					Default:     "filtered",
+					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "missing",
+					Type:        "enum",
+					Default:     "listwise",
+					EnumValues:  []string{"listwise"},
+					Description: "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+				},
+			},
+			AcceptsTypes:   numericFieldTypesNoDecimal,
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one D² (≥ 0) or p-value in [0, 1] per record (null when a member is null or the fit is singular / too small)",
+			Streamable:     true,
+			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+		},
+		{
+			Name:        string(types.ATTR_PC_SCORE),
+			Category:    "attribute",
+			Description: "Per-row score on one principal component of the p members of vector / fields (exactly one; listwise), standardized to unit variance on a cohort-wide fit: the eigen-decomposition of the fit rows' (weighted) correlation or ddof = 1 covariance, with MAT_PCA's order and sign (a score correlates with each member as MAT_PCA's loading). Optional varimax rotation within the leading components. Every filtered row is scored; a null member scores null; a singular fit or N* ≤ p nulls every score with a warning. Two-pass.",
+			Params: []descriptor.Param{
+				{
+					Name:        "component",
+					Type:        "int",
+					Required:    true,
+					Description: "The component to score, 1-based (1 = the largest eigenvalue; after a rotation, the rotated component with the largest variance), at most the member count.",
+				},
+				{
+					Name:        "on",
+					Type:        "enum",
+					Default:     vectors.PCAOnCorrelation,
+					EnumValues:  vectors.PCAOnValues(),
+					Description: "correlation: decompose the correlation (members standardized first); covariance: the covariance (members in their own units; a large-spread member dominates).",
+				},
+				{
+					Name:        "rotation",
+					Type:        "enum",
+					Default:     vectors.RotationNone,
+					EnumValues:  vectors.PCARotations(),
+					Description: "none: the unrotated component. varimax: rotate the params.components leading components orthogonally (stats::varimax, Kaiser normalization; MAT_PCA's rotated order and sign) and score rotated component params.component.",
+				},
+				{
+					Name:        "components",
+					Type:        "int",
+					Description: "With rotation varimax (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count.",
+				},
+				{
+					Name:        "fit_on",
+					Type:        "any",
+					Default:     "filtered",
+					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "missing",
+					Type:        "enum",
+					Default:     "listwise",
+					EnumValues:  []string{"listwise"},
+					Description: "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+				},
+			},
+			AcceptsTypes:   numericFieldTypesNoDecimal,
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one standardized score per record (mean 0, variance 1 over the fit rows; null when a member is null or the fit is singular / too small)",
+			Streamable:     true,
+			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+		},
+		{
+			Name:        string(types.ATTR_FACTOR_SCORE),
+			Category:    "attribute",
+			Description: "Per-row score on one common factor of the p members of vector / fields (exactly one; listwise) from a cohort-wide inline MAT_FACTOR fit of the fit rows' (weighted) correlation — the same factors, extraction and rotation knobs, so the same loadings, order and sign — scored by the regression (Thurstone) or Bartlett method on the members standardized by the fit. Every filtered row is scored; a null member scores null; a singular fit, N* ≤ p, an unidentified factor count or a factor the Kaiser rule does not keep nulls every score with a warning; a Heywood case or an iteration cap scores with a warning. Two-pass.",
+			Params: []descriptor.Param{
+				{
+					Name:        "factor",
+					Type:        "int",
+					Required:    true,
+					Description: "The factor to score, 1-based in MAT_FACTOR's column order (F1 accounts for the most variance), at most params.factors and the member count.",
+				},
+				{
+					Name:        "method",
+					Type:        "enum",
+					Default:     vectors.FactorScoreRegression,
+					EnumValues:  vectors.FactorScoreMethods(),
+					Description: "regression: Thurstone's least-squares estimate, weights R⁻¹·LΦ (psych factor.scores \"Thurstone\"; shrunk toward 0, the most accurate per row). bartlett: weighted least squares, weights U⁻²L(LᵀU⁻²L)⁻¹ (psych \"Bartlett\"; unbiased for the factor, noisier); a uniqueness at or below 0 nulls every Bartlett score.",
+				},
+				{Name: "factors", Type: "any", Default: vectors.FactorsKaiser, Description: "MAT_FACTOR's factors: a positive integer k (at least params.factor, at most the member count) or \"kaiser\" (the fit correlation's eigenvalues above 1)."},
+				{Name: "extraction", Type: "enum", Default: vectors.FactorExtractionMinres, EnumValues: vectors.FactorExtractions(), Description: "MAT_FACTOR's extraction: minres, principal_axis or ml."},
+				{Name: "rotation", Type: "enum", Default: vectors.RotationNone, EnumValues: vectors.FactorRotations(), Description: "MAT_FACTOR's rotation: none, varimax, promax or oblimin; an oblique rotation's factor correlation enters the regression weights."},
+				{Name: "kappa", Type: "float", Default: vectors.FactorDefaultKappa, Description: "Promax power, above 1; rotation promax only."},
+				{Name: "gamma", Type: "float", Default: 0, Description: "Oblimin gamma, finite; rotation oblimin only."},
+				{
+					Name:        "fit_on",
+					Type:        "any",
+					Default:     "filtered",
+					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "missing",
+					Type:        "enum",
+					Default:     "listwise",
+					EnumValues:  []string{"listwise"},
+					Description: "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+				},
+			},
+			AcceptsTypes:   numericFieldTypesNoDecimal,
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one factor score per record (mean 0 over the fit rows; null when a member is null or the fit cannot score)",
+			Streamable:     true,
+			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
 		},
 	}
 }

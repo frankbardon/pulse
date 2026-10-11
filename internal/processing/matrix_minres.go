@@ -154,12 +154,13 @@ func minresSolve(s *linalg.Sym, maxIter int) (minresFit, error) {
 
 // minresStart returns the starting communalities: the SMC
 // s_kk − 1/(S⁻¹)_kk from the reference InverseSPD, clamped to
-// [0, s_kk]; when s has no inverse, the largest |r_kj| (j ≠ k, r the
-// diagonal-scaled correlation) times s_kk, and fallback true.
+// [0, s_kk]; when s is singular (the one rule, singularUnderRule, or an
+// InverseSPD failure), the largest |r_kj| (j ≠ k, r the diagonal-scaled
+// correlation) times s_kk, and fallback true.
 func minresStart(s *linalg.Sym) (h []float64, fallback bool) {
 	p := s.N()
 	h = make([]float64, p)
-	if inv, err := linalg.InverseSPD(s); err == nil {
+	if inv, err := linalg.InverseSPD(s); err == nil && singularUnderRule(s) == nil {
 		for k := 0; k < p; k++ {
 			h[k] = math.Min(s.At(k, k), math.Max(0, s.At(k, k)-1/inv.At(k, k)))
 		}

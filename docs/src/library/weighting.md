@@ -251,6 +251,14 @@ counts stay raw row counts. A row with no usable weight is bucketed by
 its value. The slot `weight` on a `groups[i]` or crosstab-axis quantile
 grouper opts it in or out like any other slot.
 
+**Weighted k-means.** `GROUP_KMEANS` takes a frequency weight only: a
+row of weight w is w coincident points, so the k-means++ draws, the
+centroids and the within-cluster sums of squares are those of the
+expanded rows, and a cluster's `size` is its total weight (`count` stays
+the raw row count). A row with a zero or invalid weight is assigned to
+its nearest centroid but does not move the fit. A probability weight is
+refused permanently (`PULSE_WEIGHT_UNSUPPORTED`, with `details.reason`).
+
 **Refused operators.** The permanently refused row has no standard
 weighted form (or, for the post-tests, Tukey HSD and the trend test,
 reads aggregated result rows that carry no row weights), so it is

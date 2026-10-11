@@ -21,7 +21,8 @@ import (
 //   - VIF = diag(R⁻¹) (reference InverseSPD, FMA-free, so the figures
 //     are arch-independent), tolerance = 1/VIF — car::vif on lm over
 //     the same predictors, which equals diag(R⁻¹) for any response. A
-//     singular R (a member is a linear combination of others) refuses
+//     singular R (a member is an exact or near-exact linear combination
+//     of others: the one rule, singular_rule.go) refuses
 //     the matrix with PULSE_MATRIX_SINGULAR (rank, condition_number,
 //     dependent_fields).
 //   - Belsley's condition indices and variance-decomposition
@@ -97,6 +98,9 @@ func finalizeCollinearity(in *matrixFinalizeInput) (matrixOutput, error) {
 	out.Warnings = append(out.Warnings, warns...)
 	out.Primary = in.Square(g.At)
 
+	if err := singularUnderRule(g); err != nil {
+		return matrixOutput{}, singularMatrixError(err, plan.Name, in.Members())
+	}
 	inv, err := linalg.InverseSPD(g)
 	if err != nil {
 		return matrixOutput{}, singularMatrixError(err, plan.Name, in.Members())

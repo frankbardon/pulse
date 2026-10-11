@@ -71,9 +71,13 @@ func finalizePartialCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
 // output positions axis of the correlation (or covariance — the result
 // is scale-free) matrix r: controlling for every other column when all
 // is true (axis is then every column), else for exactly the columns not
-// on axis. A singular r is the InverseSPD PULSE_MATRIX_SINGULAR (with
-// the linalg singular diagnostics over r's columns).
+// on axis. A singular r — under the one rule (singularUnderRule), or
+// an InverseSPD failure — is PULSE_MATRIX_SINGULAR (with the singular
+// diagnostics over r's columns).
 func partialCorrelation(r *linalg.Sym, axis []int, all bool) (*linalg.Sym, error) {
+	if err := singularUnderRule(r); err != nil {
+		return nil, err
+	}
 	prec, err := linalg.InverseSPD(r)
 	if err != nil {
 		return nil, err

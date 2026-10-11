@@ -427,6 +427,13 @@ var precisionExempt = []returnplan.Path{
 	// number of components kept.
 	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("bartlett_df")}},
 	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("components_retained")}},
+	// MAT_FACTOR's integer scalars: the model's degrees of freedom, the
+	// fit's iteration count and convergence flag (1 / 0), and the
+	// number of factors.
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("df")}},
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("iterations")}},
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("converged")}},
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("factors_retained")}},
 }
 
 // marshalPlanned encodes v (the response root) under p.

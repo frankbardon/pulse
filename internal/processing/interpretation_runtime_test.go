@@ -57,22 +57,27 @@ type testProbeFixture struct {
 // descx.DeclaredInterpretationFields: add a deferred declaration and it
 // must land here; drop one and its probe must go.
 var interpretationProbes = map[string][]string{
-	"TEST_ANOVA_F":        {"details.effect_size.eta_squared", "details.effect_size.omega_squared"},
-	"TEST_ANOVA_RM":       {"details.dropped_subjects", "details.effect_size.partial_eta_squared"},
-	"TEST_ANOVA_WELCH":    {"details.effect_size.omega_squared"},
-	"TEST_CHISQ":          {"details.effect_size.cramers_v", "details.effect_size.phi", "details.expected_min"},
-	"TEST_KRUSKAL_WALLIS": {"details.effect_size.epsilon_squared"},
-	"TEST_MANN_WHITNEY_U": {"details.effect_size.rank_biserial", "details.z"},
-	"TEST_PAIRED_T":       {"details.ci_high", "details.ci_low", "details.effect_size.cohens_d", "details.mean_diff"},
-	"TEST_PEARSON_R":      {"details.ci_high", "details.ci_low"},
-	"TEST_PROP_Z":         {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h"},
-	"TEST_SHAPIRO_WILK":   {"details.per_group"},
-	"TEST_T":              {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
-	"TEST_TREND":          {"details.s", "details.tau"},
-	"TEST_TUKEY_HSD":      {"details.comparisons"},
-	"TEST_WELCH":          {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
-	"TEST_WILCOXON_SR":    {"details.effect_size.rank_biserial", "details.z", "details.zero_diffs"},
-	"TEST_Z_TWO_SAMPLE":   {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_ANOVA_F":             {"details.effect_size.eta_squared", "details.effect_size.omega_squared"},
+	"TEST_BARTLETT_SPHERICITY": {"details.determinant"},
+	"TEST_BOX_M":               {"details.f", "details.m"},
+	"TEST_MARDIA":              {"details.kurtosis", "details.skewness"},
+	"TEST_ANOVA_RM":            {"details.dropped_subjects", "details.effect_size.partial_eta_squared"},
+	"TEST_ANOVA_WELCH":         {"details.effect_size.omega_squared"},
+	"TEST_CHISQ":               {"details.effect_size.cramers_v", "details.effect_size.phi", "details.expected_min"},
+	"TEST_HOTELLING_T2":        {"details.f"},
+	"TEST_KRUSKAL_WALLIS":      {"details.effect_size.epsilon_squared"},
+	"TEST_MANN_WHITNEY_U":      {"details.effect_size.rank_biserial", "details.z"},
+	"TEST_MANOVA":              {"details.f", "details.hotelling_lawley", "details.roy", "details.wilks"},
+	"TEST_PAIRED_T":            {"details.ci_high", "details.ci_low", "details.effect_size.cohens_d", "details.mean_diff"},
+	"TEST_PEARSON_R":           {"details.ci_high", "details.ci_low"},
+	"TEST_PROP_Z":              {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h"},
+	"TEST_SHAPIRO_WILK":        {"details.per_group"},
+	"TEST_T":                   {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_TREND":               {"details.s", "details.tau"},
+	"TEST_TUKEY_HSD":           {"details.comparisons"},
+	"TEST_WELCH":               {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_WILCOXON_SR":         {"details.effect_size.rank_biserial", "details.z", "details.zero_diffs"},
+	"TEST_Z_TWO_SAMPLE":        {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
 }
 
 // runRegisteredRow constructs typ's row test from the registry and feeds
@@ -159,6 +164,64 @@ func pairedRow(typ types.TestType) func(t *testing.T) *types.TestResult {
 	}
 }
 
+// hotellingProbeRow runs TEST_HOTELLING_T2 over pairedXY as a 2-member
+// vector: one-sample, or two-sample split by row parity.
+func hotellingProbeRow(split bool) func(t *testing.T) *types.TestResult {
+	return func(t *testing.T) *types.TestResult {
+		schema := &encoding.Schema{Fields: []encoding.Field{
+			{Name: "x", Type: encoding.FieldTypeF64},
+			{Name: "y", Type: encoding.FieldTypeF64},
+			{Name: "g", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+		}}
+		spec := &types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}}
+		if split {
+			spec.SplitBy = "g"
+		}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for i, p := range pairedXY {
+				mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"x": p[0], "y": p[1]}, "g", []string{"a", "b"}[i%2]))
+			}
+		})
+	}
+}
+
+// manovaProbeRow runs TEST_MANOVA over pairedXY as a 2-member vector
+// split into three levels by row index.
+func manovaProbeRow(t *testing.T) *types.TestResult {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x", Type: encoding.FieldTypeF64},
+		{Name: "y", Type: encoding.FieldTypeF64},
+		{Name: "g", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+	}}
+	spec := &types.Test{Type: types.TEST_MANOVA, Fields: []string{"x", "y"}, SplitBy: "g"}
+	return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+		for i, p := range pairedXY {
+			mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"x": p[0], "y": p[1]}, "g", []string{"a", "b", "c"}[i%3]))
+		}
+	})
+}
+
+// vectorProbeRow runs a vector-input test over pairedXY as a 2-member
+// vector, split into two levels by row parity when split.
+func vectorProbeRow(typ types.TestType, split bool) func(t *testing.T) *types.TestResult {
+	return func(t *testing.T) *types.TestResult {
+		schema := &encoding.Schema{Fields: []encoding.Field{
+			{Name: "x", Type: encoding.FieldTypeF64},
+			{Name: "y", Type: encoding.FieldTypeF64},
+			{Name: "g", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+		}}
+		spec := &types.Test{Type: typ, Fields: []string{"x", "y"}}
+		if split {
+			spec.SplitBy = "g"
+		}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for i, p := range pairedXY {
+				mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"x": p[0], "y": p[1]}, "g", []string{"a", "b"}[i%2]))
+			}
+		})
+	}
+}
+
 func pairedPost(typ types.TestType) func(t *testing.T) *types.TestResult {
 	return func(t *testing.T) *types.TestResult {
 		rows := make([]map[string]any, len(pairedXY))
@@ -228,6 +291,12 @@ var testProbeFixtures = []testProbeFixture{
 	{types.TEST_KRUSKAL_WALLIS, tierRow, "plant_growth", groupedRow(types.TEST_KRUSKAL_WALLIS)},
 	{types.TEST_BROWN_FORSYTHE, tierRow, "plant_growth", groupedRow(types.TEST_BROWN_FORSYTHE)},
 	{types.TEST_PAIRED_T, tierRow, "sleep_pairs", pairedRow(types.TEST_PAIRED_T)},
+	{types.TEST_HOTELLING_T2, tierRow, "sleep_pairs_one_sample", hotellingProbeRow(false)},
+	{types.TEST_HOTELLING_T2, tierRow, "sleep_pairs_two_sample", hotellingProbeRow(true)},
+	{types.TEST_MANOVA, tierRow, "sleep_pairs_three_levels", manovaProbeRow},
+	{types.TEST_BARTLETT_SPHERICITY, tierRow, "sleep_pairs", vectorProbeRow(types.TEST_BARTLETT_SPHERICITY, false)},
+	{types.TEST_BOX_M, tierRow, "sleep_pairs_two_levels", vectorProbeRow(types.TEST_BOX_M, true)},
+	{types.TEST_MARDIA, tierRow, "sleep_pairs", vectorProbeRow(types.TEST_MARDIA, false)},
 	{types.TEST_WILCOXON_SR, tierRow, "sleep_pairs", pairedRow(types.TEST_WILCOXON_SR)},
 	{types.TEST_PEARSON_R, tierRow, "sleep_pairs", pairedRow(types.TEST_PEARSON_R)},
 	{types.TEST_SPEARMAN_R, tierRow, "sleep_pairs", pairedRow(types.TEST_SPEARMAN_R)},

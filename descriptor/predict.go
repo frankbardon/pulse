@@ -339,10 +339,16 @@ type MatrixPredict struct {
 	// Shape is [p, p]: rows × columns of every matrix in the result —
 	// on MAT_PCA the primary's [p, k] (the rectangular loadings) when
 	// params.components is an integer k, else [p, p], the upper bound
-	// (kaiser and a variance share choose k from the data).
+	// (kaiser and a variance share choose k from the data); on
+	// MAT_FACTOR likewise [p, k] for an integer params.factors, else
+	// [p, p]; on MAT_DISTANCE [k, k], k the params.between grouper's
+	// bucket bound when the schema fixes it (its bucket_basis rules:
+	// a dictionary, include, quantile bins, GROUP_KMEANS's k), else
+	// [0, 0].
 	Shape [2]int `json:"shape"`
 	// AxisKeys are the member field names in axis order — the result's
-	// row_keys and column_keys.
+	// row_keys and column_keys. Empty on MAT_DISTANCE, whose axis is the
+	// between grouper's bucket labels, known only after the run.
 	AxisKeys []string `json:"axis_keys"`
 	// Labels are the members' display labels in axis order when the
 	// vector supplies them (the result's labels); omitted otherwise.
@@ -362,7 +368,8 @@ type MatrixPredict struct {
 	// request and the schema: "ungrouped" (1), "dictionary" (the
 	// Groups[0] field's dictionary size), "boolean" (2), "include"
 	// (Group.Include's distinct reachable keys), "quantile_bins"
-	// (GROUP_QUANTILE's bin count) or "unknown" (the keys depend on the
+	// (GROUP_QUANTILE's bin count), "clusters" (GROUP_KMEANS's params.k)
+	// or "unknown" (the keys depend on the
 	// data — ranges, dates, numeric categories — and the three estimate
 	// fields are omitted).
 	BucketBasis string `json:"bucket_basis"`
@@ -371,7 +378,7 @@ type MatrixPredict struct {
 	// reaches is not emitted, so a run returns at most this many.
 	EstimatedBuckets *int64 `json:"estimated_buckets,omitempty"`
 	// EstimatedCells is EstimatedBuckets × p² — the primary cells the
-	// spec's results carry in full encoding.
+	// spec's results carry in full encoding (MAT_DISTANCE: × k²).
 	EstimatedCells *int64 `json:"estimated_cells,omitempty"`
 	// EstimatedBytes is the run's co-moment state: merge blocks ×
 	// EstimatedBuckets × AccumulatorBytes, the blocks being
@@ -402,12 +409,13 @@ type MatrixPredict struct {
 	// operator's input) can come back not positive semidefinite —
 	// pairwise MAT_COVARIANCE at p ≥ 2, pairwise MAT_CORRELATION,
 	// MAT_PARTIAL_CORRELATION (folded columns), MAT_RELIABILITY,
-	// MAT_COLLINEARITY and MAT_PCA on a correlation at p ≥ 3, MAT_PCA
-	// on a covariance at p ≥ 2 — the only shapes the runtime checks for
+	// MAT_COLLINEARITY, MAT_FACTOR and MAT_PCA on a correlation at
+	// p ≥ 3, MAT_PCA on a covariance at p ≥ 2 — the only shapes the
+	// runtime checks for
 	// PULSE_MATRIX_NOT_PSD. False guarantees the code never appears;
 	// true says it can, depending on the data: a warning, on
 	// MAT_PARTIAL_CORRELATION a refusal unless params.repair is
-	// "nearest" (MAT_PCA and MAT_COLLINEARITY alike), on
+	// "nearest" (MAT_PCA, MAT_COLLINEARITY and MAT_FACTOR alike), on
 	// MAT_RELIABILITY a null omega with the warning.
 	PairwisePSDRisk bool `json:"pairwise_psd_risk"`
 }
@@ -634,6 +642,13 @@ type GroupPredict struct {
 	// data slice still streams). GROUP_QUANTILE is the canonical
 	// None today.
 	BufferedComponents bool `json:"buffered_components,omitempty"`
+
+	// RowBufferBytes estimates the point store a buffered vector grouper
+	// (GROUP_KMEANS) keeps while it fits: records x p x 8 (every row's
+	// member tuple) plus k x p x 8 (the centroids), an upper bound and
+	// the grouper's term of the MaxEstimatedMemory estimate. Omitted on
+	// every other grouper or with the record count unknown.
+	RowBufferBytes *int64 `json:"row_buffer_bytes,omitempty"`
 }
 
 // FiltererPredict is the per-slot predict surface for one entry of

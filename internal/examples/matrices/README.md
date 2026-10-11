@@ -16,6 +16,8 @@ Whole-set matrix operators (`MAT_*`) over virtual vectors
 | `08_reliability.json` | `MAT_RELIABILITY` | Scale reliability of a battery: alpha, standardized alpha, omega, the mean inter-item r and per-item diagnostics (`reverse` + `scale_min` / `scale_max` key reverse-worded items). |
 | `09_pca.json` | `MAT_PCA` | Principal components of a battery: rectangular loadings and eigenvectors, eigenvalues with explained / cumulative shares, communalities, KMO and Bartlett's test (`components`: Kaiser default, integer k or a variance share). |
 | `10_collinearity.json` | `MAT_COLLINEARITY` | Collinearity diagnostics on candidate predictors (no response): VIF and tolerance, Belsley's condition indices and variance-decomposition proportions, uncentered with the intercept (default) and centered (`center: true`). |
+| `11_factor.json` | `MAT_FACTOR` | Exploratory factor analysis: minres (default), principal-axis or maximum-likelihood extraction (with its fit indices), varimax / promax / oblimin rotation, loadings, communalities, uniquenesses, rmsr and the empirical chi-square, KMO and Bartlett (`factors`: integer k or Kaiser default). |
+| `12_distance.json` | `MAT_DISTANCE` | Distances between bucket centroids (`between`: any non-date grouper, `GROUP_KMEANS` included): euclidean / sqeuclidean / manhattan / chebyshev / cosine / mahalanobis, `standardize`, centroids and bucket sizes. |
 
 Run every example:
 

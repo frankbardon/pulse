@@ -133,6 +133,14 @@ func (b *BlockCoMoments) Add(rec *Record, x []float64, w float64) error {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"block merge: record carries no merge-block position (its source does not stamp SetMergePosition)")
 	}
+	return b.AddAt(key, x, w)
+}
+
+// AddAt folds one row into the block key names. Add is AddAt at the
+// record's stamped position; a caller that must reproduce a matrix
+// slot's bits on rows of its own (TEST_BARTLETT_SPHERICITY) keys them
+// the same way.
+func (b *BlockCoMoments) AddAt(key BlockKey, x []float64, w float64) error {
 	if b.cur == nil || key != b.curKey {
 		acc, exists := b.blocks[key]
 		if !exists {

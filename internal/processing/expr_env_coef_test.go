@@ -58,7 +58,7 @@ func TestCoef_FormulaEqualsRegressionResult(t *testing.T) {
 			p := NewProcessor(schema)
 			p.SetModels(set)
 			recs := predictRecords(schema)
-			if err := p.applyAttributes([]*types.Attribute{{Type: types.ATTR_FORMULA, Label: "c", Expression: tc.expr}}, recs); err != nil {
+			if _, err := p.applyAttributes([]*types.Attribute{{Type: types.ATTR_FORMULA, Label: "c", Expression: tc.expr}}, recs); err != nil {
 				t.Fatal(err)
 			}
 			for i, r := range recs {

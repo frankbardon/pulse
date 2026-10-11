@@ -28,9 +28,32 @@ func missingSpec(typ types.MatrixType, fields []string, weight, params string) t
 	if params != "" {
 		s.Params = json.RawMessage(params)
 	}
+	if typ == types.MAT_DISTANCE {
+		s.Params = withOneBucketBetween(s.Params)
+	}
 	s.Weight = covSpec("", "", 0, weight, "").Weight
 	return s
 }
+
+// withOneBucketBetween adds a MAT_DISTANCE params.between that puts
+// every row in one bucket (GROUP_ROUNDED on the never-null f column at
+// an interval past its range) and standardize, so the member-level
+// warning rules read the same rows as on every other operator.
+func withOneBucketBetween(raw json.RawMessage) json.RawMessage {
+	p := map[string]any{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &p)
+	}
+	p["between"] = map[string]any{"type": "GROUP_ROUNDED", "field": "f", "interval": 1e9}
+	p["standardize"] = true
+	out, _ := json.Marshal(p)
+	return out
+}
+
+// pairwiseRefused reports an operator that refuses params.missing
+// "pairwise" (MAT_DISTANCE: every centroid rests on one row set; its
+// refusal is pinned by the vectors resolver tests).
+func pairwiseRefused(typ types.MatrixType) bool { return typ == types.MAT_DISTANCE }
 
 func runOneMatrix(t *testing.T, rows [][5]float64, spec types.MatrixSpec) types.MatrixResult {
 	t.Helper()
@@ -102,6 +125,9 @@ func TestMatrixPairwise_MatchesReference(t *testing.T) {
 func TestMatrixPairwise_AuxiliaryNShape(t *testing.T) {
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRefRows)
 	for _, typ := range types.AllMatrixTypes() {
+		if pairwiseRefused(typ) {
+			continue
+		}
 		for _, enc := range types.AllMatrixEncodings() {
 			t.Run(fmt.Sprintf("%s/%s", typ, enc), func(t *testing.T) {
 				mk := func(params string) types.MatrixResult {
@@ -217,7 +243,7 @@ func nonPSDRows() [][5]float64 {
 // (singular but PSD) pairwise matrix and the listwise mode are not.
 func TestMatrixWarnings_NotPSD(t *testing.T) {
 	for _, typ := range types.AllMatrixTypes() {
-		if vectors.IsDecomposition(typ) {
+		if vectors.IsDecomposition(typ) || pairwiseRefused(typ) {
 			continue // fatal or repaired: TestMatrixPartialCorrelation_NotPSDGuard
 		}
 		t.Run(string(typ), func(t *testing.T) {
@@ -332,6 +358,9 @@ func TestMatrixWarnings_InsufficientN(t *testing.T) {
 				t.Errorf("zero-mass warning = %v", w)
 			}
 
+			if pairwiseRefused(typ) {
+				return
+			}
 			// Pairwise: x1 and x3 share one row.
 			nan := math.NaN()
 			rows := [][5]float64{
@@ -356,6 +385,14 @@ func TestMatrixWarnings_InsufficientN(t *testing.T) {
 				}
 				return
 			}
+			if typ == types.MAT_FACTOR {
+				// Likewise a factor analysis: no factors (kaiser
+				// default), null communalities.
+				if len(pw.Primary.ColumnKeys) != 0 || !math.IsNaN(pw.Vectors["communalities"].([]float64)[0]) || pw.Auxiliary["n"].Values[0][2] != 1 {
+					t.Errorf("thin pair factor analysis = %v / %v (n %v), want undefined", pw.Primary.ColumnKeys, pw.Vectors["communalities"], pw.Auxiliary["n"].Values[0][2])
+				}
+				return
+			}
 			if !math.IsNaN(pw.Primary.Values[0][2]) || pw.Auxiliary["n"].Values[0][2] != 1 {
 				t.Errorf("thin pair cell = %v (n %v), want null over 1 row", pw.Primary.Values[0][2], pw.Auxiliary["n"].Values[0][2])
 			}
@@ -373,6 +410,9 @@ func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 	}
 	for _, typ := range types.AllMatrixTypes() {
 		for _, mode := range []string{`{"missing": "listwise"}`, `{"missing": "pairwise"}`} {
+			if pairwiseRefused(typ) && strings.Contains(mode, "pairwise") {
+				continue
+			}
 			t.Run(string(typ)+mode, func(t *testing.T) {
 				res := runOneMatrix(t, rows, missingSpec(typ, x123, "", mode))
 				w := findWarning(res, errors.PULSE_MATRIX_ZERO_VARIANCE)
@@ -384,6 +424,22 @@ func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 					// decomposition: no components, null eigenvalues.
 					if len(res.Primary.ColumnKeys) != 0 || !math.IsNaN(res.Vectors["eigenvalues"].([]float64)[0]) {
 						t.Errorf("PCA over a constant member = %v / %v, want undefined", res.Primary.ColumnKeys, res.Vectors["eigenvalues"])
+					}
+					return
+				}
+				if typ == types.MAT_FACTOR {
+					// Nor a factor analysis: no factors, null
+					// communalities.
+					if len(res.Primary.ColumnKeys) != 0 || !math.IsNaN(res.Vectors["communalities"].([]float64)[0]) {
+						t.Errorf("factor analysis over a constant member = %v / %v, want undefined", res.Primary.ColumnKeys, res.Vectors["communalities"])
+					}
+					return
+				}
+				if typ == types.MAT_DISTANCE {
+					// Standardized: the constant member's z is undefined,
+					// so is every distance (one bucket: the diagonal).
+					if !math.IsNaN(res.Primary.Values[0][0]) {
+						t.Errorf("standardized distance over a constant member = %v, want null", res.Primary.Values[0][0])
 					}
 					return
 				}

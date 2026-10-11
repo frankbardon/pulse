@@ -4,16 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"sort"
+
+	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // placeholder spells the unbound value for wire key k.
 func placeholder(k string) string { return "<" + k + ">" }
 
 // optionalSlots adds a slot a test does not REQUIRE but needs to answer
-// the intent: TEST_T runs one-sample unless split_by is set, and a
-// group comparison is the two-sample form.
+// the intent: TEST_T (and TEST_HOTELLING_T2) runs one-sample unless
+// split_by is set, and a group comparison is the two-sample form.
 var optionalSlots = map[[2]string][]string{
-	{"TEST_T", "compare_groups"}: {"SplitBy"},
+	{"TEST_T", "compare_groups"}:            {"SplitBy"},
+	{"TEST_HOTELLING_T2", "compare_groups"}: {"SplitBy"},
 }
 
 // filtererShape is the value slot each built-in filterer reads beside
@@ -121,6 +125,11 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 		note("order_by")
 		entry["order_by"] = []map[string]any{{"field": placeholder("order_by")}}
 	default: // aggregator, attribute, grouper, feature
+		if (op.category == catAttribute && vectors.IsVectorAttribute(types.AttributeType(op.name))) ||
+			(op.category == catGrouper && vectors.IsVectorGroup(types.GroupType(op.name))) {
+			entry["fields"] = list("fields")
+			break
+		}
 		if !op.ignoresField {
 			entry["field"] = str("field")
 		}

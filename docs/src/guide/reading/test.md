@@ -143,6 +143,56 @@ Estimated share of variation group membership accounts for, from Welch's F plugg
 
 - The raw estimate goes below zero when F is under 1; Pulse reports 0 instead: the sample shows no measurable share of variation, which does not show that the true effect is zero, especially with small groups.
 
+<a id="op-test_bartlett_sphericity"></a>
+
+### `TEST_BARTLETT_SPHERICITY`
+
+Checks whether a set of numeric fields are related at all, the first check before summarising them as a few underlying dimensions. See its [catalog entry](../catalog/test.md#op-test_bartlett_sphericity).
+
+#### `statistic`
+
+A chi-square that grows as the fields' correlations move away from all zero; a small p-value says the fields are related enough to summarise as fewer dimensions.
+
+**Caveats:**
+
+- With many rows even tiny correlations are significant: a small p shows the fields are not independent, not that they factor well.
+- It is null, with a warning, when a field is constant or is the sum of others, or when the effective row count is too small.
+
+#### `p_value`
+
+Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.determinant`
+
+The determinant of the correlation matrix, 1 when the fields are uncorrelated and near 0 when they are strongly related; the statistic grows as it shrinks.
+
+<a id="op-test_box_m"></a>
+
+### `TEST_BOX_M`
+
+Checks whether several groups share one spread pattern across a set of numeric fields, the assumption behind comparing average profiles. See its [catalog entry](../catalog/test.md#op-test_box_m).
+
+#### `statistic`
+
+A chi-square that grows as the groups' spreads and correlations across the fields differ; a small p-value says the groups do not share one covariance.
+
+**Caveats:**
+
+- It is very sensitive to non-normal data and to large groups, so a small p is common; many analysts only worry below 0.001.
+- It is null, with a warning, when a group has no more complete rows than fields or a field is constant within a group.
+
+#### `p_value`
+
+Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.m`
+
+Box's M, the raw gap between the pooled and the per-group covariances before the small-sample correction; 0 when every group's covariance is the same.
+
+#### `details.f`
+
+Box's M rescaled to an approximate F on details.df1 and details.df2 degrees of freedom, with its own details.f_p_value; an alternative to the chi-square for small groups.
+
 <a id="op-test_brown_forsythe"></a>
 
 ### `TEST_BROWN_FORSYTHE`
@@ -243,6 +293,30 @@ The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also 
 #### `p_value`
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+<a id="op-test_hotelling_t2"></a>
+
+### `TEST_HOTELLING_T2`
+
+Checks whether several numeric fields, taken together as one profile, differ from a target, between two groups, or before vs after. See its [catalog entry](../catalog/test.md#op-test_hotelling_t2).
+
+#### `statistic`
+
+T² is the squared distance between the observed average profile and the target profile (one sample) or between the two groups' average profiles, measured in units of the fields' own spread and correlation; larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.
+
+**Caveats:**
+
+- T² says whether the profiles differ as a whole, not on which fields: compare the per-field averages in details.mean, details.means or details.mean_diff to see where the gap lies.
+- With variance unequal, details.df2 is an approximation and usually fractional; it does not assume the two groups share one covariance.
+- It is null, with a warning, when the fields' covariance is singular, for example when one field is constant or is the sum of others.
+
+#### `p_value`
+
+Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.f`
+
+T² rescaled to an F statistic on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.
 
 <a id="op-test_kendall_tau"></a>
 
@@ -361,6 +435,72 @@ Rank-biserial correlation, from -1 to +1: the chance that a random row from the 
 
 - There are no sourced bands for rank-biserial r that Pulse could verify, so none are attached; (r + 1) / 2 is the probability that a first-group row is larger, ties counting half.
 - It measures how often one group's values exceed the other's, not a difference in medians.
+
+<a id="op-test_manova"></a>
+
+### `TEST_MANOVA`
+
+Checks whether several numeric fields, taken together as one profile, differ across two or more groups. See its [catalog entry](../catalog/test.md#op-test_manova).
+
+#### `statistic`
+
+Pillai's trace, between 0 and the smaller of the field count and the group count minus one, sums how much of the fields' joint spread lies between the group average profiles; larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.
+
+**Caveats:**
+
+- It says whether some groups' profiles differ as a whole, not which groups or which fields: compare the per-group averages in details.means.
+- It is null, with a warning, when the fields' within-group covariance is singular, for example when one field is constant inside every group or is the sum of others.
+
+#### `p_value`
+
+Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.f`
+
+Pillai's trace rescaled to an approximate F on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.
+
+#### `details.wilks`
+
+Wilks' lambda, between 0 and 1, the share of the fields' joint spread left inside groups; smaller is stronger evidence, with its own f, df1, df2 and p_value.
+
+#### `details.hotelling_lawley`
+
+The Hotelling–Lawley trace, the between-group spread measured against the within-group spread; larger is stronger evidence, with its own f, df1, df2 and p_value.
+
+#### `details.roy`
+
+Roy's largest root, the separation along the single best direction through the fields, with its own f, df1, df2 and p_value.
+
+**Caveats:**
+
+- Its F is an upper bound (upper_bound is true), so its p-value is a lower bound and overstates the evidence; read it beside Pillai's.
+
+<a id="op-test_mardia"></a>
+
+### `TEST_MARDIA`
+
+Checks whether a set of numeric fields looks jointly normal, through their combined skew and tail weight. See its [catalog entry](../catalog/test.md#op-test_mardia).
+
+#### `statistic`
+
+The skewness chi-square (default) or the kurtosis z named by variant; a small p-value says the fields are not jointly normal.
+
+**Caveats:**
+
+- A large p only means no departure was detected, which is likely with few rows.
+- It is null, with a warning, when there are no more complete rows than fields or a field is constant or the sum of others.
+
+#### `p_value`
+
+Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.skewness`
+
+Mardia's multivariate skewness, 0 for jointly normal data; it grows as the joint shape leans to one side.
+
+#### `details.kurtosis`
+
+Mardia's multivariate kurtosis, p(p + 2) for p jointly normal fields; above that the tails are heavier than normal, below it lighter.
 
 <a id="op-test_paired_t"></a>
 

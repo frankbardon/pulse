@@ -62,7 +62,7 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	want[string(types.ATTR_TSCORE)] = ClassAware
 	want[string(types.ATTR_NORMALIZED)] = ClassNotWeightable
 	// U12 E4-S2: the regression attributes refit REG_OLS weighted.
-	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE} {
+	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE} {
 		want[string(a)] = ClassAware
 	}
 	for _, gt := range types.AllGroupTypes() {
@@ -70,6 +70,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	}
 	// U12 E5-S2: buckets cut at the weighted order statistics.
 	want[string(types.GROUP_QUANTILE)] = ClassAware
+	// U25 E4-S1: k-means over the frequency-expanded rows.
+	want[string(types.GROUP_KMEANS)] = ClassFrequencyOnly
 	for _, wt := range types.AllWindowTypes() {
 		want[string(wt)] = ClassNotWeightable
 	}
@@ -133,6 +135,23 @@ func TestKindsOf(t *testing.T) {
 // TestRefusalReasons_AreRefused: every permanent refusal is a refused
 // operator, the named ones carry a reason, and a lifted operator
 // (TEST_T) does not.
+// TestKindRefusalReasons_AreFrequencyOnly: a permanent probability-weight
+// reason belongs only to a frequency-only operator, and GROUP_KMEANS
+// carries one.
+func TestKindRefusalReasons_AreFrequencyOnly(t *testing.T) {
+	for op := range kindRefusalReasons {
+		if ClassOf(op) != ClassFrequencyOnly {
+			t.Errorf("%s has a kind refusal reason but class %v", op, ClassOf(op))
+		}
+	}
+	if ClassOf("GROUP_KMEANS") != ClassFrequencyOnly || KindRefusalReason("GROUP_KMEANS") == "" {
+		t.Fatalf("GROUP_KMEANS: class %v, reason %q; want frequency-only with a permanent reason", ClassOf("GROUP_KMEANS"), KindRefusalReason("GROUP_KMEANS"))
+	}
+	if KindRefusalReason("TEST_KS") != "" {
+		t.Fatal("a liftable frequency-only operator carries a permanent kind reason")
+	}
+}
+
 func TestRefusalReasons_AreRefused(t *testing.T) {
 	for op := range refusalReasons {
 		if ClassOf(op) != ClassRefuse {
@@ -212,5 +231,21 @@ func TestMatrixClassOf(t *testing.T) {
 	}
 	if got := MatrixClassOf(types.MAT_COVARIANCE, true); got != ClassAware {
 		t.Errorf("MAT_COVARIANCE class = %v, want ClassAware (no rank method)", got)
+	}
+}
+
+// TestDistanceClassOf: MAT_DISTANCE is ClassAware, and a GROUP_KMEANS
+// between (w coincident points) makes the spec frequency-only.
+func TestDistanceClassOf(t *testing.T) {
+	if got := ClassOf(string(types.MAT_DISTANCE)); got != ClassAware {
+		t.Errorf("MAT_DISTANCE class = %v, want ClassAware", got)
+	}
+	if got := DistanceClassOf(types.GROUP_KMEANS); got != ClassFrequencyOnly {
+		t.Errorf("k-means between = %v, want ClassFrequencyOnly", got)
+	}
+	for _, g := range []types.GroupType{types.GROUP_CATEGORY, types.GROUP_QUANTILE, types.GROUP_RANGE} {
+		if got := DistanceClassOf(g); got != ClassAware {
+			t.Errorf("%s between = %v, want ClassAware", g, got)
+		}
 	}
 }

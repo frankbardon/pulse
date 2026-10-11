@@ -200,6 +200,66 @@ func testCapabilities() []descriptor.TestMeta {
 			Params:      []descriptor.Param{alphaParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
+		{
+			Name:        string(types.TEST_HOTELLING_T2),
+			Family:      string(types.TEST_HOTELLING_T2),
+			Tier:        1,
+			Description: "Hotelling's T² on a mean vector (exactly one of Vector / Fields, listwise): one-sample against params.mu, paired (Vector2 / Fields2, same length; the row-wise difference vector against params.mu), or two-sample with a 2-level SplitBy — pooled covariance (exact F) or params.variance unequal (Krishnamoorthy–Yu, fractional df2).",
+			Streamable:  types.TEST_HOTELLING_T2.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "mu", Type: "list", Required: false, Description: "Hypothesized mean vector (one-sample) or mean difference vector (paired), one entry per member (default zeros; ignored when SplitBy is set)."},
+				{Name: "variance", Type: "enum", Required: false, Default: "pooled", EnumValues: []string{"pooled", "unequal"}, Description: "Two-sample covariance: pooled (one shared covariance, exact F) or unequal (Krishnamoorthy–Yu modified Nel–Van der Merwe F, fractional df2); unequal is refused on the one-sample and paired forms."},
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+		},
+		{
+			Name:        string(types.TEST_MANOVA),
+			Family:      string(types.TEST_MANOVA),
+			Tier:        1,
+			Description: "One-way MANOVA of a mean vector (exactly one of Vector / Fields, listwise) across a SplitBy of ≥ 2 levels: statistic, df and p are Pillai's trace; details carry Pillai, Wilks (Rao F), Hotelling–Lawley and Roy (an upper bound), each with f, df1, df2 and p_value.",
+			Streamable:  types.TEST_MANOVA.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+			Requires: []string{"SplitBy"},
+		},
+		{
+			Name:        string(types.TEST_BARTLETT_SPHERICITY),
+			Family:      string(types.TEST_BARTLETT_SPHERICITY),
+			Tier:        1,
+			Description: "Bartlett's sphericity test on a vector's correlation matrix (exactly one of Vector / Fields, ≥ 2 members, listwise; no SplitBy): χ² = −ln|R|·(N* − 1 − (2p + 5)/6) on p(p − 1)/2 df, bit-equal to MAT_PCA's bartlett_* scalars on the same rows. A small p says the members correlate enough to factor.",
+			Streamable:  types.TEST_BARTLETT_SPHERICITY.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+		},
+		{
+			Name:        string(types.TEST_BOX_M),
+			Family:      string(types.TEST_BOX_M),
+			Tier:        1,
+			Description: "Box's M test of one shared covariance matrix across a SplitBy of ≥ 2 levels (exactly one of Vector / Fields, listwise): statistic, df and p are Box's χ² approximation; details carry M and the F approximation (f, df1, df2, f_p_value). The equal-covariance check for TEST_MANOVA and the pooled TEST_HOTELLING_T2.",
+			Streamable:  types.TEST_BOX_M.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+			Requires: []string{"SplitBy"},
+		},
+		{
+			Name:        string(types.TEST_MARDIA),
+			Family:      string(types.TEST_MARDIA),
+			Tier:        1,
+			Description: "Mardia's multivariate normality test on a vector (exactly one of Vector / Fields, ≥ 1 member, listwise; no SplitBy). Skewness b1p gives χ² = N·b1p/6 on p(p + 1)(p + 2)/6 df, small-sample corrected when N < 20. Kurtosis b2p gives a z. params.statistic picks the headline; both ride details. Buffered: needs the fitted mean and covariance before any row's products.",
+			Streamable:  types.TEST_MARDIA.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "statistic", Type: "enum", Required: false, Default: "skewness", EnumValues: []string{"skewness", "kurtosis"}, Description: "Headline statistic: the skewness χ² (default) or the kurtosis z; both always appear in details."},
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+		},
 		// Tier-2 natives: TREND and TUKEY_HSD are exclusively post-tests.
 		{
 			Name:        string(types.TEST_TREND),

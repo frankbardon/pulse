@@ -33,6 +33,7 @@ Scale of the coefficient's Student-t posterior: how uncertain the coefficient is
 **Caveats:**
 
 - It is a posterior spread, not a frequentist standard error, and no p-value is built from it.
+- Under a robust covariance (hc0-hc3, cluster, hac) it is instead the scale of Muller's sandwich posterior, a normal centred on the same posterior mean whose spread is the sandwich, not the model's: the posterior covariance is REPLACED, so the model's own uncertainty no longer enters.
 
 #### `credible_intervals.*`
 
@@ -43,6 +44,7 @@ Scale of the coefficient's Student-t posterior: how uncertain the coefficient is
 - It is a probability statement about the coefficient conditional on the prior and the model, not a statement about repeated samples; if either is wrong, so is the probability.
 - With the default weak prior and many rows per predictor it is close to the OLS confidence interval. With few rows it is narrower, because the default variance prior divides by about n rather than n - p - 1 (about 19% narrower at 20 rows and 5 predictors). With an informative prior it also reflects that prior.
 - An interval that excludes 0 is not a significance test; report the interval itself.
+- Under a robust covariance it is the sandwich posterior's normal interval (no df), a substitute for the posterior: honest about heteroskedastic or dependent rows, but no longer the conjugate model's probability statement.
 
 #### `ci_lower.*`
 
@@ -134,6 +136,7 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 
 - With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.
 - Gamma data rarely have dispersion 1, so gamma standard errors are unreliable.
+- Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.
 
 #### `p_values.*`
 
@@ -233,11 +236,11 @@ The difference in the outcome's expected value between rows one unit apart on th
 
 #### `std_errors.*`
 
-How much the coefficient would vary from sample to sample; smaller means a more precise estimate. Pulse reports the classic standard error, which assumes residuals of constant spread.
+How much the coefficient would vary from sample to sample; smaller means a more precise estimate. It is the classic standard error, which assumes residuals of constant spread, unless the request's covariance names a robust one.
 
 **Caveats:**
 
-- With heteroscedasticity (residual spread that changes) it can be too small or too large; with dependent rows it is usually too small.
+- Classic: with heteroscedasticity (residual spread that changes) it can be too small or too large, and with dependent rows it is usually too small; covariance hc3 guards the first, cluster (rows grouped by a field) or hac (a series in time) the second, and p_values, the intervals and vcov follow it.
 - For l1 and elasticnet fits it is a plug-in approximation over the kept predictors (Pulse warns); request resample for an empirical one.
 
 #### `p_values.*`
@@ -277,7 +280,7 @@ The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95
 
 #### `df`
 
-Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional.
+Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; under covariance cluster, the number of clusters minus 1.
 
 **Caveats:**
 

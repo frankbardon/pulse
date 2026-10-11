@@ -64,6 +64,11 @@ type bayesLinearEngine struct {
 	priorRate      float64
 	credibleLevel  float64
 
+	// robust is set when spec.Covariance selects a non-classical
+	// estimator: rows then also need their cluster / order_by values, and
+	// finalize runs the second pass (bayes_covariance.go).
+	robust bool
+
 	// finalized flips when Finalize / FitBuffered has run; further
 	// UpdateRow calls would corrupt the fit and are rejected.
 	finalized bool
@@ -152,6 +157,7 @@ func newBayesLinearEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 		priorShape:     shape,
 		priorRate:      rate,
 		credibleLevel:  level,
+		robust:         spec.Covariance.Robust(),
 	}, nil
 }
 
@@ -164,24 +170,43 @@ func (e *bayesLinearEngine) UpdateRow(rec Record) error {
 			"bayesLinearEngine.UpdateRow called after Finalize",
 		)
 	}
-	y, ok := rec.NumericValue(e.spec.Target)
-	if !ok {
-		return nil
-	}
-	x := make([]float64, len(e.spec.Predictors))
-	for i, name := range e.spec.Predictors {
-		v, ok := rec.NumericValue(name)
-		if !ok {
-			return nil
-		}
-		x[i] = v
-	}
-	w, ok := e.weights.of(rec)
+	x, y, w, ok := e.fitRow(rec)
 	if !ok {
 		return nil
 	}
 	e.acc.UpdateRowWeighted(x, y, w)
 	return nil
+}
+
+// fitRow reads rec's predictors, target and weight, ok=false when the
+// row does not enter the fit: a null target or predictor (listwise),
+// under a robust covariance a null cluster / order_by value, or an
+// invalid or zero weight (judged only once the row is otherwise
+// complete). The robust second pass re-reads the fitted rows through
+// it, so both passes see exactly the same rows.
+func (e *bayesLinearEngine) fitRow(rec Record) (x []float64, y, w float64, ok bool) {
+	y, ok = rec.NumericValue(e.spec.Target)
+	if !ok {
+		return nil, 0, 0, false
+	}
+	x = make([]float64, len(e.spec.Predictors))
+	for i, name := range e.spec.Predictors {
+		v, ok := rec.NumericValue(name)
+		if !ok {
+			return nil, 0, 0, false
+		}
+		x[i] = v
+	}
+	if e.robust {
+		if _, _, ok := robustRowKeys(e.spec, rec); !ok {
+			return nil, 0, 0, false
+		}
+	}
+	w, ok = e.weights.of(rec)
+	if !ok {
+		return nil, 0, 0, false
+	}
+	return x, y, w, true
 }
 
 // Finalize closes the streaming fit and returns the populated result.
@@ -193,7 +218,7 @@ func (e *bayesLinearEngine) Finalize() (*types.RegressionResult, error) {
 		)
 	}
 	e.finalized = true
-	return e.finalizeFromAccumulator()
+	return e.finalizeFromAccumulator(nil)
 }
 
 // FitBuffered runs the same accumulator pipeline over an in-memory
@@ -211,7 +236,7 @@ func (e *bayesLinearEngine) FitBuffered(records []Record) (*types.RegressionResu
 		}
 	}
 	e.finalized = true
-	return e.finalizeFromAccumulator()
+	return e.finalizeFromAccumulator(records)
 }
 
 // Fit satisfies the Engine interface for callers that never feed rows.
@@ -225,7 +250,7 @@ func (e *bayesLinearEngine) Fit() (*types.RegressionResult, error) {
 		)
 	}
 	e.finalized = true
-	return e.finalizeFromAccumulator()
+	return e.finalizeFromAccumulator(nil)
 }
 
 // finalizeFromAccumulator runs the posterior update and packages the
@@ -237,7 +262,15 @@ func (e *bayesLinearEngine) Fit() (*types.RegressionResult, error) {
 //     posterior mean μ_n = Λ_n⁻¹ · (Λ₀ μ₀ + Xᵀy) via Cholesky.
 //  3. Compute the posterior shape / rate, then derive Student-t marginal
 //     std errors and credible intervals.
-func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, error) {
+//
+// records are the rows a buffered fit folded (nil on the streaming
+// path). A robust RegressionSpec.Covariance reads them a second time
+// (bayesSandwich): Müller's sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹)
+// replaces the posterior marginals behind StdErrors, the credible and
+// confidence intervals (normal, not Student-t) and Vcov; μ_n is kept.
+// RegressionSpec.Streamable keeps a robust spec off the streaming path,
+// so records is never nil for one.
+func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.RegressionResult, error) {
 	n := e.acc.n
 	p := e.acc.p
 	q := p + 1 // design-matrix column count, including intercept
@@ -356,12 +389,31 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 		stdErrors[j] = sqrt(v)
 	}
 
+	var robust *bayesRobust
+	if e.robust {
+		if records == nil {
+			return nil, errors.NewCodedError(
+				errors.PROCESSING_INTERNAL,
+				"REG_BAYES_LINEAR robust covariance needs the buffered path (RegressionSpec.Streamable)",
+			)
+		}
+		if robust, err = e.bayesSandwich(muNSlice, invLambda, records); err != nil {
+			return nil, err
+		}
+		stdErrors = robust.stdErrors
+	}
+
 	// Credible intervals: μ_n[j] ± t_q · SE[j] with t_q the (1−α/2)
 	// quantile of t(2·a_n). credibleInterval handles the degenerate
-	// SE=0 case.
+	// SE=0 case. Under a robust covariance the sandwich posterior is
+	// normal: z_q in place of t_q (normalCredibleInterval).
 	dfPost := 2 * aN
 	intervals := make([][2]float64, q)
 	for j := 0; j < q; j++ {
+		if robust != nil {
+			intervals[j] = normalCredibleInterval(muNSlice[j], stdErrors[j], e.credibleLevel)
+			continue
+		}
 		intervals[j] = credibleInterval(muNSlice[j], stdErrors[j], dfPost, e.credibleLevel)
 	}
 
@@ -432,6 +484,15 @@ func (e *bayesLinearEngine) finalizeFromAccumulator() (*types.RegressionResult, 
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
 	// The posterior Student-t interval credible_intervals reports, at
 	// conf_level (credible_level when unset): equal to it at one level.
+	if robust != nil {
+		// The sandwich posterior is N(μ_n, V): normal intervals, no df.
+		attachIntervals(res, bayesConfLevel(e.spec), 0, false)
+		res.Covariance = robust.fit.info
+		if e.spec.Vcov {
+			attachVcov(res, predictors, robust.fit.v)
+		}
+		return res, nil
+	}
 	attachIntervals(res, bayesConfLevel(e.spec), dfPost, true)
 	if e.spec.Vcov {
 		// The POSTERIOR covariance of β under the NIG posterior,

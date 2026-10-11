@@ -15,6 +15,65 @@ var matrixPurposes = map[string]descriptor.Purpose{
 	"MAT_RELIABILITY":         purposeMatReliability,
 	"MAT_PCA":                 purposeMatPCA,
 	"MAT_COLLINEARITY":        purposeMatCollinearity,
+	"MAT_FACTOR":              purposeMatFactor,
+	"MAT_DISTANCE":            purposeMatDistance,
+}
+
+var purposeMatDistance = descriptor.Purpose{
+	Plain:   "How far apart segments are across several numbers at once: the gap between each pair of segment centres.",
+	KnownAs: []string{"centroid distance", "distance matrix", "segment separation", "dist"},
+	Intents: []string{IntentSegment, IntentCompareGroups},
+	Questions: []string{
+		"Which customer segments are most alike on spend, visits and tenure, and which stand furthest apart?",
+		"How far apart are the regions' average profiles across the rating battery?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey: "Comparing the average rating profiles of segments or regions.",
+		descriptor.DomainOps:    "Checking whether found clusters are well apart before naming them.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you want to test whether the centres differ", Use: "TEST_MANOVA"},
+		{When: "you want how unusual each row is", Use: "ATTR_MAHALANOBIS"},
+	},
+	FollowUps: []descriptor.Alternative{
+		{When: "the segments still need finding", Use: "GROUP_KMEANS"},
+	},
+	Assumptions: []string{
+		"A centre is the segment's (weighted) average of every number; a distance compares centres, not the spread inside each segment.",
+		"Numbers in large units dominate unless standardize is on; mahalanobis also allows for how the numbers vary together.",
+		"A row missing any number, or landing in no segment, is left out and counted.",
+	},
+	Level:    descriptor.LevelAdvanced,
+	Glossary: []string{"centroid", "distance", "z-score", "covariance", "listwise-deletion"},
+}
+
+var purposeMatFactor = descriptor.Purpose{
+	Plain:   "Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores.",
+	KnownAs: []string{"exploratory factor analysis", "efa", "principal axis factoring", "minres", "maximum likelihood factor analysis", "factanal"},
+	Intents: []string{IntentMeasureConstruct},
+	Questions: []string{
+		"Do these twelve attitude questions reflect two or three underlying qualities, and which questions go with which?",
+		"Which items in this battery tie weakly to every quality and could be dropped?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey:  "Finding the themes behind a long attitude battery and which questions belong to each, before averaging them into scale scores.",
+		descriptor.DomainScience: "Checking whether a set of test scores reflects one general ability or several separate ones.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you want summaries of all the spread, not just what the measures share", Use: "MAT_PCA"},
+		{When: "you already know the items measure one quality and want its reliability", Use: "MAT_RELIABILITY"},
+	},
+	FollowUps: []descriptor.Alternative{
+		{When: "the items of one factor are to be added up into a score", Use: "MAT_RELIABILITY"},
+	},
+	Assumptions: []string{
+		"The measures are numeric and related by straight-line links; a factor is a pattern in the shared spread; it does not show that an underlying cause exists.",
+		"You choose how many factors to keep; read the variance each accounts for and the residual figures, and try one more and one fewer.",
+		"Read KMO and Bartlett's test first: weakly related measures give unstable factors.",
+		"A row with any measure missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.",
+	},
+	Level:    descriptor.LevelAdvanced,
+	Glossary: []string{"factor", "loading", "eigenvalue", "correlation", "listwise-deletion", "pairwise-deletion"},
 }
 
 var purposeMatCollinearity = descriptor.Purpose{

@@ -53,6 +53,76 @@
         ]
       },
       {
+        "operator": "TEST_BARTLETT_SPHERICITY",
+        "category": "test",
+        "level": "advanced",
+        "why": "Checks whether a set of numeric fields are related at all, the first check before summarising them as a few underlying dimensions. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "tests": [
+            {
+              "type": "TEST_BARTLETT_SPHERICITY"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how strongly each pair is related",
+            "use": "MAT_CORRELATION"
+          },
+          {
+            "when": "you want the dimensions themselves",
+            "use": "MAT_PCA"
+          }
+        ]
+      },
+      {
+        "operator": "MAT_FACTOR",
+        "category": "matrix",
+        "level": "advanced",
+        "why": "Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "MAT_FACTOR"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want summaries of all the spread, not just what the measures share",
+            "use": "MAT_PCA"
+          },
+          {
+            "when": "you already know the items measure one quality and want its reliability",
+            "use": "MAT_RELIABILITY"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the items of one factor are to be added up into a score",
+            "use": "MAT_RELIABILITY"
+          }
+        ]
+      },
+      {
         "operator": "MAT_PCA",
         "category": "matrix",
         "level": "advanced",
@@ -85,12 +155,88 @@
             "use": "MAT_CORRELATION"
           }
         ]
+      },
+      {
+        "operator": "ATTR_FACTOR_SCORE",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row its score on one factor behind several related numeric fields: an estimate of the hidden trait they measure together. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "params": {
+                "factor": "\u003cfactor\u003e"
+              },
+              "type": "ATTR_FACTOR_SCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "factor",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many factors there are and which fields load on each",
+            "use": "MAT_FACTOR"
+          },
+          {
+            "when": "you want a summary of all the fields' variance rather than a common trait",
+            "use": "ATTR_PC_SCORE"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_PC_SCORE",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "params": {
+                "component": "\u003ccomponent\u003e"
+              },
+              "type": "ATTR_PC_SCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "component",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many dimensions there are and which fields load on each",
+            "use": "MAT_PCA"
+          },
+          {
+            "when": "you want how unusual a row is across the fields",
+            "use": "ATTR_MAHALANOBIS"
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 2
+    "candidates_considered": 6
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2b9de9f31e8ba70f074b7f1e89364f0d791f6c414df14655cbab6c49c9c00648
+// golden-hash: a3613a44372f1eab297cae5d0e44b13dd30ff6deafa84d449c2b727a390947da

@@ -19,6 +19,9 @@ import "github.com/frankbardon/pulse/descriptor"
 // T-score) rather than null, rank / n * 100 with distinct ranks for ties,
 // and the hat-matrix identity h = 1/n + (x - mean)' M^-1 (x - mean).
 var attributeInterpretations = map[string][]descriptor.Interpretation{
+	"ATTR_MAHALANOBIS":  interpAttrMahalanobis,
+	"ATTR_PC_SCORE":     interpAttrPCScore,
+	"ATTR_FACTOR_SCORE": interpAttrFactorScore,
 	"ATTR_NORMALIZED":   interpAttrNormalized,
 	"ATTR_PERCENTILE":   interpAttrPercentile,
 	"ATTR_REG_FITTED":   interpAttrRegFitted,
@@ -200,6 +203,56 @@ var (
 				"A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; " +
 					"a row missing any predictor reads 0, below the 1/n floor, so 0 marks a missing row.",
 				"Unpenalized least squares only; a request with a penalty is refused.",
+			},
+		},
+	}
+)
+
+// --- Fitted vector scores -------------------------------------------------
+
+var (
+	interpAttrMahalanobis = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "With output d2 (the default): the row's squared Mahalanobis distance D² = (x - mean)' S^-1 (x - mean) across the p fields, " +
+				"the distance from the fitted average row in units of the fields' own spread and correlation; 0 is exactly average and it is never negative. " +
+				"With output p: the chance of a D² at least this large under a chi-square curve on p degrees of freedom, so a small value marks an unusual row.",
+			Caveats: []string{
+				"D² grows with the number of fields: over the fitted rows it averages about p, so compare it with p (or read output p), never with a fixed cut-off across batteries.",
+				"The p output assumes the fields are jointly normal; on skewed or bounded fields (rating scales) it is only a ranking, and screening many rows flags some by chance.",
+				"Extreme rows in the fit pull the mean and inflate the spread, masking themselves and each other; fit_on can fit on a clean subset while still scoring every row.",
+				"The fit is over every filtered row (or the fit_on subset), not the row's group. Under a row weight the mean and covariance are weighted; a row with no usable weight is left out of the fit but still scored.",
+				"A row missing any field reads null, and every row reads null, with a warning, when the fit has no more complete rows than fields or a field is constant or a combination of others.",
+			},
+		},
+	}
+
+	interpAttrPCScore = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The row's score on the chosen principal component of the fields, standardized so the fitted rows average 0 with a standard deviation of 1: " +
+				"0 is an average row, +1 is one standard deviation toward the end where the fields with positive loadings are high.",
+			Caveats: []string{
+				"The sign is a convention (MAT_PCA's: each component's largest loading is positive), not a meaning: check MAT_PCA's loadings on the same fields before calling a high score good or bad.",
+				"A component summarises the spread the fields share; it does not say why they move together, and a later component carries less of their variance and is noisier.",
+				"On the correlation every field counts equally; on the covariance a field with a large spread dominates the score.",
+				"The fit is over every filtered row (or the fit_on subset), not the row's group, so scores are comparable across groups. Under a row weight the fit is weighted; a row with no usable weight is left out of the fit but still scored.",
+				"A row missing any field reads null, and every row reads null, with a warning, when the fit has no more complete rows than fields or a field is constant or a combination of others.",
+			},
+		},
+	}
+
+	interpAttrFactorScore = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The row's estimated score on the chosen factor, on the scale of the fields standardized over the fitted rows: " +
+				"0 is an average row, positive is toward the end where the fields loading positively on the factor are high.",
+			Caveats: []string{
+				"The direction is MAT_FACTOR's convention (each factor's loadings sum positive), not a meaning: check its loadings on the same fields before calling a high score good or bad.",
+				"A factor score is an estimate, not the factor itself: regression scores are shrunk toward 0 (their spread is below 1), Bartlett scores are unbiased but noisier.",
+				"After an oblique rotation (promax, oblimin) the factors correlate, so scores on two factors move together.",
+				"The fit is over every filtered row (or the fit_on subset), not the row's group, so scores are comparable across groups. Under a row weight the fit is weighted; a row with no usable weight is left out of the fit but still scored.",
+				"A row missing any field reads null, and every row reads null, with a warning, when the fit cannot score (too few rows, a constant or redundant field, a factor count the fields cannot identify).",
 			},
 		},
 	}

@@ -76,6 +76,31 @@ var testParityOps = []testParityOp{
 		filters: []*types.Filterer{{Type: types.FILTER_EXCLUDE, Field: "o", Values: []string{"maybe"}}}},
 	{name: "ks", spec: types.Test{Type: types.TEST_KS, Field: "x", SplitBy: "h"}},
 	{name: "brown_forsythe", spec: types.Test{Type: types.TEST_BROWN_FORSYTHE, Field: "x", SplitBy: "k"}},
+	// Hotelling's T² (U25 E1-S1): one co-moment per level on w*.
+	{name: "hotelling_one_sample", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}, Params: json.RawMessage(`{"mu":[0.5,0.5]}`)},
+		raw: []string{"n_dropped"}},
+	{name: "hotelling_split", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}, SplitBy: "h"},
+		raw: []string{"n_dropped"}},
+	// Paired and unequal forms (U25 E1-S2): the difference co-moment and
+	// the per-level Krishnamoorthy–Yu traces, both on w*.
+	{name: "hotelling_paired", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x"}, Fields2: []string{"y"}},
+		raw: []string{"n_dropped"}},
+	{name: "hotelling_unequal", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}, SplitBy: "h",
+		Params: json.RawMessage(`{"variance":"unequal"}`)},
+		raw: []string{"n_dropped"}},
+	// MANOVA (U25 E1-S3): the same per-level co-moments on w*.
+	{name: "manova", spec: types.Test{Type: types.TEST_MANOVA, Fields: []string{"x", "y"}, SplitBy: "k"},
+		raw: []string{"n_dropped"}},
+	// Bartlett sphericity and Box's M (U25 E1-S4): one block-folded
+	// co-moment at N* / per-level co-moments on w*.
+	{name: "bartlett_sphericity", spec: types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Fields: []string{"x", "y"}},
+		raw: []string{"n_dropped"}},
+	{name: "box_m", spec: types.Test{Type: types.TEST_BOX_M, Fields: []string{"x", "y"}, SplitBy: "k"},
+		raw: []string{"n_dropped"}},
+	// Mardia (U25 E1-S5): frequency-only and buffered — the expansion
+	// identity holds, the probability arm is skipped by weight_kinds.
+	{name: "mardia", spec: types.Test{Type: types.TEST_MARDIA, Fields: []string{"x", "y"}},
+		raw: []string{"n_dropped"}},
 }
 
 // build returns the row's request builder over path.

@@ -22,6 +22,9 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `06_date_part.json` | `ATTR_DATE_PART` | Extract `year_month` from a date field for grouping |
 | `10_date_part_hour.json` | `ATTR_DATE_PART` | Local wall-clock hour of a `datetime` (`part: hour`, request `time_zone`) |
 | `11_code_in_top_box.json` | `ATTR_CODE_IN` | 1/0 code-list indicator; its weighted mean per crosstab cell is the share of the whole base (top-box) |
+| `12_mahalanobis.json` | `ATTR_MAHALANOBIS` | Multivariate outlier score (D² and its chi-square p) across age and income; `fit_on` fits on a subset while scoring every row |
+| `13_pc_score.json` | `ATTR_PC_SCORE` | Standardized principal component scores (unrotated PC1 and a varimax-rotated PC2 fitted on the control arm) averaged by treatment |
+| `14_factor_score.json` | `ATTR_FACTOR_SCORE` | Factor scores (regression on a minres fit, Bartlett on an ML fit) of one factor behind three measures, averaged by treatment; a Heywood case warns |
 
 See `pulse skills show attribute-composition` for the full operator
 contract, the `ATTR_FORMULA` allowlist, and composition rules.

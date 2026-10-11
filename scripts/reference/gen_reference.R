@@ -168,6 +168,31 @@ write_golden("chi_square_survival", c(meta(
   "Upper-tail probability P(X >= x)."
 ), list(cases = chi_cases)))
 
+# ------------------------------------------------- noncentral chi-square
+# The lower-tail CDF behind MAT_FACTOR's RMSEA interval (TODO #405). R's
+# pchisq(x, df, ncp) sums the Poisson mixture to full double precision
+# for ncp < 80 and switches to an approximation bounded at 1e-12
+# absolute above it, so the grid keeps ncp < 80 (the oracle) and the
+# ncp >= 80 rows only where the CDF is in [1e-3, 1 - 1e-3], marked
+# r_approx, which the Go test holds to an absolute 1e-11.
+nc_df <- c(0.5, 1, 2, 3, 5, 10, 17.3, 30, 100)
+nc_ncp <- c(0.01, 0.5, 1, 2.5, 5, 10, 22.7, 40, 79, 80, 120, 300)
+nc_mult <- c(0.01, 0.1, 0.3, 0.5, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 2, 3, 5)
+nc_cases <- list()
+for (df in nc_df) for (ncp in nc_ncp) for (m in nc_mult) {
+  x <- (df + ncp) * m
+  p <- pchisq(x, df, ncp = ncp)
+  approx <- ncp >= 80
+  if (!keep(p) || p >= 1) next
+  if (approx && (p < 1e-3 || p > 1 - 1e-3)) next
+  nc_cases[[length(nc_cases) + 1]] <- list(x = num(x), df = num(df), ncp = num(ncp), cdf = num(p), r_approx = approx)
+}
+write_golden("noncentral_chi_square_cdf", c(meta(
+  "noncentralChiSquareCDF",
+  "pchisq(x, df, ncp = ncp)",
+  "Lower-tail probability P(X <= x) of a noncentral chi-square; r_approx marks ncp >= 80, where R's own algorithm is accurate to 1e-12 absolute only."
+), list(cases = nc_cases)))
+
 # ---------------------------------------------------------------------- F
 f_df1 <- c(1, 2, 3, 5, 10, 30, 100, 1000)
 f_df2 <- c(1, 2, 5, 10, 17.3, 30, 100, 1000, 1e5)

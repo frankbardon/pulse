@@ -46,7 +46,7 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 		rows  [][5]float64
 		fires map[string]bool // "<type>/<p>" pairwise shapes that must warn
 	}{
-		{"three-way", nonPSDRows(), map[string]bool{"MAT_COVARIANCE/3": true, "MAT_CORRELATION/3": true, "MAT_PARTIAL_CORRELATION/3": true, "MAT_PCA/3": true, "MAT_COLLINEARITY/3": true}},
+		{"three-way", nonPSDRows(), map[string]bool{"MAT_COVARIANCE/3": true, "MAT_CORRELATION/3": true, "MAT_PARTIAL_CORRELATION/3": true, "MAT_PCA/3": true, "MAT_COLLINEARITY/3": true, "MAT_FACTOR/3": true}},
 		{"pair-cov", pairCovNotPSDRows(), map[string]bool{"MAT_COVARIANCE/2": true}},
 		{"reference", matrixRows(500), nil},
 	}
@@ -57,6 +57,11 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, typ := range types.AllMatrixTypes() {
+			if typ == types.MAT_DISTANCE {
+				// Its axis is the between grouper's bucket labels, not
+				// the members: TestMatrixDistance_PredictMatchesRuntime.
+				continue
+			}
 			for _, mode := range []string{"listwise", "pairwise"} {
 				for _, members := range [][]string{{"x1", "x2", "x3"}, {"x1", "x2"}} {
 					label := fmt.Sprintf("%s/%s/%s/%d", fx.name, typ, mode, len(members))
@@ -69,6 +74,12 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 					if typ == types.MAT_PCA {
 						// An integer k: predict knows the [p, k] shape.
 						params = fmt.Sprintf(`{"missing": %q, "repair": "nearest", "components": %d}`, mode, len(members))
+					}
+					if typ == types.MAT_FACTOR {
+						// An integer k: predict knows the [p, k] shape
+						// (one factor is not identified on 2 members:
+						// a warning, the shape stays).
+						params = fmt.Sprintf(`{"missing": %q, "repair": "nearest", "factors": 1}`, mode)
 					}
 					spec := types.MatrixSpec{Name: "m", Type: typ, Vector: "v", Params: json.RawMessage(params)}
 					req := &types.Request{

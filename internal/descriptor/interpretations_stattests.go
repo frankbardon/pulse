@@ -16,27 +16,32 @@ import "github.com/frankbardon/pulse/descriptor"
 // here is proved emitted, on every registered tier, by
 // internal/processing's interpretationProbes.
 var statTestInterpretations = map[string][]descriptor.Interpretation{
-	"TEST_ANOVA_F":        interpTestAnovaF,
-	"TEST_ANOVA_RM":       interpTestAnovaRM,
-	"TEST_ANOVA_WELCH":    interpTestAnovaWelch,
-	"TEST_BROWN_FORSYTHE": interpTestBrownForsythe,
-	"TEST_CHISQ":          interpTestChiSq,
-	"TEST_FISHER_EXACT":   interpTestFisherExact,
-	"TEST_KENDALL_TAU":    interpTestKendallTau,
-	"TEST_KRUSKAL_WALLIS": interpTestKruskalWallis,
-	"TEST_KS":             interpTestKS,
-	"TEST_MANN_WHITNEY_U": interpTestMannWhitneyU,
-	"TEST_PAIRED_T":       interpTestPairedT,
-	"TEST_PEARSON_R":      interpTestPearsonR,
-	"TEST_PROP_Z":         interpTestPropZ,
-	"TEST_SHAPIRO_WILK":   interpTestShapiroWilk,
-	"TEST_SPEARMAN_R":     interpTestSpearmanR,
-	"TEST_T":              interpTestT,
-	"TEST_TREND":          interpTestTrend,
-	"TEST_TUKEY_HSD":      interpTestTukeyHSD,
-	"TEST_WELCH":          interpTestWelch,
-	"TEST_WILCOXON_SR":    interpTestWilcoxonSR,
-	"TEST_Z_TWO_SAMPLE":   interpTestZTwoSample,
+	"TEST_ANOVA_F":             interpTestAnovaF,
+	"TEST_ANOVA_RM":            interpTestAnovaRM,
+	"TEST_ANOVA_WELCH":         interpTestAnovaWelch,
+	"TEST_BROWN_FORSYTHE":      interpTestBrownForsythe,
+	"TEST_CHISQ":               interpTestChiSq,
+	"TEST_FISHER_EXACT":        interpTestFisherExact,
+	"TEST_HOTELLING_T2":        interpTestHotellingT2,
+	"TEST_KENDALL_TAU":         interpTestKendallTau,
+	"TEST_KRUSKAL_WALLIS":      interpTestKruskalWallis,
+	"TEST_KS":                  interpTestKS,
+	"TEST_MANN_WHITNEY_U":      interpTestMannWhitneyU,
+	"TEST_MANOVA":              interpTestManova,
+	"TEST_BARTLETT_SPHERICITY": interpTestBartlettSphericity,
+	"TEST_BOX_M":               interpTestBoxM,
+	"TEST_MARDIA":              interpTestMardia,
+	"TEST_PAIRED_T":            interpTestPairedT,
+	"TEST_PEARSON_R":           interpTestPearsonR,
+	"TEST_PROP_Z":              interpTestPropZ,
+	"TEST_SHAPIRO_WILK":        interpTestShapiroWilk,
+	"TEST_SPEARMAN_R":          interpTestSpearmanR,
+	"TEST_T":                   interpTestT,
+	"TEST_TREND":               interpTestTrend,
+	"TEST_TUKEY_HSD":           interpTestTukeyHSD,
+	"TEST_WELCH":               interpTestWelch,
+	"TEST_WILCOXON_SR":         interpTestWilcoxonSR,
+	"TEST_Z_TWO_SAMPLE":        interpTestZTwoSample,
 }
 
 // interpPValue is the p-value reading every family cites.
@@ -239,6 +244,115 @@ var (
 				"The raw estimate goes below zero when F is under 1; Pulse reports 0 instead: the sample shows no measurable share of variation, which does not show that the true effect is zero, especially with small groups.",
 			},
 		}),
+	}
+
+	interpTestHotellingT2 = []descriptor.Interpretation{
+		{
+			Field: "statistic",
+			Means: "T² is the squared distance between the observed average profile and the target profile (one sample) or between the two groups' average profiles, " +
+				"measured in units of the fields' own spread and correlation; larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.",
+			Caveats: []string{
+				"T² says whether the profiles differ as a whole, not on which fields: compare the per-field averages in details.mean, details.means or details.mean_diff to see where the gap lies.",
+				"With variance unequal, details.df2 is an approximation and usually fractional; it does not assume the two groups share one covariance.",
+				"It is null, with a warning, when the fields' covariance is singular, for example when one field is constant or is the sum of others.",
+			},
+		},
+		interpPValue,
+		{
+			Field: "details.f",
+			Means: "T² rescaled to an F statistic on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.",
+		},
+	}
+
+	interpTestManova = []descriptor.Interpretation{
+		{
+			Field: "statistic",
+			Means: "Pillai's trace, between 0 and the smaller of the field count and the group count minus one, sums how much of the fields' joint spread lies between the group average profiles; " +
+				"larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.",
+			Caveats: []string{
+				"It says whether some groups' profiles differ as a whole, not which groups or which fields: compare the per-group averages in details.means.",
+				"It is null, with a warning, when the fields' within-group covariance is singular, for example when one field is constant inside every group or is the sum of others.",
+			},
+		},
+		interpPValue,
+		{
+			Field: "details.f",
+			Means: "Pillai's trace rescaled to an approximate F on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.",
+		},
+		{
+			Field: "details.wilks",
+			Means: "Wilks' lambda, between 0 and 1, the share of the fields' joint spread left inside groups; smaller is stronger evidence, with its own f, df1, df2 and p_value.",
+		},
+		{
+			Field: "details.hotelling_lawley",
+			Means: "The Hotelling–Lawley trace, the between-group spread measured against the within-group spread; larger is stronger evidence, with its own f, df1, df2 and p_value.",
+		},
+		{
+			Field: "details.roy",
+			Means: "Roy's largest root, the separation along the single best direction through the fields, with its own f, df1, df2 and p_value.",
+			Caveats: []string{
+				"Its F is an upper bound (upper_bound is true), so its p-value is a lower bound and overstates the evidence; read it beside Pillai's.",
+			},
+		},
+	}
+
+	interpTestBartlettSphericity = []descriptor.Interpretation{
+		{
+			Field: "statistic",
+			Means: "A chi-square that grows as the fields' correlations move away from all zero; " +
+				"a small p-value says the fields are related enough to summarise as fewer dimensions.",
+			Caveats: []string{
+				"With many rows even tiny correlations are significant: a small p shows the fields are not independent, not that they factor well.",
+				"It is null, with a warning, when a field is constant or is the sum of others, or when the effective row count is too small.",
+			},
+		},
+		interpPValue,
+		{
+			Field: "details.determinant",
+			Means: "The determinant of the correlation matrix, 1 when the fields are uncorrelated and near 0 when they are strongly related; the statistic grows as it shrinks.",
+		},
+	}
+
+	interpTestBoxM = []descriptor.Interpretation{
+		{
+			Field: "statistic",
+			Means: "A chi-square that grows as the groups' spreads and correlations across the fields differ; " +
+				"a small p-value says the groups do not share one covariance.",
+			Caveats: []string{
+				"It is very sensitive to non-normal data and to large groups, so a small p is common; many analysts only worry below 0.001.",
+				"It is null, with a warning, when a group has no more complete rows than fields or a field is constant within a group.",
+			},
+		},
+		interpPValue,
+		{
+			Field: "details.m",
+			Means: "Box's M, the raw gap between the pooled and the per-group covariances before the small-sample correction; 0 when every group's covariance is the same.",
+		},
+		{
+			Field: "details.f",
+			Means: "Box's M rescaled to an approximate F on details.df1 and details.df2 degrees of freedom, with its own details.f_p_value; an alternative to the chi-square for small groups.",
+		},
+	}
+
+	interpTestMardia = []descriptor.Interpretation{
+		{
+			Field: "statistic",
+			Means: "The skewness chi-square (default) or the kurtosis z named by variant; " +
+				"a small p-value says the fields are not jointly normal.",
+			Caveats: []string{
+				"A large p only means no departure was detected, which is likely with few rows.",
+				"It is null, with a warning, when there are no more complete rows than fields or a field is constant or the sum of others.",
+			},
+		},
+		interpPValue,
+		{
+			Field: "details.skewness",
+			Means: "Mardia's multivariate skewness, 0 for jointly normal data; it grows as the joint shape leans to one side.",
+		},
+		{
+			Field: "details.kurtosis",
+			Means: "Mardia's multivariate kurtosis, p(p + 2) for p jointly normal fields; above that the tails are heavier than normal, below it lighter.",
+		},
 	}
 
 	interpTestAnovaWelch = []descriptor.Interpretation{

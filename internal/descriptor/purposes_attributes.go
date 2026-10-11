@@ -25,6 +25,9 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_NORMALIZED":   purposeAttrNormalized,
 	"ATTR_PERCENTILE":   purposeAttrPercentile,
 	"ATTR_REG_FITTED":   purposeAttrRegFitted,
+	"ATTR_MAHALANOBIS":  purposeAttrMahalanobis,
+	"ATTR_PC_SCORE":     purposeAttrPCScore,
+	"ATTR_FACTOR_SCORE": purposeAttrFactorScore,
 	"ATTR_REG_LEVERAGE": purposeAttrRegLeverage,
 	"ATTR_REG_PREDICT":  purposeAttrRegPredict,
 	"ATTR_REG_RESIDUAL": purposeAttrRegResidual,
@@ -380,5 +383,96 @@ var (
 		},
 		Level:    descriptor.LevelAdvanced,
 		Glossary: []string{"outlier", "residual", "listwise-deletion"},
+	}
+)
+
+// --- Fitted vector scores (one fit across several fields) ---------------
+
+var (
+	purposeAttrMahalanobis = descriptor.Purpose{
+		Plain:   "Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together.",
+		KnownAs: []string{"mahalanobis distance", "multivariate outlier score", "d-squared"},
+		Intents: []string{IntentDataQuality},
+		Questions: []string{
+			"Which respondents gave an unusual pattern of answers across the whole battery, even if no single answer is extreme?",
+			"Which transactions have an odd combination of amount, frequency and basket size?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Flag straight-liners and odd answer patterns across a rating battery before analysis.",
+			descriptor.DomainOps:     "Screen orders whose size, discount and delivery time together look unlike the rest.",
+			descriptor.DomainScience: "Find samples whose set of measurements is unusual as a whole.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "only one field matters", Use: "ATTR_ZSCORE"},
+			{When: "you want how far apart groups are, not single rows", Use: "TEST_HOTELLING_T2"},
+		},
+		Assumptions: []string{
+			"The typical row and the spread come from one fit over every row that passed the filters (or the subset fit_on selects), never per group; every filtered row is scored.",
+			"A row missing any of the fields is left out of the fit and gets no score (listwise deletion).",
+			"The p output reads the score against a chi-square curve, which holds only when the fields are roughly jointly normal.",
+			"There must be more complete rows than fields, and no field may be constant or a sum of the others; otherwise every score is empty, with a warning.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"distance", "outlier", "covariance", "mean", "listwise-deletion",
+			"chi-square", "p-value", "normal-distribution", "degrees-of-freedom",
+		},
+	}
+
+	purposeAttrPCScore = descriptor.Purpose{
+		Plain:   "Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share.",
+		KnownAs: []string{"principal component score", "pc score", "component score", "index score"},
+		Intents: []string{IntentMeasureConstruct, IntentPrepare},
+		Questions: []string{
+			"What is each respondent's score on the main dimension behind these rating questions?",
+			"Can I replace these five correlated measures with one summary column for a later model?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Score each respondent on the leading dimension of an attitude battery, to segment or chart by it.",
+			descriptor.DomainScience: "Reduce many correlated measurements of each specimen to a few component columns before further analysis.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how many dimensions there are and which fields load on each", Use: "MAT_PCA"},
+			{When: "you want how unusual a row is across the fields", Use: "ATTR_MAHALANOBIS"},
+		},
+		Assumptions: []string{
+			"The components come from one fit over every row that passed the filters (or the subset fit_on selects), never per group; every filtered row is scored.",
+			"A component's direction (which end is high) follows MAT_PCA's rule, not the meaning of the fields: read the loadings before naming a score.",
+			"A row missing any of the fields is left out of the fit and gets no score (listwise deletion).",
+			"There must be more complete rows than fields, and no field may be constant or a sum of the others; otherwise every score is empty, with a warning.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"principal-component", "eigenvalue", "loading", "correlation", "covariance",
+			"z-score", "listwise-deletion",
+		},
+	}
+
+	purposeAttrFactorScore = descriptor.Purpose{
+		Plain:   "Adds to every row its score on one factor behind several related numeric fields: an estimate of the hidden trait they measure together.",
+		KnownAs: []string{"factor score", "regression factor score", "Thurstone score", "Bartlett score", "latent score"},
+		Intents: []string{IntentMeasureConstruct, IntentPrepare},
+		Questions: []string{
+			"What is each respondent's score on the satisfaction factor behind these rating questions?",
+			"Can I score every row on the two constructs a factor analysis found, to compare segments on them?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Score each respondent on the constructs an attitude battery measures, then crosstab or test the scores by segment.",
+			descriptor.DomainScience: "Estimate each subject's standing on a latent trait from several noisy indicators before a later model.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how many factors there are and which fields load on each", Use: "MAT_FACTOR"},
+			{When: "you want a summary of all the fields' variance rather than a common trait", Use: "ATTR_PC_SCORE"},
+		},
+		Assumptions: []string{
+			"The factors come from one fit over every row that passed the filters (or the subset fit_on selects), never per group; every filtered row is scored.",
+			"The fit is MAT_FACTOR's with the same settings, so factor numbers and directions match its loadings: read them before naming a score.",
+			"A row missing any of the fields is left out of the fit and gets no score (listwise deletion).",
+			"There must be more complete rows than fields, the factor count must be identified, and no field may be constant or a sum of the others; otherwise every score is empty, with a warning.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"factor", "loading", "correlation", "z-score", "listwise-deletion",
+		},
 	}
 )

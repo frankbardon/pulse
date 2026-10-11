@@ -49,7 +49,8 @@ func isExtensionTestType(opts *PredictOptions, t types.TestType) bool {
 func attributeTwoPass(opts *PredictOptions, t types.AttributeType) bool {
 	switch opRoute(opts.instance(), t) {
 	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
-		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE,
+		types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE:
 		return true
 	}
 	snap := extensionsFromOpts(opts)

@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -57,6 +59,10 @@ type zoneSlot struct {
 //     ignored. Onto a `datetime` schema field it is accepted and applied
 //     (the runtime writes it onto the executing slot — ZonedRequest).
 //
+// The slots walked are every filterer, feature, attribute, group,
+// crosstab row and column, then each MAT_DISTANCE params.between
+// ("matrices[i].params.between"), in that order.
+//
 // A slot with an empty operator Type is skipped (it is a type error,
 // not a zone error, and type validation reports it identically with or
 // without a `tz`). A nil schema skips the two field-dependent refusals
@@ -103,6 +109,20 @@ func ResolveZones(req *types.Request, schema *encoding.Schema, defaultZone strin
 			if g != nil {
 				slots = append(slots, zoneSlot{fmt.Sprintf("crosstab.columns[%d]", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
 			}
+		}
+	}
+	// A MAT_DISTANCE params.between is a grouper slot too: it resolves,
+	// refuses and inherits exactly like a top-level one, at the slot
+	// path "matrices[i].params.between" (ZonedRequest writes an
+	// inherited zone into it). A between that does not decode is left
+	// to the matrix resolver (vectors.ResolveMatrices), as a slot with
+	// no Type is left to type validation.
+	for i, m := range req.Matrices {
+		if opRoute(inst, m.Type) != types.MAT_DISTANCE {
+			continue
+		}
+		if g, ok := vectors.SpecBetween(m); ok {
+			slots = append(slots, zoneSlot{fmt.Sprintf("matrices[%d].params.between", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
 		}
 	}
 	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load, inst)
@@ -410,7 +430,62 @@ func ZonedRequest(req *types.Request, zones []descriptor.ResolvedZone, load Zone
 			c.Crosstab = &ct
 		}
 	}
+	if m, ok := zonedMatrices(req.Matrices, writes); ok {
+		c.Matrices = m
+	}
 	return &c
+}
+
+// zonedMatrices returns a copy of in with each MAT_DISTANCE spec whose
+// params.between inherited a zone (writes key
+// "matrices[i].params.between") carrying it as the between's `tz`, and
+// whether any spec was; in (and its Params bytes) is never mutated. The
+// params are re-encoded with the between's `tz` key set and every other
+// key kept; a between that does not decode as an object is left as is
+// (the matrix resolver refuses it).
+func zonedMatrices(in []types.MatrixSpec, writes map[string]string) ([]types.MatrixSpec, bool) {
+	var out []types.MatrixSpec
+	for i := range in {
+		tz, ok := writes[fmt.Sprintf("matrices[%d].params.between", i)]
+		if !ok {
+			continue
+		}
+		params, ok := betweenWithZone(in[i].Params, tz)
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = append([]types.MatrixSpec(nil), in...)
+		}
+		out[i].Params = params
+	}
+	return out, out != nil
+}
+
+// betweenWithZone re-encodes MAT_DISTANCE params with params.between's
+// `tz` set to tz.
+func betweenWithZone(raw json.RawMessage, tz string) (json.RawMessage, bool) {
+	var params map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return nil, false
+	}
+	var between map[string]json.RawMessage
+	if err := json.Unmarshal(params["between"], &between); err != nil || between == nil {
+		return nil, false
+	}
+	name, err := json.Marshal(tz)
+	if err != nil {
+		return nil, false
+	}
+	between["tz"] = name
+	if params["between"], err = json.Marshal(between); err != nil {
+		return nil, false
+	}
+	out, err := json.Marshal(params)
+	if err != nil {
+		return nil, false
+	}
+	return out, true
 }
 
 // ZonedFacetRequest is ZonedRequest for a FacetRequest's filterers;

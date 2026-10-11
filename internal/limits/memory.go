@@ -125,6 +125,9 @@ type MemoryInputs struct {
 	// summed over every matrix) plus a buffered matrix's row store
 	// (MatrixRowBufferBytes).
 	MatrixBytes int64
+	// GrouperBytes is a buffered vector grouper's point store
+	// (KMeansBufferBytes, GROUP_KMEANS) — 0 without one.
+	GrouperBytes int64
 }
 
 // EstimateMemory is the upper-bound resident footprint of one run, in
@@ -132,7 +135,7 @@ type MemoryInputs struct {
 //
 //	every arm  base + 3 x records x stride (the payload + GC headroom)
 //	           + join right rows x (3 x stride + 2 x record bytes)
-//	           + matrix merge-block state
+//	           + matrix merge-block state + vector-grouper point store
 //	buffered   + records x (record bytes + 16 x aggs + 128 x derived)
 //	           + buckets x (512 + 256 x aggs) + cells x 512
 //	streaming  + buckets x (512 + 256 x aggs)
@@ -146,6 +149,7 @@ func EstimateMemory(in MemoryInputs) int64 {
 	add(in.Records, fileCopyFactor*in.Stride)
 	add(in.JoinRightRows, addSat(fileCopyFactor*in.Stride, buildCopyFactor*in.RecordBytes))
 	total = addSat(total, in.MatrixBytes)
+	total = addSat(total, in.GrouperBytes)
 	add(in.Records, mulSat(in.ValueStateAggregations, valueEntryBytes))
 	bucketState := addSat(bucketBaseBytes, mulSat(in.Aggregations, aggStateBytes))
 	switch in.Arm {
@@ -216,6 +220,13 @@ func MatrixStateBytes(blocks, buckets, accumulatorBytes int64) int64 {
 // 0 for a streamable matrix (rowBytes 0).
 func MatrixRowBufferBytes(records, rowBytes int64) int64 {
 	return mulSat(records, rowBytes)
+}
+
+// KMeansBufferBytes is GROUP_KMEANS's resident point store: records x
+// p x 8 (every row's member tuple, records the upper bound on clustered
+// rows) plus k x p x 8 (the centroids). Saturating.
+func KMeansBufferBytes(records, p, k int64) int64 {
+	return addSat(mulSat(mulSat(records, p), 8), mulSat(mulSat(k, p), 8))
 }
 
 const maxInt64 = int64(^uint64(0) >> 1)

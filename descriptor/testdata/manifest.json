@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:d5e7bac111ec01c2d685b6ff2a1d3e0abf2c7730947606476b5fd0c8fe0e8fd5",
+    "feature_set_digest": "fs1:d31ab9216060ab72684ff4923349294e72df14aec840979c3c110b7a6ba989c6",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -2916,6 +2916,119 @@
           ]
         },
         {
+          "name": "ATTR_FACTOR_SCORE",
+          "category": "attribute",
+          "description": "Per-row score on one common factor of the p members of vector / fields (exactly one; listwise) from a cohort-wide inline MAT_FACTOR fit of the fit rows' (weighted) correlation — the same factors, extraction and rotation knobs, so the same loadings, order and sign — scored by the regression (Thurstone) or Bartlett method on the members standardized by the fit. Every filtered row is scored; a null member scores null; a singular fit, N* ≤ p, an unidentified factor count or a factor the Kaiser rule does not keep nulls every score with a warning; a Heywood case or an iteration cap scores with a warning. Two-pass.",
+          "params": [
+            {
+              "name": "factor",
+              "type": "int",
+              "required": true,
+              "description": "The factor to score, 1-based in MAT_FACTOR's column order (F1 accounts for the most variance), at most params.factors and the member count."
+            },
+            {
+              "name": "method",
+              "type": "enum",
+              "required": false,
+              "default": "regression",
+              "description": "regression: Thurstone's least-squares estimate, weights R⁻¹·LΦ (psych factor.scores \"Thurstone\"; shrunk toward 0, the most accurate per row). bartlett: weighted least squares, weights U⁻²L(LᵀU⁻²L)⁻¹ (psych \"Bartlett\"; unbiased for the factor, noisier); a uniqueness at or below 0 nulls every Bartlett score.",
+              "enum_values": [
+                "regression",
+                "bartlett"
+              ]
+            },
+            {
+              "name": "factors",
+              "type": "any",
+              "required": false,
+              "default": "kaiser",
+              "description": "MAT_FACTOR's factors: a positive integer k (at least params.factor, at most the member count) or \"kaiser\" (the fit correlation's eigenvalues above 1)."
+            },
+            {
+              "name": "extraction",
+              "type": "enum",
+              "required": false,
+              "default": "minres",
+              "description": "MAT_FACTOR's extraction: minres, principal_axis or ml.",
+              "enum_values": [
+                "minres",
+                "principal_axis",
+                "ml"
+              ]
+            },
+            {
+              "name": "rotation",
+              "type": "enum",
+              "required": false,
+              "default": "none",
+              "description": "MAT_FACTOR's rotation: none, varimax, promax or oblimin; an oblique rotation's factor correlation enters the regression weights.",
+              "enum_values": [
+                "none",
+                "varimax",
+                "promax",
+                "oblimin"
+              ]
+            },
+            {
+              "name": "kappa",
+              "type": "float",
+              "required": false,
+              "default": 4,
+              "description": "Promax power, above 1; rotation promax only."
+            },
+            {
+              "name": "gamma",
+              "type": "float",
+              "required": false,
+              "default": 0,
+              "description": "Oblimin gamma, finite; rotation oblimin only."
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one factor score per record (mean 0 over the fit rows; null when a member is null or the fit cannot score)",
+          "streamable": true,
+          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "measure_construct",
+            "prepare"
+          ]
+        },
+        {
           "name": "ATTR_FORMULA",
           "category": "attribute",
           "description": "Per-row expression evaluation against the record's fields (e.g. \"price * qty\").",
@@ -2954,6 +3067,66 @@
           ]
         },
         {
+          "name": "ATTR_MAHALANOBIS",
+          "category": "attribute",
+          "description": "Per-row Mahalanobis distance D² = (x − μ)ᵀS⁻¹(x − μ) across the p members of vector / fields (exactly one; listwise), from a cohort-wide fit: the (weighted) mean and ddof = 1 covariance of the filtered rows params.fit_on admits. Every filtered row is scored; a null member scores null; a singular fit or N* ≤ p nulls every score with a warning. Two-pass.",
+          "params": [
+            {
+              "name": "output",
+              "type": "enum",
+              "required": false,
+              "default": "d2",
+              "description": "d2: the squared distance; p: its chi-square upper tail on p degrees of freedom (the outlier p-value under joint normality).",
+              "enum_values": [
+                "d2",
+                "p"
+              ]
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one D² (≥ 0) or p-value in [0, 1] per record (null when a member is null or the fit is singular / too small)",
+          "streamable": true,
+          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "data_quality"
+          ]
+        },
+        {
           "name": "ATTR_NORMALIZED",
           "category": "attribute",
           "description": "Per-row min-max normalization: (value − min) / (max − min) ∈ [0, 1].",
@@ -2975,6 +3148,90 @@
             "mergeability": ""
           },
           "intents": [
+            "prepare"
+          ]
+        },
+        {
+          "name": "ATTR_PC_SCORE",
+          "category": "attribute",
+          "description": "Per-row score on one principal component of the p members of vector / fields (exactly one; listwise), standardized to unit variance on a cohort-wide fit: the eigen-decomposition of the fit rows' (weighted) correlation or ddof = 1 covariance, with MAT_PCA's order and sign (a score correlates with each member as MAT_PCA's loading). Optional varimax rotation within the leading components. Every filtered row is scored; a null member scores null; a singular fit or N* ≤ p nulls every score with a warning. Two-pass.",
+          "params": [
+            {
+              "name": "component",
+              "type": "int",
+              "required": true,
+              "description": "The component to score, 1-based (1 = the largest eigenvalue; after a rotation, the rotated component with the largest variance), at most the member count."
+            },
+            {
+              "name": "on",
+              "type": "enum",
+              "required": false,
+              "default": "correlation",
+              "description": "correlation: decompose the correlation (members standardized first); covariance: the covariance (members in their own units; a large-spread member dominates).",
+              "enum_values": [
+                "correlation",
+                "covariance"
+              ]
+            },
+            {
+              "name": "rotation",
+              "type": "enum",
+              "required": false,
+              "default": "none",
+              "description": "none: the unrotated component. varimax: rotate the params.components leading components orthogonally (stats::varimax, Kaiser normalization; MAT_PCA's rotated order and sign) and score rotated component params.component.",
+              "enum_values": [
+                "none",
+                "varimax"
+              ]
+            },
+            {
+              "name": "components",
+              "type": "int",
+              "required": false,
+              "description": "With rotation varimax (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count."
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one standardized score per record (mean 0, variance 1 over the fit rows; null when a member is null or the fit is singular / too small)",
+          "streamable": true,
+          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "measure_construct",
             "prepare"
           ]
         },
@@ -4039,6 +4296,177 @@
           ]
         },
         {
+          "name": "GROUP_KMEANS",
+          "category": "grouper",
+          "description": "Segment records into k clusters by seeded, deterministic k-means (Euclidean, k-means++ starts then Lloyd) over the p members of vector / fields (exactly one; no field). Keys cluster_1..cluster_k, numbered and emitted by descending size; the key column is GROUP_KMEANS_\u003cvector or first fields entry\u003e. A row with a null member is skipped (n_null). Labels depend only on the member tuples, never on row order, shard order or worker count.",
+          "params": [
+            {
+              "name": "k",
+              "type": "int",
+              "required": true,
+              "description": "Cluster count, at least 2; refused at run time above the number of distinct member tuples."
+            },
+            {
+              "name": "seed",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "PRNG seed (int64) for the k-means++ starts; 0 means a fixed default, never time-derived."
+            },
+            {
+              "name": "max_iter",
+              "type": "int",
+              "required": false,
+              "default": 100,
+              "description": "Lloyd iteration cap per start; a best start that hits it warns PULSE_MATRIX_NOT_CONVERGED."
+            },
+            {
+              "name": "n_init",
+              "type": "int",
+              "required": false,
+              "default": 10,
+              "description": "Number of seeded starts; the lowest within-cluster sum of squares wins, ties to the earliest."
+            },
+            {
+              "name": "standardize",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "z-score each member (weighted mean, ddof = 1 sd over the clustered rows) before clustering."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member joins no cluster).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "cluster label per row (cluster_1 .. cluster_k, by descending size)",
+          "streamable": false,
+          "streamable_hint": "k-means fits over every row before any label exists; the request runs buffered and serially under DecodeWorkers / ShardWorkers, and a crosstab falls back to the buffered arm.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "k",
+                "type": "int",
+                "description": "Cluster count (params.k)."
+              },
+              {
+                "name": "seed",
+                "type": "int",
+                "description": "The resolved PRNG seed (params.seed 0 resolves to the fixed default)."
+              },
+              {
+                "name": "n_init",
+                "type": "int",
+                "description": "Seeded starts run (params.n_init)."
+              },
+              {
+                "name": "max_iter",
+                "type": "int",
+                "description": "Lloyd iteration cap per start (params.max_iter)."
+              },
+              {
+                "name": "standardize",
+                "type": "bool",
+                "description": "Whether members were z-scored before clustering."
+              },
+              {
+                "name": "members",
+                "type": "[]string",
+                "description": "The resolved member columns, axis order."
+              },
+              {
+                "name": "center",
+                "type": "[]float64",
+                "description": "Per-member standardization mean (0 when standardize is false)."
+              },
+              {
+                "name": "scale",
+                "type": "[]float64",
+                "description": "Per-member standardization sd (1 when standardize is false or a member has no spread)."
+              },
+              {
+                "name": "distinct_points",
+                "type": "int",
+                "description": "Distinct member tuples among the clustered rows."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-cluster records in emission (size) order; each carries {key, count, size, within_ss, centroid, centroid_standardized}: count is rows, size the (frequency-weighted) mass, centroid in original units."
+              },
+              {
+                "name": "total_ss",
+                "type": "float64",
+                "description": "Total sum of squares about the grand centroid, in the clustering space."
+              },
+              {
+                "name": "within_ss",
+                "type": "float64",
+                "description": "Total within-cluster sum of squares."
+              },
+              {
+                "name": "between_ss",
+                "type": "float64",
+                "description": "total_ss − within_ss."
+              },
+              {
+                "name": "between_ss_ratio",
+                "type": "float64",
+                "description": "between_ss / total_ss (null when total_ss is 0)."
+              },
+              {
+                "name": "iterations",
+                "type": "int",
+                "description": "Lloyd iterations the winning start ran."
+              },
+              {
+                "name": "converged",
+                "type": "bool",
+                "description": "Whether the winning start reached a fixed point before max_iter."
+              },
+              {
+                "name": "best_init",
+                "type": "int",
+                "description": "The winning start, 1-based."
+              }
+            ],
+            "mergeability": "none"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency"
+          ],
+          "intents": [
+            "segment"
+          ]
+        },
+        {
           "name": "GROUP_QUANTILE",
           "category": "grouper",
           "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).",
@@ -5085,6 +5513,77 @@
         ]
       },
       {
+        "name": "TEST_BARTLETT_SPHERICITY",
+        "family": "TEST_BARTLETT_SPHERICITY",
+        "tier": 1,
+        "description": "Bartlett's sphericity test on a vector's correlation matrix (exactly one of Vector / Fields, ≥ 2 members, listwise; no SplitBy): χ² = −ln|R|·(N* − 1 − (2p + 5)/6) on p(p − 1)/2 df, bit-equal to MAT_PCA's bartlett_* scalars on the same rows. A small p says the members correlate enough to factor.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "intents": [
+          "measure_construct",
+          "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
+        "name": "TEST_BOX_M",
+        "family": "TEST_BOX_M",
+        "tier": 1,
+        "description": "Box's M test of one shared covariance matrix across a SplitBy of ≥ 2 levels (exactly one of Vector / Fields, listwise): statistic, df and p are Box's χ² approximation; details carry M and the F approximation (f, df1, df2, f_p_value). The equal-covariance check for TEST_MANOVA and the pooled TEST_HOTELLING_T2.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "requires": [
+          "SplitBy"
+        ],
+        "intents": [
+          "compare_groups",
+          "data_quality"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "name": "TEST_BROWN_FORSYTHE",
         "family": "TEST_BROWN_FORSYTHE",
         "tier": 1,
@@ -5164,6 +5663,57 @@
         ],
         "weight_kinds": [
           "frequency"
+        ]
+      },
+      {
+        "name": "TEST_HOTELLING_T2",
+        "family": "TEST_HOTELLING_T2",
+        "tier": 1,
+        "description": "Hotelling's T² on a mean vector (exactly one of Vector / Fields, listwise): one-sample against params.mu, paired (Vector2 / Fields2, same length; the row-wise difference vector against params.mu), or two-sample with a 2-level SplitBy — pooled covariance (exact F) or params.variance unequal (Krishnamoorthy–Yu, fractional df2).",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "mu",
+            "type": "list",
+            "required": false,
+            "description": "Hypothesized mean vector (one-sample) or mean difference vector (paired), one entry per member (default zeros; ignored when SplitBy is set)."
+          },
+          {
+            "name": "variance",
+            "type": "enum",
+            "required": false,
+            "default": "pooled",
+            "description": "Two-sample covariance: pooled (one shared covariance, exact F) or unequal (Krishnamoorthy–Yu modified Nel–Van der Merwe F, fractional df2); unequal is refused on the one-sample and paired forms.",
+            "enum_values": [
+              "pooled",
+              "unequal"
+            ]
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "intents": [
+          "benchmark",
+          "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -5266,6 +5816,86 @@
         ],
         "intents": [
           "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency"
+        ]
+      },
+      {
+        "name": "TEST_MANOVA",
+        "family": "TEST_MANOVA",
+        "tier": 1,
+        "description": "One-way MANOVA of a mean vector (exactly one of Vector / Fields, listwise) across a SplitBy of ≥ 2 levels: statistic, df and p are Pillai's trace; details carry Pillai, Wilks (Rao F), Hotelling–Lawley and Roy (an upper bound), each with f, df1, df2 and p_value.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "requires": [
+          "SplitBy"
+        ],
+        "intents": [
+          "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
+        "name": "TEST_MARDIA",
+        "family": "TEST_MARDIA",
+        "tier": 1,
+        "description": "Mardia's multivariate normality test on a vector (exactly one of Vector / Fields, ≥ 1 member, listwise; no SplitBy). Skewness b1p gives χ² = N·b1p/6 on p(p + 1)(p + 2)/6 df, small-sample corrected when N \u003c 20. Kurtosis b2p gives a z. params.statistic picks the headline; both ride details. Buffered: needs the fitted mean and covariance before any row's products.",
+        "streamable": false,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "statistic",
+            "type": "enum",
+            "required": false,
+            "default": "skewness",
+            "description": "Headline statistic: the skewness χ² (default) or the kurtosis z; both always appear in details.",
+            "enum_values": [
+              "skewness",
+              "kurtosis"
+            ]
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "intents": [
+          "data_quality",
+          "distribution_shape"
         ],
         "weight_kinds": [
           "frequency"
@@ -5844,9 +6474,9 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level.",
+        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level; a robust covariance swaps in the sandwich posterior (normal intervals, no df) and adds its covariance echo.",
         "streamable": true,
-        "streamable_hint": "Streamable; Resample and Selection are refused (PROCESSING_CONFIG), so nothing forces the buffered path.",
+        "streamable_hint": "Streamable; Resample and Selection are refused (PROCESSING_CONFIG). A robust covariance (any type but classical) forces the buffered path.",
         "params": [
           {
             "name": "target",
@@ -5914,7 +6544,13 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales)."
+            "description": "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales). Under a robust covariance it is the sandwich posterior's instead, √diag = std_errors."
+          },
+          {
+            "name": "covariance",
+            "type": "object",
+            "required": false,
+            "description": "{type, cluster, order_by, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Forces the buffered path; echoes as covariance."
           }
         ],
         "intents": [
@@ -5940,7 +6576,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R².",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a robust covariance adds its covariance echo.",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -6053,6 +6689,12 @@
             "required": false,
             "default": false,
             "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's."
+          },
+          {
+            "name": "covariance",
+            "type": "object",
+            "required": false,
+            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Inference stays Wald z, cluster included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
           }
         ],
         "modifiers": [
@@ -6098,9 +6740,9 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; a robust covariance adds its covariance echo.",
         "streamable": true,
-        "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path.",
+        "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path. A robust covariance (any type but classical) forces it too.",
         "params": [
           {
             "name": "target",
@@ -6210,6 +6852,12 @@
             "required": false,
             "default": false,
             "description": "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; resample gives the replicate covariance, selection the final refit's; lasso / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
+          },
+          {
+            "name": "covariance",
+            "type": "object",
+            "required": false,
+            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋). Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
           }
         ],
         "modifiers": [
@@ -6609,6 +7257,345 @@
         ]
       },
       {
+        "name": "MAT_DISTANCE",
+        "description": "Distances between the centroids of the buckets a grouper cuts the rows into (params.between: any built-in grouper but GROUP_DATE / GROUP_DATE_RANGES, GROUP_KMEANS included). A centroid is the bucket's (weighted) mean of every member. The primary is the k x k distance matrix (square, keyed by the bucket labels in the grouper's emission order, zero diagonal) under params.metric; auxiliary.centroids the k x p centroids (rows the buckets, columns the members), auxiliary.centroids_standardized under standardize and auxiliary.pooled_covariance under mahalanobis; vectors.sizes each bucket's weight mass and vectors.counts its rows. Rows the grouper puts in no bucket (a null key, an include rejection) are excluded and counted (components operator.n_null_key); a row with a null member is dropped (listwise only). Streamable and mergeable when the between grouper is (one co-moment per bucket); GROUP_KMEANS and GROUP_QUANTILE buffer the rows and run serially. Weighted under frequency and probability weights (a GROUP_KMEANS between: frequency only). No p-values.",
+        "accepts_types": [
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "params": [
+          {
+            "name": "between",
+            "type": "object",
+            "required": true,
+            "description": "The grouper whose buckets are compared: a grouper spec {type, field | vector | fields, params, include, interval} as in groups (GROUP_KMEANS reads vector / fields). Any built-in grouper or a registered extension grouper; it takes the matrix's weight and no weight of its own, and a tz only on a date-family grouper (GROUP_DATE, GROUP_DATE_RANGES), which reads its zone like a groups slot."
+          },
+          {
+            "name": "metric",
+            "type": "enum",
+            "required": false,
+            "default": "euclidean",
+            "description": "euclidean (stats::dist), sqeuclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, null for a zero-length one) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing). The list is local to MAT_DISTANCE.",
+            "enum_values": [
+              "euclidean",
+              "sqeuclidean",
+              "manhattan",
+              "chebyshev",
+              "cosine",
+              "mahalanobis"
+            ]
+          },
+          {
+            "name": "standardize",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "z-score every member over the bucketed rows (their mean and N* - 1 standard deviation, R scale()) before comparing, so no member dominates by its units."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise only: a row with any member null joins no centroid (pairwise is refused).",
+            "enum_values": [
+              "listwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          }
+        ],
+        "output_keys": {
+          "primary": "distance",
+          "auxiliary": [
+            "centroids",
+            "centroids_standardized",
+            "pooled_covariance"
+          ],
+          "vectors": [
+            "counts",
+            "sizes"
+          ]
+        },
+        "streamable": true,
+        "mergeable": true,
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "metric",
+              "type": "string",
+              "description": "The metric the distances use (params.metric)."
+            },
+            {
+              "name": "standardize",
+              "type": "bool",
+              "description": "Whether the members were z-scored first (params.standardize)."
+            },
+            {
+              "name": "buckets",
+              "type": "int",
+              "description": "Buckets compared (k)."
+            },
+            {
+              "name": "n_null_key",
+              "type": "int",
+              "description": "Filter-passing rows the between grouper placed in no bucket (a null key, an include rejection, a GROUP_KMEANS row with a null member); excluded from every figure."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "intents": [
+          "compare_groups",
+          "segment"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
+        "name": "MAT_FACTOR",
+        "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\"), iterated principal axes (principal_axis; fm = \"pa\") or maximum likelihood (ml; stats::factanal, fm = \"ml\"), each from the squared multiple correlations, then rotated (params.rotation none, varimax, promax or oblimin). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (promax and oblimin only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors; ml adds the Bartlett-corrected likelihood chi-square (likelihood_chisq, on df) and its p (likelihood_p), the Tucker-Lewis index (tli), the RMSEA point estimate (rmsea) with its interval (rmsea_lower / rmsea_upper at params.conf_level, default 90%, psych::fa's RMSEA lower / upper) and BIC. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 (ml: held at its 0.005 floor) is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
+        "accepts_types": [
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "params": [
+          {
+            "name": "factors",
+            "type": "any",
+            "required": false,
+            "default": "kaiser",
+            "description": "How many factors to extract: a positive integer k (at most the member count; a k the members cannot identify, (p - k)^2 \u003c p + k, returns a null fit with PULSE_MATRIX_NOT_IDENTIFIED) or \"kaiser\" (as many as the correlation has eigenvalues above 1)."
+          },
+          {
+            "name": "extraction",
+            "type": "enum",
+            "required": false,
+            "default": "minres",
+            "description": "minres: minimise the off-diagonal residuals over the communalities (psych fm = \"minres\"; Pulse solves to the exact optimum, where psych's optimiser stops about 1e-5 short). principal_axis: iterate the communalities on the diagonal until their sum moves by at most 0.001, at most 50 iterations (psych fm = \"pa\"). ml: maximum likelihood over the uniquenesses, each held in [0.005, 1] (stats::factanal, psych fm = \"ml\"; Pulse solves to the exact optimum, where their optimiser stops about 1e-5 short); adds likelihood_chisq, likelihood_p, tli, rmsea and bic, and needs a positive-definite correlation (a singular one nulls the fit with PULSE_MATRIX_SINGULAR). Each starts from the squared multiple correlations; iterations and converged report the run.",
+            "enum_values": [
+              "minres",
+              "principal_axis",
+              "ml"
+            ]
+          },
+          {
+            "name": "rotation",
+            "type": "enum",
+            "required": false,
+            "default": "none",
+            "description": "none: the unrotated loadings. varimax: orthogonal, Kaiser-normalized (stats::varimax). promax: oblique, varimax then a power target (stats::promax, params.kappa). oblimin: oblique, gradient projection (GPArotation::oblimin, params.gamma). Rotated loadings become the primary; the unrotated move to auxiliary.unrotated; an oblique rotation adds auxiliary.factor_correlation. Communalities do not change.",
+            "enum_values": [
+              "none",
+              "varimax",
+              "promax",
+              "oblimin"
+            ]
+          },
+          {
+            "name": "kappa",
+            "type": "float",
+            "required": false,
+            "default": 4,
+            "description": "Promax power, a finite number above 1 (stats::promax m). Accepted with rotation promax only."
+          },
+          {
+            "name": "gamma",
+            "type": "float",
+            "required": false,
+            "default": 0,
+            "description": "Oblimin gamma, finite: 0 quartimin (the default), 0.5 biquartimin, 1 covarimin. Accepted with rotation oblimin only."
+          },
+          {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.9,
+            "description": "Coverage of the ml RMSEA interval scalars rmsea_lower / rmsea_upper, 0 \u003c conf_level \u003c 1 (default 0.9, psych::fa's 90%: alpha = 0.1). Accepted with extraction ml only."
+          },
+          {
+            "name": "repair",
+            "type": "enum",
+            "required": false,
+            "description": "nearest: factor the nearest correlation matrix when the (pairwise) correlation is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD).",
+            "enum_values": [
+              "nearest"
+            ]
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N).",
+            "enum_values": [
+              "listwise",
+              "pairwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          }
+        ],
+        "output_keys": {
+          "primary": "loadings",
+          "auxiliary": [
+            "factor_correlation",
+            "n",
+            "unrotated"
+          ],
+          "vectors": [
+            "communalities",
+            "uniquenesses",
+            "variance_accounted"
+          ],
+          "scalars": [
+            "bartlett_chisq",
+            "bartlett_df",
+            "bartlett_p",
+            "bic",
+            "converged",
+            "df",
+            "empirical_chisq",
+            "empirical_p",
+            "factors_retained",
+            "iterations",
+            "kmo",
+            "likelihood_chisq",
+            "likelihood_p",
+            "rmsea",
+            "rmsea_lower",
+            "rmsea_upper",
+            "rmsr",
+            "tli"
+          ]
+        },
+        "streamable": true,
+        "mergeable": true,
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "intents": [
+          "measure_construct"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "name": "MAT_PARTIAL_CORRELATION",
         "description": "Partial correlation matrix: each pair's Pearson correlation with other fields held fixed, from the precision matrix of the folded columns' correlation (listwise or pairwise). params.control \"all\" (default) controls each pair for every other member; a field list controls each pair for exactly those fields and drops any member it names from the output. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\", a singular one is PULSE_MATRIX_SINGULAR. Weighted under frequency and probability weights. No p-values.",
         "accepts_types": [
@@ -6725,7 +7712,7 @@
       },
       {
         "name": "MAT_PCA",
-        "description": "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights. No rotation.",
+        "description": "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". params.rotation \"varimax\" replaces the primary with the varimax-rotated loadings (Kaiser-normalized, stats::varimax), moves the unrotated loadings to auxiliary.unrotated and adds vectors.rotated_variance; eigenvalues, shares, communalities and eigenvectors stay unrotated. Weighted under frequency and probability weights.",
         "accepts_types": [
           "f32",
           "f64",
@@ -6754,6 +7741,17 @@
             "required": false,
             "default": "kaiser",
             "description": "How many components to keep: a positive integer k (at most the member count); \"kaiser\" (every component whose eigenvalue exceeds 1; the default on a correlation, refused on a covariance); or {\"variance\": share}, the fewest leading components whose cumulative explained share reaches share (0 \u003c share \u003c= 1). Required on a covariance. Every eigenvalue is reported either way."
+          },
+          {
+            "name": "rotation",
+            "type": "enum",
+            "required": false,
+            "default": "none",
+            "description": "none: the unrotated loadings. varimax: rotate the kept components (k \u003e= 2) orthogonally to simple structure (stats::varimax with Kaiser normalization); the rotated loadings become the primary, ordered by the variance each accounts for (vectors.rotated_variance), each column signed to sum positive, and the unrotated loadings move to auxiliary.unrotated.",
+            "enum_values": [
+              "none",
+              "varimax"
+            ]
           },
           {
             "name": "repair",
@@ -6786,14 +7784,16 @@
           "primary": "loadings",
           "auxiliary": [
             "eigenvectors",
-            "n"
+            "n",
+            "unrotated"
           ],
           "vectors": [
             "communalities",
             "cumulative",
             "eigenvalues",
             "explained_variance",
-            "kmo_msa"
+            "kmo_msa",
+            "rotated_variance"
           ],
           "scalars": [
             "bartlett_chisq",
@@ -7869,8 +8869,11 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -7890,6 +8893,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -7950,8 +8954,11 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -7971,6 +8978,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8031,8 +9039,11 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8052,6 +9063,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8112,8 +9124,11 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8133,6 +9148,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8192,8 +9208,11 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8213,6 +9232,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8272,8 +9292,11 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8293,6 +9316,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8352,8 +9376,11 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8373,6 +9400,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8429,8 +9457,11 @@
         ],
         "compatible_attributes": [
           "ATTR_DATE_PART",
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8453,6 +9484,7 @@
           "GROUP_CATEGORY",
           "GROUP_DATE",
           "GROUP_DATE_RANGES",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -9123,6 +10155,10 @@
         "description": "Choosing a multivariate operator on a battery of numeric fields — which matrix answers which question, what to do with missing data and weights, when a decomposition needs a repaired matrix, and where p-values stand. Topical design; per-operator params in the atomic op-mat-* skills."
       },
       {
+        "name": "multivariate-outputs",
+        "description": "Long-form output and parameter detail for the multivariate operators — how rotated PCA and factor loadings, the maximum-likelihood fit indices, centroid distances, row scores and the vector tests lay out their figures. Topical design; the atomic op-mat-*, op-attr-* and op-test-* skills keep the short form."
+      },
+      {
         "name": "op-agg-average",
         "description": "Arithmetic mean of a numeric field across the input set."
       },
@@ -9263,12 +10299,24 @@
         "description": "Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field."
       },
       {
+        "name": "op-attr-factor-score",
+        "description": "Per-row score on one common factor of a vector of numeric members, from an inline fit with the factor-analysis matrix operator's knobs, loadings, order and sign; regression or Bartlett scores; fit_on fits on a subset and still scores every row."
+      },
+      {
         "name": "op-attr-formula",
         "description": "Per-row expression evaluation against the record's fields via expr-lang."
       },
       {
+        "name": "op-attr-mahalanobis",
+        "description": "Per-row Mahalanobis distance D² (or its chi-square p) across a vector of numeric members, from a cohort-wide fit; fit_on fits on a subset and still scores every row."
+      },
+      {
         "name": "op-attr-normalized",
         "description": "Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1]."
+      },
+      {
+        "name": "op-attr-pc-score",
+        "description": "Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional varimax; fit_on fits on a subset and still scores every row."
       },
       {
         "name": "op-attr-percentile",
@@ -9403,6 +10451,10 @@
         "description": "Bucket date records by inline labeled date ranges; the range label becomes the bucket key."
       },
       {
+        "name": "op-group-kmeans",
+        "description": "Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size."
+      },
+      {
         "name": "op-group-quantile",
         "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100)."
       },
@@ -9433,6 +10485,14 @@
       {
         "name": "op-mat-covariance",
         "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped)."
+      },
+      {
+        "name": "op-mat-distance",
+        "description": "Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids."
+      },
+      {
+        "name": "op-mat-factor",
+        "description": "Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted."
       },
       {
         "name": "op-mat-partial-correlation",
@@ -9715,6 +10775,14 @@
         "description": "Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction; streamable per-group Welford."
       },
       {
+        "name": "op-test-bartlett-sphericity",
+        "description": "Bartlett's sphericity test on a vector's correlation matrix (is it the identity?); the factorability check, bit-equal to the PCA operator's Bartlett scalars."
+      },
+      {
+        "name": "op-test-box-m",
+        "description": "Box's M test of one shared covariance across a SplitBy of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check."
+      },
+      {
         "name": "op-test-brown-forsythe",
         "description": "Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians."
       },
@@ -9725,6 +10793,10 @@
       {
         "name": "op-test-fisher-exact",
         "description": "Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative."
+      },
+      {
+        "name": "op-test-hotelling-t2",
+        "description": "Hotelling's T² on a mean vector of p numeric members; one-sample or paired (difference vector) against params.mu, or two-sample over a 2-level SplitBy with pooled or unequal covariance."
       },
       {
         "name": "op-test-kendall-tau",
@@ -9741,6 +10813,14 @@
       {
         "name": "op-test-mann-whitney-u",
         "description": "Nonparametric two-sample location test; buffered tie-corrected rank sum (Mann-Whitney U)."
+      },
+      {
+        "name": "op-test-manova",
+        "description": "One-way MANOVA of a mean vector of p numeric members across a SplitBy of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details."
+      },
+      {
+        "name": "op-test-mardia",
+        "description": "Mardia's multivariate normality test on a vector — skewness χ² and kurtosis z; buffered."
       },
       {
         "name": "op-test-paired-t",
@@ -10207,7 +11287,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 192,
+    "examples_count": 205,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -10257,6 +11337,7 @@
       "leakage-risk",
       "logistic",
       "matrix",
+      "multivariate",
       "nonparametric",
       "normality-test",
       "ols",
@@ -10643,7 +11724,8 @@
         "Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
         "A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
         "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
-        "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
+        "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding; MAT_DISTANCE's centroids are the one k x p matrix with the bucket labels as rows and the members as columns.",
+        "MAT_DISTANCE's primary is square but keyed by the between grouper's bucket labels, not the members.",
         "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT."
       ]
     },
@@ -13013,6 +14095,106 @@
           ],
           "mergeability": "mergeable"
         },
+        "GROUP_KMEANS": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "k",
+              "type": "int",
+              "description": "Cluster count (params.k)."
+            },
+            {
+              "name": "seed",
+              "type": "int",
+              "description": "The resolved PRNG seed (params.seed 0 resolves to the fixed default)."
+            },
+            {
+              "name": "n_init",
+              "type": "int",
+              "description": "Seeded starts run (params.n_init)."
+            },
+            {
+              "name": "max_iter",
+              "type": "int",
+              "description": "Lloyd iteration cap per start (params.max_iter)."
+            },
+            {
+              "name": "standardize",
+              "type": "bool",
+              "description": "Whether members were z-scored before clustering."
+            },
+            {
+              "name": "members",
+              "type": "[]string",
+              "description": "The resolved member columns, axis order."
+            },
+            {
+              "name": "center",
+              "type": "[]float64",
+              "description": "Per-member standardization mean (0 when standardize is false)."
+            },
+            {
+              "name": "scale",
+              "type": "[]float64",
+              "description": "Per-member standardization sd (1 when standardize is false or a member has no spread)."
+            },
+            {
+              "name": "distinct_points",
+              "type": "int",
+              "description": "Distinct member tuples among the clustered rows."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-cluster records in emission (size) order; each carries {key, count, size, within_ss, centroid, centroid_standardized}: count is rows, size the (frequency-weighted) mass, centroid in original units."
+            },
+            {
+              "name": "total_ss",
+              "type": "float64",
+              "description": "Total sum of squares about the grand centroid, in the clustering space."
+            },
+            {
+              "name": "within_ss",
+              "type": "float64",
+              "description": "Total within-cluster sum of squares."
+            },
+            {
+              "name": "between_ss",
+              "type": "float64",
+              "description": "total_ss − within_ss."
+            },
+            {
+              "name": "between_ss_ratio",
+              "type": "float64",
+              "description": "between_ss / total_ss (null when total_ss is 0)."
+            },
+            {
+              "name": "iterations",
+              "type": "int",
+              "description": "Lloyd iterations the winning start ran."
+            },
+            {
+              "name": "converged",
+              "type": "bool",
+              "description": "Whether the winning start reached a fixed point before max_iter."
+            },
+            {
+              "name": "best_init",
+              "type": "int",
+              "description": "The winning start, 1-based."
+            }
+          ],
+          "mergeability": "none"
+        },
         "GROUP_QUANTILE": {
           "keys": [
             {
@@ -13582,6 +14764,126 @@
           ],
           "mergeability": "mergeable"
         },
+        "MAT_DISTANCE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "metric",
+              "type": "string",
+              "description": "The metric the distances use (params.metric)."
+            },
+            {
+              "name": "standardize",
+              "type": "bool",
+              "description": "Whether the members were z-scored first (params.standardize)."
+            },
+            {
+              "name": "buckets",
+              "type": "int",
+              "description": "Buckets compared (k)."
+            },
+            {
+              "name": "n_null_key",
+              "type": "int",
+              "description": "Filter-passing rows the between grouper placed in no bucket (a null key, an include rejection, a GROUP_KMEANS row with a null member); excluded from every figure."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "MAT_FACTOR": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "MAT_PARTIAL_CORRELATION": {
           "keys": [
             {
@@ -13847,6 +15149,7 @@
           "regressions[*].selected_features",
           "regressions[*].vcov",
           "regressions[*].correlation",
+          "regressions[*].covariance",
           "overlays"
         ]
       },
@@ -13946,4 +15249,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 746b1b09076755b804c80e5b181a78ebd32e6475d1243161ae76300b8d5f603e
+// golden-hash: f1807235609e30ec151a74c0dab6cc1836e425360f39b0142d5ed8effab9b797

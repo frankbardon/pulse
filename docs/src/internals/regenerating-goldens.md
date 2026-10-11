@@ -145,7 +145,8 @@ to live CLI output by `TestShardingSnapshots_MatchCLIOutput`
 ## R reference goldens are an external oracle, not a snapshot
 
 `internal/processing/testdata/reference/*.json` hold R's values for the
-shared distribution primitives (Student t, chi-square, F, normal CDF and
+shared distribution primitives (Student t, chi-square, the noncentral
+chi-square CDF, F, normal CDF and
 quantile, the limiting Kolmogorov survival, the studentized range). They
 are written by `scripts/reference/gen_reference.R` and carry the R and
 package versions that produced them; `make reference` runs the script
@@ -191,7 +192,75 @@ the vendored `attitude` (Chatterjee & Price 1977) and `mtcars`
 (Henderson & Velleman 1981) from R's `datasets` package, each with two
 seeded weight columns appended, and seeded synthetic fixtures
 `likert_ties`, `nulls` (listwise vs pairwise), `weighted` (zero-weight
-rows), `nonpsd_pairwise`, `heywood` and `reversed_items`. No
+rows), `nonpsd_pairwise`, `heywood`, `reversed_items` and `two_factor`
+(a proper two-factor fit under every weight kind, so weighted Bartlett
+factor scores are pinned on real values). No
 GPL-package data. `mv_fixtures.json` records each fixture's source,
 citation, seed and CSV md5; the `internal/tools/refcohorts` tests fail
 when a CSV drifts from that record or a `.pulse` drifts from its CSV.
+
+### The R toolchain
+
+`make reference` refuses any R but 4.6.1 (2026-06-24) and any package
+version but the pinned one, so every package below must be installed
+at exactly that version. Every script header repeats its own pins; this
+is the whole list in one place.
+
+| Package | Version | Used by |
+|---|---|---|
+| `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
+| `Matrix` | 1.7-5 | nearest-PD repair, `gen_singularity.R` rank (recommended package, ships with R) |
+| `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
+| `car` | 3.1-5 | VIF |
+| `ppcor` | 1.1 | partial correlation |
+| `perturb` | 2.10 | collinearity diagnostics (archived on CRAN; needs `gdata`) |
+| `corpcor` | 1.6.10 | `cor2pcor`; a `Hotelling` dependency |
+| `Hotelling` | 1.0-8 | `TEST_HOTELLING_T2` (`gen_multivariate_tests.R`) |
+| `biotools` | 4.3 | `TEST_BOX_M` |
+| `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
+| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`) |
+| `lmtest` | 0.9-40 | robust covariance tests |
+
+`ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs
+them. The scripts compute what they would (the unequal-covariance
+Hotelling test, Mardia's statistics) as closed forms in base R, each
+cross-checked as its comment says. The weighted-reference generator
+(`internal/service/testdata/weight_reference/`) needs only base R plus
+Hmisc 5.3.0, installed into a private library; its README covers it,
+along with its Python pins and the `--check` mode.
+
+Install the pins into the user library (`remotes::install_version`
+fetches the exact version even after CRAN moves on):
+
+```sh
+Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
+  dir.create(l, recursive = TRUE, showWarnings = FALSE)
+  install.packages("remotes", lib = l, repos = r)
+  pins <- c(psych = "2.6.9", car = "3.1-5", ppcor = "1.1", corpcor = "1.6.10",
+            gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
+            GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40")
+  for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
+  install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
+                   lib = l, repos = NULL, type = "source")'
+```
+
+**Homebrew Fortran workaround.** Packages with Fortran code (Hmisc, and
+any dependency that compiles Fortran) fail to link on Homebrew R 4.6.1
+with `library 'emutls_w' not found`: R's recorded `FLIBS` names a gcc
+target directory that does not exist (`R CMD config FLIBS` reports
+`aarch64-apple-darwin27`; Homebrew gcc 16 installs
+`aarch64-apple-darwin23`). Write a TEMPORARY Makevars naming the real
+directory and point `R_MAKEVARS_USER` at it for the install only —
+never commit it, and keep it out of `~/.R/Makevars`:
+
+```sh
+GCC=$(brew --prefix gcc)/lib/gcc/current
+TRIPLE=$(ls "$GCC/gcc"); VER=$(ls "$GCC/gcc/$TRIPLE")
+printf 'FLIBS = -L%s/gcc/%s/%s -L%s/gcc -L%s -lemutls_w -lheapt_w -lgfortran -lquadmath\n' \
+  "$GCC" "$TRIPLE" "$VER" "$GCC" "$GCC" > /tmp/Makevars.pulse
+R_MAKEVARS_USER=/tmp/Makevars.pulse Rscript -e '...the install line...'
+```
+
+A rerun of `make reference` on this toolchain is byte-identical (no
+clock, no unseeded RNG): `git status` must show only the goldens your
+change meant to move.

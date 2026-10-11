@@ -19,6 +19,13 @@ type DerivedColumn struct {
 	Window bool
 }
 
+// DeriveWarnings returns the Response-level warnings the last
+// DeriveRecords run's attributes raised, in declared order (nil when
+// none).
+func (p *Processor) DeriveWarnings() []*types.ResponseWarning {
+	return p.deriveWarnings
+}
+
 // DerivedEmit receives one filtered record: its 0-based position in
 // the iterator's order (the source record index) and one value per
 // requested column, in column order — a float64, or nil for a null
@@ -51,9 +58,12 @@ type DerivedEmit func(source int64, values []any) error
 // record.
 //
 // The caller has validated req (no groups, aggregations, tests,
-// regressions, matrices). Weight stamping matches Process.
+// regressions, matrices). Weight stamping matches Process. The
+// attributes' Response-level warnings (a fitted vector attribute's
+// singular or insufficient fit) are read back through DeriveWarnings.
 func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter RecordIterator, cols []DerivedColumn, emit DerivedEmit) error {
-	req = p.stampWeights(req)
+	req = p.prepare(req)
+	p.deriveWarnings = nil
 	var all []*Record
 	poll := NewCtxPoller(ctx)
 	for iter.Next() {
@@ -71,9 +81,11 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	if err != nil {
 		return err
 	}
-	if err := p.applyAttributes(req.Attributes, filtered); err != nil {
+	warns, err := p.applyAttributes(req.Attributes, filtered)
+	if err != nil {
 		return err
 	}
+	p.deriveWarnings = warns
 	var rows []map[string]any
 	if len(req.Windows) > 0 {
 		rows = recordsToRows(filtered)

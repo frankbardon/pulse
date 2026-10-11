@@ -198,6 +198,18 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				return out
 			}
 		}
+		// A fitted vector attribute's params.fit_on filterers read
+		// their columns like Request filterers (its members ride the
+		// vector / inline-fields unions below).
+		for _, f := range vectors.AttributeFitOn(a.Type, a) {
+			addKnown(f.Field)
+			if f.Type == types.FILTER_EXPRESSION && f.Expression != "" {
+				if !appendExprIdents(out, f.Expression, known) {
+					out.Widen()
+					return out
+				}
+			}
+		}
 	}
 
 	for _, g := range req.Groups {
@@ -280,6 +292,10 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		}
 		addKnown(r.Target)
 		addAllKnown(r.Predictors)
+		if c := r.Covariance; c != nil {
+			addKnown(c.Cluster)
+			addKnown(c.OrderBy)
+		}
 	}
 
 	// Virtual vectors decode every member (internal/vectors, the one
@@ -299,6 +315,29 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		return out
 	}
 	addAllKnown(matMembers)
+	// A vector-input test's inline fields / fields2 resolve by the same
+	// rules (its named vectors ride vectors.Members above).
+	testMembers, ok := vectors.TestInputMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(testMembers)
+	// A vector-input attribute's inline fields resolve by the same rules.
+	attrMembers, ok := vectors.AttributeInputMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(attrMembers)
+	// A vector-input grouper's inline fields (groups and both crosstab
+	// axes) resolve by the same rules.
+	groupMembers, ok := vectors.GroupInputMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(groupMembers)
 
 	for _, k := range req.Sort {
 		// Sort keys may name output labels rather than schema fields;
@@ -377,6 +416,22 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		}
 		for _, g := range req.Groups {
 			if g == nil {
+				continue
+			}
+			if _, custom := ext.Groupers[g.Type]; custom {
+				inputs, ok := ext.FieldInputsFor("grouper", string(g.Type), g.Params)
+				if !ok {
+					out.Widen()
+					return out
+				}
+				addAllKnown(inputs)
+			}
+		}
+		// A MAT_DISTANCE params.between extension grouper reads what
+		// its FieldInputs hook declares, exactly as in Request.Groups.
+		for _, m := range req.Matrices {
+			g, has := vectors.SpecBetween(m)
+			if !has {
 				continue
 			}
 			if _, custom := ext.Groupers[g.Type]; custom {

@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "Hotelling's T² on the engagement profile (revenue and session_minutes together) via TEST_HOTELLING_T2: a two-sample test of treatment vs control on a named vector, and a one-sample test of the whole cohort's mean profile against a benchmark mu. One test over the vector replaces one t-test per metric.",
+    "intents": [
+      "compare_groups",
+      "benchmark"
+    ],
+    "name": "hotelling_t2_engagement_profile",
+    "operators": [
+      "TEST_HOTELLING_T2"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "multivariate",
+      "two-sample",
+      "experiment-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "engagement",
+      "fields": ["revenue", "session_minutes"]
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_HOTELLING_T2",
+      "vector": "engagement",
+      "split_by": "treatment",
+      "label": "engagement_by_arm"
+    },
+    {
+      "type": "TEST_HOTELLING_T2",
+      "fields": ["revenue", "session_minutes"],
+      "params": {"mu": [100, 10]},
+      "label": "engagement_vs_benchmark"
+    }
+  ]
+}

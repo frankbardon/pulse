@@ -7,13 +7,18 @@ The statistical tests this instance offers: what each is for, the questions it a
 | [`TEST_ANOVA_F`](#op-test_anova_f) | Checks whether the average of a numeric measure differs across three or more groups. | Does average spend differ across regions? | intermediate | [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when the groups have clearly unequal spread.<br>[`TEST_KRUSKAL_WALLIS`](#op-test_kruskal_wallis) when the measure is heavily skewed or only ordered.<br>[`TEST_ANOVA_RM`](#op-test_anova_rm) when the same subjects are measured in every group.<br>[`TEST_WELCH`](#op-test_welch) when there are only two groups.<br>[`TEST_TUKEY_HSD`](#op-test_tukey_hsd) when you need to know which pairs of groups differ. |
 | [`TEST_ANOVA_RM`](#op-test_anova_rm) | Checks whether the average differs across conditions when every subject is measured under each condition. | Do the same panel members rate the three ad concepts differently on average? | advanced | [`TEST_ANOVA_F`](#op-test_anova_f) when each group holds different, unrelated subjects.<br>[`TEST_PAIRED_T`](#op-test_paired_t) when there are only two conditions. |
 | [`TEST_ANOVA_WELCH`](#op-test_anova_welch) | Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. | Does average response time differ across regions whose variability is very different? | intermediate | [`TEST_KRUSKAL_WALLIS`](#op-test_kruskal_wallis) when the measure is heavily skewed or only ordered.<br>[`TEST_ANOVA_RM`](#op-test_anova_rm) when the same subjects are measured in every group.<br>[`TEST_WELCH`](#op-test_welch) when there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and set multiplicity on the request (for example holm) to adjust their p-values for multiple comparisons.<br>[`TEST_ANOVA_F`](#op-test_anova_f) when spreads are similar and you want Tukey's pairwise follow-up. |
+| [`TEST_BARTLETT_SPHERICITY`](#op-test_bartlett_sphericity) | Checks whether a set of numeric fields are related at all, the first check before summarising them as a few underlying dimensions. | Do the ten satisfaction items move together enough to be worth reducing to a few scores? | advanced | [`MAT_CORRELATION`](matrix.md#op-mat_correlation) when you want how strongly each pair is related.<br>[`MAT_PCA`](matrix.md#op-mat_pca) when you want the dimensions themselves. |
+| [`TEST_BOX_M`](#op-test_box_m) | Checks whether several groups share one spread pattern across a set of numeric fields, the assumption behind comparing average profiles. | Before comparing segment profiles, do the segments have similar spread across the metrics? | advanced | [`TEST_BROWN_FORSYTHE`](#op-test_brown_forsythe) when there is only one numeric field.<br>[`TEST_MANOVA`](#op-test_manova) when you want whether the average profiles differ. |
 | [`TEST_BROWN_FORSYTHE`](#op-test_brown_forsythe) | Checks whether the spread of a numeric field differs across groups: a robust test of equal variances. | Is delivery time more variable at some warehouses than at others? | advanced | [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when you want to compare the group averages themselves.<br>[`TEST_SHAPIRO_WILK`](#op-test_shapiro_wilk) when you want to check whether a measure is bell-shaped. |
 | [`TEST_CHISQ`](#op-test_chisq) | Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. | Is preferred channel associated with age band? | intermediate | [`TEST_FISHER_EXACT`](#op-test_fisher_exact) when the table is 2x2 and some expected counts are small.<br>[`TEST_PROP_Z`](#op-test_prop_z) when you compare a yes/no rate between exactly two groups and want a confidence interval.<br>[`TEST_SPEARMAN_R`](#op-test_spearman_r) when both fields are numeric.<br>[`OVERLAY_CHISQ_VS_POP`](overlay.md#op-overlay_chisq_vs_pop) when you compare one subgroup's mix with the whole population. |
 | [`TEST_FISHER_EXACT`](#op-test_fisher_exact) | Exact test of whether two yes/no fields are associated, built for small 2x2 tables. | In a small pilot, did the treated group recover more often than the control group? | intermediate | [`TEST_CHISQ`](#op-test_chisq) when either field has more than two categories.<br>[`TEST_PROP_Z`](#op-test_prop_z) when counts are large and you want the difference in rates with a confidence interval. |
+| [`TEST_HOTELLING_T2`](#op-test_hotelling_t2) | Checks whether several numeric fields, taken together as one profile, differ from a target, between two groups, or before vs after. | Do the two app versions differ on the whole set of engagement metrics at once? | advanced | [`TEST_T`](#op-test_t) when there is only one numeric field.<br>[`TEST_WELCH`](#op-test_welch) when you want each field compared on its own. |
 | [`TEST_KENDALL_TAU`](#op-test_kendall_tau) | Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties. | In a small panel, do judges who score one entry higher also score the other higher? | intermediate | [`TEST_SPEARMAN_R`](#op-test_spearman_r) when the data are large; its cost grows with the square of the row count.<br>[`TEST_PEARSON_R`](#op-test_pearson_r) when you want the strength of a straight-line link.<br>[`TEST_TREND`](#op-test_trend) when you want to know whether one ordered series keeps rising or falling. |
 | [`TEST_KRUSKAL_WALLIS`](#op-test_kruskal_wallis) | Rank-based check of whether values tend to be larger in some groups than in others, across two or more groups. | Do satisfaction ratings tend to differ across the four regions? | intermediate | [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when the data are roughly normal and you want to compare averages.<br>[`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when there are only two groups.<br>[`TEST_ANOVA_RM`](#op-test_anova_rm) when the same subjects are measured in every group and the measure is roughly normal (Pulse has no Friedman test for skewed repeated measures; for two conditions use TEST_WILCOXON_SR). |
 | [`TEST_KS`](#op-test_ks) | Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape. | Do order values in the two regions have the same overall distribution? | intermediate | [`TEST_SHAPIRO_WILK`](#op-test_shapiro_wilk) when you want to check one field against the normal distribution.<br>[`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when you only care whether one group's values tend to be larger.<br>[`OVERLAY_KS_VS_POP`](overlay.md#op-overlay_ks_vs_pop) when you compare a subgroup with the whole population. |
 | [`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) | Rank-based check of whether values in one of two groups tend to be larger than in the other. | Do customers on the new plan tend to rate the service higher? | intermediate | [`TEST_WILCOXON_SR`](#op-test_wilcoxon_sr) when the same subjects are measured twice.<br>[`TEST_KRUSKAL_WALLIS`](#op-test_kruskal_wallis) when there are three or more groups.<br>[`TEST_WELCH`](#op-test_welch) when the data are roughly normal and you want the difference in averages.<br>[`TEST_KS`](#op-test_ks) when you care about any difference in the shape of the two distributions. |
+| [`TEST_MANOVA`](#op-test_manova) | Checks whether several numeric fields, taken together as one profile, differ across two or more groups. | Do our customer segments differ on the whole set of spend, visit and basket metrics at once? | advanced | [`TEST_ANOVA_F`](#op-test_anova_f) when there is only one numeric field.<br>[`TEST_HOTELLING_T2`](#op-test_hotelling_t2) when there are only two groups and you want the T² figure. |
+| [`TEST_MARDIA`](#op-test_mardia) | Checks whether a set of numeric fields looks jointly normal, through their combined skew and tail weight. | Before comparing segment profiles, are the metrics close enough to jointly normal? | advanced | [`TEST_SHAPIRO_WILK`](#op-test_shapiro_wilk) when there is only one numeric field and you want a sharper normality test.<br>[`TEST_BOX_M`](#op-test_box_m) when you want whether the groups share one covariance. |
 | [`TEST_PAIRED_T`](#op-test_paired_t) | Checks whether the average change between two measurements of the same rows, such as before and after, differs from zero. | On average, did customers' spend differ between the period before and after the loyalty programme started? | intermediate | [`TEST_WELCH`](#op-test_welch) when the two sets of values come from different, unrelated subjects.<br>[`TEST_WILCOXON_SR`](#op-test_wilcoxon_sr) when the per-row differences are skewed or have extreme values.<br>[`TEST_ANOVA_RM`](#op-test_anova_rm) when each subject is measured under three or more conditions. |
 | [`TEST_PEARSON_R`](#op-test_pearson_r) | Measures how strongly two numeric fields rise and fall together along a straight line. | Do customers who spend more also visit more often? | intermediate | [`TEST_SPEARMAN_R`](#op-test_spearman_r) when the link is consistent but curved, or the values are ranks.<br>[`TEST_KENDALL_TAU`](#op-test_kendall_tau) when the sample is small or has many tied values.<br>[`TEST_CHISQ`](#op-test_chisq) when both fields are categories.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want to predict one field from several others.<br>[`TEST_TREND`](#op-test_trend) when you want to know whether one ordered series keeps rising or falling. |
 | [`TEST_PROP_Z`](#op-test_prop_z) | Checks whether the rate of one outcome, such as conversion, differs between two groups. | Does the new checkout convert at a different rate from the old one? | basic | [`TEST_FISHER_EXACT`](#op-test_fisher_exact) when some groups have only a handful of successes or failures.<br>[`TEST_CHISQ`](#op-test_chisq) when there are more than two groups or more than two outcomes.<br>[`TEST_WELCH`](#op-test_welch) when the outcome is a numeric measure rather than a yes/no rate. |
@@ -154,6 +159,78 @@ Checks whether the average of a numeric measure differs across groups when the g
 
 **Skill:** [`op-test-anova-welch`](../skills/op-test-anova-welch.md)
 
+<a id="op-test_bartlett_sphericity"></a>
+
+### `TEST_BARTLETT_SPHERICITY`
+
+Checks whether a set of numeric fields are related at all, the first check before summarising them as a few underlying dimensions.
+
+**Level:** advanced
+
+**Also known as:** `bartlett sphericity test`, `bartlett's test of sphericity`, `factorability test`
+
+**Questions it answers:**
+
+- Do the ten satisfaction items move together enough to be worth reducing to a few scores?
+- Are these sensor readings related at all, or is each one independent noise?
+
+**Use cases by domain:**
+
+- *survey:* Check a rating battery is factorable before a principal component analysis or a reliability score.
+- *science:* Check a set of measurements share variation before reducing them to components.
+
+**Assumptions:**
+
+- Rows are independent of each other.
+- The fields are roughly jointly normal.
+- A row with any field missing is dropped from the test (listwise).
+- With many rows almost any correlation is significant, so read the size of the correlations too.
+
+**Use something else:**
+
+- [`MAT_CORRELATION`](matrix.md#op-mat_correlation) when you want how strongly each pair is related.
+- [`MAT_PCA`](matrix.md#op-mat_pca) when you want the dimensions themselves.
+
+**Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`correlation`](../glossary.md#term-correlation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`principal-component`](../glossary.md#term-principal-component), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Skill:** [`op-test-bartlett-sphericity`](../skills/op-test-bartlett-sphericity.md)
+
+<a id="op-test_box_m"></a>
+
+### `TEST_BOX_M`
+
+Checks whether several groups share one spread pattern across a set of numeric fields, the assumption behind comparing average profiles.
+
+**Level:** advanced
+
+**Also known as:** `box's m`, `box's m test`, `equal covariance test`
+
+**Questions it answers:**
+
+- Before comparing segment profiles, do the segments have similar spread across the metrics?
+- Is it safe to pool the two groups' covariance for a multivariate comparison?
+
+**Use cases by domain:**
+
+- *survey:* Check segments share one covariance across a rating battery before a profile comparison.
+- *science:* Check treatment arms share one covariance across outcomes before a MANOVA.
+
+**Assumptions:**
+
+- Rows are independent of each other, within and across the groups.
+- The fields are roughly jointly normal within each group; the test is very sensitive to departures, so a small p can reflect non-normality rather than unequal spread.
+- A row with any field missing is dropped from the test (listwise).
+- Every group has more complete rows than fields.
+
+**Use something else:**
+
+- [`TEST_BROWN_FORSYTHE`](#op-test_brown_forsythe) when there is only one numeric field.
+- [`TEST_MANOVA`](#op-test_manova) when you want whether the average profiles differ.
+
+**Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`f-statistic`](../glossary.md#term-f-statistic), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Skill:** [`op-test-box-m`](../skills/op-test-box-m.md)
+
 <a id="op-test_brown_forsythe"></a>
 
 ### `TEST_BROWN_FORSYTHE`
@@ -275,6 +352,45 @@ Exact test of whether two yes/no fields are associated, built for small 2x2 tabl
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`exact-test`](../glossary.md#term-exact-test), [`independence`](../glossary.md#term-independence), [`odds-ratio`](../glossary.md#term-odds-ratio), [`p-value`](../glossary.md#term-p-value), [`two-tailed`](../glossary.md#term-two-tailed)
 
 **Skill:** [`op-test-fisher-exact`](../skills/op-test-fisher-exact.md)
+
+<a id="op-test_hotelling_t2"></a>
+
+### `TEST_HOTELLING_T2`
+
+Checks whether several numeric fields, taken together as one profile, differ from a target, between two groups, or before vs after.
+
+**Level:** advanced
+
+**Also known as:** `hotelling t2`, `hotelling's t-squared`, `multivariate t test`
+
+**Questions it answers:**
+
+- Do the two app versions differ on the whole set of engagement metrics at once?
+- Is our average satisfaction profile across five attributes different from the benchmark profile?
+- Did the same customers' ratings shift as a whole between the before and after surveys?
+
+**Use cases by domain:**
+
+- *survey:* Compare two segments on a battery of rating items in one test.
+- *ops:* Compare two sites on throughput, wait time and error rate together.
+- *science:* Compare treatment and control on several outcomes without one test per outcome.
+
+**Assumptions:**
+
+- Rows are independent of each other, within and across the groups.
+- The fields are roughly jointly normal; with many rows the test tolerates departures.
+- The two-sample form assumes both groups share one covariance across the fields unless variance is set to unequal.
+- A row with any field missing is dropped from the test (listwise).
+- There are more complete rows than fields.
+
+**Use something else:**
+
+- [`TEST_T`](#op-test_t) when there is only one numeric field.
+- [`TEST_WELCH`](#op-test_welch) when you want each field compared on its own.
+
+**Glossary:** [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`f-statistic`](../glossary.md#term-f-statistic), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`mean`](../glossary.md#term-mean), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Skill:** [`op-test-hotelling-t2`](../skills/op-test-hotelling-t2.md)
 
 <a id="op-test_kendall_tau"></a>
 
@@ -434,6 +550,80 @@ Rank-based check of whether values in one of two groups tend to be larger than i
 **Glossary:** [`continuity-correction`](../glossary.md#term-continuity-correction), [`independence`](../glossary.md#term-independence), [`median`](../glossary.md#term-median), [`non-parametric`](../glossary.md#term-non-parametric), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`rank-biserial`](../glossary.md#term-rank-biserial), [`test-statistic`](../glossary.md#term-test-statistic), [`ties`](../glossary.md#term-ties), [`two-tailed`](../glossary.md#term-two-tailed)
 
 **Skill:** [`op-test-mann-whitney-u`](../skills/op-test-mann-whitney-u.md)
+
+<a id="op-test_manova"></a>
+
+### `TEST_MANOVA`
+
+Checks whether several numeric fields, taken together as one profile, differ across two or more groups.
+
+**Level:** advanced
+
+**Also known as:** `manova`, `multivariate anova`, `pillai's trace`, `wilks' lambda`
+
+**Questions it answers:**
+
+- Do our customer segments differ on the whole set of spend, visit and basket metrics at once?
+- Do the three store formats differ on their combined service ratings?
+
+**Use cases by domain:**
+
+- *survey:* Compare several segments on a battery of rating items in one test.
+- *ops:* Compare several sites on throughput, wait time and error rate together.
+- *science:* Compare several treatment arms on more than one outcome without one ANOVA per outcome.
+
+**Assumptions:**
+
+- Rows are independent of each other, within and across the groups.
+- The fields are roughly jointly normal within each group; with many rows the test tolerates departures.
+- The groups share one covariance across the fields; Pillai's trace, the headline, is the most forgiving when they do not.
+- A row with any field missing is dropped from the test (listwise).
+- There are at least as many complete rows as fields plus groups.
+
+**Use something else:**
+
+- [`TEST_ANOVA_F`](#op-test_anova_f) when there is only one numeric field.
+- [`TEST_HOTELLING_T2`](#op-test_hotelling_t2) when there are only two groups and you want the T² figure.
+
+**Glossary:** [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`eigenvalue`](../glossary.md#term-eigenvalue), [`f-statistic`](../glossary.md#term-f-statistic), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`mean`](../glossary.md#term-mean), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Skill:** [`op-test-manova`](../skills/op-test-manova.md)
+
+<a id="op-test_mardia"></a>
+
+### `TEST_MARDIA`
+
+Checks whether a set of numeric fields looks jointly normal, through their combined skew and tail weight.
+
+**Level:** advanced
+
+**Also known as:** `mardia's test`, `multivariate normality test`, `multivariate skewness and kurtosis`
+
+**Questions it answers:**
+
+- Before comparing segment profiles, are the metrics close enough to jointly normal?
+- Are the distance-based outlier flags safe to read as chi-square p-values?
+
+**Use cases by domain:**
+
+- *survey:* Check a rating battery's joint shape before a profile comparison or a factor model.
+- *science:* Check the joint normality assumption across outcomes before a MANOVA.
+
+**Assumptions:**
+
+- Rows are independent of each other.
+- A row with any field missing is dropped from the test (listwise).
+- There are more complete rows than fields; below 20 rows the skewness test uses a small-sample correction.
+- With many rows even trivial departures are flagged; with few it misses real ones, so look at the shape too.
+
+**Use something else:**
+
+- [`TEST_SHAPIRO_WILK`](#op-test_shapiro_wilk) when there is only one numeric field and you want a sharper normality test.
+- [`TEST_BOX_M`](#op-test_box_m) when you want whether the groups share one covariance.
+
+**Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`kurtosis`](../glossary.md#term-kurtosis), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`skew`](../glossary.md#term-skew), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Skill:** [`op-test-mardia`](../skills/op-test-mardia.md)
 
 <a id="op-test_paired_t"></a>
 

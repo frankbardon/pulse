@@ -512,6 +512,32 @@ Only the floor keys.
 | `unmatched_label` | string | always | Bucket label used for rows outside every configured range. |
 | `buckets` | []bucket | always | Per-bucket records in supplied range order (unmatched last when observed); each entry carries {key, label, count}. |
 
+<a id="op-group_kmeans"></a>
+
+#### `GROUP_KMEANS`
+
+**Mergeability:** none. See its [catalog entry](../catalog/grouper.md#op-group_kmeans).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `k` | int | always | Cluster count (params.k). |
+| `seed` | int | always | The resolved PRNG seed (params.seed 0 resolves to the fixed default). |
+| `n_init` | int | always | Seeded starts run (params.n_init). |
+| `max_iter` | int | always | Lloyd iteration cap per start (params.max_iter). |
+| `standardize` | bool | always | Whether members were z-scored before clustering. |
+| `members` | []string | always | The resolved member columns, axis order. |
+| `center` | []float64 | always | Per-member standardization mean (0 when standardize is false). |
+| `scale` | []float64 | always | Per-member standardization sd (1 when standardize is false or a member has no spread). |
+| `distinct_points` | int | always | Distinct member tuples among the clustered rows. |
+| `buckets` | []bucket | always | Per-cluster records in emission (size) order; each carries {key, count, size, within_ss, centroid, centroid_standardized}: count is rows, size the (frequency-weighted) mass, centroid in original units. |
+| `total_ss` | float64 | always | Total sum of squares about the grand centroid, in the clustering space. |
+| `within_ss` | float64 | always | Total within-cluster sum of squares. |
+| `between_ss` | float64 | always | total_ss − within_ss. |
+| `between_ss_ratio` | float64 | always | between_ss / total_ss (null when total_ss is 0). |
+| `iterations` | int | always | Lloyd iterations the winning start ran. |
+| `converged` | bool | always | Whether the winning start reached a fixed point before max_iter. |
+| `best_init` | int | always | The winning start, 1-based. |
+
 <a id="op-group_quantile"></a>
 
 #### `GROUP_QUANTILE`
@@ -701,6 +727,27 @@ Only the floor keys.
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
 | `ddof` | int | always | The delta degrees of freedom the covariance used (params.ddof, default 1). |
+
+<a id="op-mat_distance"></a>
+
+#### `MAT_DISTANCE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_distance).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `metric` | string | always | The metric the distances use (params.metric). |
+| `standardize` | bool | always | Whether the members were z-scored first (params.standardize). |
+| `buckets` | int | always | Buckets compared (k). |
+| `n_null_key` | int | always | Filter-passing rows the between grouper placed in no bucket (a null key, an include rejection, a GROUP_KMEANS row with a null member); excluded from every figure. |
+
+<a id="op-mat_factor"></a>
+
+#### `MAT_FACTOR`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_factor).
+
+Only the floor keys.
 
 <a id="op-mat_partial_correlation"></a>
 

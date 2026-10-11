@@ -506,3 +506,166 @@ func TestResolveMatrices_Collinearity(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveMatrices_PCARotation: params.rotation decodes "varimax" to
+// Matrix.Rotation, "none" (and absent) to "" — the unrotated operator —
+// and refuses every other value bad_params, the oblique criteria
+// included (the engine has them; MAT_PCA offers varimax only).
+func TestResolveMatrices_PCARotation(t *testing.T) {
+	items := []string{"q_1", "q_2", "q_3"}
+	resolve := func(params string) (Matrix, *errors.CodedError) {
+		spec := types.MatrixSpec{Type: types.MAT_PCA, Fields: items, Params: json.RawMessage(params)}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	for params, want := range map[string]string{
+		`{}`:                      "",
+		`{"rotation": "none"}`:    "",
+		`{"rotation": "varimax"}`: RotationVarimax,
+		`{"rotation": "varimax", "components": 2}`: RotationVarimax,
+	} {
+		m, err := resolve(params)
+		if err != nil {
+			t.Fatalf("%s: %v", params, err)
+		}
+		if m.Rotation != want {
+			t.Errorf("%s: rotation %q, want %q", params, m.Rotation, want)
+		}
+	}
+	for _, params := range []string{`{"rotation": "promax"}`, `{"rotation": "oblimin"}`, `{"rotation": "Varimax"}`, `{"rotation": 1}`} {
+		_, err := resolve(params)
+		if err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "bad_params" {
+			t.Errorf("%s: error %v, want bad_params", params, err)
+		}
+	}
+	if got := PCARotations(); len(got) != 2 || got[0] != RotationNone || got[1] != RotationVarimax {
+		t.Errorf("PCARotations() = %v", got)
+	}
+}
+
+// TestResolveMatrices_Factor: MAT_FACTOR's params — factors (an integer
+// up to p, or "kaiser", the default), extraction (minres default,
+// principal_axis, ml),
+// rotation with promax-only kappa (default 4) and oblimin-only gamma,
+// ml-only conf_level (default 0.9, strictly inside (0, 1)), repair and the missing-data knobs — and its refusals, every one
+// bad_params. A decomposition operator: pairwise PSD risk from 3
+// members.
+func TestResolveMatrices_Factor(t *testing.T) {
+	items := []string{"q_1", "q_2", "q_3", "score", "mid"}
+	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
+		spec := types.MatrixSpec{Type: types.MAT_FACTOR, Fields: fields}
+		if params != "" {
+			spec.Params = json.RawMessage(params)
+		}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	for _, c := range []struct {
+		params             string
+		k                  int
+		extraction, rotate string
+		kappa, gamma       float64
+	}{
+		{"", 0, FactorExtractionMinres, "", 0, 0},
+		{`{"factors": "kaiser"}`, 0, FactorExtractionMinres, "", 0, 0},
+		{`{"factors": 2, "extraction": "principal_axis"}`, 2, FactorExtractionPrincipalAxis, "", 0, 0},
+		{`{"factors": 2, "extraction": "ml", "rotation": "oblimin"}`, 2, FactorExtractionML, RotationOblimin, 0, 0},
+		{`{"factors": 2, "rotation": "none"}`, 2, FactorExtractionMinres, "", 0, 0},
+		{`{"factors": 2, "rotation": "varimax"}`, 2, FactorExtractionMinres, RotationVarimax, 0, 0},
+		{`{"factors": 2, "rotation": "promax"}`, 2, FactorExtractionMinres, RotationPromax, 4, 0},
+		{`{"factors": 2, "rotation": "promax", "kappa": 2.5}`, 2, FactorExtractionMinres, RotationPromax, 2.5, 0},
+		{`{"factors": 2, "rotation": "oblimin", "gamma": 0.5}`, 2, FactorExtractionMinres, RotationOblimin, 0, 0.5},
+		{`{"factors": 5, "repair": "nearest", "missing": "pairwise"}`, 5, FactorExtractionMinres, "", 0, 0},
+	} {
+		m, err := resolve(items, c.params)
+		if err != nil {
+			t.Fatalf("%s: %v", c.params, err)
+		}
+		wantConf := 0.0
+		if c.extraction == FactorExtractionML {
+			wantConf = FactorDefaultConfLevel
+		}
+		if m.ConfLevel != wantConf {
+			t.Errorf("%s: conf_level %v, want %v", c.params, m.ConfLevel, wantConf)
+		}
+		if m.Factors.K != c.k || m.Factors.Kaiser() != (c.k == 0) || m.Extraction != c.extraction || m.Rotation != c.rotate || m.Kappa != c.kappa || m.Gamma != c.gamma {
+			t.Errorf("%s: factors %+v extraction %q rotation %q kappa %v gamma %v", c.params, m.Factors, m.Extraction, m.Rotation, m.Kappa, m.Gamma)
+		}
+		if !m.Decomposition() || !m.Streamable || !m.Mergeable {
+			t.Errorf("%s: decomposition %v streamable %v mergeable %v", c.params, m.Decomposition(), m.Streamable, m.Mergeable)
+		}
+	}
+	if m, err := resolve(items, `{"factors": 2, "extraction": "ml", "conf_level": 0.95}`); err != nil || m.ConfLevel != 0.95 {
+		t.Errorf("conf_level 0.95: %v %v", m.ConfLevel, err)
+	}
+	if m, _ := resolve(items[:3], `{"missing": "pairwise"}`); !m.PSDRisk() {
+		t.Error("3-member pairwise factor analysis carries no PSD risk")
+	}
+	if m, _ := resolve(items[:2], `{"missing": "pairwise"}`); m.PSDRisk() {
+		t.Error("2-member pairwise factor analysis carries PSD risk")
+	}
+	for _, params := range []string{
+		`{"factors": 0}`,
+		`{"factors": -1}`,
+		`{"factors": 1.5}`,
+		`{"factors": 6}`,
+		`{"factors": "two"}`,
+		`{"factors": [2]}`,
+		`{"extraction": "ML"}`,
+		`{"extraction": "mle"}`,
+		`{"extraction": "pa"}`,
+		`{"rotation": "quartimax"}`,
+		`{"rotation": "Varimax"}`,
+		`{"kappa": 4}`,
+		`{"rotation": "varimax", "kappa": 4}`,
+		`{"rotation": "promax", "kappa": 1}`,
+		`{"rotation": "promax", "gamma": 0}`,
+		`{"gamma": 0}`,
+		`{"rotation": "oblimin", "kappa": 4}`,
+		`{"repair": "clip"}`,
+		`{"conf_level": 0.95}`,
+		`{"extraction": "minres", "conf_level": 0.95}`,
+		`{"extraction": "ml", "conf_level": 0}`,
+		`{"extraction": "ml", "conf_level": 1}`,
+		`{"extraction": "ml", "conf_level": 95}`,
+		`{"extraction": "ml", "conf_level": -0.1}`,
+		`{"components": 2}`,
+		`{"on": "covariance"}`,
+	} {
+		if _, err := resolve(items, params); err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "bad_params" {
+			t.Errorf("%s: error %v, want bad_params", params, err)
+		}
+	}
+	if got := FactorRotations(); len(got) != 4 || got[0] != RotationNone {
+		t.Errorf("FactorRotations() = %v", got)
+	}
+	if got := FactorExtractions(); len(got) != 3 || got[0] != FactorExtractionMinres || got[2] != FactorExtractionML {
+		t.Errorf("FactorExtractions() = %v", got)
+	}
+}
+
+// TestFactorIdentified: (p − k)² ≥ p + k, the non-negative model
+// degrees of freedom; one factor needs 3 members, two need 5, three 6.
+func TestFactorIdentified(t *testing.T) {
+	for _, c := range []struct {
+		p, k int
+		want bool
+	}{
+		{2, 1, false}, {3, 1, true}, {4, 2, false}, {5, 2, true}, {5, 3, false}, {6, 3, true}, {7, 3, true}, {7, 4, false}, {11, 6, true}, {11, 7, false},
+	} {
+		if got := FactorIdentified(c.p, c.k); got != c.want {
+			t.Errorf("FactorIdentified(%d, %d) = %v, want %v", c.p, c.k, got, c.want)
+		}
+	}
+	for p, want := range map[int]int{1: 0, 2: 0, 3: 1, 4: 1, 5: 2, 6: 3, 7: 3, 11: 6} {
+		if got := MaxIdentifiedFactors(p); got != want {
+			t.Errorf("MaxIdentifiedFactors(%d) = %d, want %d", p, got, want)
+		}
+	}
+}

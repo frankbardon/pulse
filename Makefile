@@ -109,14 +109,17 @@ tzdata:
 	@echo "tzdataSHA256  = $$(shasum -a 256 internal/temporal/zoneinfo.zip | cut -d' ' -f1)"
 
 # reference regenerates the R oracle goldens for the shared statistical
-# primitives (Student t, chi-square, F, normal, Kolmogorov, studentized
-# range) and the multivariate matrix outputs (mv_*.json, written by
-# scripts/reference/gen_multivariate.R) into $(REFERENCE_DIR), writes
+# primitives (Student t, chi-square, noncentral chi-square, F, normal,
+# Kolmogorov, studentized range) and the multivariate matrix and test outputs (mv_*.json, written
+# by scripts/reference/gen_multivariate.R and the gen_multivariate_tests.R,
+# gen_rotation.R and gen_factor.R it sources) into $(REFERENCE_DIR), writes
 # the fixture CSVs under $(REFERENCE_DIR)/fixtures and their .pulse
 # twins (internal/tools/refcohorts), then appends the `// golden-hash:`
 # footer TestGoldensNotHandEdited checks. Needs Rscript + jsonlite and
-# the pinned psych / car / ppcor / perturb / corpcor / Matrix (versions
-# and install line in gen_multivariate.R's header). Manual target: CI
+# the pinned psych / car / ppcor / perturb / corpcor / Matrix / Hotelling /
+# GPArotation / sandwich / lmtest / biotools (the full list with versions,
+# install lines and the Homebrew Fortran workaround:
+# docs/src/internals/regenerating-goldens.md, The R toolchain). Manual target: CI
 # never runs R, the goldens are committed. Consumed by
 # internal/processing/reference_oracle_test.go,
 # internal/statdist/reference_oracle_test.go and the matrix-operator

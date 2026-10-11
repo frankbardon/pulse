@@ -188,9 +188,11 @@ func Find(resolved []Resolved, name string) (Resolved, bool) {
 }
 
 // Referenced returns the vector names req's operator slots reference:
-// every Request.Matrices spec's `vector`. It is the one reference set,
-// so the unreferenced-vector warning and every consumer read one
-// answer.
+// every Request.Matrices spec's `vector`, every tier-1 test's
+// `vector` / `vector2`, every attribute's `vector` and every grouper
+// slot's `vector` (groups and both crosstab axes). It is the one
+// reference set, so the unreferenced-vector warning and every consumer
+// read one answer.
 func Referenced(req *types.Request) map[string]bool {
 	refs := map[string]bool{}
 	if req == nil {
@@ -199,6 +201,29 @@ func Referenced(req *types.Request) map[string]bool {
 	for _, m := range req.Matrices {
 		if m.Vector != "" {
 			refs[m.Vector] = true
+		}
+		if g, ok := SpecBetween(m); ok && g.Vector != "" {
+			refs[g.Vector] = true
+		}
+	}
+	for _, t := range req.Tests {
+		if t == nil {
+			continue
+		}
+		for _, v := range []string{t.Vector, t.Vector2} {
+			if v != "" {
+				refs[v] = true
+			}
+		}
+	}
+	for _, a := range req.Attributes {
+		if a != nil && a.Vector != "" {
+			refs[a.Vector] = true
+		}
+	}
+	for _, s := range GroupSlots(req) {
+		if s.Group.Vector != "" {
+			refs[s.Group.Vector] = true
 		}
 	}
 	return refs
@@ -391,4 +416,12 @@ func invalid(at, name, reason, msg string, extra map[string]any) *errors.CodedEr
 		details[k] = v
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_INVALID, msg, details)
+}
+
+// isExtension reports whether a slot's routed type name is a registered
+// extension operator whose vector input the resolvers judge: not a
+// built-in of its category, not routed away (""), and known to ext (nil:
+// no extension is registered).
+func isExtension(ext func(string) bool, name string, builtin bool) bool {
+	return ext != nil && name != "" && !builtin && ext(name)
 }

@@ -15,8 +15,8 @@ The inputs behind the worked scenario that motivated [U40 compose-sweep](../../u
 | `req/05_single_fit.json` | One `REG_OLS` fit, the shape the sweep body uses |
 | `req/06_decay_grid.json` | **One compose `sweep`**: 4 axes × 4 decays = 256 slots labelled `tv<λ>_se<λ>_so<λ>_di<λ>`, ranked by `residual_std_err` (`asc`, top 3). Until U40 this was a script-generated file of 256 explicit slots |
 | `req/07_tv_refine.json` | A 5-value TV sweep (decays 0.5–0.9) with search, social and display held at the 06 winner |
-| `req/08_final_model.json` | Final fit + `ATTR_REG_RESIDUAL` + `WIN_LAG` + `post_tests`; the regression's `save` writes `models/mmm_final.pulse-model.json` |
-| `req/09_holdout.json` | Train vs holdout (weeks 0–90 vs 91–103): a compose `fits` entry fits the model once on weeks 0–90; both slots score it with `ATTR_REG_PREDICT` and report `AGG_MAPE` and `AGG_RMSE` |
+| `req/08_final_model.json` | Final fit with `covariance: {type: cluster, cluster: week_index}` (standard errors that allow for the eight regions moving together within a week) + `ATTR_REG_RESIDUAL` + `WIN_LAG` + `post_tests`; the regression's `save` writes `models/mmm_final.pulse-model.json` |
+| `req/09_holdout.json` | Train vs holdout (weeks 0–90 vs 91–103): a compose `fits` entry fits the model once on weeks 0–90 (with 08's `covariance`); both slots score it with `ATTR_REG_PREDICT` and report `AGG_MAPE` and `AGG_RMSE` |
 | `req/10_contributions.json` | Contribution, interval-bound and marginal sums plus the ratios built on them, by year and total. Each slot loads 08's saved model with `models`; contributions and their interval bounds are `ATTR_REG_PREDICT` with `terms` and `bound`, and the marginal columns read the coefficient with `coef()`. Sixteen `AGG_RATIO` aggregations per slot return ROI, its lower and upper bound, and marginal ROI per channel (`tv_roi`, `tv_roi_lo`, `tv_roi_hi`, `tv_mroi`, …), each a ratio of two per-row labels over the channel's spend |
 | `req/11_budget_scenarios.json` | One shared fit, a `baseline` slot and a 3-scenario `zip` sweep that re-points each channel's `FEAT_LOG` and scores the four media `terms`; `sweep.overlays` adds one `OVERLAY_DELTA_VS_REF` per scenario |
 
@@ -53,7 +53,7 @@ Step 06 returns 256 `responses` in grid order (first axis slowest) plus `data.ra
 
 Step 04 writes `harbor_pine_features.pulse`, its rows sorted by `region` then `week` (the request's `sort`): the panel's 14 fields verbatim (types, dictionaries, descriptions), then 27 `f64` columns in pipeline order (the four scenario formulas, then the 23 windows as declared), each with a generated description. `pulse api predict -r req/04_adstock_grid.json --json` reports the four fan-outs under `for_each` (`expanded_count` 7, 4, 4, 4) and one `PULSE_ADVISORY_EXTRA_PASS` advisory per scenario formula (`attributes[0]`–`attributes[3]`, `added_scans` 1, `totals` 1): each `total()` adds a pre-pass over the 832 rows before any row is evaluated. No hand-written schema is involved: steps 05–11 read the derived columns as ordinary fields.
 
-## Expected results (steps 01–08 verified 2026-10-10 on `derived-cohort` at `6890fea1` + materialize `sort`; 09–11 re-run 2026-10-10 on `fit-scoring` after `f59ed7ca`; the whole script re-run 2026-10-11 on `post-aggregation-ratios` at `ae4b67e7`, darwin/arm64)
+## Expected results (steps 01–08 verified 2026-10-10 on `derived-cohort` at `6890fea1` + materialize `sort`; 09–11 re-run 2026-10-10 on `fit-scoring` after `f59ed7ca`; the whole script re-run 2026-10-11 on `post-aggregation-ratios` at `ae4b67e7`; steps 08–11 re-run 2026-10-11 on `multivariate-tests-segmentation` at `380abfe2` with `covariance` added to 08, 09 and 11, darwin/arm64)
 
 Full-precision figures are rounded to 12 significant digits. A run on amd64, where FMA fusion can change the order of rounding, may differ in the last digits. The comparisons below are exact on any one build.
 
@@ -67,12 +67,13 @@ Full-precision figures are rounded to 12 significant digits. A run on amd64, whe
 | 07 refine | TV `residual_std_err` at 0.5 … 0.9 | 14.202, 14.072, **14.004**, 14.157, 14.654 |
 | 08 final | `adj_r2`, `tv_sat` β | 0.954468484143, 8.86827918744 |
 | 08 final | lag-1 residual Pearson p, Shapiro p | 0.323, 0.194 |
-| 08 final | `df`, `tv_sat` 95% interval (t) | 710, [7.54300629364, 10.1935520812] |
+| 08 final | `covariance`, `df`, `tv_sat` 95% interval (t) | `cluster` on `week_index`, 91 clusters; 90, [7.85346274663, 9.88309562826] |
+| 08 final | `std_errors`, tv / search / social / display | 0.510811620134, 4.12987566403, 3.11612906590, 6.65330437718 |
 | 09 holdout | MAPE train, holdout | 0.0256712891849, 0.0218247942172 |
 | 09 holdout | RMSE train, holdout ($k) | 13.8301401593, 13.4895798879 |
 | 09 holdout | predicted − actual sum, train, holdout ($k) | 0.0000 (OLS with an intercept), +178.896 |
 | 10 total | ROI (TV, search, social, display): `*_roi` | 1.63, 2.61, 2.58, 3.03 |
-| 10 total | ROI 95% interval: `*_roi_lo`, `*_roi_hi` | TV [1.387, 1.875], search [1.092, 4.122], social [1.225, 3.945], display [−0.983, 7.044] |
+| 10 total | ROI 95% interval: `*_roi_lo`, `*_roi_hi` | TV [1.444, 1.817], search [0.855, 4.360], social [1.199, 3.971], display [−1.058, 7.118] |
 | 10 total | marginal ROI: `*_mroi` | 0.60, 0.96, 0.97, 1.32 |
 | 11 scenarios | revenue change, $k | TV→search +189.0, TV→social +103.3, display→social −816.2 (full: 189.016499817, 103.285731127, −816.190965679) |
 
@@ -96,6 +97,17 @@ Full-precision figures are rounded to 12 significant digits. A run on amd64, whe
 
 **The materialise acceptance.** Step 04 used to stream the request to NDJSON (`--stream --no-project`) and import it with a hand-written 41-field `schema_features.json` (`git show 6f06b157:docs/roadmap/fixtures/mmm-harbor-pine/req/04_adstock_grid.json` and `.../schema_features.json`). Both routes keep the request's `sort` by `region` and `week`, so the two features cohorts hold their rows in the same order. Both routes were run on the same build, the two cohorts exported to NDJSON and compared per `(region, week_index)` row, every value as its float64 bit pattern: all 832 rows in the same order, the same 41 columns, and 40 of them bit-identical, every adstock and scenario column included. The exception is `week`. The old schema typed it `u16`, so it held the epoch day number; the materialised cohort carries the panel's `date` field, and its epoch day equals the old value on every row. Steps 05–11 were then run against each cohort: every `--json` output is byte-identical between the two routes, including the 06 ranking (`residual_std_err` 14.004354530446538, 14.004455659253262, 14.00446967576211).
 
+**The covariance acceptance.** Step 08 used to report classical OLS standard errors, which treat the 728 training rows as independent. The panel has eight regions per week, so rows within a week can move together. Step 08 now sets `covariance` and the same fit is run three ways (only `covariance` differs; coefficients, `r2` and the residual tests are identical in every run, `resid_autocorr_lag1` p 0.323 and `resid_normality` p 0.194):
+
+| `std_errors` | classical (`df` 710) | `cluster` on `week_index` (91 clusters, `df` 90) | `cluster` on `region` (8 clusters, `df` 7) |
+|---|---|---|---|
+| `tv_sat` | 0.675019401791 | 0.510811620134 | 0.592741683342 |
+| `search_sat` | 3.61229171384 | 4.12987566403 | 2.36485104083 |
+| `social_sat` | 3.09320879505 | 3.11612906590 | 3.15896801136 |
+| `display_sat` | 6.60940274174 | 6.65330437718 | 3.66087419794 |
+
+The corrected figures are not uniformly larger than the classical ones: TV's standard error falls under week clustering (0.675 to 0.511) while search's rises (3.61 to 4.13), so the classical figures were neither a lower nor an upper bound. A single-series estimator, `hac` with `order_by: week_index`, is refused on this panel with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`reason: order_by_ties`), so the example clusters on the week. Only the intervals move downstream: `req/10` loads the saved model, so its `*_roi_lo` / `*_roi_hi` use the clustered `ci_lower` / `ci_upper` (TV [1.444, 1.817] was [1.387, 1.875]; display [−1.058, 7.118] was [−0.983, 7.044]). Every contribution, marginal, ROI, MAPE, RMSE and scenario figure is bit-identical to the classical run: coefficients do not depend on the covariance. `data.fits.mmm` of steps 09 and 11 equals 08's `regressions[0]` apart from its `name`.
+
 Ground truth built into the data (for judging the estimates, not used by any request): decays TV 0.7, search 0.2, social 0.4, display 0.3; β TV 9.0, search 13.0, social 14.0, display 1.5; true ROI 1.66 / 2.78 / 3.14 / 0.46.
 
 ## Still outside Pulse
@@ -108,8 +120,8 @@ Everything else the worked example did by hand or by script. Each gap has a TODO
 | 15 | Decay identifiability is read by eye from the 256 values | #298 | [U40](../../units/U40-compose-sweep.md) follow-up |
 | 16 | Ridge cannot leave a predictor subset unpenalised | #293 | [U36](../../units/U36-reference-oracles.md) |
 | 17 | `WIN_LAG` `default: 0` biases the lag-1 test; post-tests cannot skip null | #294 | [U36](../../units/U36-reference-oracles.md) |
-| 18 | OLS standard errors ignore cross-region correlation; no clustered or HAC option | #295 | [U25](../../units/U25-multivariate-tests-segmentation.md) |
+| 22 | HAC (Newey–West) reads one series and is refused on the pooled panel (`order_by_ties`, eight rows per week); serial correlation inside each region is not allowed for. Clustering on `region` does, but with 8 clusters | #401 | [U25](../../units/U25-multivariate-tests-segmentation.md) follow-up (owner [U36](../../units/U36-reference-oracles.md)) |
 | 21 | The pooled-vs-within-region cross-check tables are assembled from per-region matrices | #296 | [U28](../../units/U28-matrix-overlays.md) |
 | 19 | The synthetic data generator is external; only the CSV ships | none | Out of scope |
 
-Gaps 1 (compose slots) and 2 (ranking) are closed by U40. Gaps 1 (windows), 3, 4, 5, 6 and 20 are closed by [U41](../../units/U41-derived-cohort.md): one materialise request with `for_each` and `decay` replaces the generated window list, the hand arithmetic, the NDJSON round trip and its hand-written schema; an explicit import schema now matches columns by name, and inferred floats are `f64`. Gaps 7, 8, 9, 12 and 13 are closed by [U42](../../units/U42-fit-scoring.md): a compose `fits` entry or a saved model loaded with `models` replaces the retyped coefficients and the restated scenario model, `AGG_MAPE` replaces the hand-built error formula, `ATTR_REG_PREDICT` `bound` and `coef()` replace the pasted interval bounds, and `sweep.overlays` replaces the per-scenario overlay list. Gaps 10 and 11 are closed by [U43](../../units/U43-post-aggregation-ratios.md): `AGG_RATIO` over attribute labels returns ROI, its interval bounds and marginal ROI as response fields, and `total()` in `ATTR_FORMULA` derives each scenario factor from the model year's channel total.
+Gaps 1 (compose slots) and 2 (ranking) are closed by U40. Gaps 1 (windows), 3, 4, 5, 6 and 20 are closed by [U41](../../units/U41-derived-cohort.md): one materialise request with `for_each` and `decay` replaces the generated window list, the hand arithmetic, the NDJSON round trip and its hand-written schema; an explicit import schema now matches columns by name, and inferred floats are `f64`. Gaps 7, 8, 9, 12 and 13 are closed by [U42](../../units/U42-fit-scoring.md): a compose `fits` entry or a saved model loaded with `models` replaces the retyped coefficients and the restated scenario model, `AGG_MAPE` replaces the hand-built error formula, `ATTR_REG_PREDICT` `bound` and `coef()` replace the pasted interval bounds, and `sweep.overlays` replaces the per-scenario overlay list. Gap 18 is closed by [U25](../../units/U25-multivariate-tests-segmentation.md): `RegressionSpec.Covariance` replaces the classical standard errors, which assumed independent rows. Gaps 10 and 11 are closed by [U43](../../units/U43-post-aggregation-ratios.md): `AGG_RATIO` over attribute labels returns ROI, its interval bounds and marginal ROI as response fields, and `total()` in `ATTR_FORMULA` derives each scenario factor from the model year's channel total.

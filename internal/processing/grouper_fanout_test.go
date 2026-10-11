@@ -38,6 +38,7 @@ func TestGrouperFanOutMatchesTypes(t *testing.T) {
 		spec := &types.Group{
 			Type:     groupType,
 			Field:    fix.field,
+			Fields:   fix.fields,
 			Interval: fix.interval,
 			Params:   fix.params,
 		}

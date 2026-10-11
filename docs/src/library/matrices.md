@@ -2,10 +2,11 @@
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a result in which every member is compared with
-every member. Six operators ship: `MAT_COVARIANCE`,
+every member. Eight operators ship: `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
 `params.method`), `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY`,
-`MAT_PCA` and `MAT_COLLINEARITY`. All are additive: a request without
+`MAT_PCA`, `MAT_FACTOR`, `MAT_COLLINEARITY` and `MAT_DISTANCE` (which
+compares bucket centroids instead of members). All are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -165,8 +166,122 @@ probability weights, and under pairwise deletion the smallest pair's
 KMO and Bartlett with a `PULSE_MATRIX_SINGULAR` warning, the components
 still reported. Like the partial correlation, a non-PSD pairwise input
 is refused unless `params.repair` is `"nearest"`. KMO is read against
-Kaiser's (1974) bands. No rotation (factor analysis and rotation are a
-later operator).
+Kaiser's (1974) bands.
+
+`params.rotation: "varimax"` (default `"none"`) rotates the kept
+components orthogonally toward simple structure, exactly as R's
+`stats::varimax` with Kaiser normalization does. The rotated loadings
+become the `primary` — columns ordered by the variance each accounts
+for, each signed so its loadings sum positive, keys still `PC1` …
+`PCk` — the unrotated loadings move to `auxiliary.unrotated`, and
+`vectors.rotated_variance` lists each rotated column's sum of squared
+loadings. Eigenvalues, the explained and cumulative shares, the
+communalities (unchanged by an orthogonal rotation), the eigenvectors,
+KMO and Bartlett are never rotated. A single kept component is left as
+is. Without the knob the output is byte-identical to before.
+
+## Centroid distances
+
+`MAT_DISTANCE` answers "how far apart are the segments?": a grouper in
+`params.between` cuts the rows into buckets — `GROUP_CATEGORY`,
+`GROUP_KMEANS`, any other built-in or a registered extension grouper —
+each bucket's
+centroid is its (weighted) mean of every member, and the `primary` is the
+k × k distance matrix between centroids, keyed by the bucket labels in the
+grouper's own order (`cluster_1` … by size for k-means), zero on the
+diagonal. A date-family between (`GROUP_DATE`, `GROUP_DATE_RANGES`) reads
+local calendar days in its own `tz`, else the request `time_zone`, exactly
+like a `groups` slot; predict echoes the zone at slot
+`matrices[i].params.between`. An extension between buckets with its
+buffered `Group`, so the spec runs buffered and serial.
+
+```json
+{"type": "MAT_DISTANCE", "fields": ["age", "income"],
+ "params": {"between": {"type": "GROUP_CATEGORY", "field": "region"},
+            "metric": "euclidean", "standardize": true}}
+```
+
+`params.metric` is `euclidean` (default, `stats::dist`), `sqeuclidean`,
+`manhattan`, `chebyshev`, `cosine` (1 − cos, null against a zero-length
+centroid) or `mahalanobis` — over the pooled within-bucket covariance,
+which allows for how the members vary together (it reads the raw
+centroids; it is scale-free, so `standardize` changes nothing).
+`params.standardize` z-scores every member over the bucketed rows first
+(their mean and N* − 1 spread, R `scale()`). The metric list is local to
+`MAT_DISTANCE`; the shared vector-metric registry will absorb it later.
+`auxiliary.centroids` holds the k × p centroids (rows the buckets),
+`centroids_standardized` and `pooled_covariance` ride their options, and
+`vectors.sizes` / `counts` give each bucket's weight mass and rows. Rows
+the grouper places in no bucket (a null key, an include rejection, a
+k-means row with a null member) are excluded and counted in
+`components.matrices[].operator.n_null_key`; missing data is listwise
+only. With a streaming grouper the matrix streams and merges (one
+co-moment per bucket); `GROUP_KMEANS` and `GROUP_QUANTILE` keep the rows
+for their whole-set pass and run serially. Weighted centroids under
+frequency and probability weights; a k-means `between` takes frequency
+weights only.
+
+## Factor analysis
+
+`MAT_FACTOR` is an exploratory factor analysis of the members'
+correlation: where PCA summarises all of the spread, a factor model
+explains only the spread the members share, leaving each its own
+uniqueness. `params.factors` is the number of factors — an integer (at
+most the member count) or `"kaiser"`, the default (the correlation's
+eigenvalues above 1). `params.extraction` picks the solver, each
+starting from the squared multiple correlations: `"minres"` (the
+default) minimises the off-diagonal residuals, as `psych::fa(fm =
+"minres")` does — Pulse solves to the exact optimum, where psych's
+optimiser stops about 1e-5 short — and `"principal_axis"` iterates the
+communalities on the diagonal exactly as `psych::fa(fm = "pa")` does
+(until their sum moves by at most 0.001, at most 50 iterations), and
+`"ml"` is Jöreskog's maximum likelihood over the uniquenesses, each held
+in [0.005, 1], as `stats::factanal` and `psych::fa(fm = "ml")` fit it —
+again solved to the exact optimum where their optimiser stops short.
+
+The `primary` is the p × k loadings, a **rectangular** matrix with
+`column_keys` `F1` … `Fk`, each column signed so its loadings sum
+positive. `params.rotation` rotates them with the same engine as
+`MAT_PCA`: `"varimax"` (orthogonal, `stats::varimax`), `"promax"`
+(oblique, `stats::promax` with power `params.kappa`, default 4) or
+`"oblimin"` (oblique, `GPArotation::oblimin` with `params.gamma`,
+default 0). Rotated, the columns are ordered by the variance each
+accounts for, the unrotated loadings move to `auxiliary.unrotated`, and
+an oblique rotation adds `auxiliary.factor_correlation` — the k × k
+correlation of the factors, a square matrix keyed `F1` … `Fk`.
+`vectors` carry each member's `communalities` (unchanged by any
+rotation) and `uniquenesses` (1 − communality) and each factor's
+`variance_accounted`; `scalars` carry `rmsr` (the root-mean-square of
+the correlations the factors leave unexplained), the empirical residual
+chi-square (`empirical_chisq`, `df`, `empirical_p` — psych's residual
+size, not a likelihood test; `empirical_p` is null when `df` ≤ 0), `kmo`
+and Bartlett's test as on `MAT_PCA`, the fit's `iterations` and
+`converged` (1 or 0) and `factors_retained`. Maximum likelihood adds
+the likelihood test and fit indices psych reports: `likelihood_chisq`
+(the Bartlett-corrected likelihood-ratio chi-square on `df`) and its
+`likelihood_p`, the Tucker-Lewis index `tli`, the RMSEA point estimate
+`rmsea` with its confidence interval `rmsea_lower` / `rmsea_upper`
+(psych's `RMSEA` lower / upper: the noncentral chi-square inverted at
+coverage `params.conf_level`, 0.9 by default as in `psych::fa`, and
+rescaled by (N* − 1)·df; a bound psych's search range cannot reach, or
+one on the wrong side of the point estimate, is null) and `bic` — all
+but the chi-square null when `df` ≤ 0. They
+need a positive-definite correlation (a singular one nulls the ML fit
+with `PULSE_MATRIX_SINGULAR`) and an inference size above 1 + (2p +
+5)/6 + 2k/3 (below it they are null with `PULSE_MATRIX_INSUFFICIENT_N`).
+
+A count the members cannot identify — (p − k)² < p + k, so one factor
+needs 3 members, two need 5 and three need 6 — returns null loadings
+and fit figures with `PULSE_MATRIX_NOT_IDENTIFIED` (KMO and Bartlett
+still compute). A member whose uniqueness falls to 0 or below (a
+Heywood case; under `"ml"`, held at the 0.005 floor) is reported as
+fitted with `PULSE_MATRIX_HEYWOOD`, and an
+extraction or rotation that stops at its iteration cap warns
+`PULSE_MATRIX_NOT_CONVERGED`. Like the partial correlation, a non-PSD
+pairwise input is refused unless `params.repair` is `"nearest"`.
+Weighted under frequency and probability weights. KMO is read against
+Kaiser's (1974) bands; the loadings, `rmsr`, `tli` and `rmsea` are
+unbanded.
 
 ## Collinearity
 

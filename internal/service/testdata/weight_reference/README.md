@@ -10,19 +10,75 @@ Python or R; the generated Go file is the oracle. Never hand-edit it.
 
 ```sh
 cd internal/service/testdata/weight_reference
-# once: R 4.6.1 + Hmisc 5.3.0 in a private library (see hmisc_quantile.R)
-mkdir -p rlib
-R_LIBS=rlib Rscript -e 'install.packages("remotes", repos = "https://cloud.r-project.org")' \
-  -e 'remotes::install_version("Hmisc", "5.3.0", repos = "https://cloud.r-project.org")'
-R_LIBS=rlib uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
+# once: Hmisc 5.3.0 in a private library (never commit it); see
+# "R toolchain" below for the Homebrew Fortran workaround
+R_LIBS=/tmp/rlib Rscript -e 'install.packages("remotes", lib = "/tmp/rlib", repos = "https://cloud.r-project.org")' \
+  -e 'remotes::install_version("Hmisc", "5.3.0", lib = "/tmp/rlib", repos = "https://cloud.r-project.org", upgrade = "never")'
+R_LIBS=/tmp/rlib uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
 gofmt -w ../../weight_reference_values_test.go
 go test ../.. -run TestWeightReference
 ```
 
-(Keep `rlib/` out of the commit.) Pinned toolchain: Python 3.12, numpy
-2.3.3, scipy 1.16.2, statsmodels 0.14.5, scikit-learn 1.7.2; R 4.6.1,
-Hmisc 5.3.0 (the R scripts refuse any other R / Hmisc version). The script's docstring maps
+To CHECK the committed values without rewriting them, run the generator
+with `--check`: it regenerates in memory and compares figure by figure
+with `../../weight_reference_values_test.go`, failing (exit 1) on any
+structural difference or any figure further than 1e-12 relative from
+the committed one (absolute when it is 0) — `weightRefTol`, the tolerance
+`TestWeightReferenceValues` holds Pulse to. The provenance consts are
+reported, not compared. It needs the same toolchain; once uv's cache
+holds the pinned wheels it runs without network (`--offline`):
+
+```sh
+R_LIBS=/tmp/rlib uv run --offline --no-project gen_weight_reference.py --check
+```
+
+### Pinned toolchain and the last ulps
+
+Python 3.12, numpy 2.3.3, scipy 1.16.2, statsmodels 0.14.5, scikit-learn
+1.7.2 (PEP 723 header); R 4.6.1 with base `stats` and Hmisc 5.3.0 (the R
+scripts refuse any other R / Hmisc version). The script's docstring maps
 each Pulse definition onto the library call configured to match it.
+
+The pins fix every figure to well inside the test tolerance, but NOT to
+the last bit. The probability-kind closed forms, the penalised β
+(scikit-learn), the Bayes posterior and the pseudo-R² run through
+numpy / scipy linear algebra, whose BLAS / LAPACK backend comes with the
+wheel — Apple Accelerate on macOS arm64, OpenBLAS on Linux — and changes
+with the OS release. A regeneration on another machine therefore shifts
+those rows by a few ulps — measured 2026-10-11, moving from an earlier
+macOS to macOS 27.0.1 on Accelerate: 232 figures, worst 2.2e-14
+relative, all in `REG_OLS` / `REG_GLM` / ridge / `ATTR_REG_*` under
+probability weights and ridge / Bayes / the GLM pseudo-R² under
+frequency weights; the same machine reproduces its own output byte for
+byte. The figures computed in R, the descriptive and test rows and the
+exact-rational ones did not move. `weightRefProvenance` records the
+backend and platform that wrote the committed file; `--check` is the
+portable agreement test. Commit a regeneration whenever the generator
+or a fixture changes, so the file is exactly one generator run.
+
+### R toolchain
+
+The weight references need only base R plus Hmisc. Hmisc compiles
+Fortran: on Homebrew R 4.6.1 its link fails with `library 'emutls_w'
+not found` (or `'gfortran'`), because R's recorded `FLIBS` names a gcc
+target directory that does not exist (`R CMD config FLIBS` says
+`aarch64-apple-darwin27`, Homebrew gcc 16 installs
+`aarch64-apple-darwin23`). Point a TEMPORARY Makevars at the real one
+for the install only — never commit it, and do not leave it in
+`~/.R/Makevars`:
+
+```sh
+GCC=$(brew --prefix gcc)/lib/gcc/current
+TRIPLE=$(ls "$GCC/gcc")                     # e.g. aarch64-apple-darwin23
+VER=$(ls "$GCC/gcc/$TRIPLE")                # e.g. 16
+printf 'FLIBS = -L%s/gcc/%s/%s -L%s/gcc -L%s -lemutls_w -lheapt_w -lgfortran -lquadmath\n' \
+  "$GCC" "$TRIPLE" "$VER" "$GCC" "$GCC" > /tmp/Makevars.pulse
+R_MAKEVARS_USER=/tmp/Makevars.pulse R_LIBS=/tmp/rlib Rscript -e '...install line above...'
+```
+
+The multivariate R oracle (`make reference`) has its own pinned package
+list and the same workaround: `docs/src/internals/regenerating-goldens.md`
+(The R toolchain).
 
 ## Weighted significance tests
 
@@ -42,6 +98,18 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
   asymptotic, pinned via `scipy.special.kolmogorov`), and
   `anova(lm(|x − group median| ~ k))` — what `car::leveneTest(center =
   median)` computes, in base R, so no package pin;
+  `TEST_HOTELLING_T2` (U25 E1-S1) reads `anova(lm(cbind(x, y) ~ 1 | h),
+  test = "Hotelling-Lawley")` — exact for an intercept-only model and a
+  two-level factor — with T² = HL·(n − 1) / HL·(n − 2);
+  `TEST_MANOVA` (U25 E1-S3) reads `summary(manova(cbind(x, y) ~ k),
+  test = ...)` for Pillai, Wilks, Hotelling-Lawley and Roy;
+  `TEST_BARTLETT_SPHERICITY` / `TEST_BOX_M` (U25 E1-S4) read the base-R
+  closed forms of `psych::cortest.bartlett` (`det(cor(.))`) and
+  `biotools::boxM` (per-level `det(cov(.))`, plus Box's F in SPSS's
+  form), so the script stays base-R only; `TEST_MARDIA` (U25 E1-S5,
+  frequency-only) reads `MVN::mvn(mvnTest = "mardia")`'s closed form in
+  base R (ML covariance, `sum(D^3)/n^2`, `sum(diag(D)^2)/n`), cross-checked
+  against numpy on the same expansion;
 - kind `probability` — the w* closed form in the generator, its moment
   step cross-checked against statsmodels (`DescrStatsW` on w*,
   `CompareMeans`, `proportions_ztest`) and scipy `chi2_contingency`. The
@@ -135,7 +203,38 @@ positive target; the `w` / `f` / `p` weight columns):
   scalar-precision Normal-Inverse-Gamma prior, so its row is that
   conjugate posterior in closed form on the expanded rows (scipy t
   quantiles for the credible bounds). Frequency-expansion parity
-  (`TestWeightFrequencyExpansionParity/regressions`) is its other gate.
+  (`TestWeightFrequencyExpansionParity/regressions`) is its other gate;
+- `ATTR_MAHALANOBIS` (U25 E3-S1, members x1, x2, y) — frequency: R
+  `mahalanobis()` against `colMeans` / `cov` of the expanded complete
+  rows (`reg_reference.R`); probability: the w* closed form (covariance
+  M2·(n_eff/Σw)/(n_eff − 1)) cross-checked with statsmodels
+  `DescrStatsW(w*, ddof = 1)`. D² reads N*, so the two kinds differ by
+  one covariance factor (`TestWeightReferenceKindsAgree` asserts the
+  constant ratio, not equality).
+- `ATTR_PC_SCORE` (U25 E3-S2, same members, component 1 of the
+  correlation) — frequency: R `prcomp(scale. = TRUE)` `predict()` /
+  `sdev` on the expanded complete rows, the loading signed by Pulse's
+  rule (`reg_reference.R`); probability: the w* closed form (numpy
+  `eigh`) with the covariance cross-checked with statsmodels
+  `DescrStatsW(w*, ddof = 1)` and unit variance asserted. The score
+  divides by the members' w* spread, so the kinds again differ by one
+  constant factor.
+- `ATTR_FACTOR_SCORE` (U25 E3-S3, members x1, y, yb — never null,
+  where the one-factor model is exactly identified and proper under every
+  weight column; factor 1, regression scores) — frequency: base R `cor`
+  / `solve` on the expanded rows, the loadings in closed form
+  l_i = √(r_ij r_ik / r_jk) and the score zᵀR⁻¹l (`reg_reference.R`);
+  probability: the same closed form on w* with the covariance
+  cross-checked with statsmodels `DescrStatsW(w*, ddof = 1)` and the
+  exact fit R = llᵀ + diag(1 − l²) asserted. The weights are kind-free
+  and z divides by the w* spread, so the kinds differ by one constant
+  factor.
+- `GROUP_KMEANS` (U25 E4-S1, frequency only; members x1, y, k = 2) —
+  stock R `kmeans(algorithm = "Lloyd", nstart = 100)` on the `scale()`d
+  expanded rows (`reg_reference.R`), cross-checked with scikit-learn
+  `KMeans(sample_weight = w)`; figures are each cluster's size and
+  within-SS in Pulse's order (descending size) and the total SS, read
+  from `components.groupers[0].operator`.
 
 An attribute case reads each row's value back as an opted-out `AGG_SUM`
 grouped by the fixture's `id`; its figures are keyed `data[<id>].v`.

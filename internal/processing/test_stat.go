@@ -100,6 +100,74 @@ func regularizedGammaQ(a, x float64) float64 {
 	return gammaContinuedFraction(a, x)
 }
 
+// regularizedGammaP returns P(a, x), the regularized lower incomplete
+// gamma function, on the branch that keeps it relatively accurate when
+// it is small: the series directly for x < a+1, 1 − Q otherwise.
+func regularizedGammaP(a, x float64) float64 {
+	if x < 0 || a <= 0 {
+		return math.NaN()
+	}
+	if x == 0 {
+		return 0
+	}
+	if x < a+1 {
+		return gammaSeries(a, x)
+	}
+	return 1 - gammaContinuedFraction(a, x)
+}
+
+// noncentralChiSquareCDF returns P(X ≤ x) for a noncentral chi-square
+// variate with df degrees of freedom and noncentrality ncp (R's
+// pchisq(x, df, ncp)): the Poisson(ncp/2) mixture Σ_j w_j·P(df/2 + j,
+// x/2) of central lower tails. The sum starts at the Poisson mode and
+// walks outward in both directions, so the largest weights are added
+// first and neither walk underflows; each walk stops once a weight
+// falls below 1e-17 of the running sum (every P term is at most 1, and
+// past the mode the weights shrink geometrically). ncp = 0 is the
+// central CDF. NaN for df ≤ 0, ncp < 0 or a NaN argument.
+func noncentralChiSquareCDF(x, df, ncp float64) float64 {
+	if df <= 0 || ncp < 0 || math.IsNaN(x) || math.IsNaN(df) || math.IsNaN(ncp) {
+		return math.NaN()
+	}
+	if x <= 0 {
+		return 0
+	}
+	if math.IsInf(x, 1) {
+		return 1
+	}
+	a, h := df/2, x/2
+	if ncp == 0 {
+		return regularizedGammaP(a, h)
+	}
+	mu := ncp / 2
+	logMu := math.Log(mu)
+	weight := func(j float64) float64 {
+		lg, _ := math.Lgamma(j + 1)
+		return math.Exp(j*logMu - mu - lg)
+	}
+	const (
+		stop    = 1e-17
+		maxTerm = 1 << 20
+	)
+	mode := math.Floor(mu)
+	sum := 0.0
+	for j, n := mode, 0; n < maxTerm; j, n = j+1, n+1 {
+		w := weight(j)
+		sum += w * regularizedGammaP(a+j, h)
+		if j > mode && w < stop*math.Max(sum, math.SmallestNonzeroFloat64) {
+			break
+		}
+	}
+	for j := mode - 1; j >= 0; j-- {
+		w := weight(j)
+		sum += w * regularizedGammaP(a+j, h)
+		if w < stop*sum {
+			break
+		}
+	}
+	return math.Min(sum, 1)
+}
+
 // gammaPrefactor returns x^a e^{-x} / Γ(a). For a ≥ 10 it is assembled
 // as √(a/2π) · exp(−δ(a) − bd0(a, x)) — Loader's saddle-point form, the
 // one R's dpois_raw uses — so a·log x − x − lgamma(a) never cancels at

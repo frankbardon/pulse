@@ -47,6 +47,9 @@ var matrixInvarianceVariants = func() []matrixInvarianceVariant {
 	var out []matrixInvarianceVariant
 	for _, typ := range types.AllMatrixTypes() {
 		for _, pairwise := range []bool{false, true} {
+			if pairwise && typ == types.MAT_DISTANCE {
+				continue // listwise only
+			}
 			for _, v := range []matrixInvarianceVariant{{false, false, "", false}, {true, false, "", false}, {false, true, "", false}, {true, true, "", false}} {
 				v.typ = typ
 				v.pairwise = pairwise
@@ -105,11 +108,42 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 	// are compared whole) and repairs its pairwise input like the other
 	// decomposition operators; its eigensolver is gonum-backed, so the
 	// bits are same-machine stable — which is what this gate compares.
+	// The pairwise variant also varimax-rotates (U25 E2-S1): the
+	// rotation is a pure function of the merged loadings, so its primary
+	// and rotated_variance are as worker-invariant as they are.
 	if v.matrixType() == types.MAT_PCA {
 		spec.Params = json.RawMessage(`{"max_drop_share": 0, "components": 3}`)
 		if v.pairwise {
-			spec.Params = json.RawMessage(`{"missing": "pairwise", "components": 3, "repair": "nearest"}`)
+			spec.Params = json.RawMessage(`{"missing": "pairwise", "components": 3, "repair": "nearest", "rotation": "varimax"}`)
 		}
+	}
+	// MAT_FACTOR fits one factor (the most three members identify):
+	// minres listwise unweighted, maximum likelihood listwise weighted
+	// (with its likelihood figures); the pairwise variant repairs its
+	// input like the other decomposition operators and runs principal
+	// axis, so every extraction rides the gate. Each is a pure function
+	// of the merged correlation (its eigensolves gonum-backed,
+	// same-machine stable).
+	if v.matrixType() == types.MAT_FACTOR {
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "factors": 1}`)
+		if v.weighted {
+			spec.Params = json.RawMessage(`{"max_drop_share": 0, "factors": 1, "extraction": "ml"}`)
+		}
+		if v.pairwise {
+			spec.Params = json.RawMessage(`{"missing": "pairwise", "factors": 1, "repair": "nearest", "extraction": "principal_axis"}`)
+		}
+	}
+	// MAT_DISTANCE compares the x1 / x2 centroids of four GROUP_RANGE
+	// buckets of x3 (a mergeable between), standardized; weighted, it
+	// runs mahalanobis over the pooled within-bucket covariance.
+	if v.matrixType() == types.MAT_DISTANCE {
+		spec.Fields = []string{"x1", "x2"}
+		metric := "euclidean"
+		if v.weighted {
+			metric = "mahalanobis"
+		}
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "standardize": true, "metric": "` + metric +
+			`", "between": {"type": "GROUP_RANGE", "field": "x3", "interval": 250000}}`)
 	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
@@ -132,7 +166,8 @@ type matrixRun struct {
 	auxN     []uint64
 	pairs    []types.MatrixPair
 	pairBits []uint64
-	// relBits are MAT_RELIABILITY's / MAT_PCA's / MAT_COLLINEARITY's
+	// relBits are MAT_RELIABILITY's / MAT_PCA's / MAT_COLLINEARITY's /
+	// MAT_FACTOR's
 	// scalars and vectors (and PCA's eigenvectors, collinearity's
 	// variance decomposition), in a fixed key order.
 	relBits   []uint64
@@ -229,6 +264,15 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 				out.relBits = append(out.relBits, math.Float64bits(x))
 			}
 		}
+		if pairwise {
+			vs, ok := m.Vectors["rotated_variance"].([]float64)
+			if !ok || len(vs) != 3 || m.Auxiliary["unrotated"] == nil {
+				t.Fatalf("Process(decode=%d, shard=%d): rotated pairwise PCA lacks rotated_variance / unrotated", decodeWorkers, shardWorkers)
+			}
+			for _, x := range vs {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
 	} else if req.Matrices[0].Type == types.MAT_COLLINEARITY {
 		for _, k := range []string{"condition_number", "max_vif"} {
 			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
@@ -247,6 +291,42 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 		for _, row := range m.Auxiliary["variance_decomposition"].Values {
 			for _, x := range row {
 				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+	} else if req.Matrices[0].Type == types.MAT_FACTOR {
+		keys := []string{"rmsr", "empirical_chisq", "df", "empirical_p", "kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "iterations", "converged", "factors_retained"}
+		if _, ml := m.Scalars["likelihood_chisq"]; ml {
+			keys = append(keys, "likelihood_chisq", "likelihood_p", "tli", "rmsea", "rmsea_lower", "rmsea_upper", "bic")
+		}
+		for _, k := range keys {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		for k, n := range map[string]int{"communalities": 3, "uniquenesses": 3, "variance_accounted": 1} {
+			vs, ok := m.Vectors[k].([]float64)
+			if !ok || len(vs) != n {
+				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
+			}
+		}
+		for _, k := range []string{"communalities", "uniquenesses", "variance_accounted"} {
+			for _, x := range m.Vectors[k].([]float64) {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+	} else if req.Matrices[0].Type == types.MAT_DISTANCE {
+		sizes, ok := m.Vectors["sizes"].([]float64)
+		if !ok || len(sizes) != 4 || len(m.Primary.RowKeys) != 4 {
+			t.Fatalf("Process(decode=%d, shard=%d): MAT_DISTANCE buckets %v sizes %#v, want 4", decodeWorkers, shardWorkers, m.Primary.RowKeys, m.Vectors["sizes"])
+		}
+		for _, x := range sizes {
+			out.relBits = append(out.relBits, math.Float64bits(x))
+		}
+		for _, k := range []string{"centroids", "centroids_standardized", "pooled_covariance"} {
+			if a := m.Auxiliary[k]; a != nil {
+				for _, row := range a.Values {
+					for _, x := range row {
+						out.relBits = append(out.relBits, math.Float64bits(x))
+					}
+				}
 			}
 		}
 	} else if m.Vectors != nil {
@@ -330,8 +410,10 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 	switch v.matrixType() {
 	case types.MAT_CORRELATION, types.MAT_RELIABILITY:
 		cov = c.Corr()
-	case types.MAT_PCA:
+	case types.MAT_PCA, types.MAT_FACTOR:
 		return nil // the loadings are an eigensolver's output: no FMA-free anchor
+	case types.MAT_DISTANCE:
+		return nil // bucket distances: anchored by the R oracle (internal/processing)
 	case types.MAT_COLLINEARITY:
 		if v.pairwise {
 			return nil // the repaired matrix has no independent anchor here

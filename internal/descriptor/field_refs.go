@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
@@ -117,7 +118,31 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     encoding, a duplicate result name or bad params
 //     (SERVICE_VALIDATION, details.reason), an undefined vector
 //     (PULSE_VECTOR_UNKNOWN), or an inline-fields vector refusal.
-//     Steps 6 and 7 contribute one refusal at most between them.
+//  8. test vector inputs — every test's vector / fields and vector2 /
+//     fields2 resolved by the same leaf (internal/vectors.ResolveTests):
+//     the exactly-one shape, a vector input on a test that reads none,
+//     an undefined vector (PULSE_VECTOR_UNKNOWN), the inline-fields
+//     vector rules, a second set of another length, and params.missing
+//     other than "listwise" (SERVICE_VALIDATION, details.reason).
+//  9. attribute vector inputs — every attribute's vector / fields and
+//     fitted params resolved by the same leaf
+//     (internal/vectors.ResolveAttributes): the exactly-one shape, a
+//     vector input on an attribute that reads none, an undefined vector,
+//     the inline-fields vector rules, params.fit_on's shape and
+//     params.missing other than "listwise". A vector attribute's
+//     fit_on filterers are judged at step 3 by the filterer rule.
+//  10. grouper vector inputs — every grouper slot's (groups and both
+//     crosstab axes) vector / fields and params resolved by the same
+//     leaf (internal/vectors.ResolveGroups): the exactly-one shape, a
+//     vector input on a grouper that reads none, an undefined vector,
+//     the inline-fields vector rules and GROUP_KMEANS's params. A vector
+//     grouper's key column (vectors.GroupKeyField) is an output column
+//     at step 5.
+//     A registered extension test, attribute or grouper that sets a
+//     vector input has its member sets judged at steps 8-10 by the same
+//     member rules (shape, undefined vector, inline-fields rules); its
+//     params and other slots stay its own.
+//     Steps 6 to 10 contribute one refusal at most between them.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -270,11 +295,25 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 				}
 			}
 		default:
+			if vectors.IsVectorAttribute(attrRoute) {
+				// A vector-input attribute reads its members (step 9,
+				// source columns only) and its params.fit_on filterers,
+				// judged here against the attribute-step columns: the
+				// fit predicate runs on the record beside the earlier
+				// attributes' labels.
+				for _, fil := range vectors.AttributeFitOn(attrRoute, attr) {
+					w.checkFitOn(fil, attr, models)
+				}
+				break
+			}
 			if attrRoute == types.ATTR_FORMULA {
 				w.checkTotal(attr.Expression, totalcall.FormulaSite)
 				w.checkCoef(attr.Expression, models)
 			}
-			if attrRoute != types.ATTR_FORMULA || attr.Field != "" {
+			// An attribute reading a vector input without a field (a
+			// registered extension's; a built-in is refused at step 9)
+			// names no field column to judge.
+			if (attrRoute != types.ATTR_FORMULA || attr.Field != "") && (attr.Field != "" || !vectors.HasAttributeVectorInput(attr)) {
 				w.check(attr.Field, func() *errors.CodedError {
 					return refusal("attribute references unknown field: "+attr.Field,
 						map[string]any{"field": attr.Field, "attribute": string(attr.Type)})
@@ -317,15 +356,30 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 					map[string]any{"field": p, "type": string(reg.Type)})
 			})
 		}
+		if c := reg.Covariance; c != nil {
+			for _, f := range []string{c.Cluster, c.OrderBy} {
+				if f == "" {
+					continue
+				}
+				w.check(f, func() *errors.CodedError {
+					return refusal("regression covariance references unknown field: "+f,
+						map[string]any{"field": f, "type": string(reg.Type)})
+				})
+			}
+		}
 	}
 	for _, grp := range req.Groups {
 		if grp == nil {
 			continue
 		}
-		w.check(grp.Field, func() *errors.CodedError {
-			return refusal("group references unknown field: "+grp.Field,
-				map[string]any{"field": grp.Field, "group": string(grp.Type)})
-		})
+		// A vector-input grouper (GROUP_KMEANS) reads its members (step
+		// 10, source columns only), never a field.
+		if !vectors.IsVectorGroup(opRoute(inst, grp.Type)) {
+			w.check(grp.Field, func() *errors.CodedError {
+				return refusal("group references unknown field: "+grp.Field,
+					map[string]any{"field": grp.Field, "group": string(grp.Type)})
+			})
+		}
 		w.checkInputs("grouper", string(grp.Type), grp.Params, "group")
 	}
 	for _, agg := range req.Aggregations {
@@ -349,7 +403,9 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			})
 		}
 		grouper := func(g *types.Group, role string) {
-			axis(g.Field, role)
+			if !vectors.IsVectorGroup(opRoute(inst, g.Type)) {
+				axis(g.Field, role)
+			}
 			w.checkInputs("grouper", string(g.Type), g.Params, "role", role)
 		}
 		agg := func(a *types.Aggregation, role string) {
@@ -386,9 +442,10 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			if grp == nil {
 				continue
 			}
-			out[grp.Field] = true
-			if _, ok := owner[grp.Field]; !ok {
-				owner[grp.Field] = map[string]any{"group_index": gi, "group": string(grp.Type)}
+			key := vectors.GroupKeyField(opRoute(inst, grp.Type), grp)
+			out[key] = true
+			if _, ok := owner[key]; !ok {
+				owner[key] = map[string]any{"group_index": gi, "group": string(grp.Type)}
 			}
 		}
 		for ai, agg := range req.Aggregations {
@@ -502,12 +559,81 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	// vector-XOR-fields shape, encoding, result-name uniqueness, params,
 	// the named vector (PULSE_VECTOR_UNKNOWN) or the inline fields (the
 	// vector rules). A type the instance hides is an unknown type.
-	if _, verr := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
-		return isBuiltinMatrixType(opRoute(inst, t))
-	}); verr != nil {
+	if _, verr := resolveMatricesFor(req, schema, w.snap, inst); verr != nil {
 		w.out = append(w.out, verr)
+		return w.out
+	}
+	// 8. Test vector inputs — each test's vector / fields (and vector2
+	// / fields2) resolved by the same leaf (vectors.ResolveTests): the
+	// shape rules, the named vector (PULSE_VECTOR_UNKNOWN), the inline
+	// fields (the vector rules), the equal-length pairing and the
+	// listwise-only missing mode. Steps 6-8 contribute one refusal at
+	// most between them.
+	if _, terr := vectors.ResolveTests(req, schema, func(t types.TestType) types.TestType {
+		return opRoute(inst, t)
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Tests })); terr != nil {
+		w.out = append(w.out, terr)
+		return w.out
+	}
+	// 9. Attribute vector inputs — each attribute's vector / fields and
+	// fitted params (fit_on, missing, the operator's own keys) resolved
+	// by the same leaf (vectors.ResolveAttributes). Steps 6-9 contribute
+	// one refusal at most between them.
+	if _, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+		return opRoute(inst, t)
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes })); aerr != nil {
+		w.out = append(w.out, aerr)
+		return w.out
+	}
+	// 10. Grouper vector inputs — every grouper slot's vector / fields
+	// and params resolved by the same leaf (vectors.ResolveGroups).
+	// Steps 6-10 contribute one refusal at most between them.
+	if _, gerr := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
+		return opRoute(inst, t)
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Groupers })); gerr != nil {
+		w.out = append(w.out, gerr)
 	}
 	return w.out
+}
+
+// resolveMatricesFor is the one instance-scoped Request.Matrices
+// resolution every descriptor site reads (the field-reference walk,
+// predict, the limits): a hidden matrix type is unknown, and a
+// MAT_DISTANCE params.between grouper type routes through the instance
+// (a hidden grouper is unknown); a registered extension grouper (snap,
+// else the instance's own projection) is accepted as a between, as the
+// runtime accepts it.
+func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) ([]vectors.Matrix, *errors.CodedError) {
+	if snap == nil {
+		snap = inst.Extensions()
+	}
+	var ext func(string) bool
+	if snap != nil {
+		ext = func(name string) bool { return snapshotHasName(snap.Groupers, name) }
+	}
+	return vectors.ResolveMatricesRouted(req, schema, func(t types.MatrixType) bool {
+		return isBuiltinMatrixType(opRoute(inst, t))
+	}, func(t types.GroupType) types.GroupType {
+		return opRoute(inst, t)
+	}, ext)
+}
+
+// checkFitOn judges one params.fit_on filterer of a fitted vector
+// attribute by the Request filterer rule (step 2) against the columns
+// visible to the attribute.
+func (w *fieldRefWalk) checkFitOn(fil *types.Filterer, attr *types.Attribute, models model.Catalog) {
+	w.checkInputs("filterer", string(fil.Type), nil, "filter")
+	if opRoute(w.inst, fil.Type) == types.FILTER_EXPRESSION {
+		w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
+		w.checkCoef(fil.Expression, models)
+	}
+	if fil.Field == "" && !filterFieldRequired(opRoute(w.inst, fil.Type)) {
+		return
+	}
+	w.check(fil.Field, func() *errors.CodedError {
+		return refusal(string(attr.Type)+" fit_on filter references unknown field: "+fil.Field,
+			map[string]any{"field": fil.Field, "filter": string(fil.Type), "attribute": string(attr.Type)})
+	})
 }
 
 // fieldRefWalk carries the column set available at the current
@@ -520,6 +646,16 @@ type fieldRefWalk struct {
 	// nothing.
 	inst *InstanceSnapshot
 	out  []*errors.CodedError
+}
+
+// extensionNamed is the vector resolvers' extension predicate for one
+// category: a routed type name the snapshot registers in that category
+// (metas). Nil without a snapshot — no extension is registered.
+func (w *fieldRefWalk) extensionNamed(metas func(*ExtensionsSnapshot) []descriptor.OperatorMeta) func(string) bool {
+	if w.snap == nil {
+		return nil
+	}
+	return func(name string) bool { return snapshotHasName(metas(w.snap), name) }
 }
 
 // aggParamFieldKeys lists, per built-in aggregation, the Params keys

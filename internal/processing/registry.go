@@ -53,6 +53,9 @@ var attributeRegistry = map[types.AttributeType]AttributeFactory{
 	types.ATTR_REG_FITTED:   newRegFittedAttribute,
 	types.ATTR_REG_RESIDUAL: newRegResidualAttribute,
 	types.ATTR_REG_LEVERAGE: newRegLeverageAttribute,
+	types.ATTR_MAHALANOBIS:  newMahalanobisAttribute,
+	types.ATTR_PC_SCORE:     newPCScoreAttribute,
+	types.ATTR_FACTOR_SCORE: newFactorScoreAttribute,
 	types.ATTR_REG_PREDICT:  newRegPredictAttribute,
 
 	types.ATTR_SET_POPCOUNT: newSetPopcountAttribute,
@@ -84,6 +87,7 @@ var grouperRegistry = map[types.GroupType]GrouperFactory{
 	types.GROUP_CATEGORY:    newCategoryGrouper,
 	types.GROUP_DATE:        newDateGrouper,
 	types.GROUP_DATE_RANGES: newDateRangesGrouper,
+	types.GROUP_KMEANS:      newKMeansGrouper,
 	types.GROUP_QUANTILE:    newQuantileGrouper,
 	types.GROUP_RANGE:       newRangeGrouper,
 	types.GROUP_ROUNDED:     newRoundedGrouper,

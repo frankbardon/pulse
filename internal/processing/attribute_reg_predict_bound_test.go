@@ -36,7 +36,7 @@ func TestRegPredict_BoundEqualsIntervalTimesColumn(t *testing.T) {
 			p := NewProcessor(schema)
 			p.SetModels(set)
 			recs := predictRecords(schema)
-			if err := p.applyAttributes([]*types.Attribute{predictAttr(tc.params)}, recs); err != nil {
+			if _, err := p.applyAttributes([]*types.Attribute{predictAttr(tc.params)}, recs); err != nil {
 				t.Fatal(err)
 			}
 			for i, r := range recs {

@@ -379,6 +379,33 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Type: types.ATTR_REG_RESIDUAL, Label: "out", Target: "y", Predictors: []string{"x1", "x2"},
 		}, s, emitsRegRecords(s))
 	},
+	string(types.ATTR_MAHALANOBIS): func(t *testing.T) emitted {
+		// Both outputs: D² (≥ 0, unbounded) and its χ² tail in [0, 1].
+		s := regSchema()
+		recs := emitsRegRecords(s)
+		d2 := attrEmitted(t, &types.Attribute{Type: types.ATTR_MAHALANOBIS, Label: "out", Fields: []string{"x1", "x2"}}, s, recs)
+		p := attrEmitted(t, &types.Attribute{Type: types.ATTR_MAHALANOBIS, Label: "out", Fields: []string{"x1", "x2"},
+			Params: json.RawMessage(`{"output":"p"}`)}, s, emitsRegRecords(s))
+		return append(d2, p...)
+	},
+	string(types.ATTR_FACTOR_SCORE): func(t *testing.T) emitted {
+		// Factor scores: unbounded reals, regression and Bartlett.
+		s := mahaSchema()
+		reg := attrEmitted(t, &types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "out", Fields: []string{"x", "y", "z"},
+			Params: json.RawMessage(`{"factor":1,"factors":1}`)}, s, mahaRecords(s, mahaRows, mahaGroups))
+		bart := attrEmitted(t, &types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "out", Fields: []string{"x", "y", "z"},
+			Params: json.RawMessage(`{"factor":1,"factors":1,"method":"bartlett","extraction":"ml"}`)}, s, mahaRecords(s, mahaRows, mahaGroups))
+		return append(reg, bart...)
+	},
+	string(types.ATTR_PC_SCORE): func(t *testing.T) emitted {
+		// Standardized scores: unbounded reals, unrotated and varimax.
+		s := regSchema()
+		un := attrEmitted(t, &types.Attribute{Type: types.ATTR_PC_SCORE, Label: "out", Fields: []string{"x1", "x2"},
+			Params: json.RawMessage(`{"component":1}`)}, s, emitsRegRecords(s))
+		rot := attrEmitted(t, &types.Attribute{Type: types.ATTR_PC_SCORE, Label: "out", Fields: []string{"x1", "x2"},
+			Params: json.RawMessage(`{"component":2,"rotation":"varimax","components":2}`)}, s, emitsRegRecords(s))
+		return append(un, rot...)
+	},
 	string(types.ATTR_REG_LEVERAGE): func(t *testing.T) emitted {
 		s := regSchema()
 		return attrEmitted(t, &types.Attribute{

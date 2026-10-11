@@ -194,6 +194,90 @@ out("brown_forsythe", "ss_within", bf[["Sum Sq"]][2])
 gmd <- tapply(xs$x, xs$k, median)
 for (g in names(gmd)) out("brown_forsythe", paste0("median_", g), gmd[[g]])
 
+# TEST_HOTELLING_T2 on the (x, y) mean vector (U25 E1-S1), stats::anova.mlm
+# Hotelling-Lawley — exact for an intercept-only model (one-sample, on
+# x - mu) and for a two-level factor (two-sample, pooled covariance):
+# T2 = HL * (n - 1) one-sample, HL * (n - 2) two-sample; F and p as R
+# reports them.
+Y1 <- cbind(xs$x - mu, xs$y - mu)
+a1 <- anova(lm(Y1 ~ 1), test = "Hotelling-Lawley")
+out("hotelling_one", "t2", a1[["Hotelling-Lawley"]][1] * (nrow(Y1) - 1))
+out("hotelling_one", "f", a1[["approx F"]][1])
+out("hotelling_one", "df2", a1[["den Df"]][1])
+out("hotelling_one", "p_value", a1[["Pr(>F)"]][1])
+Y2 <- cbind(xs$x, xs$y)
+a2 <- anova(lm(Y2 ~ h, data = xs), test = "Hotelling-Lawley")
+out("hotelling_split", "t2", a2[["Hotelling-Lawley"]][2] * (nrow(Y2) - 2))
+out("hotelling_split", "f", a2[["approx F"]][2])
+out("hotelling_split", "df2", a2[["den Df"]][2])
+out("hotelling_split", "p_value", a2[["Pr(>F)"]][2])
+
+# TEST_MANOVA on the (x, y) mean vector across k (U25 E1-S3):
+# summary(manova(...)) for each of the four statistics; figure names are
+# "<statistic>_<column>".
+fm <- manova(cbind(x, y) ~ k, data = xs)
+for (tn in c(pillai = "Pillai", wilks = "Wilks", hotelling_lawley = "Hotelling-Lawley", roy = "Roy")) {
+  key <- names(which(c(pillai = "Pillai", wilks = "Wilks", hotelling_lawley = "Hotelling-Lawley", roy = "Roy") == tn))
+  st <- summary(fm, test = tn)$stats[1, ]
+  out("manova", paste0(key, "_statistic"), st[[2]])
+  out("manova", paste0(key, "_f"), st[[3]])
+  out("manova", paste0(key, "_df1"), st[[4]])
+  out("manova", paste0(key, "_df2"), st[[5]])
+  out("manova", paste0(key, "_p_value"), st[[6]])
+}
+
+# TEST_BARTLETT_SPHERICITY on (x, y) (U25 E1-S4): psych::cortest.bartlett's
+# closed form in base R, -log(det(R)) * (n - 1 - (2p + 5)/6).
+xy <- as.matrix(xs[, c("x", "y")])
+bR <- cor(xy); bn <- nrow(xy); bp <- ncol(xy)
+bchi <- -log(det(bR)) * (bn - 1 - (2 * bp + 5) / 6)
+out("bartlett_sphericity", "statistic", bchi)
+out("bartlett_sphericity", "df", bp * (bp - 1) / 2)
+out("bartlett_sphericity", "p_value", pchisq(bchi, bp * (bp - 1) / 2, lower.tail = FALSE))
+out("bartlett_sphericity", "determinant", det(bR))
+
+# TEST_BOX_M on (x, y) across k (U25 E1-S4): biotools::boxM's chi-square
+# in base R, plus Box's F approximation (SPSS's form).
+bl <- levels(xs$k)
+bnu <- sapply(bl, function(l) sum(xs$k == l) - 1)
+bS <- lapply(bl, function(l) cov(xy[xs$k == l, , drop = FALSE]))
+bSp <- Reduce(`+`, Map(`*`, bS, bnu)) / sum(bnu)
+bM <- sum(bnu) * log(det(bSp)) - sum(bnu * sapply(bS, function(s) log(det(s))))
+bk <- length(bl)
+bA1 <- (2 * bp^2 + 3 * bp - 1) / (6 * (bp + 1) * (bk - 1)) * (sum(1 / bnu) - 1 / sum(bnu))
+bA2 <- (bp - 1) * (bp + 2) / (6 * (bk - 1)) * (sum(1 / bnu^2) - 1 / sum(bnu)^2)
+bdf1 <- bp * (bp + 1) / 2 * (bk - 1)
+if (bA2 - bA1^2 > 0) {
+  bdf2 <- (bdf1 + 2) / (bA2 - bA1^2); bF <- bM / (bdf1 / (1 - bA1 - bdf1 / bdf2))
+} else {
+  bdf2 <- (bdf1 + 2) / (bA1^2 - bA2); bb <- bdf2 / (1 - bA1 + 2 / bdf2); bF <- bdf2 * bM / (bdf1 * (bb - bM))
+}
+out("box_m", "statistic", bM * (1 - bA1))
+out("box_m", "df", bdf1)
+out("box_m", "p_value", pchisq(bM * (1 - bA1), bdf1, lower.tail = FALSE))
+out("box_m", "m", bM)
+out("box_m", "f", bF)
+out("box_m", "df2", bdf2)
+out("box_m", "f_p_value", pf(bF, bdf1, bdf2, lower.tail = FALSE))
+
+# TEST_MARDIA on (x, y) (U25 E1-S5): MVN::mvn(mvnTest = "mardia")'s
+# closed form in base R (cov = TRUE: the ML covariance).
+mn <- nrow(xy); mp <- ncol(xy)
+mc <- sweep(xy, 2, colMeans(xy))
+mD <- mc %*% solve(crossprod(mc) / mn) %*% t(mc)
+mb1 <- sum(mD^3) / mn^2; mb2 <- sum(diag(mD)^2) / mn
+mdf <- mp * (mp + 1) * (mp + 2) / 6
+mskew <- mn * mb1 / 6
+if (mn < 20) mskew <- mskew * (mp + 1) * (mn + 1) * (mn + 3) / (mn * ((mn + 1) * (mp + 1) - 6))
+mz <- (mb2 - mp * (mp + 2)) * sqrt(mn / (8 * mp * (mp + 2)))
+out("mardia", "statistic", mskew)
+out("mardia", "df", mdf)
+out("mardia", "p_value", pchisq(mskew, mdf, lower.tail = FALSE))
+out("mardia", "skewness", mb1)
+out("mardia", "kurtosis", mb2)
+out("mardia", "kurtosis_z", mz)
+out("mardia", "kurtosis_p_value", 2 * pnorm(-abs(mz)))
+
 # Inferential overlays (weighting-inferential E3-S3), each on the
 # expanded rows; figure names ARE the Go figure keys
 # ("<layer>/<wire path>", see weight_reference_overlays_test.go). The

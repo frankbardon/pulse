@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
@@ -62,6 +63,13 @@ import (
 // An undefined input (a zero-spread member, a thin pair, no rows) nulls
 // every figure — the co-moment warnings say why — with k columns of
 // nulls for an integer k and none otherwise.
+//
+// params.rotation "varimax" rotates the k kept loadings with the shared
+// rotation engine (matrix_rotate.go, pcaRotate): the rotated loadings
+// are the primary, the unrotated ones auxiliary.unrotated, and
+// vectors.rotated_variance the variance each rotated component
+// accounts for. Nothing else moves; absent (or "none") the output is
+// byte-identical to the unrotated operator.
 func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 	m := in.slot
 	plan := in.Plan()
@@ -92,11 +100,17 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 				out.Auxiliary = map[string]*types.MatrixValues{}
 			}
 			out.Auxiliary["eigenvectors"] = in.Rect(pcaColumns(k), nan)
+			if plan.Rotation != "" {
+				out.Auxiliary["unrotated"] = in.Rect(pcaColumns(k), nan)
+			}
 		}
 		if in.WantVectors() {
 			out.Vectors = map[string]any{}
 			for _, key := range []string{"eigenvalues", "explained_variance", "cumulative", "communalities", "kmo_msa"} {
 				out.Vectors[key] = nanVector(p)
+			}
+			if plan.Rotation != "" {
+				out.Vectors["rotated_variance"] = nanVector(k)
 			}
 		}
 		if in.WantScalars() {
@@ -141,6 +155,21 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 		out.Auxiliary["eigenvectors"] = in.Rect(cols, eig.Vectors.At)
 	}
+	var rotated []float64
+	if plan.Rotation != "" {
+		rot, warn, err := pcaRotate(in, plan.Rotation, p, k, loading)
+		if err != nil {
+			return matrixOutput{}, err
+		}
+		if warn != nil {
+			out.Warnings = append(out.Warnings, warn)
+		}
+		if in.WantAuxiliary() {
+			out.Auxiliary["unrotated"] = out.Primary
+		}
+		out.Primary = in.Rect(cols, func(i, c int) float64 { return rot.Loadings[i][c] })
+		rotated = rot.Variance
+	}
 
 	stats, statWarns := pcaSphericity(in, kmoInput)
 	out.Warnings = append(out.Warnings, statWarns...)
@@ -174,6 +203,9 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 			"communalities":      communalities,
 			"kmo_msa":            stats.msa,
 		}
+		if rotated != nil {
+			out.Vectors["rotated_variance"] = rotated
+		}
 	}
 	if in.WantScalars() {
 		out.Scalars = map[string]float64{
@@ -185,6 +217,34 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 	}
 	return out, nil
+}
+
+// pcaRotate rotates the p × k unrotated loadings with the shared
+// rotation engine (params.rotation; varimax today). The rotated
+// loadings replace the primary, the unrotated ones move to
+// auxiliary.unrotated, and the variance each rotated component accounts
+// for is vectors.rotated_variance; eigenvalues, the explained and
+// cumulative shares and the eigenvectors stay unrotated, and the
+// communalities are unchanged by an orthogonal rotation. A fit stopped
+// at its sweep cap is kept with a PULSE_MATRIX_NOT_CONVERGED warning.
+func pcaRotate(in *matrixFinalizeInput, method string, p, k int, loading func(i, c int) float64) (rotationResult, *types.ResponseWarning, error) {
+	a := make([][]float64, p)
+	for i := range a {
+		a[i] = make([]float64, k)
+		for c := range a[i] {
+			a[i][c] = loading(i, c)
+		}
+	}
+	rot, err := rotateLoadings(a, rotationSpec{Method: method})
+	if err != nil {
+		return rotationResult{}, nil, err
+	}
+	if rot.Converged {
+		return rot, nil, nil
+	}
+	name := in.Plan().Name
+	return rot, notConvergedWarning(name, rot.Solver, rot.Iterations, rot.MaxIterations, rot.Tolerance,
+		"matrix "+name+": the "+method+" rotation stopped at its "+strconv.Itoa(rot.MaxIterations)+"-sweep cap before its criterion settled; the rotated loadings are the last iterate"), nil
 }
 
 // pcaRetained is the number of leading components rule keeps over the
@@ -237,22 +297,36 @@ type pcaStats struct {
 // explain an N* choice or a null: PULSE_MATRIX_PAIRWISE_N_STAR on a
 // pairwise slot, PULSE_MATRIX_SINGULAR (a warning here) when r cannot
 // be inverted, PULSE_MATRIX_INSUFFICIENT_N (scope "bartlett") when N*
-// leaves Bartlett's multiplier non-positive.
+// leaves Bartlett's multiplier non-positive. Bartlett is the shared
+// core (bartlettSphericity, which TEST_BARTLETT_SPHERICITY also runs);
+// KMO reads its R⁻¹.
 func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.ResponseWarning) {
+	nStar, pw := pcaNStar(in, []string{"bartlett_chisq", "bartlett_p"}, "Bartlett's test uses")
+	var warns []*types.ResponseWarning
+	if pw != nil {
+		warns = append(warns, pw)
+	}
+	st, sw := sphericityStats(in, r, nStar, []string{"kmo", "kmo_msa", "bartlett_chisq", "bartlett_p"},
+		"KMO, the per-member MSA and Bartlett's test are null; the components are still defined (a zero eigenvalue marks the dependency)")
+	return st, append(warns, sw...)
+}
+
+// sphericityStats is KMO and Bartlett's test over r at inference size
+// nStar, shared by MAT_PCA and MAT_FACTOR: a singular r nulls both with
+// a PULSE_MATRIX_SINGULAR warning listing outputs (its message ends
+// with singularTail, the operator's own consequence); too small an N*
+// nulls Bartlett with PULSE_MATRIX_INSUFFICIENT_N (scope "bartlett").
+func sphericityStats(in *matrixFinalizeInput, r *linalg.Sym, nStar float64, outputs []string, singularTail string) (pcaStats, []*types.ResponseWarning) {
 	plan := in.Plan()
 	p := r.N()
 	st := pcaStats{kmo: math.NaN(), chisq: math.NaN(), p: math.NaN(), df: float64(p * (p - 1) / 2), msa: nanVector(p)}
 	var warns []*types.ResponseWarning
-	nStar, pw := pcaNStar(in)
-	if pw != nil {
-		warns = append(warns, pw)
-	}
 
-	prec, err := linalg.InverseSPD(r)
-	if err != nil {
-		details := map[string]any{"matrix": plan.Name, "outputs": []string{"kmo", "kmo_msa", "bartlett_chisq", "bartlett_p"}}
+	b := bartlettSphericity(r, nStar)
+	if b.Singular {
+		details := map[string]any{"matrix": plan.Name, "outputs": outputs}
 		var ce *errors.CodedError
-		if stderrors.As(singularMatrixError(err, plan.Name, in.Members()), &ce) {
+		if stderrors.As(singularMatrixError(b.SingularErr, plan.Name, in.Members()), &ce) {
 			for _, key := range []string{"rank", "condition_number", "dependent_fields"} {
 				if v, ok := ce.Details[key]; ok {
 					details[key] = v
@@ -260,10 +334,11 @@ func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.R
 			}
 		}
 		warns = append(warns, matrixWarning(errors.PULSE_MATRIX_SINGULAR,
-			"matrix "+plan.Name+": the correlation is singular (a member is a linear combination of others), so it has no inverse and no determinant above 0: KMO, the per-member MSA and Bartlett's test are null; the components are still defined (a zero eigenvalue marks the dependency)",
+			"matrix "+plan.Name+": the correlation is singular (a member is a linear combination of others), so it has no inverse and no determinant above 0: "+singularTail,
 			details))
 		return st, warns
 	}
+	prec := b.Prec
 	// Anti-image correlations a_ij = P_ij / √(P_ii·P_jj) (psych's
 	// cov2cor(solve(r))); the sign is irrelevant (squared).
 	sumR, sumA := 0.0, 0.0
@@ -284,42 +359,28 @@ func pcaSphericity(in *matrixFinalizeInput, r *linalg.Sym) (pcaStats, []*types.R
 	}
 	st.kmo = sumR / (sumR + sumA)
 
-	mult := nStar - 1 - float64(2*p+5)/6
-	if !(mult > 0) {
+	if b.Insufficient {
 		warns = append(warns, matrixWarning(errors.PULSE_MATRIX_INSUFFICIENT_N,
-			"matrix "+plan.Name+": Bartlett's test needs an inference size N* above 1 + (2p + 5)/6 = "+strconv.FormatFloat(1+float64(2*p+5)/6, 'g', 6, 64)+
+			"matrix "+plan.Name+": Bartlett's test needs an inference size N* above 1 + (2p + 5)/6 = "+strconv.FormatFloat(b.MinNStar, 'g', 6, 64)+
 				" for "+strconv.Itoa(p)+" members; N* is "+strconv.FormatFloat(nStar, 'g', 6, 64)+", so bartlett_chisq and bartlett_p are null",
-			map[string]any{"matrix": plan.Name, "scope": "bartlett", "n_star": nStar, "min_n_star": 1 + float64(2*p+5)/6}))
+			map[string]any{"matrix": plan.Name, "scope": "bartlett", "n_star": nStar, "min_n_star": b.MinNStar}))
 		return st, warns
 	}
-	det := determinantSPD(r)
-	st.chisq = -math.Log(det) * mult
-	st.p = chiSquareSurvival(st.chisq, st.df)
+	st.chisq, st.p = b.ChiSq, b.PValue
 	return st, warns
 }
 
-// pcaNStar is Bartlett's inference size (weighting.md "Weighted
-// inference"): listwise N (unweighted), Σw (frequency) or Kish n_eff
-// (probability); pairwise the smallest pair's — min over i ≤ j of the
-// pair's Σw scaled by N*/Σw (so PairN unweighted, pair Σw under
-// frequency, pair Σw·n_eff/Σw under probability) — with the
-// PULSE_MATRIX_PAIRWISE_N_STAR warning naming it.
-func pcaNStar(in *matrixFinalizeInput) (float64, *types.ResponseWarning) {
+// pcaNStar is the inference size of a matrix's inferential figures
+// (weighting.md "Weighted inference"): listwise N (unweighted), Σw
+// (frequency) or Kish n_eff (probability); pairwise the smallest
+// pair's — min over i ≤ j of the pair's Σw scaled by N*/Σw (so PairN
+// unweighted, pair Σw under frequency, pair Σw·n_eff/Σw under
+// probability) — with the PULSE_MATRIX_PAIRWISE_N_STAR warning naming
+// it, its outputs and what uses it (uses: "Bartlett's test uses").
+func pcaNStar(in *matrixFinalizeInput, outputs []string, uses string) (float64, *types.ResponseWarning) {
 	cm := in.CM
 	w := in.slot.weight
-	scale := 1.0
-	var full float64
-	switch {
-	case w == nil:
-		full = float64(cm.N())
-	case w.EffectiveKind() == types.WeightKindProbability:
-		full = cm.NEff()
-		if cm.W() > 0 {
-			scale = cm.NEff() / cm.W()
-		}
-	default:
-		full = cm.W()
-	}
+	full, scale := sphericityNStar(cm, weighting.BasisOf(w))
 	plan := in.Plan()
 	if !plan.Pairwise {
 		return full, nil
@@ -339,9 +400,9 @@ func pcaNStar(in *matrixFinalizeInput) (float64, *types.ResponseWarning) {
 		}
 	}
 	return best, matrixWarning(errors.PULSE_MATRIX_PAIRWISE_N_STAR,
-		"matrix "+plan.Name+": under pairwise deletion each correlation rests on its own rows, so Bartlett's test uses the smallest pair's inference size ("+strconv.FormatFloat(best, 'g', 6, 64)+
+		"matrix "+plan.Name+": under pairwise deletion each correlation rests on its own rows, so "+uses+" the smallest pair's inference size ("+strconv.FormatFloat(best, 'g', 6, 64)+
 			", pair "+members[bi]+" × "+members[bj]+"), the conservative choice; listwise deletion gives one N for every cell",
-		map[string]any{"matrix": plan.Name, "outputs": []string{"bartlett_chisq", "bartlett_p"}, "n_star": best, "row": members[bi], "col": members[bj]})
+		map[string]any{"matrix": plan.Name, "outputs": outputs, "n_star": best, "row": members[bi], "col": members[bj]})
 }
 
 // covToCorr scales the symmetric s by its own diagonal (cov2cor).

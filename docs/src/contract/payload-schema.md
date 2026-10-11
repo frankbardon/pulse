@@ -315,6 +315,63 @@ Predict echoes the resolved members as `data.resolved_vectors`
 `Request.Hash()` hashes a vector as written (see
 [Request hashing](../library/request-hashing.md)).
 
+## Test vector inputs
+
+`Test` carries four additive slots, the `MatrixSpec` mirror:
+`vector` / `fields` (the member set) and `vector2` / `fields2` (a
+paired second set). A vector-input test (`TEST_HOTELLING_T2`, `TEST_MANOVA`,
+`TEST_BOX_M`, `TEST_BARTLETT_SPHERICITY`, `TEST_MARDIA`) sets
+exactly one of `vector` (a `vectors` entry) and `fields` (inline
+names and globs, the `VectorSpec.fields` rules) and no `field`; a
+second set must resolve to the same member count and is accepted only
+by a test that reads one (`TEST_HOTELLING_T2`'s paired form, which
+refuses `split_by` beside it); every other test refuses all four.
+`TEST_MANOVA` and `TEST_BOX_M` require `split_by` (`details.reason`
+`split_by_required`); `TEST_BARTLETT_SPHERICITY` and `TEST_MARDIA`
+refuse it (`split_by_not_accepted`). Missing
+data is listwise only (`params.missing` other than `"listwise"` is
+refused). Shape refusals are `SERVICE_VALIDATION` with
+`details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`.
+`format_version` stays `"1.1"`; a test without them is byte-identical.
+
+## Attribute vector inputs
+
+`Attribute` carries two additive slots, the same mirror: `vector` /
+`fields`. A vector-input (fitted) attribute (`ATTR_MAHALANOBIS`,
+`ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`) sets exactly one of them and no
+`field`; every other attribute refuses both.
+Members are source columns only. Its `params` share `fit_on` —
+`"filtered"` (the default) or an inline array of `Filterer` objects
+choosing the fit rows among the filtered ones (every filtered row is
+still scored) — and `missing` (`"listwise"` only). The default label is
+`<TYPE>_<vector>`, or `<TYPE>_<first fields entry>` (`ATTR_PC_SCORE`
+appends `_PC<component>`, `ATTR_FACTOR_SCORE` `_F<factor>`). Shape refusals
+are `SERVICE_VALIDATION` with `details.attribute` and `details.reason`;
+an undefined vector is `PULSE_VECTOR_UNKNOWN`. A fit that is singular,
+or has N* ≤ p, nulls every score and adds a `PULSE_MATRIX_SINGULAR` /
+`PULSE_MATRIX_INSUFFICIENT_N` entry to `Response.warnings` (details
+`scope: "fit"`); `ATTR_FACTOR_SCORE` also nulls every score with
+`PULSE_MATRIX_NOT_IDENTIFIED` (an unidentified or Kaiser-short factor
+count) or `PULSE_MATRIX_HEYWOOD` (Bartlett over a uniqueness ≤ 0), and
+scores with a `PULSE_MATRIX_HEYWOOD` / `PULSE_MATRIX_NOT_CONVERGED`
+entry otherwise. `format_version` stays `"1.1"`; an attribute without
+them is byte-identical.
+
+## Grouper vector inputs
+
+`Group` carries the same two additive slots, `vector` / `fields`, on
+`groups` and both crosstab axes. A vector-input grouper (`GROUP_KMEANS`)
+sets exactly one of them and no `field`; every other grouper refuses
+both. Members are source columns only. Its key column (the Data row key,
+the crosstab axis field) is `<TYPE>_<vector>` or `<TYPE>_<first fields
+entry>`. Shape refusals are `SERVICE_VALIDATION` with `details.group`
+and `details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`. A
+best start stopped at `params.max_iter` adds a
+`PULSE_MATRIX_NOT_CONVERGED` entry to `Response.warnings` (`solver`
+`kmeans_lloyd`). Predict's `groups[i].row_buffer_bytes` reports its point
+store. `format_version` stays `"1.1"`; a grouper without them is
+byte-identical.
+
 ## Matrix slots
 
 `matrices` on `Request` is an additive array of `MatrixSpec`
@@ -324,16 +381,20 @@ Predict echoes the resolved members as `data.resolved_vectors`
 scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
 `type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
-`MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`,
-`MAT_COLLINEARITY`, `MAT_RELIABILITY`); `encoding` is `full` (default) or `upper`. Every
+`MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_FACTOR`,
+`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`); `encoding` is `full` (default) or `upper`. Every
 matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
 column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
 whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
 diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
 (`MAT_PCA`'s p × k loadings and eigenvectors: `row_keys` the members,
 `column_keys` `PC1` … `PCk`, k possibly 0, always written `full`;
+`MAT_FACTOR`'s p × k loadings: `column_keys` `F1` … `Fk`;
 `MAT_COLLINEARITY`'s variance decomposition: a row per variable —
-`(intercept)` first unless `center` — and `column_keys` `D1` … `Dq`).
+`(intercept)` first unless `center` — and `column_keys` `D1` … `Dq`;
+`MAT_DISTANCE`'s primary is `square_symmetric` but keyed by its
+between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
+`row_keys` the buckets, `column_keys` the members).
 Undefined cells and scalars (no mass, too few rows, a determinant of a
 matrix that is not positive definite) are `null`, keys kept. What the
 schema cannot say, predict and the runtime enforce identically before
@@ -356,7 +417,15 @@ items; `MAT_PCA` only: `on` `correlation` (default) or `covariance`,
 refused on a covariance) or `{"variance": share}` — required on a
 covariance — and `repair` `"nearest"`; `MAT_COLLINEARITY` only:
 `center` (boolean, default `false`: Belsley uncentered with the
-intercept) and `repair` `"nearest"`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+intercept) and `repair` `"nearest"`; `MAT_FACTOR` only: `factors` an
+integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default),
+`principal_axis` or `ml`, `rotation` `none` (default), `varimax`, `promax`
+or `oblimin`, `kappa` (promax only) and `gamma` (oblimin only), and
+`repair` `"nearest"`; `MAT_DISTANCE` only: `between` (required) a grouper
+spec as in `groups` — any built-in but `GROUP_DATE` / `GROUP_DATE_RANGES`,
+no own `weight` or `tz` — `metric` `euclidean` (default), `sqeuclidean`,
+`manhattan`, `chebyshev`, `cosine` or `mahalanobis`, `standardize`
+(boolean, default `false`), listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
@@ -372,7 +441,21 @@ scalars are never rounded by `return.precision`); `MAT_COLLINEARITY`
 adds `auxiliary.variance_decomposition` (rows sum to 1),
 `vectors.vif` / `tolerance` (one per member) and `condition_indices`
 (one per dimension, ascending) and `scalars` `condition_number`,
-`max_vif`.
+`max_vif`; `MAT_FACTOR` adds `auxiliary.unrotated` (rotated runs) and
+`auxiliary.factor_correlation` (promax / oblimin: `square_symmetric`
+keyed `F1` … `Fk`, always `full`), `vectors.communalities` /
+`uniquenesses` (one per member) and `variance_accounted` (one per
+factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
+`kmo`, `bartlett_chisq`, `bartlett_df`, `bartlett_p`, `iterations`,
+`converged`, `factors_retained` (`df`, `iterations`, `converged` and
+`factors_retained` are never rounded by `return.precision`), plus, under
+`extraction` `ml` only, `likelihood_chisq`, `likelihood_p`, `tli`,
+`rmsea`, `rmsea_lower`, `rmsea_upper` (the interval at
+`params.conf_level`, default 0.9) and `bic` (all but `likelihood_chisq`
+null at `df` ≤ 0); `MAT_DISTANCE` adds
+`auxiliary.centroids` (always), `centroids_standardized` (standardize)
+and `pooled_covariance` (mahalanobis), and `vectors.sizes` (each bucket's
+weight mass) / `counts` (its rows, integers), one per bucket.
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
 `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on
@@ -381,12 +464,22 @@ adds `auxiliary.variance_decomposition` (rows sum to 1),
 `_NOT_IDENTIFIED`; `MAT_PCA` fatal like the partial correlation, plus
 `_PAIRWISE_N_STAR` and a `_SINGULAR` warning that nulls KMO and
 Bartlett; `MAT_COLLINEARITY` fatal like the partial correlation, and a
-singular correlation is a fatal `_SINGULAR` naming `dependent_fields`). `components.matrices` carries one
+singular correlation is a fatal `_SINGULAR` naming `dependent_fields`;
+`MAT_FACTOR` fatal like the partial correlation, plus `_PAIRWISE_N_STAR`,
+`_NOT_IDENTIFIED` (null fit), `_HEYWOOD` (fit kept), `_NOT_CONVERGED`,
+a `_SINGULAR` warning that nulls KMO and Bartlett (and, under `ml`, the
+whole fit) and, under `ml`, `_INSUFFICIENT_N` scope `likelihood` that
+nulls the likelihood figures; `MAT_DISTANCE` `_INSUFFICIENT_N` scope
+`buckets` (a massless bucket) or `pooled` (mahalanobis with no more rows
+than buckets) and a `_SINGULAR` warning that nulls the mahalanobis
+distances). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,
 group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
 sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and
 weighted keys only when they apply; `MAT_RELIABILITY`'s `operator`
-carries the omega fit's `iterations` / `converged`). Contract:
+carries the omega fit's `iterations` / `converged`; `MAT_DISTANCE`'s
+`metric`, `standardize`, `buckets` and `n_null_key` — the rows its
+between grouper placed in no bucket). Contract:
 `.claude/reference/matrix-and-vectors.md`.
 
 ## Regression coefficient covariance
@@ -413,6 +506,28 @@ keyed `(intercept)` + the selected predictors — so its diagonal is
 without a modifier, with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
 (`details.reason` `penalty`) in predict and at runtime alike. Both slots are in the `standard` preset (not
 `minimal`) and every float in them is rounded by `return.precision`.
+
+## Regression robust covariance
+
+`RegressionSpec` takes an additive `covariance` object `{type, cluster,
+order_by, lags}` and `RegressionResult` an additive `omitempty`
+`covariance` echo `{type, cluster, clusters, order_by, lags}`
+(`format_version` stays `"1.1"`). `type` is the `CovarianceType` enum
+(`classical`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `hac`); `lags` is a
+non-negative integer or `"auto"`. Absent or `classical` is
+byte-identical to a request without the block and echoes nothing. Any
+other type on `REG_OLS` or `REG_GLM` replaces the estimator behind
+`std_errors`, `p_values`, `ci_lower` / `ci_upper` and `vcov` (so
+√diag(`vcov`) is still exactly `std_errors`); under `cluster`, an OLS
+`df` is the cluster count minus 1 (GLM stays Wald z). On
+`REG_BAYES_LINEAR` it keeps the posterior-mean `coefficients` and
+REPLACES the posterior covariance with Müller's sandwich posterior:
+`std_errors`, `credible_intervals`, `ci_lower` / `ci_upper` (normal, no
+`df`) and `vcov` follow it. Shape faults are `PROCESSING_CONFIG`; a
+robust type beside a penalty, `resample` or `selection`, or on another
+regression type, is
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`details.reason`), in predict
+and at runtime alike. The echo is in the `standard` preset.
 
 ## Regression coefficient intervals
 
@@ -532,7 +647,7 @@ emitted. Every listed path must resolve against this schema
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` when asked for) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 
@@ -610,7 +725,9 @@ cohort}]` on the predict result (not payload-reachable).
 
 `RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,
 relative to the instance filesystem root, where the finished fit is
-written as a model file (`model_format_version` 1, `.pulse-model.json`;
+written as a model file (`model_format_version` 1, or 2 — adding the
+`covariance` echo — when a robust covariance produced the fit's standard
+errors; `.pulse-model.json`;
 the format is in `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`

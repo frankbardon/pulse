@@ -38,14 +38,35 @@ import (
 type groupParityOp struct {
 	name string
 	// axis is "" (groups[0]), "rows" or "columns" (the crosstab axis the
-	// quantile grouper sits on).
+	// grouper sits on).
 	axis string
+	// group is the weighted grouper ("" = GROUP_QUANTILE).
+	group types.GroupType
 }
 
+// GROUP_KMEANS (U25 E4-S1, frequency only): a row of weight w is w
+// coincident points, so the weighted fit IS the expanded rows' fit —
+// sizes, within-SS, both centroid forms and total-SS byte-identical,
+// only the raw counts differ.
 var groupParityOps = []groupParityOp{
 	{name: "groups"},
 	{name: "crosstab_rows", axis: "rows"},
 	{name: "crosstab_columns", axis: "columns"},
+	{name: "kmeans_groups", group: types.GROUP_KMEANS},
+}
+
+func (o groupParityOp) groupType() types.GroupType {
+	if o.group == "" {
+		return types.GROUP_QUANTILE
+	}
+	return o.group
+}
+
+func (o groupParityOp) grouper() *types.Group {
+	if o.groupType() == types.GROUP_KMEANS {
+		return &types.Group{Type: types.GROUP_KMEANS, Fields: []string{"x", "y"}, Params: json.RawMessage(`{"k":3,"seed":5}`)}
+	}
+	return groupParityQuantile()
 }
 
 const groupParityBuckets = 4
@@ -55,14 +76,14 @@ func groupParityQuantile() *types.Group {
 }
 
 func (o groupParityOp) kinds() []types.WeightKind {
-	return manifestWeightKinds(weightSurfaceGroupers)[string(types.GROUP_QUANTILE)]
+	return manifestWeightKinds(weightSurfaceGroupers)[string(o.groupType())]
 }
 
 func (o groupParityOp) build(path string) func() *types.Request {
 	return func() *types.Request {
 		req := &types.Request{Cohort: &types.Cohort{Filename: path}}
 		if o.axis == "" {
-			req.Groups = []*types.Group{groupParityQuantile()}
+			req.Groups = []*types.Group{o.grouper()}
 			req.Aggregations = []*types.Aggregation{
 				{Type: types.AGG_COUNT, Field: "y", Label: "n", Weight: types.NullSlotWeight()},
 				{Type: types.AGG_SUM, Field: "x", Label: "sx", Weight: types.NullSlotWeight()},
@@ -116,9 +137,10 @@ func assertGroupParityCoverage(t *testing.T) {
 	t.Helper()
 	have := map[string][]types.WeightKind{}
 	for _, r := range groupParityOps {
+		op := string(r.groupType())
 		for _, k := range r.kinds() {
-			if !slices.Contains(have[string(types.GROUP_QUANTILE)], k) {
-				have[string(types.GROUP_QUANTILE)] = append(have[string(types.GROUP_QUANTILE)], k)
+			if !slices.Contains(have[op], k) {
+				have[op] = append(have[op], k)
 			}
 		}
 	}
@@ -263,6 +285,10 @@ func groupExpansionParity(t *testing.T, weighted, expanded, scaled *parityStore)
 							got := runArmRequest(t, weighted, mode, weighted.paths[mode.cohort], row.build(weighted.paths[mode.cohort]), &s)
 							unweighted := runArmRequest(t, weighted, mode, weighted.paths[mode.cohort], row.build(weighted.paths[mode.cohort]), nil)
 							gb, eb := quantileBuckets(t, got), quantileBuckets(t, base)
+							if row.groupType() == types.GROUP_KMEANS {
+								assertKMeansExpansion(t, got, base, unweighted)
+								return
+							}
 							for k, b := range gb {
 								e, ok := eb[k]
 								if !ok {
@@ -301,6 +327,33 @@ func groupExpansionParity(t *testing.T, weighted, expanded, scaled *parityStore)
 	}
 }
 
+// assertKMeansExpansion: the frequency-weighted fit equals the
+// expanded rows' fit in every mass figure (only the raw counts differ),
+// and differs from the unweighted fit.
+func assertKMeansExpansion(t *testing.T, got, expanded, unweighted *types.Response) {
+	t.Helper()
+	pick := func(resp *types.Response) string {
+		var op map[string]any
+		if err := json.Unmarshal(mustMarshal(t, resp.Components.Groupers[0].Operator), &op); err != nil {
+			t.Fatal(err)
+		}
+		var buckets []map[string]any
+		for _, b := range op["buckets"].([]any) {
+			m := b.(map[string]any)
+			delete(m, "count")
+			buckets = append(buckets, m)
+		}
+		return string(mustMarshal(t, map[string]any{"buckets": buckets, "total_ss": op["total_ss"],
+			"between_ss": op["between_ss"], "center": op["center"], "scale": op["scale"]}))
+	}
+	if g, e := pick(got), pick(expanded); g != e {
+		t.Errorf("weighted fit differs from the expanded rows' fit:\n weighted %s\n expanded %s", g, e)
+	}
+	if pick(got) == pick(unweighted) {
+		t.Error("the frequency weight did not move the fit")
+	}
+}
+
 // groupScaleInvariance is TestWeightProbabilityQuantileScaleInvariance's
 // grouper half: fractional probability weights × each constant answer
 // byte-identically on every row.
@@ -308,6 +361,9 @@ func groupScaleInvariance(t *testing.T, base *parityStore, stores map[string]*pa
 	src := paritySources()[0] // request_probability
 	ran := 0
 	for _, row := range groupParityOps {
+		if !slices.Contains(row.kinds(), types.WeightKindProbability) {
+			continue // frequency-only (GROUP_KMEANS): probability is refused
+		}
 		for _, mode := range groupParityModes(row) {
 			t.Run(mode.name+"/"+row.name, func(t *testing.T) {
 				if runArmRequest(t, base, mode, base.paths[mode.cohort], row.build(base.paths[mode.cohort]), nil) == nil {

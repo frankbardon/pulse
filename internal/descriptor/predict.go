@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -492,7 +493,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	} else if sizeIn.recordsKnown {
 		matrixRecords = sizeIn.records
 	}
-	predictMatrices(result, req, schema, opts.Instance, blocks, matrixRecords)
+	predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight
 	// refuses with (LimitRefusal), on the defaults-resolved request over
 	// the schema it executes over. A certain finding is a predict error.
@@ -606,6 +607,21 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// looked up via grouperComponentSchemaIndex, never via constructed
 	// operators.
 	populateGroupPredicts(result, req, opts)
+	// A buffered vector grouper's point store (GROUP_KMEANS), the
+	// grouper term of the memory estimate, per groups[i] slot.
+	if buf := GroupBufferBytes(req, schema, opts.Instance, matrixRecords); len(buf) > 0 {
+		i := 0
+		for _, grp := range req.Groups {
+			if grp == nil {
+				continue
+			}
+			if b, ok := buf[grp]; ok && i < len(result.Groups) {
+				v := b
+				result.Groups[i].RowBufferBytes = &v
+			}
+			i++
+		}
+	}
 
 	// Populate the per-filterer predict surface: one FiltererPredict
 	// descriptor per req.Filterers slot in matching order.
@@ -704,7 +720,11 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			continue
 		}
 		if !routedRegression(reg, opts.instance()).Streamable() {
-			reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec")
+			if reg.Covariance.Robust() {
+				reasons = append(reasons, "regression "+string(reg.Type)+" covariance "+string(reg.Covariance.Type)+" requires the buffered path (a second pass for residuals and leverage)")
+			} else {
+				reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec")
+			}
 		}
 	}
 	// Regression slots do not yet compose with groupers, features,
@@ -1068,6 +1088,9 @@ func projectAttributeOutputs(req *types.Request, projected map[string]bool, inst
 // import internal/processing/. A type inst hides takes the
 // never-registered label rule.
 func attributeDefaultLabel(attr *types.Attribute, inst *InstanceSnapshot) string {
+	if label, ok := vectors.VectorAttributeLabel(opRoute(inst, attr.Type), attr); ok {
+		return label
+	}
 	switch opRoute(inst, attr.Type) {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 		return string(attr.Type) + "_" + attr.Target

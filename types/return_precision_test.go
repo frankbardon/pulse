@@ -116,7 +116,8 @@ var precisionClass = map[string]string{
 
 // wantPrecisionExempt is the exact precisionExempt registry: removing an
 // entry (so a count starts rounding) fails here.
-var wantPrecisionExempt = []string{"matrices[*].auxiliary.n", "matrices[*].scalars.bartlett_df", "matrices[*].scalars.components_retained"}
+var wantPrecisionExempt = []string{"matrices[*].auxiliary.n", "matrices[*].scalars.bartlett_df", "matrices[*].scalars.components_retained",
+	"matrices[*].scalars.converged", "matrices[*].scalars.df", "matrices[*].scalars.factors_retained", "matrices[*].scalars.iterations"}
 
 func TestPrecision_FloatLeavesClassified(t *testing.T) {
 	got := map[string]bool{}
@@ -201,7 +202,8 @@ func precisionResponse() *Response {
 				RowKeys: []string{"a", "b"}, ColumnKeys: []string{"a", "b"},
 				Values: [][]float64{{1234567, 1234567}, {1234567}}}},
 			Vectors: map[string]any{"top_pairs": []MatrixPair{{Row: "a", Col: "b", R: 0.123456789, N: 1234567}}},
-			Scalars: map[string]float64{"determinant": det, "bartlett_df": 1234567, "components_retained": 1234567, "kmo": 0.123456789},
+			Scalars: map[string]float64{"determinant": det, "bartlett_df": 1234567, "components_retained": 1234567, "kmo": 0.123456789,
+				"df": 1234567, "iterations": 1234567, "converged": 1, "factors_retained": 1234567},
 		}},
 		Overlays: []OverlayLayer{{Name: "o", Payload: OverlayPayload{Scalar: &det}}},
 		Components: &ResponseComponents{Aggregations: []AggregationComponents{{
@@ -234,6 +236,7 @@ func TestPrecision_SlotFamilies(t *testing.T) {
 		`"values":[[1234567,1234567],[1234567]]`, // auxiliary.n exempt
 		`"r":0.1235`, `"n":1234567`, `"determinant":0.0001235`,
 		`"bartlett_df":1234567`, `"components_retained":1234567`, `"kmo":0.1235`, // integer scalars exempt
+		`"df":1234567`, `"iterations":1234567`, `"converged":1`, `"factors_retained":1234567`,
 		`"scalar":0.0001235`,
 		`"operator":{"count":1234567,"mean":0.1235}`,
 	} {

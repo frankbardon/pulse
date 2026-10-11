@@ -7,6 +7,7 @@ The groupers this instance offers: what each is for, the questions it answers an
 | [`GROUP_CATEGORY`](#op-group_category) | Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. | What is the average spend in each region? | basic | [`GROUP_RANGE`](#op-group_range) when the field is a number you want in bands, not one group per value.<br>[`GROUP_DATE`](#op-group_date) when the field is a date and you want months or quarters.<br>[`GROUP_SET_PER_ELEMENT`](#op-group_set_per_element) when the field is a multi-select answer. |
 | [`GROUP_DATE`](#op-group_date) | Splits the rows by calendar period of a date, such as month, quarter, ISO week or weekday, to see a measure over time. | How many orders came in each month? | basic | [`GROUP_DATE_RANGES`](#op-group_date_ranges) when your periods are custom, such as campaign windows.<br>[`OVERLAY_INDEX_VS_PRIOR`](overlay.md#op-overlay_index_vs_prior) when you want each period against the one before it.<br>[`WIN_RUNNING_SUM`](window.md#op-win_running_sum) when you want a running total down the periods. |
 | [`GROUP_DATE_RANGES`](#op-group_date_ranges) | Labels each row with the named date range its date falls in, such as custom fiscal quarters or before and after a launch. | How did sales compare before, during and after the campaign? | basic | [`GROUP_DATE`](#op-group_date) when plain calendar months, quarters or weeks are enough.<br>[`FILTER_DATE_RANGES`](filterer.md#op-filter_date_ranges) when you want to keep only the rows inside the ranges. |
+| [`GROUP_KMEANS`](#op-group_kmeans) | Finds k segments of rows that are alike across several numbers at once, such as customer types by spend, visits and tenure. | What natural customer segments do spend, visits and tenure suggest? | advanced | [`GROUP_CATEGORY`](#op-group_category) when you already know the groups.<br>[`GROUP_QUANTILE`](#op-group_quantile) when you want bands of one number.<br>[`ATTR_MAHALANOBIS`](attribute.md#op-attr_mahalanobis) when you want how unusual each row is. |
 | [`GROUP_QUANTILE`](#op-group_quantile) | Splits the rows into equal-sized groups by rank of a number, such as quartiles or deciles of spend, to compare top and bottom. | How do the top 25% of spenders differ from the bottom 25%? | intermediate | [`GROUP_RANGE`](#op-group_range) when you want bands of a fixed width, such as every 10 years of age.<br>[`ATTR_PERCENTILE`](attribute.md#op-attr_percentile) when you want each row's rank as a number, not a group.<br>[`AGG_PERCENTILE`](aggregator.md#op-agg_percentile) when you want the cut-off values themselves. |
 | [`GROUP_RANGE`](#op-group_range) | Splits a number into bands of equal width, such as ages 20-30 and 30-40, to see how values spread or to compare bands. | How many customers fall in each 10-year age band? | basic | [`GROUP_QUANTILE`](#op-group_quantile) when you want groups of equal size rather than equal width.<br>[`GROUP_ROUNDED`](#op-group_rounded) when you want each band named by its lower edge alone.<br>[`FILTER_RANGE`](filterer.md#op-filter_range) when you want to keep one band, not split into all of them. |
 | [`GROUP_ROUNDED`](#op-group_rounded) | Groups a number by rounding it down to a multiple of a step, such as 23 and 27 both to 20, naming each group by that multiple. | How many orders are there at each price point, to the nearest lower 10? | basic | [`GROUP_RANGE`](#op-group_range) when you want the band's both edges in its name.<br>[`GROUP_QUANTILE`](#op-group_quantile) when you want groups of equal size. |
@@ -124,6 +125,44 @@ Labels each row with the named date range its date falls in, such as custom fisc
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-group-date-ranges`](../skills/op-group-date-ranges.md)
+
+<a id="op-group_kmeans"></a>
+
+### `GROUP_KMEANS`
+
+Finds k segments of rows that are alike across several numbers at once, such as customer types by spend, visits and tenure.
+
+**Level:** advanced
+
+**Questions it answers:**
+
+- What natural customer segments do spend, visits and tenure suggest?
+- Which respondent types stand out across the rating battery?
+
+**Use cases by domain:**
+
+- *survey:* Attitudinal segments from a battery of ratings.
+- *ops:* Store or customer types from several operating figures.
+- *science:* Groups of samples with similar measurement profiles.
+
+**Assumptions:**
+
+- Buckets are built from the rows the filters kept; each aggregation is then worked out once per bucket.
+- Segments are found, not given: each row joins the nearest segment centre, and the centres are chosen to keep rows close to their own.
+- Numbers are put on a common scale first by default, so no field dominates because of its units.
+- Segments are named cluster_1 to cluster_k from largest to smallest and come back in that order; the same data and seed give the same names.
+- It needs every row before it can name any segment, so it cannot stream.
+- A row missing any of the numbers lands in no segment; it is counted as missing.
+
+**Use something else:**
+
+- [`GROUP_CATEGORY`](#op-group_category) when you already know the groups.
+- [`GROUP_QUANTILE`](#op-group_quantile) when you want bands of one number.
+- [`ATTR_MAHALANOBIS`](attribute.md#op-attr_mahalanobis) when you want how unusual each row is.
+
+**Glossary:** [`centroid`](../glossary.md#term-centroid), [`z-score`](../glossary.md#term-z-score)
+
+**Skill:** [`op-group-kmeans`](../skills/op-group-kmeans.md)
 
 <a id="op-group_quantile"></a>
 

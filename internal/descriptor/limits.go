@@ -91,9 +91,7 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		}
 	}
 	if len(req.Matrices) > 0 {
-		plans, err := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
-			return isBuiltinMatrixType(opRoute(inst, t))
-		})
+		plans, err := resolveMatricesFor(req, schema, nil, inst)
 		if err == nil {
 			for _, m := range plans {
 				if f, ok := limits.Evaluate(l, limits.MaxMatrixDim, int64(len(m.Columns())), limits.Certain); ok {
@@ -197,7 +195,34 @@ func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
 	mi.MatrixBytes = matrixMemory(req, schema, inst, in)
+	for _, b := range GroupBufferBytes(req, schema, inst, records) {
+		mi.GrouperBytes = addSaturating(mi.GrouperBytes, b)
+	}
 	return limits.EstimateMemory(mi), true
+}
+
+// GroupBufferBytes is every buffered vector grouper slot's point store
+// (limits.KMeansBufferBytes over records), keyed by the slot — groups
+// and both crosstab axes. Nil when no slot is a GROUP_KMEANS that
+// resolves, or records is unknown (< 0). The memory estimate sums it;
+// predict reports it per groups[i] slot (GroupPredict.RowBufferBytes).
+func GroupBufferBytes(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, records int64) map[*types.Group]int64 {
+	if req == nil || records < 0 {
+		return nil
+	}
+	// No extension predicate: an extension grouper's store is its own,
+	// so only the built-in GROUP_KMEANS slots resolve here.
+	inputs, err := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
+		return opRoute(inst, t)
+	}, nil)
+	if err != nil || len(inputs) == 0 {
+		return nil
+	}
+	out := make(map[*types.Group]int64, len(inputs))
+	for g, in := range inputs {
+		out[g] = limits.KMeansBufferBytes(records, int64(len(in.Members.Members)), int64(in.KMeans.K))
+	}
+	return out
 }
 
 // FacetLimitRefusal is the rich-facet pre-flight (Service.FacetSchema,
@@ -272,9 +297,7 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	if len(req.Matrices) == 0 {
 		return 0
 	}
-	plans, err := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
-		return isBuiltinMatrixType(opRoute(inst, t))
-	})
+	plans, err := resolveMatricesFor(req, schema, nil, inst)
 	if err != nil {
 		return 0
 	}
@@ -283,10 +306,11 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	var total int64
 	for _, m := range plans {
 		var b int64
+		acc := m.AccumulatorBytes() * m.StateCount(schema)
 		if known {
-			b = limits.MatrixStateBytes(blocks, buckets, m.AccumulatorBytes())
+			b = limits.MatrixStateBytes(blocks, buckets, acc)
 		} else {
-			b = limits.MatrixStateBytes(in.Records, 1, m.AccumulatorBytes())
+			b = limits.MatrixStateBytes(in.Records, 1, acc)
 		}
 		total = addSaturating(total, b)
 		// A buffered spec (a rank method) also keeps its admitted rows.

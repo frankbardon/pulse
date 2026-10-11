@@ -14,27 +14,32 @@ import "github.com/frankbardon/pulse/descriptor"
 // for the paired families, the pairing) — TestGuidanceProseLint's
 // ASSUME-INDEP rule.
 var statTestPurposes = map[string]descriptor.Purpose{
-	"TEST_ANOVA_F":        purposeTestAnovaF,
-	"TEST_ANOVA_RM":       purposeTestAnovaRM,
-	"TEST_ANOVA_WELCH":    purposeTestAnovaWelch,
-	"TEST_BROWN_FORSYTHE": purposeTestBrownForsythe,
-	"TEST_CHISQ":          purposeTestChiSq,
-	"TEST_FISHER_EXACT":   purposeTestFisherExact,
-	"TEST_KENDALL_TAU":    purposeTestKendallTau,
-	"TEST_KRUSKAL_WALLIS": purposeTestKruskalWallis,
-	"TEST_KS":             purposeTestKS,
-	"TEST_MANN_WHITNEY_U": purposeTestMannWhitneyU,
-	"TEST_PAIRED_T":       purposeTestPairedT,
-	"TEST_PEARSON_R":      purposeTestPearsonR,
-	"TEST_PROP_Z":         purposeTestPropZ,
-	"TEST_SHAPIRO_WILK":   purposeTestShapiroWilk,
-	"TEST_SPEARMAN_R":     purposeTestSpearmanR,
-	"TEST_T":              purposeTestT,
-	"TEST_TREND":          purposeTestTrend,
-	"TEST_TUKEY_HSD":      purposeTestTukeyHSD,
-	"TEST_WELCH":          purposeTestWelch,
-	"TEST_WILCOXON_SR":    purposeTestWilcoxonSR,
-	"TEST_Z_TWO_SAMPLE":   purposeTestZTwoSample,
+	"TEST_ANOVA_F":             purposeTestAnovaF,
+	"TEST_ANOVA_RM":            purposeTestAnovaRM,
+	"TEST_ANOVA_WELCH":         purposeTestAnovaWelch,
+	"TEST_BROWN_FORSYTHE":      purposeTestBrownForsythe,
+	"TEST_CHISQ":               purposeTestChiSq,
+	"TEST_FISHER_EXACT":        purposeTestFisherExact,
+	"TEST_HOTELLING_T2":        purposeTestHotellingT2,
+	"TEST_KENDALL_TAU":         purposeTestKendallTau,
+	"TEST_KRUSKAL_WALLIS":      purposeTestKruskalWallis,
+	"TEST_KS":                  purposeTestKS,
+	"TEST_MANN_WHITNEY_U":      purposeTestMannWhitneyU,
+	"TEST_MANOVA":              purposeTestManova,
+	"TEST_BARTLETT_SPHERICITY": purposeTestBartlettSphericity,
+	"TEST_BOX_M":               purposeTestBoxM,
+	"TEST_MARDIA":              purposeTestMardia,
+	"TEST_PAIRED_T":            purposeTestPairedT,
+	"TEST_PEARSON_R":           purposeTestPearsonR,
+	"TEST_PROP_Z":              purposeTestPropZ,
+	"TEST_SHAPIRO_WILK":        purposeTestShapiroWilk,
+	"TEST_SPEARMAN_R":          purposeTestSpearmanR,
+	"TEST_T":                   purposeTestT,
+	"TEST_TREND":               purposeTestTrend,
+	"TEST_TUKEY_HSD":           purposeTestTukeyHSD,
+	"TEST_WELCH":               purposeTestWelch,
+	"TEST_WILCOXON_SR":         purposeTestWilcoxonSR,
+	"TEST_Z_TWO_SAMPLE":        purposeTestZTwoSample,
 }
 
 // --- Comparing averages ----------------------------------------------
@@ -135,6 +140,161 @@ var (
 		Glossary: []string{
 			"independence", "normal-distribution", "p-value", "sample-size",
 			"standard-error", "two-tailed", "variance", "z-score",
+		},
+	}
+
+	purposeTestHotellingT2 = descriptor.Purpose{
+		Plain:   "Checks whether several numeric fields, taken together as one profile, differ from a target, between two groups, or before vs after.",
+		KnownAs: []string{"hotelling t2", "hotelling's t-squared", "multivariate t test"},
+		Intents: []string{IntentCompareGroups, IntentBenchmark},
+		Questions: []string{
+			"Do the two app versions differ on the whole set of engagement metrics at once?",
+			"Is our average satisfaction profile across five attributes different from the benchmark profile?",
+			"Did the same customers' ratings shift as a whole between the before and after surveys?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Compare two segments on a battery of rating items in one test.",
+			descriptor.DomainOps:     "Compare two sites on throughput, wait time and error rate together.",
+			descriptor.DomainScience: "Compare treatment and control on several outcomes without one test per outcome.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "there is only one numeric field", Use: "TEST_T"},
+			{When: "you want each field compared on its own", Use: "TEST_WELCH"},
+		},
+		Assumptions: []string{
+			"Rows are independent of each other, within and across the groups.",
+			"The fields are roughly jointly normal; with many rows the test tolerates departures.",
+			"The two-sample form assumes both groups share one covariance across the fields unless variance is set to unequal.",
+			"A row with any field missing is dropped from the test (listwise).",
+			"There are more complete rows than fields.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"covariance", "degrees-of-freedom", "f-statistic", "independence",
+			"listwise-deletion", "mean", "normal-distribution", "p-value",
+			"sample-size", "test-statistic",
+		},
+	}
+
+	purposeTestManova = descriptor.Purpose{
+		Plain:   "Checks whether several numeric fields, taken together as one profile, differ across two or more groups.",
+		KnownAs: []string{"manova", "multivariate anova", "pillai's trace", "wilks' lambda"},
+		Intents: []string{IntentCompareGroups},
+		Questions: []string{
+			"Do our customer segments differ on the whole set of spend, visit and basket metrics at once?",
+			"Do the three store formats differ on their combined service ratings?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Compare several segments on a battery of rating items in one test.",
+			descriptor.DomainOps:     "Compare several sites on throughput, wait time and error rate together.",
+			descriptor.DomainScience: "Compare several treatment arms on more than one outcome without one ANOVA per outcome.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "there is only one numeric field", Use: "TEST_ANOVA_F"},
+			{When: "there are only two groups and you want the T² figure", Use: "TEST_HOTELLING_T2"},
+		},
+		Assumptions: []string{
+			"Rows are independent of each other, within and across the groups.",
+			"The fields are roughly jointly normal within each group; with many rows the test tolerates departures.",
+			"The groups share one covariance across the fields; Pillai's trace, the headline, is the most forgiving when they do not.",
+			"A row with any field missing is dropped from the test (listwise).",
+			"There are at least as many complete rows as fields plus groups.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"covariance", "degrees-of-freedom", "eigenvalue", "f-statistic", "independence",
+			"listwise-deletion", "mean", "normal-distribution", "p-value",
+			"sample-size", "test-statistic",
+		},
+	}
+
+	purposeTestBartlettSphericity = descriptor.Purpose{
+		Plain:   "Checks whether a set of numeric fields are related at all, the first check before summarising them as a few underlying dimensions.",
+		KnownAs: []string{"bartlett sphericity test", "bartlett's test of sphericity", "factorability test"},
+		Intents: []string{IntentMeasureConstruct, IntentRelationship},
+		Questions: []string{
+			"Do the ten satisfaction items move together enough to be worth reducing to a few scores?",
+			"Are these sensor readings related at all, or is each one independent noise?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Check a rating battery is factorable before a principal component analysis or a reliability score.",
+			descriptor.DomainScience: "Check a set of measurements share variation before reducing them to components.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how strongly each pair is related", Use: "MAT_CORRELATION"},
+			{When: "you want the dimensions themselves", Use: "MAT_PCA"},
+		},
+		Assumptions: []string{
+			"Rows are independent of each other.",
+			"The fields are roughly jointly normal.",
+			"A row with any field missing is dropped from the test (listwise).",
+			"With many rows almost any correlation is significant, so read the size of the correlations too.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"chi-square", "correlation", "degrees-of-freedom", "independence",
+			"listwise-deletion", "normal-distribution", "p-value", "principal-component",
+			"sample-size", "test-statistic",
+		},
+	}
+
+	purposeTestBoxM = descriptor.Purpose{
+		Plain:   "Checks whether several groups share one spread pattern across a set of numeric fields, the assumption behind comparing average profiles.",
+		KnownAs: []string{"box's m", "box's m test", "equal covariance test"},
+		Intents: []string{IntentCompareGroups, IntentDataQuality},
+		Questions: []string{
+			"Before comparing segment profiles, do the segments have similar spread across the metrics?",
+			"Is it safe to pool the two groups' covariance for a multivariate comparison?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Check segments share one covariance across a rating battery before a profile comparison.",
+			descriptor.DomainScience: "Check treatment arms share one covariance across outcomes before a MANOVA.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "there is only one numeric field", Use: "TEST_BROWN_FORSYTHE"},
+			{When: "you want whether the average profiles differ", Use: "TEST_MANOVA"},
+		},
+		Assumptions: []string{
+			"Rows are independent of each other, within and across the groups.",
+			"The fields are roughly jointly normal within each group; the test is very sensitive to departures, so a small p can reflect non-normality rather than unequal spread.",
+			"A row with any field missing is dropped from the test (listwise).",
+			"Every group has more complete rows than fields.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"chi-square", "covariance", "degrees-of-freedom", "f-statistic",
+			"homogeneity-of-variance", "independence", "listwise-deletion",
+			"normal-distribution", "p-value", "sample-size", "test-statistic",
+		},
+	}
+
+	purposeTestMardia = descriptor.Purpose{
+		Plain:   "Checks whether a set of numeric fields looks jointly normal, through their combined skew and tail weight.",
+		KnownAs: []string{"mardia's test", "multivariate normality test", "multivariate skewness and kurtosis"},
+		Intents: []string{IntentDistributionShape, IntentDataQuality},
+		Questions: []string{
+			"Before comparing segment profiles, are the metrics close enough to jointly normal?",
+			"Are the distance-based outlier flags safe to read as chi-square p-values?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Check a rating battery's joint shape before a profile comparison or a factor model.",
+			descriptor.DomainScience: "Check the joint normality assumption across outcomes before a MANOVA.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "there is only one numeric field and you want a sharper normality test", Use: "TEST_SHAPIRO_WILK"},
+			{When: "you want whether the groups share one covariance", Use: "TEST_BOX_M"},
+		},
+		Assumptions: []string{
+			"Rows are independent of each other.",
+			"A row with any field missing is dropped from the test (listwise).",
+			"There are more complete rows than fields; below 20 rows the skewness test uses a small-sample correction.",
+			"With many rows even trivial departures are flagged; with few it misses real ones, so look at the shape too.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"chi-square", "covariance", "degrees-of-freedom", "independence", "kurtosis",
+			"listwise-deletion", "normal-distribution", "p-value", "sample-size", "skew",
+			"test-statistic",
 		},
 	}
 

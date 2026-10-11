@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "Mardia's multivariate normality test via TEST_MARDIA: are revenue_before, revenue and session_minutes jointly normal, the assumption behind TEST_MANOVA and TEST_HOTELLING_T2? The skewness chi-square is the headline here; details also carry the kurtosis z and both p-values. Buffered: it keeps every complete row until the mean and covariance are fitted.",
+    "intents": [
+      "distribution_shape"
+    ],
+    "name": "mardia_engagement_joint_normality",
+    "operators": [
+      "TEST_MARDIA"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "normality-test",
+      "multivariate",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "engagement",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_MARDIA",
+      "vector": "engagement",
+      "label": "engagement_joint_normality",
+      "params": {"statistic": "skewness"}
+    }
+  ]
+}

@@ -96,3 +96,9 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#396** — `tool-compose.md` back under its soft budget, and it mentions `fits` and `models` (today it is over budget and names neither). Found in U42 (E1-S1).
+
+## Handed on from U25
+
+Filed from [U25 handed on](U25-multivariate-tests-segmentation.md); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#416** — `op-reg-ols` / `op-reg-glm` / `op-reg-bayes-linear` (grew with `covariance` in U25) and `op-mat-correlation` / `op-mat-reliability` / `op-mat-collinearity` / `op-mat-covariance` back under the soft atomic budget. U25 trimmed only the atomic skills it added (#413). Found in U25 (TODO-413).

@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "One-way MANOVA via TEST_MANOVA: do the four regions differ on the engagement profile (revenue_before, revenue and session_minutes together)? Pillai's trace is the headline statistic and p-value; Wilks, Hotelling–Lawley and Roy ride details, Roy flagged as an upper bound. One test over the vector replaces one ANOVA per metric.",
+    "intents": [
+      "compare_groups"
+    ],
+    "name": "manova_engagement_profile_by_region",
+    "operators": [
+      "TEST_MANOVA"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "multivariate",
+      "experiment-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "engagement",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_MANOVA",
+      "vector": "engagement",
+      "split_by": "region",
+      "label": "engagement_by_region"
+    }
+  ]
+}

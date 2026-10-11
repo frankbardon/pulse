@@ -29,6 +29,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`matrix-results`](skills/matrix-results.md): Vectors and matrices on a Request — naming a battery of numeric fields once, getting a covariance or correlation matrix back, the encodings, missing-data modes, warnings, per-group matrices, predict's cost estimate and what is refused.
 - [`multiplicity-correction`](skills/multiplicity-correction.md): Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected.
 - [`multivariate-design`](skills/multivariate-design.md): Choosing a multivariate operator on a battery of numeric fields — which matrix answers which question, what to do with missing data and weights, when a decomposition needs a repaired matrix, and where p-values stand. Topical design; per-operator params in the atomic op-mat-* skills.
+- [`multivariate-outputs`](skills/multivariate-outputs.md): Long-form output and parameter detail for the multivariate operators — how rotated PCA and factor loadings, the maximum-likelihood fit indices, centroid distances, row scores and the vector tests lay out their figures. Topical design; the atomic op-mat-*, op-attr-* and op-test-* skills keep the short form.
 - [`op-agg-average`](skills/op-agg-average.md): Arithmetic mean of a numeric field across the input set.
 - [`op-agg-ci-lower`](skills/op-agg-ci-lower.md): Lower bound of the confidence interval for the mean.
 - [`op-agg-ci-upper`](skills/op-agg-ci-upper.md): Upper bound of the confidence interval for the mean.
@@ -64,8 +65,11 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-zscore`](skills/op-agg-zscore.md): Standardized z-score aggregate — mean-centered, stddev-scaled summary.
 - [`op-attr-code-in`](skills/op-attr-code-in.md): Per-row 0/1 — whether a field's value is one of a list of codes; its mean is the share of the whole base.
 - [`op-attr-date-part`](skills/op-attr-date-part.md): Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field.
+- [`op-attr-factor-score`](skills/op-attr-factor-score.md): Per-row score on one common factor of a vector of numeric members, from an inline fit with the factor-analysis matrix operator's knobs, loadings, order and sign; regression or Bartlett scores; fit_on fits on a subset and still scores every row.
 - [`op-attr-formula`](skills/op-attr-formula.md): Per-row expression evaluation against the record's fields via expr-lang.
+- [`op-attr-mahalanobis`](skills/op-attr-mahalanobis.md): Per-row Mahalanobis distance D² (or its chi-square p) across a vector of numeric members, from a cohort-wide fit; fit_on fits on a subset and still scores every row.
 - [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1].
+- [`op-attr-pc-score`](skills/op-attr-pc-score.md): Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional varimax; fit_on fits on a subset and still scores every row.
 - [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank column against the post-filter value set; requires sorting.
 - [`op-attr-reg-fitted`](skills/op-attr-reg-fitted.md): Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass.
 - [`op-attr-reg-leverage`](skills/op-attr-reg-leverage.md): Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic.
@@ -99,6 +103,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-group-category`](skills/op-group-category.md): Partition records by exact field value; ideal for categorical fields.
 - [`op-group-date`](skills/op-group-date.md): Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter.
 - [`op-group-date-ranges`](skills/op-group-date-ranges.md): Bucket date records by inline labeled date ranges; the range label becomes the bucket key.
+- [`op-group-kmeans`](skills/op-group-kmeans.md): Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size.
 - [`op-group-quantile`](skills/op-group-quantile.md): Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).
 - [`op-group-range`](skills/op-group-range.md): Partition numeric records into half-open ranges [a, b); Interval controls bucket width.
 - [`op-group-rounded`](skills/op-group-rounded.md): Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar.
@@ -107,6 +112,8 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-mat-collinearity`](skills/op-mat-collinearity.md): Collinearity check of candidate regression predictors (no response) — VIF and tolerance per predictor, Belsley's condition indices and variance-decomposition proportions (uncentered with the intercept, or centered), listwise or pairwise, weighted.
 - [`op-mat-correlation`](skills/op-mat-correlation.md): Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped), no p-values.
 - [`op-mat-covariance`](skills/op-mat-covariance.md): Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped).
+- [`op-mat-distance`](skills/op-mat-distance.md): Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids.
+- [`op-mat-factor`](skills/op-mat-factor.md): Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted.
 - [`op-mat-partial-correlation`](skills/op-mat-partial-correlation.md): Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair "nearest", singular input refused.
 - [`op-mat-pca`](skills/op-mat-pca.md): Principal component analysis of a battery — loadings and eigenvectors (p × k, rectangular), every eigenvalue with explained / cumulative shares, communalities, KMO (overall and per member) and Bartlett's sphericity test; correlation or covariance input, listwise or pairwise, weighted.
 - [`op-mat-reliability`](skills/op-mat-reliability.md): Scale reliability of a battery — Cronbach's alpha, standardized alpha, McDonald's omega (one-factor minres), mean inter-item r, per-item item-total r / alpha if deleted / mean / sd — with reverse-keyed items flipped before the fold; listwise or pairwise, weighted.
@@ -177,13 +184,18 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-test-anova-f`](skills/op-test-anova-f.md): One-way ANOVA F-test comparing the means of a numeric Field across k groups defined by SplitBy.
 - [`op-test-anova-rm`](skills/op-test-anova-rm.md): Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition.
 - [`op-test-anova-welch`](skills/op-test-anova-welch.md): Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction; streamable per-group Welford.
+- [`op-test-bartlett-sphericity`](skills/op-test-bartlett-sphericity.md): Bartlett's sphericity test on a vector's correlation matrix (is it the identity?); the factorability check, bit-equal to the PCA operator's Bartlett scalars.
+- [`op-test-box-m`](skills/op-test-box-m.md): Box's M test of one shared covariance across a SplitBy of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check.
 - [`op-test-brown-forsythe`](skills/op-test-brown-forsythe.md): Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians.
 - [`op-test-chisq`](skills/op-test-chisq.md): Chi-square independence test on a 2D Rows × Cols contingency table.
 - [`op-test-fisher-exact`](skills/op-test-fisher-exact.md): Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative.
+- [`op-test-hotelling-t2`](skills/op-test-hotelling-t2.md): Hotelling's T² on a mean vector of p numeric members; one-sample or paired (difference vector) against params.mu, or two-sample over a 2-level SplitBy with pooled or unequal covariance.
 - [`op-test-kendall-tau`](skills/op-test-kendall-tau.md): Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction.
 - [`op-test-kruskal-wallis`](skills/op-test-kruskal-wallis.md): Nonparametric k-group location test; ANOVA-like rank sums under tie correction.
 - [`op-test-ks`](skills/op-test-ks.md): Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy.
 - [`op-test-mann-whitney-u`](skills/op-test-mann-whitney-u.md): Nonparametric two-sample location test; buffered tie-corrected rank sum (Mann-Whitney U).
+- [`op-test-manova`](skills/op-test-manova.md): One-way MANOVA of a mean vector of p numeric members across a SplitBy of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details.
+- [`op-test-mardia`](skills/op-test-mardia.md): Mardia's multivariate normality test on a vector — skewness χ² and kurtosis z; buffered.
 - [`op-test-paired-t`](skills/op-test-paired-t.md): Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d.
 - [`op-test-pearson-r`](skills/op-test-pearson-r.md): Parametric Pearson correlation test between two numeric fields; streamable via online cross-product.
 - [`op-test-prop-z`](skills/op-test-prop-z.md): Two-proportion z-test on the success rate of Field across two SplitBy groups; streamable via success / total counts.

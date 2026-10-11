@@ -83,6 +83,137 @@ The determinant of the correlation table: 1 when no member is linearly related t
 - Null when the table is not positive definite, including when any cell is null.
 - No published convention bands it; a value near 0 flags near-redundant members.
 
+<a id="op-mat_factor"></a>
+
+### `MAT_FACTOR`
+
+Which hidden qualities a set of related measures reflects, and how strongly each measure is tied to each, before building scale scores. See its [catalog entry](../catalog/matrix.md#op-mat_factor).
+
+#### `primary.values`
+
+Each cell is a loading: how strongly the row's measure is tied to the column's factor. Without a rotation, or with varimax, it is the correlation between the two; under promax or oblimin it is the measure's own tie to that factor with the other factors held fixed. A factor is named by the measures with the largest loadings.
+
+**Sign:**
+
+- `+`: the measure rises with the factor
+- `-`: the measure falls as the factor rises; a factor's overall sign is a convention (each column is made to sum positive)
+
+**Caveats:**
+
+- Unrotated loadings put most measures on the first factor; a rotation gives a cleaner pattern without changing how well the factors fit (the communalities).
+- Under an oblique rotation the factors correlate (auxiliary.factor_correlation), so loadings on correlated factors overlap.
+- A uniqueness at or below 0, or held at the maximum-likelihood floor (a Heywood case, flagged with a warning), means the fit is improper; try fewer factors or drop a near-duplicate measure.
+
+#### `scalars.kmo`
+
+The Kaiser-Meyer-Olkin measure of sampling adequacy: how much of the measures' correlation is shared across the whole set rather than tied to single pairs, from 0 to 1. Higher means a factor analysis is more worthwhile.
+
+**Bands** (convention: Kaiser (1974); a labelled convention, not a rule):
+
+| Value | Label |
+|---|---|
+| below 0.5 | unacceptable |
+| from 0.5 to below 0.6 | miserable |
+| from 0.6 to below 0.7 | mediocre |
+| from 0.7 to below 0.8 | middling |
+| from 0.8 to below 0.9 | meritorious |
+| 0.9 and above | marvelous |
+
+**Caveats:**
+
+- Null when the correlation table is singular (a measure is an exact combination of others).
+
+#### `scalars.bartlett_p`
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `scalars.bartlett_chisq`
+
+Bartlett's test statistic: how far the correlation table is from one in which no measure is related to any other. Large values mean the measures are related enough to factor.
+
+**Caveats:**
+
+- With many rows it is almost always large; read KMO for how worthwhile the analysis is.
+
+#### `scalars.rmsr`
+
+The root-mean-square residual: the typical size of the correlations the factors leave unexplained, on the correlation scale. Smaller means the factors reproduce the correlations more closely.
+
+**Caveats:**
+
+- No convention bands it here; it always shrinks as factors are added, so weigh it against how readable the extra factor is.
+
+#### `scalars.empirical_p`
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `scalars.empirical_chisq`
+
+The empirical chi-square: the sum of the squared leftover correlations times the inference size. It measures the residual size, on df degrees of freedom, and is not a likelihood test of the model.
+
+**Caveats:**
+
+- It rests on the inference size: the rows (listwise), the summed weight or the effective sample size under a weight, or the smallest pair under pairwise deletion.
+- Null p when df is 0 or below: the model then has no spare correlations to test against.
+
+#### `scalars.likelihood_p`
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `scalars.likelihood_chisq`
+
+Maximum likelihood only: the likelihood-ratio chi-square, with Bartlett's correction, of the k-factor model against a free correlation table, on df degrees of freedom. A small p says the factors leave correlation unexplained.
+
+**Caveats:**
+
+- With many rows it flags even trivial misfit; read tli and rmsea beside it.
+- It assumes the measures are multivariate normal and rests on the inference size (the rows, the summed weight or the effective sample size).
+
+#### `scalars.tli`
+
+Maximum likelihood only: the Tucker-Lewis index, how much better the factor model fits per degree of freedom than a model of unrelated measures. Near 1 or above means a close fit; it is not capped at 1.
+
+**Caveats:**
+
+- No convention bands it here; cut-offs such as .95 come from confirmatory models under specific conditions.
+- Null when df is 0 or below.
+
+#### `scalars.rmsea`
+
+Maximum likelihood only: the root-mean-square error of approximation, the misfit per degree of freedom after allowing for sampling, as a point estimate. 0 means no misfit beyond chance; smaller is better.
+
+**Caveats:**
+
+- No convention bands it here; cut-offs such as .05 or .08 are rules of thumb; read rmsea_lower and rmsea_upper for its uncertainty.
+- Null when df is 0 or below; with few rows or few df it is unstable.
+
+#### `scalars.rmsea_lower`
+
+Maximum likelihood only: the lower bound of the RMSEA confidence interval at conf_level (90% by default, as psych reports it). 0 when even a perfectly fitting model would often give a chi-square this large.
+
+**Caveats:**
+
+- It inverts the noncentral chi-square and assumes multivariate normal measures; with few rows the interval is wide.
+- Null when df is 0 or below, or when no bound exists on the searched range.
+
+#### `scalars.rmsea_upper`
+
+Maximum likelihood only: the upper bound of the RMSEA confidence interval at conf_level (90% by default). A small upper bound says the misfit per degree of freedom is plausibly small.
+
+**Caveats:**
+
+- The bounds divide by the inference size minus one where the point estimate divides by the inference size itself (psych's rule), so with very few rows the point can sit outside the interval; such a bound is null.
+- Null when df is 0 or below.
+
+#### `scalars.bic`
+
+Maximum likelihood only: the Bayesian information criterion of the fit, the likelihood chi-square minus df times the log of the inference size. Compare it across factor counts on the same measures: the lower value is preferred.
+
+**Caveats:**
+
+- Only differences between fits of the same measures and rows mean anything; the value alone does not.
+- Null when df is 0 or below.
+
 <a id="op-mat_partial_correlation"></a>
 
 ### `MAT_PARTIAL_CORRELATION`
@@ -128,11 +259,11 @@ Each cell is a loading: how strongly the row's measure is tied to the column's c
 **Sign:**
 
 - `+`: the measure rises with the component
-- `-`: the measure falls as the component rises; a component's overall sign is a convention (its largest loading is made positive)
+- `-`: the measure falls as the component rises; a component's overall sign is a convention (its largest loading is made positive, or under a rotation its loadings sum positive)
 
 **Caveats:**
 
-- Components are not rotated; a measure loading on several components at once is common and does not mean it measures several things.
+- Unrotated, a measure loading on several components at once is common and does not mean it measures several things; params.rotation varimax redistributes the kept variance into a cleaner pattern without changing the communalities.
 - Components summarise shared spread; they do not show that an underlying cause exists.
 - On a covariance input the loadings are in the measures' own units, so they are not comparable across measures.
 

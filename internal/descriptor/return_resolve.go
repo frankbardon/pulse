@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/returnplan"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -71,7 +72,7 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 		"regressions[*].deviance", "regressions[*].null_deviance", "regressions[*].pseudo_r2",
 		"regressions[*].n_obs", "regressions[*].sum_weights", "regressions[*].n_eff",
 		"regressions[*].residual_std_err", "regressions[*].converged_iters", "regressions[*].selected_features",
-		"regressions[*].vcov", "regressions[*].correlation",
+		"regressions[*].vcov", "regressions[*].correlation", "regressions[*].covariance",
 		"overlays",
 	},
 	// minimal: the primary result of every slot; no metadata, no
@@ -663,7 +664,7 @@ func returnOutputColumns(req *types.Request, schema *encoding.Schema, inst *Inst
 		cols = make(map[string]bool, len(req.Groups)+len(req.Aggregations)+len(req.Windows))
 		for _, grp := range req.Groups {
 			if grp != nil {
-				cols[grp.Field] = true
+				cols[vectors.GroupKeyField(opRoute(inst, grp.Type), grp)] = true
 			}
 		}
 		for _, agg := range req.Aggregations {

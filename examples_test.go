@@ -45,7 +45,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"windows", "windows", 10, ""},
 		{"aggregations", "aggregations", 4, ""},
 		{"tests", "tests", 27, ""},
-		{"regression", "regression", 16, ""},
+		{"regression", "regression", 17, ""},
 		{"matrices", "matrices", 2, ""},
 		{"crosstab", "crosstab", 13, ""},
 		// The overlays directory mixes Request-, Compose- and Facet-host
@@ -181,7 +181,7 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	for _, name := range []string{"customers", "training_data"} {
+	for _, name := range []string{"customers", "training_data", "experiment"} {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
 		outPath := filepath.Join(tmp, name+".pulse")
@@ -205,8 +205,8 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	if len(matches) != 16 {
-		t.Fatalf("expected exactly 16 regression examples, found %d", len(matches))
+	if len(matches) != 17 {
+		t.Fatalf("expected exactly 17 regression examples, found %d", len(matches))
 	}
 	for _, ex := range matches {
 		t.Run(filepath.Base(ex), func(t *testing.T) {
@@ -249,7 +249,7 @@ func TestRegressionExamplesCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	const want = 16
+	const want = 17
 	if len(matches) != want {
 		t.Errorf("want %d regression examples under examples/regression/, found %d: %v", want, len(matches), matches)
 	}

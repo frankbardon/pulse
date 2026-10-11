@@ -91,6 +91,9 @@ type weightSlot struct {
 	// params.method that set it, echoed in the refusal.
 	specClass  weighting.Class
 	specMethod string
+	// specBetween names a MAT_DISTANCE params.between grouper that set
+	// specClass (GROUP_KMEANS: frequency-only), echoed in the refusal.
+	specBetween string
 	// reason is a slot-level PERMANENT refusal of a built-in operator
 	// that is otherwise classed by the table: every post-test (it reads
 	// aggregated rows) and a regression carrying a resample or
@@ -230,6 +233,10 @@ func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, ma
 		op += " (params.method " + strconv.Quote(s.specMethod) + ")"
 		details["method"] = s.specMethod
 	}
+	if s.specBetween != "" {
+		op += " (params.between " + s.specBetween + ")"
+		details["between"] = s.specBetween
+	}
 	return fmt.Sprintf("%s: %s has a weighted form only under weight kind %q, and the weight in force is kind %q", s.slot, op, types.WeightKindFrequency, kind), details
 }
 
@@ -237,6 +244,11 @@ func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, ma
 // frequency-only slot under a probability weight.
 func weightKindUnsupported(s weightSlot, spec *types.WeightSpec) error {
 	head, details := kindOnlyHead(s, spec.Field, spec.EffectiveKind())
+	if reason := weighting.KindRefusalReason(s.operator); reason != "" && !s.hidden {
+		// A permanent kind refusal states why (GROUP_KMEANS).
+		head += " (" + reason + ")"
+		details["reason"] = reason
+	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
 		head+"; use a frequency weight (integer replication counts) or opt the slot out with \"weight\": null to run it unweighted", details)
 }
@@ -449,6 +461,14 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		if c := weighting.MatrixClassOf(m.Type, vectors.IsRankMethod(vectors.SpecMethod(m))); c != weighting.ClassOf(string(m.Type)) {
 			s := &slots[len(slots)-1]
 			s.specClass, s.specMethod = c, vectors.SpecMethod(m)
+		}
+		// A GROUP_KMEANS between is frequency-only
+		// (weighting.DistanceClassOf).
+		if g, ok := vectors.SpecBetween(m); ok {
+			if c := weighting.DistanceClassOf(opRoute(inst, g.Type)); c != weighting.ClassOf(string(m.Type)) {
+				s := &slots[len(slots)-1]
+				s.specClass, s.specBetween = c, string(g.Type)
+			}
 		}
 	}
 	return slots

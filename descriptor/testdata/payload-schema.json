@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:d5e7bac111ec01c2d685b6ff2a1d3e0abf2c7730947606476b5fd0c8fe0e8fd5",
+  "$comment": "feature_set_digest: fs1:d31ab9216060ab72684ff4923349294e72df14aec840979c3c110b7a6ba989c6",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -238,6 +238,15 @@
         "field": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "for_each": {
           "$ref": "#/$defs/ForEach"
         },
@@ -271,6 +280,9 @@
         "tz": {
           "type": "string"
         },
+        "vector": {
+          "type": "string"
+        },
         "weight": {
           "$ref": "#/$defs/SlotWeight"
         }
@@ -285,8 +297,11 @@
       "enum": [
         "ATTR_CODE_IN",
         "ATTR_DATE_PART",
+        "ATTR_FACTOR_SCORE",
         "ATTR_FORMULA",
+        "ATTR_MAHALANOBIS",
         "ATTR_NORMALIZED",
+        "ATTR_PC_SCORE",
         "ATTR_PERCENTILE",
         "ATTR_REG_FITTED",
         "ATTR_REG_LEVERAGE",
@@ -598,6 +613,30 @@
         "responses"
       ],
       "type": "object"
+    },
+    "CovarianceLags": {
+      "description": "Newey-West truncation lag (covariance type hac): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows.",
+      "oneOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "const": "auto"
+        }
+      ]
+    },
+    "CovarianceType": {
+      "enum": [
+        "classical",
+        "cluster",
+        "hac",
+        "hc0",
+        "hc1",
+        "hc2",
+        "hc3"
+      ],
+      "type": "string"
     },
     "CrosstabComponents": {
       "additionalProperties": false,
@@ -1659,6 +1698,15 @@
         "field": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "include": {
           "items": {
             "type": "string"
@@ -1680,6 +1728,9 @@
         "tz": {
           "type": "string"
         },
+        "vector": {
+          "type": "string"
+        },
         "weight": {
           "$ref": "#/$defs/SlotWeight"
         }
@@ -1695,6 +1746,7 @@
         "GROUP_CATEGORY",
         "GROUP_DATE",
         "GROUP_DATE_RANGES",
+        "GROUP_KMEANS",
         "GROUP_QUANTILE",
         "GROUP_RANGE",
         "GROUP_ROUNDED",
@@ -2145,6 +2197,8 @@
         "MAT_COLLINEARITY",
         "MAT_CORRELATION",
         "MAT_COVARIANCE",
+        "MAT_DISTANCE",
+        "MAT_FACTOR",
         "MAT_PARTIAL_CORRELATION",
         "MAT_PCA",
         "MAT_RELIABILITY"
@@ -2939,6 +2993,51 @@
       ],
       "type": "object"
     },
+    "RegressionCovariance": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "lags": {
+          "$ref": "#/$defs/CovarianceLags"
+        },
+        "order_by": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/CovarianceType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "RegressionCovarianceResult": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "clusters": {
+          "type": "integer"
+        },
+        "lags": {
+          "type": "integer"
+        },
+        "order_by": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/CovarianceType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -2992,6 +3091,9 @@
         },
         "correlation": {
           "$ref": "#/$defs/MatrixValues"
+        },
+        "covariance": {
+          "$ref": "#/$defs/RegressionCovarianceResult"
         },
         "credible_intervals": {
           "additionalProperties": {
@@ -3139,6 +3241,9 @@
         },
         "conf_level": {
           "type": "number"
+        },
+        "covariance": {
+          "$ref": "#/$defs/RegressionCovariance"
         },
         "credible_level": {
           "type": "number"
@@ -3918,6 +4023,24 @@
         "field2": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "fields2": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -3947,6 +4070,12 @@
         },
         "type": {
           "$ref": "#/$defs/TestType"
+        },
+        "vector": {
+          "type": "string"
+        },
+        "vector2": {
+          "type": "string"
         },
         "weight": {
           "$ref": "#/$defs/SlotWeight"
@@ -4036,13 +4165,18 @@
         "TEST_ANOVA_F",
         "TEST_ANOVA_RM",
         "TEST_ANOVA_WELCH",
+        "TEST_BARTLETT_SPHERICITY",
+        "TEST_BOX_M",
         "TEST_BROWN_FORSYTHE",
         "TEST_CHISQ",
         "TEST_FISHER_EXACT",
+        "TEST_HOTELLING_T2",
         "TEST_KENDALL_TAU",
         "TEST_KRUSKAL_WALLIS",
         "TEST_KS",
         "TEST_MANN_WHITNEY_U",
+        "TEST_MANOVA",
+        "TEST_MARDIA",
         "TEST_PAIRED_T",
         "TEST_PEARSON_R",
         "TEST_PROP_Z",
@@ -4248,4 +4382,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: c6ece83e59095ffec7bb3473b87ec430fc21c5b1cb3e672501776dd5bc9f23ec
+// golden-hash: dca335bcfc3a1326ca802aeb5c27709dce7c84ab4a74698cf9fb8330f8487fc6

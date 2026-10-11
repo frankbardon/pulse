@@ -158,6 +158,9 @@ var groupedInvVariants = func() []groupedInvVariant {
 	var out []groupedInvVariant
 	for _, typ := range types.AllMatrixTypes() {
 		for _, pairwise := range []bool{false, true} {
+			if pairwise && typ == types.MAT_DISTANCE {
+				continue // listwise only
+			}
 			for _, weighted := range []bool{false, true} {
 				out = append(out, groupedInvVariant{matrixInvarianceVariant: matrixInvarianceVariant{weighted: weighted, withVehicle: true, typ: typ, pairwise: pairwise}})
 			}
@@ -166,7 +169,7 @@ var groupedInvVariants = func() []groupedInvVariant {
 		// buckets move, the bits do not.
 		for _, desc := range []bool{false, true} {
 			out = append(out, groupedInvVariant{
-				matrixInvarianceVariant: matrixInvarianceVariant{weighted: true, withVehicle: true, typ: typ, pairwise: desc},
+				matrixInvarianceVariant: matrixInvarianceVariant{weighted: true, withVehicle: true, typ: typ, pairwise: desc && typ != types.MAT_DISTANCE},
 				sort:                    []types.OrderKey{{Field: "sum", Desc: desc}},
 			})
 		}

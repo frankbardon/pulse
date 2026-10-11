@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 )
 
 // errorOwnerShared is the sentinel owner of a code no feature owns: it
@@ -48,6 +49,10 @@ var (
 	// ownAllMats: every matrix operator (and capability:matrices, which
 	// each depends on) — a code only a `matrices` slot can raise.
 	ownAllMats = plus(own(featMatrices), opsWithPrefix("MAT_"))
+	// ownVectorInputs: capability:matrices (the `vectors` slot) and
+	// every vector-input test, whose inline fields resolve by the
+	// vector rules.
+	ownVectorInputs = plus(own(featMatrices), vectorTestOwners(), vectorAttributeOwners())
 	// ownImportExport: the tabular import core (inference, row decode,
 	// width promotion, overrides) runs under the managed import pool
 	// AND under Convert / ImportTransfer, which capability:export gates.
@@ -490,13 +495,15 @@ var errorOwners = map[errors.Code][]string{
 
 	// Virtual vectors are capability:matrices: with it hidden the
 	// `vectors` slot is refused as an unknown field before any vector is
-	// resolved, so no PULSE_VECTOR_* code can fire.
-	errors.PULSE_VECTOR_INVALID:         own(featMatrices),
-	errors.PULSE_VECTOR_EMPTY:           own(featMatrices),
-	errors.PULSE_VECTOR_MEMBER_TYPE:     own(featMatrices),
-	errors.PULSE_VECTOR_DUPLICATE:       own(featMatrices),
+	// resolved. A vector-input test (vectors.VectorTestTypes) resolves its
+	// inline `fields` by the same rules and may name an undefined
+	// vector without the slot, so it owns those codes too.
+	errors.PULSE_VECTOR_INVALID:         ownVectorInputs,
+	errors.PULSE_VECTOR_EMPTY:           ownVectorInputs,
+	errors.PULSE_VECTOR_MEMBER_TYPE:     ownVectorInputs,
+	errors.PULSE_VECTOR_DUPLICATE:       ownVectorInputs,
 	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
-	errors.PULSE_VECTOR_UNKNOWN:         own(featMatrices),
+	errors.PULSE_VECTOR_UNKNOWN:         ownVectorInputs,
 	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
 
 	// The matrix-source refusals fire only on a request carrying the
@@ -508,15 +515,27 @@ var errorOwners = map[errors.Code][]string{
 	// which only a MAT_ operator emits.
 	errors.PULSE_MATRIX_NOT_PSD:             ownAllMats,
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
-	errors.PULSE_MATRIX_INSUFFICIENT_N:      ownAllMats,
-	errors.PULSE_MATRIX_ZERO_VARIANCE:       ownAllMats,
-	errors.PULSE_MATRIX_NOT_CONVERGED:       ownAllMats,
-	// The one-factor fit's withheld-figure warnings: only the operator
-	// that fits it (MAT_RELIABILITY's omega) raises them.
-	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY"),
-	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY"),
-	// Bartlett's test over a pairwise matrix reads the smallest pair.
-	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA"),
+	// TEST_BARTLETT_SPHERICITY raises it on its result (MAT_PCA's
+	// Bartlett rule, the shared core).
+	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), vectorAttributeOwners()),
+	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
+	// ATTR_PC_SCORE's varimax rotation and ATTR_FACTOR_SCORE's
+	// extraction or rotation can stop at their caps (a fit-scoped
+	// warning; the scores stand);
+	// GROUP_KMEANS's best start can stop at max_iter (solver
+	// kmeans_lloyd; its clusters stand as the last iterate).
+	errors.PULSE_MATRIX_NOT_CONVERGED: plus(ownAllMats, own("ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "GROUP_KMEANS")),
+	// The factor-fit warnings: only the operators that fit a factor
+	// model raise them — MAT_RELIABILITY's one-factor omega (withheld)
+	// and MAT_FACTOR's k-factor fit (a Heywood fit kept as fitted, an
+	// unidentified count nulled), and ATTR_FACTOR_SCORE's inline fit of
+	// it (a Heywood fit scored, Bartlett over ψ ≤ 0 nulled; an
+	// unidentified or Kaiser-short count nulled).
+	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE"),
+	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE"),
+	// Bartlett's test (and MAT_FACTOR's empirical chi-square) over a
+	// pairwise matrix reads the smallest pair.
+	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA", "MAT_FACTOR"),
 
 	// Response shaping: `return` is a plain request slot, not a feature.
 	errors.PULSE_RETURN_INVALID:        shared,
@@ -544,4 +563,24 @@ func errorCodeVisible(c errors.Code, on func(string) bool) bool {
 		}
 	}
 	return false
+}
+
+// vectorTestOwners returns the vector-input test types as owner names.
+func vectorTestOwners() []string {
+	var out []string
+	for _, t := range vectors.VectorTestTypes() {
+		out = append(out, string(t))
+	}
+	return out
+}
+
+// vectorAttributeOwners returns the vector-input (fitted) attribute
+// types as owner names: their inline fields resolve by the vector rules
+// and their fit can be too small (PULSE_MATRIX_INSUFFICIENT_N).
+func vectorAttributeOwners() []string {
+	var out []string
+	for _, t := range vectors.VectorAttributeTypes() {
+		out = append(out, string(t))
+	}
+	return out
 }

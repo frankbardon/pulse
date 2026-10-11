@@ -1049,6 +1049,9 @@ type groupParityFixture struct {
 	interval float64
 	params   json.RawMessage
 	records  []*Record
+	// fields is a vector-input grouper's resolved members (GROUP_KMEANS
+	// in its prepared form: field is then its key column).
+	fields []string
 }
 
 // allGroupParityFixtures returns one fixture per registered grouper
@@ -1121,6 +1124,7 @@ func allGroupParityFixtures(t *testing.T) map[types.GroupType]groupParityFixture
 		types.GROUP_RANGE:           {schema: numSchema, field: "score", interval: 10, records: numRecs},
 		types.GROUP_ROUNDED:         {schema: numSchema, field: "score", interval: 10, records: numRecs},
 		types.GROUP_QUANTILE:        {schema: numSchema, field: "score", interval: 4, records: numRecs},
+		types.GROUP_KMEANS:          {schema: numSchema, field: "score", fields: []string{"score"}, params: json.RawMessage(`{"k":2}`), records: numRecs},
 		types.GROUP_SET_VALUE:       {schema: setSchema, field: "tags", records: setRecs},
 		types.GROUP_SET_PER_ELEMENT: {schema: setSchema, field: "tags", records: setRecs},
 	}
@@ -1181,6 +1185,7 @@ func allGroupParityFixturesNullHeavy(t *testing.T) map[types.GroupType]groupPari
 		types.GROUP_RANGE:           {schema: numSchema, field: "score", interval: 10, records: numNullRecs},
 		types.GROUP_ROUNDED:         {schema: numSchema, field: "score", interval: 10, records: numNullRecs},
 		types.GROUP_QUANTILE:        {schema: numSchema, field: "score", interval: 4, records: numNullRecs},
+		types.GROUP_KMEANS:          {schema: numSchema, field: "score", fields: []string{"score"}, params: json.RawMessage(`{"k":2}`), records: numNullRecs},
 		types.GROUP_SET_VALUE:       {schema: setSchema, field: "tags", records: setEmptyRecs},
 		types.GROUP_SET_PER_ELEMENT: {schema: setSchema, field: "tags", records: setEmptyRecs},
 	}
@@ -1201,7 +1206,7 @@ func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
 						{Type: types.AGG_COUNT, Field: fix.field, Label: "n"},
 					},
 					Groups: []*types.Group{
-						{Type: op, Field: fix.field, Interval: fix.interval, Params: fix.params},
+						{Type: op, Field: fix.field, Fields: fix.fields, Interval: fix.interval, Params: fix.params},
 					},
 				}
 				proc := NewProcessor(fix.schema)
@@ -1258,7 +1263,7 @@ func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
 						{Type: types.AGG_COUNT, Field: fix.field, Label: "n"},
 					},
 					Groups: []*types.Group{
-						{Type: op, Field: fix.field, Interval: fix.interval, Params: fix.params},
+						{Type: op, Field: fix.field, Fields: fix.fields, Interval: fix.interval, Params: fix.params},
 					},
 				}
 				proc := NewProcessor(fix.schema)
@@ -1300,7 +1305,7 @@ func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
 						{Type: types.AGG_COUNT, Field: fix.field, Label: "n"},
 					},
 					Groups: []*types.Group{
-						{Type: op, Field: fix.field, Interval: fix.interval, Params: fix.params},
+						{Type: op, Field: fix.field, Fields: fix.fields, Interval: fix.interval, Params: fix.params},
 					},
 				}
 				proc := NewProcessor(fix.schema)

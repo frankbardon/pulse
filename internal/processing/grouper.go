@@ -118,10 +118,41 @@ type IncludeOrdered interface {
 	IncludeFilter() *includeFilter
 }
 
-// includeFilterOf extracts the ordered include filter from a grouper,
+// emissionOrderer is the emission-order hook (the IncludeOrdered
+// sibling) for a grouper whose buckets carry an intrinsic order that is
+// not alphabetical — GROUP_KMEANS emits cluster_1..cluster_k by
+// descending size, so cluster_10 never precedes cluster_2. The order
+// rides the same ordered filter Include compiles to, so every emission
+// site that honours Include (the grouped exit, a crosstab axis) honours
+// it; it never filters membership (the grouper keys only its own
+// clusters). Every other grouper is unaffected, byte-identically.
+type emissionOrderer interface {
+	emissionOrder() *includeFilter
+}
+
+// grouperWarner is a grouper that raises Response-level warnings from
+// its Group pass (GROUP_KMEANS's non-convergence).
+type grouperWarner interface {
+	warnings() []*types.ResponseWarning
+}
+
+// GrouperWarnings returns grouper's Response-level warnings (nil for a
+// grouper that raises none).
+func GrouperWarnings(grouper any) []*types.ResponseWarning {
+	if w, ok := grouper.(grouperWarner); ok {
+		return w.warnings()
+	}
+	return nil
+}
+
+// includeFilterOf extracts the ordered include filter from a grouper —
+// a grouper's intrinsic emission order (emissionOrderer) first —
 // returning nil for groupers that don't implement IncludeOrdered
 // (extension groupers fall through to sort.Strings via orderKeysByInclude).
 func includeFilterOf(g Grouper) *includeFilter {
+	if eo, ok := g.(emissionOrderer); ok {
+		return eo.emissionOrder()
+	}
 	if io, ok := g.(IncludeOrdered); ok {
 		return io.IncludeFilter()
 	}

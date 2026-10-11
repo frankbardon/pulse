@@ -23,6 +23,15 @@ R 4.6.1 with Hmisc 5.3.0 on R_LIBS — see that script's header):
     R_LIBS=<lib with Hmisc 5.3.0> uv run --no-project gen_weight_reference.py
     gofmt -w ../../weight_reference_values_test.go
 
+--check regenerates in memory and compares with the committed file
+(structure exact, every figure within 1e-12 relative, weightRefTol),
+exiting 1 on a disagreement. The pins hold every figure well inside
+that, not to the last bit: the closed forms' linear algebra runs on the
+wheel's BLAS / LAPACK (Accelerate on macOS arm64, OpenBLAS on Linux),
+which moves with the OS release, so another machine shifts the
+regression rows by a few ulps (README.md, "Pinned toolchain and the
+last ulps"); weightRefProvenance records the backend and platform.
+
 Reference per family, and how each maps onto Pulse's documented
 definition:
 
@@ -107,6 +116,29 @@ buckets on yg (distinct values): the order statistic opening each bucket
 is pinned to R on the sorted expansion (frequency) or Hmisc
 wtd.quantile(normwt=TRUE) (probability); counts and highs follow from an
 exact rational transcription of Pulse's cut ⌊⌊C − 1⌋·k/W⌋.
+
+ATTR_FACTOR_SCORE (U25 E3-S3) — members x1, y, yb (complete on every
+row; the one-factor model is exactly identified and proper there under
+every weight column): factor 1, regression scores. The loadings are the
+closed form l_i = sqrt(r_ij r_ik / r_jk) (minres, principal axis and ML
+all reach this exact fit), weights R^-1 l; frequency = R on the expanded
+rows (reg_reference.R, base R: cor / solve on the expansion), probability
+= the w* closed form with the covariance cross-checked with statsmodels
+DescrStatsW(w*, ddof=1) and the exact fit R = ll' + diag(1 - l^2)
+asserted.
+
+ATTR_PC_SCORE (U25 E3-S2) — on the same fixture and members: component 1
+of the correlation, every row with x2 present scored; frequency = R
+prcomp(scale. = TRUE) predict() / sdev on the expanded complete rows,
+probability = the w* closed form (numpy eigh, Pulse's loading sign)
+with the covariance cross-checked with statsmodels DescrStatsW(w*, ddof=1).
+
+ATTR_MAHALANOBIS (U25 E3-S1) — on the same fixture, members (x1, x2, y):
+every row with x2 present scored against the fit over the complete rows
+with a valid, positive weight; frequency = R stats::mahalanobis against
+colMeans / cov of the expanded rows (reg_reference.R), probability =
+the w* closed form (mean, covariance M2·(n_eff/Σw)/(n_eff − 1))
+cross-checked with statsmodels DescrStatsW(w*, ddof=1).
 
 Per-group N*: the split t / Welch / z, ANOVA F (c_g = N*_g/Σw_g, so
 N* = Σ_g N*_g — review WS-01), Welch ANOVA and prop-z read each group's
@@ -546,6 +578,19 @@ TEST_SPECS = [
     ("fisher", {"type": "TEST_FISHER_EXACT", "rows": "h", "cols": "o"}),
     ("ks", {"type": "TEST_KS", "field": "x", "split_by": "h"}),
     ("brown_forsythe", {"type": "TEST_BROWN_FORSYTHE", "field": "x", "split_by": "k"}),
+    # Hotelling's T² (U25 E1-S1) on the (x, y) mean vector: one-sample
+    # against (mu, mu) and two-sample over h, pooled covariance.
+    ("hotelling_one", {"type": "TEST_HOTELLING_T2", "fields": ["x", "y"],
+                       "params": {"mu": [TEST_MU, TEST_MU]}}),
+    ("hotelling_split", {"type": "TEST_HOTELLING_T2", "fields": ["x", "y"], "split_by": "h"}),
+    # MANOVA (U25 E1-S3) on the (x, y) mean vector across the 3 k levels.
+    ("manova", {"type": "TEST_MANOVA", "fields": ["x", "y"], "split_by": "k"}),
+    # Bartlett sphericity and Box's M (U25 E1-S4) on (x, y): one sample,
+    # and equal covariances across the 3 k levels.
+    ("bartlett_sphericity", {"type": "TEST_BARTLETT_SPHERICITY", "fields": ["x", "y"]}),
+    ("box_m", {"type": "TEST_BOX_M", "fields": ["x", "y"], "split_by": "k"}),
+    # Mardia (U25 E1-S5) on (x, y): frequency-only — FREQUENCY_ONLY below.
+    ("mardia", {"type": "TEST_MARDIA", "fields": ["x", "y"]}),
 ]
 
 # Request-level slots a case adds beside its tests[0] slot.
@@ -557,7 +602,7 @@ FISHER_OUT = "maybe"
 # Cases with no probability-weighted form (refused under that kind): a
 # frequency reference only, = the unweighted test on the expansion.
 FREQUENCY_ONLY = {"mann_whitney", "wilcoxon_sr", "kruskal", "spearman", "kendall",
-                  "fisher", "ks", "brown_forsythe"}
+                  "fisher", "ks", "brown_forsythe", "mardia"}
 
 
 def kish(w):
@@ -644,6 +689,161 @@ def test_closed_form(case, rows, prob):
                     "n[a]": sa.n, "n[b]": sb.n})
         if prob:
             out.update({"n_eff[a]": sa.nstar, "n_eff[b]": sb.nstar})
+        return out
+    if case in ("hotelling_one", "hotelling_split"):
+        def vec_sample(sub):
+            X = np.array([[r[0], r[1]] for r in sub], dtype=float)
+            w = np.array([r[5] for r in sub], dtype=float)
+            sw = float(w.sum())
+            nstar = kish(w) if prob else sw
+            m = (w[:, None] * X).sum(axis=0) / sw
+            dev = X - m
+            m2 = (w[:, None] * dev).T @ dev  # Σw (x − m)(x − m)ᵀ
+            # Cross-check the per-sample covariance on w* with statsmodels.
+            d = DescrStatsW(X, weights=w * (nstar / sw), ddof=1)
+            assert np.allclose(d.cov, (nstar / sw) * m2 / (nstar - 1), rtol=1e-10, atol=0), case
+            return dict(n=len(sub), sw=sw, nstar=nstar, m=m, m2s=(nstar / sw) * m2)
+        p = 2
+        if case == "hotelling_one":
+            v = vec_sample(xr)
+            dv = v["m"] - TEST_MU
+            S = v["m2s"] / (v["nstar"] - 1)
+            t2 = float(v["nstar"] * dv @ np.linalg.solve(S, dv))
+            df2 = v["nstar"] - p
+            f = df2 / (p * (v["nstar"] - 1)) * t2
+            out.update(statistic=t2, df=p, p_value=float(scipy.stats.f.sf(f, p, df2)), f=f, df2=df2,
+                       sum_weights=v["sw"], n=v["n"])
+            if prob:
+                out["n_eff"] = v["nstar"]
+            return out
+        va = vec_sample([r for r in xr if r[2] == "a"])
+        vb = vec_sample([r for r in xr if r[2] == "b"])
+        ntot = va["nstar"] + vb["nstar"]
+        S = (va["m2s"] + vb["m2s"]) / (ntot - 2)
+        dv = va["m"] - vb["m"]
+        t2 = float(va["nstar"] * vb["nstar"] / ntot * dv @ np.linalg.solve(S, dv))
+        df2 = ntot - p - 1
+        f = df2 / (p * (ntot - 2)) * t2
+        out.update({"statistic": t2, "df": p, "p_value": float(scipy.stats.f.sf(f, p, df2)),
+                    "f": f, "df2": df2,
+                    "sum_weights[a]": va["sw"], "sum_weights[b]": vb["sw"],
+                    "n[a]": va["n"], "n[b]": vb["n"]})
+        if prob:
+            out.update({"n_eff[a]": va["nstar"], "n_eff[b]": vb["nstar"]})
+        return out
+    if case == "manova":
+        # Per-level N*_g and M2*_g = c_g·M2_g (TEST_ANOVA_F's rule):
+        # E = Σ M2*_g, H = Σ N*_g (m_g − gm)(m_g − gm)ᵀ, gm = Σ N*_g m_g / N*;
+        # the four statistics are R's stats:::Pillai / Wilks / HL / Roy.
+        p = 2
+        levels = []
+        for g in K_LEVELS:
+            sub = [r for r in xr if r[3] == g]
+            X = np.array([[r[0], r[1]] for r in sub], dtype=float)
+            w = np.array([r[5] for r in sub], dtype=float)
+            sw = float(w.sum())
+            nstar = kish(w) if prob else sw
+            m = (w[:, None] * X).sum(axis=0) / sw
+            dev = X - m
+            m2s = (nstar / sw) * ((w[:, None] * dev).T @ dev)
+            levels.append((g, len(sub), sw, nstar, m, m2s))
+            out[f"n[{g}]"] = len(sub)
+            out[f"sum_weights[{g}]"] = sw
+            if prob:
+                out[f"n_eff[{g}]"] = nstar
+        k = len(levels)
+        ntot = sum(lv[3] for lv in levels)
+        gm = sum(lv[3] * lv[4] for lv in levels) / ntot
+        E = sum(lv[5] for lv in levels)
+        H = sum(lv[3] * np.outer(lv[4] - gm, lv[4] - gm) for lv in levels)
+        q, dfr = k - 1, ntot - k
+        eig = sorted(np.linalg.eigvals(np.linalg.solve(E, H)).real.tolist(), reverse=True)
+        s_ = min(p, q)
+        nn = 0.5 * (dfr - p - 1)
+        mm = 0.5 * (abs(p - q) - 1)
+        t1, t2 = 2 * mm + s_ + 1, 2 * nn + s_ + 1
+        V = sum(l / (1 + l) for l in eig)
+        stats = {"pillai": (V, (t2 / t1 * V) / (s_ - V), s_ * t1, s_ * t2)}
+        lam = float(np.prod([1 / (1 + l) for l in eig]))
+        w3 = p * p + q * q - 5
+        w3 = math.sqrt(((p * q) ** 2 - 4) / w3) if w3 > 0 else 1
+        wdf2 = (dfr - 0.5 * (p - q + 1)) * w3 - 2 * ((p * q - 2) / 4)
+        stats["wilks"] = (lam, ((lam ** (-1 / w3) - 1) * wdf2) / p / q, p * q, wdf2)
+        U = sum(eig)
+        h2 = 2 * (s_ * nn + 1)
+        stats["hotelling_lawley"] = (U, (h2 * U) / s_ / s_ / t1, s_ * t1, h2)
+        r1 = max(p, q)
+        stats["roy"] = (max(eig), ((dfr - r1 + q) * max(eig)) / r1, r1, dfr - r1 + q)
+        for name, (st, F, d1, d2) in stats.items():
+            out.update({f"{name}.statistic": st, f"{name}.f": F, f"{name}.df1": d1, f"{name}.df2": d2,
+                        f"{name}.p_value": float(scipy.stats.f.sf(F, d1, d2))})
+        pv = stats["pillai"]
+        out.update(statistic=pv[0], df=pv[2], p_value=out["pillai.p_value"], f=pv[1], df2=pv[3],
+                   df_hypothesis=q, df_residual=dfr)
+        return out
+    if case == "bartlett_sphericity":
+        # psych::cortest.bartlett on w*: R = cor on w*, N* = Σw or n_eff,
+        # χ² = −ln|R|·(N* − 1 − (2p + 5)/6) on p(p − 1)/2 df.
+        p = 2
+        X = np.array([[r[0], r[1]] for r in xr], dtype=float)
+        w = np.array([r[5] for r in xr], dtype=float)
+        sw = float(w.sum())
+        nstar = kish(w) if prob else sw
+        m = (w[:, None] * X).sum(axis=0) / sw
+        dev = X - m
+        c = (w[:, None] * dev).T @ dev
+        d = np.sqrt(np.diag(c))
+        R = c / np.outer(d, d)
+        det = float(np.linalg.det(R))
+        chi = -math.log(det) * (nstar - 1 - (2 * p + 5) / 6)
+        df = p * (p - 1) / 2
+        out.update(statistic=chi, df=df, p_value=float(scipy.stats.chi2.sf(chi, df)),
+                   determinant=det, sum_weights=sw, n=len(xr))
+        if prob:
+            out["n_eff"] = nstar
+        return out
+    if case == "box_m":
+        # biotools::boxM on w*: per level ν_g = N*_g − 1, S_g = M2*_g/ν_g,
+        # S_p = Σ M2*_g / Σ ν_g; M = Σν ln|S_p| − Σ ν_g ln|S_g|, χ² = M(1 − A1);
+        # Box's F (SPSS's form) from A1, A2.
+        p, k = 2, len(K_LEVELS)
+        nus, m2s = [], []
+        for g in K_LEVELS:
+            sub = [r for r in xr if r[3] == g]
+            X = np.array([[r[0], r[1]] for r in sub], dtype=float)
+            w = np.array([r[5] for r in sub], dtype=float)
+            sw = float(w.sum())
+            nstar = kish(w) if prob else sw
+            m = (w[:, None] * X).sum(axis=0) / sw
+            dev = X - m
+            m2s.append((nstar / sw) * ((w[:, None] * dev).T @ dev))
+            nus.append(nstar - 1)
+            out[f"n[{g}]"] = len(sub)
+            out[f"sum_weights[{g}]"] = sw
+            if prob:
+                out[f"n_eff[{g}]"] = nstar
+        snu = sum(nus)
+        lds = [float(np.linalg.slogdet(m2 / nu)[1]) for m2, nu in zip(m2s, nus)]
+        ldp = float(np.linalg.slogdet(sum(m2s) / snu)[1])
+        M = snu * ldp - sum(nu * ld for nu, ld in zip(nus, lds))
+        a1 = (2 * p * p + 3 * p - 1) / (6 * (p + 1) * (k - 1)) * (sum(1 / nu for nu in nus) - 1 / snu)
+        a2 = (p - 1) * (p + 2) / (6 * (k - 1)) * (sum(1 / nu ** 2 for nu in nus) - 1 / snu ** 2)
+        df1 = p * (p + 1) / 2 * (k - 1)
+        chi = M * (1 - a1)
+        dd = a2 - a1 * a1
+        if dd > 0:
+            df2 = (df1 + 2) / dd
+            F = M / (df1 / (1 - a1 - df1 / df2))
+        else:
+            df2 = (df1 + 2) / -dd
+            b = df2 / (1 - a1 + 2 / df2)
+            F = df2 * M / (df1 * (b - M))
+        out.update({"statistic": chi, "df": df1, "p_value": float(scipy.stats.chi2.sf(chi, df1)),
+                    "m": M, "df1": df1, "f": F, "df2": df2,
+                    "f_p_value": float(scipy.stats.f.sf(F, df1, df2)),
+                    "log_det_pooled": ldp})
+        for g, ld in zip(K_LEVELS, lds):
+            out[f"log_det[{g}]"] = ld
         return out
     if case == "paired":
         s = Sample([r[0] - r[1] for r in xr], [r[5] for r in xr], prob)
@@ -765,6 +965,8 @@ def test_closed_form(case, rows, prob):
         assert not prob, case
         if case in ("fisher", "ks", "brown_forsythe"):
             return exact_closed_form(case, rows, xr)
+        if case == "mardia":
+            return mardia_closed_form(xr)
         return rank_closed_form(case, xr)
     raise ValueError(case)
 
@@ -909,6 +1111,30 @@ def exact_closed_form(case, rows, xr):
     raise ValueError(case)
 
 
+def mardia_closed_form(xr):
+    """Mardia's test on (x, y) = MVN::mvn(mvnTest = "mardia")'s closed
+    form (ML covariance) on the np.repeat-expanded rows; raw n / Σw per
+    Pulse's details. R on the same expansion must agree (test_cases)."""
+    X = np.array([[r[0], r[1]] for r in xr], dtype=float)
+    w = np.array([r[5] for r in xr])
+    E = np.repeat(X, w.astype(int), axis=0)
+    N, p = E.shape
+    Ec = E - E.mean(axis=0)
+    D = Ec @ np.linalg.solve(Ec.T @ Ec / N, Ec.T)
+    b1p = float((D ** 3).sum() / N ** 2)
+    b2p = float((np.diag(D) ** 2).sum() / N)
+    df = p * (p + 1) * (p + 2) / 6
+    skew = N * b1p / 6
+    if N < 20:
+        skew *= (p + 1) * (N + 1) * (N + 3) / (N * ((N + 1) * (p + 1) - 6))
+    z = (b2p - p * (p + 2)) / math.sqrt(8 * p * (p + 2) / N)
+    pskew = float(scipy.stats.chi2.sf(skew, df))
+    return dict(statistic=skew, df=df, p_value=pskew, skewness=b1p, skewness_chisq=skew,
+                skewness_df=df, skewness_p_value=pskew, kurtosis=b2p, kurtosis_z=z,
+                kurtosis_p_value=float(2 * scipy.stats.norm.sf(abs(z))),
+                n=len(xr), sum_weights=float(w.sum()))
+
+
 def close(a, b, rel=1e-10):
     a, b = float(a), float(b)
     return abs(a - b) <= rel * max(abs(b), 1e-300) or a == b
@@ -964,6 +1190,33 @@ R_FIGURES.update({
                                           "ss_between": "ss_between", "ss_within": "ss_within",
                                           "median_p": "group_medians[p]", "median_q": "group_medians[q]",
                                           "median_r": "group_medians[r]"}),
+})
+R_FIGURES.update({
+    # Hotelling's T² from stats::anova.mlm (Hotelling-Lawley: exact for
+    # an intercept test and for a two-level factor).
+    "hotelling_one": ("hotelling_one", {"t2": "statistic", "f": "f", "df2": "df2", "p_value": "p_value"}),
+    "hotelling_split": ("hotelling_split", {"t2": "statistic", "f": "f", "df2": "df2", "p_value": "p_value"}),
+})
+R_FIGURES.update({
+    # MANOVA from summary(manova(cbind(x, y) ~ k), test = ...) on the
+    # expansion, all four statistics.
+    "manova": ("manova", {f"{t}_{c}": f"{t}.{c}" for t in ("pillai", "wilks", "hotelling_lawley", "roy")
+                          for c in ("statistic", "f", "df1", "df2", "p_value")}),
+})
+R_FIGURES.update({
+    # Bartlett sphericity and Box's M (base R closed forms on the
+    # expansion: det(cor(.)), determinant(cov(.)) per level).
+    "bartlett_sphericity": ("bartlett_sphericity", {"statistic": "statistic", "df": "df", "p_value": "p_value",
+                                                    "determinant": "determinant"}),
+    "box_m": ("box_m", {"statistic": "statistic", "df": "df", "p_value": "p_value", "m": "m",
+                        "f": "f", "df2": "df2", "f_p_value": "f_p_value"}),
+})
+R_FIGURES.update({
+    # Mardia: MVN::mvn(mvnTest = "mardia")'s closed form in base R on the
+    # expansion.
+    "mardia": ("mardia", {"statistic": "statistic", "df": "df", "p_value": "p_value",
+                          "skewness": "skewness", "kurtosis": "kurtosis", "kurtosis_z": "kurtosis_z",
+                          "kurtosis_p_value": "kurtosis_p_value"}),
 })
 R_FIGURES["welch"] = R_FIGURES["t_split"]
 
@@ -1695,6 +1948,7 @@ def attr_closed_form(ws, kind):
 
 
 SCORE_SPECS = [("attr_zscore", "ATTR_ZSCORE"), ("attr_tscore", "ATTR_TSCORE")]
+MAHA_FIELDS = ["x1", "x2", "y"]
 QUANTILE_KS = [4, 10]
 
 
@@ -1716,6 +1970,105 @@ def score_closed_form(ws, kind):
         z = (r[3] - mean) / sd
         out["attr_zscore"][r[0]] = z
         out["attr_tscore"][r[0]] = z * 10 + 50
+    return out
+
+
+def mahalanobis_closed_form(ws, kind):
+    """ATTR_MAHALANOBIS per row id (x2 present): D² against the weighted
+    mean and the ddof = 1 covariance on w* over the fit rows (complete,
+    weight valid and positive); a null-x2 row is null and omitted."""
+    idx = reg_fit_rows(ws, kind)
+    X = np.array([[REG_ROWS[i][REG_COL[c]] for c in MAHA_FIELDS] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    nstar = kish(w) if kind == "probability" else sw
+    mean = (w[:, None] * X).sum(axis=0) / sw
+    dev = X - mean
+    m2 = dev.T @ (w[:, None] * dev)
+    cov = m2 * (nstar / sw) / (nstar - 1)
+    ws_star = w * nstar / sw
+    d1 = DescrStatsW(X, weights=ws_star, ddof=1)
+    assert np.allclose(d1.mean, mean, rtol=1e-13) and np.allclose(d1.cov, cov, rtol=1e-12), (kind, d1.cov, cov)
+    inv = np.linalg.inv(cov)
+    out = {}
+    for r in REG_ROWS:
+        if r[2] is NULL:
+            continue
+        d = np.array([r[REG_COL[c]] for c in MAHA_FIELDS]) - mean
+        out[r[0]] = float(d @ inv @ d)
+    return out
+
+
+FACTOR_FIELDS = ["x1", "y", "yb"]
+
+
+def factor_score_closed_form(ws, kind):
+    """ATTR_FACTOR_SCORE factor 1 (factors 1, regression) per row id:
+    the fit rows are every row with a valid positive weight (the members
+    are never null); R the w* correlation, the exactly identified
+    one-factor loadings l_i = sqrt(r_ij r_ik / r_jk) (asserted proper and
+    an exact fit), weights R^-1 l, score z'R^-1 l with z the row
+    standardized by the w* mean and ddof = 1 spread."""
+    idx = [i for i in range(len(REG_ROWS)) if valid(ws[i], kind) and ws[i] > 0]
+    X = np.array([[REG_ROWS[i][REG_COL[c]] for c in FACTOR_FIELDS] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    nstar = kish(w) if kind == "probability" else sw
+    mean = (w[:, None] * X).sum(axis=0) / sw
+    dev = X - mean
+    cov = dev.T @ (w[:, None] * dev) * (nstar / sw) / (nstar - 1)
+    d1 = DescrStatsW(X, weights=w * nstar / sw, ddof=1)
+    assert np.allclose(d1.cov, cov, rtol=1e-12), (kind, d1.cov, cov)
+    sd = np.sqrt(np.diag(cov))
+    r = cov / np.outer(sd, sd)
+    load = np.array([math.sqrt(r[0, 1] * r[0, 2] / r[1, 2]),
+                     math.sqrt(r[0, 1] * r[1, 2] / r[0, 2]),
+                     math.sqrt(r[0, 2] * r[1, 2] / r[0, 1])])
+    assert all(0 < v < 1 for v in load), (kind, load)
+    assert np.allclose(np.outer(load, load) + np.diag(1 - load ** 2), r, atol=1e-12), (kind, r, load)
+    wts = np.linalg.solve(r, load)
+    out = {}
+    for row in REG_ROWS:
+        z = (np.array([row[REG_COL[c]] for c in FACTOR_FIELDS]) - mean) / sd
+        out[row[0]] = float(z @ wts)
+    return out
+
+
+def pc_score_closed_form(ws, kind):
+    """ATTR_PC_SCORE component 1 of the correlation per row id (x2
+    present): eigen-decompose the w* correlation of the fit rows
+    (complete, weight valid and positive), sign the eigenvector so its
+    largest-magnitude component is positive, and score
+    v'D^-1(x - mean)/sqrt(lambda), D the ddof = 1 w* standard deviations.
+    The scores have weighted mean 0 and (w*, ddof = 1) variance 1 over
+    the fit rows (asserted)."""
+    idx = reg_fit_rows(ws, kind)
+    X = np.array([[REG_ROWS[i][REG_COL[c]] for c in MAHA_FIELDS] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    nstar = kish(w) if kind == "probability" else sw
+    mean = (w[:, None] * X).sum(axis=0) / sw
+    dev = X - mean
+    cov = dev.T @ (w[:, None] * dev) * (nstar / sw) / (nstar - 1)
+    ws_star = w * nstar / sw
+    d1 = DescrStatsW(X, weights=ws_star, ddof=1)
+    assert np.allclose(d1.cov, cov, rtol=1e-12), (kind, d1.cov, cov)
+    sd = np.sqrt(np.diag(cov))
+    corr = cov / np.outer(sd, sd)
+    lam, vecs = np.linalg.eigh(corr)
+    v, l1 = vecs[:, -1], float(lam[-1])
+    big = int(np.argmax(np.abs(v)))
+    if v[big] < 0:
+        v = -v
+    fit_scores = (dev / sd) @ v / math.sqrt(l1)
+    s1 = DescrStatsW(fit_scores, weights=ws_star, ddof=1)
+    assert abs(s1.mean) < 1e-12 and close(s1.var, 1.0, 1e-12), (kind, s1.mean, s1.var)
+    out = {}
+    for r in REG_ROWS:
+        if r[2] is NULL:
+            continue
+        z = (np.array([r[REG_COL[c]] for c in MAHA_FIELDS]) - mean) / sd
+        out[r[0]] = float(z @ v / math.sqrt(l1))
     return out
 
 
@@ -1874,6 +2227,45 @@ def regression_cases():
                    "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
             out.append(dict(weight=wname, kind=kind, name=case, request=req,
                             figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        figs = mahalanobis_closed_form(ws, kind)
+        if prob:
+            src = ("closed form: weighted mean and covariance M2·(n_eff/Σw)/(n_eff − 1) on w*, cross-checked with "
+                   "statsmodels " + statsmodels.__version__ + " DescrStatsW(w*, ddof=1)")
+        else:
+            adopt_r("attr_mahalanobis", figs, rfigs["attr_mahalanobis"])
+            src = f"{RREG[0]} mahalanobis() against colMeans / cov of the rep()-expanded complete rows (reg_reference.R)"
+        req = {"attributes": [{"type": "ATTR_MAHALANOBIS", "fields": MAHA_FIELDS, "label": "attr"}],
+               "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+               "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+        out.append(dict(weight=wname, kind=kind, name="attr_mahalanobis", request=req,
+                        figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        figs = pc_score_closed_form(ws, kind)
+        if prob:
+            src = ("closed form: component 1 of the w* correlation (numpy eigh, largest-magnitude loading positive), "
+                   "scores v'D^-1(x - mean)/sqrt(lambda); covariance cross-checked with statsmodels "
+                   + statsmodels.__version__ + " DescrStatsW(w*, ddof=1), unit variance asserted")
+        else:
+            adopt_r("attr_pc_score", figs, rfigs["attr_pc_score"])
+            src = f"{RREG[0]} prcomp(scale. = TRUE) predict() / sdev on the rep()-expanded complete rows (reg_reference.R)"
+        req = {"attributes": [{"type": "ATTR_PC_SCORE", "fields": MAHA_FIELDS, "label": "attr", "params": {"component": 1}}],
+               "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+               "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+        out.append(dict(weight=wname, kind=kind, name="attr_pc_score", request=req,
+                        figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        figs = factor_score_closed_form(ws, kind)
+        if prob:
+            src = ("closed form: the exactly identified one-factor loadings of the w* correlation, regression weights R^-1 l, "
+                   "covariance cross-checked with statsmodels " + statsmodels.__version__ + " DescrStatsW(w*, ddof=1)")
+        else:
+            adopt_r("attr_factor_score", figs, rfigs["attr_factor_score"])
+            src = f"{RREG[0]} cor / solve on the rep()-expanded rows: one-factor closed form, regression scores (reg_reference.R)"
+        req = {"attributes": [{"type": "ATTR_FACTOR_SCORE", "fields": FACTOR_FIELDS, "label": "attr", "params": {"factor": 1, "factors": 1}}],
+               "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+               "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+        out.append(dict(weight=wname, kind=kind, name="attr_factor_score", request=req,
+                        figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        if not prob:
+            out.append(kmeans_case(wname, kind, ws, rfigs["group_kmeans_k2"]))
         for k in QUANTILE_KS:
             case = f"group_quantile_k{k}"
             buckets, n, total = quantile_buckets(ws, kind, k)
@@ -1905,11 +2297,50 @@ def regression_cases():
     return out
 
 
+def kmeans_case(wname, kind, ws, rfig):
+    """GROUP_KMEANS (U25 E4-S1, frequency only): k = 2 on x1, y. A row of
+    weight w is w coincident points, so the reference is stock R kmeans()
+    on the rep()-expanded rows (reg_reference.R: z-scored by scale(), best
+    of 100 Lloyd starts), cross-checked with scikit-learn KMeans on the
+    weighted rows (sample_weight = w, the same z-scoring on Σw − 1)."""
+    from sklearn.cluster import KMeans
+    rows = [i for i in range(len(REG_ROWS)) if valid(ws[i], kind) and ws[i] > 0]
+    X = np.array([[REG_ROWS[i][REG_COL["x1"]], REG_ROWS[i][REG_COL["y"]]] for i in rows])
+    w = np.array([ws[i] for i in rows])
+    mean = (w[:, None] * X).sum(0) / w.sum()
+    sd = np.sqrt((w[:, None] * (X - mean) ** 2).sum(0) / (w.sum() - 1))
+    Z = (X - mean) / sd
+    km = KMeans(n_clusters=2, n_init=100, random_state=0, algorithm="lloyd").fit(Z, sample_weight=w)
+    total = float((w * ((Z - (w[:, None] * Z).sum(0) / w.sum()) ** 2).sum(1)).sum())
+    assert close(km.inertia_, rfig["within0"] + rfig["within1"], 1e-9), (km.inertia_, rfig)
+    assert close(total, rfig["totss"], 1e-9), (total, rfig["totss"])
+    figs = {}
+    for j in range(2):
+        pre = f"components.groupers[0].operator.buckets[{j}]"
+        figs[pre + ".size"] = rfig[f"size{j}"]
+        figs[pre + ".within_ss"] = rfig[f"within{j}"]
+    figs["components.groupers[0].operator.total_ss"] = rfig["totss"]
+    src = (f"{RREG[0]} kmeans(algorithm = 'Lloyd', nstart = 100) on the z-scored rep()-expanded rows "
+           f"(reg_reference.R), cross-checked with scikit-learn {sklearn.__version__} KMeans(sample_weight = w)")
+    req = {"groups": [{"type": "GROUP_KMEANS", "fields": ["x1", "y"], "params": {"k": 2, "n_init": 50}}],
+           "aggregations": [{"type": "AGG_COUNT", "field": "x1", "label": "n", "weight": None}]}
+    return dict(weight=wname, kind=kind, name="group_kmeans_k2", request=req, figs=figs, src=src)
+
+
 def figure_path(name):
     """Reference figure name → JSON path from the TestResult root."""
     if name in TOP_LEVEL:
         return name
     return "details." + name
+
+
+def blas_provenance():
+    """numpy's BLAS / LAPACK backend and the platform: the closed forms'
+    last ulps follow the backend (Apple Accelerate on macOS arm64 wheels,
+    OpenBLAS on Linux) and its OS release, not only the pinned versions."""
+    import platform
+    deps = np.show_config(mode="dicts")["Build Dependencies"]
+    return f'blas {deps["blas"]["name"]}, lapack {deps["lapack"]["name"]} on {platform.platform()}'
 
 
 def gofloat(v):
@@ -1930,7 +2361,7 @@ def emit(out, tout, oout, rout):
     w("")
     w("// weightRefProvenance records the generating toolchain.")
     w(f'const weightRefProvenance = "python {sys.version.split()[0]}, numpy {np.__version__}, '
-      f'scipy {scipy.__version__}, statsmodels {statsmodels.__version__}; {HMISC[0]}"')
+      f'scipy {scipy.__version__}, statsmodels {statsmodels.__version__}; {HMISC[0]}; {blas_provenance()}"')
     w("")
     w(f"// weightRefPScale is c in the probability twin p = c·f.")
     w(f"const weightRefPScale = {P_SCALE!r}")
@@ -2040,9 +2471,71 @@ def emit(out, tout, oout, rout):
     return "\n".join(lines) + "\n"
 
 
+# CHECK_REL_TOL is TestWeightReferenceValues' weightRefTol: --check
+# accepts a regenerated figure within it of the committed one (absolute
+# when the committed figure is 0), so a BLAS-backend ulp drift passes
+# and anything a test could notice fails.
+CHECK_REL_TOL = 1e-12
+_FLOAT = r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?"
+
+
+def check_against(committed, generated):
+    """Compare a regenerated values file with the committed one.
+
+    The provenance consts are reported, not compared (they name the
+    platform and BLAS). Every other line must match after whitespace is
+    collapsed (gofmt only realigns) and each number is replaced by a
+    placeholder; paired numbers must agree within CHECK_REL_TOL. Returns
+    (problems, drifted, worst relative difference).
+    """
+    import re
+
+    def body(text):
+        out = []
+        for line in text.splitlines():
+            line = " ".join(line.split())
+            if not line or line.startswith("const weightRef") and "Provenance" in line:
+                continue
+            out.append(line)
+        return out
+
+    num = re.compile(r"(?<![\w.])" + _FLOAT)
+    a, b = body(committed), body(generated)
+    problems, drifted, worst = [], 0, 0.0
+    if len(a) != len(b):
+        return [f"line count differs: committed {len(a)}, generated {len(b)}"], 0, 0.0
+    for i, (la, lb) in enumerate(zip(a, b)):
+        if num.sub("#", la) != num.sub("#", lb):
+            problems.append(f"line {i}: structure differs")
+            continue
+        for xa, xb in zip(num.findall(la), num.findall(lb)):
+            fa, fb = float(xa), float(xb)
+            if fa == fb:
+                continue
+            drifted += 1
+            diff = abs(fa - fb)
+            rel = diff / abs(fa) if fa != 0 else diff
+            worst = max(worst, rel)
+            if rel > CHECK_REL_TOL:
+                problems.append(f"line {i}: {xa} vs {xb} (relative {rel:.3g})")
+    return problems, drifted, worst
+
+
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     dst = os.path.join(here, "..", "..", "weight_reference_values_test.go")
+    text = emit(cases(), test_cases(), overlay_cases(), regression_cases())
+    if "--check" in sys.argv[1:]:
+        with open(dst) as fh:
+            problems, drifted, worst = check_against(fh.read(), text)
+        print(f"check: {drifted} figures drifted, worst relative difference {worst:.3g} (tolerance {CHECK_REL_TOL:g})")
+        for p in problems[:50]:
+            print("  " + p)
+        if problems:
+            print(f"check FAILED: {len(problems)} disagreements with {os.path.normpath(dst)}")
+            sys.exit(1)
+        print("check passed: the committed values equal the generator's within tolerance")
+        sys.exit(0)
     with open(dst, "w") as fh:
-        fh.write(emit(cases(), test_cases(), overlay_cases(), regression_cases()))
+        fh.write(text)
     print("wrote", os.path.normpath(dst))

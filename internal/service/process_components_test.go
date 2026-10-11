@@ -421,7 +421,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: types.AGG_COUNT, Field: gfix.companionField, Label: "n"},
 				},
 				Groups: []*types.Group{
-					{Type: op, Field: gfix.field, Interval: gfix.interval, Params: gfix.params},
+					{Type: op, Field: gfix.field, Fields: gfix.fields, Interval: gfix.interval, Params: gfix.params},
 				},
 			}
 			env := descx.Predict(bytes.NewReader(hdr), predictReq, nil)
@@ -448,7 +448,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 			// BufferedComponents parity with the static capability
 			// table: GROUP_QUANTILE is the only None-mergeability
 			// grouper today; everything else is Mergeable.
-			wantBuffered := op == types.GROUP_QUANTILE
+			wantBuffered := op == types.GROUP_QUANTILE || op == types.GROUP_KMEANS
 			if got := result.Groups[0].BufferedComponents; got != wantBuffered {
 				t.Errorf("%s: BufferedComponents = %v, want %v", op, got, wantBuffered)
 			}
@@ -463,7 +463,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: types.AGG_COUNT, Field: gfix.companionField, Label: "n"},
 				},
 				Groups: []*types.Group{
-					{Type: op, Field: gfix.field, Interval: gfix.interval, Params: gfix.params},
+					{Type: op, Field: gfix.field, Fields: gfix.fields, Interval: gfix.interval, Params: gfix.params},
 				},
 			}
 			resp, err := gfix.svc.Process(context.Background(), runReq)
@@ -598,6 +598,9 @@ type groupServiceFixture struct {
 	companionField string
 	interval       float64
 	params         json.RawMessage
+	// fields is a vector-input grouper's members (GROUP_KMEANS; field
+	// is then empty).
+	fields []string
 }
 
 func allGroupServiceFixtures(t *testing.T) map[types.GroupType]groupServiceFixture {
@@ -671,6 +674,14 @@ func allGroupServiceFixtures(t *testing.T) map[types.GroupType]groupServiceFixtu
 			field:          "waveDate",
 			companionField: "score",
 			params:         json.RawMessage(`{"ranges":[{"label":"q1","start":"2022-01-01","end":"2022-03-31"},{"label":"q2","start":"2022-04-01","end":"2022-06-30"}]}`),
+		},
+		types.GROUP_KMEANS: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			fields:         []string{"id", "score"},
+			companionField: "score",
+			params:         json.RawMessage(`{"k":2}`),
 		},
 		types.GROUP_QUANTILE: {
 			svc:            scoreSvc,

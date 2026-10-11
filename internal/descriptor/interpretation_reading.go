@@ -71,7 +71,7 @@ var needsReadingOperators = []string{
 	string(types.AGG_STDDEV), string(types.AGG_VARIANCE), string(types.AGG_WEIGHTED_MEAN),
 	string(types.AGG_WELFORD), string(types.AGG_ZSCORE),
 	// attribute
-	string(types.ATTR_NORMALIZED), string(types.ATTR_PERCENTILE), string(types.ATTR_REG_FITTED),
+	string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_NORMALIZED), string(types.ATTR_PC_SCORE), string(types.ATTR_PERCENTILE), string(types.ATTR_REG_FITTED),
 	string(types.ATTR_REG_LEVERAGE), string(types.ATTR_REG_PREDICT), string(types.ATTR_REG_RESIDUAL), string(types.ATTR_TSCORE),
 	string(types.ATTR_ZSCORE),
 	// window
@@ -106,7 +106,7 @@ var selfReadingOperators = []string{
 	string(types.FILTER_SET_EQUALS), string(types.FILTER_TRUE),
 	// grouper
 	string(types.GROUP_CATEGORY), string(types.GROUP_DATE), string(types.GROUP_DATE_RANGES),
-	string(types.GROUP_QUANTILE), string(types.GROUP_RANGE), string(types.GROUP_ROUNDED),
+	string(types.GROUP_KMEANS), string(types.GROUP_QUANTILE), string(types.GROUP_RANGE), string(types.GROUP_ROUNDED),
 	string(types.GROUP_SET_PER_ELEMENT), string(types.GROUP_SET_VALUE),
 	// window
 	string(types.WIN_LAG), string(types.WIN_LEAD), string(types.WIN_ROW_NUMBER),

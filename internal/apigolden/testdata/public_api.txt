@@ -1336,6 +1336,7 @@ pulse/descriptor: type GroupPredict struct
 pulse/descriptor: type GroupPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type GroupPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type GroupPredict field Field string "json:\"field,omitempty\""
+pulse/descriptor: type GroupPredict field RowBufferBytes *int64 "json:\"row_buffer_bytes,omitempty\""
 pulse/descriptor: type GroupPredict field Type pulse/types.GroupType "json:\"type\""
 pulse/descriptor: type ImportCapability struct
 pulse/descriptor: type ImportCapability field Formats []pulse/descriptor.ImportFormatCapability "json:\"formats\""
@@ -3705,8 +3706,11 @@ pulse/types: const AGG_WELFORD pulse/types.AggregationType = "AGG_WELFORD"
 pulse/types: const AGG_ZSCORE pulse/types.AggregationType = "AGG_ZSCORE"
 pulse/types: const ATTR_CODE_IN pulse/types.AttributeType = "ATTR_CODE_IN"
 pulse/types: const ATTR_DATE_PART pulse/types.AttributeType = "ATTR_DATE_PART"
+pulse/types: const ATTR_FACTOR_SCORE pulse/types.AttributeType = "ATTR_FACTOR_SCORE"
 pulse/types: const ATTR_FORMULA pulse/types.AttributeType = "ATTR_FORMULA"
+pulse/types: const ATTR_MAHALANOBIS pulse/types.AttributeType = "ATTR_MAHALANOBIS"
 pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
+pulse/types: const ATTR_PC_SCORE pulse/types.AttributeType = "ATTR_PC_SCORE"
 pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
@@ -3749,6 +3753,7 @@ pulse/types: type AggregationType method (AggregationType) Mergeable() bool
 pulse/types: type AggregationType method (AggregationType) Streamable() bool
 pulse/types: func AllAggregationTypes() []pulse/types.AggregationType
 pulse/types: func AllAttributeTypes() []pulse/types.AttributeType
+pulse/types: func AllCovarianceTypes() []pulse/types.CovarianceType
 pulse/types: func AllFeatureTypes() []pulse/types.FeatureType
 pulse/types: func AllFiltererTypes() []pulse/types.FiltererType
 pulse/types: func AllGroupTypes() []pulse/types.GroupType
@@ -3775,6 +3780,7 @@ pulse/types: type Attribute struct
 pulse/types: type Attribute field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Attribute field Expression string "json:\"expression,omitempty\""
 pulse/types: type Attribute field Field string "json:\"field\""
+pulse/types: type Attribute field Fields []string "json:\"fields,omitempty\""
 pulse/types: type Attribute field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type Attribute field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type Attribute field Label string "json:\"label,omitempty\""
@@ -3784,9 +3790,11 @@ pulse/types: type Attribute field Predictors []string "json:\"predictors,omitemp
 pulse/types: type Attribute field Target string "json:\"target,omitempty\""
 pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Attribute field Type pulse/types.AttributeType "json:\"type\""
+pulse/types: type Attribute field Vector string "json:\"vector,omitempty\""
 pulse/types: type Attribute field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type AttributeType string
 pulse/types: type AttributeType method (AttributeType) Streamable() bool
+pulse/types: func AutoHACLags(n int) int
 pulse/types: func AxisFieldNames(axis []*pulse/types.Group) []string
 pulse/types: type AxisHeader struct
 pulse/types: type AxisHeader field Fields []string "json:\"fields\""
@@ -3854,6 +3862,20 @@ pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json
 pulse/types: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse/types: type ComposedResponse field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse/types: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
+pulse/types: const CovarianceClassical pulse/types.CovarianceType = "classical"
+pulse/types: const CovarianceCluster pulse/types.CovarianceType = "cluster"
+pulse/types: const CovarianceHAC pulse/types.CovarianceType = "hac"
+pulse/types: const CovarianceHC0 pulse/types.CovarianceType = "hc0"
+pulse/types: const CovarianceHC1 pulse/types.CovarianceType = "hc1"
+pulse/types: const CovarianceHC2 pulse/types.CovarianceType = "hc2"
+pulse/types: const CovarianceHC3 pulse/types.CovarianceType = "hc3"
+pulse/types: type CovarianceLags struct
+pulse/types: type CovarianceLags method (*CovarianceLags) UnmarshalJSON(b []byte) error
+pulse/types: type CovarianceLags method (CovarianceLags) IsAuto() bool
+pulse/types: type CovarianceLags method (CovarianceLags) IsZero() bool
+pulse/types: type CovarianceLags method (CovarianceLags) MarshalJSON() ([]byte, error)
+pulse/types: type CovarianceLags method (CovarianceLags) Value() (int, bool)
+pulse/types: type CovarianceType string
 pulse/types: type CrosstabComponents struct
 pulse/types: type CrosstabComponents field CellComponents [][]map[string]any "json:\"cell_components,omitempty\""
 pulse/types: type CrosstabComponents field CellCounts [][]int "json:\"cell_counts,omitempty\""
@@ -4035,6 +4057,7 @@ pulse/types: type FrameSpec field Preceding *int "json:\"preceding,omitempty\""
 pulse/types: const GROUP_CATEGORY pulse/types.GroupType = "GROUP_CATEGORY"
 pulse/types: const GROUP_DATE pulse/types.GroupType = "GROUP_DATE"
 pulse/types: const GROUP_DATE_RANGES pulse/types.GroupType = "GROUP_DATE_RANGES"
+pulse/types: const GROUP_KMEANS pulse/types.GroupType = "GROUP_KMEANS"
 pulse/types: const GROUP_QUANTILE pulse/types.GroupType = "GROUP_QUANTILE"
 pulse/types: const GROUP_RANGE pulse/types.GroupType = "GROUP_RANGE"
 pulse/types: const GROUP_ROUNDED pulse/types.GroupType = "GROUP_ROUNDED"
@@ -4042,11 +4065,13 @@ pulse/types: const GROUP_SET_PER_ELEMENT pulse/types.GroupType = "GROUP_SET_PER_
 pulse/types: const GROUP_SET_VALUE pulse/types.GroupType = "GROUP_SET_VALUE"
 pulse/types: type Group struct
 pulse/types: type Group field Field string "json:\"field\""
+pulse/types: type Group field Fields []string "json:\"fields,omitempty\""
 pulse/types: type Group field Include []string "json:\"include,omitempty\""
 pulse/types: type Group field Interval float64 "json:\"interval,omitempty\""
 pulse/types: type Group field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Group field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Group field Type pulse/types.GroupType "json:\"type\""
+pulse/types: type Group field Vector string "json:\"vector,omitempty\""
 pulse/types: type Group field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type GroupType string
 pulse/types: type GroupType method (GroupType) FansOut() bool
@@ -4077,6 +4102,8 @@ pulse/types: type LabelBinding method (*LabelBinding) LabelModeOrDefault() pulse
 pulse/types: type LabelMode string
 pulse/types: const LabelModeAugment pulse/types.LabelMode = "augment"
 pulse/types: const LabelModeReplace pulse/types.LabelMode = "replace"
+pulse/types: func LagsAuto() pulse/types.CovarianceLags
+pulse/types: func LagsOf(n int) pulse/types.CovarianceLags
 pulse/types: type LookupKey struct
 pulse/types: type LookupKey field Field string "json:\"field\""
 pulse/types: type LookupKey field Value string "json:\"value\""
@@ -4099,6 +4126,8 @@ pulse/types: type LookupResult field Warnings []string "json:\"warnings,omitempt
 pulse/types: const MAT_COLLINEARITY pulse/types.MatrixType = "MAT_COLLINEARITY"
 pulse/types: const MAT_CORRELATION pulse/types.MatrixType = "MAT_CORRELATION"
 pulse/types: const MAT_COVARIANCE pulse/types.MatrixType = "MAT_COVARIANCE"
+pulse/types: const MAT_DISTANCE pulse/types.MatrixType = "MAT_DISTANCE"
+pulse/types: const MAT_FACTOR pulse/types.MatrixType = "MAT_FACTOR"
 pulse/types: const MAT_PARTIAL_CORRELATION pulse/types.MatrixType = "MAT_PARTIAL_CORRELATION"
 pulse/types: const MAT_PCA pulse/types.MatrixType = "MAT_PCA"
 pulse/types: const MAT_RELIABILITY pulse/types.MatrixType = "MAT_RELIABILITY"
@@ -4427,6 +4456,19 @@ pulse/types: type RankEntry struct
 pulse/types: type RankEntry field Label string "json:\"label\""
 pulse/types: type RankEntry field Rank int "json:\"rank\""
 pulse/types: type RankEntry field Value float64 "json:\"value\""
+pulse/types: type RegressionCovariance struct
+pulse/types: type RegressionCovariance field Cluster string "json:\"cluster,omitempty\""
+pulse/types: type RegressionCovariance field Lags pulse/types.CovarianceLags "json:\"lags,omitzero\""
+pulse/types: type RegressionCovariance field OrderBy string "json:\"order_by,omitempty\""
+pulse/types: type RegressionCovariance field Type pulse/types.CovarianceType "json:\"type\""
+pulse/types: type RegressionCovariance method (*RegressionCovariance) EffectiveType() pulse/types.CovarianceType
+pulse/types: type RegressionCovariance method (*RegressionCovariance) Robust() bool
+pulse/types: type RegressionCovarianceResult struct
+pulse/types: type RegressionCovarianceResult field Cluster string "json:\"cluster,omitempty\""
+pulse/types: type RegressionCovarianceResult field Clusters int "json:\"clusters,omitempty\""
+pulse/types: type RegressionCovarianceResult field Lags *int "json:\"lags,omitempty\""
+pulse/types: type RegressionCovarianceResult field OrderBy string "json:\"order_by,omitempty\""
+pulse/types: type RegressionCovarianceResult field Type pulse/types.CovarianceType "json:\"type\""
 pulse/types: type RegressionResult struct
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
@@ -4436,6 +4478,7 @@ pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\
 pulse/types: type RegressionResult field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionResult field ConvergedIters int "json:\"converged_iters,omitempty\""
 pulse/types: type RegressionResult field Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
+pulse/types: type RegressionResult field Covariance *pulse/types.RegressionCovarianceResult "json:\"covariance,omitempty\""
 pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64 "json:\"credible_intervals,omitempty\""
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
@@ -4465,6 +4508,7 @@ pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionSpec field BootstrapIters int "json:\"bootstrap_iters,omitempty\""
 pulse/types: type RegressionSpec field ConfLevel float64 "json:\"conf_level,omitempty\""
+pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovariance "json:\"covariance,omitempty\""
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
@@ -4611,13 +4655,18 @@ pulse/types: type SweepSpec field Request encoding/json.RawMessage "json:\"reque
 pulse/types: const TEST_ANOVA_F pulse/types.TestType = "TEST_ANOVA_F"
 pulse/types: const TEST_ANOVA_RM pulse/types.TestType = "TEST_ANOVA_RM"
 pulse/types: const TEST_ANOVA_WELCH pulse/types.TestType = "TEST_ANOVA_WELCH"
+pulse/types: const TEST_BARTLETT_SPHERICITY pulse/types.TestType = "TEST_BARTLETT_SPHERICITY"
+pulse/types: const TEST_BOX_M pulse/types.TestType = "TEST_BOX_M"
 pulse/types: const TEST_BROWN_FORSYTHE pulse/types.TestType = "TEST_BROWN_FORSYTHE"
 pulse/types: const TEST_CHISQ pulse/types.TestType = "TEST_CHISQ"
 pulse/types: const TEST_FISHER_EXACT pulse/types.TestType = "TEST_FISHER_EXACT"
+pulse/types: const TEST_HOTELLING_T2 pulse/types.TestType = "TEST_HOTELLING_T2"
 pulse/types: const TEST_KENDALL_TAU pulse/types.TestType = "TEST_KENDALL_TAU"
 pulse/types: const TEST_KRUSKAL_WALLIS pulse/types.TestType = "TEST_KRUSKAL_WALLIS"
 pulse/types: const TEST_KS pulse/types.TestType = "TEST_KS"
 pulse/types: const TEST_MANN_WHITNEY_U pulse/types.TestType = "TEST_MANN_WHITNEY_U"
+pulse/types: const TEST_MANOVA pulse/types.TestType = "TEST_MANOVA"
+pulse/types: const TEST_MARDIA pulse/types.TestType = "TEST_MARDIA"
 pulse/types: const TEST_PAIRED_T pulse/types.TestType = "TEST_PAIRED_T"
 pulse/types: const TEST_PEARSON_R pulse/types.TestType = "TEST_PEARSON_R"
 pulse/types: const TEST_PROP_Z pulse/types.TestType = "TEST_PROP_Z"
@@ -4634,6 +4683,8 @@ pulse/types: type Test field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Test field Cols string "json:\"cols,omitempty\""
 pulse/types: type Test field Field string "json:\"field,omitempty\""
 pulse/types: type Test field Field2 string "json:\"field2,omitempty\""
+pulse/types: type Test field Fields []string "json:\"fields,omitempty\""
+pulse/types: type Test field Fields2 []string "json:\"fields2,omitempty\""
 pulse/types: type Test field Label string "json:\"label,omitempty\""
 pulse/types: type Test field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Test field OrderBy []pulse/types.OrderKey "json:\"order_by,omitempty\""
@@ -4642,6 +4693,8 @@ pulse/types: type Test field Rows string "json:\"rows,omitempty\""
 pulse/types: type Test field SplitBy string "json:\"split_by,omitempty\""
 pulse/types: type Test field SubjectField string "json:\"subject_field,omitempty\""
 pulse/types: type Test field Type pulse/types.TestType "json:\"type\""
+pulse/types: type Test field Vector string "json:\"vector,omitempty\""
+pulse/types: type Test field Vector2 string "json:\"vector2,omitempty\""
 pulse/types: type Test field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type TestResult struct
 pulse/types: type TestResult field Alpha float64 "json:\"alpha\""
@@ -4706,4 +4759,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 231b2737845b16caa21611a0c914902291461f68f3384c985d1ffa7fe2f1072b
+// golden-hash: 5f35bed1cad81bd9e470e46107826e5145acb9a49de7f167669ff432c970ea03

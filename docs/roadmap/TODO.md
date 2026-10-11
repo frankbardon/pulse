@@ -432,7 +432,7 @@ Theme documents: see the [roadmap index](README.md).
 ### Owner-unit backlog from the worked example (filed under existing units)
 - [ ] **#293** `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list, so ridge can leave a predictor subset unshrunk; add an oracle case · [U36](units/U36-reference-oracles.md)
 - [ ] **#294** Window lag default `null` and post-tests that honour null (`WIN_LAG` `default: 0` biases lag-1 autocorrelation) · [U36](units/U36-reference-oracles.md)
-- [ ] **#295** Clustered and HAC covariance options on `REG_OLS` `Vcov` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#295** Clustered and HAC covariance options on `REG_OLS` `Vcov` · [U25](units/U25-multivariate-tests-segmentation.md)
 - [ ] **#296** Summary of a matrix across groups (mean and range per cell over a grouped matrix result) · [U28](units/U28-matrix-overlays.md)
 - [ ] **#371** Docs from the showcase examples: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent (the retail example measured no gain on 15 fields of 53 bytes); the brand-tracker, A/B and other showcase READMEs are re-verified after the units that simplify them land · [U32](units/U32-docs-audit.md)
 
@@ -503,9 +503,9 @@ Theme documents: see the [roadmap index](README.md).
 
 #### Follow-ups from U24
 - [ ] **#261** Raw p-values and confidence intervals on `MAT_CORRELATION` `params.method` `spearman` / `kendall` (the `cor.test` analogues, exact Kendall with ties), as `auxiliary.p` / interval matrices; U24 ships the figures only · [U28](units/U28-matrix-overlays.md)
-- [ ] **#262** `MAT_FACTOR`: multi-factor minres factor analysis, reusing `minresOneFactor`, the `PULSE_MATRIX_HEYWOOD` / `_NOT_IDENTIFIED` / `_NOT_CONVERGED` warnings (add it as an owner) and the PSD guard · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#263** Factor rotation (varimax, promax) for `MAT_FACTOR`, including a varimax option on `MAT_PCA` loadings (U24 ships unrotated components) · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#264** Link the `factor` glossary entry to `MAT_FACTOR` and add it as the third `measure_construct` declarer, clearing both exemption-ledger entries (`factor`, `measure_construct`) in `guidance_exemptions_test.go` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#262** `MAT_FACTOR`: multi-factor minres factor analysis, reusing `minresOneFactor`, the `PULSE_MATRIX_HEYWOOD` / `_NOT_IDENTIFIED` / `_NOT_CONVERGED` warnings (add it as an owner) and the PSD guard · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#263** Factor rotation (varimax, promax) for `MAT_FACTOR`, including a varimax option on `MAT_PCA` loadings (U24 ships unrotated components) · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#264** Link the `factor` glossary entry to `MAT_FACTOR` and add it as the third `measure_construct` declarer, clearing both exemption-ledger entries (`factor`, `measure_construct`) in `guidance_exemptions_test.go` · [U25](units/U25-multivariate-tests-segmentation.md)
 - [ ] **#265** Partial-correlation statistic and p-value (df = n − 2 − g; the `ppcor` values already sit in `mv_partial_correlation.json`) as `auxiliary.p` beside the multiplicity core · [U28](units/U28-matrix-overlays.md)
 - [ ] **#266** Matrix oracle gaps: add weighted pairwise PCA, collinearity and reliability `item_sd` cases (the unweighted pairwise PCA and collinearity cases landed in U24) · [U36](units/U36-reference-oracles.md)
 - [ ] **#267** Predict `row_buffer_bytes` is an upper bound for ordinary groupers only: a fan-out grouper (`GROUP_SET_PER_ELEMENT` and kin) copies a row into every label bucket, so the true buffer can exceed it; add the fan-out multiplicity, and confirm `limits.MatrixStateBytes` counts the buffered rank-method row store · [U35](units/U35-predict-runtime-parity.md)
@@ -515,12 +515,30 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#271** `REG_GLM` gamma: Pulse fixes dispersion at 1 for standard errors and `vcov`; R estimates it. Decide, align, and add a gamma oracle case · [U36](units/U36-reference-oracles.md)
 
 ### E4 — Multivariate tests, fitted attributes, segmentation
-- [ ] **#131** `TEST_HOTELLING_T2` · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#132** `TEST_MANOVA` (Wilks, Pillai, Hotelling–Lawley, Roy) · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#133** `TEST_BARTLETT_SPHERICITY` · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#134** `ATTR_MAHALANOBIS` · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#135** `ATTR_PC_SCORE` (two-pass, `fit_on`) · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#136** `GROUP_KMEANS` (seeded k-means++, Euclidean-only, size-ordered labels) · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#131** `TEST_HOTELLING_T2` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#132** `TEST_MANOVA` (Wilks, Pillai, Hotelling–Lawley, Roy) · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#133** `TEST_BARTLETT_SPHERICITY` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#134** `ATTR_MAHALANOBIS` · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#135** `ATTR_PC_SCORE` (two-pass, `fit_on`) · [U25](units/U25-multivariate-tests-segmentation.md)
+- [x] **#136** `GROUP_KMEANS` (seeded k-means++, Euclidean-only, size-ordered labels) · [U25](units/U25-multivariate-tests-segmentation.md)
+
+#### Follow-ups from U25
+- [ ] **#401** Panel-robust `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` covariance: HAC across a panel (per-entity Newey–West or Driscoll–Kraay) and two-way clustering. `covariance.type: hac` reads one series and refuses a repeated `order_by` (`order_by_ties`), so the MMM example clusters on the week · [U36](units/U36-reference-oracles.md)
+- [ ] **#402** Compose co-moment fits: fit a vector battery's co-moment state once in a compose `fits` entry and let several slots (`MAT_*`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`) reuse it, as regressions already do · [U30](units/U30-matrix-extensions-hardening.md)
+- [ ] **#403** Named populations: save a fitted vector population (mean, covariance, loadings) under a name and score other cohorts against it, instead of re-fitting with `fit_on` per request · [U30](units/U30-matrix-extensions-hardening.md)
+- [ ] **#404** Per-`Groups` statistical tests: `TEST_HOTELLING_T2`, `TEST_MANOVA`, `TEST_BOX_M`, `TEST_MARDIA`, `TEST_BARTLETT_SPHERICITY` and the fitted attributes on multi-entry `Groups`, decided with #200 · [U35](units/U35-predict-runtime-parity.md)
+- [x] **#405** `MAT_FACTOR` `ml`: RMSEA confidence interval (`psych::fa` `RMSEA` lower / upper) and its oracle; E2 ships the point RMSEA, TLI, BIC and the likelihood χ² · [U36](units/U36-reference-oracles.md)
+- [ ] **#406** More GPA rotations for `MAT_FACTOR` / `MAT_PCA`: quartimax, geomin, oblimax, and the `GPArotation` criteria beyond varimax, promax and oblimin, on the shared rotation engine · [U30](units/U30-matrix-extensions-hardening.md)
+- [ ] **#407** Fold `MAT_DISTANCE`'s local metric list (`euclidean`, `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis`) into the shared `linalg/metric` registry once it lands; one definition per metric · [U27](units/U27-vector-metrics-aggregates.md)
+- [x] **#408** One singularity rule across the multivariate stack: the tests decide singular by `gonum` `SymEigen` against `RankTolerance`, while `MAT_PCA` is singular only when `InverseSPD` fails; align them and add the borderline case to the oracle · [U30](units/U30-matrix-extensions-hardening.md)
+- [x] **#409** Extension statistical tests that take a vector (`vector` / `fields`) are not validated: `ResolveTests` skips non-built-in types, so a bad member list reaches the runtime. Validate extension test vectors as built-ins' · [U34](units/U34-extension-validation.md)
+- [x] **#410** A non-Heywood weighted fixture for the `ATTR_FACTOR_SCORE` Bartlett path: most weighted oracle fixtures are Heywood cases, which null every Bartlett score, so weighted Bartlett scoring is thinly pinned to `psych` · [U36](units/U36-reference-oracles.md)
+- [x] **#411** `MAT_DISTANCE` `between` refuses date-family groupers (the time-zone pass does not reach `params`) and extension groupers; resolve the zone for the date family and give extension groupers a centroid hook, or document the refusal as final · [U30](units/U30-matrix-extensions-hardening.md)
+- [x] **#412** `skills/statistical-testing.md` sits within 15 B of its 6000 B hard budget, so no multivariate or other test can add a line; split the multivariate tests into their own topical skill or compress it · [U32](units/U32-docs-audit.md)
+- [x] **#413** Trim the soft-budget overruns in the `op-test-*` multivariate atomic skills (`op-test-hotelling-t2` 1633 B, `op-test-manova` 1435 B against 1200) with the other over-budget atomic bodies · [U32](units/U32-docs-audit.md)
+- [x] **#414** Weight-reference regeneration: rerunning `gen_weight_reference.py` shifts the `REG_*` rows by ulps (only the Hotelling rows were committed), and the R oracle needs Hotelling 1.0.8 plus Hmisc with FLIBS in `Makevars` (ICSNP and MVTests fail to build on R 4.6.1); pin and document the regeneration, or commit the shifted rows · [U36](units/U36-reference-oracles.md)
+- [x] **#415** `ATTR_FACTOR_SCORE`: a refusal (`PULSE_MATRIX_NOT_IDENTIFIED` / `_HEYWOOD`) drops the fit's not-converged note; carry it on the refusal warning · [U30](units/U30-matrix-extensions-hardening.md)
+- [ ] **#416** Atomic skills still over the soft 1200 B body budget after U25: `op-reg-ols` (3658 B), `op-reg-glm` (3283 B) and `op-reg-bayes-linear` (3443 B), which grew with `covariance` in U25, plus `op-mat-correlation`, `op-mat-reliability`, `op-mat-collinearity` and `op-mat-covariance`; trim them with the other over-budget bodies before the budget turns hard · [U38](units/U38-skill-sync.md)
 
 ### E5 — Row-wise vector vocabulary & similarity
 - [ ] **#137** expr-lang vector bindings, `v[i]` and `len`; `vsum` / `vmean` / `vmin` / `vmax` / `vsd` / `vcount`; `dot` / `norm` / `dist` / `cosine`; `argmax` / `argmin` · [U26](units/U26-vector-expr-functions.md)
@@ -574,7 +592,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#169** Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library · [U33](units/U33-v1-release.md)
 - [ ] **#170** `v1.0.0` tagged · [U33](units/U33-v1-release.md)
 - [ ] **#220** Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze; adding it changes the public-API golden and `STABILITY.md` · [U33](units/U33-v1-release.md)
-- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) the [U12 weighted-inference review](reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula) and the [U24 matrix-operators review](reviews/U24-matrix-operators-review.md) (findings MR-01 to MR-08 and the open owner calls), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference AND the U24 multivariate guidance, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
+- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) the [U12 weighted-inference review](reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula) and the [U24 matrix-operators review](reviews/U24-matrix-operators-review.md) (findings MR-01 to MR-08 and the open owner calls) and the [U25 multivariate review](reviews/U25-multivariate-review.md) (the open owner calls), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference AND the U24 matrix and U25 multivariate guidance, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
 
 ---
 

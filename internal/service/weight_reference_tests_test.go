@@ -43,15 +43,17 @@ import (
 // weightRefInferCase — `request` is the JSON slot fragment decoded onto
 // a fresh request, `figures` maps a wire path from the response root
 // (dot-separated keys; `[i]` an index, `[label]` the position of label in
-// the sibling "groups" array) to its reference value — and give the
-// surface a coverage call (weight_coverage_test.go). The runner below is
-// slot-agnostic.
+// the sibling "groups" array, chained for nested arrays: `means[p][0]`)
+// to its reference value — and give the surface a coverage call
+// (weight_coverage_test.go). The runner below is slot-agnostic.
 //
 // Tolerances (relative; absolute when the reference is 0), from
 // weightRefFigureTol: 1e-12 for statistics, df and estimates — R and
 // scipy sum in two passes where Pulse folds Welford recurrences, so they
 // sit a few ulps apart (worst seen on arm64: 1e-14, eta² / Σ of squares);
-// 1e-10 for p-values and t-based CI bounds — R's pt / qt and Pulse's
+// 1e-10 for p-values (any key ending p_value, e.g. TEST_BOX_M's
+// f_p_value, whose F tail at df2 ~ 10⁴ sits ~3e-11 from scipy) and
+// t-based CI bounds — R's pt / qt and Pulse's
 // statdist evaluate the incomplete beta by different series, a tail
 // amplifies the statistic's error by |t·d ln p/dt|, and a CI bound near
 // zero is a difference of two O(1) terms (worst seen: 1.1e-13). Both
@@ -169,23 +171,26 @@ func wirePath(root any, path string) (any, error) {
 		if !indexed {
 			continue
 		}
-		sel = strings.TrimSuffix(sel, "]")
-		arr, ok := cur.([]any)
-		if !ok {
-			return nil, errPath(path, seg, "not an array")
-		}
-		i, err := strconv.Atoi(sel)
-		if err != nil {
-			groups, _ := obj["groups"].([]any)
-			i = slices.Index(groups, any(sel))
-			if i < 0 {
-				return nil, errPath(path, seg, "label not in the sibling groups")
+		// Chained selectors ("means[p][0]") index nested arrays; a
+		// label selector reads the sibling "groups" of the named key.
+		for _, one := range strings.Split(strings.TrimSuffix(sel, "]"), "][") {
+			arr, ok := cur.([]any)
+			if !ok {
+				return nil, errPath(path, seg, "not an array")
 			}
+			i, err := strconv.Atoi(one)
+			if err != nil {
+				groups, _ := obj["groups"].([]any)
+				i = slices.Index(groups, any(one))
+				if i < 0 {
+					return nil, errPath(path, seg, "label not in the sibling groups")
+				}
+			}
+			if i >= len(arr) {
+				return nil, errPath(path, seg, "index out of range")
+			}
+			cur = arr[i]
 		}
-		if i >= len(arr) {
-			return nil, errPath(path, seg, "index out of range")
-		}
-		cur = arr[i]
 	}
 	return cur, nil
 }
@@ -202,7 +207,7 @@ func errPath(path, seg, why string) error {
 func weightRefFigureTol(path string) float64 {
 	last := path[strings.LastIndex(path, ".")+1:]
 	switch {
-	case last == "p_value", strings.HasPrefix(last, "ci_"):
+	case strings.HasSuffix(last, "p_value"), strings.HasPrefix(last, "ci_"):
 		return 1e-10
 	}
 	return 1e-12
@@ -336,6 +341,17 @@ var weightRefTestPointEstimates = map[string][]string{
 	"chisq":       {"tests[0].details.effect_size.cramers_v"},
 	"prop_z": {"tests[0].details.proportion[a]", "tests[0].details.proportion[b]", "tests[0].details.diff",
 		"tests[0].details.effect_size.cohens_h"},
+	// Hotelling's T²: the (weighted) mean vectors read Σw ratios only.
+	"hotelling_one":   {"tests[0].details.mean[0]", "tests[0].details.mean[1]"},
+	"hotelling_split": {"tests[0].details.mean_diff[0]", "tests[0].details.mean_diff[1]"},
+	// MANOVA: the per-level mean vectors.
+	"manova": {"tests[0].details.means[p][0]", "tests[0].details.means[q][1]", "tests[0].details.means[r][0]"},
+	// Bartlett sphericity: the correlation matrix (hence |R|) reads Σw
+	// ratios only.
+	"bartlett_sphericity": {"tests[0].details.determinant"},
+	// Box's M has no Σw-ratio estimate (every covariance is on N*): its
+	// df and the raw per-level n are the kind-free figures.
+	"box_m": {"tests[0].df", "tests[0].details.n[p]", "tests[0].details.n[q]", "tests[0].details.n[r]"},
 }
 
 // testWeightRefTestsKindsAgree is TestWeightReferenceKindsAgree's

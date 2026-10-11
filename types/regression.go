@@ -162,6 +162,17 @@ type RegressionSpec struct {
 	// modifier, with PROCESSING_REGRESSION_VCOV_UNSUPPORTED.
 	Vcov bool `json:"vcov,omitempty"`
 
+	// Covariance selects the coefficient covariance estimator behind
+	// StdErrors, PValues, CILower / CIUpper / DF and Vcov (REG_OLS,
+	// REG_GLM; REG_BAYES_LINEAR's sandwich posterior replaces its
+	// posterior covariance): classical, hc0–hc3, cluster (CR1; G − 1 df on
+	// REG_OLS) or hac (Newey–West).
+	// Absent means classical, byte-identical on the wire. A robust type
+	// forces the buffered path and is refused with
+	// PROCESSING_REGRESSION_VCOV_UNSUPPORTED alongside a Penalty, a
+	// Resample or a Selection. See RegressionCovariance.
+	Covariance *RegressionCovariance `json:"covariance,omitempty"`
+
 	// ConfLevel is the coverage of the coefficient confidence intervals
 	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
 	// selects 0.95. REG_OLS uses a Student-t critical value on the
@@ -173,7 +184,8 @@ type RegressionSpec struct {
 	ConfLevel float64 `json:"conf_level,omitempty"`
 
 	// Save writes the finished fit as a model file (model_format_version
-	// 1, `.pulse-model.json`) at this path on the instance filesystem,
+	// 1, or 2 when a robust Covariance produced its standard errors;
+	// `.pulse-model.json`) at this path on the instance filesystem,
 	// relative to its root, atomically (temp + fsync + rename; parent
 	// directories are created). Overwriting an existing file succeeds
 	// with the PULSE_MODEL_OVERWRITTEN warning. The path must end in
@@ -330,6 +342,11 @@ type RegressionResult struct {
 	// Correlation is Vcov scaled to unit diagonal (R's cov2cor), present
 	// exactly when Vcov is.
 	Correlation *MatrixValues `json:"correlation,omitempty"`
+
+	// Covariance echoes the robust estimator the standard errors,
+	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),
+	// "auto" lags resolved; absent on a classical fit.
+	Covariance *RegressionCovarianceResult `json:"covariance,omitempty"`
 }
 
 // Streamable reports whether a regression type can run via the
@@ -359,8 +376,8 @@ func (t RegressionType) Streamable() bool {
 // the streaming execution path today. The check folds the type-level
 // Streamable() value with one layer:
 //
-//   - modifier downgrade: any non-empty Resample or Selection forces
-//     the buffered path.
+//   - modifier downgrade: any non-empty Resample or Selection, or a
+//     robust Covariance, forces the buffered path.
 //
 // REG_OLS streams both unpenalized (Phase 1) and penalized
 // (l1 / l2 / elasticnet, Phase 2) — the streaming Gram is identical;
@@ -376,6 +393,11 @@ func (s RegressionSpec) Streamable() bool {
 		return false
 	}
 	if s.Selection != "" {
+		return false
+	}
+	// A robust covariance needs every fitted row's residual: a second
+	// pass over the buffered rows.
+	if s.Covariance.Robust() {
 		return false
 	}
 	switch s.Type {

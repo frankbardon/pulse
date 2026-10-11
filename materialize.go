@@ -9,6 +9,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/observe"
+	"github.com/frankbardon/pulse/types"
 )
 
 // MaterializeOptions configures Pulse.Materialize.
@@ -36,9 +37,11 @@ type MaterializeResult struct {
 	// DerivedColumns names the appended columns in output order —
 	// feature outputs, then attributes, then windows.
 	DerivedColumns []string `json:"derived_columns"`
-	// Warnings are the non-fatal coded findings: the cohort write's
-	// (PULSE_FIELD_DESCRIPTION_LOW_QUALITY per weak source
-	// description), then one PULSE_MATERIALIZE_SIDECARS_INVALIDATED
+	// Warnings are the non-fatal coded findings: the derived columns'
+	// (a fitted vector attribute's PULSE_MATRIX_SINGULAR /
+	// PULSE_MATRIX_INSUFFICIENT_N fit, whose column is then all null),
+	// the cohort write's (PULSE_FIELD_DESCRIPTION_LOW_QUALITY per weak
+	// source description), then one PULSE_MATERIALIZE_SIDECARS_INVALIDATED
 	// when an overwrite invalidated sidecars beside the target, then a
 	// failure to enumerate them.
 	Warnings []*errors.CodedError `json:"warnings,omitempty"`
@@ -128,7 +131,7 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 		Target:              built.Target,
 		Records:             built.Records,
 		DerivedColumns:      sink.names,
-		Warnings:            built.Warnings,
+		Warnings:            append(append([]*errors.CodedError(nil), sink.warns...), built.Warnings...),
 		InvalidatedSidecars: built.InvalidatedSidecars,
 	}
 	if len(built.InvalidatedSidecars) > 0 {
@@ -154,6 +157,16 @@ type materializeSink struct {
 	reader  *service.CohortRecordReader
 	builder *CohortBuilder
 	names   []string
+	// warns are the run's attribute warnings (service.MaterializeWarner).
+	warns []*errors.CodedError
+}
+
+// Warn records the run's attribute warnings (a fitted vector
+// attribute's singular or insufficient fit) as coded warnings.
+func (m *materializeSink) Warn(ws []*types.ResponseWarning) {
+	for _, w := range ws {
+		m.warns = append(m.warns, errors.NewCodedErrorWithDetails(errors.Code(w.Code), w.Message, w.Details))
+	}
 }
 
 func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.MaterializeColumn) error {

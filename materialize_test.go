@@ -715,3 +715,38 @@ func TestMaterialize_TouchesManagedSource(t *testing.T) {
 		t.Fatalf("managed expiry after Materialize = %v, want ~now+1h", got)
 	}
 }
+
+// TestMaterialize_FittedAttributeWarnings: a fitted vector attribute's
+// fit warning (here N* ≤ p: fit_on admits two rows for two members)
+// reaches MaterializeResult.Warnings, and every derived value is null.
+func TestMaterialize_FittedAttributeWarnings(t *testing.T) {
+	ctx := context.Background()
+	p, _ := matPulse(t, Options{})
+	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
+	req := &Request{
+		Cohort: &types.Cohort{Filename: "src.pulse"},
+		Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Label: "md", Fields: []string{"week", "spend"},
+			Params: json.RawMessage(`{"fit_on": [{"type": "FILTER_RANGE", "field": "id", "values": ["1", "2"]}]}`)}},
+	}
+	res, err := p.Materialize(ctx, req, "dir/out.pulse", MaterializeOptions{})
+	if err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	found := false
+	for _, w := range res.Warnings {
+		found = found || w.Code == errors.PULSE_MATRIX_INSUFFICIENT_N
+	}
+	if !found {
+		t.Fatalf("warnings %v, want PULSE_MATRIX_INSUFFICIENT_N", res.Warnings)
+	}
+	schema, rows := readAll(t, p, "dir/out.pulse")
+	col := len(schema.Fields) - 1
+	if schema.Fields[col].Name != "md" {
+		t.Fatalf("last column %q, want md", schema.Fields[col].Name)
+	}
+	for i, r := range rows {
+		if r[col] != nil {
+			t.Errorf("row %d md = %v, want null (the fit is refused)", i, r[col])
+		}
+	}
+}

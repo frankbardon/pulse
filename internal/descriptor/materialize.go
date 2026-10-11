@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -131,6 +132,13 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 			// The formula IS the column: quote it verbatim. Its Field is
 			// never read, so it is not named as the input.
 			op, field = op+" = "+attr.Expression, ""
+		case vectors.IsVectorAttribute(route):
+			// A fitted vector attribute names its member set.
+			if attr.Vector != "" {
+				field = "vector " + attr.Vector
+			} else {
+				field = strings.Join(attr.Fields, ", ")
+			}
 		case route == types.ATTR_REG_FITTED, route == types.ATTR_REG_RESIDUAL, route == types.ATTR_REG_LEVERAGE:
 			field = attr.Target
 			if len(attr.Predictors) > 0 {

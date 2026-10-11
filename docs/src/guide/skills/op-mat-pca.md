@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [matrix, correlation-analysis]
 ```
 
-Slot and members as for [`op-mat-covariance`](op-mat-covariance.md).
+As [`op-mat-covariance`](op-mat-covariance.md).
 
 ## Use when
 
@@ -26,12 +26,9 @@ Use something else:
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `on` | `correlation` \| `covariance` | `correlation` | Matrix to decompose. |
-| `components` | int \| `kaiser` \| `{variance: s}` | `kaiser` | Kept components: k (≤ p), λ > 1, or the fewest reaching share s. Required on `covariance` (no `kaiser`). |
-| `repair` | `nearest` | none | Decompose the nearest correlation matrix. |
-| `missing`, `max_drop_share`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md). |
+- `on` — `correlation` (default) or `covariance`. `rotation` — `none`, `varimax` (k ≥ 2). `repair` — `nearest`.
+- `components` — int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`.
+- `missing`, `max_drop_share`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
 
 ## Inputs
 
@@ -39,7 +36,7 @@ Integer / float members.
 
 ## Output
 
-`primary`: loadings (eigenvector · √λ), kind `rectangular`, `column_keys` `PC1`…`PCk`, always full. `auxiliary.eigenvectors` (same shape); pairwise `auxiliary.n`. `vectors`: `eigenvalues` (all p, descending), `explained_variance`, `cumulative`, `communalities`, `kmo_msa`. `scalars`: `kmo`, `bartlett_chisq`, `bartlett_df`, `bartlett_p`, `components_retained`. No rotation.
+`primary`: loadings (eigenvector · √λ), `PC1`…`PCk`. `auxiliary`: `eigenvectors`, `n` (pairwise), `unrotated`. `vectors`: `eigenvalues`, `explained_variance`, `cumulative`, `communalities`, `kmo_msa`, `rotated_variance`. `scalars`: `kmo`, `bartlett_*`, `components_retained`.
 
 ## Reading the output
 
@@ -52,11 +49,11 @@ Integer / float members.
 
 ## Gotchas
 
-- Each eigenvector's largest entry is positive; flip a column freely.
-- Bartlett's n: rows; Σw (frequency) or n_eff (probability); pairwise the smallest pair (`PULSE_MATRIX_PAIRWISE_N_STAR`).
-- Singular correlation: KMO and Bartlett null (`PULSE_MATRIX_SINGULAR` warning). Non-PSD pairwise input: fatal `PULSE_MATRIX_NOT_PSD` unless `repair`.
+- Signs are free. Rotated: read `rotated_variance`.
+- Bartlett's n: rows, Σw or n_eff, pairwise the smallest pair.
+- Singular: KMO, Bartlett null (`PULSE_MATRIX_SINGULAR`). Non-PSD pairwise: `PULSE_MATRIX_NOT_PSD` unless `repair`.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, correlation-analysis]`
-- Skills: [`matrix-results`](matrix-results.md), [`op-mat-correlation`](op-mat-correlation.md), [`op-mat-reliability`](op-mat-reliability.md), [`weighting`](weighting.md)
+- Skills: [`multivariate-outputs`](multivariate-outputs.md), [`op-mat-correlation`](op-mat-correlation.md)

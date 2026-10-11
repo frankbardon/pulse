@@ -64,6 +64,10 @@
         "rg_South_Central",
         "rg_Southeast"
       ],
+      "covariance": {
+        "type": "cluster",
+        "cluster": "week_index"
+      },
       "save": "models/mmm_final.pulse-model.json"
     }
   ],

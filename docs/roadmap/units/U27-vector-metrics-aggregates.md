@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U26]
 soft_depends_on: []
 blocks: [U29]
-todo_items: [141, 142, 143, 144]
+todo_items: [141, 142, 143, 144, 407]
 branch: vector-metrics-aggregates
 ---
 
@@ -34,6 +34,7 @@ The shared metric registry `linalg/metric`, vector `kind` (measure/scale/composi
 - [ ] **#142** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`
 - [ ] **#143** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) `ATTR_SCALE_SCORE`
 - [ ] **#144** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option)
+- [ ] **#407** (10. Vector & matrix — operators › Follow-ups from U25) Fold `MAT_DISTANCE`'s local metric list (`euclidean`, `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis`) into the shared `linalg/metric` registry once it lands; one definition per metric
 
 ## Scope
 
@@ -73,6 +74,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(vector-metrics-ag
 
 - `skills/op-attr-scale-score.md`, `op-agg-vec-*.md`
 - `errors/fixup_metadata.go` (`PULSE_VECTOR_*`)
+
+## Handed on from U25
+
+| Item | Source |
+|---|---|
+| `MAT_DISTANCE` metrics into the registry | [U25](U25-multivariate-tests-segmentation.md) #407 |
 
 ## Human inputs & decisions
 

@@ -50,6 +50,7 @@ skills/label-display.md
 skills/matrix-results.md
 skills/multiplicity-correction.md
 skills/multivariate-design.md
+skills/multivariate-outputs.md
 skills/op-agg-average.md
 skills/op-agg-ci-lower.md
 skills/op-agg-ci-upper.md
@@ -85,8 +86,11 @@ skills/op-agg-welford.md
 skills/op-agg-zscore.md
 skills/op-attr-code-in.md
 skills/op-attr-date-part.md
+skills/op-attr-factor-score.md
 skills/op-attr-formula.md
+skills/op-attr-mahalanobis.md
 skills/op-attr-normalized.md
+skills/op-attr-pc-score.md
 skills/op-attr-percentile.md
 skills/op-attr-reg-fitted.md
 skills/op-attr-reg-leverage.md
@@ -120,6 +124,7 @@ skills/op-filter-true.md
 skills/op-group-category.md
 skills/op-group-date-ranges.md
 skills/op-group-date.md
+skills/op-group-kmeans.md
 skills/op-group-quantile.md
 skills/op-group-range.md
 skills/op-group-rounded.md
@@ -128,6 +133,8 @@ skills/op-group-set-value.md
 skills/op-mat-collinearity.md
 skills/op-mat-correlation.md
 skills/op-mat-covariance.md
+skills/op-mat-distance.md
+skills/op-mat-factor.md
 skills/op-mat-partial-correlation.md
 skills/op-mat-pca.md
 skills/op-mat-reliability.md
@@ -198,13 +205,18 @@ skills/op-synth-weighted-categorical.md
 skills/op-test-anova-f.md
 skills/op-test-anova-rm.md
 skills/op-test-anova-welch.md
+skills/op-test-bartlett-sphericity.md
+skills/op-test-box-m.md
 skills/op-test-brown-forsythe.md
 skills/op-test-chisq.md
 skills/op-test-fisher-exact.md
+skills/op-test-hotelling-t2.md
 skills/op-test-kendall-tau.md
 skills/op-test-kruskal-wallis.md
 skills/op-test-ks.md
 skills/op-test-mann-whitney-u.md
+skills/op-test-manova.md
+skills/op-test-mardia.md
 skills/op-test-paired-t.md
 skills/op-test-pearson-r.md
 skills/op-test-prop-z.md

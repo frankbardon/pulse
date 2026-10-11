@@ -105,7 +105,7 @@ func TestLoadModelFiles(t *testing.T) {
 	files := map[string][]byte{
 		"good" + FileSuffix: good,
 		"bad" + FileSuffix:  []byte("{not json"),
-		"v2" + FileSuffix:   []byte(`{"model_format_version": 2}`),
+		"v3" + FileSuffix:   []byte(`{"model_format_version": 3}`),
 		"io" + FileSuffix:   nil,
 	}
 	got, cerr := LoadModelFiles(refs("a", "good"+FileSuffix), memRead(files))
@@ -125,7 +125,7 @@ func TestLoadModelFiles(t *testing.T) {
 		{"io" + FileSuffix, memRead(files), errors.PULSE_MODEL_FILE_UNREADABLE, ReasonFileUnreadable},
 		{"good" + FileSuffix, nil, errors.PULSE_MODEL_FILE_UNREADABLE, ReasonFileUnreadable},
 		{"bad" + FileSuffix, memRead(files), errors.PULSE_MODEL_FILE_INVALID, ReasonFileJSON},
-		{"v2" + FileSuffix, memRead(files), errors.PULSE_MODEL_VERSION_UNSUPPORTED, nil},
+		{"v3" + FileSuffix, memRead(files), errors.PULSE_MODEL_VERSION_UNSUPPORTED, nil},
 	}
 	for _, tc := range cases {
 		// The fault is the second entry: details.model locates it.

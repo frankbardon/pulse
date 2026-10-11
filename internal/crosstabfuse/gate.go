@@ -68,7 +68,8 @@ type Facts interface {
 // interface. It is deliberately wider than types.GroupType.Streamable(),
 // which tracks Process-level streamability: GROUP_DATE is non-streamable
 // at the Process layer but keys per record, so it fuses. GROUP_QUANTILE
-// needs a finalize-time sorted view and keys nothing per record.
+// needs a finalize-time sorted view and keys nothing per record;
+// GROUP_KMEANS fits its clusters over every row first.
 // GROUP_SET_PER_ELEMENT fans one record into N buckets
 // (MultiKeyStreamingGrouper). Pinned against the constructed built-in
 // instances by internal/processing's TestBuiltinGrouperKeyableMatchesRegistry.
@@ -76,6 +77,7 @@ var builtinGrouperKeyable = map[types.GroupType]bool{
 	types.GROUP_CATEGORY:        true,
 	types.GROUP_DATE:            true,
 	types.GROUP_DATE_RANGES:     true,
+	types.GROUP_KMEANS:          false,
 	types.GROUP_QUANTILE:        false,
 	types.GROUP_RANGE:           true,
 	types.GROUP_ROUNDED:         true,

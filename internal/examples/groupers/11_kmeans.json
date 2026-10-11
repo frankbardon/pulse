@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "category": "groupers",
+    "description": "Segment customers.pulse into three clusters by age and income with GROUP_KMEANS: seeded k-means++ starts then Lloyd on z-scored members, keys cluster_1..cluster_3 by descending size (key column GROUP_KMEANS_age). Each cluster reports its size and mean age and income; Components carry the centroids, within-SS and the between-SS ratio. Same data and seed always give the same labels.",
+    "intents": [
+      "segment"
+    ],
+    "name": "group_kmeans",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_KMEANS"
+    ],
+    "tags": [
+      "multivariate",
+      "buffered-pipeline"
+    ]
+  },
+  "groups": [
+    {
+      "type": "GROUP_KMEANS",
+      "fields": ["age", "income"],
+      "params": {"k": 3, "seed": 7}
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "age",
+      "label": "customers"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "age",
+      "label": "mean_age"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "mean_income"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+}

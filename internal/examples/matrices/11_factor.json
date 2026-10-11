@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "name": "factor_analysis",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "MAT_FACTOR"
+    ],
+    "description": "Exploratory factor analysis of three measures on experiment.pulse (revenue_before, revenue, session_minutes): one common factor extracted by minres (the default; params.extraction \"principal_axis\" iterates principal axes instead, and \"ml\" fits by maximum likelihood, adding the likelihood chi-square, TLI, RMSEA and BIC) from the members' correlation matrix. The primary is the members x factors loadings (column F1); vectors carry each member's communality and uniqueness and the variance the factor accounts for; scalars the root-mean-square residual, the empirical residual chi-square (a residual size, not a likelihood test; df 0 here, so its p is null), KMO, Bartlett's sphericity test, the fit's iterations and convergence and the factor count. Set params.factors to k (or the default \"kaiser\") and params.rotation to varimax, promax or oblimin on a longer battery: two factors need at least five members. Here session_minutes shares almost nothing with the revenue pair, so the one-factor fit is a Heywood case: revenue_before's uniqueness falls below 0 and PULSE_MATRIX_HEYWOOD says so, the loadings kept as fitted. Streamable and mergeable.",
+    "intents": [
+      "measure_construct"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_FACTOR",
+      "name": "constructs",
+      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "params": {"factors": 1}
+    }
+  ]
+}

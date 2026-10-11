@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "The paired and unequal-covariance forms of TEST_HOTELLING_T2: a paired test of the revenue profile against its pre-treatment baseline (fields2 holds the matching before-members, so the test runs on the row-wise difference vector against mu = 0), and a two-sample test of the engagement profile by treatment with variance unequal (Krishnamoorthy–Yu), for arms whose spread differs. At one member the paired form is the paired t-test squared and the unequal form is Welch's t-test.",
+    "intents": [
+      "compare_groups"
+    ],
+    "name": "hotelling_t2_paired_and_unequal",
+    "operators": [
+      "TEST_HOTELLING_T2"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "multivariate",
+      "paired",
+      "two-sample",
+      "welch",
+      "experiment-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "tests": [
+    {
+      "type": "TEST_HOTELLING_T2",
+      "fields": ["revenue"],
+      "fields2": ["revenue_before"],
+      "label": "revenue_vs_baseline"
+    },
+    {
+      "type": "TEST_HOTELLING_T2",
+      "fields": ["revenue", "session_minutes"],
+      "split_by": "treatment",
+      "params": {"variance": "unequal"},
+      "label": "engagement_by_arm_unequal"
+    }
+  ]
+}

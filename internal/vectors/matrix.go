@@ -95,11 +95,79 @@ type Matrix struct {
 	On string
 	// Components is MAT_PCA's retention rule (params.components).
 	Components PCAComponents
+	// Rotation is MAT_PCA's params.rotation: "" (none, the default) or
+	// RotationVarimax.
+	Rotation string
+	// Factors is MAT_FACTOR's params.factors: a fixed K or the Kaiser
+	// rule (the default).
+	Factors FactorCount
+	// Extraction is MAT_FACTOR's params.extraction:
+	// FactorExtractionMinres (the default), FactorExtractionPrincipalAxis
+	// or FactorExtractionML; "" on every other type.
+	Extraction string
+	// Kappa is MAT_FACTOR's promax power (params.kappa, default
+	// FactorDefaultKappa; promax only) and Gamma its oblimin γ
+	// (params.gamma, default 0; oblimin only).
+	Kappa, Gamma float64
+	// ConfLevel is MAT_FACTOR's params.conf_level: the coverage of the
+	// ml RMSEA interval (rmsea_lower / rmsea_upper), FactorDefaultConfLevel
+	// unless set; extraction ml only, 0 on every other type.
+	ConfLevel float64
 	// Center is MAT_COLLINEARITY's params.center: false (the default)
 	// runs Belsley's diagnostics on the scaled, UNCENTERED predictors
 	// with an intercept column; true on the scaled, centered ones (the
 	// predictors' correlation, no intercept).
 	Center bool
+	// Between is MAT_DISTANCE's resolved params.between grouper: a copy
+	// ready for the grouper factory — a GROUP_KMEANS slot's members
+	// moved into Fields (a named vector resolved), Vector cleared. Nil
+	// on every other type. The engine sets its Weight from the slot's
+	// stamped weight (GROUP_KMEANS only: the other groupers' keys do not
+	// read a weight).
+	Between *types.Group
+	// Metric is MAT_DISTANCE's params.metric (DistanceEuclidean by
+	// default); "" on every other type.
+	Metric string
+	// Standardize is MAT_DISTANCE's params.standardize: z-score every
+	// member over the bucketed rows before the centroids are compared.
+	Standardize bool
+	// betweenRaw carries params.between from decode to resolveDistance
+	// (members resolve in between).
+	betweenRaw json.RawMessage
+}
+
+// MAT_DISTANCE metrics (params.metric). The list is local to
+// MAT_DISTANCE; U27's shared metric registry folds it in later.
+const (
+	DistanceEuclidean   = "euclidean"
+	DistanceSqEuclidean = "sqeuclidean"
+	DistanceManhattan   = "manhattan"
+	DistanceChebyshev   = "chebyshev"
+	DistanceCosine      = "cosine"
+	DistanceMahalanobis = "mahalanobis"
+)
+
+// DistanceMetrics returns MAT_DISTANCE's params.metric values, default
+// first.
+func DistanceMetrics() []string {
+	return []string{DistanceEuclidean, DistanceSqEuclidean, DistanceManhattan, DistanceChebyshev, DistanceCosine, DistanceMahalanobis}
+}
+
+// DistanceBetweenTypes returns the built-in groupers MAT_DISTANCE's
+// params.between accepts, in AllGroupTypes order: every built-in. The
+// date family (GROUP_DATE, GROUP_DATE_RANGES) reads its zone like a
+// top-level grouper — the zone pass walks the between as the slot
+// "matrices[i].params.between" (internal/descriptor.ResolveZones) and
+// ZonedRequest writes an inherited zone into its `tz`. A registered
+// extension grouper is accepted too (ResolveMatricesRouted's ext).
+func DistanceBetweenTypes() []types.GroupType {
+	return types.AllGroupTypes()
+}
+
+// IsDateBetween reports whether t is a date-family grouper, the only
+// between types that accept a `tz`.
+func IsDateBetween(t types.GroupType) bool {
+	return t == types.GROUP_DATE || t == types.GROUP_DATE_RANGES
 }
 
 // MAT_PCA params.on values.
@@ -110,6 +178,85 @@ const (
 
 // PCAOnValues returns the params.on values, default first.
 func PCAOnValues() []string { return []string{PCAOnCorrelation, PCAOnCovariance} }
+
+// Rotation criteria of the shared rotation engine
+// (internal/processing/matrix_rotate.go). RotationNone is the explicit
+// "no rotation" spelling of a params.rotation knob.
+const (
+	RotationNone    = "none"
+	RotationVarimax = "varimax"
+	RotationPromax  = "promax"
+	RotationOblimin = "oblimin"
+)
+
+// PCARotations returns MAT_PCA's params.rotation values, default first.
+func PCARotations() []string { return []string{RotationNone, RotationVarimax} }
+
+// FactorRotations returns MAT_FACTOR's params.rotation values, default
+// first.
+func FactorRotations() []string {
+	return []string{RotationNone, RotationVarimax, RotationPromax, RotationOblimin}
+}
+
+// MAT_FACTOR extraction methods (params.extraction). Each starts from
+// the squared multiple correlations; the solvers live in
+// internal/processing/matrix_factor.go and matrix_factor_ml.go.
+const (
+	// FactorExtractionMinres is the minimum-residual fit (psych
+	// fm = "minres"), the default.
+	FactorExtractionMinres = "minres"
+	// FactorExtractionPrincipalAxis is iterated principal axes (psych
+	// fm = "pa").
+	FactorExtractionPrincipalAxis = "principal_axis"
+	// FactorExtractionML is Jöreskog's maximum-likelihood fit over the
+	// uniquenesses (stats::factanal, psych fm = "ml"); it adds the
+	// likelihood chi-square and the fit indices.
+	FactorExtractionML = "ml"
+)
+
+// FactorExtractions returns MAT_FACTOR's params.extraction values,
+// default first.
+func FactorExtractions() []string {
+	return []string{FactorExtractionMinres, FactorExtractionPrincipalAxis, FactorExtractionML}
+}
+
+// FactorsKaiser is MAT_FACTOR's params.factors "kaiser" (the default):
+// as many factors as the correlation has eigenvalues above 1.
+const FactorsKaiser = "kaiser"
+
+// FactorDefaultKappa is MAT_FACTOR's default promax power (stats::promax
+// m = 4).
+const FactorDefaultKappa = 4
+
+// FactorDefaultConfLevel is MAT_FACTOR's default params.conf_level, the
+// coverage of the ml RMSEA interval: psych::fa's alpha = 0.1, a 90%
+// interval.
+const FactorDefaultConfLevel = 0.9
+
+// FactorCount is MAT_FACTOR's resolved params.factors: K > 0 is a fixed
+// count; K == 0 is the Kaiser rule, decided on the data.
+type FactorCount struct {
+	K int
+}
+
+// Kaiser reports the data-driven Kaiser rule.
+func (f FactorCount) Kaiser() bool { return f.K == 0 }
+
+// FactorIdentified reports whether k common factors are identified on
+// p members: the model's degrees of freedom
+// p(p − 1)/2 − p·k + k(k − 1)/2 = ((p − k)² − (p + k))/2 are not
+// negative.
+func FactorIdentified(p, k int) bool { return (p-k)*(p-k)-(p+k) >= 0 }
+
+// MaxIdentifiedFactors is the largest k FactorIdentified admits on p
+// members (0 below 3 members, where not even one factor is).
+func MaxIdentifiedFactors(p int) int {
+	k := 0
+	for FactorIdentified(p, k+1) && k+1 <= p {
+		k++
+	}
+	return k
+}
 
 // MAT_PCA retention rules (PCAComponents.Rule).
 const (
@@ -196,14 +343,14 @@ func (m Matrix) Decomposition() bool { return IsDecomposition(m.Type) }
 // IsDecomposition reports whether t is a decomposition operator (see
 // Matrix.Decomposition): MAT_PARTIAL_CORRELATION, MAT_PCA (it
 // eigen-decomposes its correlation or covariance), MAT_COLLINEARITY (it
-// inverts and eigen-decomposes the predictors' correlation), and
-// MAT_RELIABILITY,
+// inverts and eigen-decomposes the predictors' correlation), MAT_FACTOR
+// (it factors the correlation), and MAT_RELIABILITY,
 // whose McDonald's omega factors the inter-item correlation (there the
 // guard's refusal nulls omega with a warning instead of failing the
 // matrix: alpha needs no PSD input).
 func IsDecomposition(t types.MatrixType) bool {
 	switch t {
-	case types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY, types.MAT_PCA, types.MAT_COLLINEARITY:
+	case types.MAT_PARTIAL_CORRELATION, types.MAT_RELIABILITY, types.MAT_PCA, types.MAT_COLLINEARITY, types.MAT_FACTOR:
 		return true
 	}
 	return false
@@ -299,11 +446,28 @@ type reliabilityParams struct {
 
 // pcaParams is MAT_PCA's params object: the input matrix, the
 // retention rule (an integer, "kaiser" or {"variance": share}, decoded
-// by decodeComponents), the repair choice and the missing-data knobs;
+// by decodeComponents), the rotation, the repair choice and the
+// missing-data knobs;
 // any other key is refused.
 type pcaParams struct {
 	On         *string         `json:"on"`
 	Components json.RawMessage `json:"components"`
+	Rotation   *string         `json:"rotation"`
+	Repair     *string         `json:"repair"`
+	missingParams
+}
+
+// factorParams is MAT_FACTOR's params object: the factor count (an
+// integer or "kaiser"), the extraction, the rotation with its kappa /
+// gamma, the repair choice and the missing-data knobs; any other key is
+// refused.
+type factorParams struct {
+	Factors    json.RawMessage `json:"factors"`
+	Extraction *string         `json:"extraction"`
+	Rotation   *string         `json:"rotation"`
+	Kappa      *float64        `json:"kappa"`
+	Gamma      *float64        `json:"gamma"`
+	ConfLevel  *float64        `json:"conf_level"`
 	Repair     *string         `json:"repair"`
 	missingParams
 }
@@ -315,6 +479,17 @@ type pcaParams struct {
 type collinearityParams struct {
 	Center *bool   `json:"center"`
 	Repair *string `json:"repair"`
+	missingParams
+}
+
+// distanceParams is MAT_DISTANCE's params object: the between grouper
+// (resolved by resolveDistance once the members are known), the metric,
+// standardize and the missing-data knobs (listwise only); any other key
+// is refused.
+type distanceParams struct {
+	Between     json.RawMessage `json:"between"`
+	Metric      *string         `json:"metric"`
+	Standardize *bool           `json:"standardize"`
 	missingParams
 }
 
@@ -342,6 +517,20 @@ type summaryParams struct {
 // The result is index-aligned with req.Matrices. Like Resolve it reads
 // only the schema.
 func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool) ([]Matrix, *errors.CodedError) {
+	return ResolveMatricesRouted(req, schema, known, nil, nil)
+}
+
+// ResolveMatricesRouted is ResolveMatrices with route mapping a
+// MAT_DISTANCE params.between grouper type to the built-in it executes
+// as — the instance's view, where a hidden type routes to an unknown
+// name (ResolveGroups' route); nil is the identity. ext reports whether
+// a routed between type that is not a built-in is a registered
+// extension grouper (ResolveGroups' ext: it is then accepted, its
+// member set judged); nil means none is.
+func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool, route func(types.GroupType) types.GroupType, ext func(string) bool) ([]Matrix, *errors.CodedError) {
+	if route == nil {
+		route = func(t types.GroupType) types.GroupType { return t }
+	}
 	if req == nil {
 		return nil, nil
 	}
@@ -424,6 +613,12 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 		if err := resolvePCA(at, &m); err != nil {
 			return nil, err
 		}
+		if err := resolveFactor(at, &m); err != nil {
+			return nil, err
+		}
+		if err := resolveDistance(at, req.Vectors, resolved, schema, route, ext, &m); err != nil {
+			return nil, err
+		}
 		out = append(out, m)
 	}
 	return out, nil
@@ -442,8 +637,15 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 	case types.MAT_PCA:
 		m.On = PCAOnCorrelation
 		m.Components = PCAComponents{Rule: PCAComponentsKaiser}
+	case types.MAT_FACTOR:
+		m.Extraction = FactorExtractionMinres
+	case types.MAT_DISTANCE:
+		m.Metric = DistanceEuclidean
 	}
 	if empty {
+		if spec.Type == types.MAT_DISTANCE {
+			return betweenRequired(at)
+		}
 		return nil
 	}
 	var miss missingParams
@@ -530,6 +732,27 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			return err
 		}
 		miss = p.missingParams
+	case types.MAT_FACTOR:
+		var p factorParams
+		if err := decodeStrict(raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if err := decodeFactor(at, p, m); err != nil {
+			return err
+		}
+		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		miss = p.missingParams
+	case types.MAT_DISTANCE:
+		var p distanceParams
+		if err := decodeStrict(raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if err := decodeDistance(at, p, m); err != nil {
+			return err
+		}
+		miss = p.missingParams
 	case types.MAT_COLLINEARITY:
 		var p collinearityParams
 		if err := decodeStrict(raw, &p); err != nil {
@@ -546,7 +769,8 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 	return decodeMissing(at, miss, m)
 }
 
-// decodePCA applies MAT_PCA's params.on and params.components: on
+// decodePCA applies MAT_PCA's params.rotation ("none", the default, or
+// "varimax"), params.on and params.components: on
 // "correlation" (default) or "covariance"; components an integer k ≥ 1
 // (checked against p in resolvePCA), "kaiser" (the correlation
 // default) or {"variance": share} with 0 < share ≤ 1. On a covariance
@@ -554,6 +778,16 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 // meaning in the members' units. Every refusal is bad_params.
 func decodePCA(at string, p pcaParams, m *Matrix) *errors.CodedError {
 	m.On = PCAOnCorrelation
+	if p.Rotation != nil {
+		switch *p.Rotation {
+		case RotationNone:
+		case RotationVarimax:
+			m.Rotation = RotationVarimax
+		default:
+			return matrixInvalid(at, "bad_params", at+" params.rotation must be \"none\" or \"varimax\"",
+				map[string]any{"param": "rotation", "value": *p.Rotation, "valid": PCARotations()})
+		}
+	}
 	if p.On != nil {
 		switch *p.On {
 		case PCAOnCorrelation, PCAOnCovariance:
@@ -619,6 +853,246 @@ func resolvePCA(at string, m *Matrix) *errors.CodedError {
 			map[string]any{"param": "components", "value": m.Components.K, "members": p})
 	}
 	return nil
+}
+
+// decodeFactor applies MAT_FACTOR's params: factors (a positive integer,
+// checked against p in resolveFactor, or "kaiser", the default),
+// extraction ("minres", the default, or "principal_axis"), rotation
+// ("none", the default, "varimax", "promax" or "oblimin"), kappa (promax
+// only, finite and > 1, default 4) and gamma (oblimin only, finite,
+// default 0) and conf_level (extraction ml only, 0 < c < 1, default
+// 0.9). A kappa without promax, a gamma without oblimin or a conf_level
+// without ml is refused rather than ignored. Every refusal is
+// bad_params.
+func decodeFactor(at string, p factorParams, m *Matrix) *errors.CodedError {
+	return decodeFactorWith(at, p, m, matrixInvalid)
+}
+
+// invalidFunc builds a slot's SERVICE_VALIDATION refusal (matrixInvalid,
+// attributeInvalid): the factor knobs are judged by one rule whichever
+// slot carries them.
+type invalidFunc func(at, reason, msg string, extra map[string]any) *errors.CodedError
+
+// decodeFactorWith is decodeFactor refusing through invalid
+// (ATTR_FACTOR_SCORE's inline fit shares MAT_FACTOR's knobs).
+func decodeFactorWith(at string, p factorParams, m *Matrix, matrixInvalid invalidFunc) *errors.CodedError {
+	if p.Extraction != nil {
+		switch *p.Extraction {
+		case FactorExtractionMinres, FactorExtractionPrincipalAxis, FactorExtractionML:
+			m.Extraction = *p.Extraction
+		default:
+			return matrixInvalid(at, "bad_params", at+" params.extraction must be \"minres\", \"principal_axis\" or \"ml\"",
+				map[string]any{"param": "extraction", "value": *p.Extraction, "valid": FactorExtractions()})
+		}
+	}
+	if p.Rotation != nil {
+		switch *p.Rotation {
+		case RotationNone:
+		case RotationVarimax, RotationPromax, RotationOblimin:
+			m.Rotation = *p.Rotation
+		default:
+			return matrixInvalid(at, "bad_params", at+" params.rotation must be \"none\", \"varimax\", \"promax\" or \"oblimin\"",
+				map[string]any{"param": "rotation", "value": *p.Rotation, "valid": FactorRotations()})
+		}
+	}
+	if m.Rotation == RotationPromax {
+		m.Kappa = FactorDefaultKappa
+	}
+	if p.Kappa != nil {
+		if m.Rotation != RotationPromax {
+			return matrixInvalid(at, "bad_params", at+" params.kappa applies to rotation \"promax\" only",
+				map[string]any{"param": "kappa", "rotation": m.Rotation})
+		}
+		if k := *p.Kappa; !(k > 1) || math.IsInf(k, 0) {
+			return matrixInvalid(at, "bad_params", at+" params.kappa must be a finite number above 1",
+				map[string]any{"param": "kappa", "value": k})
+		}
+		m.Kappa = *p.Kappa
+	}
+	if p.Gamma != nil {
+		if m.Rotation != RotationOblimin {
+			return matrixInvalid(at, "bad_params", at+" params.gamma applies to rotation \"oblimin\" only",
+				map[string]any{"param": "gamma", "rotation": m.Rotation})
+		}
+		if g := *p.Gamma; math.IsNaN(g) || math.IsInf(g, 0) {
+			return matrixInvalid(at, "bad_params", at+" params.gamma must be a finite number",
+				map[string]any{"param": "gamma", "value": g})
+		}
+		m.Gamma = *p.Gamma
+	}
+	if m.Extraction == FactorExtractionML {
+		m.ConfLevel = FactorDefaultConfLevel
+	}
+	if p.ConfLevel != nil {
+		if m.Extraction != FactorExtractionML {
+			return matrixInvalid(at, "bad_params", at+" params.conf_level applies to extraction \"ml\" only",
+				map[string]any{"param": "conf_level", "extraction": m.Extraction})
+		}
+		if c := *p.ConfLevel; !(c > 0 && c < 1) {
+			return matrixInvalid(at, "bad_params", at+" params.conf_level must be a number strictly between 0 and 1",
+				map[string]any{"param": "conf_level", "value": c})
+		}
+		m.ConfLevel = *p.ConfLevel
+	}
+	raw := bytes.TrimSpace(p.Factors)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil
+	}
+	bad := func(value any) *errors.CodedError {
+		return matrixInvalid(at, "bad_params", at+" params.factors must be a positive integer or \"kaiser\"",
+			map[string]any{"param": "factors", "value": value, "valid": []string{"a positive integer", FactorsKaiser}})
+	}
+	if raw[0] == '"' {
+		var str string
+		if err := json.Unmarshal(raw, &str); err != nil || str != FactorsKaiser {
+			return bad(string(raw))
+		}
+		return nil
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err != nil || f != math.Trunc(f) || f < 1 || f > math.MaxInt32 {
+		return bad(string(raw))
+	}
+	m.Factors = FactorCount{K: int(f)}
+	return nil
+}
+
+// resolveFactor refuses a MAT_FACTOR integer params.factors above the
+// member count (bad_params). A count the battery cannot identify
+// (FactorIdentified) is not refused here: the run reports it with
+// PULSE_MATRIX_NOT_IDENTIFIED and null fit figures, as for a Kaiser
+// count decided on the data.
+func resolveFactor(at string, m *Matrix) *errors.CodedError {
+	if m.Type != types.MAT_FACTOR || m.Factors.Kaiser() {
+		return nil
+	}
+	if p := len(m.Members.Members); m.Factors.K > p {
+		return matrixInvalid(at, "bad_params", at+" params.factors "+strconv.Itoa(m.Factors.K)+" exceeds the "+strconv.Itoa(p)+" members",
+			map[string]any{"param": "factors", "value": m.Factors.K, "members": p})
+	}
+	return nil
+}
+
+// decodeDistance applies MAT_DISTANCE's params.metric (default
+// "euclidean") and params.standardize (default false), and keeps
+// params.between for resolveDistance. A missing between is
+// between_required; an unknown metric bad_params.
+func decodeDistance(at string, p distanceParams, m *Matrix) *errors.CodedError {
+	raw := bytes.TrimSpace(p.Between)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return betweenRequired(at)
+	}
+	m.betweenRaw = raw
+	if p.Metric != nil {
+		if !slices.Contains(DistanceMetrics(), *p.Metric) {
+			return matrixInvalid(at, "bad_params", at+" params.metric must be one of "+strings.Join(DistanceMetrics(), ", "),
+				map[string]any{"param": "metric", "value": *p.Metric, "valid": DistanceMetrics()})
+		}
+		m.Metric = *p.Metric
+	}
+	if p.Standardize != nil {
+		m.Standardize = *p.Standardize
+	}
+	return nil
+}
+
+// betweenRequired is MAT_DISTANCE's refusal of a spec without
+// params.between.
+func betweenRequired(at string) *errors.CodedError {
+	return matrixInvalid(at, "between_required", at+" MAT_DISTANCE needs params.between, the grouper whose buckets it compares (for example {\"type\": \"GROUP_CATEGORY\", \"field\": \"region\"})",
+		map[string]any{"param": "between"})
+}
+
+// resolveDistance resolves MAT_DISTANCE's params.between against the
+// request's vectors and the schema (route: the instance's view of the
+// grouper type; ext: whether a non-built-in routed type is a registered
+// extension grouper). The grouper decodes strictly as a types.Group;
+// its type must be a built-in (DistanceBetweenTypes) or a registered
+// extension (an unknown or hidden type is unknown_between_type); it may
+// not carry its own weight (the matrix's weight applies), and only a
+// date-family between (IsDateBetween) may carry a `tz` — the zone pass
+// (internal/descriptor.ResolveZones, slot "<at>.params.between")
+// resolves and refuses it like a top-level grouper's, and writes an
+// inherited zone into it (ZonedRequest). A GROUP_KMEANS between
+// resolves its vector / fields and params by the grouper rule
+// (ResolveGroups' leaf, slot "<at>.params.between") and is rewritten
+// for the factory (members into Fields); an extension between's
+// vector / fields are judged by the member rules and rewritten the
+// same way (its params its own business); every other between, and an
+// extension one without a vector input, must name a schema field. The
+// missing mode is listwise only (pairwise_unsupported): a centroid
+// compares one row set.
+func resolveDistance(at string, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema, route func(types.GroupType) types.GroupType, ext func(string) bool, m *Matrix) *errors.CodedError {
+	if m.Type != types.MAT_DISTANCE {
+		return nil
+	}
+	raw := m.betweenRaw
+	m.betweenRaw = nil
+	if m.Pairwise {
+		return matrixInvalid(at, "pairwise_unsupported", at+" params.missing \"pairwise\" is not supported on MAT_DISTANCE: every centroid must rest on the same rows; use \"listwise\"",
+			map[string]any{"param": "missing", "value": MissingPairwise, "valid": []string{MissingListwise}})
+	}
+	bt := at + ".params.between"
+	var g types.Group
+	if err := decodeStrict(raw, &g); err != nil {
+		return matrixInvalid(at, "bad_params", bt+" does not decode as a grouper: "+err.Error(), map[string]any{"param": "between"})
+	}
+	typ := route(g.Type)
+	builtin := slices.Contains(DistanceBetweenTypes(), typ)
+	extension := isExtension(ext, string(typ), builtin)
+	switch {
+	case g.Type == "":
+		return matrixInvalid(at, "bad_params", bt+" needs a grouper type", map[string]any{"param": "between"})
+	case !builtin && !extension:
+		return matrixInvalid(at, "unknown_between_type", bt+" references unknown grouper type "+strconv.Quote(string(g.Type)),
+			map[string]any{"param": "between", "type": string(g.Type), "valid": groupTypeNames(DistanceBetweenTypes())})
+	case !g.Weight.IsZero():
+		return matrixInvalid(at, "bad_params", bt+".weight is not accepted: the between grouper reads the matrix's own weight",
+			map[string]any{"param": "between.weight"})
+	case g.TimeZone != "" && !IsDateBetween(typ):
+		return matrixInvalid(at, "bad_params", bt+".tz is accepted only on a date-family between (GROUP_DATE, GROUP_DATE_RANGES)",
+			map[string]any{"param": "between.tz"})
+	}
+	var in GroupInput
+	if extension {
+		mem, err := resolveExtensionMembers(bt, g.Vector, g.Fields, specs, resolved, schema, func(_, reason, msg string, extra map[string]any) *errors.CodedError {
+			return matrixInvalid(at, reason, msg, extra)
+		})
+		if err != nil {
+			return err
+		}
+		in = GroupInput{Slot: bt, Members: mem, Extension: true}
+	} else {
+		var err *errors.CodedError
+		if in, err = resolveGroup(bt, &g, typ, specs, resolved, schema); err != nil {
+			return err
+		}
+	}
+	cp := g
+	if in.Has() {
+		cp.Fields = append([]string(nil), in.Members.Members...)
+		cp.Vector = ""
+	}
+	if !in.Has() || (extension && g.Field != "") {
+		if g.Field == "" {
+			return matrixInvalid(at, "bad_params", bt+" ("+string(g.Type)+") needs a field", map[string]any{"param": "between.field"})
+		}
+		if schema != nil && schema.Field(g.Field) == nil {
+			return matrixInvalid(at, "unknown_field", bt+" references unknown field: "+g.Field,
+				map[string]any{"param": "between.field", "field": g.Field})
+		}
+	}
+	m.Between = &cp
+	return nil
+}
+
+// groupTypeNames stringifies group types.
+func groupTypeNames(ts []types.GroupType) []string {
+	out := make([]string, len(ts))
+	for i, t := range ts {
+		out[i] = string(t)
+	}
+	return out
 }
 
 // decodeRepair applies a decomposition operator's params.repair: absent
@@ -884,6 +1358,9 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 		if spec.Type == types.MAT_PARTIAL_CORRELATION {
 			members, ok = appendControlFields(members, ok, matrixPath(i), spec, schema)
 		}
+		if spec.Type == types.MAT_DISTANCE {
+			members, ok = appendBetweenFields(members, ok, matrixPath(i), spec, schema)
+		}
 		if spec.Vector != "" || len(spec.Fields) == 0 {
 			continue // vector members ride Members(req.Vectors)
 		}
@@ -920,6 +1397,48 @@ func appendControlFields(members []string, ok bool, at string, spec types.Matrix
 		members = append(members, c)
 	}
 	return members, ok
+}
+
+// appendBetweenFields appends the columns a MAT_DISTANCE spec's
+// params.between reads — its field, and a vector-input between's inline
+// fields (GROUP_KMEANS, or an extension grouper, which may set both; a
+// named vector's members ride Members(req.Vectors)); an undecodable
+// between, or a column the schema lacks, clears ok.
+func appendBetweenFields(members []string, ok bool, at string, spec types.MatrixSpec, schema *encoding.Schema) ([]string, bool) {
+	g, has := SpecBetween(spec)
+	if !has {
+		return members, false
+	}
+	if len(g.Fields) > 0 {
+		r, err := ResolveSpec(at+".params.between.fields", types.VectorSpec{Fields: g.Fields}, schema)
+		if err != nil {
+			return members, false
+		}
+		members = append(members, r.Members...)
+	}
+	if g.Field == "" {
+		return members, ok && (g.Vector != "" || len(g.Fields) > 0)
+	}
+	if schema == nil || schema.Field(g.Field) == nil {
+		return members, false
+	}
+	return append(members, g.Field), ok
+}
+
+// SpecBetween decodes a MAT_DISTANCE spec's params.between as written
+// (lenient: unknown keys are not judged here); false on any other type
+// or when it does not decode.
+func SpecBetween(spec types.MatrixSpec) (types.Group, bool) {
+	if spec.Type != types.MAT_DISTANCE || len(spec.Params) == 0 {
+		return types.Group{}, false
+	}
+	var p struct {
+		Between *types.Group `json:"between"`
+	}
+	if err := json.Unmarshal(spec.Params, &p); err != nil || p.Between == nil {
+		return types.Group{}, false
+	}
+	return *p.Between, true
 }
 
 func builtinMatrixType(t types.MatrixType) bool {
