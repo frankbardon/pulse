@@ -161,8 +161,8 @@ Everything the MMM worked example needed outside Pulse and this unit does not de
 | 8 | Holdout MAPE is a hand-expanded formula; no error aggregator | #287 | [U42](U42-fit-scoring.md) |
 | 9 | Coefficient interval bounds are computed outside and pasted in | #288 | [U42](U42-fit-scoring.md) |
 | 12 | Scenario slots restate the whole model (the sweep fans the slots out; applying a named fit is U42) | #286 | [U42](U42-fit-scoring.md) |
-| 10 | ROI and marginal ROI are divided by the reader | #290 | [U43](U43-post-aggregation-ratios.md) |
-| 11 | Scenario scale factors are computed by hand from channel totals | #291 | [U43](U43-post-aggregation-ratios.md) |
+| 10 | ROI and marginal ROI are divided by the reader | #290 | [U43](U43-post-aggregation-ratios.md) (done: the existing `AGG_RATIO` over attribute labels) |
+| 11 | Scenario scale factors are computed by hand from channel totals | #291 | [U43](U43-post-aggregation-ratios.md) (done: `total(expr)`) |
 | 14 | A later request names the winning axis values by hand | #297 | U40 follow-up |
 | 15 | The decay identifiability reading is an eyeball of the grid | #298 | U40 follow-up |
 | 16 | Ridge cannot leave a predictor subset unpenalised | #293 | [U36](U36-reference-oracles.md) |

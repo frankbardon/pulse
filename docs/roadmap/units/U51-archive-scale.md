@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U19]
 blocks: [U32]
-todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390]
+todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399]
 branch: archive-scale
 ---
 
@@ -110,3 +110,9 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#390** — Predict builds the aggregator capability table once instead of per call (`aggregatorComponentSchemaIndex` → `aggregatorCapabilities` → `withWeightAware`); the off-path predict allocation pin grew from 236 to 251 in U42. Found in U42 (E2-S1).
+
+## Inherited from U43
+
+Filed from [U43 handed on](U43-post-aggregation-ratios.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#399** — Merge `total()` partial sums across partitions so shard and parallel-decode runs stay parallel; today a two-pass `total()` request falls back to the sequential path there. Found in U43 (E1).

@@ -319,9 +319,14 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#396** `tool-compose.md` back under its soft budget, and it mentions `fits` and `models` (today it is over budget and names neither). Found in U42 (E1-S1) · [U38](units/U38-skill-sync.md)
 
 ### Post-aggregation ratios — added after the plan ([U43](units/U43-post-aggregation-ratios.md))
-- [ ] **#290** A ratio output across aggregators (`AGG_RATIO`, or a post-aggregation formula slot) for ROI and marginal ROI; a zero or null denominator is `null` · [U43](units/U43-post-aggregation-ratios.md)
-- [ ] **#291** Aggregate-derived scalars inside `ATTR_FORMULA` (a cohort-total reference), with the two-pass cost visible in predict streamability · [U43](units/U43-post-aggregation-ratios.md)
-- [ ] **#292** Acceptance: the example's ROI, marginal ROI and scenario scale factors come out of Pulse with no hand-computed number · [U43](units/U43-post-aggregation-ratios.md)
+- [x] **#290** A ratio output across aggregators (`AGG_RATIO`, or a post-aggregation formula slot) for ROI and marginal ROI; a zero or null denominator is `null` · [U43](units/U43-post-aggregation-ratios.md). Delivered by [U43](units/U43-post-aggregation-ratios.md) (E2-S1): no new operator; the existing `AGG_RATIO` already accepts attribute labels, now pinned by tests with an ROI recipe in its skill; no post-aggregation formula slot
+- [x] **#291** Aggregate-derived scalars inside `ATTR_FORMULA` (a cohort-total reference), with the two-pass cost visible in predict streamability · [U43](units/U43-post-aggregation-ratios.md). Delivered by [U43](units/U43-post-aggregation-ratios.md) (E1): `total(expr)`, post-filter, cohort-wide, unweighted; predict reports the extra pass as `PULSE_ADVISORY_EXTRA_PASS`
+- [x] **#292** Acceptance: the example's ROI, marginal ROI and scenario scale factors come out of Pulse with no hand-computed number · [U43](units/U43-post-aggregation-ratios.md). Delivered by [U43](units/U43-post-aggregation-ratios.md) (E2-S2): fixture `req/04`, `req/10` and `req/11` compute them natively
+
+#### Follow-ups from U43
+- [ ] **#398** A weight-aware `total()`: `ATTR_FORMULA` is not weight-aware today, so `total(expr)` is always the unweighted cohort sum. Found in U43 (E1) · [U47](units/U47-survey-tables.md)
+- [ ] **#399** Merge `total()` partial sums across partitions so shard and parallel-decode runs stay parallel; today a two-pass `total()` request falls back to the sequential path there. Found in U43 (E1) · [U51](units/U51-archive-scale.md)
+- [ ] **#400** Predict-compose does not run per-slot `Request.Overlays` validation: a slot-level `OVERLAY_FORMULA` on a non-crosstab host is refused at runtime (`PULSE_OVERLAY_KIND_UNKNOWN`) but predict-compose is silent (pre-existing predict/runtime gap). Found in U43 (E2-S2) · [U35](units/U35-predict-runtime-parity.md)
 
 ### Self-sufficiency for v1 — added after the plan, from the [showcase examples](../showcase/) (U44–U52)
 #### Strict input ([U44](units/U44-strict-input.md))
