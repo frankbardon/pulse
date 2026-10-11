@@ -32,8 +32,8 @@ import (
 //     earlier attributes' labels included.
 //   - Finalize hands the fit (fittedState) to the operator's fittedModel:
 //     N* ≤ p nulls every score with PULSE_MATRIX_INSUFFICIENT_N; the model
-//     decides singularity (PULSE_MATRIX_SINGULAR) and decomposes; a
-//     usable fit may still owe warnings (fitNoter).
+//     decides singularity (PULSE_MATRIX_SINGULAR) and decomposes; any
+//     fit, refused or usable, may still owe warnings (fitNoter).
 //   - Row scores EVERY filtered row — fit_on restricts only the fit — and
 //     a row with a null member scores NaN, written as a null
 //     (NullEmitter).
@@ -96,7 +96,7 @@ func (s fittedState) cov() [][]float64 {
 }
 
 // fitRefusal is a model's reason to null every score (or, from
-// fitNoter, a usable fit's caveat): the warning code, the sentence after
+// fitNoter, a fit's caveat): the warning code, the sentence after
 // the slot label and any code-specific details (added beside the fit's
 // own figures, never replacing them).
 type fitRefusal struct {
@@ -114,10 +114,11 @@ type fittedModel interface {
 	score(x []float64) float64
 }
 
-// fitNoter is implemented by a fittedModel whose usable fit can still
-// owe Response-level warnings (ATTR_PC_SCORE's rotation stopped at its
-// sweep cap): read after a nil fit, each becomes a fit-scoped warning
-// and the scores stand.
+// fitNoter is implemented by a fittedModel whose fit can owe
+// Response-level caveats (ATTR_PC_SCORE's rotation stopped at its sweep
+// cap, ATTR_FACTOR_SCORE's extraction at its iteration cap): read after
+// every fit, each becomes a fit-scoped warning — before the refusal's
+// own warning when the fit then refuses, beside the scores otherwise.
 type fitNoter interface {
 	fitNotes() []*fitRefusal
 }
@@ -271,14 +272,18 @@ func (a *fittedVectorAttribute) Finalize() error {
 			fmt.Sprintf("%s: the fit has N* = %.4g complete rows for %d members (needs N* > p); every score is null", a.label, st.nStar, p)))
 		return nil
 	}
-	if ref := a.model.fit(st); ref != nil {
-		a.warnings = append(a.warnings, a.refusalWarning(ref, st))
-		return nil
-	}
+	ref := a.model.fit(st)
+	// A fit's notes are owed whether or not it then refuses: a
+	// refusal reached after an extraction stopped at its cap still
+	// reports the cap, ahead of the refusal (the order they arose).
 	if n, ok := a.model.(fitNoter); ok {
 		for _, note := range n.fitNotes() {
 			a.warnings = append(a.warnings, a.refusalWarning(note, st))
 		}
+	}
+	if ref != nil {
+		a.warnings = append(a.warnings, a.refusalWarning(ref, st))
+		return nil
 	}
 	a.usable = true
 	return nil

@@ -36,7 +36,7 @@ One `f64` per record: zᵀw on members standardized by the fit; regression w = R
 
 - Fit is cohort-wide, never per group; groupers or features force buffered.
 - All null + warning: singular fit (`PULSE_MATRIX_SINGULAR`), N* ≤ p (`PULSE_MATRIX_INSUFFICIENT_N`), k not identified or `"kaiser"` keeping fewer than `factor` (`PULSE_MATRIX_NOT_IDENTIFIED`), Bartlett over a uniqueness ≤ 0 (`PULSE_MATRIX_HEYWOOD`).
-- Scored + warning: a Heywood case (regression; ML floor), an iteration cap (`PULSE_MATRIX_NOT_CONVERGED`).
+- Scored + warning: a Heywood case (regression; ML floor), an iteration cap (`PULSE_MATRIX_NOT_CONVERGED`; kept beside a refusal too).
 - Two-pass, never merged.
 
 ## See

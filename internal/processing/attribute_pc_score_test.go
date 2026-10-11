@@ -361,6 +361,51 @@ func (stubNoteModel) fitNotes() []*fitRefusal {
 	return []*fitRefusal{{code: errors.PULSE_MATRIX_NOT_CONVERGED, msg: "stopped"}}
 }
 
+// stubRefusingNoteModel is a fittedModel that notes an iteration cap
+// and then refuses (ATTR_FACTOR_SCORE's Bartlett over a uniqueness ≤ 0
+// after its extraction stopped at the cap).
+type stubRefusingNoteModel struct{}
+
+func (stubRefusingNoteModel) fit(fittedState) *fitRefusal {
+	return &fitRefusal{code: errors.PULSE_MATRIX_HEYWOOD, msg: "heywood", details: map[string]any{"heywood_members": []string{"x"}}}
+}
+func (stubRefusingNoteModel) score([]float64) float64 { return 1 }
+func (stubRefusingNoteModel) fitNotes() []*fitRefusal {
+	return []*fitRefusal{{code: errors.PULSE_MATRIX_NOT_CONVERGED, msg: "stopped", details: map[string]any{"iterations": 50}}}
+}
+
+// TestFittedAttribute_RefusalKeepsFitNotes: a refused fit still owes
+// the notes it raised before refusing — each a fit-scoped warning ahead
+// of the refusal's — while every score is null.
+func TestFittedAttribute_RefusalKeepsFitNotes(t *testing.T) {
+	schema := mahaSchema()
+	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "fs", Fields: []string{"x", "y"}}, schema, nil, stubRefusingNoteModel{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	vals, err := a.Compute(mahaRecords(schema, mahaRows, mahaGroups), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, v := range vals {
+		if !math.IsNaN(v) {
+			t.Fatalf("row %d scored %v under a refusal, want null", i, v)
+		}
+	}
+	w := a.attributeWarnings()
+	if len(w) != 2 {
+		t.Fatalf("warnings %+v, want the note then the refusal", w)
+	}
+	for i, want := range []errors.Code{errors.PULSE_MATRIX_NOT_CONVERGED, errors.PULSE_MATRIX_HEYWOOD} {
+		if w[i].Code != string(want) || w[i].Details["scope"] != "fit" || !strings.HasPrefix(w[i].Message, "fs: ") {
+			t.Fatalf("warning %d %+v, want fit-scoped %s", i, w[i], want)
+		}
+	}
+	if w[0].Details["iterations"] != 50 || w[1].Details["heywood_members"] == nil {
+		t.Fatalf("details lost: %+v / %+v", w[0].Details, w[1].Details)
+	}
+}
+
 // TestFittedAttribute_FitNotesBecomeWarnings: a usable fit's notes
 // (ATTR_PC_SCORE's unconverged rotation) become fit-scoped warnings
 // while every row is still scored.

@@ -144,10 +144,11 @@ func TestFactorScore_MatchesROracle(t *testing.T) {
 					}
 					// psych's principal axis at its 50-iteration cap owes
 					// PULSE_MATRIX_NOT_CONVERGED, a Heywood fit
-					// PULSE_MATRIX_HEYWOOD (in that order); a refusal
-					// (Bartlett over ψ ≤ 0) is the one warning.
+					// PULSE_MATRIX_HEYWOOD (in that order) — a refusal
+					// (Bartlett over ψ ≤ 0) included: it nulls the scores
+					// but keeps the cap's note.
 					var wantCodes []string
-					if !c.Converged && !nulled {
+					if !c.Converged {
 						wantCodes = append(wantCodes, string(errors.PULSE_MATRIX_NOT_CONVERGED))
 					}
 					if heywood {
