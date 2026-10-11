@@ -16,6 +16,35 @@ var matrixPurposes = map[string]descriptor.Purpose{
 	"MAT_PCA":                 purposeMatPCA,
 	"MAT_COLLINEARITY":        purposeMatCollinearity,
 	"MAT_FACTOR":              purposeMatFactor,
+	"MAT_DISTANCE":            purposeMatDistance,
+}
+
+var purposeMatDistance = descriptor.Purpose{
+	Plain:   "How far apart segments are across several numbers at once: the gap between each pair of segment centres.",
+	KnownAs: []string{"centroid distance", "distance matrix", "segment separation", "dist"},
+	Intents: []string{IntentSegment, IntentCompareGroups},
+	Questions: []string{
+		"Which customer segments are most alike on spend, visits and tenure, and which stand furthest apart?",
+		"How far apart are the regions' average profiles across the rating battery?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey: "Comparing the average rating profiles of segments or regions.",
+		descriptor.DomainOps:    "Checking whether found clusters are well apart before naming them.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you want to test whether the centres differ", Use: "TEST_MANOVA"},
+		{When: "you want how unusual each row is", Use: "ATTR_MAHALANOBIS"},
+	},
+	FollowUps: []descriptor.Alternative{
+		{When: "the segments still need finding", Use: "GROUP_KMEANS"},
+	},
+	Assumptions: []string{
+		"A centre is the segment's (weighted) average of every number; a distance compares centres, not the spread inside each segment.",
+		"Numbers in large units dominate unless standardize is on; mahalanobis also allows for how the numbers vary together.",
+		"A row missing any number, or landing in no segment, is left out and counted.",
+	},
+	Level:    descriptor.LevelAdvanced,
+	Glossary: []string{"centroid", "distance", "z-score", "covariance", "listwise-deletion"},
 }
 
 var purposeMatFactor = descriptor.Purpose{

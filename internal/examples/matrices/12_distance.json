@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "name": "centroid_distance",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "multivariate",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "GROUP_CATEGORY",
+      "MAT_DISTANCE"
+    ],
+    "description": "How far apart the regions of customers.pulse are on age and income: MAT_DISTANCE takes the centroid (mean age and income) of each GROUP_CATEGORY region bucket and returns the region x region euclidean distance matrix, zero on the diagonal. standardize z-scores both members first so income's units do not swamp age. auxiliary.centroids carries each region's centroid in original units, vectors.sizes and counts the rows behind it. Set params.metric to mahalanobis to allow for how age and income vary together, or params.between to a GROUP_KMEANS spec to compare found clusters. Streamable and mergeable (the region grouper keys rows on its own).",
+    "intents": [
+      "segment",
+      "compare_groups"
+    ]
+  },
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_DISTANCE",
+      "name": "region_distance",
+      "fields": ["age", "income"],
+      "params": {
+        "between": {"type": "GROUP_CATEGORY", "field": "region"},
+        "standardize": true
+      }
+    }
+  ]
+}

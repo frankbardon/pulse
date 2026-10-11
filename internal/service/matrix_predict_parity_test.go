@@ -57,6 +57,11 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, typ := range types.AllMatrixTypes() {
+			if typ == types.MAT_DISTANCE {
+				// Its axis is the between grouper's bucket labels, not
+				// the members: TestMatrixDistance_PredictMatchesRuntime.
+				continue
+			}
 			for _, mode := range []string{"listwise", "pairwise"} {
 				for _, members := range [][]string{{"x1", "x2", "x3"}, {"x1", "x2"}} {
 					label := fmt.Sprintf("%s/%s/%s/%d", fx.name, typ, mode, len(members))

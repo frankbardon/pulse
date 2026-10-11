@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -32,6 +33,9 @@ func TestManifestMatrixComponentSchemasComplete(t *testing.T) {
 		types.MAT_PCA:                 {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
 		types.MAT_COLLINEARITY:        {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
 		types.MAT_FACTOR:              {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
+		// The metric, the standardize flag, the bucket count and the rows
+		// the between grouper placed in no bucket.
+		types.MAT_DISTANCE: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid", "metric", "standardize", "buckets", "n_null_key"},
 		// The minres fit behind omega: optional, absent when no fit ran.
 		types.MAT_RELIABILITY: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid", "iterations", "converged"},
 	}
@@ -53,7 +57,10 @@ func TestManifestMatrixComponentSchemasComplete(t *testing.T) {
 			t.Errorf("%s mergeability = %q, want mergeable", meta.Name, meta.ComponentSchema.Mergeability)
 		}
 		for _, k := range meta.ComponentSchema.Keys {
-			floor := k.Name == "n" || k.Name == "n_null" || k.Name == "n_listwise_dropped" || k.Name == "ddof"
+			// Always present: the floor, MAT_COVARIANCE's ddof and every
+			// MAT_DISTANCE operator key.
+			floor := k.Name == "n" || k.Name == "n_null" || k.Name == "n_listwise_dropped" || k.Name == "ddof" ||
+				(meta.Name == string(types.MAT_DISTANCE) && slices.Contains([]string{"metric", "standardize", "buckets", "n_null_key"}, k.Name))
 			if k.Optional == floor {
 				t.Errorf("%s key %s optional = %v", meta.Name, k.Name, k.Optional)
 			}

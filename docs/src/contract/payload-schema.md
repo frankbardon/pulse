@@ -382,7 +382,7 @@ scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
 `type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
 `MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_FACTOR`,
-`MAT_COLLINEARITY`, `MAT_RELIABILITY`); `encoding` is `full` (default) or `upper`. Every
+`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`); `encoding` is `full` (default) or `upper`. Every
 matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
 column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
 whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
@@ -391,7 +391,10 @@ diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
 `column_keys` `PC1` … `PCk`, k possibly 0, always written `full`;
 `MAT_FACTOR`'s p × k loadings: `column_keys` `F1` … `Fk`;
 `MAT_COLLINEARITY`'s variance decomposition: a row per variable —
-`(intercept)` first unless `center` — and `column_keys` `D1` … `Dq`).
+`(intercept)` first unless `center` — and `column_keys` `D1` … `Dq`;
+`MAT_DISTANCE`'s primary is `square_symmetric` but keyed by its
+between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
+`row_keys` the buckets, `column_keys` the members).
 Undefined cells and scalars (no mass, too few rows, a determinant of a
 matrix that is not positive definite) are `null`, keys kept. What the
 schema cannot say, predict and the runtime enforce identically before
@@ -418,7 +421,11 @@ intercept) and `repair` `"nearest"`; `MAT_FACTOR` only: `factors` an
 integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default),
 `principal_axis` or `ml`, `rotation` `none` (default), `varimax`, `promax`
 or `oblimin`, `kappa` (promax only) and `gamma` (oblimin only), and
-`repair` `"nearest"`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+`repair` `"nearest"`; `MAT_DISTANCE` only: `between` (required) a grouper
+spec as in `groups` — any built-in but `GROUP_DATE` / `GROUP_DATE_RANGES`,
+no own `weight` or `tz` — `metric` `euclidean` (default), `sqeuclidean`,
+`manhattan`, `chebyshev`, `cosine` or `mahalanobis`, `standardize`
+(boolean, default `false`), listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
@@ -443,7 +450,10 @@ factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
 `converged`, `factors_retained` (`df`, `iterations`, `converged` and
 `factors_retained` are never rounded by `return.precision`), plus, under
 `extraction` `ml` only, `likelihood_chisq`, `likelihood_p`, `tli`,
-`rmsea` and `bic` (the last four null at `df` ≤ 0).
+`rmsea` and `bic` (the last four null at `df` ≤ 0); `MAT_DISTANCE` adds
+`auxiliary.centroids` (always), `centroids_standardized` (standardize)
+and `pooled_covariance` (mahalanobis), and `vectors.sizes` (each bucket's
+weight mass) / `counts` (its rows, integers), one per bucket.
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
 `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on
@@ -457,12 +467,17 @@ singular correlation is a fatal `_SINGULAR` naming `dependent_fields`;
 `_NOT_IDENTIFIED` (null fit), `_HEYWOOD` (fit kept), `_NOT_CONVERGED`,
 a `_SINGULAR` warning that nulls KMO and Bartlett (and, under `ml`, the
 whole fit) and, under `ml`, `_INSUFFICIENT_N` scope `likelihood` that
-nulls the likelihood figures). `components.matrices` carries one
+nulls the likelihood figures; `MAT_DISTANCE` `_INSUFFICIENT_N` scope
+`buckets` (a massless bucket) or `pooled` (mahalanobis with no more rows
+than buckets) and a `_SINGULAR` warning that nulls the mahalanobis
+distances). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,
 group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
 sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and
 weighted keys only when they apply; `MAT_RELIABILITY`'s `operator`
-carries the omega fit's `iterations` / `converged`). Contract:
+carries the omega fit's `iterations` / `converged`; `MAT_DISTANCE`'s
+`metric`, `standardize`, `buckets` and `n_null_key` — the rows its
+between grouper placed in no bucket). Contract:
 `.claude/reference/matrix-and-vectors.md`.
 
 ## Regression coefficient covariance

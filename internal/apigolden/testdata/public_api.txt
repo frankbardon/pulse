@@ -4108,6 +4108,7 @@ pulse/types: type LookupResult field Warnings []string "json:\"warnings,omitempt
 pulse/types: const MAT_COLLINEARITY pulse/types.MatrixType = "MAT_COLLINEARITY"
 pulse/types: const MAT_CORRELATION pulse/types.MatrixType = "MAT_CORRELATION"
 pulse/types: const MAT_COVARIANCE pulse/types.MatrixType = "MAT_COVARIANCE"
+pulse/types: const MAT_DISTANCE pulse/types.MatrixType = "MAT_DISTANCE"
 pulse/types: const MAT_FACTOR pulse/types.MatrixType = "MAT_FACTOR"
 pulse/types: const MAT_PARTIAL_CORRELATION pulse/types.MatrixType = "MAT_PARTIAL_CORRELATION"
 pulse/types: const MAT_PCA pulse/types.MatrixType = "MAT_PCA"
@@ -4725,4 +4726,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 46e05af9ccb6a61a758c639b73802bc20ffc6fd580a012f02958aadcd547e715
+// golden-hash: 3994e5d1b578aa02e603cf30cd8a6f0ab8dd875a14bd8f07993278aea634cf9a

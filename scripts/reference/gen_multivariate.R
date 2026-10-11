@@ -842,3 +842,9 @@ source(file.path(script_dir, "gen_fitted_attributes.R"), local = FALSE)
 # stats::kmeans from fixed starts on separable seeded blobs, and the
 # best-of-starts within-SS on attitude). Base R only.
 source(file.path(script_dir, "gen_kmeans.R"), local = FALSE)
+
+# The centroid-distance golden (mv_distance.json: MAT_DISTANCE's
+# centroids and every metric against stats::dist / stats::mahalanobis,
+# unweighted and both weight kinds, plus gen_kmeans.R's blobs3
+# partition). Base R only.
+source(file.path(script_dir, "gen_distance.R"), local = FALSE)

@@ -28,6 +28,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); no p-values; `params.summary.top_pairs: k` lists the k strongest pairs.
 - `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"` (a repair stopped at its iteration cap also warns `PULSE_MATRIX_NOT_CONVERGED`).
 - `MAT_COLLINEARITY` — VIF, tolerance, Belsley condition indices + variance decomposition; `params.center`.
+- `MAT_DISTANCE` — bucket × bucket centroid distances (square, keyed by bucket label), centroids (rectangular k × p), sizes; `params.between`, `metric`, `standardize`.
 - `MAT_FACTOR` — factor loadings (rectangular p × k), communalities, uniquenesses, rmsr (`ml`: likelihood chi-square, TLI, RMSEA, BIC); `params.factors`, `extraction`, `rotation`.
 - `MAT_PCA` — loadings (rectangular p × k), eigenvalues, KMO, Bartlett; `params.components` k / `kaiser` / `{variance}`.
 - `MAT_RELIABILITY` — alpha, omega, item diagnostics; `params.reverse` + `scale_min` / `scale_max` flip reverse-keyed items.

@@ -2956,7 +2956,12 @@ const (
 	// for Bartlett's test, whose chi-square and p are null; on MAT_FACTOR's
 	// maximum-likelihood extraction scope "likelihood" (same details):
 	// N* ≤ 1 + (2p + 5)/6 + 2k/3, so the likelihood chi-square, its p,
-	// TLI, RMSEA and BIC are null.
+	// TLI, RMSEA and BIC are null; on MAT_DISTANCE scope "buckets"
+	// (details "buckets"): those buckets carry no weighted complete row,
+	// so their centroids and distances are null, and scope "pooled"
+	// (details "n_star", "buckets"): mahalanobis has no more rows than
+	// buckets, so the pooled within-bucket covariance and every distance
+	// are null.
 	PULSE_MATRIX_INSUFFICIENT_N Code = "PULSE_MATRIX_INSUFFICIENT_N"
 
 	// PULSE_MATRIX_ZERO_VARIANCE is a per-matrix WARNING: one or more

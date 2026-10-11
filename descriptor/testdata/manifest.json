@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:a7046db02f3d950ecb1b3da924b1b631468acfb99b7ba4317ec62fc0d0403e81",
+    "feature_set_digest": "fs1:d31ab9216060ab72684ff4923349294e72df14aec840979c3c110b7a6ba989c6",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -7239,6 +7239,158 @@
         ]
       },
       {
+        "name": "MAT_DISTANCE",
+        "description": "Distances between the centroids of the buckets a grouper cuts the rows into (params.between: any built-in grouper but GROUP_DATE / GROUP_DATE_RANGES, GROUP_KMEANS included). A centroid is the bucket's (weighted) mean of every member. The primary is the k x k distance matrix (square, keyed by the bucket labels in the grouper's emission order, zero diagonal) under params.metric; auxiliary.centroids the k x p centroids (rows the buckets, columns the members), auxiliary.centroids_standardized under standardize and auxiliary.pooled_covariance under mahalanobis; vectors.sizes each bucket's weight mass and vectors.counts its rows. Rows the grouper puts in no bucket (a null key, an include rejection) are excluded and counted (components operator.n_null_key); a row with a null member is dropped (listwise only). Streamable and mergeable when the between grouper is (one co-moment per bucket); GROUP_KMEANS and GROUP_QUANTILE buffer the rows and run serially. Weighted under frequency and probability weights (a GROUP_KMEANS between: frequency only). No p-values.",
+        "accepts_types": [
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "params": [
+          {
+            "name": "between",
+            "type": "object",
+            "required": true,
+            "description": "The grouper whose buckets are compared: a grouper spec {type, field | vector | fields, params, include, interval} as in groups (GROUP_KMEANS reads vector / fields). Any built-in grouper but the date family; it takes the matrix's weight and no weight or tz of its own."
+          },
+          {
+            "name": "metric",
+            "type": "enum",
+            "required": false,
+            "default": "euclidean",
+            "description": "euclidean (stats::dist), sqeuclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, null for a zero-length one) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing). The list is local to MAT_DISTANCE.",
+            "enum_values": [
+              "euclidean",
+              "sqeuclidean",
+              "manhattan",
+              "chebyshev",
+              "cosine",
+              "mahalanobis"
+            ]
+          },
+          {
+            "name": "standardize",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "z-score every member over the bucketed rows (their mean and N* - 1 standard deviation, R scale()) before comparing, so no member dominates by its units."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "listwise only: a row with any member null joins no centroid (pairwise is refused).",
+            "enum_values": [
+              "listwise"
+            ]
+          },
+          {
+            "name": "max_drop_share",
+            "type": "float",
+            "required": false,
+            "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          }
+        ],
+        "output_keys": {
+          "primary": "distance",
+          "auxiliary": [
+            "centroids",
+            "centroids_standardized",
+            "pooled_covariance"
+          ],
+          "vectors": [
+            "counts",
+            "sizes"
+          ]
+        },
+        "streamable": true,
+        "mergeable": true,
+        "component_schema": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "metric",
+              "type": "string",
+              "description": "The metric the distances use (params.metric)."
+            },
+            {
+              "name": "standardize",
+              "type": "bool",
+              "description": "Whether the members were z-scored first (params.standardize)."
+            },
+            {
+              "name": "buckets",
+              "type": "int",
+              "description": "Buckets compared (k)."
+            },
+            {
+              "name": "n_null_key",
+              "type": "int",
+              "description": "Filter-passing rows the between grouper placed in no bucket (a null key, an include rejection, a GROUP_KMEANS row with a null member); excluded from every figure."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "intents": [
+          "compare_groups",
+          "segment"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "name": "MAT_FACTOR",
         "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\"), iterated principal axes (principal_axis; fm = \"pa\") or maximum likelihood (ml; stats::factanal, fm = \"ml\"), each from the squared multiple correlations, then rotated (params.rotation none, varimax, promax or oblimin). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (promax and oblimin only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors; ml adds the Bartlett-corrected likelihood chi-square (likelihood_chisq, on df) and its p (likelihood_p), the Tucker-Lewis index (tli), the RMSEA point estimate (rmsea) and BIC. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 (ml: held at its 0.005 floor) is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
         "accepts_types": [
@@ -10304,6 +10456,10 @@
         "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped)."
       },
       {
+        "name": "op-mat-distance",
+        "description": "Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between, any non-date built-in) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids."
+      },
+      {
         "name": "op-mat-factor",
         "description": "Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA and BIC; listwise or pairwise, weighted."
       },
@@ -11100,7 +11256,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 203,
+    "examples_count": 204,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -11537,7 +11693,8 @@
         "Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
         "A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
         "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
-        "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
+        "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding; MAT_DISTANCE's centroids are the one k x p matrix with the bucket labels as rows and the members as columns.",
+        "MAT_DISTANCE's primary is square but keyed by the between grouper's bucket labels, not the members.",
         "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT."
       ]
     },
@@ -14576,6 +14733,76 @@
           ],
           "mergeability": "mergeable"
         },
+        "MAT_DISTANCE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Rows the co-moment counted: listwise the complete rows, pairwise the rows with any member present; weight-0 rows count."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Rows skipped for missing members: listwise any member null, pairwise every member null."
+            },
+            {
+              "name": "n_listwise_dropped",
+              "type": "int",
+              "description": "Rows listwise deletion dropped; 0 under pairwise."
+            },
+            {
+              "name": "min_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the smallest pair N (the minimum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "max_pair_n",
+              "type": "int",
+              "description": "Pairwise only: the largest pair N (the maximum of auxiliary.n).",
+              "optional": true
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "metric",
+              "type": "string",
+              "description": "The metric the distances use (params.metric)."
+            },
+            {
+              "name": "standardize",
+              "type": "bool",
+              "description": "Whether the members were z-scored first (params.standardize)."
+            },
+            {
+              "name": "buckets",
+              "type": "int",
+              "description": "Buckets compared (k)."
+            },
+            {
+              "name": "n_null_key",
+              "type": "int",
+              "description": "Filter-passing rows the between grouper placed in no bucket (a null key, an include rejection, a GROUP_KMEANS row with a null member); excluded from every figure."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "MAT_FACTOR": {
           "keys": [
             {
@@ -14990,4 +15217,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 26a1563ac811992a76e15c89d69427b1c0abf44ad1c4bfca679450ad9b436e0d
+// golden-hash: 180bfcfb6bea49fc9a821cc49015bdba4d895223de3caefead1d583995acf665

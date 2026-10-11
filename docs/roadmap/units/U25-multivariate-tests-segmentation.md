@@ -47,9 +47,11 @@ branch: multivariate-tests-segmentation
 - Three tests
 - Two fitted attributes
 - k-means grouper
+- Centroid distance matrix between a grouper's buckets (`MAT_DISTANCE`, E4-S2; local metric list)
 
 **Out of scope**
-- Factor analysis, distance matrices (stretch)
+- Factor analysis (stretch)
+- Row-to-row (n × n) distance matrices and the shared metric registry (U27)
 
 ## Epics & stories
 

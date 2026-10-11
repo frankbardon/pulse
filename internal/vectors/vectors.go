@@ -202,6 +202,9 @@ func Referenced(req *types.Request) map[string]bool {
 		if m.Vector != "" {
 			refs[m.Vector] = true
 		}
+		if g, ok := SpecBetween(m); ok && g.Vector != "" {
+			refs[g.Vector] = true
+		}
 	}
 	for _, t := range req.Tests {
 		if t == nil {

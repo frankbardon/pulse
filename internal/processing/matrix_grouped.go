@@ -152,6 +152,16 @@ func mergeSlotSets(dst, src []*matrixSlot) error {
 				"matrix merge: a buffered matrix slot is not mergeable",
 				map[string]any{"matrix": s.plan.Name, "type": string(s.plan.Type)})
 		}
+		if s.dist != nil || src[i].dist != nil {
+			if s.dist == nil {
+				return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+					"matrix merge: partitions differ in MAT_DISTANCE state",
+					map[string]any{"matrix": s.plan.Name})
+			}
+			if err := s.dist.merge(s.plan.Name, src[i].dist); err != nil {
+				return err
+			}
+		}
 		if err := MergeBlockMerger(s, src[i]); err != nil {
 			return err
 		}

@@ -91,6 +91,9 @@ type weightSlot struct {
 	// params.method that set it, echoed in the refusal.
 	specClass  weighting.Class
 	specMethod string
+	// specBetween names a MAT_DISTANCE params.between grouper that set
+	// specClass (GROUP_KMEANS: frequency-only), echoed in the refusal.
+	specBetween string
 	// reason is a slot-level PERMANENT refusal of a built-in operator
 	// that is otherwise classed by the table: every post-test (it reads
 	// aggregated rows) and a regression carrying a resample or
@@ -229,6 +232,10 @@ func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, ma
 	if s.specMethod != "" {
 		op += " (params.method " + strconv.Quote(s.specMethod) + ")"
 		details["method"] = s.specMethod
+	}
+	if s.specBetween != "" {
+		op += " (params.between " + s.specBetween + ")"
+		details["between"] = s.specBetween
 	}
 	return fmt.Sprintf("%s: %s has a weighted form only under weight kind %q, and the weight in force is kind %q", s.slot, op, types.WeightKindFrequency, kind), details
 }
@@ -454,6 +461,14 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		if c := weighting.MatrixClassOf(m.Type, vectors.IsRankMethod(vectors.SpecMethod(m))); c != weighting.ClassOf(string(m.Type)) {
 			s := &slots[len(slots)-1]
 			s.specClass, s.specMethod = c, vectors.SpecMethod(m)
+		}
+		// A GROUP_KMEANS between is frequency-only
+		// (weighting.DistanceClassOf).
+		if g, ok := vectors.SpecBetween(m); ok {
+			if c := weighting.DistanceClassOf(opRoute(inst, g.Type)); c != weighting.ClassOf(string(m.Type)) {
+				s := &slots[len(slots)-1]
+				s.specClass, s.specBetween = c, string(g.Type)
+			}
 		}
 	}
 	return slots

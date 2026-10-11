@@ -108,6 +108,23 @@ const (
 	// guard, params.repair "nearest"). Weighted under frequency and
 	// probability weights.
 	MAT_FACTOR MatrixType = "MAT_FACTOR"
+	// MAT_DISTANCE is the k × k distance matrix between the centroids of
+	// the buckets a grouper (params.between: any built-in grouper but
+	// the date family, GROUP_KMEANS included) cuts the rows into. A
+	// centroid is the bucket's (weighted) mean of every member; the
+	// primary is square symmetric, keyed by the bucket labels in the
+	// grouper's emission order, with a zero diagonal. params.metric
+	// "euclidean" (the default), "sqeuclidean", "manhattan",
+	// "chebyshev", "cosine" or "mahalanobis" (the pooled within-bucket
+	// covariance); params.standardize z-scores the members over the
+	// bucketed rows first. Rows the grouper puts in no bucket (a null
+	// key) are excluded and counted. vectors.sizes carries each
+	// bucket's mass, auxiliary.centroids the k × p centroids. Listwise
+	// only. Streamable and mergeable when the grouper is (one co-moment
+	// per bucket); otherwise buffered and serial. Weighted under
+	// frequency and probability weights (a GROUP_KMEANS between under
+	// frequency weights only).
+	MAT_DISTANCE MatrixType = "MAT_DISTANCE"
 )
 
 // AllMatrixTypes returns every built-in matrix operator in alphabetical
@@ -117,6 +134,7 @@ func AllMatrixTypes() []MatrixType {
 		MAT_COLLINEARITY,
 		MAT_CORRELATION,
 		MAT_COVARIANCE,
+		MAT_DISTANCE,
 		MAT_FACTOR,
 		MAT_PARTIAL_CORRELATION,
 		MAT_PCA,
@@ -132,7 +150,7 @@ func AllMatrixTypes() []MatrixType {
 // MatrixSpec.Streamable, which its params may turn off.
 func (t MatrixType) Streamable() bool {
 	switch t {
-	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_DISTANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -147,7 +165,7 @@ func (t MatrixType) Streamable() bool {
 // Streamable: the merge gate reads MatrixSpec.Mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
-	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_DISTANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
 		return true
 	}
 	return false
@@ -177,17 +195,20 @@ type MatrixKind string
 const (
 	// MatrixKindSquareSymmetric is a p × p matrix whose rows and
 	// columns are the same members in the same order, with
-	// Values[r][c] == Values[c][r]. MAT_FACTOR's
-	// auxiliary.factor_correlation is the one square matrix keyed by
-	// something else: its rows and columns are the factors "F1" … "Fk",
-	// and it is always written full.
+	// Values[r][c] == Values[c][r]. Two square matrices are keyed by
+	// something else: MAT_FACTOR's auxiliary.factor_correlation (the
+	// factors "F1" … "Fk", always written full) and MAT_DISTANCE's
+	// primary (the between grouper's bucket labels, in the spec's
+	// encoding).
 	MatrixKindSquareSymmetric MatrixKind = "square_symmetric"
 	// MatrixKindRectangular is a p × k matrix whose rows are the
 	// members (RowKeys) and whose columns are something else
 	// (ColumnKeys: MAT_PCA's components "PC1" … "PCk"; MAT_FACTOR's
 	// factors "F1" … "Fk"; MAT_COLLINEARITY's dimensions "D1" … "Dk", whose uncentered
 	// variance decomposition also leads its rows with the intercept,
-	// RowKeys "(intercept)" then the members). It is always
+	// RowKeys "(intercept)" then the members) — or, on MAT_DISTANCE's
+	// auxiliary.centroids, a k × p matrix whose rows are the bucket
+	// labels and whose columns are the members. It is always
 	// written full — Values[r] has k entries — whatever the spec's
 	// Encoding asks (upper applies to a symmetric matrix only), and k
 	// may be 0 (Values rows empty).
@@ -232,7 +253,9 @@ type MatrixSpec struct {
 	// MAT_FACTOR: "factors": k | "kaiser", "extraction": "minres" |
 	// "principal_axis" | "ml", "rotation": "none" | "varimax" | "promax" |
 	// "oblimin", "kappa" (promax), "gamma" (oblimin), "repair":
-	// "nearest").
+	// "nearest"; MAT_DISTANCE: "between": a grouper spec, "metric":
+	// "euclidean" | "sqeuclidean" | "manhattan" | "chebyshev" | "cosine" |
+	// "mahalanobis", "standardize": bool).
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot
@@ -252,7 +275,12 @@ type MatrixSpec struct {
 // streaming gate, predict and the engine's slot builder read, so they
 // cannot disagree. Malformed params read as the type's own answer; the
 // field-reference pass refuses them before any run.
-func (s MatrixSpec) Streamable() bool { return s.Type.Streamable() && !s.bufferedParams() }
+func (s MatrixSpec) Streamable() bool {
+	if g, ok := s.betweenType(); ok {
+		return s.Type.Streamable() && g.Streamable()
+	}
+	return s.Type.Streamable() && !s.bufferedParams()
+}
 
 // Mergeable reports whether this concrete spec's running state combines
 // across input partitions, so a request carrying it may fan out over
@@ -260,7 +288,34 @@ func (s MatrixSpec) Streamable() bool { return s.Type.Streamable() && !s.buffere
 // answer (MatrixType.Mergeable) with the spec's params: a buffered spec
 // keeps its rows, which do not merge, so it is never mergeable and the
 // request runs serially (internal/mergegate.MergeRefusal).
-func (s MatrixSpec) Mergeable() bool { return s.Type.Mergeable() && !s.bufferedParams() }
+func (s MatrixSpec) Mergeable() bool {
+	if g, ok := s.betweenType(); ok {
+		return s.Type.Mergeable() && g.Streamable() && g.Mergeable()
+	}
+	return s.Type.Mergeable() && !s.bufferedParams()
+}
+
+// betweenType is a MAT_DISTANCE spec's params.between grouper type, ok
+// false on any other type or when the params do not name one. The
+// spec streams with one co-moment per bucket when the grouper keys a
+// row on its own (GroupType.Streamable) and merges when its keys also
+// merge (GroupType.Mergeable); otherwise it keeps its rows for the
+// grouper's whole-set pass (GROUP_KMEANS, GROUP_QUANTILE) and runs
+// serially. Malformed params read as the type's own answer.
+func (s MatrixSpec) betweenType() (GroupType, bool) {
+	if s.Type != MAT_DISTANCE || len(s.Params) == 0 {
+		return "", false
+	}
+	var p struct {
+		Between *struct {
+			Type GroupType `json:"type"`
+		} `json:"between"`
+	}
+	if err := json.Unmarshal(s.Params, &p); err != nil || p.Between == nil || p.Between.Type == "" {
+		return "", false
+	}
+	return p.Between.Type, true
+}
 
 // bufferedParams reports whether the spec's params select a computation
 // that needs the whole row set (a rank method). Only params.method on

@@ -165,6 +165,50 @@
         ]
       },
       {
+        "operator": "MAT_DISTANCE",
+        "category": "matrix",
+        "level": "advanced",
+        "why": "How far apart segments are across several numbers at once: the gap between each pair of segment centres. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "params": {
+                "between": "\u003cbetween\u003e"
+              },
+              "type": "MAT_DISTANCE"
+            }
+          ]
+        },
+        "placeholders": [
+          "between",
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want to test whether the centres differ",
+            "use": "TEST_MANOVA"
+          },
+          {
+            "when": "you want how unusual each row is",
+            "use": "ATTR_MAHALANOBIS"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the segments still need finding",
+            "use": "GROUP_KMEANS"
+          }
+        ]
+      },
+      {
         "operator": "GROUP_KMEANS",
         "category": "grouper",
         "level": "advanced",
@@ -208,9 +252,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 5
+    "candidates_considered": 6
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8d2aae2f2d2c47f0d8cf701a81241f6262f972fec4c7c744146a2d7847d6beda
+// golden-hash: 695276f713530efa422050db1f6435dec1ce0bfdf8fbbec0e6788d8763a3339d

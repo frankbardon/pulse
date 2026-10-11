@@ -233,3 +233,19 @@ func TestMatrixClassOf(t *testing.T) {
 		t.Errorf("MAT_COVARIANCE class = %v, want ClassAware (no rank method)", got)
 	}
 }
+
+// TestDistanceClassOf: MAT_DISTANCE is ClassAware, and a GROUP_KMEANS
+// between (w coincident points) makes the spec frequency-only.
+func TestDistanceClassOf(t *testing.T) {
+	if got := ClassOf(string(types.MAT_DISTANCE)); got != ClassAware {
+		t.Errorf("MAT_DISTANCE class = %v, want ClassAware", got)
+	}
+	if got := DistanceClassOf(types.GROUP_KMEANS); got != ClassFrequencyOnly {
+		t.Errorf("k-means between = %v, want ClassFrequencyOnly", got)
+	}
+	for _, g := range []types.GroupType{types.GROUP_CATEGORY, types.GROUP_QUANTILE, types.GROUP_RANGE} {
+		if got := DistanceClassOf(g); got != ClassAware {
+			t.Errorf("%s between = %v, want ClassAware", g, got)
+		}
+	}
+}

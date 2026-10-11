@@ -728,6 +728,19 @@ Only the floor keys.
 |---|---|---|---|
 | `ddof` | int | always | The delta degrees of freedom the covariance used (params.ddof, default 1). |
 
+<a id="op-mat_distance"></a>
+
+#### `MAT_DISTANCE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_distance).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `metric` | string | always | The metric the distances use (params.metric). |
+| `standardize` | bool | always | Whether the members were z-scored first (params.standardize). |
+| `buckets` | int | always | Buckets compared (k). |
+| `n_null_key` | int | always | Filter-passing rows the between grouper placed in no bucket (a null key, an include rejection, a GROUP_KMEANS row with a null member); excluded from every figure. |
+
 <a id="op-mat_factor"></a>
 
 #### `MAT_FACTOR`

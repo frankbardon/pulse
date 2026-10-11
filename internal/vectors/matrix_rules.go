@@ -88,6 +88,20 @@ func (m Matrix) AccumulatorBytes() int64 {
 	return coMomentHeaderBytes + 8*(p+cells)
 }
 
+// StateCount is the co-moment states the matrix holds per merge block:
+// 1, or on MAT_DISTANCE its base state plus one per between bucket
+// when the bucket count is known from the schema (EstimateBuckets over
+// params.between; 1 otherwise, the per-bucket states then uncounted).
+func (m Matrix) StateCount(schema *encoding.Schema) int64 {
+	if m.Type != types.MAT_DISTANCE || m.Between == nil {
+		return 1
+	}
+	if k, _, known := EstimateBuckets([]*types.Group{m.Between}, schema); known {
+		return 1 + k
+	}
+	return 1
+}
+
 // RowBytes is the bytes a BUFFERED matrix (not Streamable — a rank
 // method) keeps per admitted row until finalize: the p member values
 // and the row weight, 8·(p + 1). 0 on a streamable matrix, which keeps

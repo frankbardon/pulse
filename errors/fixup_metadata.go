@@ -3664,7 +3664,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_INSUFFICIENT_N: {
-		Message: "A matrix or, under pairwise deletion, one or more pairs rest on fewer than 2 rows or on no weight mass, so their cells are undefined (null) or degenerate. Details: `scope` `matrix` with `n` and `sum_weights`, or `scope` `pairs` with `pairs` [{row, col, n}]. Scope `bartlett` (a PCA or factor analysis) and `likelihood` (a maximum-likelihood factor analysis, which needs N* above 1 + (2p + 5)/6 + 2k/3) carry `n_star` and `min_n_star`: the inference size is too small for that test, whose figures are null.",
+		Message: "A matrix or, under pairwise deletion, one or more pairs rest on fewer than 2 rows or on no weight mass, so their cells are undefined (null) or degenerate. Details: `scope` `matrix` with `n` and `sum_weights`, or `scope` `pairs` with `pairs` [{row, col, n}]. Scope `bartlett` (a PCA or factor analysis) and `likelihood` (a maximum-likelihood factor analysis, which needs N* above 1 + (2p + 5)/6 + 2k/3) carry `n_star` and `min_n_star`: the inference size is too small for that test, whose figures are null. A centroid-distance matrix adds scope `buckets` (`buckets`: buckets with no weighted complete row, whose centroids and distances are null) and scope `pooled` (`n_star`, `buckets`: a mahalanobis distance with no more rows than buckets, so every distance is null).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,

@@ -239,6 +239,25 @@ var matrixClasses = map[types.MatrixType]Class{
 	// kinds agree); Bartlett's test and the empirical chi-square read
 	// N* = Σw (frequency) or Kish n_eff (probability), as MAT_PCA.
 	types.MAT_FACTOR: ClassAware,
+	// MAT_DISTANCE compares weighted centroids (weighted means, kind
+	// free); standardize divides by the w* spread and mahalanobis reads
+	// the w*-pooled within-bucket covariance (N* = Σw frequency, Kish
+	// n_eff probability), the one weighted-inference rule. A
+	// GROUP_KMEANS between makes the spec frequency-only
+	// (DistanceClassOf).
+	types.MAT_DISTANCE: ClassAware,
+}
+
+// DistanceClassOf is a MAT_DISTANCE spec's weight class given its
+// params.between grouper type: GROUP_KMEANS reads the weight as w
+// coincident points (frequency only, as the grouper itself), so the
+// spec is ClassFrequencyOnly; any other between leaves MAT_DISTANCE's
+// own class.
+func DistanceClassOf(between types.GroupType) Class {
+	if between == types.GROUP_KMEANS {
+		return ClassFrequencyOnly
+	}
+	return ClassOf(string(types.MAT_DISTANCE))
 }
 
 // MatrixClassOf is a matrix spec's weight class: its type's

@@ -91,9 +91,7 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		}
 	}
 	if len(req.Matrices) > 0 {
-		plans, err := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
-			return isBuiltinMatrixType(opRoute(inst, t))
-		})
+		plans, err := resolveMatricesFor(req, schema, inst)
 		if err == nil {
 			for _, m := range plans {
 				if f, ok := limits.Evaluate(l, limits.MaxMatrixDim, int64(len(m.Columns())), limits.Certain); ok {
@@ -297,9 +295,7 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	if len(req.Matrices) == 0 {
 		return 0
 	}
-	plans, err := vectors.ResolveMatrices(req, schema, func(t types.MatrixType) bool {
-		return isBuiltinMatrixType(opRoute(inst, t))
-	})
+	plans, err := resolveMatricesFor(req, schema, inst)
 	if err != nil {
 		return 0
 	}
@@ -308,10 +304,11 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	var total int64
 	for _, m := range plans {
 		var b int64
+		acc := m.AccumulatorBytes() * m.StateCount(schema)
 		if known {
-			b = limits.MatrixStateBytes(blocks, buckets, m.AccumulatorBytes())
+			b = limits.MatrixStateBytes(blocks, buckets, acc)
 		} else {
-			b = limits.MatrixStateBytes(in.Records, 1, m.AccumulatorBytes())
+			b = limits.MatrixStateBytes(in.Records, 1, acc)
 		}
 		total = addSaturating(total, b)
 		// A buffered spec (a rank method) also keeps its admitted rows.

@@ -49,6 +49,9 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: GROUP_KMEANS -->
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
 <!-- /feature -->
+<!-- feature: MAT_DISTANCE -->
+| How far apart are the segments' centres across the fields? | `MAT_DISTANCE` (`params.between` a grouper) |
+<!-- /feature -->
 
 <!-- feature: REG_OLS -->
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression (`regression-inference`).
@@ -91,6 +94,9 @@ Per-test correction on other operators: `multiplicity-correction`.
 <!-- /feature -->
 <!-- feature: MAT_FACTOR -->
 - `op-mat-factor`
+<!-- /feature -->
+<!-- feature: MAT_DISTANCE -->
+- `op-mat-distance`
 <!-- /feature -->
 <!-- feature: MAT_RELIABILITY -->
 - `op-mat-reliability`

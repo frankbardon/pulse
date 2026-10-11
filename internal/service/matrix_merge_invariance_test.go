@@ -47,6 +47,9 @@ var matrixInvarianceVariants = func() []matrixInvarianceVariant {
 	var out []matrixInvarianceVariant
 	for _, typ := range types.AllMatrixTypes() {
 		for _, pairwise := range []bool{false, true} {
+			if pairwise && typ == types.MAT_DISTANCE {
+				continue // listwise only
+			}
 			for _, v := range []matrixInvarianceVariant{{false, false, "", false}, {true, false, "", false}, {false, true, "", false}, {true, true, "", false}} {
 				v.typ = typ
 				v.pairwise = pairwise
@@ -129,6 +132,18 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 		if v.pairwise {
 			spec.Params = json.RawMessage(`{"missing": "pairwise", "factors": 1, "repair": "nearest", "extraction": "principal_axis"}`)
 		}
+	}
+	// MAT_DISTANCE compares the x1 / x2 centroids of four GROUP_RANGE
+	// buckets of x3 (a mergeable between), standardized; weighted, it
+	// runs mahalanobis over the pooled within-bucket covariance.
+	if v.matrixType() == types.MAT_DISTANCE {
+		spec.Fields = []string{"x1", "x2"}
+		metric := "euclidean"
+		if v.weighted {
+			metric = "mahalanobis"
+		}
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "standardize": true, "metric": "` + metric +
+			`", "between": {"type": "GROUP_RANGE", "field": "x3", "interval": 250000}}`)
 	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
@@ -297,6 +312,23 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 				out.relBits = append(out.relBits, math.Float64bits(x))
 			}
 		}
+	} else if req.Matrices[0].Type == types.MAT_DISTANCE {
+		sizes, ok := m.Vectors["sizes"].([]float64)
+		if !ok || len(sizes) != 4 || len(m.Primary.RowKeys) != 4 {
+			t.Fatalf("Process(decode=%d, shard=%d): MAT_DISTANCE buckets %v sizes %#v, want 4", decodeWorkers, shardWorkers, m.Primary.RowKeys, m.Vectors["sizes"])
+		}
+		for _, x := range sizes {
+			out.relBits = append(out.relBits, math.Float64bits(x))
+		}
+		for _, k := range []string{"centroids", "centroids_standardized", "pooled_covariance"} {
+			if a := m.Auxiliary[k]; a != nil {
+				for _, row := range a.Values {
+					for _, x := range row {
+						out.relBits = append(out.relBits, math.Float64bits(x))
+					}
+				}
+			}
+		}
 	} else if m.Vectors != nil {
 		t.Fatalf("%s emitted vectors %v", req.Matrices[0].Type, m.Vectors)
 	}
@@ -380,6 +412,8 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 		cov = c.Corr()
 	case types.MAT_PCA, types.MAT_FACTOR:
 		return nil // the loadings are an eigensolver's output: no FMA-free anchor
+	case types.MAT_DISTANCE:
+		return nil // bucket distances: anchored by the R oracle (internal/processing)
 	case types.MAT_COLLINEARITY:
 		if v.pairwise {
 			return nil // the repaired matrix has no independent anchor here

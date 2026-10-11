@@ -2,10 +2,11 @@
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a result in which every member is compared with
-every member. Seven operators ship: `MAT_COVARIANCE`,
+every member. Eight operators ship: `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
 `params.method`), `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY`,
-`MAT_PCA`, `MAT_FACTOR` and `MAT_COLLINEARITY`. All are additive: a request without
+`MAT_PCA`, `MAT_FACTOR`, `MAT_COLLINEARITY` and `MAT_DISTANCE` (which
+compares bucket centroids instead of members). All are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -178,6 +179,42 @@ loadings. Eigenvalues, the explained and cumulative shares, the
 communalities (unchanged by an orthogonal rotation), the eigenvectors,
 KMO and Bartlett are never rotated. A single kept component is left as
 is. Without the knob the output is byte-identical to before.
+
+## Centroid distances
+
+`MAT_DISTANCE` answers "how far apart are the segments?": a grouper in
+`params.between` cuts the rows into buckets — `GROUP_CATEGORY`,
+`GROUP_KMEANS` or any other built-in but the date family — each bucket's
+centroid is its (weighted) mean of every member, and the `primary` is the
+k × k distance matrix between centroids, keyed by the bucket labels in the
+grouper's own order (`cluster_1` … by size for k-means), zero on the
+diagonal.
+
+```json
+{"type": "MAT_DISTANCE", "fields": ["age", "income"],
+ "params": {"between": {"type": "GROUP_CATEGORY", "field": "region"},
+            "metric": "euclidean", "standardize": true}}
+```
+
+`params.metric` is `euclidean` (default, `stats::dist`), `sqeuclidean`,
+`manhattan`, `chebyshev`, `cosine` (1 − cos, null against a zero-length
+centroid) or `mahalanobis` — over the pooled within-bucket covariance,
+which allows for how the members vary together (it reads the raw
+centroids; it is scale-free, so `standardize` changes nothing).
+`params.standardize` z-scores every member over the bucketed rows first
+(their mean and N* − 1 spread, R `scale()`). The metric list is local to
+`MAT_DISTANCE`; the shared vector-metric registry will absorb it later.
+`auxiliary.centroids` holds the k × p centroids (rows the buckets),
+`centroids_standardized` and `pooled_covariance` ride their options, and
+`vectors.sizes` / `counts` give each bucket's weight mass and rows. Rows
+the grouper places in no bucket (a null key, an include rejection, a
+k-means row with a null member) are excluded and counted in
+`components.matrices[].operator.n_null_key`; missing data is listwise
+only. With a streaming grouper the matrix streams and merges (one
+co-moment per bucket); `GROUP_KMEANS` and `GROUP_QUANTILE` keep the rows
+for their whole-set pass and run serially. Weighted centroids under
+frequency and probability weights; a k-means `between` takes frequency
+weights only.
 
 ## Factor analysis
 

@@ -114,6 +114,53 @@ type Matrix struct {
 	// with an intercept column; true on the scaled, centered ones (the
 	// predictors' correlation, no intercept).
 	Center bool
+	// Between is MAT_DISTANCE's resolved params.between grouper: a copy
+	// ready for the grouper factory — a GROUP_KMEANS slot's members
+	// moved into Fields (a named vector resolved), Vector cleared. Nil
+	// on every other type. The engine sets its Weight from the slot's
+	// stamped weight (GROUP_KMEANS only: the other groupers' keys do not
+	// read a weight).
+	Between *types.Group
+	// Metric is MAT_DISTANCE's params.metric (DistanceEuclidean by
+	// default); "" on every other type.
+	Metric string
+	// Standardize is MAT_DISTANCE's params.standardize: z-score every
+	// member over the bucketed rows before the centroids are compared.
+	Standardize bool
+	// betweenRaw carries params.between from decode to resolveDistance
+	// (members resolve in between).
+	betweenRaw json.RawMessage
+}
+
+// MAT_DISTANCE metrics (params.metric). The list is local to
+// MAT_DISTANCE; U27's shared metric registry folds it in later.
+const (
+	DistanceEuclidean   = "euclidean"
+	DistanceSqEuclidean = "sqeuclidean"
+	DistanceManhattan   = "manhattan"
+	DistanceChebyshev   = "chebyshev"
+	DistanceCosine      = "cosine"
+	DistanceMahalanobis = "mahalanobis"
+)
+
+// DistanceMetrics returns MAT_DISTANCE's params.metric values, default
+// first.
+func DistanceMetrics() []string {
+	return []string{DistanceEuclidean, DistanceSqEuclidean, DistanceManhattan, DistanceChebyshev, DistanceCosine, DistanceMahalanobis}
+}
+
+// DistanceBetweenTypes returns the built-in groupers MAT_DISTANCE's
+// params.between accepts, in AllGroupTypes order: every built-in but
+// the date family (GROUP_DATE, GROUP_DATE_RANGES), whose zone the
+// request-level zone resolution never reaches inside params.
+func DistanceBetweenTypes() []types.GroupType {
+	var out []types.GroupType
+	for _, t := range types.AllGroupTypes() {
+		if t != types.GROUP_DATE && t != types.GROUP_DATE_RANGES {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // MAT_PCA params.on values.
@@ -422,6 +469,17 @@ type collinearityParams struct {
 	missingParams
 }
 
+// distanceParams is MAT_DISTANCE's params object: the between grouper
+// (resolved by resolveDistance once the members are known), the metric,
+// standardize and the missing-data knobs (listwise only); any other key
+// is refused.
+type distanceParams struct {
+	Between     json.RawMessage `json:"between"`
+	Metric      *string         `json:"metric"`
+	Standardize *bool           `json:"standardize"`
+	missingParams
+}
+
 // summaryParams is MAT_CORRELATION's params.summary block.
 type summaryParams struct {
 	// TopPairs is k: list the k strongest off-diagonal pairs by |r|.
@@ -446,6 +504,17 @@ type summaryParams struct {
 // The result is index-aligned with req.Matrices. Like Resolve it reads
 // only the schema.
 func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool) ([]Matrix, *errors.CodedError) {
+	return ResolveMatricesRouted(req, schema, known, nil)
+}
+
+// ResolveMatricesRouted is ResolveMatrices with route mapping a
+// MAT_DISTANCE params.between grouper type to the built-in it executes
+// as — the instance's view, where a hidden type routes to an unknown
+// name (ResolveGroups' route); nil is the identity.
+func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool, route func(types.GroupType) types.GroupType) ([]Matrix, *errors.CodedError) {
+	if route == nil {
+		route = func(t types.GroupType) types.GroupType { return t }
+	}
 	if req == nil {
 		return nil, nil
 	}
@@ -531,6 +600,9 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 		if err := resolveFactor(at, &m); err != nil {
 			return nil, err
 		}
+		if err := resolveDistance(at, req.Vectors, resolved, schema, route, &m); err != nil {
+			return nil, err
+		}
 		out = append(out, m)
 	}
 	return out, nil
@@ -551,8 +623,13 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		m.Components = PCAComponents{Rule: PCAComponentsKaiser}
 	case types.MAT_FACTOR:
 		m.Extraction = FactorExtractionMinres
+	case types.MAT_DISTANCE:
+		m.Metric = DistanceEuclidean
 	}
 	if empty {
+		if spec.Type == types.MAT_DISTANCE {
+			return betweenRequired(at)
+		}
 		return nil
 	}
 	var miss missingParams
@@ -648,6 +725,15 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			return err
 		}
 		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		miss = p.missingParams
+	case types.MAT_DISTANCE:
+		var p distanceParams
+		if err := decodeStrict(raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if err := decodeDistance(at, p, m); err != nil {
 			return err
 		}
 		miss = p.missingParams
@@ -853,6 +939,109 @@ func resolveFactor(at string, m *Matrix) *errors.CodedError {
 			map[string]any{"param": "factors", "value": m.Factors.K, "members": p})
 	}
 	return nil
+}
+
+// decodeDistance applies MAT_DISTANCE's params.metric (default
+// "euclidean") and params.standardize (default false), and keeps
+// params.between for resolveDistance. A missing between is
+// between_required; an unknown metric bad_params.
+func decodeDistance(at string, p distanceParams, m *Matrix) *errors.CodedError {
+	raw := bytes.TrimSpace(p.Between)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return betweenRequired(at)
+	}
+	m.betweenRaw = raw
+	if p.Metric != nil {
+		if !slices.Contains(DistanceMetrics(), *p.Metric) {
+			return matrixInvalid(at, "bad_params", at+" params.metric must be one of "+strings.Join(DistanceMetrics(), ", "),
+				map[string]any{"param": "metric", "value": *p.Metric, "valid": DistanceMetrics()})
+		}
+		m.Metric = *p.Metric
+	}
+	if p.Standardize != nil {
+		m.Standardize = *p.Standardize
+	}
+	return nil
+}
+
+// betweenRequired is MAT_DISTANCE's refusal of a spec without
+// params.between.
+func betweenRequired(at string) *errors.CodedError {
+	return matrixInvalid(at, "between_required", at+" MAT_DISTANCE needs params.between, the grouper whose buckets it compares (for example {\"type\": \"GROUP_CATEGORY\", \"field\": \"region\"})",
+		map[string]any{"param": "between"})
+}
+
+// resolveDistance resolves MAT_DISTANCE's params.between against the
+// request's vectors and the schema (route: the instance's view of the
+// grouper type). The grouper decodes strictly as a types.Group; its
+// type must be one of DistanceBetweenTypes (an unknown or hidden type
+// is unknown_between_type, the date family between_unsupported); it
+// may not carry its own weight (the matrix's weight applies) or tz. A
+// GROUP_KMEANS between resolves its vector / fields and params by the
+// grouper rule (ResolveGroups' leaf, slot "<at>.params.between") and
+// is rewritten for the factory (members into Fields); any other
+// grouper refuses a vector input and must name a schema field. The
+// missing mode is listwise only (pairwise_unsupported): a centroid
+// compares one row set.
+func resolveDistance(at string, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema, route func(types.GroupType) types.GroupType, m *Matrix) *errors.CodedError {
+	if m.Type != types.MAT_DISTANCE {
+		return nil
+	}
+	raw := m.betweenRaw
+	m.betweenRaw = nil
+	if m.Pairwise {
+		return matrixInvalid(at, "pairwise_unsupported", at+" params.missing \"pairwise\" is not supported on MAT_DISTANCE: every centroid must rest on the same rows; use \"listwise\"",
+			map[string]any{"param": "missing", "value": MissingPairwise, "valid": []string{MissingListwise}})
+	}
+	bt := at + ".params.between"
+	var g types.Group
+	if err := decodeStrict(raw, &g); err != nil {
+		return matrixInvalid(at, "bad_params", bt+" does not decode as a grouper: "+err.Error(), map[string]any{"param": "between"})
+	}
+	typ := route(g.Type)
+	switch {
+	case g.Type == "":
+		return matrixInvalid(at, "bad_params", bt+" needs a grouper type", map[string]any{"param": "between"})
+	case typ == types.GROUP_DATE || typ == types.GROUP_DATE_RANGES:
+		return matrixInvalid(at, "between_unsupported", bt+" ("+string(g.Type)+") is not supported: a date-family grouper's zone is not resolved inside params; bucket the date with a feature or attribute and group by that",
+			map[string]any{"param": "between", "type": string(g.Type), "valid": groupTypeNames(DistanceBetweenTypes())})
+	case !slices.Contains(DistanceBetweenTypes(), typ):
+		return matrixInvalid(at, "unknown_between_type", bt+" references unknown grouper type "+strconv.Quote(string(g.Type)),
+			map[string]any{"param": "between", "type": string(g.Type), "valid": groupTypeNames(DistanceBetweenTypes())})
+	case !g.Weight.IsZero():
+		return matrixInvalid(at, "bad_params", bt+".weight is not accepted: the between grouper reads the matrix's own weight",
+			map[string]any{"param": "between.weight"})
+	case g.TimeZone != "":
+		return matrixInvalid(at, "bad_params", bt+".tz is not accepted", map[string]any{"param": "between.tz"})
+	}
+	in, err := resolveGroup(bt, &g, typ, specs, resolved, schema)
+	if err != nil {
+		return err
+	}
+	cp := g
+	if in.Has() {
+		cp.Fields = append([]string(nil), in.Members.Members...)
+		cp.Vector = ""
+	} else {
+		if g.Field == "" {
+			return matrixInvalid(at, "bad_params", bt+" ("+string(g.Type)+") needs a field", map[string]any{"param": "between.field"})
+		}
+		if schema != nil && schema.Field(g.Field) == nil {
+			return matrixInvalid(at, "unknown_field", bt+" references unknown field: "+g.Field,
+				map[string]any{"param": "between.field", "field": g.Field})
+		}
+	}
+	m.Between = &cp
+	return nil
+}
+
+// groupTypeNames stringifies group types.
+func groupTypeNames(ts []types.GroupType) []string {
+	out := make([]string, len(ts))
+	for i, t := range ts {
+		out[i] = string(t)
+	}
+	return out
 }
 
 // decodeRepair applies a decomposition operator's params.repair: absent
@@ -1118,6 +1307,9 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 		if spec.Type == types.MAT_PARTIAL_CORRELATION {
 			members, ok = appendControlFields(members, ok, matrixPath(i), spec, schema)
 		}
+		if spec.Type == types.MAT_DISTANCE {
+			members, ok = appendBetweenFields(members, ok, matrixPath(i), spec, schema)
+		}
 		if spec.Vector != "" || len(spec.Fields) == 0 {
 			continue // vector members ride Members(req.Vectors)
 		}
@@ -1154,6 +1346,47 @@ func appendControlFields(members []string, ok bool, at string, spec types.Matrix
 		members = append(members, c)
 	}
 	return members, ok
+}
+
+// appendBetweenFields appends the columns a MAT_DISTANCE spec's
+// params.between reads — its field, or a GROUP_KMEANS between's inline
+// fields (a named vector's members ride Members(req.Vectors)); an
+// undecodable between, or a column the schema lacks, clears ok.
+func appendBetweenFields(members []string, ok bool, at string, spec types.MatrixSpec, schema *encoding.Schema) ([]string, bool) {
+	g, has := SpecBetween(spec)
+	if !has {
+		return members, false
+	}
+	if len(g.Fields) > 0 {
+		r, err := ResolveSpec(at+".params.between.fields", types.VectorSpec{Fields: g.Fields}, schema)
+		if err != nil {
+			return members, false
+		}
+		return append(members, r.Members...), ok
+	}
+	if g.Field == "" {
+		return members, ok && g.Vector != ""
+	}
+	if schema == nil || schema.Field(g.Field) == nil {
+		return members, false
+	}
+	return append(members, g.Field), ok
+}
+
+// SpecBetween decodes a MAT_DISTANCE spec's params.between as written
+// (lenient: unknown keys are not judged here); false on any other type
+// or when it does not decode.
+func SpecBetween(spec types.MatrixSpec) (types.Group, bool) {
+	if spec.Type != types.MAT_DISTANCE || len(spec.Params) == 0 {
+		return types.Group{}, false
+	}
+	var p struct {
+		Between *types.Group `json:"between"`
+	}
+	if err := json.Unmarshal(spec.Params, &p); err != nil || p.Between == nil {
+		return types.Group{}, false
+	}
+	return *p.Between, true
 }
 
 func builtinMatrixType(t types.MatrixType) bool {

@@ -140,6 +140,31 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			ComponentSchema: matrixSchema(),
 		},
 		{
+			Name:         string(types.MAT_DISTANCE),
+			Description:  "Distances between the centroids of the buckets a grouper cuts the rows into (params.between: any built-in grouper but GROUP_DATE / GROUP_DATE_RANGES, GROUP_KMEANS included). A centroid is the bucket's (weighted) mean of every member. The primary is the k x k distance matrix (square, keyed by the bucket labels in the grouper's emission order, zero diagonal) under params.metric; auxiliary.centroids the k x p centroids (rows the buckets, columns the members), auxiliary.centroids_standardized under standardize and auxiliary.pooled_covariance under mahalanobis; vectors.sizes each bucket's weight mass and vectors.counts its rows. Rows the grouper puts in no bucket (a null key, an include rejection) are excluded and counted (components operator.n_null_key); a row with a null member is dropped (listwise only). Streamable and mergeable when the between grouper is (one co-moment per bucket); GROUP_KMEANS and GROUP_QUANTILE buffer the rows and run serially. Weighted under frequency and probability weights (a GROUP_KMEANS between: frequency only). No p-values.",
+			AcceptsTypes: memberTypes,
+			Params: []descriptor.Param{
+				{Name: "between", Type: "object", Required: true, Description: "The grouper whose buckets are compared: a grouper spec {type, field | vector | fields, params, include, interval} as in groups (GROUP_KMEANS reads vector / fields). Any built-in grouper but the date family; it takes the matrix's weight and no weight or tz of its own."},
+				{Name: "metric", Type: "enum", Required: false, Default: vectors.DistanceEuclidean, EnumValues: vectors.DistanceMetrics(), Description: "euclidean (stats::dist), sqeuclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, null for a zero-length one) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing). The list is local to MAT_DISTANCE."},
+				{Name: "standardize", Type: "bool", Required: false, Default: false, Description: "z-score every member over the bucketed rows (their mean and N* - 1 standard deviation, R scale()) before comparing, so no member dominates by its units."},
+				{Name: "missing", Type: "enum", Required: false, Default: vectors.MissingListwise, EnumValues: []string{vectors.MissingListwise}, Description: "listwise only: a row with any member null joins no centroid (pairwise is refused)."},
+				missing[1],
+			},
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "distance",
+				Auxiliary: []string{"centroids", "centroids_standardized", "pooled_covariance"},
+				Vectors:   []string{"counts", "sizes"},
+			},
+			Streamable: types.MAT_DISTANCE.Streamable(),
+			Mergeable:  types.MAT_DISTANCE.Mergeable(),
+			ComponentSchema: matrixSchema(
+				descriptor.ComponentKey{Name: "metric", Type: "string", Description: "The metric the distances use (params.metric)."},
+				descriptor.ComponentKey{Name: "standardize", Type: "bool", Description: "Whether the members were z-scored first (params.standardize)."},
+				descriptor.ComponentKey{Name: "buckets", Type: "int", Description: "Buckets compared (k)."},
+				descriptor.ComponentKey{Name: "n_null_key", Type: "int", Description: "Filter-passing rows the between grouper placed in no bucket (a null key, an include rejection, a GROUP_KMEANS row with a null member); excluded from every figure."},
+			),
+		},
+		{
 			Name:         string(types.MAT_COVARIANCE),
 			Description:  "Covariance matrix of a vector's members (listwise or pairwise): sample covariance by default, weighted under frequency and probability weights.",
 			AcceptsTypes: memberTypes,
@@ -248,7 +273,8 @@ func matrixCapability() descriptor.MatrixCapability {
 			"Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
 			"A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
 			"A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
-			"A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding.",
+			"A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding; MAT_DISTANCE's centroids are the one k x p matrix with the bucket labels as rows and the members as columns.",
+			"MAT_DISTANCE's primary is square but keyed by the between grouper's bucket labels, not the members.",
 			"A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
 		},
 	}

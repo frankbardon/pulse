@@ -341,10 +341,14 @@ type MatrixPredict struct {
 	// params.components is an integer k, else [p, p], the upper bound
 	// (kaiser and a variance share choose k from the data); on
 	// MAT_FACTOR likewise [p, k] for an integer params.factors, else
-	// [p, p].
+	// [p, p]; on MAT_DISTANCE [k, k], k the params.between grouper's
+	// bucket bound when the schema fixes it (its bucket_basis rules:
+	// a dictionary, include, quantile bins, GROUP_KMEANS's k), else
+	// [0, 0].
 	Shape [2]int `json:"shape"`
 	// AxisKeys are the member field names in axis order — the result's
-	// row_keys and column_keys.
+	// row_keys and column_keys. Empty on MAT_DISTANCE, whose axis is the
+	// between grouper's bucket labels, known only after the run.
 	AxisKeys []string `json:"axis_keys"`
 	// Labels are the members' display labels in axis order when the
 	// vector supplies them (the result's labels); omitted otherwise.
@@ -374,7 +378,7 @@ type MatrixPredict struct {
 	// reaches is not emitted, so a run returns at most this many.
 	EstimatedBuckets *int64 `json:"estimated_buckets,omitempty"`
 	// EstimatedCells is EstimatedBuckets × p² — the primary cells the
-	// spec's results carry in full encoding.
+	// spec's results carry in full encoding (MAT_DISTANCE: × k²).
 	EstimatedCells *int64 `json:"estimated_cells,omitempty"`
 	// EstimatedBytes is the run's co-moment state: merge blocks ×
 	// EstimatedBuckets × AccumulatorBytes, the blocks being
