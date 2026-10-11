@@ -155,3 +155,18 @@ for (k in c(4, 10)) {
     out(sprintf("group_quantile_k%d", k), sprintf("cut%d", b), ys[ceiling(b * nrow(es) / k) + 1])
   }
 }
+
+# GROUP_KMEANS (U25 E4-S1): k = 2 on members x1, y over the expanded
+# rows, z-scored by the expansion's mean and sd (scale()); the best
+# tot.withinss over 100 seeded Lloyd starts — the global optimum on this
+# fixture, which a k-means++ start reaches too. Per cluster in Pulse's
+# order (descending size): size and within-SS; then totss.
+km_x <- scale(as.matrix(es[, c("x1", "y")]))
+set.seed(20261011)
+km <- kmeans(km_x, centers = 2, nstart = 100, algorithm = "Lloyd", iter.max = 100)
+km_ord <- order(-km$size)
+for (j in seq_along(km_ord)) {
+  out("group_kmeans_k2", sprintf("size%d", j - 1), km$size[km_ord[j]])
+  out("group_kmeans_k2", sprintf("within%d", j - 1), km$withinss[km_ord[j]])
+}
+out("group_kmeans_k2", "totss", km$totss)

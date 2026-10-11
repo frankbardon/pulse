@@ -123,6 +123,7 @@ skills/op-filter-true.md
 skills/op-group-category.md
 skills/op-group-date-ranges.md
 skills/op-group-date.md
+skills/op-group-kmeans.md
 skills/op-group-quantile.md
 skills/op-group-range.md
 skills/op-group-rounded.md

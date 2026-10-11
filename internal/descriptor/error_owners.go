@@ -521,8 +521,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
 	// ATTR_PC_SCORE's varimax rotation and ATTR_FACTOR_SCORE's
 	// extraction or rotation can stop at their caps (a fit-scoped
-	// warning; the scores stand).
-	errors.PULSE_MATRIX_NOT_CONVERGED: plus(ownAllMats, own("ATTR_PC_SCORE", "ATTR_FACTOR_SCORE")),
+	// warning; the scores stand);
+	// GROUP_KMEANS's best start can stop at max_iter (solver
+	// kmeans_lloyd; its clusters stand as the last iterate).
+	errors.PULSE_MATRIX_NOT_CONVERGED: plus(ownAllMats, own("ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "GROUP_KMEANS")),
 	// The factor-fit warnings: only the operators that fit a factor
 	// model raise them — MAT_RELIABILITY's one-factor omega (withheld)
 	// and MAT_FACTOR's k-factor fit (a Heywood fit kept as fitted, an

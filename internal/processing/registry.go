@@ -87,6 +87,7 @@ var grouperRegistry = map[types.GroupType]GrouperFactory{
 	types.GROUP_CATEGORY:    newCategoryGrouper,
 	types.GROUP_DATE:        newDateGrouper,
 	types.GROUP_DATE_RANGES: newDateRangesGrouper,
+	types.GROUP_KMEANS:      newKMeansGrouper,
 	types.GROUP_QUANTILE:    newQuantileGrouper,
 	types.GROUP_RANGE:       newRangeGrouper,
 	types.GROUP_ROUNDED:     newRoundedGrouper,

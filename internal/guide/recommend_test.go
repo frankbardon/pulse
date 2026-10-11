@@ -543,3 +543,25 @@ func TestRecommend_VectorAttributeDraftsFields(t *testing.T) {
 		t.Errorf("bound ATTR_MAHALANOBIS draft = %s, want a fields list and no field", got)
 	}
 }
+
+// TestRecommend_VectorGrouperDraftsFields: GROUP_KMEANS reads its
+// members from a fields list, never a single field (the runtime refuses
+// field_on_vector_group) — both the unbound skeleton and the bound
+// draft carry "fields".
+func TestRecommend_VectorGrouperDraftsFields(t *testing.T) {
+	find := func(res *descriptor.RecommendResult) string {
+		for _, r := range res.Recommendations {
+			if r.Operator == string(types.GROUP_KMEANS) {
+				return string(r.Request)
+			}
+		}
+		t.Fatalf("segment: no GROUP_KMEANS draft")
+		return ""
+	}
+	if got := find(all(t, nil, descx.IntentSegment)); !strings.Contains(got, `"fields":["<fields>"`) || strings.Contains(got, `"field":`) {
+		t.Errorf("unbound GROUP_KMEANS draft = %s, want a fields list and no field", got)
+	}
+	if got := find(boundAll(t, nil, descx.IntentSegment)); !strings.Contains(got, `"fields":[`) || strings.Contains(got, `"field":"`) {
+		t.Errorf("bound GROUP_KMEANS draft = %s, want a fields list and no field", got)
+	}
+}

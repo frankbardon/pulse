@@ -763,6 +763,8 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	}
 	itemProps("filterers")["params"] = map[string]any{"description": "Operator-specific configuration (e.g. FILTER_DATE_RANGES' inline `ranges`)."}
 	itemProps("groups")["include"] = groupIncludeSchema()
+	itemProps("groups")["vector"] = groupVectorSchema()
+	itemProps("groups")["fields"] = groupFieldsSchema()
 	attr := itemProps("attributes")
 	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE).")
 	attr["predictors"] = map[string]any{"type": "array", "description": "Independent variables for the regression attributes; at least one.", "items": enumStringField(c.Numeric, "")}
@@ -791,6 +793,8 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 				np[k] = v
 			}
 			np["include"] = groupIncludeSchema()
+			np["vector"] = groupVectorSchema()
+			np["fields"] = groupFieldsSchema()
 			np["tz"] = slotZone
 			nItems := make(map[string]any, len(items))
 			for k, v := range items {
@@ -808,6 +812,16 @@ func zoneSchema(description string) map[string]any {
 }
 
 // groupIncludeSchema is Group.include: the bucket allowlist.
+// groupVectorSchema / groupFieldsSchema declare a grouper slot's
+// vector input (GROUP_KMEANS), on groups and both crosstab axes.
+func groupVectorSchema() map[string]any {
+	return map[string]any{"type": "string", "description": "Vector-input groupers (GROUP_KMEANS): the Request.Vectors entry whose members are clustered; exactly one of vector / fields, and no field."}
+}
+
+func groupFieldsSchema() map[string]any {
+	return map[string]any{"type": "array", "description": "Vector-input groupers (GROUP_KMEANS): inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
+}
+
 func groupIncludeSchema() map[string]any {
 	return map[string]any{
 		"type":        "array",

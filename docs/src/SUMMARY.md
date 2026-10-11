@@ -134,6 +134,7 @@
     - [op-group-category](guide/skills/op-group-category.md)
     - [op-group-date](guide/skills/op-group-date.md)
     - [op-group-date-ranges](guide/skills/op-group-date-ranges.md)
+    - [op-group-kmeans](guide/skills/op-group-kmeans.md)
     - [op-group-quantile](guide/skills/op-group-quantile.md)
     - [op-group-range](guide/skills/op-group-range.md)
     - [op-group-rounded](guide/skills/op-group-rounded.md)

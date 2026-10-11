@@ -70,9 +70,22 @@ func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*Cr
 		return nil, err
 	}
 	ApplyGrouperExtensions(grouper, p.exts)
-	buckets, err := grouper.Group(records, grp.Field)
-	if err != nil {
-		return nil, err
+	var buckets map[string][]*Record
+	order := buildIncludeFilter(grp.Include)
+	if ws := p.wholeSetAxes[grp]; ws != nil {
+		// A whole-set axis (GROUP_KMEANS) was fitted once over every
+		// filtered record (fitWholeSetAxes); this level only routes its
+		// records by that assignment, so a nested position — and the
+		// per-row-bucket column partition — never refits a subset.
+		buckets = ws.partition(records)
+		order = ws.order
+	} else {
+		if buckets, err = grouper.Group(records, grp.Field); err != nil {
+			return nil, err
+		}
+		if eo, ok := grouper.(emissionOrderer); ok {
+			order = eo.emissionOrder()
+		}
 	}
 
 	headKeys := make([]string, 0, len(buckets))
@@ -86,7 +99,7 @@ func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*Cr
 	// orderKeysByInclude, preserving byte-identity. Each deeper recursion
 	// level orders its own position independently, so per-axis
 	// independence falls out of the recursion for free.
-	headKeys = orderKeysByInclude(buildIncludeFilter(grp.Include), headKeys)
+	headKeys = orderKeysByInclude(order, headKeys)
 
 	out := &CrosstabAxisPartition{
 		Records: make(map[string][]*Record, len(buckets)),
@@ -265,6 +278,10 @@ func (p *Processor) axisComponentsFor(axis []*types.Group, filtered []*Record) (
 			return nil, err
 		}
 		ApplyGrouperExtensions(grouper, p.exts)
+		if ws := p.wholeSetAxes[grp]; ws != nil {
+			out[i] = ws.components
+			continue
+		}
 		// Run the grouper against the full filtered set so liveBuckets
 		// reflects every key the axis observed across the cohort. The
 		// returned partition map is discarded — the cell-partition pass
@@ -481,6 +498,15 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err != nil {
 		return nil, err
 	}
+	// Whole-set axis groupers (GROUP_KMEANS) fit once over the filtered
+	// set before any partition; their warnings join the attribute
+	// pass's.
+	axisWarnings, err := p.fitWholeSetAxes(spec, filtered)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { p.wholeSetAxes = nil }()
+	attrWarnings = append(attrWarnings, axisWarnings...)
 
 	totalRows := int64(len(records))
 	filteredRows := int64(len(filtered))

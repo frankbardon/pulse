@@ -400,7 +400,7 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 
 // prepare is the per-run request rewrite every engine entry applies:
 // the stamped weights (StampWeightsWith), then the resolved attribute
-// vector inputs.
+// and grouper vector inputs.
 func (p *Processor) prepare(req *types.Request) *types.Request {
-	return p.resolveAttributeInputs(p.stampWeights(req))
+	return p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req)))
 }

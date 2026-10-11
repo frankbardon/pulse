@@ -23,6 +23,7 @@ var grouperPurposes = map[string]descriptor.Purpose{
 	"GROUP_CATEGORY":        purposeGroupCategory,
 	"GROUP_DATE":            purposeGroupDate,
 	"GROUP_DATE_RANGES":     purposeGroupDateRanges,
+	"GROUP_KMEANS":          purposeGroupKMeans,
 	"GROUP_QUANTILE":        purposeGroupQuantile,
 	"GROUP_RANGE":           purposeGroupRange,
 	"GROUP_ROUNDED":         purposeGroupRounded,
@@ -157,6 +158,35 @@ var (
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"percentile", "rank", "ties"},
+	}
+
+	purposeGroupKMeans = descriptor.Purpose{
+		Plain:   "Finds k segments of rows that are alike across several numbers at once, such as customer types by spend, visits and tenure.",
+		Intents: []string{IntentSegment},
+		Questions: []string{
+			"What natural customer segments do spend, visits and tenure suggest?",
+			"Which respondent types stand out across the rating battery?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Attitudinal segments from a battery of ratings.",
+			descriptor.DomainOps:     "Store or customer types from several operating figures.",
+			descriptor.DomainScience: "Groups of samples with similar measurement profiles.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you already know the groups", Use: "GROUP_CATEGORY"},
+			{When: "you want bands of one number", Use: "GROUP_QUANTILE"},
+			{When: "you want how unusual each row is", Use: "ATTR_MAHALANOBIS"},
+		},
+		Assumptions: []string{
+			groupAfterFilters,
+			"Segments are found, not given: each row joins the nearest segment centre, and the centres are chosen to keep rows close to their own.",
+			"Numbers are put on a common scale first by default, so no field dominates because of its units.",
+			"Segments are named cluster_1 to cluster_k from largest to smallest and come back in that order; the same data and seed give the same names.",
+			"It needs every row before it can name any segment, so it cannot stream.",
+			"A row missing any of the numbers lands in no segment; it is counted as missing.",
+		},
+		Level:    descriptor.LevelAdvanced,
+		Glossary: []string{"centroid", "z-score"},
 	}
 
 	purposeGroupRange = descriptor.Purpose{

@@ -326,6 +326,14 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		return out
 	}
 	addAllKnown(attrMembers)
+	// A vector-input grouper's inline fields (groups and both crosstab
+	// axes) resolve by the same rules.
+	groupMembers, ok := vectors.GroupInputMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(groupMembers)
 
 	for _, k := range req.Sort {
 		// Sort keys may name output labels rather than schema fields;

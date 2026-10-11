@@ -1336,6 +1336,7 @@ pulse/descriptor: type GroupPredict struct
 pulse/descriptor: type GroupPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type GroupPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type GroupPredict field Field string "json:\"field,omitempty\""
+pulse/descriptor: type GroupPredict field RowBufferBytes *int64 "json:\"row_buffer_bytes,omitempty\""
 pulse/descriptor: type GroupPredict field Type pulse/types.GroupType "json:\"type\""
 pulse/descriptor: type ImportCapability struct
 pulse/descriptor: type ImportCapability field Formats []pulse/descriptor.ImportFormatCapability "json:\"formats\""
@@ -4040,6 +4041,7 @@ pulse/types: type FrameSpec field Preceding *int "json:\"preceding,omitempty\""
 pulse/types: const GROUP_CATEGORY pulse/types.GroupType = "GROUP_CATEGORY"
 pulse/types: const GROUP_DATE pulse/types.GroupType = "GROUP_DATE"
 pulse/types: const GROUP_DATE_RANGES pulse/types.GroupType = "GROUP_DATE_RANGES"
+pulse/types: const GROUP_KMEANS pulse/types.GroupType = "GROUP_KMEANS"
 pulse/types: const GROUP_QUANTILE pulse/types.GroupType = "GROUP_QUANTILE"
 pulse/types: const GROUP_RANGE pulse/types.GroupType = "GROUP_RANGE"
 pulse/types: const GROUP_ROUNDED pulse/types.GroupType = "GROUP_ROUNDED"
@@ -4047,11 +4049,13 @@ pulse/types: const GROUP_SET_PER_ELEMENT pulse/types.GroupType = "GROUP_SET_PER_
 pulse/types: const GROUP_SET_VALUE pulse/types.GroupType = "GROUP_SET_VALUE"
 pulse/types: type Group struct
 pulse/types: type Group field Field string "json:\"field\""
+pulse/types: type Group field Fields []string "json:\"fields,omitempty\""
 pulse/types: type Group field Include []string "json:\"include,omitempty\""
 pulse/types: type Group field Interval float64 "json:\"interval,omitempty\""
 pulse/types: type Group field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Group field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Group field Type pulse/types.GroupType "json:\"type\""
+pulse/types: type Group field Vector string "json:\"vector,omitempty\""
 pulse/types: type Group field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type GroupType string
 pulse/types: type GroupType method (GroupType) FansOut() bool
@@ -4721,4 +4725,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: edec938f96d42333eaa4e25931917b4af121093a2686967558a2510477373ebf
+// golden-hash: 46e05af9ccb6a61a758c639b73802bc20ffc6fd580a012f02958aadcd547e715

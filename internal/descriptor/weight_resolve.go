@@ -237,6 +237,11 @@ func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, ma
 // frequency-only slot under a probability weight.
 func weightKindUnsupported(s weightSlot, spec *types.WeightSpec) error {
 	head, details := kindOnlyHead(s, spec.Field, spec.EffectiveKind())
+	if reason := weighting.KindRefusalReason(s.operator); reason != "" && !s.hidden {
+		// A permanent kind refusal states why (GROUP_KMEANS).
+		head += " (" + reason + ")"
+		details["reason"] = reason
+	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
 		head+"; use a frequency weight (integer replication counts) or opt the slot out with \"weight\": null to run it unweighted", details)
 }

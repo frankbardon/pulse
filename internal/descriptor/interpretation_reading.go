@@ -106,7 +106,7 @@ var selfReadingOperators = []string{
 	string(types.FILTER_SET_EQUALS), string(types.FILTER_TRUE),
 	// grouper
 	string(types.GROUP_CATEGORY), string(types.GROUP_DATE), string(types.GROUP_DATE_RANGES),
-	string(types.GROUP_QUANTILE), string(types.GROUP_RANGE), string(types.GROUP_ROUNDED),
+	string(types.GROUP_KMEANS), string(types.GROUP_QUANTILE), string(types.GROUP_RANGE), string(types.GROUP_ROUNDED),
 	string(types.GROUP_SET_PER_ELEMENT), string(types.GROUP_SET_VALUE),
 	// window
 	string(types.WIN_LAG), string(types.WIN_LEAD), string(types.WIN_ROW_NUMBER),

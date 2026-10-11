@@ -163,12 +163,54 @@
             "use": "AGG_PERCENTILE"
           }
         ]
+      },
+      {
+        "operator": "GROUP_KMEANS",
+        "category": "grouper",
+        "level": "advanced",
+        "why": "Finds k segments of rows that are alike across several numbers at once, such as customer types by spend, visits and tenure. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "groups": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "params": {
+                "k": "\u003ck\u003e"
+              },
+              "type": "GROUP_KMEANS"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields",
+          "k"
+        ],
+        "alternatives": [
+          {
+            "when": "you already know the groups",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want bands of one number",
+            "use": "GROUP_QUANTILE"
+          },
+          {
+            "when": "you want how unusual each row is",
+            "use": "ATTR_MAHALANOBIS"
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 4
+    "candidates_considered": 5
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 286cf31b1848e93282d4b51112bbb8b61539fa0ef773f1c3df660fbde3a717e3
+// golden-hash: 8d2aae2f2d2c47f0d8cf701a81241f6262f972fec4c7c744146a2d7847d6beda

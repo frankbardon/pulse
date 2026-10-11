@@ -2255,6 +2255,8 @@ def regression_cases():
                "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
         out.append(dict(weight=wname, kind=kind, name="attr_factor_score", request=req,
                         figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        if not prob:
+            out.append(kmeans_case(wname, kind, ws, rfigs["group_kmeans_k2"]))
         for k in QUANTILE_KS:
             case = f"group_quantile_k{k}"
             buckets, n, total = quantile_buckets(ws, kind, k)
@@ -2284,6 +2286,36 @@ def regression_cases():
                    "aggregations": [{"type": "AGG_COUNT", "field": "yg", "label": "n", "weight": None}]}
             out.append(dict(weight=wname, kind=kind, name=case, request=req, figs=figs, src=src))
     return out
+
+
+def kmeans_case(wname, kind, ws, rfig):
+    """GROUP_KMEANS (U25 E4-S1, frequency only): k = 2 on x1, y. A row of
+    weight w is w coincident points, so the reference is stock R kmeans()
+    on the rep()-expanded rows (reg_reference.R: z-scored by scale(), best
+    of 100 Lloyd starts), cross-checked with scikit-learn KMeans on the
+    weighted rows (sample_weight = w, the same z-scoring on Σw − 1)."""
+    from sklearn.cluster import KMeans
+    rows = [i for i in range(len(REG_ROWS)) if valid(ws[i], kind) and ws[i] > 0]
+    X = np.array([[REG_ROWS[i][REG_COL["x1"]], REG_ROWS[i][REG_COL["y"]]] for i in rows])
+    w = np.array([ws[i] for i in rows])
+    mean = (w[:, None] * X).sum(0) / w.sum()
+    sd = np.sqrt((w[:, None] * (X - mean) ** 2).sum(0) / (w.sum() - 1))
+    Z = (X - mean) / sd
+    km = KMeans(n_clusters=2, n_init=100, random_state=0, algorithm="lloyd").fit(Z, sample_weight=w)
+    total = float((w * ((Z - (w[:, None] * Z).sum(0) / w.sum()) ** 2).sum(1)).sum())
+    assert close(km.inertia_, rfig["within0"] + rfig["within1"], 1e-9), (km.inertia_, rfig)
+    assert close(total, rfig["totss"], 1e-9), (total, rfig["totss"])
+    figs = {}
+    for j in range(2):
+        pre = f"components.groupers[0].operator.buckets[{j}]"
+        figs[pre + ".size"] = rfig[f"size{j}"]
+        figs[pre + ".within_ss"] = rfig[f"within{j}"]
+    figs["components.groupers[0].operator.total_ss"] = rfig["totss"]
+    src = (f"{RREG[0]} kmeans(algorithm = 'Lloyd', nstart = 100) on the z-scored rep()-expanded rows "
+           f"(reg_reference.R), cross-checked with scikit-learn {sklearn.__version__} KMeans(sample_weight = w)")
+    req = {"groups": [{"type": "GROUP_KMEANS", "fields": ["x1", "y"], "params": {"k": 2, "n_init": 50}}],
+           "aggregations": [{"type": "AGG_COUNT", "field": "x1", "label": "n", "weight": None}]}
+    return dict(weight=wname, kind=kind, name="group_kmeans_k2", request=req, figs=figs, src=src)
 
 
 def figure_path(name):

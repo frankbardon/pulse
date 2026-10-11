@@ -102,6 +102,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-group-category`](skills/op-group-category.md): Partition records by exact field value; ideal for categorical fields.
 - [`op-group-date`](skills/op-group-date.md): Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter.
 - [`op-group-date-ranges`](skills/op-group-date-ranges.md): Bucket date records by inline labeled date ranges; the range label becomes the bucket key.
+- [`op-group-kmeans`](skills/op-group-kmeans.md): Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size.
 - [`op-group-quantile`](skills/op-group-quantile.md): Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).
 - [`op-group-range`](skills/op-group-range.md): Partition numeric records into half-open ranges [a, b); Interval controls bucket width.
 - [`op-group-rounded`](skills/op-group-rounded.md): Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar.

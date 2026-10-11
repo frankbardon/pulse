@@ -61,6 +61,9 @@ type Processor struct {
 	// deriveWarnings holds the Response-level warnings the last
 	// DeriveRecords run's attributes raised (DeriveWarnings).
 	deriveWarnings []*types.ResponseWarning
+	// wholeSetAxes holds the buffered crosstab's whole-set axis fits
+	// (fitWholeSetAxes) for the current RunCrosstab, keyed by axis slot.
+	wholeSetAxes map[*types.Group]*wholeSetAxis
 	exts           *ExtensionRegistry
 	compute        ComputePlan
 
@@ -1573,10 +1576,12 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits); err != nil {
 			return nil, err
 		}
-		data, grpComponents, bucketAggComponents, groupKeys, err = p.processGrouped(req, filtered, groupedMatrices)
+		var grpWarnings []*types.ResponseWarning
+		data, grpComponents, bucketAggComponents, groupKeys, grpWarnings, err = p.processGrouped(req, filtered, groupedMatrices)
 		if err != nil {
 			return nil, err
 		}
+		attrWarnings = append(attrWarnings, grpWarnings...)
 	} else if len(req.Aggregations) > 0 {
 		var row map[string]any
 		row, aggComponents, err = p.aggregateWithComponents(req.Aggregations, filtered, p.compute.Aggs)
@@ -1766,6 +1771,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			nullRecords = int64(aggComponents[0].NNull)
 		case len(req.Groups) == 0 && len(req.Aggregations) > 0:
 			nullRecords = countAbsentBuffered(filtered, req.Aggregations[0].Field)
+		case primaryVectorGroup(req) != nil:
+			// A vector grouper (GROUP_KMEANS) keys no single column: a
+			// row is null when any member is.
+			nullRecords = countAnyNullBuffered(filtered, primaryVectorGroup(req).Fields)
 		default:
 			nullRecords = countNullsBuffered(filtered, primaryNullFieldName(req))
 		}
@@ -1970,29 +1979,32 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 // records, in record order, so the per-bucket matrices fold exactly the
 // rows (and blocks) the streaming-grouped path folds; the ordered bucket
 // keys are returned for their emission.
-func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, error) {
+func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, []*types.ResponseWarning, error) {
 	// Use the first group for now (single-level grouping)
 	grp := req.Groups[0]
 	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
-		return nil, nil, nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, nil, nil, nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
 	grouper, err := factory(grp, p.schema)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 	ApplyGrouperExtensions(grouper, p.exts)
 
 	groups, err := grouper.Group(records, grp.Field)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
+	// A grouper's own Response-level warnings (GROUP_KMEANS's
+	// non-convergence) ride beside the attribute pass's.
+	warns := GrouperWarnings(grouper)
 	// MaxGroups on the buffered path: the grouper partitions the
 	// already-materialized records in one call, so the bucket count is
 	// checked once, before any bucket is aggregated.
 	if err := limits.Check(p.limits, limits.MaxGroups, int64(len(groups))); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	// Stable-emit by group key so row order is deterministic across runs
@@ -2021,7 +2033,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 		groupRecords := groups[key]
 		row, comps, err := p.aggregateWithComponents(req.Aggregations, groupRecords, collect)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, err
 		}
 		if collect {
 			bucketComps[key] = comps
@@ -2033,7 +2045,7 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 		row[grp.Field] = key
 		data = append(data, row)
 		if err := matrices.foldRecords(key, groupRecords); err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, err
 		}
 	}
 
@@ -2050,13 +2062,13 @@ func (p *Processor) processGrouped(req *types.Request, records []*Record, matric
 	// drops the slice on the floor anyway. processRecords passes the
 	// returned slice through its own gate.
 	if !p.compute.Groupers {
-		return data, nil, bucketComps, keys, nil
+		return data, nil, bucketComps, keys, warns, nil
 	}
 	entry, gerr := buildGrouperComponents(grouper, grp, groups, len(records))
 	if gerr != nil {
-		return nil, nil, nil, nil, gerr
+		return nil, nil, nil, nil, nil, gerr
 	}
-	return data, []types.GrouperComponents{entry}, bucketComps, keys, nil
+	return data, []types.GrouperComponents{entry}, bucketComps, keys, warns, nil
 }
 
 func (p *Processor) aggregate(aggs []*types.Aggregation, records []*Record) (map[string]any, error) {

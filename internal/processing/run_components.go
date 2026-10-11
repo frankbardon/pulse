@@ -153,3 +153,43 @@ func countNullsBuffered(records []*Record, field string) int64 {
 	}
 	return n
 }
+
+// primaryVectorGroup returns the grouper primaryNullFieldName would
+// name when it is a vector-input grouper (GROUP_KMEANS, its Field the
+// key column, its Fields the resolved members); nil otherwise.
+func primaryVectorGroup(req *types.Request) *types.Group {
+	if req == nil {
+		return nil
+	}
+	for _, agg := range req.Aggregations {
+		if agg != nil && agg.Field != "" {
+			return nil
+		}
+	}
+	for _, grp := range req.Groups {
+		if grp != nil && grp.Field != "" {
+			if grp.Type == types.GROUP_KMEANS && len(grp.Fields) > 0 {
+				return grp
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
+// countAnyNullBuffered counts records with a null in any of fields.
+func countAnyNullBuffered(records []*Record, fields []string) int64 {
+	var n int64
+	for _, r := range records {
+		if r == nil {
+			continue
+		}
+		for _, f := range fields {
+			if r.IsNull(f) {
+				n++
+				break
+			}
+		}
+	}
+	return n
+}

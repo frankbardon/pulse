@@ -173,6 +173,12 @@ positive target; the `w` / `f` / `p` weight columns):
   exact fit R = llᵀ + diag(1 − l²) asserted. The weights are kind-free
   and z divides by the w* spread, so the kinds differ by one constant
   factor.
+- `GROUP_KMEANS` (U25 E4-S1, frequency only; members x1, y, k = 2) —
+  stock R `kmeans(algorithm = "Lloyd", nstart = 100)` on the `scale()`d
+  expanded rows (`reg_reference.R`), cross-checked with scikit-learn
+  `KMeans(sample_weight = w)`; figures are each cluster's size and
+  within-SS in Pulse's order (descending size) and the total SS, read
+  from `components.groupers[0].operator`.
 
 An attribute case reads each row's value back as an opted-out `AGG_SUM`
 grouped by the fixture's `id`; its figures are keyed `data[<id>].v`.

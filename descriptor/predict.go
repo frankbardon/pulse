@@ -364,7 +364,8 @@ type MatrixPredict struct {
 	// request and the schema: "ungrouped" (1), "dictionary" (the
 	// Groups[0] field's dictionary size), "boolean" (2), "include"
 	// (Group.Include's distinct reachable keys), "quantile_bins"
-	// (GROUP_QUANTILE's bin count) or "unknown" (the keys depend on the
+	// (GROUP_QUANTILE's bin count), "clusters" (GROUP_KMEANS's params.k)
+	// or "unknown" (the keys depend on the
 	// data — ranges, dates, numeric categories — and the three estimate
 	// fields are omitted).
 	BucketBasis string `json:"bucket_basis"`
@@ -637,6 +638,13 @@ type GroupPredict struct {
 	// data slice still streams). GROUP_QUANTILE is the canonical
 	// None today.
 	BufferedComponents bool `json:"buffered_components,omitempty"`
+
+	// RowBufferBytes estimates the point store a buffered vector grouper
+	// (GROUP_KMEANS) keeps while it fits: records x p x 8 (every row's
+	// member tuple) plus k x p x 8 (the centroids), an upper bound and
+	// the grouper's term of the MaxEstimatedMemory estimate. Omitted on
+	// every other grouper or with the record count unknown.
+	RowBufferBytes *int64 `json:"row_buffer_bytes,omitempty"`
 }
 
 // FiltererPredict is the per-slot predict surface for one entry of

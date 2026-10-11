@@ -607,6 +607,21 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// looked up via grouperComponentSchemaIndex, never via constructed
 	// operators.
 	populateGroupPredicts(result, req, opts)
+	// A buffered vector grouper's point store (GROUP_KMEANS), the
+	// grouper term of the memory estimate, per groups[i] slot.
+	if buf := GroupBufferBytes(req, schema, opts.Instance, matrixRecords); len(buf) > 0 {
+		i := 0
+		for _, grp := range req.Groups {
+			if grp == nil {
+				continue
+			}
+			if b, ok := buf[grp]; ok && i < len(result.Groups) {
+				v := b
+				result.Groups[i].RowBufferBytes = &v
+			}
+			i++
+		}
+	}
 
 	// Populate the per-filterer predict surface: one FiltererPredict
 	// descriptor per req.Filterers slot in matching order.

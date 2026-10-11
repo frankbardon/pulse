@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -59,8 +60,8 @@ func collectOutputLabels(req *types.Request) map[string]bool {
 		if g == nil {
 			continue
 		}
-		if g.Field != "" {
-			out[g.Field] = true
+		if key := vectors.GroupKeyField(g.Type, g); key != "" {
+			out[key] = true
 		}
 	}
 	for _, w := range req.Windows {

@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/returnplan"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -663,7 +664,7 @@ func returnOutputColumns(req *types.Request, schema *encoding.Schema, inst *Inst
 		cols = make(map[string]bool, len(req.Groups)+len(req.Aggregations)+len(req.Windows))
 		for _, grp := range req.Groups {
 			if grp != nil {
-				cols[grp.Field] = true
+				cols[vectors.GroupKeyField(opRoute(inst, grp.Type), grp)] = true
 			}
 		}
 		for _, agg := range req.Aggregations {

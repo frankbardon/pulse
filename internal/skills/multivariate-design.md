@@ -46,6 +46,9 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: ATTR_FACTOR_SCORE -->
 | Each row's score on a factor (a construct estimate)? | `ATTR_FACTOR_SCORE` (a row score) |
 <!-- /feature -->
+<!-- feature: GROUP_KMEANS -->
+| Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
+<!-- /feature -->
 
 <!-- feature: REG_OLS -->
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression (`regression-inference`).

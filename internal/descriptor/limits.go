@@ -197,7 +197,32 @@ func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
 	mi.MatrixBytes = matrixMemory(req, schema, inst, in)
+	for _, b := range GroupBufferBytes(req, schema, inst, records) {
+		mi.GrouperBytes = addSaturating(mi.GrouperBytes, b)
+	}
 	return limits.EstimateMemory(mi), true
+}
+
+// GroupBufferBytes is every buffered vector grouper slot's point store
+// (limits.KMeansBufferBytes over records), keyed by the slot — groups
+// and both crosstab axes. Nil when no slot is a GROUP_KMEANS that
+// resolves, or records is unknown (< 0). The memory estimate sums it;
+// predict reports it per groups[i] slot (GroupPredict.RowBufferBytes).
+func GroupBufferBytes(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, records int64) map[*types.Group]int64 {
+	if req == nil || records < 0 {
+		return nil
+	}
+	inputs, err := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
+		return opRoute(inst, t)
+	})
+	if err != nil || len(inputs) == 0 {
+		return nil
+	}
+	out := make(map[*types.Group]int64, len(inputs))
+	for g, in := range inputs {
+		out[g] = limits.KMeansBufferBytes(records, int64(len(in.Members.Members)), int64(in.KMeans.K))
+	}
+	return out
 }
 
 // FacetLimitRefusal is the rich-facet pre-flight (Service.FacetSchema,

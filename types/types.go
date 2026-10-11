@@ -280,6 +280,14 @@ const (
 	// StreamingGrouper). This is the survey-friendly default
 	// ("respondents per option").
 	GROUP_SET_PER_ELEMENT GroupType = "GROUP_SET_PER_ELEMENT"
+
+	// GROUP_KMEANS segments records into params.k clusters by seeded,
+	// deterministic k-means over the p members of Vector / Fields
+	// (Euclidean; z-scored by default). Keys are cluster_1..cluster_k,
+	// numbered by descending cluster size and emitted in that order; a
+	// row with a null member is skipped (n_null). Buffered and
+	// non-mergeable: the fit needs every row.
+	GROUP_KMEANS GroupType = "GROUP_KMEANS"
 )
 
 // AllGroupTypes returns all defined group types.
@@ -288,6 +296,7 @@ func AllGroupTypes() []GroupType {
 		GROUP_CATEGORY,
 		GROUP_DATE,
 		GROUP_DATE_RANGES,
+		GROUP_KMEANS,
 		GROUP_QUANTILE,
 		GROUP_RANGE,
 		GROUP_ROUNDED,
@@ -1011,8 +1020,26 @@ type Group struct {
 	// Type is the grouping operation to perform.
 	Type GroupType `json:"type"`
 
-	// Field is the name of the data field to group by.
+	// Field is the name of the data field to group by. A vector-input
+	// grouper (GROUP_KMEANS) reads Vector / Fields instead and refuses
+	// Field; its key column is named "<TYPE>_<Vector>" (or
+	// "<TYPE>_<first Fields entry as written>").
 	Field string `json:"field"`
+
+	// Vector names the Request.Vectors entry whose members a
+	// vector-input grouper (GROUP_KMEANS) reads as its p numeric
+	// columns. Exactly one of Vector and Fields is set on a vector-input
+	// grouper and neither on any other grouper (SERVICE_VALIDATION); a
+	// Vector no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN.
+	// Members resolve by the VectorSpec rules (the MatrixSpec, Test and
+	// Attribute Vector / Fields mirror), against source columns only;
+	// a row with any null member is skipped (listwise).
+	Vector string `json:"vector,omitempty"`
+
+	// Fields lists a vector-input grouper's inline members (literal
+	// names and / or glob entries, the VectorSpec.Fields rules). See
+	// Vector.
+	Fields []string `json:"fields,omitempty"`
 
 	// Interval is used by GROUP_ROUNDED and GROUP_RANGE to define the bucket width.
 	Interval float64 `json:"interval,omitempty"`
@@ -1059,7 +1086,9 @@ type Group struct {
 	// mainly to opt OUT: GROUP_QUANTILE's cutpoints have no weighted
 	// form yet, so any weight in force refuses it unless the slot sets
 	// `null` (it then cuts unweighted). Absent inherits Request.Weight,
-	// then pulse.Options.DefaultWeight. No other grouper reads a weight.
+	// then pulse.Options.DefaultWeight. GROUP_KMEANS reads a frequency
+	// weight (each row is w coincident points; a probability weight is
+	// refused). No other grouper reads a weight.
 	// See SlotWeight.
 	Weight SlotWeight `json:"weight,omitzero"`
 }

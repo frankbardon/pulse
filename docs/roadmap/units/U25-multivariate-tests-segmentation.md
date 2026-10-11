@@ -35,7 +35,7 @@ branch: multivariate-tests-segmentation
 - [x] **#133** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_BARTLETT_SPHERICITY`
 - [x] **#134** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_MAHALANOBIS`
 - [x] **#135** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_PC_SCORE` (two-pass, `fit_on`)
-- [ ] **#136** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `GROUP_KMEANS` (seeded k-means++, Euclidean-only, size-ordered labels)
+- [x] **#136** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `GROUP_KMEANS` (seeded k-means++, Euclidean-only, size-ordered labels)
 - [x] **#262** (10. Vector & matrix — operators › Follow-ups from U24) `MAT_FACTOR`: multi-factor minres factor analysis, reusing `minresOneFactor`, the `PULSE_MATRIX_HEYWOOD` / `_NOT_IDENTIFIED` / `_NOT_CONVERGED` warnings (add it as an owner) and the PSD guard
 - [x] **#263** (10. Vector & matrix — operators › Follow-ups from U24) Factor rotation (varimax, promax) for `MAT_FACTOR`, including a varimax option on `MAT_PCA` loadings (U24 ships unrotated components)
 - [x] **#264** (10. Vector & matrix — operators › Follow-ups from U24) Link the `factor` glossary entry to `MAT_FACTOR` and add it as the third `measure_construct` declarer, clearing both exemption-ledger entries (`factor`, `measure_construct`) in `guidance_exemptions_test.go`
@@ -72,7 +72,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(multivariate-test
 
 - [x] Hotelling/MANOVA match reference outputs on fixtures
 - [x] Mahalanobis D² matches a reference computation; streaming correctly forces two-pass/buffered
-- [ ] k-means labels are identical across runs, worker counts and shard orders
+- [x] k-means labels are identical across runs, worker counts and shard orders
 - [ ] All gates for new operators pass
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 

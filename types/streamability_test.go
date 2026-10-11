@@ -237,6 +237,7 @@ func TestStreamability_GroupsKnown(t *testing.T) {
 		GROUP_DATE_RANGES: true,
 		GROUP_QUANTILE:    false,
 		GROUP_DATE:        false,
+		GROUP_KMEANS:      false,
 
 		GROUP_SET_VALUE:       true,
 		GROUP_SET_PER_ELEMENT: true,
@@ -265,6 +266,7 @@ func TestGroupFanOutKnown(t *testing.T) {
 		GROUP_CATEGORY:    false,
 		GROUP_DATE:        false,
 		GROUP_DATE_RANGES: false,
+		GROUP_KMEANS:      false,
 		GROUP_QUANTILE:    false,
 		GROUP_RANGE:       false,
 		GROUP_ROUNDED:     false,

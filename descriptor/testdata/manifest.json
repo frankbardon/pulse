@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:6238d134fdbccb3e7e237d284ad6a8729b6c2ec2ab8a36a59c2f6a5b754dc170",
+    "feature_set_digest": "fs1:a7046db02f3d950ecb1b3da924b1b631468acfb99b7ba4317ec62fc0d0403e81",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -4296,6 +4296,177 @@
           ]
         },
         {
+          "name": "GROUP_KMEANS",
+          "category": "grouper",
+          "description": "Segment records into k clusters by seeded, deterministic k-means (Euclidean, k-means++ starts then Lloyd) over the p members of vector / fields (exactly one; no field). Keys cluster_1..cluster_k, numbered and emitted by descending size; the key column is GROUP_KMEANS_\u003cvector or first fields entry\u003e. A row with a null member is skipped (n_null). Labels depend only on the member tuples, never on row order, shard order or worker count.",
+          "params": [
+            {
+              "name": "k",
+              "type": "int",
+              "required": true,
+              "description": "Cluster count, at least 2; refused at run time above the number of distinct member tuples."
+            },
+            {
+              "name": "seed",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "PRNG seed (int64) for the k-means++ starts; 0 means a fixed default, never time-derived."
+            },
+            {
+              "name": "max_iter",
+              "type": "int",
+              "required": false,
+              "default": 100,
+              "description": "Lloyd iteration cap per start; a best start that hits it warns PULSE_MATRIX_NOT_CONVERGED."
+            },
+            {
+              "name": "n_init",
+              "type": "int",
+              "required": false,
+              "default": 10,
+              "description": "Number of seeded starts; the lowest within-cluster sum of squares wins, ties to the earliest."
+            },
+            {
+              "name": "standardize",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "z-score each member (weighted mean, ddof = 1 sd over the clustered rows) before clustering."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member joins no cluster).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "cluster label per row (cluster_1 .. cluster_k, by descending size)",
+          "streamable": false,
+          "streamable_hint": "k-means fits over every row before any label exists; the request runs buffered and serially under DecodeWorkers / ShardWorkers, and a crosstab falls back to the buffered arm.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "k",
+                "type": "int",
+                "description": "Cluster count (params.k)."
+              },
+              {
+                "name": "seed",
+                "type": "int",
+                "description": "The resolved PRNG seed (params.seed 0 resolves to the fixed default)."
+              },
+              {
+                "name": "n_init",
+                "type": "int",
+                "description": "Seeded starts run (params.n_init)."
+              },
+              {
+                "name": "max_iter",
+                "type": "int",
+                "description": "Lloyd iteration cap per start (params.max_iter)."
+              },
+              {
+                "name": "standardize",
+                "type": "bool",
+                "description": "Whether members were z-scored before clustering."
+              },
+              {
+                "name": "members",
+                "type": "[]string",
+                "description": "The resolved member columns, axis order."
+              },
+              {
+                "name": "center",
+                "type": "[]float64",
+                "description": "Per-member standardization mean (0 when standardize is false)."
+              },
+              {
+                "name": "scale",
+                "type": "[]float64",
+                "description": "Per-member standardization sd (1 when standardize is false or a member has no spread)."
+              },
+              {
+                "name": "distinct_points",
+                "type": "int",
+                "description": "Distinct member tuples among the clustered rows."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-cluster records in emission (size) order; each carries {key, count, size, within_ss, centroid, centroid_standardized}: count is rows, size the (frequency-weighted) mass, centroid in original units."
+              },
+              {
+                "name": "total_ss",
+                "type": "float64",
+                "description": "Total sum of squares about the grand centroid, in the clustering space."
+              },
+              {
+                "name": "within_ss",
+                "type": "float64",
+                "description": "Total within-cluster sum of squares."
+              },
+              {
+                "name": "between_ss",
+                "type": "float64",
+                "description": "total_ss − within_ss."
+              },
+              {
+                "name": "between_ss_ratio",
+                "type": "float64",
+                "description": "between_ss / total_ss (null when total_ss is 0)."
+              },
+              {
+                "name": "iterations",
+                "type": "int",
+                "description": "Lloyd iterations the winning start ran."
+              },
+              {
+                "name": "converged",
+                "type": "bool",
+                "description": "Whether the winning start reached a fixed point before max_iter."
+              },
+              {
+                "name": "best_init",
+                "type": "int",
+                "description": "The winning start, 1-based."
+              }
+            ],
+            "mergeability": "none"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency"
+          ],
+          "intents": [
+            "segment"
+          ]
+        },
+        {
           "name": "GROUP_QUANTILE",
           "category": "grouper",
           "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).",
@@ -8543,6 +8714,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8627,6 +8799,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8711,6 +8884,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8795,6 +8969,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8878,6 +9053,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -8961,6 +9137,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -9044,6 +9221,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -9127,6 +9305,7 @@
           "GROUP_CATEGORY",
           "GROUP_DATE",
           "GROUP_DATE_RANGES",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -10089,6 +10268,10 @@
         "description": "Bucket date records by inline labeled date ranges; the range label becomes the bucket key."
       },
       {
+        "name": "op-group-kmeans",
+        "description": "Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size."
+      },
+      {
         "name": "op-group-quantile",
         "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100)."
       },
@@ -10917,7 +11100,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 202,
+    "examples_count": 203,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13724,6 +13907,106 @@
           ],
           "mergeability": "mergeable"
         },
+        "GROUP_KMEANS": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "k",
+              "type": "int",
+              "description": "Cluster count (params.k)."
+            },
+            {
+              "name": "seed",
+              "type": "int",
+              "description": "The resolved PRNG seed (params.seed 0 resolves to the fixed default)."
+            },
+            {
+              "name": "n_init",
+              "type": "int",
+              "description": "Seeded starts run (params.n_init)."
+            },
+            {
+              "name": "max_iter",
+              "type": "int",
+              "description": "Lloyd iteration cap per start (params.max_iter)."
+            },
+            {
+              "name": "standardize",
+              "type": "bool",
+              "description": "Whether members were z-scored before clustering."
+            },
+            {
+              "name": "members",
+              "type": "[]string",
+              "description": "The resolved member columns, axis order."
+            },
+            {
+              "name": "center",
+              "type": "[]float64",
+              "description": "Per-member standardization mean (0 when standardize is false)."
+            },
+            {
+              "name": "scale",
+              "type": "[]float64",
+              "description": "Per-member standardization sd (1 when standardize is false or a member has no spread)."
+            },
+            {
+              "name": "distinct_points",
+              "type": "int",
+              "description": "Distinct member tuples among the clustered rows."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-cluster records in emission (size) order; each carries {key, count, size, within_ss, centroid, centroid_standardized}: count is rows, size the (frequency-weighted) mass, centroid in original units."
+            },
+            {
+              "name": "total_ss",
+              "type": "float64",
+              "description": "Total sum of squares about the grand centroid, in the clustering space."
+            },
+            {
+              "name": "within_ss",
+              "type": "float64",
+              "description": "Total within-cluster sum of squares."
+            },
+            {
+              "name": "between_ss",
+              "type": "float64",
+              "description": "total_ss − within_ss."
+            },
+            {
+              "name": "between_ss_ratio",
+              "type": "float64",
+              "description": "between_ss / total_ss (null when total_ss is 0)."
+            },
+            {
+              "name": "iterations",
+              "type": "int",
+              "description": "Lloyd iterations the winning start ran."
+            },
+            {
+              "name": "converged",
+              "type": "bool",
+              "description": "Whether the winning start reached a fixed point before max_iter."
+            },
+            {
+              "name": "best_init",
+              "type": "int",
+              "description": "The winning start, 1-based."
+            }
+          ],
+          "mergeability": "none"
+        },
         "GROUP_QUANTILE": {
           "keys": [
             {
@@ -14707,4 +14990,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e54aae5231b98f6a44b13d5f01a542ec2e716b15ddc4d56334868510ff0d5ea5
+// golden-hash: 26a1563ac811992a76e15c89d69427b1c0abf44ad1c4bfca679450ad9b436e0d

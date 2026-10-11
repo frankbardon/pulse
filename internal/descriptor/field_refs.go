@@ -130,7 +130,14 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     the inline-fields vector rules, params.fit_on's shape and
 //     params.missing other than "listwise". A vector attribute's
 //     fit_on filterers are judged at step 3 by the filterer rule.
-//     Steps 6 to 9 contribute one refusal at most between them.
+//  10. grouper vector inputs — every grouper slot's (groups and both
+//     crosstab axes) vector / fields and params resolved by the same
+//     leaf (internal/vectors.ResolveGroups): the exactly-one shape, a
+//     vector input on a grouper that reads none, an undefined vector,
+//     the inline-fields vector rules and GROUP_KMEANS's params. A vector
+//     grouper's key column (vectors.GroupKeyField) is an output column
+//     at step 5.
+//     Steps 6 to 10 contribute one refusal at most between them.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -346,10 +353,14 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		if grp == nil {
 			continue
 		}
-		w.check(grp.Field, func() *errors.CodedError {
-			return refusal("group references unknown field: "+grp.Field,
-				map[string]any{"field": grp.Field, "group": string(grp.Type)})
-		})
+		// A vector-input grouper (GROUP_KMEANS) reads its members (step
+		// 10, source columns only), never a field.
+		if !vectors.IsVectorGroup(opRoute(inst, grp.Type)) {
+			w.check(grp.Field, func() *errors.CodedError {
+				return refusal("group references unknown field: "+grp.Field,
+					map[string]any{"field": grp.Field, "group": string(grp.Type)})
+			})
+		}
 		w.checkInputs("grouper", string(grp.Type), grp.Params, "group")
 	}
 	for _, agg := range req.Aggregations {
@@ -373,7 +384,9 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			})
 		}
 		grouper := func(g *types.Group, role string) {
-			axis(g.Field, role)
+			if !vectors.IsVectorGroup(opRoute(inst, g.Type)) {
+				axis(g.Field, role)
+			}
 			w.checkInputs("grouper", string(g.Type), g.Params, "role", role)
 		}
 		agg := func(a *types.Aggregation, role string) {
@@ -410,9 +423,10 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			if grp == nil {
 				continue
 			}
-			out[grp.Field] = true
-			if _, ok := owner[grp.Field]; !ok {
-				owner[grp.Field] = map[string]any{"group_index": gi, "group": string(grp.Type)}
+			key := vectors.GroupKeyField(opRoute(inst, grp.Type), grp)
+			out[key] = true
+			if _, ok := owner[key]; !ok {
+				owner[key] = map[string]any{"group_index": gi, "group": string(grp.Type)}
 			}
 		}
 		for ai, agg := range req.Aggregations {
@@ -552,6 +566,15 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		return opRoute(inst, t)
 	}); aerr != nil {
 		w.out = append(w.out, aerr)
+		return w.out
+	}
+	// 10. Grouper vector inputs — every grouper slot's vector / fields
+	// and params resolved by the same leaf (vectors.ResolveGroups).
+	// Steps 6-10 contribute one refusal at most between them.
+	if _, gerr := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
+		return opRoute(inst, t)
+	}); gerr != nil {
+		w.out = append(w.out, gerr)
 	}
 	return w.out
 }

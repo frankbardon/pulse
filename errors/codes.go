@@ -2974,8 +2974,10 @@ const (
 	// PULSE_MATRIX_NOT_PSD warning, by MAT_FACTOR's extraction (solver
 	// "fa_minres" / "fa_pa" / "fa_ml") and by a rotation (MAT_PCA, MAT_FACTOR:
 	// "varimax" / "gpa_oblimin"); ATTR_PC_SCORE and ATTR_FACTOR_SCORE raise
-	// it fit-scoped and still score. Details carry "matrix", "solver",
-	// "iterations", "max_iterations" and "tolerance".
+	// it fit-scoped and still score; GROUP_KMEANS raises it as a
+	// Response warning (solver "kmeans_lloyd", "group" in place of
+	// "matrix") when its best start hits params.max_iter. Details carry
+	// "matrix", "solver", "iterations", "max_iterations" and "tolerance".
 	PULSE_MATRIX_NOT_CONVERGED Code = "PULSE_MATRIX_NOT_CONVERGED"
 
 	// PULSE_MATRIX_HEYWOOD is a per-matrix WARNING: a factor fit put a

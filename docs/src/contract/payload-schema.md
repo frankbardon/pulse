@@ -357,6 +357,21 @@ scores with a `PULSE_MATRIX_HEYWOOD` / `PULSE_MATRIX_NOT_CONVERGED`
 entry otherwise. `format_version` stays `"1.1"`; an attribute without
 them is byte-identical.
 
+## Grouper vector inputs
+
+`Group` carries the same two additive slots, `vector` / `fields`, on
+`groups` and both crosstab axes. A vector-input grouper (`GROUP_KMEANS`)
+sets exactly one of them and no `field`; every other grouper refuses
+both. Members are source columns only. Its key column (the Data row key,
+the crosstab axis field) is `<TYPE>_<vector>` or `<TYPE>_<first fields
+entry>`. Shape refusals are `SERVICE_VALIDATION` with `details.group`
+and `details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`. A
+best start stopped at `params.max_iter` adds a
+`PULSE_MATRIX_NOT_CONVERGED` entry to `Response.warnings` (`solver`
+`kmeans_lloyd`). Predict's `groups[i].row_buffer_bytes` reports its point
+store. `format_version` stays `"1.1"`; a grouper without them is
+byte-identical.
+
 ## Matrix slots
 
 `matrices` on `Request` is an additive array of `MatrixSpec`

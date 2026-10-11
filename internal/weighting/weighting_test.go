@@ -70,6 +70,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	}
 	// U12 E5-S2: buckets cut at the weighted order statistics.
 	want[string(types.GROUP_QUANTILE)] = ClassAware
+	// U25 E4-S1: k-means over the frequency-expanded rows.
+	want[string(types.GROUP_KMEANS)] = ClassFrequencyOnly
 	for _, wt := range types.AllWindowTypes() {
 		want[string(wt)] = ClassNotWeightable
 	}
@@ -133,6 +135,23 @@ func TestKindsOf(t *testing.T) {
 // TestRefusalReasons_AreRefused: every permanent refusal is a refused
 // operator, the named ones carry a reason, and a lifted operator
 // (TEST_T) does not.
+// TestKindRefusalReasons_AreFrequencyOnly: a permanent probability-weight
+// reason belongs only to a frequency-only operator, and GROUP_KMEANS
+// carries one.
+func TestKindRefusalReasons_AreFrequencyOnly(t *testing.T) {
+	for op := range kindRefusalReasons {
+		if ClassOf(op) != ClassFrequencyOnly {
+			t.Errorf("%s has a kind refusal reason but class %v", op, ClassOf(op))
+		}
+	}
+	if ClassOf("GROUP_KMEANS") != ClassFrequencyOnly || KindRefusalReason("GROUP_KMEANS") == "" {
+		t.Fatalf("GROUP_KMEANS: class %v, reason %q; want frequency-only with a permanent reason", ClassOf("GROUP_KMEANS"), KindRefusalReason("GROUP_KMEANS"))
+	}
+	if KindRefusalReason("TEST_KS") != "" {
+		t.Fatal("a liftable frequency-only operator carries a permanent kind reason")
+	}
+}
+
 func TestRefusalReasons_AreRefused(t *testing.T) {
 	for op := range refusalReasons {
 		if ClassOf(op) != ClassRefuse {

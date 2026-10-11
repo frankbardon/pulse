@@ -21,6 +21,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `05_rounded.json` | `GROUP_ROUNDED` | Round age down to nearest 10 (decade buckets) |
 | `09_date_hour.json` | `GROUP_DATE` | Local wall-clock hour buckets of a `datetime` (`component: hour`, request `time_zone`) |
 | `10_date_week_start.json` | `GROUP_DATE` | Sunday-start weeks keyed by their first day (`week_start: sunday`) |
+| `11_kmeans.json` | `GROUP_KMEANS` | Three seeded k-means segments over age and income (`cluster_1..3` by size) |
 
 `GROUP_DATE` components: `year`, `quarter`, `month`, `week`, `day`,
 `hour` (`datetime` only), `day_of_week`; `week_start` (`week` only)

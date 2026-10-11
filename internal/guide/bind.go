@@ -258,7 +258,8 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 	default: // aggregator, attribute, grouper, feature
 		// A fitted vector attribute reads its p members from an inline
 		// fields list (vectors.IsVectorAttribute), like a vector test.
-		if op.category == catAttribute && vectors.IsVectorAttribute(types.AttributeType(op.name)) {
+		if (op.category == catAttribute && vectors.IsVectorAttribute(types.AttributeType(op.name))) ||
+			(op.category == catGrouper && vectors.IsVectorGroup(types.GroupType(op.name))) {
 			slots = append(slots, bslot{key: "fields", list: true, min: 2, accept: kindIs(descriptor.FieldKindNumeric)})
 			break
 		}

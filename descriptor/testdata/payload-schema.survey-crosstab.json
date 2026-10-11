@@ -931,6 +931,15 @@
         "field": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "include": {
           "items": {
             "type": "string"
@@ -950,6 +959,9 @@
           "$ref": "#/$defs/GroupType"
         },
         "tz": {
+          "type": "string"
+        },
+        "vector": {
           "type": "string"
         }
       },
@@ -2514,4 +2526,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 184ca662efba352ebea141020e9015b9dc4e2c9a55d5a4173be3baccfe4d3285
+// golden-hash: 91828357d9495583b7b067dcce573a2f635ddebb3980b353fbb3256267480181

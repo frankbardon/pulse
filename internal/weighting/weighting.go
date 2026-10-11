@@ -303,6 +303,11 @@ var operatorClasses = func() map[string]Class {
 	// (Hmisc wtd.quantile; probability weights rescaled to the row
 	// count, normwt = TRUE) under both kinds (U12 E5-S2).
 	m[string(types.GROUP_QUANTILE)] = ClassAware
+	// GROUP_KMEANS clusters the frequency-expanded rows (a row of
+	// weight w is w coincident points: weighted centroids, mass-weighted
+	// k-means++ draws and within-SS); a probability weight is refused
+	// permanently (kindRefusalReasons).
+	m[string(types.GROUP_KMEANS)] = ClassFrequencyOnly
 	for _, w := range types.AllWindowTypes() {
 		m[string(w)] = ClassNotWeightable
 	}
@@ -340,6 +345,18 @@ func KindsOfClass(c Class) []types.WeightKind {
 	}
 	return nil
 }
+
+// kindRefusalReasons are the PERMANENT probability-weight refusals of
+// frequency-only operators that state why (the reason rides the
+// PULSE_WEIGHT_UNSUPPORTED refusal's message and details.reason). Every
+// key must be ClassFrequencyOnly (TestKindRefusalReasons_AreFrequencyOnly).
+var kindRefusalReasons = map[string]string{
+	string(types.GROUP_KMEANS): "k-means has no probability-weighted form: a sampling weight does not make a row several coincident points, and no reference implementation defines design-weighted clusters",
+}
+
+// KindRefusalReason returns why the named frequency-only built-in
+// refuses a probability weight permanently, "" when it states none.
+func KindRefusalReason(op string) string { return kindRefusalReasons[op] }
 
 // RefusalReason returns why the named built-in operator is refused
 // permanently under a weight, "" when it is not (a pending ClassRefuse

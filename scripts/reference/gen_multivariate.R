@@ -837,3 +837,8 @@ source(file.path(script_dir, "gen_factor.R"), local = FALSE)
 # component scores, unrotated and varimax — every row scored off a fit
 # over the listwise, positive-weight, fit_on rows).
 source(file.path(script_dir, "gen_fitted_attributes.R"), local = FALSE)
+
+# The k-means golden (mv_kmeans.json: GROUP_KMEANS against
+# stats::kmeans from fixed starts on separable seeded blobs, and the
+# best-of-starts within-SS on attitude). Base R only.
+source(file.path(script_dir, "gen_kmeans.R"), local = FALSE)

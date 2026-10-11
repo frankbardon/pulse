@@ -32,7 +32,7 @@ func TestBuiltinGrouperKeyableMatchesRegistry(t *testing.T) {
 		if !ok {
 			t.Fatalf("no group parity fixture for %s — add one in allGroupParityFixtures", groupType)
 		}
-		instance, err := factory(&types.Group{Type: groupType, Field: fix.field, Interval: fix.interval, Params: fix.params}, fix.schema)
+		instance, err := factory(&types.Group{Type: groupType, Field: fix.field, Fields: fix.fields, Interval: fix.interval, Params: fix.params}, fix.schema)
 		if err != nil {
 			t.Errorf("grouper %s factory error: %v", groupType, err)
 			continue

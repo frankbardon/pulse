@@ -117,6 +117,8 @@ const (
 	// BucketBasisQuantileBins: GROUP_QUANTILE — its bin count
 	// (Interval, default 4).
 	BucketBasisQuantileBins = "quantile_bins"
+	// BucketBasisClusters: GROUP_KMEANS — its cluster count params.k.
+	BucketBasisClusters = "clusters"
 	// BucketBasisUnknown: the grouper's keys depend on the data (ranges,
 	// dates, numeric categories, set compositions) — no estimate.
 	BucketBasisUnknown = "unknown"
@@ -160,6 +162,11 @@ func EstimateBuckets(groups []*types.Group, schema *encoding.Schema) (buckets in
 			bins = 4
 		}
 		return bins, BucketBasisQuantileBins, true
+	case types.GROUP_KMEANS:
+		if k, ok := KMeansK(g); ok {
+			return int64(k), BucketBasisClusters, true
+		}
+		return 0, BucketBasisUnknown, false
 	}
 	includable := g.Type == types.GROUP_CATEGORY || g.Type == types.GROUP_SET_VALUE || g.Type == types.GROUP_SET_PER_ELEMENT
 	if includable && len(g.Include) > 0 {
