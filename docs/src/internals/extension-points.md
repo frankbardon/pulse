@@ -1370,7 +1370,7 @@ Fetch the Message + Fixup template for any of these via
 | Code | Trigger |
 |---|---|
 | `PULSE_EXTENSION_NAME_INVALID` | name fails the registration regex |
-| `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE |
+| `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) |
 | `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |

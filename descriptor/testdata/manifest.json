@@ -7386,7 +7386,7 @@
         ]
       }
     ],
-    "error_codes_count": 330,
+    "error_codes_count": 334,
     "error_domains": [
       "CLI",
       "DATA",
@@ -7423,6 +7423,7 @@
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
+      "PULSE_ADVISORY_EXTRA_PASS",
       "PULSE_ADVISORY_MANY_TESTS",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS",
@@ -7484,6 +7485,9 @@
       "PULSE_FEAT_TARGET_LEAKAGE_RISK",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
       "PULSE_FIT_INVALID",
+      "PULSE_FORMULA_TOTAL_ARITY",
+      "PULSE_FORMULA_TOTAL_NESTED",
+      "PULSE_FORMULA_TOTAL_SITE",
       "PULSE_FOR_EACH_INVALID",
       "PULSE_GROUP_DECLARATION_INVALID",
       "PULSE_GROUP_ENTRIES_EXHAUSTED",
@@ -7806,7 +7810,7 @@
       },
       {
         "name": "pulse_process_chain",
-        "description": "CALL WHEN EACH STAGE SHOULD READ THE PREVIOUS STAGE'S OUTPUT ROWS. Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE / MAT_CORRELATION, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field. A stage's `return` shapes that stage only after the whole chain ran (the next stage still reads its full rows); `final` follows the last stage's."
+        "description": "CALL WHEN EACH STAGE SHOULD READ THE PREVIOUS STAGE'S OUTPUT ROWS. Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA (unless its expression calls total(expr), a cohort-total pre-pass) and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE / MAT_CORRELATION, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field. A stage's `return` shapes that stage only after the whole chain ran (the next stage still reads its full rows); `final` follows the last stage's."
       },
       {
         "name": "pulse_range_tables",
@@ -10203,7 +10207,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 191,
+    "examples_count": 192,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -10350,6 +10354,7 @@
       "rejection_rules": [
         "chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
         "chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
+        "chain rejects an ATTR_FORMULA whose expression calls total(expr) (a cohort-total pre-pass, not row-local)",
         "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
         "chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
         "chain rejects built-in aggregators over decimal128 targets",
@@ -13941,4 +13946,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4d45f9f55e4852bd657cd9a7d2a869da912490d44d3cc27173d565641815d3bc
+// golden-hash: 746b1b09076755b804c80e5b181a78ebd32e6475d1243161ae76300b8d5f603e

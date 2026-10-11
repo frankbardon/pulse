@@ -99,7 +99,23 @@
         {"type": "AGG_SUM", "field": "social_contrib_lo_k", "label": "social_contrib_lo_k"},
         {"type": "AGG_SUM", "field": "social_contrib_hi_k", "label": "social_contrib_hi_k"},
         {"type": "AGG_SUM", "field": "display_contrib_lo_k", "label": "display_contrib_lo_k"},
-        {"type": "AGG_SUM", "field": "display_contrib_hi_k", "label": "display_contrib_hi_k"}
+        {"type": "AGG_SUM", "field": "display_contrib_hi_k", "label": "display_contrib_hi_k"},
+        {"type": "AGG_RATIO", "field": "tv_spend_k", "label": "tv_roi", "params": {"numerator_field": "tv_contrib_k", "denominator_field": "tv_spend_k"}},
+        {"type": "AGG_RATIO", "field": "tv_spend_k", "label": "tv_roi_lo", "params": {"numerator_field": "tv_contrib_lo_k", "denominator_field": "tv_spend_k"}},
+        {"type": "AGG_RATIO", "field": "tv_spend_k", "label": "tv_roi_hi", "params": {"numerator_field": "tv_contrib_hi_k", "denominator_field": "tv_spend_k"}},
+        {"type": "AGG_RATIO", "field": "tv_spend_k", "label": "tv_mroi", "params": {"numerator_field": "tv_marginal_k", "denominator_field": "tv_spend_k"}},
+        {"type": "AGG_RATIO", "field": "search_spend_k", "label": "search_roi", "params": {"numerator_field": "search_contrib_k", "denominator_field": "search_spend_k"}},
+        {"type": "AGG_RATIO", "field": "search_spend_k", "label": "search_roi_lo", "params": {"numerator_field": "search_contrib_lo_k", "denominator_field": "search_spend_k"}},
+        {"type": "AGG_RATIO", "field": "search_spend_k", "label": "search_roi_hi", "params": {"numerator_field": "search_contrib_hi_k", "denominator_field": "search_spend_k"}},
+        {"type": "AGG_RATIO", "field": "search_spend_k", "label": "search_mroi", "params": {"numerator_field": "search_marginal_k", "denominator_field": "search_spend_k"}},
+        {"type": "AGG_RATIO", "field": "social_spend_k", "label": "social_roi", "params": {"numerator_field": "social_contrib_k", "denominator_field": "social_spend_k"}},
+        {"type": "AGG_RATIO", "field": "social_spend_k", "label": "social_roi_lo", "params": {"numerator_field": "social_contrib_lo_k", "denominator_field": "social_spend_k"}},
+        {"type": "AGG_RATIO", "field": "social_spend_k", "label": "social_roi_hi", "params": {"numerator_field": "social_contrib_hi_k", "denominator_field": "social_spend_k"}},
+        {"type": "AGG_RATIO", "field": "social_spend_k", "label": "social_mroi", "params": {"numerator_field": "social_marginal_k", "denominator_field": "social_spend_k"}},
+        {"type": "AGG_RATIO", "field": "display_spend_k", "label": "display_roi", "params": {"numerator_field": "display_contrib_k", "denominator_field": "display_spend_k"}},
+        {"type": "AGG_RATIO", "field": "display_spend_k", "label": "display_roi_lo", "params": {"numerator_field": "display_contrib_lo_k", "denominator_field": "display_spend_k"}},
+        {"type": "AGG_RATIO", "field": "display_spend_k", "label": "display_roi_hi", "params": {"numerator_field": "display_contrib_hi_k", "denominator_field": "display_spend_k"}},
+        {"type": "AGG_RATIO", "field": "display_spend_k", "label": "display_mroi", "params": {"numerator_field": "display_marginal_k", "denominator_field": "display_spend_k"}}
       ]
     },
     {
@@ -200,7 +216,23 @@
         {"type": "AGG_SUM", "field": "social_contrib_lo_k", "label": "social_contrib_lo_k"},
         {"type": "AGG_SUM", "field": "social_contrib_hi_k", "label": "social_contrib_hi_k"},
         {"type": "AGG_SUM", "field": "display_contrib_lo_k", "label": "display_contrib_lo_k"},
-        {"type": "AGG_SUM", "field": "display_contrib_hi_k", "label": "display_contrib_hi_k"}
+        {"type": "AGG_SUM", "field": "display_contrib_hi_k", "label": "display_contrib_hi_k"},
+        {"type": "AGG_RATIO", "field": "tv_spend_k", "label": "tv_roi", "params": {"numerator_field": "tv_contrib_k", "denominator_field": "tv_spend_k"}},
+        {"type": "AGG_RATIO", "field": "tv_spend_k", "label": "tv_roi_lo", "params": {"numerator_field": "tv_contrib_lo_k", "denominator_field": "tv_spend_k"}},
+        {"type": "AGG_RATIO", "field": "tv_spend_k", "label": "tv_roi_hi", "params": {"numerator_field": "tv_contrib_hi_k", "denominator_field": "tv_spend_k"}},
+        {"type": "AGG_RATIO", "field": "tv_spend_k", "label": "tv_mroi", "params": {"numerator_field": "tv_marginal_k", "denominator_field": "tv_spend_k"}},
+        {"type": "AGG_RATIO", "field": "search_spend_k", "label": "search_roi", "params": {"numerator_field": "search_contrib_k", "denominator_field": "search_spend_k"}},
+        {"type": "AGG_RATIO", "field": "search_spend_k", "label": "search_roi_lo", "params": {"numerator_field": "search_contrib_lo_k", "denominator_field": "search_spend_k"}},
+        {"type": "AGG_RATIO", "field": "search_spend_k", "label": "search_roi_hi", "params": {"numerator_field": "search_contrib_hi_k", "denominator_field": "search_spend_k"}},
+        {"type": "AGG_RATIO", "field": "search_spend_k", "label": "search_mroi", "params": {"numerator_field": "search_marginal_k", "denominator_field": "search_spend_k"}},
+        {"type": "AGG_RATIO", "field": "social_spend_k", "label": "social_roi", "params": {"numerator_field": "social_contrib_k", "denominator_field": "social_spend_k"}},
+        {"type": "AGG_RATIO", "field": "social_spend_k", "label": "social_roi_lo", "params": {"numerator_field": "social_contrib_lo_k", "denominator_field": "social_spend_k"}},
+        {"type": "AGG_RATIO", "field": "social_spend_k", "label": "social_roi_hi", "params": {"numerator_field": "social_contrib_hi_k", "denominator_field": "social_spend_k"}},
+        {"type": "AGG_RATIO", "field": "social_spend_k", "label": "social_mroi", "params": {"numerator_field": "social_marginal_k", "denominator_field": "social_spend_k"}},
+        {"type": "AGG_RATIO", "field": "display_spend_k", "label": "display_roi", "params": {"numerator_field": "display_contrib_k", "denominator_field": "display_spend_k"}},
+        {"type": "AGG_RATIO", "field": "display_spend_k", "label": "display_roi_lo", "params": {"numerator_field": "display_contrib_lo_k", "denominator_field": "display_spend_k"}},
+        {"type": "AGG_RATIO", "field": "display_spend_k", "label": "display_roi_hi", "params": {"numerator_field": "display_contrib_hi_k", "denominator_field": "display_spend_k"}},
+        {"type": "AGG_RATIO", "field": "display_spend_k", "label": "display_mroi", "params": {"numerator_field": "display_marginal_k", "denominator_field": "display_spend_k"}}
       ]
     }
   ]

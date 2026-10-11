@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U46, U11, U12]
 blocks: [U32]
-todo_items: [324, 325, 326, 327, 328, 329, 330, 331]
+todo_items: [324, 325, 326, 327, 328, 329, 330, 331, 398]
 branch: survey-tables
 ---
 
@@ -98,3 +98,9 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(survey-tables/E<n
 
 - **Open:** raking as a CLI leaf that writes a weight column into a new cohort (pairs with U41's derived cohort), or as an attribute computed per request.
 - **Open:** significance letters on the wire (a presentation block) or left to embedders with a helper.
+
+## Inherited from U43
+
+Filed from [U43 handed on](U43-post-aggregation-ratios.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#398** — A weight-aware `total()`: `ATTR_FORMULA` is not weight-aware today, so `total(expr)` is always the unweighted cohort sum. Found in U43 (E1).

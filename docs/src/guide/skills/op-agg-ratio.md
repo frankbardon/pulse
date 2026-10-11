@@ -24,17 +24,17 @@ Use something else:
 
 ## Params
 
-`numerator_field`, `denominator_field` — required field names, any type, read through the numeric channel (a categorical contributes its dictionary code). An unknown name is `SERVICE_VALIDATION`, predict and runtime alike.
+`numerator_field`, `denominator_field` — required; a schema field OR a derived label (attribute incl. `ATTR_REG_PREDICT`, feature output), read numerically (categorical → its code). Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
 
-Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. A `decimal128` num/den under a weight → `PULSE_WEIGHT_UNSUPPORTED`.
+Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. Weighted `decimal128` num/den → `PULSE_WEIGHT_UNSUPPORTED`.
 
 ## Inputs
 
-`Field` is IGNORED (manifest `ignores_field`) but still required on the wire; `accepts_types` refuses no type there.
+`Field` IGNORED (`ignores_field`) but required; any type.
 
 ## Output
 
-Scalar `float64` — `sum(num) / sum(den)`. Den sum 0 (incl. all-zero weights) → NaN in Go, `null` in JSON; not an error.
+`float64` Σnum / Σden. Den sum 0 → NaN (Go), `null` (JSON); no error.
 
 ## Reading the output
 
@@ -45,19 +45,16 @@ Scalar `float64` — `sum(num) / sum(den)`. Den sum 0 (incl. all-zero weights) �
 
 ## Components
 
-Floor `{n, n_null}` (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`) plus:
+Floor `{n, n_null}` (weighted: `sum_weights`, `n_eff`, `n_weight_invalid`), plus `numerator`, `denominator` (sums), `ratio` (`null` if den 0). `Mergeable`; streams.
 
-| Key | Type | Notes |
-|---|---|---|
-| `numerator` | float64 | Running num sum |
-| `denominator` | float64 | Running den sum |
-| `ratio` | float64 | Resolved ratio (`null` if den==0) |
+## ROI recipe
 
-`Mergeable` (two independent sums); streams per chunk.
+Attribute `contrib` per row; `params {"numerator_field":"contrib","denominator_field":"spend"}` → Σcontrib/Σspend exactly, per group too. Marginal ROI or an interval bound: numerator = its own per-row label.
 
 ## Gotchas
 
-- `n` counts contributing rows, not den-non-zero rows.
+- A row null on either column skips both sums; `n` counts the rest.
+- `weight` must name a cohort field, not a label.
 
 ## See
 

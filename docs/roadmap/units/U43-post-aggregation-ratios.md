@@ -4,7 +4,7 @@ slug: post-aggregation-ratios
 title: "A ratio of two aggregates and a scalar derived from an aggregate are native, so ROI and a scenario scale factor need no hand arithmetic"
 track: API & release
 size: M
-status: not-started
+status: done
 depends_on: [U42]
 soft_depends_on: []
 blocks: []
@@ -41,9 +41,9 @@ Numbering note: appended after U40, not renumbered. This unit was not in the ori
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#290** (Post-aggregation ratios) A ratio output across aggregators (`AGG_RATIO`, or a post-aggregation formula slot) for ROI and marginal ROI, with defined behaviour for a zero or null denominator (`null`, never 0)
-- [ ] **#291** (Post-aggregation ratios) Aggregate-derived scalars inside `ATTR_FORMULA`: a cohort-total reference (a `SUM(field)`-style term) evaluated once before row evaluation, with the two-pass cost visible in predict (streamability)
-- [ ] **#292** (Post-aggregation ratios) Acceptance: the example's ROI, marginal ROI and scenario scale factors come out of Pulse with no hand-computed number
+- [x] **#290** (Post-aggregation ratios) A ratio output across aggregators (`AGG_RATIO`, or a post-aggregation formula slot) for ROI and marginal ROI, with defined behaviour for a zero or null denominator (`null`, never 0). Delivered with no new operator: the existing `AGG_RATIO` accepts attribute labels
+- [x] **#291** (Post-aggregation ratios) Aggregate-derived scalars inside `ATTR_FORMULA`: a cohort-total reference (a `SUM(field)`-style term) evaluated once before row evaluation, with the two-pass cost visible in predict (streamability). Delivered as `total(expr)`
+- [x] **#292** (Post-aggregation ratios) Acceptance: the example's ROI, marginal ROI and scenario scale factors come out of Pulse with no hand-computed number
 
 ## Scope
 
@@ -72,13 +72,13 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(post-aggregation-
 
 ## Acceptance criteria
 
-- [ ] A cohort-total reference in a formula matches the hand-computed total exactly
-- [ ] A ratio of two aggregates is a response field; a zero denominator is `null`, not 0
-- [ ] Predict and runtime agree on streamability for the new formula term
-- [ ] Re-run the MMM fixture by hand and convert the steps this unit covers to native Pulse; paste the results into the PR body
-- [ ] The fixture README's "still outside Pulse" list drops every gap this unit closes
-- [ ] `format_version` stays `"1.1"`; every change is additive
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] A cohort-total reference in a formula matches the hand-computed total exactly (`total(expr)`)
+- [x] A ratio of two aggregates is a response field; a zero denominator is `null`, not 0 (the existing `AGG_RATIO`, pinned over derived labels)
+- [x] Predict and runtime agree on streamability for the new formula term (`PULSE_ADVISORY_EXTRA_PASS`; sequential fallback on shards and parallel decode)
+- [x] Re-run the MMM fixture by hand and convert the steps this unit covers to native Pulse; paste the results into the PR body
+- [x] The fixture README's "still outside Pulse" list drops every gap this unit closes (10, 11)
+- [x] `format_version` stays `"1.1"`; every change is additive
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -94,5 +94,17 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(post-aggregation-
 ## Human inputs & decisions
 
 - **Decided (2026-10-10):** ships in v1.0.0. The owner wants Pulse as self-sufficient as possible at v1; this unit is in U32's `depends_on`.
-- **Open:** ratio as an aggregator type, a post-aggregation formula slot, or both.
-- **Open:** the grammar of the cohort-total term in `ATTR_FORMULA` (function form versus reserved name).
+- **Decided (2026-10-10):** the ratio is the existing `AGG_RATIO`, which already accepts attribute labels; no new operator and no post-aggregation formula slot. It is pinned by tests and the ROI recipe is in its skill.
+- **Decided (2026-10-10):** the cohort-total grammar is the function form `total(expr)` with an expression argument, not a reserved name. It reads the post-filter cohort, unweighted, skips nulls, and an empty or zero total is `null`. `total` is reserved against embedder `ExprFunctions`.
+- **Decided (2026-10-10):** a `total()` request makes two passes. Shard and parallel-decode runs fall back to the sequential path, `ProcessChain` refuses it (`PULSE_CHAIN_NOT_MERGEABLE`), and predict reports the extra pass as `PULSE_ADVISORY_EXTRA_PASS`. Coded refusals: `PULSE_FORMULA_TOTAL_SITE`, `_NESTED`, `_ARITY`.
+- **Decided (2026-10-10):** in the fixture, the four scale factors are derived with `total()` over the model-year base (`week_index >= 52`) and reproduce the old typed factors at 5 decimal places; ROI, bounds and marginal ROI come from `AGG_RATIO`, bit-identical to the reader's division.
+
+## Handed on
+
+Everything found during this unit and not delivered by it. Each row has a TODO id and an owner; `#N` are TODO ids in [`TODO.md`](../TODO.md), not GitHub issues.
+
+| Found in | What is still open | TODO | Owner |
+|---|---|---|---|
+| E1 | `total()` is unweighted because `ATTR_FORMULA` is not weight-aware; a weight-aware variant | #398 | [U47](U47-survey-tables.md) |
+| E1 | Merge `total()` partial sums across partitions so shard and parallel-decode runs stay parallel instead of falling back to sequential | #399 | [U51](U51-archive-scale.md) |
+| E2-S2 | Predict-compose runs no per-slot `Request.Overlays` validation: a slot-level `OVERLAY_FORMULA` on a non-crosstab host is refused at runtime (`PULSE_OVERLAY_KIND_UNKNOWN`) but predict-compose is silent (pre-existing) | #400 | [U35](U35-predict-runtime-parity.md) |

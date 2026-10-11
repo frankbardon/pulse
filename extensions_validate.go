@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
 	"github.com/frankbardon/pulse/internal/synth"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -562,6 +563,16 @@ func validateExprFunctions(fns []ExprFunction) error {
 				errors.PULSE_EXTENSION_PARAM_INVALID,
 				fmt.Sprintf("extension expr function %q has nil Fn", fn.Name),
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i},
+			)
+		}
+		if fn.Name == totalcall.Func {
+			// total(expr) is ATTR_FORMULA's cohort-total term: the
+			// formula's two-pass-ness, the merge gate and predict all key
+			// on the name, so an embedder may not redefine it.
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_NAME_RESERVED,
+				fmt.Sprintf("extension expr function name %q is reserved for the built-in cohort-total term", fn.Name),
+				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{totalcall.Func}},
 			)
 		}
 		if _, dup := seen[fn.Name]; dup {

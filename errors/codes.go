@@ -470,6 +470,13 @@ const (
 	// details.suggested is the request patch {"weight":{"field":...}}.
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED Code = "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED"
 
+	// PULSE_ADVISORY_EXTRA_PASS is a predict advisory: an ATTR_FORMULA
+	// calls total(expr), so the run adds a pre-pass over the
+	// post-filter rows to sum each argument before any row is
+	// evaluated. One per such formula; details carry the slot, the
+	// formula label, the distinct total() arguments and added_scans.
+	PULSE_ADVISORY_EXTRA_PASS Code = "PULSE_ADVISORY_EXTRA_PASS"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -1092,6 +1099,24 @@ const (
 	// upper. Runtime only — predict cannot see a fit's numbers. Details
 	// carry "fit" and "stat" or "bound".
 	PULSE_MODEL_INTERVALS_UNAVAILABLE Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
+
+	// PULSE_FORMULA_TOTAL_SITE indicates a total(expr) call outside
+	// ATTR_FORMULA — in a FILTER_EXPRESSION or an OVERLAY_FORMULA. The
+	// cohort total is a pre-pass ATTR_FORMULA computes; no other
+	// expression site runs one. Refused by predict and at build alike.
+	// Details carry "site", "expression" and "valid_sites".
+	PULSE_FORMULA_TOTAL_SITE Code = "PULSE_FORMULA_TOTAL_SITE"
+
+	// PULSE_FORMULA_TOTAL_NESTED indicates an ATTR_FORMULA total(expr)
+	// whose argument itself calls total(). A total's argument is a
+	// row-level expression; a total of totals is refused. Details carry
+	// "site", "expression" and "call".
+	PULSE_FORMULA_TOTAL_NESTED Code = "PULSE_FORMULA_TOTAL_NESTED"
+
+	// PULSE_FORMULA_TOTAL_ARITY indicates an ATTR_FORMULA total() call
+	// with other than exactly one argument. Details carry "site",
+	// "expression", "call" and "arguments".
+	PULSE_FORMULA_TOTAL_ARITY Code = "PULSE_FORMULA_TOTAL_ARITY"
 
 	// PULSE_MODEL_PREDICTOR_MISSING indicates a scoring frame without a
 	// column for one of a bound model's predictors: no schema field,
@@ -3326,6 +3351,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC,
 	PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
+	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
@@ -3408,6 +3434,9 @@ var allCodes = []Code{
 	PULSE_MODEL_TERM_UNKNOWN,
 	PULSE_MODEL_STAT_UNKNOWN,
 	PULSE_MODEL_INTERVALS_UNAVAILABLE,
+	PULSE_FORMULA_TOTAL_SITE,
+	PULSE_FORMULA_TOTAL_NESTED,
+	PULSE_FORMULA_TOTAL_ARITY,
 	PULSE_MODEL_PREDICTOR_MISSING,
 	PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
 	PULSE_MODEL_SAVE_INVALID,

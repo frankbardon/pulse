@@ -188,6 +188,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC:  own(advisoryQuantityOperators()...),
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
+	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
 	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:        shared,
 	// Raised by recommend AND by the core examples search's intent
 	// filter, which every instance carries.
@@ -290,6 +291,11 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT"),
+	// ATTR_FORMULA's total(expr) cohort-total term (internal/totalcall):
+	// the site refusal fires from the other two expression operators.
+	errors.PULSE_FORMULA_TOTAL_SITE:          own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
+	errors.PULSE_FORMULA_TOTAL_NESTED:        own("ATTR_FORMULA"),
+	errors.PULSE_FORMULA_TOTAL_ARITY:         own("ATTR_FORMULA"),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are

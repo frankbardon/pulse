@@ -31,6 +31,9 @@ Predict answers "will this run" (errors, warnings). An **advisory** answers a di
 <!-- feature: capability:weighting -->
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | predict echoes `suggested_weight` (an SPSS weight variable, no slot resolving a weight) | `field`, `source`, `suggested: {"weight": {"field": F}}` |
 <!-- /feature -->
+<!-- feature: ATTR_FORMULA -->
+| `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows (one per such formula) | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1; formulas in one pre-pass layer share it) |
+<!-- /feature -->
 
 <!-- feature: capability:multiplicity -->
 The many-tests message says "at least N" when `p_values.basis` is `lower_bound` and "an estimated N" when it is `dictionary`; any `multiplicity` block — `method: none` included — silences it.

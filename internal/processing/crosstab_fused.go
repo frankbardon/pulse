@@ -719,7 +719,7 @@ func (s *FusedCrosstabState) AssertCanFuse(req *types.Request) error {
 		if attr == nil {
 			continue
 		}
-		if s.exts.attributeRequiresTwoPass(attr.Type) {
+		if s.exts.attrRequiresTwoPass(attr) {
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 				fmt.Sprintf("fused crosstab path does not implement two-pass attribute %s; gate should have rejected", attr.Type),
 				map[string]any{"attribute": string(attr.Type)})

@@ -269,7 +269,10 @@ func (t GroupType) Mergeable() bool {
 //     no streaming algorithm preserves exact rank semantics.
 //
 // Streamable() returns true for the first two tiers since both routes
-// avoid materializing the full record set in memory.
+// avoid materializing the full record set in memory. The tier is per
+// TYPE here; an ATTR_FORMULA calling total(expr) is two-pass per
+// attribute (still streamable, via the two-pass drive) — routing asks
+// the engine's per-attribute predicate, never this method alone.
 func (t AttributeType) Streamable() bool {
 	switch t {
 	case ATTR_FORMULA, ATTR_DATE_PART,

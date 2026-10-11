@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,6 +30,7 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC,
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
+	errors.PULSE_ADVISORY_EXTRA_PASS,
 }
 
 // AdvisoryCodes returns every registered PULSE_ADVISORY_* code, in rule
@@ -121,6 +123,7 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 	if a, ok := weightUnusedAdvisory(in.suggestedWeight); ok {
 		add(a)
 	}
+	add(extraPassAdvisories(in.req, in.prefix, in.inst)...)
 	return out
 }
 
@@ -424,4 +427,52 @@ func weightUnusedAdvisory(sw *descriptor.SuggestedWeight) (descriptor.Advisory, 
 			"suggested": map[string]any{"weight": map[string]any{"field": sw.Field}},
 		},
 	}, true
+}
+
+// extraPassAddedScans is the scan count one total-bearing ATTR_FORMULA
+// adds: its own pre-pass, which folds every distinct total() argument
+// of the formula in that single scan. Two such formulas the planner
+// schedules in the same pre-pass layer (or one beside a two-pass
+// attribute in its layer) share the scan, so the figure is per formula,
+// an upper bound on what the request as a whole adds.
+const extraPassAddedScans = 1
+
+// extraPassAdvisories: one PULSE_ADVISORY_EXTRA_PASS per ATTR_FORMULA
+// (the instance offers) whose expression calls total(expr), in declared
+// order. The predicate is the runtime's (totalcall.Contains, beside the
+// attribute route), so the advisory fires exactly when the formula
+// takes the two-pass drive. details {slot, operator, label, totals,
+// added_scans}: totals is the distinct one-argument total() calls the
+// pre-pass sums.
+func extraPassAdvisories(req *types.Request, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
+	var out []descriptor.Advisory
+	for i, attr := range req.Attributes {
+		if attr == nil || opRoute(inst, attr.Type) != types.ATTR_FORMULA || !totalcall.Contains(attr.Expression) {
+			continue
+		}
+		label := attr.Label
+		if label == "" {
+			label = string(attr.Type) + "_" + attr.Field
+		}
+		slot := prefix + "attributes[" + strconv.Itoa(i) + "]"
+		totals := len(totalcall.Args(attr.Expression))
+		noun := "arguments"
+		if totals == 1 {
+			noun = "argument"
+		}
+		out = append(out, descriptor.Advisory{
+			Code: string(errors.PULSE_ADVISORY_EXTRA_PASS),
+			Message: "ATTR_FORMULA at " + slot + " (" + label + ") calls total() over " + strconv.Itoa(totals) + " " + noun +
+				", so the run adds " + strconv.Itoa(extraPassAddedScans) + " pre-pass over the filtered rows to sum them before any row is evaluated; " +
+				"a two-pass attribute scheduled in the same pass shares it, and with groupers or features the request runs buffered.",
+			Details: map[string]any{
+				"slot":        slot,
+				"operator":    string(types.ATTR_FORMULA),
+				"label":       label,
+				"totals":      totals,
+				"added_scans": extraPassAddedScans,
+			},
+		})
+	}
+	return out
 }

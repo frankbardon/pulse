@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -294,6 +295,9 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	// Compile once, here, against the schema prototype (or on the first
 	// record when the expression names a non-schema column) — never per
 	// row. See expr_program.go for the null semantics.
+	if cerr := totalcall.Refusal(filter.Expression, string(types.FILTER_EXPRESSION)); cerr != nil {
+		return nil, cerr
+	}
 	if err := f.exts.coefStaticRefusal(filter.Expression, f.models); err != nil {
 		return nil, err
 	}

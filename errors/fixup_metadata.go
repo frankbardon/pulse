@@ -857,6 +857,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_EXTRA_PASS: {
+		Message: "An ATTR_FORMULA calls total(expr), so the run makes an extra pre-pass over the filtered rows to sum each argument before it evaluates any row; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Attributes", "*", "Expression"},
+				Hint:   "No change is needed when the cohort-wide total is what you want. To skip the extra pass, divide two sums after aggregation with AGG_RATIO, or replace total(expr) with a constant read from an earlier run.",
+			},
+		},
+	},
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
 		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
 		Fixups: []Fixup{
@@ -1225,7 +1235,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_NAME_RESERVED: {
-		Message: "An embedder registration uses a namespace segment reserved for Pulse internals (BUILTIN / STANDARD / CORE / PULSE).",
+		Message: "An embedder registration uses a namespace segment reserved for Pulse internals (BUILTIN / STANDARD / CORE / PULSE), or an expression function name Pulse reserves (`total`, the formula attribute's cohort-total term).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1674,6 +1684,41 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"attributes", "*", "params", "bound"},
 				Hint:   "Score the point coefficient (drop params.bound), or fit a model with predictors so it reports intervals.",
+			},
+		},
+	},
+	PULSE_FORMULA_TOTAL_SITE: {
+		Message: "A total(expr) call appears outside a formula attribute. total() is the formula attribute's cohort total — the sum of a row-level expression over the rows that pass the filters, computed in a pre-pass — and no other expression site (an expression filter, an overlay formula) runs that pass. The site is under `site`, the expression under `expression`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Compute the cohort-total term in an ATTR_FORMULA attribute and read its label downstream.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"filterers", "*", "expression"},
+				Hint:   "Remove the total() call from the filter expression.",
+			},
+		},
+	},
+	PULSE_FORMULA_TOTAL_NESTED: {
+		Message: "A formula attribute's total(expr) call has another total() inside its argument. A total's argument is a row-level expression, summed over the rows that pass the filters; a total of totals is refused. The offending call is under `call`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Move the inner total() out of the argument (a total is a constant, so total(x * total(y)) is total(x) * total(y)).",
+			},
+		},
+	},
+	PULSE_FORMULA_TOTAL_ARITY: {
+		Message: "A formula attribute's total() call does not take exactly one argument. total(expr) sums one row-level expression over the rows that pass the filters. The offending call is under `call`, its argument count under `arguments`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass total() exactly one row-level expression, such as total(spend) or total(week >= 52 ? spend : 0).",
 			},
 		},
 	},

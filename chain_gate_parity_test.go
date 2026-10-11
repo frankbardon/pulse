@@ -73,6 +73,11 @@ func TestChainGate_ValidatorMatchesRuntime(t *testing.T) {
 		{"mode on a later stage", chain(ok0, &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MODE, Field: "region"}}, Groups: region}), "", 0},
 		{"frequency on a later stage", chain(ok0, &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MODE_COUNT, Field: "region"}}, Groups: region}), "", 0},
 		{"two-pass attribute", chain(&types.Request{Aggregations: sum("qty"), Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "qty", Label: "z"}}}), "attribute ATTR_ZSCORE is not row-local", 0},
+		// total(expr) is a cohort total: per-stage merge would fold
+		// partition-local sums, so the per-attribute predicate refuses it
+		// while a plain formula stays row-local.
+		{"total formula", chain(&types.Request{Aggregations: sum("share"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "qty / total(qty)", Label: "share"}}}), "attribute ATTR_FORMULA is not row-local", 0},
+		{"plain formula", chain(&types.Request{Aggregations: sum("dbl"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "qty * 2", Label: "dbl"}}}), "", 0},
 		{"non-mergeable grouper", chain(&types.Request{Aggregations: sum("qty"), Groups: []*types.Group{{Type: types.GROUP_QUANTILE, Field: "qty"}}}), "grouper GROUP_QUANTILE is not mergeable", 0},
 		{"windows", chain(&types.Request{Aggregations: sum("qty"), Windows: []*types.Window{{Type: types.WIN_LAG, Field: "qty"}}}), "windows, features", 0},
 		{"non-streamable filterer", chain(&types.Request{Aggregations: sum("qty"), Filterers: []*types.Filterer{{Type: "FILTER_NOT_REGISTERED", Field: "qty"}}}), "filterer FILTER_NOT_REGISTERED is not streamable", 0},

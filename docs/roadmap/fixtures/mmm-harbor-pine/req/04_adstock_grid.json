@@ -7,22 +7,22 @@
     {
       "type": "ATTR_FORMULA",
       "label": "tv_minus1m_k",
-      "expression": "tv_spend_k * 0.80866"
+      "expression": "tv_spend_k * (1 - 1000 / total(week_index >= 52 ? tv_spend_k : 0))"
     },
     {
       "type": "ATTR_FORMULA",
       "label": "display_minus1m_k",
-      "expression": "display_spend_k * 0.62060"
+      "expression": "display_spend_k * (1 - 1000 / total(week_index >= 52 ? display_spend_k : 0))"
     },
     {
       "type": "ATTR_FORMULA",
       "label": "search_plus1m_k",
-      "expression": "search_spend_k * 1.20318"
+      "expression": "search_spend_k * (1 + 1000 / total(week_index >= 52 ? search_spend_k : 0))"
     },
     {
       "type": "ATTR_FORMULA",
       "label": "social_plus1m_k",
-      "expression": "social_spend_k * 1.19172"
+      "expression": "social_spend_k * (1 + 1000 / total(week_index >= 52 ? social_spend_k : 0))"
     }
   ],
   "windows": [

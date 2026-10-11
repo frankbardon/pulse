@@ -18,6 +18,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -56,7 +57,7 @@ func (None) Attribute(string) (bool, bool)  { return false, false }
 // (types.MatrixType.Mergeable — they merge through the blocked merge
 // tree, bit-identical to serial; a grouped request's per-bucket
 // matrices merge bucket by bucket the same way); only row-local
-// attributes (ATTR_FORMULA,
+// attributes (ATTR_FORMULA without a total(expr) call,
 // ATTR_DATE_PART, ATTR_REG_PREDICT, row_local extensions); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
@@ -98,7 +99,11 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 		rowLocal, ok := ext.Attribute(string(attr.Type))
 		if !ok {
 			switch attr.Type {
-			case types.ATTR_FORMULA, types.ATTR_DATE_PART,
+			case types.ATTR_FORMULA:
+				// Row-local unless it calls total(expr): a cohort total
+				// folded per partition would be partition-local.
+				rowLocal = !totalcall.Contains(attr.Expression)
+			case types.ATTR_DATE_PART,
 				// Bound before the row pass: a pure per-row score.
 				types.ATTR_REG_PREDICT:
 				rowLocal = true

@@ -68,7 +68,8 @@ type AttributeComputer interface {
 // inline instead of buffering the full record set.
 //
 // FORMULA and DATE_PART implement this interface; ZSCORE / TSCORE /
-// NORMALIZED implement TwoPassAttribute (a superset). PERCENTILE does
+// NORMALIZED — and a FORMULA that calls total(expr) (formula_total.go)
+// — implement TwoPassAttribute (a superset). PERCENTILE does
 // NOT implement either — it needs a sorted view of every value, which
 // forces the buffered path.
 type RowLocalAttribute interface {

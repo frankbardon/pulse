@@ -65,7 +65,8 @@ A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's
 
 ## Gotchas
 
-- No chaining: an expression sees source fields (and pre-filter feature output), never another attribute's label. Stage via Compose / ProcessChain.
+- A formula sees source fields, feature output and EARLIER attribute labels (declared order), never a later one.
+- `total(expr)` — cohort-wide sum of a row-level expression over post-filter rows; allowed ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula). One argument, no nesting; unweighted; nulls skipped. Makes the formula two-pass (one extra scan). Not overridable by `ExprFunctions`.
 - Filters run before attributes, so a filter expression cannot read a derived column — restate it over source fields.
 
 ## See

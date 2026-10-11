@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -63,11 +64,26 @@ func attributeTwoPass(opts *PredictOptions, t types.AttributeType) bool {
 	return false
 }
 
+// attrTwoPass is the per-attribute twin of attributeTwoPass: the
+// type-keyed answer, or an ATTR_FORMULA the instance offers whose
+// expression calls total(expr) — the cohort-total term's pre-pass
+// (mirrors processing.ExtensionRegistry.attrRequiresTwoPass through the
+// shared internal/totalcall predicate).
+func attrTwoPass(opts *PredictOptions, attr *types.Attribute) bool {
+	if attr == nil {
+		return false
+	}
+	if attributeTwoPass(opts, attr.Type) {
+		return true
+	}
+	return opRoute(opts.instance(), attr.Type) == types.ATTR_FORMULA && totalcall.Contains(attr.Expression)
+}
+
 // firstTwoPassAttribute returns the first attribute on req that takes
 // the two-pass drive, or "" when there is none.
 func firstTwoPassAttribute(req *types.Request, opts *PredictOptions) types.AttributeType {
 	for _, attr := range req.Attributes {
-		if attr != nil && attributeTwoPass(opts, attr.Type) {
+		if attrTwoPass(opts, attr) {
 			return attr.Type
 		}
 	}

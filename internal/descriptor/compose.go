@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/sweep"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -430,6 +431,15 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			"compose overlay spec carries unknown kind: "+string(spec.Kind),
 			map[string]any{"index": specIdx, "kind": string(spec.Kind)})
 		appendComposeSlotPair(result, spec.Reference, "", "kind-unknown")
+		return
+	}
+
+	// Gate 0b: a Compose-host OVERLAY_FORMULA may not call total() —
+	// the cohort-total term is ATTR_FORMULA's alone. The runtime twin
+	// (processing.ApplyComposeOverlaysWithRequests) refuses at the same
+	// point, before reference resolution, under the same code.
+	if cerr := composeFormulaTotalRefusal(spec, specIdx, opts.overlayRoute(spec.Kind)); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1146,4 +1156,26 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 	}
 	return out
+}
+
+// composeFormulaTotalRefusal is PULSE_FORMULA_TOTAL_SITE for a
+// Compose-host OVERLAY_FORMULA whose Params["formula"] calls total()
+// (internal/totalcall.Refusal at the OVERLAY_FORMULA site), details
+// carrying the spec index and authored kind beside the refusal's own.
+// nil for any other kind, a missing or non-string formula, or a formula
+// without total(). route is the instance's route of spec.Kind.
+func composeFormulaTotalRefusal(spec *types.ComposeOverlaySpec, specIdx int, route types.OverlayKind) *errors.CodedError {
+	if route != types.OverlayKindFormula {
+		return nil
+	}
+	formula, _ := spec.Params["formula"].(string)
+	cerr := totalcall.Refusal(formula, string(types.OverlayKindFormula))
+	if cerr == nil {
+		return nil
+	}
+	details := map[string]any{"index": specIdx, "kind": string(spec.Kind)}
+	for k, v := range cerr.Details {
+		details[k] = v
+	}
+	return errors.NewCodedErrorWithDetails(cerr.Code, cerr.Message, details)
 }
