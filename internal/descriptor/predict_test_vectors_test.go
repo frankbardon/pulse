@@ -46,7 +46,24 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 		}), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "unknown vector", test: hot(func(s *types.Test) { s.Vector = "nope" }), code: errors.PULSE_VECTOR_UNKNOWN},
 		{name: "non-numeric member", test: hot(func(s *types.Test) { s.Fields = []string{"q_1", "region"} }), code: errors.PULSE_VECTOR_MEMBER_TYPE},
-		{name: "vector2 refused", test: hot(func(s *types.Test) { s.Vector, s.Vector2 = "items", "items" }), code: errors.SERVICE_VALIDATION, reason: "vector2_not_accepted"},
+		{name: "paired", test: hot(func(s *types.Test) {
+			s.Vector, s.Fields2 = "items", []string{"q_3", "q_1", "q_2"}
+			s.Params = json.RawMessage(`{"mu": [0, 0, 1]}`)
+		})},
+		{name: "unequal two-sample", test: hot(func(s *types.Test) {
+			s.Vector, s.SplitBy = "items", "region"
+			s.Params = json.RawMessage(`{"variance": "unequal"}`)
+		})},
+		{name: "paired length mismatch", test: hot(func(s *types.Test) { s.Vector, s.Fields2 = "items", []string{"q_1"} }), code: errors.SERVICE_VALIDATION, reason: "vector2_length_mismatch"},
+		{name: "paired with split_by", test: hot(func(s *types.Test) { s.Vector, s.Vector2, s.SplitBy = "items", "items", "region" }), code: errors.SERVICE_VALIDATION, reason: "paired_with_split_by"},
+		{name: "unequal one-sample", test: hot(func(s *types.Test) {
+			s.Vector = "items"
+			s.Params = json.RawMessage(`{"variance": "unequal"}`)
+		}), code: errors.SERVICE_VALIDATION, reason: "variance_unequal_not_two_sample"},
+		{name: "unequal paired", test: hot(func(s *types.Test) {
+			s.Vector, s.Vector2 = "items", "items"
+			s.Params = json.RawMessage(`{"variance": "unequal"}`)
+		}), code: errors.SERVICE_VALIDATION, reason: "variance_unequal_not_two_sample"},
 		{name: "field on vector test", test: hot(func(s *types.Test) { s.Vector, s.Field = "items", "q_1" }), code: errors.SERVICE_VALIDATION, reason: "field_on_vector_test"},
 		{name: "vector on a scalar test", test: &types.Test{Type: types.TEST_T, Field: "q_1", Vector: "items"}, code: errors.SERVICE_VALIDATION, reason: "vector_not_accepted"},
 		{name: "vector on a post-test", post: &types.Test{Type: types.TEST_TREND, Field: "s", Vector: "items"}, code: errors.SERVICE_VALIDATION, reason: "vector_not_accepted"},

@@ -5170,7 +5170,7 @@
         "name": "TEST_HOTELLING_T2",
         "family": "TEST_HOTELLING_T2",
         "tier": 1,
-        "description": "Hotelling's T² on a mean vector (exactly one of Vector / Fields, listwise): one-sample against params.mu, or two-sample with a 2-level SplitBy and pooled covariance; exact F.",
+        "description": "Hotelling's T² on a mean vector (exactly one of Vector / Fields, listwise): one-sample against params.mu, paired (Vector2 / Fields2, same length; the row-wise difference vector against params.mu), or two-sample with a 2-level SplitBy — pooled covariance (exact F) or params.variance unequal (Krishnamoorthy–Yu, fractional df2).",
         "streamable": true,
         "params": [
           {
@@ -5184,7 +5184,18 @@
             "name": "mu",
             "type": "list",
             "required": false,
-            "description": "Hypothesized mean vector for the one-sample form, one entry per member (default zeros; ignored when SplitBy is set)."
+            "description": "Hypothesized mean vector (one-sample) or mean difference vector (paired), one entry per member (default zeros; ignored when SplitBy is set)."
+          },
+          {
+            "name": "variance",
+            "type": "enum",
+            "required": false,
+            "default": "pooled",
+            "description": "Two-sample covariance: pooled (one shared covariance, exact F) or unequal (Krishnamoorthy–Yu modified Nel–Van der Merwe F, fractional df2); unequal is refused on the one-sample and paired forms.",
+            "enum_values": [
+              "pooled",
+              "unequal"
+            ]
           },
           {
             "name": "missing",
@@ -9768,7 +9779,7 @@
       },
       {
         "name": "op-test-hotelling-t2",
-        "description": "Hotelling's T² on a mean vector of p numeric members; one-sample against params.mu, or two-sample over a 2-level SplitBy with pooled covariance; exact F."
+        "description": "Hotelling's T² on a mean vector of p numeric members; one-sample or paired (difference vector) against params.mu, or two-sample over a 2-level SplitBy with pooled or unequal covariance."
       },
       {
         "name": "op-test-kendall-tau",
@@ -10251,7 +10262,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 193,
+    "examples_count": 194,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13991,4 +14002,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: eebcd720e1f1fd08c29b252249c37aabf2da4ab1e22200a08fc8fb0e77109d97
+// golden-hash: 3bd6b0c2d1be5d27fbef05e06806bc36691f76d80727bc63e9e9272a8fa6fcd9

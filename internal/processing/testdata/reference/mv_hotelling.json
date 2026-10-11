@@ -13,8 +13,8 @@
     "Hotelling": "1.0.8"
   },
   "primitive": "Hotelling's T-squared",
-  "r_function": "one-sample: closed form ns * t(d) solve(S) d (stats::anova.mlm asserted, unweighted); two-sample: Hotelling::hotelling.test(var.equal = TRUE) on the matrices (unweighted) or on list(mean, cov, n = N*) per level (weighted)",
-  "note": "Rows with weight 0 are excluded first (Pulse's row-test rule), so n counts w > 0 rows. N* = sum(w) under none / frequency, Kish n_eff under probability; S = cov.wt (frequency asserted == the rep() expansion; probability method 'unbiased'). One-sample F = (N* - p)/(p (N* - 1)) T2 on (p, N* - p); two-sample pooled S = ((N1*-1) S1 + (N2*-1) S2)/(N1* + N2* - 2), F = (N - p - 1)/(p (N - 2)) T2 on (p, N - p - 1), N = N1* + N2*. Split levels sorted as strings. n_star is per level (two-sample) or a one-entry list.",
+  "r_function": "one-sample: closed form ns * t(d) solve(S) d (stats::anova.mlm asserted, unweighted); two-sample: Hotelling::hotelling.test(var.equal = TRUE) on the matrices (unweighted) or on list(mean, cov, n = N*) per level (weighted); paired (form = paired): the one-sample closed form on D = fields - fields2 (stats::anova.mlm, or stats::t.test(paired) at p = 1, asserted unweighted); unequal (form = two_sample_unequal): Krishnamoorthy-Yu (2004) hand-computed, T2 asserted against Hotelling::hotelling.stat(var.equal = FALSE), Welch stats::t.test asserted at p = 1",
+  "note": "Rows with weight 0 are excluded first (Pulse's row-test rule), so n counts w > 0 rows. N* = sum(w) under none / frequency, Kish n_eff under probability; S = cov.wt (frequency asserted == the rep() expansion; probability method 'unbiased'). One-sample F = (N* - p)/(p (N* - 1)) T2 on (p, N* - p); two-sample pooled S = ((N1*-1) S1 + (N2*-1) S2)/(N1* + N2* - 2), F = (N - p - 1)/(p (N - 2)) T2 on (p, N - p - 1), N = N1* + N2*. Split levels sorted as strings. n_star is per level (two-sample) or a one-entry list. Paired: one-sample on the difference vector, F on (p, N* - p). Unequal: V_i = S_i / N*_i, St = V_1 + V_2, T2 = d' St^-1 d, nu = (p + p^2) / sum_i (tr[(V_i St^-1)^2] + tr[V_i St^-1]^2) / (N*_i - 1), F = (nu - p + 1)/(nu p) T2 on (p, nu - p + 1). A case without `form` is one_sample (split null) or two_sample_pooled.",
   "cases": [
     {
       "fixture": "attitude",
@@ -137,6 +137,175 @@
     },
     {
       "fixture": "attitude",
+      "fields": ["rating", "complaints"],
+      "fields2": ["privileges", "learning"],
+      "split": null,
+      "mu": [
+        0,
+        0
+      ],
+      "weight": "none",
+      "form": "paired",
+      "n": 30,
+      "n_star": [
+        30
+      ],
+      "mean_diff": [
+        11.5,
+        10.233333333333333
+      ],
+      "t2": 40.879082714569059,
+      "f": 19.734729586343683,
+      "df1": 2,
+      "df2": 28,
+      "p_value": 4.4948089191825013e-06
+    },
+    {
+      "fixture": "attitude",
+      "fields": ["rating", "complaints", "raises"],
+      "fields2": ["privileges", "learning", "advance"],
+      "split": null,
+      "mu": [
+        10,
+        15,
+        20
+      ],
+      "weight": "none",
+      "form": "paired",
+      "n": 30,
+      "n_star": [
+        30
+      ],
+      "mean_diff": [
+        11.5,
+        10.233333333333333,
+        21.699999999999999
+      ],
+      "t2": 10.404094778093649,
+      "f": 3.2288570000980292,
+      "df1": 3,
+      "df2": 27,
+      "p_value": 0.038005911613700039
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["qsec"],
+      "fields2": ["mpg"],
+      "split": null,
+      "mu": [
+        0
+      ],
+      "weight": "none",
+      "form": "paired",
+      "n": 32,
+      "n_star": [
+        32
+      ],
+      "mean_diff": [
+        -2.2418749999999998
+      ],
+      "t2": 5.2733620028185246,
+      "f": 5.2733620028185246,
+      "df1": 1,
+      "df2": 31,
+      "p_value": 0.028573754627188343
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2"],
+      "fields2": ["x3", "x4"],
+      "split": null,
+      "mu": [
+        0,
+        0
+      ],
+      "weight": "none",
+      "form": "paired",
+      "n": 40,
+      "n_star": [
+        40
+      ],
+      "mean_diff": [
+        0.17266147500000018,
+        0.10775704999999998
+      ],
+      "t2": 0.91910408706847235,
+      "f": 0.44776865780258907,
+      "df1": 2,
+      "df2": 38,
+      "p_value": 0.64238087709097458
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "hp", "wt", "qsec"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "none",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        19,
+        13
+      ],
+      "t2": 61.886683949546317,
+      "f": 13.61913437903185,
+      "df1": 4,
+      "df2": 22.054842507744954,
+      "p_value": 9.7367123159342877e-06
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "none",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        19,
+        13
+      ],
+      "t2": 14.191216790686576,
+      "f": 14.191216790686576,
+      "df1": 1,
+      "df2": 18.332251638400464,
+      "p_value": 0.0013736383330710345
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2", "x3", "x4"],
+      "split": "y_bin",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "none",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        12,
+        28
+      ],
+      "n_star": [
+        12,
+        28
+      ],
+      "t2": 18.710875868802219,
+      "f": 3.9439877696740262,
+      "df1": 4,
+      "df2": 16.125746525306059,
+      "p_value": 0.020364743767252329
+    },
+    {
+      "fixture": "attitude",
       "fields": ["rating", "complaints", "privileges", "learning"],
       "split": null,
       "mu": [
@@ -256,6 +425,175 @@
     },
     {
       "fixture": "attitude",
+      "fields": ["rating", "complaints"],
+      "fields2": ["privileges", "learning"],
+      "split": null,
+      "mu": [
+        0,
+        0
+      ],
+      "weight": "frequency",
+      "form": "paired",
+      "n": 30,
+      "n_star": [
+        78
+      ],
+      "mean_diff": [
+        12.692307692307692,
+        9.5384615384615383
+      ],
+      "t2": 85.459408810049894,
+      "f": 42.17477317898566,
+      "df1": 2,
+      "df2": 76,
+      "p_value": 4.7680692400589178e-13
+    },
+    {
+      "fixture": "attitude",
+      "fields": ["rating", "complaints", "raises"],
+      "fields2": ["privileges", "learning", "advance"],
+      "split": null,
+      "mu": [
+        10,
+        15,
+        20
+      ],
+      "weight": "frequency",
+      "form": "paired",
+      "n": 30,
+      "n_star": [
+        78
+      ],
+      "mean_diff": [
+        12.692307692307692,
+        9.5384615384615383,
+        21.602564102564102
+      ],
+      "t2": 30.816326592588737,
+      "f": 10.005300841749589,
+      "df1": 3,
+      "df2": 75,
+      "p_value": 1.2677337524102093e-05
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["qsec"],
+      "fields2": ["mpg"],
+      "split": null,
+      "mu": [
+        0
+      ],
+      "weight": "frequency",
+      "form": "paired",
+      "n": 32,
+      "n_star": [
+        87
+      ],
+      "mean_diff": [
+        -2.1520689655172411
+      ],
+      "t2": 13.661049746696669,
+      "f": 13.661049746696669,
+      "df1": 1,
+      "df2": 86,
+      "p_value": 0.00038447279141598582
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2"],
+      "fields2": ["x3", "x4"],
+      "split": null,
+      "mu": [
+        0,
+        0
+      ],
+      "weight": "frequency",
+      "form": "paired",
+      "n": 37,
+      "n_star": [
+        86
+      ],
+      "mean_diff": [
+        0.35666547674418592,
+        0.30897954651162773
+      ],
+      "t2": 12.251039357656301,
+      "f": 6.0534547414301727,
+      "df1": 2,
+      "df2": 84,
+      "p_value": 0.0034997443213249878
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "hp", "wt", "qsec"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "frequency",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        57,
+        30
+      ],
+      "t2": 164.87335943289688,
+      "f": 39.084453375112659,
+      "df1": 4,
+      "df2": 54.948265080325761,
+      "p_value": 1.8150441043078215e-15
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "frequency",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        57,
+        30
+      ],
+      "t2": 29.691983455298704,
+      "f": 29.691983455298704,
+      "df1": 1,
+      "df2": 39.375868919971154,
+      "p_value": 2.9318129631741319e-06
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2", "x3", "x4"],
+      "split": "y_bin",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "frequency",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        11,
+        26
+      ],
+      "n_star": [
+        24,
+        62
+      ],
+      "t2": 93.658565828855856,
+      "f": 21.713433409693902,
+      "df1": 4,
+      "df2": 38.290613734187374,
+      "p_value": 2.0331032927229308e-09
+    },
+    {
+      "fixture": "attitude",
       "fields": ["rating", "complaints", "privileges", "learning"],
       "split": null,
       "mu": [
@@ -372,7 +710,176 @@
       "df1": 4,
       "df2": 25.762829660057424,
       "p_value": 0.032335221296489115
+    },
+    {
+      "fixture": "attitude",
+      "fields": ["rating", "complaints"],
+      "fields2": ["privileges", "learning"],
+      "split": null,
+      "mu": [
+        0,
+        0
+      ],
+      "weight": "probability",
+      "form": "paired",
+      "n": 30,
+      "n_star": [
+        24.287405650142993
+      ],
+      "mean_diff": [
+        11.87557554570259,
+        9.5201867326057279
+      ],
+      "t2": 27.986237708040022,
+      "f": 13.392231015149301,
+      "df1": 2,
+      "df2": 22.287405650142993,
+      "p_value": 0.00015143936239967812
+    },
+    {
+      "fixture": "attitude",
+      "fields": ["rating", "complaints", "raises"],
+      "fields2": ["privileges", "learning", "advance"],
+      "split": null,
+      "mu": [
+        10,
+        15,
+        20
+      ],
+      "weight": "probability",
+      "form": "paired",
+      "n": 30,
+      "n_star": [
+        24.287405650142993
+      ],
+      "mean_diff": [
+        11.87557554570259,
+        9.5201867326057279,
+        20.975869713506142
+      ],
+      "t2": 10.012067073616702,
+      "f": 3.0507324630672223,
+      "df1": 3,
+      "df2": 21.287405650142993,
+      "p_value": 0.050714255789927123
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["qsec"],
+      "fields2": ["mpg"],
+      "split": null,
+      "mu": [
+        0
+      ],
+      "weight": "probability",
+      "form": "paired",
+      "n": 32,
+      "n_star": [
+        25.848764733922664
+      ],
+      "mean_diff": [
+        -3.0019013788625331
+      ],
+      "t2": 7.0811298623820083,
+      "f": 7.0811298623820083,
+      "df1": 1,
+      "df2": 24.848764733922664,
+      "p_value": 0.013449673004967393
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2"],
+      "fields2": ["x3", "x4"],
+      "split": null,
+      "mu": [
+        0,
+        0
+      ],
+      "weight": "probability",
+      "form": "paired",
+      "n": 38,
+      "n_star": [
+        30.625883066626969
+      ],
+      "mean_diff": [
+        0.18609933469035872,
+        0.20068825738780585
+      ],
+      "t2": 1.2286356524952278,
+      "f": 0.59358197763624776,
+      "df1": 2,
+      "df2": 28.625883066626969,
+      "p_value": 0.55900122897964244
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg", "hp", "wt", "qsec"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "probability",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        15.664219325422824,
+        10.709059592769826
+      ],
+      "t2": 47.335985038248154,
+      "f": 10.097209552759042,
+      "df1": 4,
+      "df2": 17.441190987715856,
+      "p_value": 0.00020461337362765928
+    },
+    {
+      "fixture": "mtcars",
+      "fields": ["mpg"],
+      "split": "am",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "probability",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        19,
+        13
+      ],
+      "n_star": [
+        15.664219325422824,
+        10.709059592769826
+      ],
+      "t2": 11.354141261105163,
+      "f": 11.354141261105163,
+      "df1": 1,
+      "df2": 14.620532181886283,
+      "p_value": 0.0043449117154205595
+    },
+    {
+      "fixture": "weighted",
+      "fields": ["x1", "x2", "x3", "x4"],
+      "split": "y_bin",
+      "levels": ["0", "1"],
+      "mu": null,
+      "weight": "probability",
+      "form": "two_sample_unequal",
+      "variance": "unequal",
+      "n": [
+        12,
+        26
+      ],
+      "n_star": [
+        8.989053251470736,
+        21.773776408586688
+      ],
+      "t2": 11.047061733238168,
+      "f": 2.226713329975988,
+      "df1": 4,
+      "df2": 12.4850270624271,
+      "p_value": 0.12483361240596803
     }
   ]
 }
-// golden-hash: e9f91e42aa7376b51c40afd7f833ce1b094a1ffbd421dbf9b2b60f009b539216
+// golden-hash: 39c3b719a6d6ff49d24b2e0593133cf21f4c8dc3d00e713079769548846f9792

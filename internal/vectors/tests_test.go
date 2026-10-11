@@ -55,13 +55,42 @@ func TestResolveTests_Rules(t *testing.T) {
 			t.Fields = []string{"a1", "a2"}
 			t.Params = json.RawMessage(`{"mu": [1, 2]}`)
 		}), members: []string{"a1", "a2"}},
+		{name: "unequal on two-sample", test: hot(func(t *types.Test) {
+			t.Fields, t.SplitBy = []string{"a1", "a2"}, "region"
+			t.Params = json.RawMessage(`{"variance": "unequal"}`)
+		}), members: []string{"a1", "a2"}},
+		{name: "pooled on one-sample", test: hot(func(t *types.Test) {
+			t.Fields = []string{"a1", "a2"}
+			t.Params = json.RawMessage(`{"variance": "pooled"}`)
+		}), members: []string{"a1", "a2"}},
+		{name: "paired", test: hot(func(t *types.Test) {
+			t.Fields, t.Vector2 = []string{"a1", "a3"}, "vb"
+			t.Params = json.RawMessage(`{"mu": [0, 1]}`)
+		}), members: []string{"a1", "a3"}},
 		{name: "plain test reads none", test: &types.Test{Type: types.TEST_T, Field: "a1"}},
 		{name: "extension test not judged", test: &types.Test{Type: "TEST_ACME_X", Vector: "nope"}},
 
 		{name: "vector and fields", test: hot(func(t *types.Test) { t.Vector, t.Fields = "va", []string{"a1"} }), code: errors.SERVICE_VALIDATION, reason: "vector_and_fields"},
 		{name: "neither", test: hot(func(t *types.Test) {}), code: errors.SERVICE_VALIDATION, reason: "no_vector_or_fields"},
 		{name: "field on vector test", test: hot(func(t *types.Test) { t.Vector, t.Field = "va", "a1" }), code: errors.SERVICE_VALIDATION, reason: "field_on_vector_test"},
-		{name: "vector2 not accepted", test: hot(func(t *types.Test) { t.Vector, t.Vector2 = "va", "vb" }), code: errors.SERVICE_VALIDATION, reason: "vector2_not_accepted"},
+		{name: "paired with split_by", test: hot(func(t *types.Test) { t.Vector, t.Vector2, t.SplitBy = "vb", "vb", "region" }), code: errors.SERVICE_VALIDATION, reason: "paired_with_split_by"},
+		{name: "paired length mismatch", test: hot(func(t *types.Test) { t.Vector, t.Vector2 = "va", "vb" }), code: errors.SERVICE_VALIDATION, reason: "vector2_length_mismatch"},
+		{name: "unequal on one-sample", test: hot(func(t *types.Test) {
+			t.Fields = []string{"a1", "a2"}
+			t.Params = json.RawMessage(`{"variance": "unequal"}`)
+		}), code: errors.SERVICE_VALIDATION, reason: "variance_unequal_not_two_sample"},
+		{name: "unequal on paired", test: hot(func(t *types.Test) {
+			t.Fields, t.Fields2 = []string{"a1", "a2"}, []string{"b1", "b2"}
+			t.Params = json.RawMessage(`{"variance": "unequal"}`)
+		}), code: errors.SERVICE_VALIDATION, reason: "variance_unequal_not_two_sample"},
+		{name: "unknown variance", test: hot(func(t *types.Test) {
+			t.Fields, t.SplitBy = []string{"a1", "a2"}, "region"
+			t.Params = json.RawMessage(`{"variance": "welch"}`)
+		}), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "mu wrong length on two-sample", test: hot(func(t *types.Test) {
+			t.Fields, t.SplitBy = []string{"a1", "a2"}, "region"
+			t.Params = json.RawMessage(`{"mu": [1]}`)
+		}), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "vector2 and fields2", test: hot(func(t *types.Test) { t.Vector, t.Vector2, t.Fields2 = "va", "vb", []string{"b1"} }), code: errors.SERVICE_VALIDATION, reason: "vector2_and_fields2"},
 		{name: "pairwise refused", test: hot(func(t *types.Test) {
 			t.Fields = []string{"a1", "a2"}
@@ -125,13 +154,63 @@ func TestResolveTests_Rules(t *testing.T) {
 	}
 }
 
-// TestResolveTests_SecondSet pins the paired second member set on a
-// type that reads one: same length resolves, a different length is
+// TestResolveTests_SecondSetOnlyOnPairedTypes: a second set on a
+// vector test outside SecondVectorTypes is vector2_not_accepted.
+func TestResolveTests_SecondSetOnlyOnPairedTypes(t *testing.T) {
+	old := secondVectorTypes
+	secondVectorTypes = nil
+	defer func() { secondVectorTypes = old }()
+	req := &types.Request{
+		Vectors: []types.VectorSpec{{Name: "vb", Fields: []string{"b1", "b2"}}},
+		Tests:   []*types.Test{hot(func(t *types.Test) { t.Fields, t.Vector2 = []string{"a1", "a2"}, "vb" })},
+	}
+	_, err := ResolveTests(req, testInputSchema(), nil)
+	if err == nil || err.Details["reason"] != "vector2_not_accepted" {
+		t.Fatalf("refusal = %v", err)
+	}
+}
+
+// TestHotellingParams pins the decoded config per form: mu defaults to
+// zeros (nil on two-sample, which ignores it), variance to pooled, and
+// unequal survives only on the two-sample form.
+func TestHotellingParams(t *testing.T) {
+	for _, c := range []struct {
+		form     HotellingForm
+		raw      string
+		mu       []float64
+		variance string
+		reason   string
+	}{
+		{HotellingOneSample, ``, []float64{0, 0}, HotellingVariancePooled, ""},
+		{HotellingPaired, `{"mu":[1,2]}`, []float64{1, 2}, HotellingVariancePooled, ""},
+		{HotellingTwoSample, `{"mu":[1,2],"variance":"unequal"}`, nil, HotellingVarianceUnequal, ""},
+		{HotellingTwoSample, `{"variance":"pooled"}`, nil, HotellingVariancePooled, ""},
+		{HotellingOneSample, `{"variance":"unequal"}`, nil, "", "variance_unequal_not_two_sample"},
+		{HotellingPaired, `{"variance":"unequal"}`, nil, "", "variance_unequal_not_two_sample"},
+	} {
+		cfg, err := HotellingParams("tests[0]", json.RawMessage(c.raw), 2, c.form)
+		if c.reason != "" {
+			if err == nil || err.Details["reason"] != c.reason || err.Details["form"] != string(c.form) {
+				t.Fatalf("%s %s: err = %v, want %s", c.form, c.raw, err, c.reason)
+			}
+			continue
+		}
+		if err != nil || !reflect.DeepEqual(cfg.Mu, c.mu) || cfg.Variance != c.variance {
+			t.Fatalf("%s %s: cfg = %+v err = %v", c.form, c.raw, cfg, err)
+		}
+	}
+	if got := HotellingFormOf(&types.Test{Fields2: []string{"x"}}); got != HotellingPaired {
+		t.Fatalf("form of a paired spec = %s", got)
+	}
+	if got := HotellingFormOf(&types.Test{SplitBy: "g"}); got != HotellingTwoSample {
+		t.Fatalf("form of a split spec = %s", got)
+	}
+}
+
+// TestResolveTests_SecondSet pins the paired second member set on
+// TEST_HOTELLING_T2: same length resolves, a different length is
 // vector2_length_mismatch.
 func TestResolveTests_SecondSet(t *testing.T) {
-	old := secondVectorTypes
-	secondVectorTypes = []types.TestType{types.TEST_HOTELLING_T2}
-	defer func() { secondVectorTypes = old }()
 	req := &types.Request{
 		Vectors: []types.VectorSpec{{Name: "vb", Fields: []string{"b1", "b2"}}},
 		Tests:   []*types.Test{hot(func(t *types.Test) { t.Fields, t.Vector2 = []string{"a1", "a2"}, "vb" })},

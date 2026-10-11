@@ -34,6 +34,7 @@ its cohort from the shared `.data` directory and assumes
 | `26_fisher_exact_small_sample.json` | 1 | `TEST_CHISQ` + `TEST_FISHER_EXACT` | filtered cohort with small marginals; chi-square and Fisher exact side by side |
 | `27_shapiro_wilk_normality.json` | 1 | `TEST_SHAPIRO_WILK` | per-treatment normality check on the log-normal revenue field |
 | `29_hotelling_t2_profile.json` | 1 | `TEST_HOTELLING_T2` | revenue and session_minutes as one profile: two-sample by treatment on a named vector, one-sample against a benchmark `mu` |
+| `30_hotelling_t2_paired_unequal.json` | 1 | `TEST_HOTELLING_T2` | paired form (`fields2`, the row-wise difference vector against `mu`) on revenue vs its baseline, and two-sample `variance: unequal` (Krishnamoorthy–Yu) on the engagement profile by treatment |
 
 ## Cohort
 

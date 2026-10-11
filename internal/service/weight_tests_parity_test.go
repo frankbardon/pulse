@@ -81,6 +81,13 @@ var testParityOps = []testParityOp{
 		raw: []string{"n_dropped"}},
 	{name: "hotelling_split", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}, SplitBy: "h"},
 		raw: []string{"n_dropped"}},
+	// Paired and unequal forms (U25 E1-S2): the difference co-moment and
+	// the per-level Krishnamoorthy–Yu traces, both on w*.
+	{name: "hotelling_paired", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x"}, Fields2: []string{"y"}},
+		raw: []string{"n_dropped"}},
+	{name: "hotelling_unequal", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}, SplitBy: "h",
+		Params: json.RawMessage(`{"variance":"unequal"}`)},
+		raw: []string{"n_dropped"}},
 }
 
 // build returns the row's request builder over path.

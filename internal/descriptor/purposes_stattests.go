@@ -140,12 +140,13 @@ var (
 	}
 
 	purposeTestHotellingT2 = descriptor.Purpose{
-		Plain:   "Checks whether a set of numeric fields, taken together as one profile, differs from a target profile or between two groups.",
+		Plain:   "Checks whether several numeric fields, taken together as one profile, differ from a target, between two groups, or before vs after.",
 		KnownAs: []string{"hotelling t2", "hotelling's t-squared", "multivariate t test"},
 		Intents: []string{IntentCompareGroups, IntentBenchmark},
 		Questions: []string{
 			"Do the two app versions differ on the whole set of engagement metrics at once?",
 			"Is our average satisfaction profile across five attributes different from the benchmark profile?",
+			"Did the same customers' ratings shift as a whole between the before and after surveys?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Compare two segments on a battery of rating items in one test.",
@@ -159,7 +160,7 @@ var (
 		Assumptions: []string{
 			"Rows are independent of each other, within and across the groups.",
 			"The fields are roughly jointly normal; with many rows the test tolerates departures.",
-			"The two-sample form assumes both groups share one covariance across the fields.",
+			"The two-sample form assumes both groups share one covariance across the fields unless variance is set to unequal.",
 			"A row with any field missing is dropped from the test (listwise).",
 			"There are more complete rows than fields.",
 		},

@@ -29,9 +29,12 @@ import (
 //   - Missing data is listwise only: params.missing "listwise" is
 //     accepted, "pairwise" (the matrix slot's other mode) and anything
 //     else refused.
-//   - An operator's params that depend on the member count are judged
-//     here too (TEST_HOTELLING_T2: HotellingMu), so predict and the
-//     runtime refuse them at the same point.
+//   - An operator's params that depend on the member count or the form
+//     are judged here too (TEST_HOTELLING_T2: HotellingParams — mu's
+//     length, variance "unequal" only on the two-sample form), so
+//     predict and the runtime refuse them at the same point.
+//   - A paired form (a second set) is never split: vector2 / fields2
+//     with split_by is refused.
 //   - Any OTHER built-in test — and every post-test — refuses a vector
 //     input. An extension test's slots are its own business and are not
 //     judged.
@@ -46,9 +49,9 @@ func VectorTestTypes() []types.TestType {
 }
 
 // secondVectorTypes are the built-in test types that also read a
-// second member set (none yet: the paired forms land with their
-// operators). A var so the pairing rules are testable before then.
-var secondVectorTypes []types.TestType
+// second member set: TEST_HOTELLING_T2's paired form (the difference
+// vector). A var so the pairing rules stay testable on their own.
+var secondVectorTypes = []types.TestType{types.TEST_HOTELLING_T2}
 
 // SecondVectorTypes returns the built-in test types that also read a
 // second member set from Vector2 / Fields2.
@@ -153,6 +156,11 @@ func resolveTest(at string, t *types.Test, typ types.TestType, specs []types.Vec
 		return TestInput{}, testInvalid(at, "vector2_not_accepted",
 			at+" ("+name+") reads one member set; drop vector2 / fields2", map[string]any{"type": name})
 	}
+	if hasSecond && t.SplitBy != "" {
+		return TestInput{}, testInvalid(at, "paired_with_split_by",
+			at+" ("+name+") sets vector2 / fields2 (the paired form, one sample of row-wise differences) and split_by; drop one",
+			map[string]any{"type": name, "split_by": t.SplitBy})
+	}
 	if err := checkTestMissing(at, t.Params); err != nil {
 		return TestInput{}, err
 	}
@@ -161,7 +169,7 @@ func resolveTest(at string, t *types.Test, typ types.TestType, specs []types.Vec
 		return TestInput{}, err
 	}
 	if typ == types.TEST_HOTELLING_T2 {
-		if _, err := HotellingMu(at, t.Params, len(first.Members)); err != nil {
+		if _, err := HotellingParams(at, t.Params, len(first.Members), HotellingFormOf(t)); err != nil {
 			return TestInput{}, err
 		}
 	}
@@ -225,35 +233,103 @@ func checkTestMissing(at string, raw json.RawMessage) *errors.CodedError {
 		map[string]any{"param": "missing", "value": *p.Missing, "valid": []string{MissingListwise}})
 }
 
-// HotellingMu decodes TEST_HOTELLING_T2's params against its member
-// count p: params.mu, a length-p array (default zeros), and
-// params.missing (checkTestMissing's rule). Unknown keys are refused.
-// at is the slot path. Predict and the runtime factory both call it.
-func HotellingMu(at string, raw json.RawMessage, p int) ([]float64, *errors.CodedError) {
-	mu := make([]float64, p)
+// TEST_HOTELLING_T2 params.variance values.
+const (
+	// HotellingVariancePooled is the default: one covariance shared by
+	// both samples (exact F).
+	HotellingVariancePooled = "pooled"
+	// HotellingVarianceUnequal is the Krishnamoorthy–Yu modified Nel–Van
+	// der Merwe approximation (two-sample only; fractional df2).
+	HotellingVarianceUnequal = "unequal"
+)
+
+// HotellingForm is a TEST_HOTELLING_T2 slot's form, read off its spec.
+type HotellingForm string
+
+// TEST_HOTELLING_T2 forms (TestResult.Variant prefixes).
+const (
+	HotellingOneSample HotellingForm = "one_sample"
+	HotellingTwoSample HotellingForm = "two_sample"
+	HotellingPaired    HotellingForm = "paired"
+)
+
+// HotellingFormOf reads t's form: paired when a second set is present,
+// two-sample when split_by is set, one-sample otherwise. (The resolver
+// refuses a second set with split_by before params are judged.)
+func HotellingFormOf(t *types.Test) HotellingForm {
+	switch {
+	case t.Vector2 != "" || len(t.Fields2) > 0:
+		return HotellingPaired
+	case t.SplitBy != "":
+		return HotellingTwoSample
+	}
+	return HotellingOneSample
+}
+
+// HotellingConfig is TEST_HOTELLING_T2's decoded params.
+type HotellingConfig struct {
+	// Mu is the hypothesized mean (one-sample) or mean difference
+	// (paired) vector, length p (default zeros); nil on the two-sample
+	// form, which tests equal means.
+	Mu []float64
+	// Variance is HotellingVariancePooled (default) or
+	// HotellingVarianceUnequal (two-sample only).
+	Variance string
+}
+
+// HotellingParams decodes TEST_HOTELLING_T2's params against its member
+// count p and form: params.mu, a length-p array (default zeros; judged
+// but ignored on the two-sample form), params.variance ("pooled" default, "unequal"
+// refused off the two-sample form) and params.missing
+// (checkTestMissing's rule). Unknown keys are refused. at is the slot
+// path. Predict and the runtime factory both call it.
+func HotellingParams(at string, raw json.RawMessage, p int, form HotellingForm) (HotellingConfig, *errors.CodedError) {
+	cfg := HotellingConfig{Mu: make([]float64, p), Variance: HotellingVariancePooled}
+	if form == HotellingTwoSample {
+		cfg.Mu = nil
+	}
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return mu, nil
+		return cfg, nil
 	}
 	var params struct {
-		Mu      []float64 `json:"mu"`
-		Missing *string   `json:"missing"`
+		Mu       []float64 `json:"mu"`
+		Variance *string   `json:"variance"`
+		Missing  *string   `json:"missing"`
 	}
 	if err := decodeStrict(raw, &params); err != nil {
-		return nil, testInvalid(at, "bad_params", at+" TEST_HOTELLING_T2 params: "+err.Error()+" (keys: mu, missing)", nil)
+		return HotellingConfig{}, testInvalid(at, "bad_params", at+" TEST_HOTELLING_T2 params: "+err.Error()+" (keys: mu, variance, missing)", nil)
 	}
 	if err := checkTestMissing(at, raw); err != nil {
-		return nil, err
+		return HotellingConfig{}, err
+	}
+	if params.Variance != nil {
+		switch v := *params.Variance; v {
+		case HotellingVariancePooled:
+		case HotellingVarianceUnequal:
+			if form != HotellingTwoSample {
+				return HotellingConfig{}, testInvalid(at, "variance_unequal_not_two_sample",
+					at+" params.variance \"unequal\" compares two samples' covariances and needs the two-sample form (split_by); the "+string(form)+" form has one covariance — drop variance",
+					map[string]any{"param": "variance", "value": v, "form": string(form)})
+			}
+			cfg.Variance = v
+		default:
+			return HotellingConfig{}, testInvalid(at, "bad_params", at+" params.variance must be \"pooled\" or \"unequal\"",
+				map[string]any{"param": "variance", "value": v, "valid": []string{HotellingVariancePooled, HotellingVarianceUnequal}})
+		}
 	}
 	if params.Mu == nil {
-		return mu, nil
+		return cfg, nil
 	}
 	if len(params.Mu) != p {
-		return nil, testInvalid(at, "bad_params",
+		return HotellingConfig{}, testInvalid(at, "bad_params",
 			at+" params.mu has "+strconv.Itoa(len(params.Mu))+" entries for "+strconv.Itoa(p)+" members; give one per member",
 			map[string]any{"param": "mu", "len": len(params.Mu), "p": p})
 	}
-	return params.Mu, nil
+	if form != HotellingTwoSample {
+		cfg.Mu = params.Mu
+	}
+	return cfg, nil
 }
 
 // TestInputMembers returns the union of every field req's tier-1 tests read

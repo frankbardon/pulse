@@ -323,7 +323,8 @@ paired second set). A vector-input test (`TEST_HOTELLING_T2`) sets
 exactly one of `vector` (a `vectors` entry) and `fields` (inline
 names and globs, the `VectorSpec.fields` rules) and no `field`; a
 second set must resolve to the same member count and is accepted only
-by a test that reads one; every other test refuses all four. Missing
+by a test that reads one (`TEST_HOTELLING_T2`'s paired form, which
+refuses `split_by` beside it); every other test refuses all four. Missing
 data is listwise only (`params.missing` other than `"listwise"` is
 refused). Shape refusals are `SERVICE_VALIDATION` with
 `details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`.

@@ -30,7 +30,7 @@ branch: multivariate-tests-segmentation
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#131** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_HOTELLING_T2`
+- [x] **#131** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_HOTELLING_T2`
 - [ ] **#132** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_MANOVA` (Wilks, Pillai, Hotelling–Lawley, Roy)
 - [ ] **#133** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `TEST_BARTLETT_SPHERICITY`
 - [ ] **#134** (10. Vector & matrix — operators › E4 — Multivariate tests, fitted attributes, segmentation) `ATTR_MAHALANOBIS`

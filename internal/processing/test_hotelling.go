@@ -24,10 +24,17 @@ import (
 //   - One-sample (no SplitBy): T² = N*·(x̄ − μ)ᵀ S⁻¹ (x̄ − μ) against
 //     params.mu (length p, default zeros); F = (N* − p)/(p(N* − 1))·T²
 //     on (p, N* − p).
+//   - Paired (Fields2, same length p, no SplitBy): each row folds the
+//     difference vector Fields − Fields2 (listwise across both sets),
+//     then the one-sample form runs against params.mu.
 //   - Two-sample (SplitBy, exactly 2 levels, sorted): pooled
 //     S = (M2*₁ + M2*₂)/(N*₁ + N*₂ − 2), T² = N*₁N*₂/(N*₁ + N*₂)·dᵀS⁻¹d
 //     with d = x̄₁ − x̄₂; exact F = (N − p − 1)/(p(N − 2))·T² on
 //     (p, N − p − 1), N = N*₁ + N*₂.
+//   - Two-sample, params.variance "unequal": Krishnamoorthy–Yu (2004)
+//     modified Nel–Van der Merwe. Vᵢ = Sᵢ/N*ᵢ, S̃ = V₁ + V₂,
+//     T² = dᵀS̃⁻¹d, ν = (p + p²)/Σᵢ (tr[(VᵢS̃⁻¹)²] + tr[VᵢS̃⁻¹]²)/(N*ᵢ − 1),
+//     F = (ν − p + 1)/(νp)·T² on (p, ν − p + 1).
 //
 // Weights follow the one rule (weighting.Basis): every formula is the
 // frequency formula on w*, so N* is Σw (unweighted: n; frequency: Σw)
@@ -36,12 +43,15 @@ import (
 // is not an error: the result carries a PULSE_MATRIX_SINGULAR warning
 // and a null statistic and p-value.
 type hotellingRow struct {
-	spec    *types.Test
-	members []string
-	splitBy string
-	one     bool
-	alpha   float64
-	mu      []float64
+	spec     *types.Test
+	members  []string
+	members2 []string // paired form: the second set (difference = members − members2)
+	splitBy  string
+	one      bool // one-sample or paired: a single "" level
+	paired   bool
+	unequal  bool // two-sample params.variance "unequal"
+	alpha    float64
+	mu       []float64
 
 	x      []float64
 	groups map[string]*linalg.CoMoment
@@ -75,24 +85,38 @@ func newHotellingRow(spec *types.Test, schema *encoding.Schema) (RowTest, error)
 				map[string]any{"split_by": spec.SplitBy, "type": f.Type.String()})
 		}
 	}
-	mu, cerr := vectors.HotellingMu(testLabel(spec), spec.Params, p)
+	paired := len(spec.Fields2) > 0
+	if paired && len(spec.Fields2) != p {
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("TEST_HOTELLING_T2 pairs %d members with %d; both sets need the same count", p, len(spec.Fields2)),
+			map[string]any{"test": testLabel(spec), "reason": "vector2_length_mismatch", "p": p, "p2": len(spec.Fields2)})
+	}
+	if paired && spec.SplitBy != "" {
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"TEST_HOTELLING_T2 sets fields2 (the paired form) and split_by; drop one",
+			map[string]any{"test": testLabel(spec), "reason": "paired_with_split_by", "split_by": spec.SplitBy})
+	}
+	cfg, cerr := vectors.HotellingParams(testLabel(spec), spec.Params, p, vectors.HotellingFormOf(spec))
 	if cerr != nil {
 		return nil, cerr
 	}
-	if spec.SplitBy != "" {
-		mu = nil // the two-sample form tests equal means; mu is a one-sample knob
-	}
-	return &hotellingRow{
+	h := &hotellingRow{
 		spec:       spec,
 		members:    append([]string(nil), spec.Fields...),
 		splitBy:    spec.SplitBy,
 		one:        spec.SplitBy == "",
+		paired:     paired,
+		unequal:    cfg.Variance == vectors.HotellingVarianceUnequal,
 		alpha:      alpha,
-		mu:         mu,
+		mu:         cfg.Mu,
 		x:          make([]float64, p),
 		groups:     make(map[string]*linalg.CoMoment),
 		testWeight: newTestWeight(spec),
-	}, nil
+	}
+	if paired {
+		h.members2 = append([]string(nil), spec.Fields2...)
+	}
+	return h, nil
 }
 
 // UpdateRow folds one record. A null split key skips the row; a null
@@ -114,6 +138,14 @@ func (h *hotellingRow) UpdateRow(record *Record) error {
 			return nil
 		}
 		h.x[i] = v
+	}
+	for i, f := range h.members2 {
+		v, ok := record.NumericValue(f)
+		if !ok || math.IsNaN(v) {
+			h.dropped++
+			return nil
+		}
+		h.x[i] = float64(h.x[i] - v)
 	}
 	w, ok := h.rowWeight(record)
 	if !ok {
@@ -142,6 +174,9 @@ func (h *hotellingRow) Finalize() (*types.TestResult, error) {
 	}()
 	if h.one {
 		return h.finalizeOneSample()
+	}
+	if h.unequal {
+		return h.finalizeTwoSampleUnequal()
 	}
 	return h.finalizeTwoSample()
 }
@@ -247,15 +282,19 @@ func (h *hotellingRow) finalizeOneSample() (*types.TestResult, error) {
 	if ok {
 		n = c.N()
 	}
+	form := "one_sample"
+	if h.paired {
+		form = "paired"
+	}
 	if n < int64(p)+1 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_HOTELLING_T2 one-sample on %d members requires n ≥ %d complete rows, got %d", p, p+1, n),
+			fmt.Sprintf("TEST_HOTELLING_T2 %s on %d members requires n ≥ %d complete rows, got %d", form, p, p+1, n),
 			map[string]any{"n": n, "min_required": p + 1, "p": p})
 	}
 	ns := h.nStar(c)
 	if !(ns > float64(p)) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_HOTELLING_T2 one-sample: effective sample size %.4g does not exceed p = %d", ns, p),
+			fmt.Sprintf("TEST_HOTELLING_T2 %s: effective sample size %.4g does not exceed p = %d", form, ns, p),
 			map[string]any{"n": n, "n_star": ns, "p": p})
 	}
 	mean := c.Mean().Slice()
@@ -267,18 +306,24 @@ func (h *hotellingRow) finalizeOneSample() (*types.TestResult, error) {
 	res := &types.TestResult{
 		Label:   testLabel(h.spec),
 		Type:    types.TEST_HOTELLING_T2,
-		Variant: "one_sample",
+		Variant: form,
 		DF:      float64(p),
 		Alpha:   h.alpha,
 		Details: map[string]any{
-			"members":            append([]string(nil), h.members...),
-			"n":                  n,
+			"members":   append([]string(nil), h.members...),
+			"n":         n,
 			"n_dropped": h.dropped,
-			"mu":                 append([]float64(nil), h.mu...),
-			"mean":               mean,
-			"df1":                float64(p),
-			"df2":                df2,
+			"mu":        append([]float64(nil), h.mu...),
+			"df1":       float64(p),
+			"df2":       df2,
 		},
+	}
+	if h.paired {
+		// The mean of the row-wise differences members − members2.
+		res.Details["members2"] = append([]string(nil), h.members2...)
+		res.Details["mean_diff"] = mean
+	} else {
+		res.Details["mean"] = mean
 	}
 	h.noteWeights(res.Details, []*linalg.CoMoment{c}, false)
 	h.checkNEff(h.spec, false, "", c.NEff(), p+1)
@@ -296,8 +341,9 @@ func (h *hotellingRow) finalizeOneSample() (*types.TestResult, error) {
 	return res, nil
 }
 
-func (h *hotellingRow) finalizeTwoSample() (*types.TestResult, error) {
-	p := len(h.members)
+// twoLevels returns the split's two levels, sorted, or
+// PULSE_TEST_SPLIT_GROUPS_LT_2 when there are not exactly two.
+func (h *hotellingRow) twoLevels() ([]string, error) {
 	keys := append([]string(nil), h.order...)
 	sort.Strings(keys)
 	if len(keys) != 2 {
@@ -309,6 +355,15 @@ func (h *hotellingRow) finalizeTwoSample() (*types.TestResult, error) {
 			details["max_allowed"] = 2
 		}
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2, msg, details)
+	}
+	return keys, nil
+}
+
+func (h *hotellingRow) finalizeTwoSample() (*types.TestResult, error) {
+	p := len(h.members)
+	keys, err := h.twoLevels()
+	if err != nil {
+		return nil, err
 	}
 	a, b := h.groups[keys[0]], h.groups[keys[1]]
 	na, nb := h.nStar(a), h.nStar(b)
@@ -331,14 +386,14 @@ func (h *hotellingRow) finalizeTwoSample() (*types.TestResult, error) {
 		DF:      float64(p),
 		Alpha:   h.alpha,
 		Details: map[string]any{
-			"members":            append([]string(nil), h.members...),
-			"groups":             keys,
-			"n":                  []int64{a.N(), b.N()},
+			"members":   append([]string(nil), h.members...),
+			"groups":    keys,
+			"n":         []int64{a.N(), b.N()},
 			"n_dropped": h.dropped,
-			"means":              [][]float64{ma, mb},
-			"mean_diff":          d,
-			"df1":                float64(p),
-			"df2":                df2,
+			"means":     [][]float64{ma, mb},
+			"mean_diff": d,
+			"df1":       float64(p),
+			"df2":       df2,
 		},
 	}
 	h.noteWeights(res.Details, []*linalg.CoMoment{a, b}, true)
@@ -359,6 +414,119 @@ func (h *hotellingRow) finalizeTwoSample() (*types.TestResult, error) {
 	t2 := float64(na*nb) / nTot * q
 	f := (nTot - float64(p) - 1) / (float64(p) * (nTot - 2)) * t2
 	res.Statistic = t2
+	res.Details["f"] = f
+	res.PValue = fSurvival(f, float64(p), df2)
+	res.RejectNull = res.PValue < h.alpha
+	return res, nil
+}
+
+// finalizeTwoSampleUnequal is the two-sample form without a shared
+// covariance: Krishnamoorthy & Yu (2004), the modified Nel–Van der Merwe
+// test. Per level Sᵢ = M2*ᵢ/(N*ᵢ − 1) and Vᵢ = Sᵢ/N*ᵢ; S̃ = V₁ + V₂;
+// T² = dᵀS̃⁻¹d; ν = (p + p²)/Σᵢ (tr[(VᵢS̃⁻¹)²] + tr[VᵢS̃⁻¹]²)/(N*ᵢ − 1);
+// F = (ν − p + 1)/(νp)·T² on (p, ν − p + 1). Each level needs n > p
+// complete rows (and N* > p), which bounds ν ≥ min(N*ᵢ − 1) ≥ p, so
+// df2 ≥ 1. At p = 1 it is Welch's t-test (T² = t², ν = Welch df).
+func (h *hotellingRow) finalizeTwoSampleUnequal() (*types.TestResult, error) {
+	p := len(h.members)
+	keys, err := h.twoLevels()
+	if err != nil {
+		return nil, err
+	}
+	a, b := h.groups[keys[0]], h.groups[keys[1]]
+	levels := []*linalg.CoMoment{a, b}
+	ns := []float64{h.nStar(a), h.nStar(b)}
+	for i, c := range levels {
+		if c.N() < int64(p)+1 || !(ns[i] > float64(p)) {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
+				fmt.Sprintf("TEST_HOTELLING_T2 two-sample unequal on %d members requires n > p (and N* > p) in each level; level %q has n = %d, N* = %.4g", p, keys[i], c.N(), ns[i]),
+				map[string]any{"n": []int64{a.N(), b.N()}, "n_star": ns, "min_required": p + 1, "p": p, "group": keys[i]})
+		}
+	}
+	ma, mb := a.Mean().Slice(), b.Mean().Slice()
+	d := make([]float64, p)
+	for i := range d {
+		d[i] = ma[i] - mb[i]
+	}
+	res := &types.TestResult{
+		Label:   testLabel(h.spec),
+		Type:    types.TEST_HOTELLING_T2,
+		Variant: "two_sample_unequal",
+		DF:      float64(p),
+		Alpha:   h.alpha,
+		Details: map[string]any{
+			"members":   append([]string(nil), h.members...),
+			"groups":    keys,
+			"n":         []int64{a.N(), b.N()},
+			"n_dropped": h.dropped,
+			"means":     [][]float64{ma, mb},
+			"mean_diff": d,
+			"df1":       float64(p),
+			"df2":       math.NaN(),
+		},
+	}
+	h.noteWeights(res.Details, levels, true)
+	h.checkNEff(h.spec, false, "", a.NEff()+b.NEff(), p+2)
+	// Vᵢ = M2*ᵢ/((N*ᵢ − 1)·N*ᵢ), the covariance of level i's mean.
+	v := make([][][]float64, 2)
+	sum := make([][]float64, p)
+	for i := range sum {
+		sum[i] = make([]float64, p)
+	}
+	for l, c := range levels {
+		m2 := h.scaledM2(c)
+		den := float64((ns[l] - 1) * ns[l])
+		v[l] = make([][]float64, p)
+		for i := range v[l] {
+			v[l][i] = make([]float64, p)
+			for j := range v[l][i] {
+				v[l][i][j] = m2[i][j] / den
+				sum[i][j] += v[l][i][j]
+			}
+		}
+	}
+	t2, ok := quadForm(sum, 1, d)
+	var inv *linalg.Sym
+	if ok {
+		s, err := linalg.NewSymFromRows(sum)
+		if err == nil {
+			inv, err = linalg.InverseSPD(s)
+		}
+		ok = err == nil
+	}
+	if !ok {
+		h.singular(res, "summed (V₁ + V₂)")
+		return res, nil
+	}
+	// denom = Σᵢ (tr[(VᵢS̃⁻¹)²] + tr[VᵢS̃⁻¹]²)/(N*ᵢ − 1).
+	denom := 0.0
+	for l := range levels {
+		am := make([][]float64, p) // Aᵢ = Vᵢ S̃⁻¹
+		tr := 0.0
+		for i := 0; i < p; i++ {
+			am[i] = make([]float64, p)
+			for j := 0; j < p; j++ {
+				acc := 0.0
+				for k := 0; k < p; k++ {
+					acc += float64(v[l][i][k] * inv.At(k, j))
+				}
+				am[i][j] = acc
+			}
+			tr += am[i][i]
+		}
+		tr2 := 0.0
+		for i := 0; i < p; i++ {
+			for j := 0; j < p; j++ {
+				tr2 += float64(am[i][j] * am[j][i])
+			}
+		}
+		denom += (tr2 + float64(tr*tr)) / (ns[l] - 1)
+	}
+	nu := float64(p+p*p) / denom
+	df2 := nu - float64(p) + 1
+	f := df2 / (nu * float64(p)) * t2
+	res.Statistic = t2
+	res.Details["df2"] = df2
 	res.Details["f"] = f
 	res.PValue = fSurvival(f, float64(p), df2)
 	res.RejectNull = res.PValue < h.alpha

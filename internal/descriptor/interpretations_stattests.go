@@ -248,7 +248,8 @@ var (
 			Means: "T² is the squared distance between the observed average profile and the target profile (one sample) or between the two groups' average profiles, " +
 				"measured in units of the fields' own spread and correlation; larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.",
 			Caveats: []string{
-				"T² says whether the profiles differ as a whole, not on which fields: compare the per-field averages in details.mean or details.means to see where the gap lies.",
+				"T² says whether the profiles differ as a whole, not on which fields: compare the per-field averages in details.mean, details.means or details.mean_diff to see where the gap lies.",
+				"With variance unequal, details.df2 is an approximation and usually fractional; it does not assume the two groups share one covariance.",
 				"It is null, with a warning, when the fields' covariance is singular, for example when one field is constant or is the sum of others.",
 			},
 		},

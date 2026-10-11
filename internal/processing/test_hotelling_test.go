@@ -26,18 +26,24 @@ import (
 // unweighted, frequency (= the rep() expansion, asserted) and
 // probability weighted.
 type hotellingOracle struct {
-	Fixture string          `json:"fixture"`
-	Fields  []string        `json:"fields"`
-	Split   *string         `json:"split"`
-	Mu      []float64       `json:"mu"`
-	Weight  string          `json:"weight"`
-	N       json.RawMessage `json:"n"`
-	NStar   []float64       `json:"n_star"`
-	T2      float64         `json:"t2"`
-	F       float64         `json:"f"`
-	DF1     float64         `json:"df1"`
-	DF2     float64         `json:"df2"`
-	PValue  float64         `json:"p_value"`
+	Fixture string   `json:"fixture"`
+	Fields  []string `json:"fields"`
+	// Fields2 is the paired form's second set (form "paired").
+	Fields2 []string `json:"fields2"`
+	// Form is "paired" or "two_sample_unequal"; absent = one_sample
+	// (no split) or two_sample_pooled.
+	Form     string          `json:"form"`
+	Variance string          `json:"variance"`
+	Split    *string         `json:"split"`
+	Mu       []float64       `json:"mu"`
+	Weight   string          `json:"weight"`
+	N        json.RawMessage `json:"n"`
+	NStar    []float64       `json:"n_star"`
+	T2       float64         `json:"t2"`
+	F        float64         `json:"f"`
+	DF1      float64         `json:"df1"`
+	DF2      float64         `json:"df2"`
+	PValue   float64         `json:"p_value"`
 }
 
 // hotellingOracleTol: R inverts with LAPACK, Pulse with the FMA-free
@@ -181,18 +187,21 @@ func hotClose(got, want, tol float64) bool {
 }
 
 // TestHotellingT2_MatchesROracle pins every mv_hotelling.json case —
-// one-sample (attitude, mtcars, weighted) and two-sample (mtcars by am,
-// weighted by y_bin; zero-weight rows excluded) under no weight,
-// frequency and probability weights — through the real processor on
-// both execution paths, alternating the member source between an
-// inline fields list and a named Request.Vectors entry.
+// one-sample (attitude, mtcars, weighted), two-sample pooled and
+// unequal (Krishnamoorthy–Yu; mtcars by am, weighted by y_bin), and
+// paired (attitude, mtcars, weighted; zero-weight rows excluded) under
+// no weight, frequency and probability weights — through the real
+// processor on both execution paths, alternating the member source
+// between inline fields lists and named Request.Vectors entries.
 func TestHotellingT2_MatchesROracle(t *testing.T) {
 	doc := loadReference[hotellingOracle](t, "mv_hotelling")
 	if doc.Packages["Hotelling"] == "" {
 		t.Fatal("mv_hotelling.json does not record the Hotelling package version")
 	}
 	twoSample := 0
+	forms := map[string]int{}
 	for ci, c := range doc.Cases {
+		forms[c.Form]++
 		split := ""
 		if c.Split != nil {
 			split = *c.Split
@@ -207,13 +216,24 @@ func TestHotellingT2_MatchesROracle(t *testing.T) {
 				if viaVector {
 					req.Vectors = []types.VectorSpec{{Name: "profile", Fields: c.Fields}}
 					spec.Vector = "profile"
+					if c.Fields2 != nil {
+						req.Vectors = append(req.Vectors, types.VectorSpec{Name: "profile2", Fields: c.Fields2})
+						spec.Vector2 = "profile2"
+					}
 				} else {
-					spec.Fields = c.Fields
+					spec.Fields, spec.Fields2 = c.Fields, c.Fields2
 				}
+				params := map[string]any{}
 				if split != "" {
 					spec.SplitBy = "grp"
 				} else {
-					raw, _ := json.Marshal(map[string]any{"mu": c.Mu})
+					params["mu"] = c.Mu
+				}
+				if c.Variance != "" {
+					params["variance"] = c.Variance
+				}
+				if len(params) > 0 {
+					raw, _ := json.Marshal(params)
 					spec.Params = raw
 				}
 				return req
@@ -230,6 +250,16 @@ func TestHotellingT2_MatchesROracle(t *testing.T) {
 				if !hotClose(chk.got, chk.want, hotellingOracleTol) {
 					t.Errorf("%s = %.17g, R = %.17g", chk.name, chk.got, chk.want)
 				}
+			}
+			wantVariant := c.Form
+			if wantVariant == "" {
+				wantVariant = map[bool]string{false: "one_sample", true: "two_sample_pooled"}[split != ""]
+			}
+			if res.Variant != wantVariant {
+				t.Errorf("variant = %q, want %q", res.Variant, wantVariant)
+			}
+			if c.Fields2 != nil && !reflect.DeepEqual(res.Details["members2"], c.Fields2) {
+				t.Errorf("members2 = %v, want %v", res.Details["members2"], c.Fields2)
 			}
 			if res.DF != c.DF1 || res.Details["df1"] != c.DF1 {
 				t.Errorf("df1 = %v / %v, want %v", res.DF, res.Details["df1"], c.DF1)
@@ -268,6 +298,9 @@ func TestHotellingT2_MatchesROracle(t *testing.T) {
 	}
 	if twoSample == 0 || twoSample == len(doc.Cases) {
 		t.Fatalf("oracle must hold one- and two-sample cases, got %d two-sample of %d", twoSample, len(doc.Cases))
+	}
+	if forms["paired"] == 0 || forms["two_sample_unequal"] == 0 {
+		t.Fatalf("oracle must hold paired and unequal cases, got %v", forms)
 	}
 }
 
@@ -393,7 +426,7 @@ func TestHotellingT2_ListwiseDrop(t *testing.T) {
 	clean := hotellingRows(schema, 30, []string{"a", "b"}, nil)
 	withNull := append([]*Record(nil), clean...)
 	withNull = append(withNull,
-		NewRecord(schema, map[string]float64{"x1": 99, "x3": 1, "g": 0}),          // null x2: dropped
+		NewRecord(schema, map[string]float64{"x1": 99, "x3": 1, "g": 0}),            // null x2: dropped
 		NewRecord(schema, map[string]float64{"x1": 99, "x2": 99, "x3": 99, "w": 1}), // null split: skipped
 	)
 	req := hotellingReq(func(s *types.Test) { s.SplitBy = "g" })
@@ -514,5 +547,146 @@ func TestNeededFields_TestVectorMembers(t *testing.T) {
 		if got.IsWide() || got.Len() != 3 || !got.Has("x1") || !got.Has("x2") || !got.Has("g") {
 			t.Fatalf("%s: needed = %v", c.name, got)
 		}
+	}
+}
+
+// TestHotellingT2_PairedEqualsOneSampleOnDifferences: the paired form
+// is the one-sample form on the row-wise difference vector — the same
+// T², F, df and p as a one-sample run over precomputed difference
+// columns — with variant "paired", members2 and mean_diff (no mean). A
+// null in either set drops the row listwise.
+func TestHotellingT2_PairedEqualsOneSampleOnDifferences(t *testing.T) {
+	schema := hotellingSchema()
+	schema.Fields = append(schema.Fields,
+		encoding.Field{Name: "d1", Type: encoding.FieldTypeF64}, encoding.Field{Name: "d2", Type: encoding.FieldTypeF64})
+	diff := func(_ int, v map[string]float64) { v["d1"], v["d2"] = v["x1"]-v["x3"], v["x2"]-v["x1"] }
+	recs := hotellingRows(schema, 30, []string{"a"}, diff)
+	mu := json.RawMessage(`{"mu":[0.5,-0.25]}`)
+	paired, _ := runHotelling(t, schema, recs, hotellingReq(func(s *types.Test) {
+		s.Fields, s.Fields2, s.Params = []string{"x1", "x2"}, []string{"x3", "x1"}, mu
+	}))
+	one, _ := runHotelling(t, schema, recs, hotellingReq(func(s *types.Test) { s.Fields, s.Params = []string{"d1", "d2"}, mu }))
+	if paired.Variant != "paired" || one.Variant != "one_sample" {
+		t.Fatalf("variants = %q / %q", paired.Variant, one.Variant)
+	}
+	if !hotClose(paired.Statistic, one.Statistic, 1e-12) || !hotClose(paired.PValue, one.PValue, 1e-10) ||
+		paired.Details["df2"] != one.Details["df2"] {
+		t.Fatalf("paired %v/%v vs one-sample on differences %v/%v", paired.Statistic, paired.PValue, one.Statistic, one.PValue)
+	}
+	if !reflect.DeepEqual(paired.Details["members2"], []string{"x3", "x1"}) || paired.Details["mean_diff"] == nil || paired.Details["mean"] != nil {
+		t.Fatalf("paired details = %v", paired.Details)
+	}
+	withNull := append(append([]*Record(nil), recs...), NewRecord(schema, map[string]float64{"x1": 9, "x2": 9, "g": 0}))
+	dropped, _ := runHotelling(t, schema, withNull, hotellingReq(func(s *types.Test) {
+		s.Fields, s.Fields2, s.Params = []string{"x1", "x2"}, []string{"x3", "x1"}, mu
+	}))
+	if dropped.Details["n_dropped"] != int64(1) || dropped.Statistic != paired.Statistic {
+		t.Fatalf("null fields2 member: n_dropped %v, statistic %v vs %v", dropped.Details["n_dropped"], dropped.Statistic, paired.Statistic)
+	}
+}
+
+// TestHotellingT2_UnequalAtP1IsWelch: at p = 1 the Krishnamoorthy–Yu
+// form is Welch's t-test — T² = t², df2 = Welch df, the same p-value —
+// so the built-in TEST_WELCH is an independent oracle.
+func TestHotellingT2_UnequalAtP1IsWelch(t *testing.T) {
+	schema := hotellingSchema()
+	// Spread the levels apart so the variances clearly differ.
+	recs := hotellingRows(schema, 41, []string{"a", "b"}, func(i int, v map[string]float64) {
+		if i%2 == 1 {
+			v["x1"] = v["x1"]*3 + 1
+		}
+	})
+	hot, _ := runHotelling(t, schema, recs, hotellingReq(func(s *types.Test) {
+		s.Fields, s.SplitBy, s.Params = []string{"x1"}, "g", json.RawMessage(`{"variance":"unequal"}`)
+	}))
+	resp, err := NewProcessor(schema).Process(context.Background(),
+		&types.Request{Tests: []*types.Test{{Type: types.TEST_WELCH, Field: "x1", SplitBy: "g"}}}, NewSliceIterator(recs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := resp.Tests[0]
+	if hot.Variant != "two_sample_unequal" {
+		t.Fatalf("variant = %q", hot.Variant)
+	}
+	if !hotClose(hot.Statistic, w.Statistic*w.Statistic, 1e-12) || !hotClose(hot.Details["df2"].(float64), w.DF, 1e-12) ||
+		!hotClose(hot.PValue, w.PValue, 1e-10) {
+		t.Fatalf("unequal T² %v df2 %v p %v; Welch t² %v df %v p %v",
+			hot.Statistic, hot.Details["df2"], hot.PValue, w.Statistic*w.Statistic, w.DF, w.PValue)
+	}
+	pooled, _ := runHotelling(t, schema, recs, hotellingReq(func(s *types.Test) { s.Fields, s.SplitBy = []string{"x1"}, "g" }))
+	if pooled.Details["df2"] == hot.Details["df2"] {
+		t.Fatalf("unequal df2 %v equals the pooled df2", hot.Details["df2"])
+	}
+}
+
+// TestHotellingT2_PooledDefaultByteIdentical: an explicit
+// variance "pooled" is byte-identical to the default on every form.
+func TestHotellingT2_PooledDefaultByteIdentical(t *testing.T) {
+	for _, split := range []string{"", "g"} {
+		schema := hotellingSchema()
+		recs := hotellingRows(schema, 30, []string{"a", "b"}, nil)
+		_, def := runHotelling(t, schema, recs, hotellingReq(func(s *types.Test) { s.SplitBy = split }))
+		_, explicit := runHotelling(t, schema, recs, hotellingReq(func(s *types.Test) {
+			s.SplitBy, s.Params = split, json.RawMessage(`{"variance":"pooled"}`)
+		}))
+		a, _ := json.Marshal(def.Tests)
+		b, _ := json.Marshal(explicit.Tests)
+		if !bytes.Equal(a, b) {
+			t.Fatalf("split=%q: explicit pooled differs:\n%s\n%s", split, a, b)
+		}
+	}
+}
+
+// TestHotellingT2_PairedUnequalRefusals: a mismatched paired length,
+// variance "unequal" off the two-sample form, and a paired form with
+// split_by are each a coded refusal before any record folds.
+func TestHotellingT2_PairedUnequalRefusals(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		mod    func(*types.Test)
+		reason string
+	}{
+		{"paired length mismatch", func(s *types.Test) { s.Fields2 = []string{"x1", "x2"} }, "vector2_length_mismatch"},
+		{"unequal one-sample", func(s *types.Test) { s.Params = json.RawMessage(`{"variance":"unequal"}`) }, "variance_unequal_not_two_sample"},
+		{"unequal paired", func(s *types.Test) {
+			s.Fields2, s.Params = []string{"x2", "x3", "x1"}, json.RawMessage(`{"variance":"unequal"}`)
+		}, "variance_unequal_not_two_sample"},
+		{"paired with split_by", func(s *types.Test) { s.Fields2, s.SplitBy = []string{"x2", "x3", "x1"}, "g" }, "paired_with_split_by"},
+	} {
+		schema := hotellingSchema()
+		err := processErr(t, schema, hotellingRows(schema, 30, []string{"a", "b"}, nil), hotellingReq(c.mod)())
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != c.reason {
+			t.Fatalf("%s: err = %v, want SERVICE_VALIDATION %s", c.name, err, c.reason)
+		}
+	}
+}
+
+// TestHotellingT2_UnequalPerLevelFloorAndSingular: the unequal form
+// needs n > p complete rows in EACH level (pooled only needs the sum),
+// and a singular V₁ + V₂ warns PULSE_MATRIX_SINGULAR with null figures.
+func TestHotellingT2_UnequalPerLevelFloorAndSingular(t *testing.T) {
+	unequal := func(s *types.Test) { s.SplitBy, s.Params = "g", json.RawMessage(`{"variance":"unequal"}`) }
+	schema := hotellingSchema()
+	// 3 "b" rows for p = 3: pooled runs (n₁ + n₂ > p + 1), unequal refuses.
+	recs := hotellingRows(schema, 20, []string{"a"}, nil)
+	recs = append(recs, hotellingRows(schema, 3, []string{"b"}, nil)...)
+	if err := processErr(t, schema, recs, hotellingReq(func(s *types.Test) { s.SplitBy = "g" })()); err != nil {
+		t.Fatalf("pooled must run: %v", err)
+	}
+	err := processErr(t, schema, recs, hotellingReq(unequal)())
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_TEST_INSUFFICIENT_N || ce.Details["group"] != "b" {
+		t.Fatalf("unequal small level: err = %v", err)
+	}
+	schema = hotellingSchema()
+	dep := hotellingRows(schema, 40, []string{"a", "b"}, func(_ int, v map[string]float64) { v["x3"] = v["x1"] + 2*v["x2"] })
+	res, resp := runHotelling(t, schema, dep, hotellingReq(unequal))
+	if !math.IsNaN(res.Statistic) || !math.IsNaN(res.PValue) || len(res.Warnings) != 1 ||
+		!strings.HasPrefix(res.Warnings[0], string(errors.PULSE_MATRIX_SINGULAR)+":") {
+		t.Fatalf("singular unequal: %v %v %v", res.Statistic, res.PValue, res.Warnings)
+	}
+	if raw, _ := json.Marshal(resp); !bytes.Contains(raw, []byte(`"statistic":null`)) {
+		t.Fatalf("statistic not null on the wire: %s", raw)
 	}
 }

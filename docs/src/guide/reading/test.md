@@ -248,7 +248,7 @@ Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 ### `TEST_HOTELLING_T2`
 
-Checks whether a set of numeric fields, taken together as one profile, differs from a target profile or between two groups. See its [catalog entry](../catalog/test.md#op-test_hotelling_t2).
+Checks whether several numeric fields, taken together as one profile, differ from a target, between two groups, or before vs after. See its [catalog entry](../catalog/test.md#op-test_hotelling_t2).
 
 #### `statistic`
 
@@ -256,7 +256,8 @@ T² is the squared distance between the observed average profile and the target 
 
 **Caveats:**
 
-- T² says whether the profiles differ as a whole, not on which fields: compare the per-field averages in details.mean or details.means to see where the gap lies.
+- T² says whether the profiles differ as a whole, not on which fields: compare the per-field averages in details.mean, details.means or details.mean_diff to see where the gap lies.
+- With variance unequal, details.df2 is an approximation and usually fractional; it does not assume the two groups share one covariance.
 - It is null, with a warning, when the fields' covariance is singular, for example when one field is constant or is the sum of others.
 
 #### `p_value`

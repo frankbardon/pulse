@@ -10,7 +10,7 @@ The statistical tests this instance offers: what each is for, the questions it a
 | [`TEST_BROWN_FORSYTHE`](#op-test_brown_forsythe) | Checks whether the spread of a numeric field differs across groups: a robust test of equal variances. | Is delivery time more variable at some warehouses than at others? | advanced | [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when you want to compare the group averages themselves.<br>[`TEST_SHAPIRO_WILK`](#op-test_shapiro_wilk) when you want to check whether a measure is bell-shaped. |
 | [`TEST_CHISQ`](#op-test_chisq) | Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. | Is preferred channel associated with age band? | intermediate | [`TEST_FISHER_EXACT`](#op-test_fisher_exact) when the table is 2x2 and some expected counts are small.<br>[`TEST_PROP_Z`](#op-test_prop_z) when you compare a yes/no rate between exactly two groups and want a confidence interval.<br>[`TEST_SPEARMAN_R`](#op-test_spearman_r) when both fields are numeric.<br>[`OVERLAY_CHISQ_VS_POP`](overlay.md#op-overlay_chisq_vs_pop) when you compare one subgroup's mix with the whole population. |
 | [`TEST_FISHER_EXACT`](#op-test_fisher_exact) | Exact test of whether two yes/no fields are associated, built for small 2x2 tables. | In a small pilot, did the treated group recover more often than the control group? | intermediate | [`TEST_CHISQ`](#op-test_chisq) when either field has more than two categories.<br>[`TEST_PROP_Z`](#op-test_prop_z) when counts are large and you want the difference in rates with a confidence interval. |
-| [`TEST_HOTELLING_T2`](#op-test_hotelling_t2) | Checks whether a set of numeric fields, taken together as one profile, differs from a target profile or between two groups. | Do the two app versions differ on the whole set of engagement metrics at once? | advanced | [`TEST_T`](#op-test_t) when there is only one numeric field.<br>[`TEST_WELCH`](#op-test_welch) when you want each field compared on its own. |
+| [`TEST_HOTELLING_T2`](#op-test_hotelling_t2) | Checks whether several numeric fields, taken together as one profile, differ from a target, between two groups, or before vs after. | Do the two app versions differ on the whole set of engagement metrics at once? | advanced | [`TEST_T`](#op-test_t) when there is only one numeric field.<br>[`TEST_WELCH`](#op-test_welch) when you want each field compared on its own. |
 | [`TEST_KENDALL_TAU`](#op-test_kendall_tau) | Measures how often pairs of rows agree in order on two numeric fields: a rank-based link suited to small samples and ties. | In a small panel, do judges who score one entry higher also score the other higher? | intermediate | [`TEST_SPEARMAN_R`](#op-test_spearman_r) when the data are large; its cost grows with the square of the row count.<br>[`TEST_PEARSON_R`](#op-test_pearson_r) when you want the strength of a straight-line link.<br>[`TEST_TREND`](#op-test_trend) when you want to know whether one ordered series keeps rising or falling. |
 | [`TEST_KRUSKAL_WALLIS`](#op-test_kruskal_wallis) | Rank-based check of whether values tend to be larger in some groups than in others, across two or more groups. | Do satisfaction ratings tend to differ across the four regions? | intermediate | [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when the data are roughly normal and you want to compare averages.<br>[`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when there are only two groups.<br>[`TEST_ANOVA_RM`](#op-test_anova_rm) when the same subjects are measured in every group and the measure is roughly normal (Pulse has no Friedman test for skewed repeated measures; for two conditions use TEST_WILCOXON_SR). |
 | [`TEST_KS`](#op-test_ks) | Checks whether a numeric field's values follow the same distribution in two groups, comparing their whole shape. | Do order values in the two regions have the same overall distribution? | intermediate | [`TEST_SHAPIRO_WILK`](#op-test_shapiro_wilk) when you want to check one field against the normal distribution.<br>[`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when you only care whether one group's values tend to be larger.<br>[`OVERLAY_KS_VS_POP`](overlay.md#op-overlay_ks_vs_pop) when you compare a subgroup with the whole population. |
@@ -281,7 +281,7 @@ Exact test of whether two yes/no fields are associated, built for small 2x2 tabl
 
 ### `TEST_HOTELLING_T2`
 
-Checks whether a set of numeric fields, taken together as one profile, differs from a target profile or between two groups.
+Checks whether several numeric fields, taken together as one profile, differ from a target, between two groups, or before vs after.
 
 **Level:** advanced
 
@@ -291,6 +291,7 @@ Checks whether a set of numeric fields, taken together as one profile, differs f
 
 - Do the two app versions differ on the whole set of engagement metrics at once?
 - Is our average satisfaction profile across five attributes different from the benchmark profile?
+- Did the same customers' ratings shift as a whole between the before and after surveys?
 
 **Use cases by domain:**
 
@@ -302,7 +303,7 @@ Checks whether a set of numeric fields, taken together as one profile, differs f
 
 - Rows are independent of each other, within and across the groups.
 - The fields are roughly jointly normal; with many rows the test tolerates departures.
-- The two-sample form assumes both groups share one covariance across the fields.
+- The two-sample form assumes both groups share one covariance across the fields unless variance is set to unequal.
 - A row with any field missing is dropped from the test (listwise).
 - There are more complete rows than fields.
 
