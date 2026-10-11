@@ -64,8 +64,8 @@ type Processor struct {
 	// wholeSetAxes holds the buffered crosstab's whole-set axis fits
 	// (fitWholeSetAxes) for the current RunCrosstab, keyed by axis slot.
 	wholeSetAxes map[*types.Group]*wholeSetAxis
-	exts           *ExtensionRegistry
-	compute        ComputePlan
+	exts         *ExtensionRegistry
+	compute      ComputePlan
 
 	// defaultWeight is pulse.Options.DefaultWeight (nil = none) and
 	// strictWeights promotes PULSE_WEIGHT_INVALID_ROWS to an error;
