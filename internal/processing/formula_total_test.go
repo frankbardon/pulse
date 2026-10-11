@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -276,5 +277,39 @@ func TestFormulaTotal_NotMergeable(t *testing.T) {
 	}
 	if CanMergeRequest(req("x / total(x)"), s) {
 		t.Fatal("a total() formula must not be mergeable")
+	}
+}
+
+// TestFormulaTotal_CrosstabDeclines: the fused crosstab arm never runs
+// a PrePass, so a total() formula must decline fusion. The shared rule's
+// type-keyed two-pass fact does not see it (ATTR_FORMULA is row-local by
+// type); the name-keyed ATTR_FORMULA bail does, which is why
+// registryFuseFacts.AttributeTwoPass may stay type-keyed. The runtime
+// AssertCanFuse echo refuses it per attribute.
+func TestFormulaTotal_CrosstabDeclines(t *testing.T) {
+	s := exprParitySchema()
+	req := &types.Request{
+		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "x / total(x)", Label: "share"}},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "share"},
+		},
+	}
+	if ok, reason := CanFuseCrosstab(req, s, nil); ok {
+		t.Fatal("a total() formula must decline the fused crosstab arm")
+	} else if !strings.Contains(reason, "ATTR_FORMULA") {
+		t.Fatalf("decline reason %q, want the ATTR_FORMULA bail", reason)
+	}
+	state, err := NewFusedCrosstabState(req.Crosstab, s, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = state.AssertCanFuse(req)
+	if !errors.HasCode(err, errors.PROCESSING_INTERNAL) {
+		t.Fatalf("AssertCanFuse: %v, want the PROCESSING_INTERNAL two-pass refusal", err)
+	}
+	if !strings.Contains(err.Error(), "two-pass attribute") {
+		t.Fatalf("AssertCanFuse refused for the wrong reason: %v", err)
 	}
 }

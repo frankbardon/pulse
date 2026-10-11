@@ -93,6 +93,13 @@ func (f registryMergeFacts) Filterer(name string) (bool, bool) {
 	return f.r.IsStreamable("filterer", name), true
 }
 
+// Attribute answers only for EXTENSION attributes (and hidden names);
+// a built-in answers (false, false) so mergegate.MergeRefusal decides
+// it per attribute — ATTR_FORMULA is row-local only without a
+// total(expr) call (totalcall.Contains). The type-keyed two-pass check
+// below is therefore sufficient: no extension attribute carries an
+// expression-dependent tier. Pinned by TestFormulaTotal_NotMergeable
+// and TestChainGate_ValidatorMatchesRuntime ("total formula").
 func (f registryMergeFacts) Attribute(name string) (bool, bool) {
 	if f.r.isHidden(name) {
 		return false, true

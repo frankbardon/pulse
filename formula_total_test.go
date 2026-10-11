@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -321,5 +322,93 @@ func TestFormulaTotal_MMMSubsetFactor(t *testing.T) {
 	scn, tv := resp.Data[0]["tv_scn"].(float64), resp.Data[0]["tv"].(float64)
 	if math.Abs(scn-tv*f) > 1e-9*tv {
 		t.Fatalf("scenario Σ %v, want Σspend × factor = %v", scn, tv*f)
+	}
+}
+
+// TestFormulaTotal_PartitionedRouting: on each parallel arm — the
+// per-shard reducer (shard archive, ShardWorkers > 1) and the parallel
+// buffered decode (single file over the threshold, DecodeWorkers > 1)
+// — a plain formula still takes the parallel arm, while a total()
+// formula falls back to the sequential arm and equals the sequential
+// single-file run bit for bit (a partition-local total would differ).
+// Each arm is falsified on its own gate: shard_reduce.go's and
+// parallel_decode.go's CanMergeRequestWithExtensions checks.
+func TestFormulaTotal_PartitionedRouting(t *testing.T) {
+	large := parityLargeCohort(t.TempDir())
+	type arm struct {
+		name     string
+		parallel observe.Arm
+		rows     int
+		// open returns the partitioned instance and the sequential
+		// single-file reference (same rows), plus their cohort paths.
+		open func(t *testing.T, rec *execRecorder) (p *pulse.Pulse, path string, ref *pulse.Pulse, refPath string)
+	}
+	arms := []arm{
+		{"shard_archive", observe.ArmShardParallel, 120, func(t *testing.T, rec *execRecorder) (*pulse.Pulse, string, *pulse.Pulse, string) {
+			fsys := afero.NewMemMapFs()
+			s := paritySchema(t)
+			shards := []string{"s0.pulse", "s1.pulse", "s2.pulse"}
+			for i, path := range shards {
+				writeParityCohort(t, fsys, path, s, i*40, (i+1)*40)
+			}
+			writeParityCohort(t, fsys, "whole.pulse", s, 0, 120)
+			p := execNew(t, pulse.Options{FS: fsys, ShardWorkers: 3}, rec)
+			if _, err := p.CreateShardArchive(context.Background(), "archive.pulse", shards); err != nil {
+				t.Fatalf("CreateShardArchive: %v", err)
+			}
+			ref, err := pulse.New(pulse.Options{FS: fsys, ShardWorkers: 1, DecodeWorkers: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return p, "archive.pulse", ref, "whole.pulse"
+		}},
+		{"parallel_decode", observe.ArmParallelDecode, parityLargeRows, func(t *testing.T, rec *execRecorder) (*pulse.Pulse, string, *pulse.Pulse, string) {
+			dir := large(t)
+			ref, err := pulse.New(pulse.Options{DataDir: dir, ShardWorkers: 1, DecodeWorkers: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return execNew(t, pulse.Options{DataDir: dir, DecodeWorkers: 4}, rec), "large.pulse", ref, "large.pulse"
+		}},
+	}
+	ctx := context.Background()
+	for _, a := range arms {
+		t.Run(a.name, func(t *testing.T) {
+			rec := &execRecorder{}
+			p, path, ref, refPath := a.open(t, rec)
+			lastArm := func() observe.Arm {
+				rec.mu.Lock()
+				defer rec.mu.Unlock()
+				if len(rec.ends) == 0 {
+					t.Fatal("no operation recorded")
+				}
+				return rec.ends[len(rec.ends)-1].Arm
+			}
+
+			plain := ftReq(path, &types.Attribute{Type: types.ATTR_FORMULA, Expression: "(score ?? 0) / 3", Label: "out"})
+			if _, err := p.Process(ctx, plain); err != nil {
+				t.Fatalf("plain Process: %v", err)
+			}
+			if got := lastArm(); got != a.parallel {
+				t.Fatalf("plain formula took arm %q, want %q (still mergeable)", got, a.parallel)
+			}
+
+			total := &types.Attribute{Type: types.ATTR_FORMULA, Expression: "total(score / 3)", Label: "out"}
+			resp, err := p.Process(ctx, ftReq(path, total))
+			if err != nil {
+				t.Fatalf("total Process: %v", err)
+			}
+			if got := lastArm(); got == a.parallel {
+				t.Fatalf("total() formula took the parallel arm %q", got)
+			}
+			want, err := ref.Process(ctx, ftReq(refPath, total))
+			if err != nil {
+				t.Fatalf("reference Process: %v", err)
+			}
+			wv, _ := want.Data[0]["max"].(float64)
+			ftBits(t, "reference max", wv, ftScoreSum(a.rows, ftKeep, ftThird))
+			ftBits(t, "partitioned max", resp.Data[0]["max"], wv)
+			ftBits(t, "partitioned min", resp.Data[0]["min"], wv)
+		})
 	}
 }

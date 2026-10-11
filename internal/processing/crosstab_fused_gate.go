@@ -167,6 +167,14 @@ func (f registryFuseFacts) AggregatorMarginClass(t types.AggregationType) types.
 	return f.r.AggregatorMarginReducibility(t)
 }
 
+// AttributeTwoPass stays TYPE-keyed on purpose (crosstabfuse.Facts is
+// shared with predict and takes a type). The one per-attribute two-pass
+// case — an ATTR_FORMULA calling total(expr) (attrRequiresTwoPass) —
+// is provably declined by the rule's own name-keyed "ATTR_FORMULA bail"
+// (crosstabfuse.Decide): a total-bearing formula has a non-empty
+// Expression by construction, and a hidden ATTR_FORMULA is refused as
+// unknown before dispatch. AssertCanFuse re-checks the per-attribute
+// predicate at run time. Pinned by TestFormulaTotal_CrosstabDeclines.
 func (f registryFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 	return f.r.attributeRequiresTwoPass(t)
 }
