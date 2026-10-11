@@ -519,7 +519,9 @@ var errorOwners = map[errors.Code][]string{
 	// Bartlett rule, the shared core).
 	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), vectorAttributeOwners()),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
-	errors.PULSE_MATRIX_NOT_CONVERGED:  ownAllMats,
+	// ATTR_PC_SCORE's varimax rotation can stop at its sweep cap (a
+	// fit-scoped warning; the scores stand).
+	errors.PULSE_MATRIX_NOT_CONVERGED: plus(ownAllMats, own("ATTR_PC_SCORE")),
 	// The factor-fit warnings: only the operators that fit a factor
 	// model raise them — MAT_RELIABILITY's one-factor omega (withheld)
 	// and MAT_FACTOR's k-factor fit (a Heywood fit kept as fitted, an

@@ -155,6 +155,14 @@ positive target; the `w` / `f` / `p` weight columns):
   `DescrStatsW(w*, ddof = 1)`. D² reads N*, so the two kinds differ by
   one covariance factor (`TestWeightReferenceKindsAgree` asserts the
   constant ratio, not equality).
+- `ATTR_PC_SCORE` (U25 E3-S2, same members, component 1 of the
+  correlation) — frequency: R `prcomp(scale. = TRUE)` `predict()` /
+  `sdev` on the expanded complete rows, the loading signed by Pulse's
+  rule (`reg_reference.R`); probability: the w* closed form (numpy
+  `eigh`) with the covariance cross-checked with statsmodels
+  `DescrStatsW(w*, ddof = 1)` and unit variance asserted. The score
+  divides by the members' w* spread, so the kinds again differ by one
+  constant factor.
 
 An attribute case reads each row's value back as an opted-out `AGG_SUM`
 grouped by the fixture's `id`; its figures are keyed `data[<id>].v`.

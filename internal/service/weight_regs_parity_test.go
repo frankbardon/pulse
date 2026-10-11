@@ -92,6 +92,11 @@ var regParityOps = []regParityOp{
 	// and flat (the streaming two-pass arm).
 	{name: "attr_mahalanobis", attr: types.ATTR_MAHALANOBIS, tol: 1e-10},
 	{name: "attr_mahalanobis_flat", attr: types.ATTR_MAHALANOBIS, flat: true, tol: 1e-10},
+	// ATTR_PC_SCORE (U25 E3-S2) on (x, y), component 1 of the w*
+	// correlation, standardized by the w* ddof = 1 spread: the same fit
+	// rules, grouped and flat.
+	{name: "attr_pc_score", attr: types.ATTR_PC_SCORE, tol: 1e-10},
+	{name: "attr_pc_score_flat", attr: types.ATTR_PC_SCORE, flat: true, tol: 1e-10},
 }
 
 func (o regParityOp) surface() (weightSurface, string) {
@@ -124,6 +129,9 @@ func (o regParityOp) build(path string) func() *types.Request {
 		}
 		if o.attr == types.ATTR_MAHALANOBIS {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}}
+		}
+		if o.attr == types.ATTR_PC_SCORE {
+			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}, Params: json.RawMessage(`{"component":1}`)}
 		}
 		req.Attributes = []*types.Attribute{attr}
 		if o.flat {

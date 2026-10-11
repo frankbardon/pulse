@@ -108,6 +108,12 @@ is pinned to R on the sorted expansion (frequency) or Hmisc
 wtd.quantile(normwt=TRUE) (probability); counts and highs follow from an
 exact rational transcription of Pulse's cut ⌊⌊C − 1⌋·k/W⌋.
 
+ATTR_PC_SCORE (U25 E3-S2) — on the same fixture and members: component 1
+of the correlation, every row with x2 present scored; frequency = R
+prcomp(scale. = TRUE) predict() / sdev on the expanded complete rows,
+probability = the w* closed form (numpy eigh, Pulse's loading sign)
+with the covariance cross-checked with statsmodels DescrStatsW(w*, ddof=1).
+
 ATTR_MAHALANOBIS (U25 E3-S1) — on the same fixture, members (x1, x2, y):
 every row with x2 present scored against the fit over the complete rows
 with a valid, positive weight; frequency = R stats::mahalanobis against
@@ -1974,6 +1980,44 @@ def mahalanobis_closed_form(ws, kind):
     return out
 
 
+def pc_score_closed_form(ws, kind):
+    """ATTR_PC_SCORE component 1 of the correlation per row id (x2
+    present): eigen-decompose the w* correlation of the fit rows
+    (complete, weight valid and positive), sign the eigenvector so its
+    largest-magnitude component is positive, and score
+    v'D^-1(x - mean)/sqrt(lambda), D the ddof = 1 w* standard deviations.
+    The scores have weighted mean 0 and (w*, ddof = 1) variance 1 over
+    the fit rows (asserted)."""
+    idx = reg_fit_rows(ws, kind)
+    X = np.array([[REG_ROWS[i][REG_COL[c]] for c in MAHA_FIELDS] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    nstar = kish(w) if kind == "probability" else sw
+    mean = (w[:, None] * X).sum(axis=0) / sw
+    dev = X - mean
+    cov = dev.T @ (w[:, None] * dev) * (nstar / sw) / (nstar - 1)
+    ws_star = w * nstar / sw
+    d1 = DescrStatsW(X, weights=ws_star, ddof=1)
+    assert np.allclose(d1.cov, cov, rtol=1e-12), (kind, d1.cov, cov)
+    sd = np.sqrt(np.diag(cov))
+    corr = cov / np.outer(sd, sd)
+    lam, vecs = np.linalg.eigh(corr)
+    v, l1 = vecs[:, -1], float(lam[-1])
+    big = int(np.argmax(np.abs(v)))
+    if v[big] < 0:
+        v = -v
+    fit_scores = (dev / sd) @ v / math.sqrt(l1)
+    s1 = DescrStatsW(fit_scores, weights=ws_star, ddof=1)
+    assert abs(s1.mean) < 1e-12 and close(s1.var, 1.0, 1e-12), (kind, s1.mean, s1.var)
+    out = {}
+    for r in REG_ROWS:
+        if r[2] is NULL:
+            continue
+        z = (np.array([r[REG_COL[c]] for c in MAHA_FIELDS]) - mean) / sd
+        out[r[0]] = float(z @ v / math.sqrt(l1))
+    return out
+
+
 def quantile_buckets(ws, kind, k):
     """GROUP_QUANTILE on yg, exact rational transcription of Pulse's cut:
     rows sorted by value; C = the cumulative weight through a row (valid,
@@ -2140,6 +2184,19 @@ def regression_cases():
                "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
                "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
         out.append(dict(weight=wname, kind=kind, name="attr_mahalanobis", request=req,
+                        figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        figs = pc_score_closed_form(ws, kind)
+        if prob:
+            src = ("closed form: component 1 of the w* correlation (numpy eigh, largest-magnitude loading positive), "
+                   "scores v'D^-1(x - mean)/sqrt(lambda); covariance cross-checked with statsmodels "
+                   + statsmodels.__version__ + " DescrStatsW(w*, ddof=1), unit variance asserted")
+        else:
+            adopt_r("attr_pc_score", figs, rfigs["attr_pc_score"])
+            src = f"{RREG[0]} prcomp(scale. = TRUE) predict() / sdev on the rep()-expanded complete rows (reg_reference.R)"
+        req = {"attributes": [{"type": "ATTR_PC_SCORE", "fields": MAHA_FIELDS, "label": "attr", "params": {"component": 1}}],
+               "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+               "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+        out.append(dict(weight=wname, kind=kind, name="attr_pc_score", request=req,
                         figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
         for k in QUANTILE_KS:
             case = f"group_quantile_k{k}"

@@ -9,6 +9,12 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+func pcs(params string, mod func(*types.Attribute)) *types.Attribute {
+	a := &types.Attribute{Type: types.ATTR_PC_SCORE, Params: json.RawMessage(params)}
+	mod(a)
+	return a
+}
+
 func maha(mod func(*types.Attribute)) *types.Attribute {
 	a := &types.Attribute{Type: types.ATTR_MAHALANOBIS}
 	mod(a)
@@ -71,6 +77,22 @@ func TestResolveAttributes_Rules(t *testing.T) {
 			a.Fields = []string{"a1", "a2"}
 			a.Params = json.RawMessage(`{"fit_on": [{"field": "a1"}]}`)
 		}), code: errors.SERVICE_VALIDATION, reason: "bad_fit_on"},
+		// ATTR_PC_SCORE: its own keys, then the member-count bounds
+		// once the members resolve (va has 3 members).
+		{name: "pc score", attr: pcs(`{"component": 3, "on": "covariance", "fit_on": [{"type": "FILTER_TRUE"}]}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}, fitOn: 1},
+		{name: "pc score varimax", attr: pcs(`{"component": 2, "rotation": "varimax", "components": 3}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "pc score explicit none", attr: pcs(`{"component": 1, "rotation": "none"}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "pc score no component", attr: pcs(`{"on": "covariance"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score no params", attr: pcs(``, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score fractional component", attr: pcs(`{"component": 1.5}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score component beyond p", attr: pcs(`{"component": 4}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "component_out_of_range"},
+		{name: "pc score rotated k beyond p", attr: pcs(`{"component": 1, "rotation": "varimax", "components": 4}`, func(a *types.Attribute) { a.Fields = []string{"b1", "b2", "a1"} }), code: errors.SERVICE_VALIDATION, reason: "component_out_of_range"},
+		{name: "pc score k below component", attr: pcs(`{"component": 3, "rotation": "varimax", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score components unrotated", attr: pcs(`{"component": 1, "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score varimax without k", attr: pcs(`{"component": 1, "rotation": "varimax"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score promax", attr: pcs(`{"component": 1, "rotation": "promax", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score bad on", attr: pcs(`{"component": 1, "on": "ranks"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score output key", attr: pcs(`{"component": 1, "output": "p"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -128,6 +150,10 @@ func TestVectorAttributeLabel(t *testing.T) {
 	}{
 		{maha(func(a *types.Attribute) { a.Vector = "battery" }), "ATTR_MAHALANOBIS_battery", true},
 		{maha(func(a *types.Attribute) { a.Fields = []string{"q*", "x"} }), "ATTR_MAHALANOBIS_q*", true},
+		{pcs(`{"component": 2}`, func(a *types.Attribute) { a.Vector = "battery" }), "ATTR_PC_SCORE_battery_PC2", true},
+		{pcs(`{"component": 1, "rotation": "varimax", "components": 2}`, func(a *types.Attribute) { a.Fields = []string{"q*"} }), "ATTR_PC_SCORE_q*_PC1", true},
+		// Undecodable params: the base rule (the slot is refused elsewhere).
+		{pcs(`{"component": "x"}`, func(a *types.Attribute) { a.Vector = "battery" }), "ATTR_PC_SCORE_battery", true},
 		{&types.Attribute{Type: types.ATTR_ZSCORE, Field: "x"}, "", false},
 	}
 	for _, c := range cases {

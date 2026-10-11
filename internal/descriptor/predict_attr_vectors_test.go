@@ -63,6 +63,10 @@ func TestPredict_VectorAttributeInputs(t *testing.T) {
 		{name: "non-numeric member", attrs: []*types.Attribute{maha(func(a *types.Attribute) { a.Fields = []string{"q_1", "region"} })}, code: errors.PULSE_VECTOR_MEMBER_TYPE},
 		{name: "neither", attrs: []*types.Attribute{maha(func(*types.Attribute) {})}, code: errors.SERVICE_VALIDATION, reason: "no_vector_or_fields"},
 		{name: "field on vector attribute", attrs: []*types.Attribute{maha(func(a *types.Attribute) { a.Vector, a.Field = "items", "q_1" })}, code: errors.SERVICE_VALIDATION, reason: "field_on_vector_attribute"},
+		{name: "pc score", attrs: []*types.Attribute{{Type: types.ATTR_PC_SCORE, Vector: "items", Params: json.RawMessage(`{"component": 2, "rotation": "varimax", "components": 3}`)}}},
+		{name: "pc score beyond the members", attrs: []*types.Attribute{{Type: types.ATTR_PC_SCORE, Vector: "items", Params: json.RawMessage(`{"component": 4}`)}},
+			code: errors.SERVICE_VALIDATION, reason: "component_out_of_range"},
+		{name: "pc score without component", attrs: []*types.Attribute{{Type: types.ATTR_PC_SCORE, Vector: "items"}}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "vector on a scalar attribute", attrs: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "q_1", Vector: "items"}}, code: errors.SERVICE_VALIDATION, reason: "vector_not_accepted"},
 	}
 	schema := &encoding.Schema{Fields: []encoding.Field{
@@ -140,6 +144,7 @@ func TestAttributeDefaultLabel_VectorAttributes(t *testing.T) {
 	}{
 		{&types.Attribute{Type: types.ATTR_MAHALANOBIS, Vector: "items"}, "ATTR_MAHALANOBIS_items"},
 		{&types.Attribute{Type: types.ATTR_MAHALANOBIS, Fields: []string{"q_2", "q_1"}}, "ATTR_MAHALANOBIS_q_2"},
+		{&types.Attribute{Type: types.ATTR_PC_SCORE, Vector: "items", Params: json.RawMessage(`{"component": 2}`)}, "ATTR_PC_SCORE_items_PC2"},
 	} {
 		if got := attributeDefaultLabel(c.attr, nil); got != c.want {
 			t.Errorf("label %q, want %q", got, c.want)

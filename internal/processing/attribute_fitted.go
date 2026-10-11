@@ -15,7 +15,7 @@ import (
 
 // Fitted vector attributes — the two-pass co-moment infrastructure the
 // vector-input attributes (vectors.VectorAttributeTypes: ATTR_MAHALANOBIS,
-// and the PC / factor scores built on it) share.
+// ATTR_PC_SCORE, and the factor scores built on it) share.
 //
 // Shape (the regressionAttribute template, folding a co-moment instead
 // of buffering rows):
@@ -32,7 +32,8 @@ import (
 //     earlier attributes' labels included.
 //   - Finalize hands the fit (fittedState) to the operator's fittedModel:
 //     N* ≤ p nulls every score with PULSE_MATRIX_INSUFFICIENT_N; the model
-//     decides singularity (PULSE_MATRIX_SINGULAR) and decomposes.
+//     decides singularity (PULSE_MATRIX_SINGULAR) and decomposes; a
+//     usable fit may still owe warnings (fitNoter).
 //   - Row scores EVERY filtered row — fit_on restricts only the fit — and
 //     a row with a null member scores NaN, written as a null
 //     (NullEmitter).
@@ -108,6 +109,14 @@ type fittedModel interface {
 	fit(st fittedState) *fitRefusal
 	// score returns the row's score for its complete member values x.
 	score(x []float64) float64
+}
+
+// fitNoter is implemented by a fittedModel whose usable fit can still
+// owe Response-level warnings (ATTR_PC_SCORE's rotation stopped at its
+// sweep cap): read after a nil fit, each becomes a fit-scoped warning
+// and the scores stand.
+type fitNoter interface {
+	fitNotes() []*fitRefusal
 }
 
 // fittedVectorAttribute is the shared TwoPassAttribute of every fitted
@@ -262,6 +271,11 @@ func (a *fittedVectorAttribute) Finalize() error {
 	if ref := a.model.fit(st); ref != nil {
 		a.warnings = append(a.warnings, a.fitWarning(ref.code, st, a.label+": "+ref.msg))
 		return nil
+	}
+	if n, ok := a.model.(fitNoter); ok {
+		for _, note := range n.fitNotes() {
+			a.warnings = append(a.warnings, a.fitWarning(note.code, st, a.label+": "+note.msg))
+		}
 	}
 	a.usable = true
 	return nil

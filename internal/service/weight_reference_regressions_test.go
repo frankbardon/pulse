@@ -311,11 +311,13 @@ func testWeightRefRegsKindsAgree(t *testing.T) {
 		t.Run(fc.name, func(t *testing.T) {
 			fw, _ := weightRefRegRun(t, svc, fc, true)
 			pw, _ := weightRefRegRun(t, svc, pc, true)
-			if op == string(types.ATTR_MAHALANOBIS) {
+			if op == string(types.ATTR_MAHALANOBIS) || op == string(types.ATTR_PC_SCORE) {
 				// D² reads the covariance M2*/(N* − 1), and N* is kind-
 				// dependent (Σw vs n_eff), so the kinds differ by design —
 				// by ONE factor: S_p = S_f · n_eff(W − 1)/(W(n_eff − 1)),
-				// the same for every row.
+				// the same for every row. A PC score divides by the
+				// members' spread (√ of that factor; the correlation and
+				// its eigenvectors are kind-free).
 				assertConstantKindRatio(t, fc, fw, pw)
 				return
 			}

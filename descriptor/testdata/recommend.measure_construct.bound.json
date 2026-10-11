@@ -151,12 +151,56 @@
             "use": "MAT_CORRELATION"
           }
         ]
+      },
+      {
+        "operator": "ATTR_PC_SCORE",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share. It uses revenue (f64), seats (u16) and score (f64). Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "fields": [
+                "revenue",
+                "seats",
+                "score"
+              ],
+              "params": {
+                "component": "\u003ccomponent\u003e"
+              },
+              "type": "ATTR_PC_SCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "placeholders": [
+          "component"
+        ],
+        "needs": [
+          {
+            "param": "component",
+            "why": "Choose which component to score, counting from 1 for the largest."
+          }
+        ],
+        "alternatives": [
+          {
+            "when": "you want how many dimensions there are and which fields load on each",
+            "use": "MAT_PCA"
+          },
+          {
+            "when": "you want how unusual a row is across the fields",
+            "use": "ATTR_MAHALANOBIS"
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 4
+    "candidates_considered": 5
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: c6fc2a9f3507d0ffb675de061739246aa870bd0ed2b702e8fa8669a71ce7e28d
+// golden-hash: 112e8ca0edfbbf7b2ff45041ca115b2d3d8b6f0fea2d6fa08020867370e9a063

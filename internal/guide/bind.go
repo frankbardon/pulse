@@ -101,6 +101,7 @@ var needWhy = map[string]string{
 	"alpha":      "Choose the smoothing weight, between 0 and 1.",
 	"degree":     "Choose the polynomial degree.",
 	"codes":      "List the codes to look for.",
+	"component":  "Choose which component to score, counting from 1 for the largest.",
 	"label":      "Name the option to look for.",
 	"ratios":     "Give the split ratios.",
 	"boundaries": "List the cutpoints that split the values into buckets.",

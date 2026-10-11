@@ -24,6 +24,7 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | Which hidden qualities do the items reflect (factor analysis, rotation)? | `MAT_FACTOR` |
 | Are candidate predictors too redundant to fit together (VIF, condition index)? | `MAT_COLLINEARITY` |
 | Which rows are unusual across the fields as a whole? | `ATTR_MAHALANOBIS` (a row score) |
+| Each row's score on a component (a summary column)? | `ATTR_PC_SCORE` (a row score) |
 
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression ([`regression-inference`](regression-inference.md)).
 

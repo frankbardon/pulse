@@ -3708,6 +3708,7 @@ pulse/types: const ATTR_DATE_PART pulse/types.AttributeType = "ATTR_DATE_PART"
 pulse/types: const ATTR_FORMULA pulse/types.AttributeType = "ATTR_FORMULA"
 pulse/types: const ATTR_MAHALANOBIS pulse/types.AttributeType = "ATTR_MAHALANOBIS"
 pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
+pulse/types: const ATTR_PC_SCORE pulse/types.AttributeType = "ATTR_PC_SCORE"
 pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
@@ -4719,4 +4720,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a99b18315cf24c742918352cf20c493a535b0ee2a88016dd6c97041ea01cd4b9
+// golden-hash: 7481cff452b1be765889165e0e7fb0432be3d462ff966786c66afdc58936ca41

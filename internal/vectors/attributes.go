@@ -31,7 +31,10 @@ import (
 //     (FittedCommon): fit_on is "filtered" (the default) or a non-empty
 //     inline array of Filterer objects; missing is "listwise" (the only
 //     mode; "pairwise" refused). An operator adds its own keys
-//     (ATTR_MAHALANOBIS: MahalanobisParams — output "d2" | "p").
+//     (ATTR_MAHALANOBIS: MahalanobisParams — output "d2" | "p";
+//     ATTR_PC_SCORE: PCScoreParams — component, on, rotation,
+//     components, the member-count bounds judged once the members
+//     resolve).
 //   - Any OTHER built-in attribute refuses a vector input. An extension
 //     attribute's slots are its own business and are not judged.
 //
@@ -41,7 +44,7 @@ import (
 // VectorAttributeTypes returns the built-in attribute types that read
 // their columns from Vector / Fields, in AllAttributeTypes order.
 func VectorAttributeTypes() []types.AttributeType {
-	return []types.AttributeType{types.ATTR_MAHALANOBIS}
+	return []types.AttributeType{types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE}
 }
 
 // IsVectorAttribute reports whether t is a built-in vector-input
@@ -57,20 +60,28 @@ func HasAttributeVectorInput(a *types.Attribute) bool {
 
 // VectorAttributeLabel is the default output label of a vector-input
 // attribute whose route is typ: "<TYPE>_<vector>", or
-// "<TYPE>_<first fields entry as written>" for inline fields. ok is
+// "<TYPE>_<first fields entry as written>" for inline fields, and on
+// ATTR_PC_SCORE a "_PC<component>" suffix (when params.component
+// decodes) so two components of one vector never share a label. ok is
 // false for any other type (the caller's own label rule applies).
 func VectorAttributeLabel(typ types.AttributeType, a *types.Attribute) (string, bool) {
 	if a == nil || !IsVectorAttribute(typ) {
 		return "", false
 	}
+	suffix := ""
+	if typ == types.ATTR_PC_SCORE {
+		if cfg, err := PCScoreParams("", a.Params); err == nil {
+			suffix = "_PC" + strconv.Itoa(cfg.Component)
+		}
+	}
 	if a.Vector != "" {
-		return string(a.Type) + "_" + a.Vector, true
+		return string(a.Type) + "_" + a.Vector + suffix, true
 	}
 	first := ""
 	if len(a.Fields) > 0 {
 		first = a.Fields[0]
 	}
-	return string(a.Type) + "_" + first, true
+	return string(a.Type) + "_" + first + suffix, true
 }
 
 // AttributeInput is one attribute slot's vector input after
@@ -154,6 +165,9 @@ func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, sp
 	if err != nil {
 		return AttributeInput{}, err
 	}
+	if err := fittedMemberBounds(at, typ, a.Params, len(members.Members)); err != nil {
+		return AttributeInput{}, err
+	}
 	return AttributeInput{Members: members, FitOn: fitOn}, nil
 }
 
@@ -179,8 +193,24 @@ func fittedParams(at string, typ types.AttributeType, raw json.RawMessage) ([]*t
 	case types.ATTR_MAHALANOBIS:
 		cfg, err := MahalanobisParams(at, raw)
 		return cfg.FitOn, err
+	case types.ATTR_PC_SCORE:
+		cfg, err := PCScoreParams(at, raw)
+		return cfg.FitOn, err
 	}
 	return nil, nil
+}
+
+// fittedMemberBounds judges typ's member-count params against the p
+// resolved members (fittedParams has accepted raw).
+func fittedMemberBounds(at string, typ types.AttributeType, raw json.RawMessage, p int) *errors.CodedError {
+	if typ != types.ATTR_PC_SCORE {
+		return nil
+	}
+	cfg, err := PCScoreParams(at, raw)
+	if err != nil {
+		return err
+	}
+	return cfg.CheckMembers(at, p)
 }
 
 // FitOnFiltered is params.fit_on's default: fit on every filtered row.
@@ -291,6 +321,126 @@ func MahalanobisParams(at string, raw json.RawMessage) (MahalanobisConfig, *erro
 		}
 	}
 	return cfg, nil
+}
+
+// ATTR_PC_SCORE params.on values (MAT_PCA's): PCAOnCorrelation (the
+// default) and PCAOnCovariance. params.rotation: RotationNone (the
+// default) or RotationVarimax — PCARotations.
+
+// PCScoreConfig is ATTR_PC_SCORE's decoded params.
+type PCScoreConfig struct {
+	// Component is the 1-based component scored (required).
+	Component int
+	// On is PCAOnCorrelation (default) or PCAOnCovariance.
+	On string
+	// Rotation is "" (none) or RotationVarimax.
+	Rotation string
+	// Components is the k leading components rotated within (required
+	// with a rotation, refused without one); 0 when unrotated.
+	Components int
+	// FitOn is the fit_on filterer list; nil fits on every filtered row.
+	FitOn []*types.Filterer
+}
+
+// PCScoreParams decodes ATTR_PC_SCORE's params: component (an integer
+// ≥ 1, required), on ("correlation" default, or "covariance"),
+// rotation ("none" default, or "varimax"), components (an integer ≥
+// component, required with varimax and refused without it), fit_on
+// and missing (FittedCommon). Unknown keys are refused; the bounds
+// against the member count are CheckMembers. at is the slot path.
+// Predict and the runtime factory both call it.
+func PCScoreParams(at string, raw json.RawMessage) (PCScoreConfig, *errors.CodedError) {
+	cfg := PCScoreConfig{On: PCAOnCorrelation}
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" ATTR_PC_SCORE params.component is required (the 1-based component to score)",
+			map[string]any{"param": "component"})
+	}
+	var params struct {
+		FittedCommon
+		Component  *json.Number `json:"component"`
+		On         *string      `json:"on"`
+		Rotation   *string      `json:"rotation"`
+		Components *json.Number `json:"components"`
+	}
+	if err := decodeStrict(raw, &params); err != nil {
+		return PCScoreConfig{}, attributeInvalid(at, "bad_params",
+			at+" ATTR_PC_SCORE params: "+err.Error()+" (keys: component, on, rotation, components, fit_on, missing)", nil)
+	}
+	fitOn, err := params.resolve(at)
+	if err != nil {
+		return PCScoreConfig{}, err
+	}
+	cfg.FitOn = fitOn
+	if params.Component == nil {
+		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" ATTR_PC_SCORE params.component is required (the 1-based component to score)",
+			map[string]any{"param": "component"})
+	}
+	c, ok := positiveInt(*params.Component)
+	if !ok {
+		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.component must be an integer ≥ 1",
+			map[string]any{"param": "component", "value": params.Component.String()})
+	}
+	cfg.Component = c
+	if params.On != nil {
+		switch v := *params.On; v {
+		case PCAOnCorrelation, PCAOnCovariance:
+			cfg.On = v
+		default:
+			return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.on must be \"correlation\" or \"covariance\"",
+				map[string]any{"param": "on", "value": v, "valid": PCAOnValues()})
+		}
+	}
+	if params.Rotation != nil {
+		switch v := *params.Rotation; v {
+		case RotationNone:
+		case RotationVarimax:
+			cfg.Rotation = v
+		default:
+			return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.rotation must be \"none\" or \"varimax\"",
+				map[string]any{"param": "rotation", "value": v, "valid": PCARotations()})
+		}
+	}
+	switch {
+	case cfg.Rotation == "" && params.Components != nil:
+		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.components is the k to rotate within; it needs rotation \"varimax\"",
+			map[string]any{"param": "components"})
+	case cfg.Rotation != "" && params.Components == nil:
+		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.components (the k leading components to rotate within) is required with rotation \"varimax\"",
+			map[string]any{"param": "components"})
+	case cfg.Rotation != "":
+		k, ok := positiveInt(*params.Components)
+		if !ok || k < cfg.Component {
+			return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.components must be an integer ≥ params.component ("+strconv.Itoa(cfg.Component)+"): the scored component is one of the k rotated",
+				map[string]any{"param": "components", "value": params.Components.String()})
+		}
+		cfg.Components = k
+	}
+	return cfg, nil
+}
+
+// CheckMembers refuses a component (or a rotated k) beyond the p
+// members: there are only p components.
+func (cfg PCScoreConfig) CheckMembers(at string, p int) *errors.CodedError {
+	param, v := "component", cfg.Component
+	if cfg.Components > v {
+		param, v = "components", cfg.Components
+	}
+	if v <= p {
+		return nil
+	}
+	return attributeInvalid(at, "component_out_of_range",
+		at+" params."+param+" is "+strconv.Itoa(v)+" but the "+strconv.Itoa(p)+" members have only "+strconv.Itoa(p)+" components",
+		map[string]any{"param": param, "value": v, "members": p})
+}
+
+// positiveInt reads n as an integer ≥ 1.
+func positiveInt(n json.Number) (int, bool) {
+	v, err := strconv.ParseInt(n.String(), 10, 32)
+	if err != nil || v < 1 {
+		return 0, false
+	}
+	return int(v), true
 }
 
 // AttributeFitOn returns a's decoded params.fit_on filterers when a's

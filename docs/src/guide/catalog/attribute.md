@@ -9,6 +9,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_FORMULA`](#op-attr_formula) | Adds a number to every row computed from the row's own fields with an expression, such as price * qty. | What is each order's line total from its price and quantity? | intermediate | [`FILTER_EXPRESSION`](filterer.md#op-filter_expression) when you want to keep or drop rows by a rule rather than add a column.<br>[`FEAT_LOG`](feature.md#op-feat_log) when you want the logarithm of a field. |
 | [`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) | Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together. | Which respondents gave an unusual pattern of answers across the whole battery, even if no single answer is extreme? | advanced | [`ATTR_ZSCORE`](#op-attr_zscore) when only one field matters.<br>[`TEST_HOTELLING_T2`](test.md#op-test_hotelling_t2) when you want how far apart groups are, not single rows. |
 | [`ATTR_NORMALIZED`](#op-attr_normalized) | Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the largest. | How can fields on very different scales be put on one 0-to-1 scale before combining them? | basic | [`ATTR_PERCENTILE`](#op-attr_percentile) when the field has extreme values that would squeeze the rest of the range.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want distance from the mean in standard deviations.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want a composite on the scales' fixed endpoints (1-5, 0-10), such as (x - 1) / 4. |
+| [`ATTR_PC_SCORE`](#op-attr_pc_score) | Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share. | What is each respondent's score on the main dimension behind these rating questions? | advanced | [`MAT_PCA`](matrix.md#op-mat_pca) when you want how many dimensions there are and which fields load on each.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is across the fields. |
 | [`ATTR_PERCENTILE`](#op-attr_percentile) | Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. | Where does each store's revenue rank among all stores, as a percentage? | basic | [`AGG_PERCENTILE`](aggregator.md#op-agg_percentile) when you want the value at a chosen percentile, such as the 90th.<br>[`WIN_RANK`](window.md#op-win_rank) when you want ranks within partitions, or tied values to share a rank.<br>[`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want rows split into equal-sized bands. |
 | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) | Adds to every row the value a straight-line model predicts for its target from its predictors. | What order value would we expect for each customer given their visits and tenure? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, R-squared and p-values of the model.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want how far each row sits from its prediction.<br>[`REG_GLM`](regression.md#op-reg_glm) when the target is yes/no or a count. |
 | [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) | Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. | Which rows have predictor values so far from the rest that they could steer the model? | advanced | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
@@ -193,6 +194,42 @@ Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the 
 **Glossary:** [`outlier`](../glossary.md#term-outlier), [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-attr-normalized`](../skills/op-attr-normalized.md)
+
+<a id="op-attr_pc_score"></a>
+
+### `ATTR_PC_SCORE`
+
+Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share.
+
+**Level:** advanced
+
+**Also known as:** `principal component score`, `pc score`, `component score`, `index score`
+
+**Questions it answers:**
+
+- What is each respondent's score on the main dimension behind these rating questions?
+- Can I replace these five correlated measures with one summary column for a later model?
+
+**Use cases by domain:**
+
+- *survey:* Score each respondent on the leading dimension of an attitude battery, to segment or chart by it.
+- *science:* Reduce many correlated measurements of each specimen to a few component columns before further analysis.
+
+**Assumptions:**
+
+- The components come from one fit over every row that passed the filters (or the subset fit_on selects), never per group; every filtered row is scored.
+- A component's direction (which end is high) follows MAT_PCA's rule, not the meaning of the fields: read the loadings before naming a score.
+- A row missing any of the fields is left out of the fit and gets no score (listwise deletion).
+- There must be more complete rows than fields, and no field may be constant or a sum of the others; otherwise every score is empty, with a warning.
+
+**Use something else:**
+
+- [`MAT_PCA`](matrix.md#op-mat_pca) when you want how many dimensions there are and which fields load on each.
+- [`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is across the fields.
+
+**Glossary:** [`principal-component`](../glossary.md#term-principal-component), [`eigenvalue`](../glossary.md#term-eigenvalue), [`loading`](../glossary.md#term-loading), [`correlation`](../glossary.md#term-correlation), [`covariance`](../glossary.md#term-covariance), [`z-score`](../glossary.md#term-z-score), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Skill:** [`op-attr-pc-score`](../skills/op-attr-pc-score.md)
 
 <a id="op-attr_percentile"></a>
 

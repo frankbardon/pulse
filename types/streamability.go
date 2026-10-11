@@ -263,7 +263,7 @@ func (t GroupType) Mergeable() bool {
 //     bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
 //   - Two-pass: ZSCORE, TSCORE, NORMALIZED (and the fitted vector
-//     attributes, MAHALANOBIS) implement
+//     attributes, MAHALANOBIS, PC_SCORE) implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
 //     records, Finalize, then per-row Row() in pass 2 (iter.Reset()).
 //   - Buffered-only: PERCENTILE needs a sorted view of every value;
@@ -281,7 +281,7 @@ func (t AttributeType) Streamable() bool {
 		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE,
 		ATTR_SET_POPCOUNT, ATTR_SET_HAS,
 		ATTR_CODE_IN, ATTR_REG_PREDICT,
-		ATTR_MAHALANOBIS:
+		ATTR_MAHALANOBIS, ATTR_PC_SCORE:
 		return true
 	case ATTR_PERCENTILE:
 		return false

@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Per-row principal component scores across revenue_before, revenue and session_minutes on experiment.pulse via ATTR_PC_SCORE. pc1 is each row's standardized score on the first component of their correlation (MAT_PCA's sign and order: it rises with the revenue pair, whose MAT_PCA loadings are about +0.99), averaging 0 with a standard deviation of 1 over all the fitted rows (here about -0.04 on control and +0.05 on variant). pc2_varimax scores the second of two varimax-rotated components (almost exactly session_minutes), fitted by fit_on on the control arm only while every row is still scored: it averages 0 on control by construction and about +0.47 standard deviations on variant. The fit is cohort-wide, never per treatment; grouping runs the request buffered.",
+    "intents": [
+      "measure_construct",
+      "prepare"
+    ],
+    "name": "attr_pc_score",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_STDDEV",
+      "ATTR_PC_SCORE",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "multivariate",
+      "feature-engineering",
+      "buffered-pipeline"
+    ]
+  },
+  "attributes": [
+    {
+      "type": "ATTR_PC_SCORE",
+      "label": "pc1",
+      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "params": {
+        "component": 1
+      }
+    },
+    {
+      "type": "ATTR_PC_SCORE",
+      "label": "pc2_varimax",
+      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "params": {
+        "component": 2,
+        "rotation": "varimax",
+        "components": 2,
+        "fit_on": [{"type": "FILTER_INCLUDE", "field": "treatment", "values": ["control"]}]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "pc1",
+      "label": "mean_pc1"
+    },
+    {
+      "type": "AGG_STDDEV",
+      "field": "pc1",
+      "label": "sd_pc1"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "pc2_varimax",
+      "label": "mean_pc2_varimax"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  }
+}

@@ -271,6 +271,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_FORMULA"),
 	op("ATTR_MAHALANOBIS"),
 	op("ATTR_NORMALIZED"),
+	op("ATTR_PC_SCORE"),
 	op("ATTR_PERCENTILE"),
 	op("ATTR_REG_FITTED"),
 	op("ATTR_REG_LEVERAGE"),

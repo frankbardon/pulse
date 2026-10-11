@@ -832,7 +832,8 @@ source(file.path(script_dir, "gen_rotation.R"), local = FALSE)
 # reuses gen_rotation.R's rot_canon and GPArotation pin.
 source(file.path(script_dir, "gen_factor.R"), local = FALSE)
 
-# The fitted-attribute golden (mv_mahalanobis.json: ATTR_MAHALANOBIS D²
-# and its chi-square tail, every row scored off a fit over the listwise,
-# positive-weight, fit_on rows); base R only.
+# The fitted-attribute goldens (mv_mahalanobis.json: ATTR_MAHALANOBIS D²
+# and its chi-square tail; mv_pc_score.json: ATTR_PC_SCORE standardized
+# component scores, unrotated and varimax — every row scored off a fit
+# over the listwise, positive-weight, fit_on rows).
 source(file.path(script_dir, "gen_fitted_attributes.R"), local = FALSE)

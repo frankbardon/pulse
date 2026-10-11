@@ -87,6 +87,7 @@
     - [op-attr-formula](skills/op-attr-formula.md)
     - [op-attr-mahalanobis](skills/op-attr-mahalanobis.md)
     - [op-attr-normalized](skills/op-attr-normalized.md)
+    - [op-attr-pc-score](skills/op-attr-pc-score.md)
     - [op-attr-percentile](skills/op-attr-percentile.md)
     - [op-attr-reg-fitted](skills/op-attr-reg-fitted.md)
     - [op-attr-reg-leverage](skills/op-attr-reg-leverage.md)

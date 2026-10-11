@@ -292,6 +292,24 @@ Where the row's value sits between the smallest and largest value, on a 0-to-1 s
 - A row with a missing value reads 0, the same as the minimum, and every row reads 0 when all values are equal (max = min).
 - The scale comes from every row that passed the filters, not from the row's group: averaging it per group shows how each group sits against the whole, and a different filter gives different values.
 
+<a id="op-attr_pc_score"></a>
+
+### `ATTR_PC_SCORE`
+
+Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share. See its [catalog entry](../catalog/attribute.md#op-attr_pc_score).
+
+#### `value`
+
+The row's score on the chosen principal component of the fields, standardized so the fitted rows average 0 with a standard deviation of 1: 0 is an average row, +1 is one standard deviation toward the end where the fields with positive loadings are high.
+
+**Caveats:**
+
+- The sign is a convention (MAT_PCA's: each component's largest loading is positive), not a meaning: check MAT_PCA's loadings on the same fields before calling a high score good or bad.
+- A component summarises the spread the fields share; it does not say why they move together, and a later component carries less of their variance and is noisier.
+- On the correlation every field counts equally; on the covariance a field with a large spread dominates the score.
+- The fit is over every filtered row (or the fit_on subset), not the row's group, so scores are comparable across groups. Under a row weight the fit is weighted; a row with no usable weight is left out of the fit but still scored.
+- A row missing any field reads null, and every row reads null, with a warning, when the fit has no more complete rows than fields or a field is constant or a combination of others.
+
 <a id="op-attr_percentile"></a>
 
 ### `ATTR_PERCENTILE`

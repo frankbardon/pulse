@@ -40,6 +40,9 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: ATTR_MAHALANOBIS -->
 | Which rows are unusual across the fields as a whole? | `ATTR_MAHALANOBIS` (a row score) |
 <!-- /feature -->
+<!-- feature: ATTR_PC_SCORE -->
+| Each row's score on a component (a summary column)? | `ATTR_PC_SCORE` (a row score) |
+<!-- /feature -->
 
 <!-- feature: REG_OLS -->
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression (`regression-inference`).

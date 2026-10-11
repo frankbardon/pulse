@@ -26,6 +26,7 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_PERCENTILE":   purposeAttrPercentile,
 	"ATTR_REG_FITTED":   purposeAttrRegFitted,
 	"ATTR_MAHALANOBIS":  purposeAttrMahalanobis,
+	"ATTR_PC_SCORE":     purposeAttrPCScore,
 	"ATTR_REG_LEVERAGE": purposeAttrRegLeverage,
 	"ATTR_REG_PREDICT":  purposeAttrRegPredict,
 	"ATTR_REG_RESIDUAL": purposeAttrRegResidual,
@@ -414,6 +415,35 @@ var (
 		Glossary: []string{
 			"distance", "outlier", "covariance", "mean", "listwise-deletion",
 			"chi-square", "p-value", "normal-distribution", "degrees-of-freedom",
+		},
+	}
+
+	purposeAttrPCScore = descriptor.Purpose{
+		Plain:   "Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share.",
+		KnownAs: []string{"principal component score", "pc score", "component score", "index score"},
+		Intents: []string{IntentMeasureConstruct, IntentPrepare},
+		Questions: []string{
+			"What is each respondent's score on the main dimension behind these rating questions?",
+			"Can I replace these five correlated measures with one summary column for a later model?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Score each respondent on the leading dimension of an attitude battery, to segment or chart by it.",
+			descriptor.DomainScience: "Reduce many correlated measurements of each specimen to a few component columns before further analysis.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how many dimensions there are and which fields load on each", Use: "MAT_PCA"},
+			{When: "you want how unusual a row is across the fields", Use: "ATTR_MAHALANOBIS"},
+		},
+		Assumptions: []string{
+			"The components come from one fit over every row that passed the filters (or the subset fit_on selects), never per group; every filtered row is scored.",
+			"A component's direction (which end is high) follows MAT_PCA's rule, not the meaning of the fields: read the loadings before naming a score.",
+			"A row missing any of the fields is left out of the fit and gets no score (listwise deletion).",
+			"There must be more complete rows than fields, and no field may be constant or a sum of the others; otherwise every score is empty, with a warning.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"principal-component", "eigenvalue", "loading", "correlation", "covariance",
+			"z-score", "listwise-deletion",
 		},
 	}
 )

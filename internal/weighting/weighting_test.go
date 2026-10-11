@@ -62,7 +62,7 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	want[string(types.ATTR_TSCORE)] = ClassAware
 	want[string(types.ATTR_NORMALIZED)] = ClassNotWeightable
 	// U12 E4-S2: the regression attributes refit REG_OLS weighted.
-	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_MAHALANOBIS} {
+	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE} {
 		want[string(a)] = ClassAware
 	}
 	for _, gt := range types.AllGroupTypes() {

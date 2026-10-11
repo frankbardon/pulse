@@ -115,6 +115,19 @@ for (r in d$row) {
   out("attr_mahalanobis", d$id[r], mahalanobis(c(d$x1[r], d$x2[r], d$y[r]), mmu, msig))
 }
 
+# ATTR_PC_SCORE (U25 E3-S2): component 1 of the correlation, every row
+# with x2 present scored by prcomp(scale. = TRUE) on the expanded
+# complete rows (members x1, x2, y): predict() / sdev, the loading sign
+# fixed to Pulse's rule (largest-magnitude component positive).
+pc <- prcomp(mx, scale. = TRUE)
+pv <- pc$rotation[, 1]
+if (pv[which.max(abs(pv))] < 0) pv <- -pv
+for (r in d$row) {
+  if (is.na(d$x2[r])) next
+  z <- (c(d$x1[r], d$x2[r], d$y[r]) - pc$center) / pc$scale
+  out("attr_pc_score", d$id[r], sum(z * pv) / pc$sdev[1])
+}
+
 # GROUP_QUANTILE: the order statistic that opens each of k buckets on
 # the expanded yg — 0-based expanded index ceiling(b·W/k), b = 0..k−1
 # (W the expanded row count), i.e. the first expanded row whose

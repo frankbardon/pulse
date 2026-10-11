@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -239,6 +240,56 @@ func attributeCapabilities() []descriptor.Operator {
 			AcceptsTypes:   numericFieldTypesNoDecimal,
 			EmitsType:      "f64",
 			EmitsTypeNote:  "one D² (≥ 0) or p-value in [0, 1] per record (null when a member is null or the fit is singular / too small)",
+			Streamable:     true,
+			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+		},
+		{
+			Name:        string(types.ATTR_PC_SCORE),
+			Category:    "attribute",
+			Description: "Per-row score on one principal component of the p members of vector / fields (exactly one; listwise), standardized to unit variance on a cohort-wide fit: the eigen-decomposition of the fit rows' (weighted) correlation or ddof = 1 covariance, with MAT_PCA's order and sign (a score correlates with each member as MAT_PCA's loading). Optional varimax rotation within the leading components. Every filtered row is scored; a null member scores null; a singular fit or N* ≤ p nulls every score with a warning. Two-pass.",
+			Params: []descriptor.Param{
+				{
+					Name:        "component",
+					Type:        "int",
+					Required:    true,
+					Description: "The component to score, 1-based (1 = the largest eigenvalue; after a rotation, the rotated component with the largest variance), at most the member count.",
+				},
+				{
+					Name:        "on",
+					Type:        "enum",
+					Default:     vectors.PCAOnCorrelation,
+					EnumValues:  vectors.PCAOnValues(),
+					Description: "correlation: decompose the correlation (members standardized first); covariance: the covariance (members in their own units; a large-spread member dominates).",
+				},
+				{
+					Name:        "rotation",
+					Type:        "enum",
+					Default:     vectors.RotationNone,
+					EnumValues:  vectors.PCARotations(),
+					Description: "none: the unrotated component. varimax: rotate the params.components leading components orthogonally (stats::varimax, Kaiser normalization; MAT_PCA's rotated order and sign) and score rotated component params.component.",
+				},
+				{
+					Name:        "components",
+					Type:        "int",
+					Description: "With rotation varimax (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count.",
+				},
+				{
+					Name:        "fit_on",
+					Type:        "any",
+					Default:     "filtered",
+					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "missing",
+					Type:        "enum",
+					Default:     "listwise",
+					EnumValues:  []string{"listwise"},
+					Description: "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+				},
+			},
+			AcceptsTypes:   numericFieldTypesNoDecimal,
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one standardized score per record (mean 0, variance 1 over the fit rows; null when a member is null or the fit is singular / too small)",
 			Streamable:     true,
 			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
 		},

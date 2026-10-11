@@ -388,6 +388,15 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Params: json.RawMessage(`{"output":"p"}`)}, s, emitsRegRecords(s))
 		return append(d2, p...)
 	},
+	string(types.ATTR_PC_SCORE): func(t *testing.T) emitted {
+		// Standardized scores: unbounded reals, unrotated and varimax.
+		s := regSchema()
+		un := attrEmitted(t, &types.Attribute{Type: types.ATTR_PC_SCORE, Label: "out", Fields: []string{"x1", "x2"},
+			Params: json.RawMessage(`{"component":1}`)}, s, emitsRegRecords(s))
+		rot := attrEmitted(t, &types.Attribute{Type: types.ATTR_PC_SCORE, Label: "out", Fields: []string{"x1", "x2"},
+			Params: json.RawMessage(`{"component":2,"rotation":"varimax","components":2}`)}, s, emitsRegRecords(s))
+		return append(un, rot...)
+	},
 	string(types.ATTR_REG_LEVERAGE): func(t *testing.T) emitted {
 		s := regSchema()
 		return attrEmitted(t, &types.Attribute{

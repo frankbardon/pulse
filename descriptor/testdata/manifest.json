@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:ffbdfd0ec54069e2d85a7fa19ebd4c600aed54323f6a3d53acadac8160700562",
+    "feature_set_digest": "fs1:2089cd9e52a0e28284b79f485b34489acb4351caa2e1a5651ded3b1fa4673841",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -3035,6 +3035,90 @@
             "mergeability": ""
           },
           "intents": [
+            "prepare"
+          ]
+        },
+        {
+          "name": "ATTR_PC_SCORE",
+          "category": "attribute",
+          "description": "Per-row score on one principal component of the p members of vector / fields (exactly one; listwise), standardized to unit variance on a cohort-wide fit: the eigen-decomposition of the fit rows' (weighted) correlation or ddof = 1 covariance, with MAT_PCA's order and sign (a score correlates with each member as MAT_PCA's loading). Optional varimax rotation within the leading components. Every filtered row is scored; a null member scores null; a singular fit or N* ≤ p nulls every score with a warning. Two-pass.",
+          "params": [
+            {
+              "name": "component",
+              "type": "int",
+              "required": true,
+              "description": "The component to score, 1-based (1 = the largest eigenvalue; after a rotation, the rotated component with the largest variance), at most the member count."
+            },
+            {
+              "name": "on",
+              "type": "enum",
+              "required": false,
+              "default": "correlation",
+              "description": "correlation: decompose the correlation (members standardized first); covariance: the covariance (members in their own units; a large-spread member dominates).",
+              "enum_values": [
+                "correlation",
+                "covariance"
+              ]
+            },
+            {
+              "name": "rotation",
+              "type": "enum",
+              "required": false,
+              "default": "none",
+              "description": "none: the unrotated component. varimax: rotate the params.components leading components orthogonally (stats::varimax, Kaiser normalization; MAT_PCA's rotated order and sign) and score rotated component params.component.",
+              "enum_values": [
+                "none",
+                "varimax"
+              ]
+            },
+            {
+              "name": "components",
+              "type": "int",
+              "required": false,
+              "description": "With rotation varimax (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count."
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one standardized score per record (mean 0, variance 1 over the fit rows; null when a member is null or the fit is singular / too small)",
+          "streamable": true,
+          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "measure_construct",
             "prepare"
           ]
         },
@@ -8325,6 +8409,7 @@
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8407,6 +8492,7 @@
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8489,6 +8575,7 @@
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8571,6 +8658,7 @@
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8652,6 +8740,7 @@
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8733,6 +8822,7 @@
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8814,6 +8904,7 @@
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -8892,6 +8983,7 @@
           "ATTR_FORMULA",
           "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
@@ -9734,6 +9826,10 @@
       {
         "name": "op-attr-normalized",
         "description": "Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1]."
+      },
+      {
+        "name": "op-attr-pc-score",
+        "description": "Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional varimax; fit_on fits on a subset and still scores every row."
       },
       {
         "name": "op-attr-percentile",
@@ -10696,7 +10792,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 200,
+    "examples_count": 201,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14486,4 +14582,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d8dae4a5f4e10e7fa8efe10d5902088a4ef7a35a7761eccf5173884af69d14e8
+// golden-hash: 1c158655f8c185738119c6f735de554feb092cb2c81e9a14d84f2799fe11aae8
