@@ -97,6 +97,7 @@
     - [op-attr-code-in](guide/skills/op-attr-code-in.md)
     - [op-attr-date-part](guide/skills/op-attr-date-part.md)
     - [op-attr-formula](guide/skills/op-attr-formula.md)
+    - [op-attr-mahalanobis](guide/skills/op-attr-mahalanobis.md)
     - [op-attr-normalized](guide/skills/op-attr-normalized.md)
     - [op-attr-percentile](guide/skills/op-attr-percentile.md)
     - [op-attr-reg-fitted](guide/skills/op-attr-reg-fitted.md)

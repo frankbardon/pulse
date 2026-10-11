@@ -311,6 +311,14 @@ func testWeightRefRegsKindsAgree(t *testing.T) {
 		t.Run(fc.name, func(t *testing.T) {
 			fw, _ := weightRefRegRun(t, svc, fc, true)
 			pw, _ := weightRefRegRun(t, svc, pc, true)
+			if op == string(types.ATTR_MAHALANOBIS) {
+				// D² reads the covariance M2*/(N* − 1), and N* is kind-
+				// dependent (Σw vs n_eff), so the kinds differ by design —
+				// by ONE factor: S_p = S_f · n_eff(W − 1)/(W(n_eff − 1)),
+				// the same for every row.
+				assertConstantKindRatio(t, fc, fw, pw)
+				return
+			}
 			points := 0
 			for _, path := range sortedNames(fc.figures) {
 				if !weightRefRegPointEstimate(path) {
@@ -343,5 +351,32 @@ func testWeightRefRegsKindsAgree(t *testing.T) {
 	}
 	if compared == 0 {
 		t.Fatal("no regression compared across kinds")
+	}
+}
+
+// assertConstantKindRatio: every per-row figure of fc's probability twin
+// (pw) is the frequency figure (fw) times one constant factor ≠ 1 — a
+// pure covariance rescale between N* = Σw and N* = n_eff.
+func assertConstantKindRatio(t *testing.T, fc weightRefInferCase, fw, pw map[string]any) {
+	t.Helper()
+	ratio, rows := math.NaN(), 0
+	for _, path := range sortedNames(fc.figures) {
+		fv, ferr := regFigure(fw, path)
+		pv, perr := regFigure(pw, path)
+		if ferr != nil || perr != nil {
+			t.Fatalf("%s: %v / %v", path, ferr, perr)
+		}
+		f, _ := fv.(float64)
+		p, _ := pv.(float64)
+		r := p / f
+		if math.IsNaN(ratio) {
+			ratio = r
+		} else if !relClose(r, ratio, 1e-10) {
+			t.Errorf("%s: probability / frequency = %.17g, other rows %.17g — not one covariance rescale", path, r, ratio)
+		}
+		rows++
+	}
+	if rows < 2 || ratio == 1 {
+		t.Fatalf("vacuous: %d rows, ratio %v (N* must be kind-dependent)", rows, ratio)
 	}
 }

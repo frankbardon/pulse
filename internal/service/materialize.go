@@ -24,6 +24,13 @@ type MaterializeSink interface {
 	Row(source int64, derived []any) error
 }
 
+// MaterializeWarner is a MaterializeSink that also receives the run's
+// Response-level warnings — a fitted vector attribute's singular or
+// insufficient fit — once, after the last Row.
+type MaterializeWarner interface {
+	Warn(warnings []*types.ResponseWarning)
+}
+
 // Materialize runs req's record-level pipeline — features, filters,
 // attributes, windows — over its cohort and hands every filtered
 // record's derived values to sink. It runs Process's own pre-flight in
@@ -121,6 +128,9 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	proc := s.newProcessor(ctx, schema, req)
 	if err := proc.DeriveRecords(ctx, req, iter, pcols, sink.Row); err != nil {
 		return err
+	}
+	if w, ok := sink.(MaterializeWarner); ok {
+		w.Warn(proc.DeriveWarnings())
 	}
 	ei.setPlan(observe.ArmBuffered, 1, len(cohort.Shards()), 0)
 	return iter.Err()

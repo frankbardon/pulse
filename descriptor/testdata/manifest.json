@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:d8a8c7ae4ae88c95273ccda53b85e154a8001290a7321133fafb98001ec8f130",
+    "feature_set_digest": "fs1:ffbdfd0ec54069e2d85a7fa19ebd4c600aed54323f6a3d53acadac8160700562",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -2951,6 +2951,66 @@
           },
           "intents": [
             "prepare"
+          ]
+        },
+        {
+          "name": "ATTR_MAHALANOBIS",
+          "category": "attribute",
+          "description": "Per-row Mahalanobis distance D² = (x − μ)ᵀS⁻¹(x − μ) across the p members of vector / fields (exactly one; listwise), from a cohort-wide fit: the (weighted) mean and ddof = 1 covariance of the filtered rows params.fit_on admits. Every filtered row is scored; a null member scores null; a singular fit or N* ≤ p nulls every score with a warning. Two-pass.",
+          "params": [
+            {
+              "name": "output",
+              "type": "enum",
+              "required": false,
+              "default": "d2",
+              "description": "d2: the squared distance; p: its chi-square upper tail on p degrees of freedom (the outlier p-value under joint normality).",
+              "enum_values": [
+                "d2",
+                "p"
+              ]
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one D² (≥ 0) or p-value in [0, 1] per record (null when a member is null or the fit is singular / too small)",
+          "streamable": true,
+          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "data_quality"
           ]
         },
         {
@@ -8263,6 +8323,7 @@
         "compatible_attributes": [
           "ATTR_CODE_IN",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
@@ -8344,6 +8405,7 @@
         "compatible_attributes": [
           "ATTR_CODE_IN",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
@@ -8425,6 +8487,7 @@
         "compatible_attributes": [
           "ATTR_CODE_IN",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
@@ -8506,6 +8569,7 @@
         "compatible_attributes": [
           "ATTR_CODE_IN",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
@@ -8586,6 +8650,7 @@
         ],
         "compatible_attributes": [
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
@@ -8666,6 +8731,7 @@
         ],
         "compatible_attributes": [
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
@@ -8746,6 +8812,7 @@
         "compatible_attributes": [
           "ATTR_CODE_IN",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
@@ -8823,6 +8890,7 @@
         "compatible_attributes": [
           "ATTR_DATE_PART",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
@@ -9658,6 +9726,10 @@
       {
         "name": "op-attr-formula",
         "description": "Per-row expression evaluation against the record's fields via expr-lang."
+      },
+      {
+        "name": "op-attr-mahalanobis",
+        "description": "Per-row Mahalanobis distance D² (or its chi-square p) across a vector of numeric members, from a cohort-wide fit; fit_on fits on a subset and still scores every row."
       },
       {
         "name": "op-attr-normalized",
@@ -10624,7 +10696,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 199,
+    "examples_count": 200,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14414,4 +14486,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 201cf1fc96fbc55cd832bcdb0acf41cc232d0c5388e0f5546466b5cc32f9b38a
+// golden-hash: d8dae4a5f4e10e7fa8efe10d5902088a4ef7a35a7761eccf5173884af69d14e8

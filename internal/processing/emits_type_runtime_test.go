@@ -379,6 +379,15 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Type: types.ATTR_REG_RESIDUAL, Label: "out", Target: "y", Predictors: []string{"x1", "x2"},
 		}, s, emitsRegRecords(s))
 	},
+	string(types.ATTR_MAHALANOBIS): func(t *testing.T) emitted {
+		// Both outputs: D² (≥ 0, unbounded) and its χ² tail in [0, 1].
+		s := regSchema()
+		recs := emitsRegRecords(s)
+		d2 := attrEmitted(t, &types.Attribute{Type: types.ATTR_MAHALANOBIS, Label: "out", Fields: []string{"x1", "x2"}}, s, recs)
+		p := attrEmitted(t, &types.Attribute{Type: types.ATTR_MAHALANOBIS, Label: "out", Fields: []string{"x1", "x2"},
+			Params: json.RawMessage(`{"output":"p"}`)}, s, emitsRegRecords(s))
+		return append(d2, p...)
+	},
 	string(types.ATTR_REG_LEVERAGE): func(t *testing.T) emitted {
 		s := regSchema()
 		return attrEmitted(t, &types.Attribute{

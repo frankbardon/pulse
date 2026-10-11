@@ -85,6 +85,13 @@ var regParityOps = []regParityOp{
 	// (0 / 1 / skew(y) for z) — any weight the attribute missed moves them.
 	{name: "attr_zscore_flat", attr: types.ATTR_ZSCORE, flat: true, tol: 1e-10},
 	{name: "attr_tscore_flat", attr: types.ATTR_TSCORE, flat: true, tol: 1e-10},
+	// The fitted vector attribute (U25 E3-S1) on (x, y): the fit's mean
+	// and M2*/(N* − 1) covariance on w*. Frequency: integer weights equal
+	// the expanded rows' fit, and a row's score is its copies' score;
+	// probability: N* = n_eff and M2* are scale-free. Grouped (buffered)
+	// and flat (the streaming two-pass arm).
+	{name: "attr_mahalanobis", attr: types.ATTR_MAHALANOBIS, tol: 1e-10},
+	{name: "attr_mahalanobis_flat", attr: types.ATTR_MAHALANOBIS, flat: true, tol: 1e-10},
 }
 
 func (o regParityOp) surface() (weightSurface, string) {
@@ -114,6 +121,9 @@ func (o regParityOp) build(path string) func() *types.Request {
 		attr := &types.Attribute{Type: o.attr, Label: "attr", Target: "y", Predictors: regParityPredictors}
 		if o.attr == types.ATTR_ZSCORE || o.attr == types.ATTR_TSCORE {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Field: "y"}
+		}
+		if o.attr == types.ATTR_MAHALANOBIS {
+			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}}
 		}
 		req.Attributes = []*types.Attribute{attr}
 		if o.flat {

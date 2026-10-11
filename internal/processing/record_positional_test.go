@@ -628,7 +628,7 @@ func TestApplyAttributes_InjectionInvalidatesAllValuesCache(t *testing.T) {
 		_ = r.AllValues() // warm the cache, as an expression filter would
 	}
 	p := NewProcessor(schema)
-	err := p.applyAttributes([]*types.Attribute{
+	_, err := p.applyAttributes([]*types.Attribute{
 		{Type: types.ATTR_FORMULA, Field: "x", Expression: "x * 10", Label: "x10"},
 		{Type: types.ATTR_FORMULA, Field: "x10", Expression: "x10 + 1", Label: "x10p1"},
 	}, records)

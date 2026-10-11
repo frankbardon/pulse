@@ -108,6 +108,13 @@ is pinned to R on the sorted expansion (frequency) or Hmisc
 wtd.quantile(normwt=TRUE) (probability); counts and highs follow from an
 exact rational transcription of Pulse's cut ⌊⌊C − 1⌋·k/W⌋.
 
+ATTR_MAHALANOBIS (U25 E3-S1) — on the same fixture, members (x1, x2, y):
+every row with x2 present scored against the fit over the complete rows
+with a valid, positive weight; frequency = R stats::mahalanobis against
+colMeans / cov of the expanded rows (reg_reference.R), probability =
+the w* closed form (mean, covariance M2·(n_eff/Σw)/(n_eff − 1))
+cross-checked with statsmodels DescrStatsW(w*, ddof=1).
+
 Per-group N*: the split t / Welch / z, ANOVA F (c_g = N*_g/Σw_g, so
 N* = Σ_g N*_g — review WS-01), Welch ANOVA and prop-z read each group's
 own n_eff; Pearson, paired and χ² read one n_eff over the contributing
@@ -1916,6 +1923,7 @@ def attr_closed_form(ws, kind):
 
 
 SCORE_SPECS = [("attr_zscore", "ATTR_ZSCORE"), ("attr_tscore", "ATTR_TSCORE")]
+MAHA_FIELDS = ["x1", "x2", "y"]
 QUANTILE_KS = [4, 10]
 
 
@@ -1937,6 +1945,32 @@ def score_closed_form(ws, kind):
         z = (r[3] - mean) / sd
         out["attr_zscore"][r[0]] = z
         out["attr_tscore"][r[0]] = z * 10 + 50
+    return out
+
+
+def mahalanobis_closed_form(ws, kind):
+    """ATTR_MAHALANOBIS per row id (x2 present): D² against the weighted
+    mean and the ddof = 1 covariance on w* over the fit rows (complete,
+    weight valid and positive); a null-x2 row is null and omitted."""
+    idx = reg_fit_rows(ws, kind)
+    X = np.array([[REG_ROWS[i][REG_COL[c]] for c in MAHA_FIELDS] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    nstar = kish(w) if kind == "probability" else sw
+    mean = (w[:, None] * X).sum(axis=0) / sw
+    dev = X - mean
+    m2 = dev.T @ (w[:, None] * dev)
+    cov = m2 * (nstar / sw) / (nstar - 1)
+    ws_star = w * nstar / sw
+    d1 = DescrStatsW(X, weights=ws_star, ddof=1)
+    assert np.allclose(d1.mean, mean, rtol=1e-13) and np.allclose(d1.cov, cov, rtol=1e-12), (kind, d1.cov, cov)
+    inv = np.linalg.inv(cov)
+    out = {}
+    for r in REG_ROWS:
+        if r[2] is NULL:
+            continue
+        d = np.array([r[REG_COL[c]] for c in MAHA_FIELDS]) - mean
+        out[r[0]] = float(d @ inv @ d)
     return out
 
 
@@ -2095,6 +2129,18 @@ def regression_cases():
                    "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
             out.append(dict(weight=wname, kind=kind, name=case, request=req,
                             figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        figs = mahalanobis_closed_form(ws, kind)
+        if prob:
+            src = ("closed form: weighted mean and covariance M2·(n_eff/Σw)/(n_eff − 1) on w*, cross-checked with "
+                   "statsmodels " + statsmodels.__version__ + " DescrStatsW(w*, ddof=1)")
+        else:
+            adopt_r("attr_mahalanobis", figs, rfigs["attr_mahalanobis"])
+            src = f"{RREG[0]} mahalanobis() against colMeans / cov of the rep()-expanded complete rows (reg_reference.R)"
+        req = {"attributes": [{"type": "ATTR_MAHALANOBIS", "fields": MAHA_FIELDS, "label": "attr"}],
+               "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+               "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+        out.append(dict(weight=wname, kind=kind, name="attr_mahalanobis", request=req,
+                        figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
         for k in QUANTILE_KS:
             case = f"group_quantile_k{k}"
             buckets, n, total = quantile_buckets(ws, kind, k)

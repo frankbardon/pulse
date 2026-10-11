@@ -71,7 +71,7 @@ var needsReadingOperators = []string{
 	string(types.AGG_STDDEV), string(types.AGG_VARIANCE), string(types.AGG_WEIGHTED_MEAN),
 	string(types.AGG_WELFORD), string(types.AGG_ZSCORE),
 	// attribute
-	string(types.ATTR_NORMALIZED), string(types.ATTR_PERCENTILE), string(types.ATTR_REG_FITTED),
+	string(types.ATTR_MAHALANOBIS), string(types.ATTR_NORMALIZED), string(types.ATTR_PERCENTILE), string(types.ATTR_REG_FITTED),
 	string(types.ATTR_REG_LEVERAGE), string(types.ATTR_REG_PREDICT), string(types.ATTR_REG_RESIDUAL), string(types.ATTR_TSCORE),
 	string(types.ATTR_ZSCORE),
 	// window

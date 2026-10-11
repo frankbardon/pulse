@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -1068,6 +1069,9 @@ func projectAttributeOutputs(req *types.Request, projected map[string]bool, inst
 // import internal/processing/. A type inst hides takes the
 // never-registered label rule.
 func attributeDefaultLabel(attr *types.Attribute, inst *InstanceSnapshot) string {
+	if label, ok := vectors.VectorAttributeLabel(opRoute(inst, attr.Type), attr); ok {
+		return label
+	}
 	switch opRoute(inst, attr.Type) {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 		return string(attr.Type) + "_" + attr.Target

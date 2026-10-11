@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -19,6 +20,9 @@ import (
 // applyAttributes, the buildRowLocal helper) routes through this so
 // the label rule stays single-sourced.
 func defaultAttributeLabel(attr *types.Attribute) string {
+	if label, ok := vectors.VectorAttributeLabel(attr.Type, attr); ok {
+		return label
+	}
 	switch attr.Type {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 		return string(attr.Type) + "_" + attr.Target

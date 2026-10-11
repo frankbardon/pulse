@@ -448,7 +448,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// the stamped spec, so cells, every margin, the normalization
 	// denominators and the auxiliaries are all weighted from raw rows;
 	// counts stay raw (.claude/reference/weighting.md "Crosstab").
-	req = p.stampWeights(req)
+	req = p.prepare(req)
 	spec := req.Crosstab
 	if err := validateCrosstabSpec(spec, req); err != nil {
 		return nil, err
@@ -477,7 +477,8 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err != nil {
 		return nil, err
 	}
-	if err := p.applyAttributes(req.Attributes, filtered); err != nil {
+	attrWarnings, err := p.applyAttributes(req.Attributes, filtered)
+	if err != nil {
 		return nil, err
 	}
 
@@ -929,6 +930,8 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			FilteredRows: filteredRows,
 		},
 		Tests: testResults,
+		// Fit warnings from the attribute pass (declared order).
+		Warnings: attrWarnings,
 	}
 
 	shape := spec.ShapeOrDefault()

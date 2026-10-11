@@ -198,6 +198,18 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				return out
 			}
 		}
+		// A fitted vector attribute's params.fit_on filterers read
+		// their columns like Request filterers (its members ride the
+		// vector / inline-fields unions below).
+		for _, f := range vectors.AttributeFitOn(a.Type, a) {
+			addKnown(f.Field)
+			if f.Type == types.FILTER_EXPRESSION && f.Expression != "" {
+				if !appendExprIdents(out, f.Expression, known) {
+					out.Widen()
+					return out
+				}
+			}
+		}
 	}
 
 	for _, g := range req.Groups {
@@ -307,6 +319,13 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		return out
 	}
 	addAllKnown(testMembers)
+	// A vector-input attribute's inline fields resolve by the same rules.
+	attrMembers, ok := vectors.AttributeInputMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(attrMembers)
 
 	for _, k := range req.Sort {
 		// Sort keys may name output labels rather than schema fields;

@@ -3706,6 +3706,7 @@ pulse/types: const AGG_ZSCORE pulse/types.AggregationType = "AGG_ZSCORE"
 pulse/types: const ATTR_CODE_IN pulse/types.AttributeType = "ATTR_CODE_IN"
 pulse/types: const ATTR_DATE_PART pulse/types.AttributeType = "ATTR_DATE_PART"
 pulse/types: const ATTR_FORMULA pulse/types.AttributeType = "ATTR_FORMULA"
+pulse/types: const ATTR_MAHALANOBIS pulse/types.AttributeType = "ATTR_MAHALANOBIS"
 pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
 pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
@@ -3775,6 +3776,7 @@ pulse/types: type Attribute struct
 pulse/types: type Attribute field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Attribute field Expression string "json:\"expression,omitempty\""
 pulse/types: type Attribute field Field string "json:\"field\""
+pulse/types: type Attribute field Fields []string "json:\"fields,omitempty\""
 pulse/types: type Attribute field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type Attribute field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type Attribute field Label string "json:\"label,omitempty\""
@@ -3784,6 +3786,7 @@ pulse/types: type Attribute field Predictors []string "json:\"predictors,omitemp
 pulse/types: type Attribute field Target string "json:\"target,omitempty\""
 pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Attribute field Type pulse/types.AttributeType "json:\"type\""
+pulse/types: type Attribute field Vector string "json:\"vector,omitempty\""
 pulse/types: type Attribute field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type AttributeType string
 pulse/types: type AttributeType method (AttributeType) Streamable() bool
@@ -4716,4 +4719,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ddd782d04868dc4487bd669443bcbc68ebf03df1fcf0533b11d19d65ba72a905
+// golden-hash: a99b18315cf24c742918352cf20c493a535b0ee2a88016dd6c97041ea01cd4b9

@@ -359,6 +359,17 @@ const (
 	// Accepts categorical_* (codes are dictionary labels) and u4..u64
 	// (codes are whole numbers). Row-local and streamable.
 	ATTR_CODE_IN AttributeType = "ATTR_CODE_IN"
+
+	// ATTR_MAHALANOBIS emits each row's Mahalanobis distance from a
+	// fitted centre across the p members of Vector / Fields: D² =
+	// (x − μ)ᵀ S⁻¹ (x − μ), μ the (weighted) fit mean and S the ddof = 1
+	// covariance, or (params.output "p") the χ² upper tail of D² on p
+	// degrees of freedom. Two-pass: the fit folds one co-moment over the
+	// filtered rows params.fit_on admits ("filtered", the default, or an
+	// inline filterer list); every filtered row is scored. A null member
+	// gives a null score; a singular fit or N* ≤ p nulls every score with
+	// a warning.
+	ATTR_MAHALANOBIS AttributeType = "ATTR_MAHALANOBIS"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -367,6 +378,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_CODE_IN,
 		ATTR_DATE_PART,
 		ATTR_FORMULA,
+		ATTR_MAHALANOBIS,
 		ATTR_NORMALIZED,
 		ATTR_PERCENTILE,
 		ATTR_REG_FITTED,
@@ -1036,8 +1048,25 @@ type Attribute struct {
 	// Field is the name of the source data field. Optional for the
 	// regression attribute family (ATTR_REG_FITTED / RESIDUAL / LEVERAGE)
 	// which read Target + Predictors instead; when empty the output Label
-	// defaults to "<TYPE>_<Target>".
+	// defaults to "<TYPE>_<Target>". A vector-input attribute
+	// (ATTR_MAHALANOBIS) reads Vector / Fields and refuses Field.
 	Field string `json:"field"`
+
+	// Vector names the Request.Vectors entry whose members a
+	// vector-input attribute (ATTR_MAHALANOBIS) reads as its p numeric
+	// columns. Exactly one of Vector and Fields is set on a vector-input
+	// attribute and neither on any other attribute (SERVICE_VALIDATION);
+	// a Vector no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN.
+	// Members resolve by the VectorSpec rules (the MatrixSpec.Vector /
+	// Fields and Test.Vector / Fields mirror), against source columns
+	// only, and missing data is listwise only. The default Label is
+	// "<TYPE>_<Vector>".
+	Vector string `json:"vector,omitempty"`
+
+	// Fields lists a vector-input attribute's inline members (literal
+	// names and / or glob entries, the VectorSpec.Fields rules). The
+	// default Label is "<TYPE>_<first entry as written>". See Vector.
+	Fields []string `json:"fields,omitempty"`
 
 	// Label is the output name for the derived attribute.
 	Label string `json:"label,omitempty"`
@@ -1046,7 +1075,13 @@ type Attribute struct {
 	Expression string `json:"expression,omitempty"`
 
 	// Params holds type-specific configuration as raw JSON.
-	// Each attribute type defines its own params schema.
+	// Each attribute type defines its own params schema. The fitted
+	// vector attributes (ATTR_MAHALANOBIS) share two keys:
+	//   fit_on: "filtered" (default: fit on every filtered row) or an
+	//     inline array of Filterer objects selecting the subset of the
+	//     filtered rows the fit folds; every filtered row is scored.
+	//   missing: "listwise" (the only mode).
+	// ATTR_MAHALANOBIS adds output: "d2" (default) or "p".
 	Params json.RawMessage `json:"params,omitempty"`
 
 	// --- Regression-attribute fields (Option A: each ATTR_REG_* carries

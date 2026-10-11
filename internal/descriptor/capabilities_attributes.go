@@ -210,5 +210,37 @@ func attributeCapabilities() []descriptor.Operator {
 			EmitsTypeNote: "one 0/1 per record (0 when the value is null)",
 			Streamable:    true,
 		},
+		{
+			Name:        string(types.ATTR_MAHALANOBIS),
+			Category:    "attribute",
+			Description: "Per-row Mahalanobis distance D² = (x − μ)ᵀS⁻¹(x − μ) across the p members of vector / fields (exactly one; listwise), from a cohort-wide fit: the (weighted) mean and ddof = 1 covariance of the filtered rows params.fit_on admits. Every filtered row is scored; a null member scores null; a singular fit or N* ≤ p nulls every score with a warning. Two-pass.",
+			Params: []descriptor.Param{
+				{
+					Name:        "output",
+					Type:        "enum",
+					Default:     "d2",
+					EnumValues:  []string{"d2", "p"},
+					Description: "d2: the squared distance; p: its chi-square upper tail on p degrees of freedom (the outlier p-value under joint normality).",
+				},
+				{
+					Name:        "fit_on",
+					Type:        "any",
+					Default:     "filtered",
+					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "missing",
+					Type:        "enum",
+					Default:     "listwise",
+					EnumValues:  []string{"listwise"},
+					Description: "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+				},
+			},
+			AcceptsTypes:   numericFieldTypesNoDecimal,
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one D² (≥ 0) or p-value in [0, 1] per record (null when a member is null or the fit is singular / too small)",
+			Streamable:     true,
+			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+		},
 	}
 }

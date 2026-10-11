@@ -73,7 +73,6 @@ var exampleIntentExemptions = []guidanceExemption{}
 var glossaryOrphanExemptions = []guidanceExemption{
 	// Segmentation.
 	{Key: "centroid", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},
-	{Key: "distance", Owner: "U25", Why: "Written ahead of the segmentation operators U25 ships."},
 	// Vector metrics.
 	{Key: "similarity", Owner: "U27", Why: "Written ahead of the vector metrics U27 ships."},
 	// Matrix overlays (raking, Markov flows).

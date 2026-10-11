@@ -37,6 +37,9 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: MAT_COLLINEARITY -->
 | Are candidate predictors too redundant to fit together (VIF, condition index)? | `MAT_COLLINEARITY` |
 <!-- /feature -->
+<!-- feature: ATTR_MAHALANOBIS -->
+| Which rows are unusual across the fields as a whole? | `ATTR_MAHALANOBIS` (a row score) |
+<!-- /feature -->
 
 <!-- feature: REG_OLS -->
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression (`regression-inference`).

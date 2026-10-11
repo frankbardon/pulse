@@ -4,6 +4,7 @@ import (
 	exprast "github.com/expr-lang/expr/ast"
 	exprparser "github.com/expr-lang/expr/parser"
 
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -149,6 +150,22 @@ func attributeInputNames(attr *types.Attribute, exts *ExtensionRegistry) (map[st
 	add(attr.Target)
 	for _, p := range attr.Predictors {
 		add(p)
+	}
+	// A vector-input attribute reads its members (source columns, so
+	// never an earlier label — added for completeness) and the columns
+	// of its params.fit_on filterers, which may be earlier labels.
+	for _, f := range attr.Fields {
+		add(f)
+	}
+	for _, f := range vectors.AttributeFitOn(attr.Type, attr) {
+		add(f.Field)
+		if f.Type == types.FILTER_EXPRESSION && f.Expression != "" {
+			tree, err := exprparser.Parse(f.Expression)
+			if err != nil {
+				return nil, false
+			}
+			exprast.Walk(&tree.Node, allIdentVisitor(out))
+		}
 	}
 	if attr.Type == types.ATTR_FORMULA && attr.Expression != "" {
 		tree, err := exprparser.Parse(attr.Expression)

@@ -19,6 +19,7 @@ import "github.com/frankbardon/pulse/descriptor"
 // T-score) rather than null, rank / n * 100 with distinct ranks for ties,
 // and the hat-matrix identity h = 1/n + (x - mean)' M^-1 (x - mean).
 var attributeInterpretations = map[string][]descriptor.Interpretation{
+	"ATTR_MAHALANOBIS":  interpAttrMahalanobis,
 	"ATTR_NORMALIZED":   interpAttrNormalized,
 	"ATTR_PERCENTILE":   interpAttrPercentile,
 	"ATTR_REG_FITTED":   interpAttrRegFitted,
@@ -200,6 +201,26 @@ var (
 				"A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; " +
 					"a row missing any predictor reads 0, below the 1/n floor, so 0 marks a missing row.",
 				"Unpenalized least squares only; a request with a penalty is refused.",
+			},
+		},
+	}
+)
+
+// --- Fitted vector scores -------------------------------------------------
+
+var (
+	interpAttrMahalanobis = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "With output d2 (the default): the row's squared Mahalanobis distance D² = (x - mean)' S^-1 (x - mean) across the p fields, " +
+				"the distance from the fitted average row in units of the fields' own spread and correlation; 0 is exactly average and it is never negative. " +
+				"With output p: the chance of a D² at least this large under a chi-square curve on p degrees of freedom, so a small value marks an unusual row.",
+			Caveats: []string{
+				"D² grows with the number of fields: over the fitted rows it averages about p, so compare it with p (or read output p), never with a fixed cut-off across batteries.",
+				"The p output assumes the fields are jointly normal; on skewed or bounded fields (rating scales) it is only a ranking, and screening many rows flags some by chance.",
+				"Extreme rows in the fit pull the mean and inflate the spread, masking themselves and each other; fit_on can fit on a clean subset while still scoring every row.",
+				"The fit is over every filtered row (or the fit_on subset), not the row's group. Under a row weight the mean and covariance are weighted; a row with no usable weight is left out of the fit but still scored.",
+				"A row missing any field reads null, and every row reads null, with a warning, when the fit has no more complete rows than fields or a field is constant or a combination of others.",
 			},
 		},
 	}

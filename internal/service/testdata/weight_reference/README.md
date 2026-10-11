@@ -147,7 +147,14 @@ positive target; the `w` / `f` / `p` weight columns):
   scalar-precision Normal-Inverse-Gamma prior, so its row is that
   conjugate posterior in closed form on the expanded rows (scipy t
   quantiles for the credible bounds). Frequency-expansion parity
-  (`TestWeightFrequencyExpansionParity/regressions`) is its other gate.
+  (`TestWeightFrequencyExpansionParity/regressions`) is its other gate;
+- `ATTR_MAHALANOBIS` (U25 E3-S1, members x1, x2, y) — frequency: R
+  `mahalanobis()` against `colMeans` / `cov` of the expanded complete
+  rows (`reg_reference.R`); probability: the w* closed form (covariance
+  M2·(n_eff/Σw)/(n_eff − 1)) cross-checked with statsmodels
+  `DescrStatsW(w*, ddof = 1)`. D² reads N*, so the two kinds differ by
+  one covariance factor (`TestWeightReferenceKindsAgree` asserts the
+  constant ratio, not equality).
 
 An attribute case reads each row's value back as an opted-out `AGG_SUM`
 grouped by the fixture's `id`; its figures are keyed `data[<id>].v`.

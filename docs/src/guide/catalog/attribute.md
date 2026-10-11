@@ -7,6 +7,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_CODE_IN`](#op-attr_code_in) | Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base. | What share of all respondents gave a top-two-box answer (codes 4 or 5)? | basic | [`FILTER_INCLUDE`](filterer.md#op-filter_include) when you want to keep only the rows with those codes.<br>[`AGG_FREQUENCY`](aggregator.md#op-agg_frequency) when you want how often a single value occurs.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when the field is a multi-select. |
 | [`ATTR_DATE_PART`](#op-attr_date_part) | Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour. | Which month of the year does each order fall in, so seasons can be compared across years? | basic | [`GROUP_DATE`](grouper.md#op-group_date) when you only want rows grouped by day, week, month or year.<br>[`FEAT_DATE_FEATURES`](feature.md#op-feat_date_features) when you want several calendar columns at once, including weekday. |
 | [`ATTR_FORMULA`](#op-attr_formula) | Adds a number to every row computed from the row's own fields with an expression, such as price * qty. | What is each order's line total from its price and quantity? | intermediate | [`FILTER_EXPRESSION`](filterer.md#op-filter_expression) when you want to keep or drop rows by a rule rather than add a column.<br>[`FEAT_LOG`](feature.md#op-feat_log) when you want the logarithm of a field. |
+| [`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) | Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together. | Which respondents gave an unusual pattern of answers across the whole battery, even if no single answer is extreme? | advanced | [`ATTR_ZSCORE`](#op-attr_zscore) when only one field matters.<br>[`TEST_HOTELLING_T2`](test.md#op-test_hotelling_t2) when you want how far apart groups are, not single rows. |
 | [`ATTR_NORMALIZED`](#op-attr_normalized) | Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the largest. | How can fields on very different scales be put on one 0-to-1 scale before combining them? | basic | [`ATTR_PERCENTILE`](#op-attr_percentile) when the field has extreme values that would squeeze the rest of the range.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want distance from the mean in standard deviations.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want a composite on the scales' fixed endpoints (1-5, 0-10), such as (x - 1) / 4. |
 | [`ATTR_PERCENTILE`](#op-attr_percentile) | Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. | Where does each store's revenue rank among all stores, as a percentage? | basic | [`AGG_PERCENTILE`](aggregator.md#op-agg_percentile) when you want the value at a chosen percentile, such as the 90th.<br>[`WIN_RANK`](window.md#op-win_rank) when you want ranks within partitions, or tied values to share a rank.<br>[`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want rows split into equal-sized bands. |
 | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) | Adds to every row the value a straight-line model predicts for its target from its predictors. | What order value would we expect for each customer given their visits and tenure? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, R-squared and p-values of the model.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want how far each row sits from its prediction.<br>[`REG_GLM`](regression.md#op-reg_glm) when the target is yes/no or a count. |
@@ -120,6 +121,43 @@ Adds a number to every row computed from the row's own fields with an expression
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-attr-formula`](../skills/op-attr-formula.md)
+
+<a id="op-attr_mahalanobis"></a>
+
+### `ATTR_MAHALANOBIS`
+
+Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together.
+
+**Level:** advanced
+
+**Also known as:** `mahalanobis distance`, `multivariate outlier score`, `d-squared`
+
+**Questions it answers:**
+
+- Which respondents gave an unusual pattern of answers across the whole battery, even if no single answer is extreme?
+- Which transactions have an odd combination of amount, frequency and basket size?
+
+**Use cases by domain:**
+
+- *survey:* Flag straight-liners and odd answer patterns across a rating battery before analysis.
+- *ops:* Screen orders whose size, discount and delivery time together look unlike the rest.
+- *science:* Find samples whose set of measurements is unusual as a whole.
+
+**Assumptions:**
+
+- The typical row and the spread come from one fit over every row that passed the filters (or the subset fit_on selects), never per group; every filtered row is scored.
+- A row missing any of the fields is left out of the fit and gets no score (listwise deletion).
+- The p output reads the score against a chi-square curve, which holds only when the fields are roughly jointly normal.
+- There must be more complete rows than fields, and no field may be constant or a sum of the others; otherwise every score is empty, with a warning.
+
+**Use something else:**
+
+- [`ATTR_ZSCORE`](#op-attr_zscore) when only one field matters.
+- [`TEST_HOTELLING_T2`](test.md#op-test_hotelling_t2) when you want how far apart groups are, not single rows.
+
+**Glossary:** [`distance`](../glossary.md#term-distance), [`outlier`](../glossary.md#term-outlier), [`covariance`](../glossary.md#term-covariance), [`mean`](../glossary.md#term-mean), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`chi-square`](../glossary.md#term-chi-square), [`p-value`](../glossary.md#term-p-value), [`normal-distribution`](../glossary.md#term-normal-distribution), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom)
+
+**Skill:** [`op-attr-mahalanobis`](../skills/op-attr-mahalanobis.md)
 
 <a id="op-attr_normalized"></a>
 

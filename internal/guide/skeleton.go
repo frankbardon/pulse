@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"sort"
+
+	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // placeholder spells the unbound value for wire key k.
@@ -122,6 +125,10 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 		note("order_by")
 		entry["order_by"] = []map[string]any{{"field": placeholder("order_by")}}
 	default: // aggregator, attribute, grouper, feature
+		if op.category == catAttribute && vectors.IsVectorAttribute(types.AttributeType(op.name)) {
+			entry["fields"] = list("fields")
+			break
+		}
 		if !op.ignoresField {
 			entry["field"] = str("field")
 		}

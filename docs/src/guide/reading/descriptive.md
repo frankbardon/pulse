@@ -258,6 +258,24 @@ The average of every row's z-score within the group, which is 0 by construction 
 
 ## Attributes
 
+<a id="op-attr_mahalanobis"></a>
+
+### `ATTR_MAHALANOBIS`
+
+Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together. See its [catalog entry](../catalog/attribute.md#op-attr_mahalanobis).
+
+#### `value`
+
+With output d2 (the default): the row's squared Mahalanobis distance D² = (x - mean)' S^-1 (x - mean) across the p fields, the distance from the fitted average row in units of the fields' own spread and correlation; 0 is exactly average and it is never negative. With output p: the chance of a D² at least this large under a chi-square curve on p degrees of freedom, so a small value marks an unusual row.
+
+**Caveats:**
+
+- D² grows with the number of fields: over the fitted rows it averages about p, so compare it with p (or read output p), never with a fixed cut-off across batteries.
+- The p output assumes the fields are jointly normal; on skewed or bounded fields (rating scales) it is only a ranking, and screening many rows flags some by chance.
+- Extreme rows in the fit pull the mean and inflate the spread, masking themselves and each other; fit_on can fit on a clean subset while still scoring every row.
+- The fit is over every filtered row (or the fit_on subset), not the row's group. Under a row weight the mean and covariance are weighted; a row with no usable weight is left out of the fit but still scored.
+- A row missing any field reads null, and every row reads null, with a warning, when the fit has no more complete rows than fields or a field is constant or a combination of others.
+
 <a id="op-attr_normalized"></a>
 
 ### `ATTR_NORMALIZED`

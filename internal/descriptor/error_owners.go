@@ -52,7 +52,7 @@ var (
 	// ownVectorInputs: capability:matrices (the `vectors` slot) and
 	// every vector-input test, whose inline fields resolve by the
 	// vector rules.
-	ownVectorInputs = plus(own(featMatrices), vectorTestOwners())
+	ownVectorInputs = plus(own(featMatrices), vectorTestOwners(), vectorAttributeOwners())
 	// ownImportExport: the tabular import core (inference, row decode,
 	// width promotion, overrides) runs under the managed import pool
 	// AND under Convert / ImportTransfer, which capability:export gates.
@@ -517,7 +517,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
 	// TEST_BARTLETT_SPHERICITY raises it on its result (MAT_PCA's
 	// Bartlett rule, the shared core).
-	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY")),
+	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), vectorAttributeOwners()),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
 	errors.PULSE_MATRIX_NOT_CONVERGED:  ownAllMats,
 	// The factor-fit warnings: only the operators that fit a factor
@@ -562,6 +562,17 @@ func errorCodeVisible(c errors.Code, on func(string) bool) bool {
 func vectorTestOwners() []string {
 	var out []string
 	for _, t := range vectors.VectorTestTypes() {
+		out = append(out, string(t))
+	}
+	return out
+}
+
+// vectorAttributeOwners returns the vector-input (fitted) attribute
+// types as owner names: their inline fields resolve by the vector rules
+// and their fit can be too small (PULSE_MATRIX_INSUFFICIENT_N).
+func vectorAttributeOwners() []string {
+	var out []string
+	for _, t := range vectors.VectorAttributeTypes() {
 		out = append(out, string(t))
 	}
 	return out

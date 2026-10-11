@@ -334,6 +334,23 @@ refused). Shape refusals are `SERVICE_VALIDATION` with
 `details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`.
 `format_version` stays `"1.1"`; a test without them is byte-identical.
 
+## Attribute vector inputs
+
+`Attribute` carries two additive slots, the same mirror: `vector` /
+`fields`. A vector-input (fitted) attribute (`ATTR_MAHALANOBIS`) sets
+exactly one of them and no `field`; every other attribute refuses both.
+Members are source columns only. Its `params` share `fit_on` —
+`"filtered"` (the default) or an inline array of `Filterer` objects
+choosing the fit rows among the filtered ones (every filtered row is
+still scored) — and `missing` (`"listwise"` only). The default label is
+`<TYPE>_<vector>`, or `<TYPE>_<first fields entry>`. Shape refusals
+are `SERVICE_VALIDATION` with `details.attribute` and `details.reason`;
+an undefined vector is `PULSE_VECTOR_UNKNOWN`. A fit that is singular,
+or has N* ≤ p, nulls every score and adds a `PULSE_MATRIX_SINGULAR` /
+`PULSE_MATRIX_INSUFFICIENT_N` entry to `Response.warnings` (details
+`scope: "fit"`). `format_version` stays `"1.1"`; an attribute without
+them is byte-identical.
+
 ## Matrix slots
 
 `matrices` on `Request` is an additive array of `MatrixSpec`

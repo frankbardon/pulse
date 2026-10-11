@@ -831,3 +831,8 @@ source(file.path(script_dir, "gen_rotation.R"), local = FALSE)
 # principal-axis extraction, then the rotation engine's criteria); it
 # reuses gen_rotation.R's rot_canon and GPArotation pin.
 source(file.path(script_dir, "gen_factor.R"), local = FALSE)
+
+# The fitted-attribute golden (mv_mahalanobis.json: ATTR_MAHALANOBIS D²
+# and its chi-square tail, every row scored off a fit over the listwise,
+# positive-weight, fit_on rows); base R only.
+source(file.path(script_dir, "gen_fitted_attributes.R"), local = FALSE)

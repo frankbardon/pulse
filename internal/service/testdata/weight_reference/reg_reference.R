@@ -104,6 +104,17 @@ for (r in d$row) {
   out("attr_tscore", d$id[r], z * 10 + 50)
 }
 
+# ATTR_MAHALANOBIS (U25 E3-S1): every row with x2 present scored by
+# stats::mahalanobis against colMeans / cov of the expanded complete
+# rows (members x1, x2, y; a row with no copies is still scored).
+mx <- as.matrix(e[, c("x1", "x2", "y")])
+mmu <- colMeans(mx)
+msig <- cov(mx)
+for (r in d$row) {
+  if (is.na(d$x2[r])) next
+  out("attr_mahalanobis", d$id[r], mahalanobis(c(d$x1[r], d$x2[r], d$y[r]), mmu, msig))
+}
+
 # GROUP_QUANTILE: the order statistic that opens each of k buckets on
 # the expanded yg — 0-based expanded index ceiling(b·W/k), b = 0..k−1
 # (W the expanded row count), i.e. the first expanded row whose

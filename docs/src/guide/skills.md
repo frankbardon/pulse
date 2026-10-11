@@ -65,6 +65,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-code-in`](skills/op-attr-code-in.md): Per-row 0/1 — whether a field's value is one of a list of codes; its mean is the share of the whole base.
 - [`op-attr-date-part`](skills/op-attr-date-part.md): Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field.
 - [`op-attr-formula`](skills/op-attr-formula.md): Per-row expression evaluation against the record's fields via expr-lang.
+- [`op-attr-mahalanobis`](skills/op-attr-mahalanobis.md): Per-row Mahalanobis distance D² (or its chi-square p) across a vector of numeric members, from a cohort-wide fit; fit_on fits on a subset and still scores every row.
 - [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1].
 - [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank column against the post-filter value set; requires sorting.
 - [`op-attr-reg-fitted`](skills/op-attr-reg-fitted.md): Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass.

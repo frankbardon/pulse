@@ -254,6 +254,12 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 			needs = append(needs, bneed{key: "frame", loc: locTop})
 		}
 	default: // aggregator, attribute, grouper, feature
+		// A fitted vector attribute reads its p members from an inline
+		// fields list (vectors.IsVectorAttribute), like a vector test.
+		if op.category == catAttribute && vectors.IsVectorAttribute(types.AttributeType(op.name)) {
+			slots = append(slots, bslot{key: "fields", list: true, min: 2, accept: kindIs(descriptor.FieldKindNumeric)})
+			break
+		}
 		if !op.ignoresField {
 			slots = append(slots, bslot{key: "field", accept: fieldAccept})
 		}

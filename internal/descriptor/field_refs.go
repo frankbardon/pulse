@@ -123,7 +123,14 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     an undefined vector (PULSE_VECTOR_UNKNOWN), the inline-fields
 //     vector rules, a second set of another length, and params.missing
 //     other than "listwise" (SERVICE_VALIDATION, details.reason).
-//     Steps 6 to 8 contribute one refusal at most between them.
+//  9. attribute vector inputs — every attribute's vector / fields and
+//     fitted params resolved by the same leaf
+//     (internal/vectors.ResolveAttributes): the exactly-one shape, a
+//     vector input on an attribute that reads none, an undefined vector,
+//     the inline-fields vector rules, params.fit_on's shape and
+//     params.missing other than "listwise". A vector attribute's
+//     fit_on filterers are judged at step 3 by the filterer rule.
+//     Steps 6 to 9 contribute one refusal at most between them.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -276,6 +283,17 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 				}
 			}
 		default:
+			if vectors.IsVectorAttribute(attrRoute) {
+				// A vector-input attribute reads its members (step 9,
+				// source columns only) and its params.fit_on filterers,
+				// judged here against the attribute-step columns: the
+				// fit predicate runs on the record beside the earlier
+				// attributes' labels.
+				for _, fil := range vectors.AttributeFitOn(attrRoute, attr) {
+					w.checkFitOn(fil, attr, models)
+				}
+				break
+			}
 			if attrRoute == types.ATTR_FORMULA {
 				w.checkTotal(attr.Expression, totalcall.FormulaSite)
 				w.checkCoef(attr.Expression, models)
@@ -524,8 +542,36 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		return opRoute(inst, t)
 	}); terr != nil {
 		w.out = append(w.out, terr)
+		return w.out
+	}
+	// 9. Attribute vector inputs — each attribute's vector / fields and
+	// fitted params (fit_on, missing, the operator's own keys) resolved
+	// by the same leaf (vectors.ResolveAttributes). Steps 6-9 contribute
+	// one refusal at most between them.
+	if _, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+		return opRoute(inst, t)
+	}); aerr != nil {
+		w.out = append(w.out, aerr)
 	}
 	return w.out
+}
+
+// checkFitOn judges one params.fit_on filterer of a fitted vector
+// attribute by the Request filterer rule (step 2) against the columns
+// visible to the attribute.
+func (w *fieldRefWalk) checkFitOn(fil *types.Filterer, attr *types.Attribute, models model.Catalog) {
+	w.checkInputs("filterer", string(fil.Type), nil, "filter")
+	if opRoute(w.inst, fil.Type) == types.FILTER_EXPRESSION {
+		w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
+		w.checkCoef(fil.Expression, models)
+	}
+	if fil.Field == "" && !filterFieldRequired(opRoute(w.inst, fil.Type)) {
+		return
+	}
+	w.check(fil.Field, func() *errors.CodedError {
+		return refusal(string(attr.Type)+" fit_on filter references unknown field: "+fil.Field,
+			map[string]any{"field": fil.Field, "filter": string(fil.Type), "attribute": string(attr.Type)})
+	})
 }
 
 // fieldRefWalk carries the column set available at the current

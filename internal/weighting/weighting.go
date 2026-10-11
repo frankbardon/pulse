@@ -121,6 +121,11 @@ var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_REG_FITTED:   ClassAware,
 	types.ATTR_REG_RESIDUAL: ClassAware,
 	types.ATTR_REG_LEVERAGE: ClassAware,
+
+	// The fitted vector attributes fold one weighted co-moment for the
+	// fit and read N* and M2* = c·M2 on w* (TEST_HOTELLING_T2's rule);
+	// the weight shapes the fit only, every row is scored.
+	types.ATTR_MAHALANOBIS: ClassAware,
 }
 
 // testClasses are the built-in tests whose weighted computation exists

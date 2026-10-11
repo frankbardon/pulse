@@ -57,8 +57,12 @@ func (p ProcessPath) String() string {
 type Processor struct {
 	schema   *encoding.Schema
 	lastPath ProcessPath
-	exts     *ExtensionRegistry
-	compute  ComputePlan
+
+	// deriveWarnings holds the Response-level warnings the last
+	// DeriveRecords run's attributes raised (DeriveWarnings).
+	deriveWarnings []*types.ResponseWarning
+	exts           *ExtensionRegistry
+	compute        ComputePlan
 
 	// defaultWeight is pulse.Options.DefaultWeight (nil = none) and
 	// strictWeights promotes PULSE_WEIGHT_INVALID_ROWS to an error;
@@ -199,7 +203,7 @@ func (p *Processor) LastPath() ProcessPath {
 // well-conditioned inputs (variance/stddev/skewness/kurtosis use
 // Welford-Pébaÿ recurrences in the streaming path).
 func (p *Processor) Process(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
-	req = p.stampWeights(req)
+	req = p.prepare(req)
 	if p.canStream(req) {
 		var resp *types.Response
 		var err error
@@ -309,13 +313,16 @@ func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, 
 // requiresTwoPass reports whether the attribute type implements
 // TwoPassAttribute (and therefore needs a PrePass over filter-passing
 // records before per-row emission). Mirrors the attribute factories in
-// internal/processing/attribute.go and attribute_reg.go: ZSCORE/TSCORE/NORMALIZED
-// need population stats; ATTR_REG_FITTED/RESIDUAL/LEVERAGE need a
-// finalize-time regression fit; FORMULA/DATE_PART are pure row-local.
+// internal/processing/attribute.go, attribute_reg.go and
+// attribute_fitted.go: ZSCORE/TSCORE/NORMALIZED need population stats;
+// ATTR_REG_FITTED/RESIDUAL/LEVERAGE need a finalize-time regression fit;
+// the fitted vector attributes (MAHALANOBIS) a finalize-time co-moment
+// fit; FORMULA/DATE_PART are pure row-local.
 func requiresTwoPass(t types.AttributeType) bool {
 	switch t {
 	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
-		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE,
+		types.ATTR_MAHALANOBIS:
 		return true
 	}
 	return false
@@ -1408,6 +1415,11 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			NullRecords:     nullRecords,
 		})
 	}
+	// Fit warnings (a fitted vector attribute's singular or
+	// insufficient fit), in declared order — the buffered arm's order.
+	for i := range stages {
+		resp.Warnings = append(resp.Warnings, AttributeWarnings(stages[i].row)...)
+	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -1464,30 +1476,38 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 // Shared between streaming and buffered paths to keep error semantics
 // identical.
 func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc, error) {
+	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models)
+}
+
+// buildFilterFuncsWith compiles filterers against schema with the
+// registry exts and the bound models — the one filter build, shared by
+// the request's filter chain and a fitted attribute's params.fit_on
+// (fitOnBinder).
+func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set) ([]FilterFunc, error) {
 	if len(filterers) == 0 {
 		return nil, nil
 	}
 	out := make([]FilterFunc, 0, len(filterers))
 	for _, f := range filterers {
-		factory, ok := p.exts.LookupFilterer(f.Type)
+		factory, ok := exts.LookupFilterer(f.Type)
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown filter type: %s", f.Type))
 		}
 		builder := factory()
 		if aware, ok := builder.(ExtensionAware); ok {
-			aware.SetExtensions(p.exts)
+			aware.SetExtensions(exts)
 		}
 		if mb, ok := builder.(modelBinder); ok {
-			if err := mb.bindModels(p.models); err != nil {
+			if err := mb.bindModels(models); err != nil {
 				return nil, err
 			}
 		}
-		fn, err := builder.Build(f, p.schema)
+		fn, err := builder.Build(f, schema)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, wrapFilterPrecompute(fn, f, p.schema, p.exts))
+		out = append(out, wrapFilterPrecompute(fn, f, schema, exts))
 	}
 	return out, nil
 }
@@ -1529,7 +1549,8 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	// Step 2: Compute attributes (adds derived fields to records)
-	if err := p.applyAttributes(req.Attributes, filtered); err != nil {
+	attrWarnings, err := p.applyAttributes(req.Attributes, filtered)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1666,6 +1687,8 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		PostTests:   postResults,
 		Regressions: regressionResults,
 		Matrices:    matrixResults,
+		// Fit warnings from the attribute pass (declared order).
+		Warnings: attrWarnings,
 	}
 
 	// Components emission block — one gate per sub-part off the
@@ -1892,24 +1915,31 @@ func (p *Processor) applyFeatures(features []*types.Feature, records []*Record) 
 	return feature.ApplyWithExt(view, features, p.schema, p.exts.LookupFeature)
 }
 
-func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) error {
+// applyAttributes runs attrs in DECLARED order over records (the
+// filtered set), writing each output under its label, and returns the
+// Response-level warnings the attributes raised (AttributeWarnings —
+// a fitted vector attribute's singular or insufficient fit), in
+// declared order.
+func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) ([]*types.ResponseWarning, error) {
+	var warns []*types.ResponseWarning
 	for _, attr := range attrs {
 		factory, ok := p.exts.LookupAttribute(attr.Type)
 		if !ok {
-			return errors.NewCodedError(errors.PROCESSING_CONFIG,
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown attribute type: %s", attr.Type))
 		}
 		computer, err := factory(attr, p.schema)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := p.bindAttribute(computer); err != nil {
-			return err
+			return nil, err
 		}
 		values, err := computer.Compute(records, attr.Field)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		warns = append(warns, AttributeWarnings(computer)...)
 
 		// Inject computed values back into records under the label name
 		label := attr.Label
@@ -1931,7 +1961,7 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 			}
 		}
 	}
-	return nil
+	return warns, nil
 }
 
 // processGrouped is the buffered grouped exit: one Data row per bucket

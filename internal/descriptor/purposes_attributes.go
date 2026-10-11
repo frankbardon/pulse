@@ -25,6 +25,7 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_NORMALIZED":   purposeAttrNormalized,
 	"ATTR_PERCENTILE":   purposeAttrPercentile,
 	"ATTR_REG_FITTED":   purposeAttrRegFitted,
+	"ATTR_MAHALANOBIS":  purposeAttrMahalanobis,
 	"ATTR_REG_LEVERAGE": purposeAttrRegLeverage,
 	"ATTR_REG_PREDICT":  purposeAttrRegPredict,
 	"ATTR_REG_RESIDUAL": purposeAttrRegResidual,
@@ -380,5 +381,39 @@ var (
 		},
 		Level:    descriptor.LevelAdvanced,
 		Glossary: []string{"outlier", "residual", "listwise-deletion"},
+	}
+)
+
+// --- Fitted vector scores (one fit across several fields) ---------------
+
+var (
+	purposeAttrMahalanobis = descriptor.Purpose{
+		Plain:   "Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together.",
+		KnownAs: []string{"mahalanobis distance", "multivariate outlier score", "d-squared"},
+		Intents: []string{IntentDataQuality},
+		Questions: []string{
+			"Which respondents gave an unusual pattern of answers across the whole battery, even if no single answer is extreme?",
+			"Which transactions have an odd combination of amount, frequency and basket size?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Flag straight-liners and odd answer patterns across a rating battery before analysis.",
+			descriptor.DomainOps:     "Screen orders whose size, discount and delivery time together look unlike the rest.",
+			descriptor.DomainScience: "Find samples whose set of measurements is unusual as a whole.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "only one field matters", Use: "ATTR_ZSCORE"},
+			{When: "you want how far apart groups are, not single rows", Use: "TEST_HOTELLING_T2"},
+		},
+		Assumptions: []string{
+			"The typical row and the spread come from one fit over every row that passed the filters (or the subset fit_on selects), never per group; every filtered row is scored.",
+			"A row missing any of the fields is left out of the fit and gets no score (listwise deletion).",
+			"The p output reads the score against a chi-square curve, which holds only when the fields are roughly jointly normal.",
+			"There must be more complete rows than fields, and no field may be constant or a sum of the others; otherwise every score is empty, with a warning.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"distance", "outlier", "covariance", "mean", "listwise-deletion",
+			"chi-square", "p-value", "normal-distribution", "degrees-of-freedom",
+		},
 	}
 )

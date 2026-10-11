@@ -269,6 +269,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_CODE_IN"),
 	op("ATTR_DATE_PART"),
 	op("ATTR_FORMULA"),
+	op("ATTR_MAHALANOBIS"),
 	op("ATTR_NORMALIZED"),
 	op("ATTR_PERCENTILE"),
 	op("ATTR_REG_FITTED"),

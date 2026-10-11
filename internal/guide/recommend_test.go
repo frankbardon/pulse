@@ -521,3 +521,25 @@ func TestRecommend_TestTTwoSampleForGroups(t *testing.T) {
 		t.Errorf("benchmark TEST_T draft carries split_by: %s", got)
 	}
 }
+
+// TestRecommend_VectorAttributeDraftsFields: a fitted vector attribute
+// (ATTR_MAHALANOBIS) reads its members from a fields list, never a
+// single field (the runtime refuses field_on_vector_attribute) — both
+// the unbound skeleton and the bound draft carry "fields".
+func TestRecommend_VectorAttributeDraftsFields(t *testing.T) {
+	find := func(res *descriptor.RecommendResult) string {
+		for _, r := range res.Recommendations {
+			if r.Operator == string(types.ATTR_MAHALANOBIS) {
+				return string(r.Request)
+			}
+		}
+		t.Fatalf("data_quality: no ATTR_MAHALANOBIS draft")
+		return ""
+	}
+	if got := find(all(t, nil, descx.IntentDataQuality)); !strings.Contains(got, `"fields":["<fields>"`) || strings.Contains(got, `"field":`) {
+		t.Errorf("unbound ATTR_MAHALANOBIS draft = %s, want a fields list and no field", got)
+	}
+	if got := find(boundAll(t, nil, descx.IntentDataQuality)); !strings.Contains(got, `"fields":[`) || strings.Contains(got, `"field":`) {
+		t.Errorf("bound ATTR_MAHALANOBIS draft = %s, want a fields list and no field", got)
+	}
+}
