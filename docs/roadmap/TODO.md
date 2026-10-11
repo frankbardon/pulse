@@ -303,10 +303,19 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#380** A `for_each` item inside a compose `sweep` body (lexical scoping of item axes under sweep axes); refused for v1 with `nested_in_sweep`, can grow without a break. Found in U41 (interview) · [U40](units/U40-compose-sweep.md)
 
 ### Fit scoring — added after the plan ([U42](units/U42-fit-scoring.md))
-- [ ] **#286** `ATTR_REG_PREDICT`: apply a named fit to rows, in-request or from a stored model; no coefficient is ever retyped · [U42](units/U42-fit-scoring.md)
-- [ ] **#287** Error aggregators over a target and a prediction (`AGG_MAPE`, `AGG_RMSE`), weight-aware, with a train/holdout split by index · [U42](units/U42-fit-scoring.md)
-- [ ] **#288** Interval bounds pass-through: contribution and scenario calculations read the fit's `ci_lower` / `ci_upper` · [U42](units/U42-fit-scoring.md)
-- [ ] **#289** Acceptance: the example's holdout MAPE, contribution table with intervals and scenario slots run without any copied coefficient · [U42](units/U42-fit-scoring.md)
+- [x] **#286** `ATTR_REG_PREDICT`: apply a named fit to rows, in-request or from a stored model; no coefficient is ever retyped · [U42](units/U42-fit-scoring.md)
+- [x] **#287** Error aggregators over a target and a prediction (`AGG_MAPE`, `AGG_RMSE`), weight-aware, with a train/holdout split by index · [U42](units/U42-fit-scoring.md)
+- [x] **#288** Interval bounds pass-through: contribution and scenario calculations read the fit's `ci_lower` / `ci_upper` · [U42](units/U42-fit-scoring.md)
+- [x] **#289** Acceptance: the example's holdout MAPE, contribution table with intervals and scenario slots run without any copied coefficient · [U42](units/U42-fit-scoring.md)
+
+#### Follow-ups from U42
+- [ ] **#390** Predict builds the aggregator capability table once instead of per call (`aggregatorComponentSchemaIndex` → `aggregatorCapabilities` → `withWeightAware`); the off-path predict allocation pin grew from 236 to 251 in U42. Found in U42 (E2-S1) · [U51](units/U51-archive-scale.md)
+- [ ] **#391** `internal/mergegate`'s built-in row-local list includes `ATTR_CODE_IN` and the `ATTR_SET_*` attributes (pre-existing omission). Found in U42 (E1-S2) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#392** `pulse api compose --stream` ends with an optional terminal `{"fits":…}` NDJSON line, like the sweep's `ranking` line; today a stream carries no fit result (documented). Found in U42 (E1-S1) · [U40](units/U40-compose-sweep.md)
+- [ ] **#393** `FilterToFileWithRequest` and `SampleWithRequest` load `Request.models`; today a `coef()` there is refused as `PULSE_MODEL_UNKNOWN` (loud, never a wrong number). Found in U42 (E3-S2) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#394** A direct test of model binding on the parallel-decode path (`parallel_reduce.go` → `BuildFiltersWithModels`), which needs an mmap'd OS file; the shard path is tested. Found in U42 (E2-S3) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#395** A grouper over explicit numeric ranges (e.g. 0–90 and 91–103), so a train/holdout split that is not a multiple of the `GROUP_RANGE` interval is one slot instead of a filter or two slots. Found in U42 (E2-S1) · [U46](units/U46-grouped-analysis.md)
+- [ ] **#396** `tool-compose.md` back under its soft budget, and it mentions `fits` and `models` (today it is over budget and names neither). Found in U42 (E1-S1) · [U38](units/U38-skill-sync.md)
 
 ### Post-aggregation ratios — added after the plan ([U43](units/U43-post-aggregation-ratios.md))
 - [ ] **#290** A ratio output across aggregators (`AGG_RATIO`, or a post-aggregation formula slot) for ROI and marginal ROI; a zero or null denominator is `null` · [U43](units/U43-post-aggregation-ratios.md)
@@ -369,7 +378,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#342** Discrimination metrics: a weight-aware AUC / Gini aggregator over a score and a binary outcome, and a share-of-partition window for cumulative capture curves · [U49](units/U49-model-workbench.md)
 - [ ] **#343** A grouped (k-fold or delete-d) jackknife, so resampled standard errors are practical at tens of thousands of rows · [U49](units/U49-model-workbench.md)
 - [ ] **#344** Leakage-safe encoding in one parameter: `FEAT_TARGET_ENCODE` `fit_on` (category means from the training rows, applied to all) or out-of-fold encoding · [U49](units/U49-model-workbench.md)
-- [ ] **#345** `ATTR_REG_PREDICT` (U42) scores GLM families on the response scale and can fit on a subset (training rows) while scoring all rows · [U49](units/U49-model-workbench.md)
+- [x] **#345** `ATTR_REG_PREDICT` (U42) scores GLM families on the response scale and can fit on a subset (training rows) while scoring all rows · [U49](units/U49-model-workbench.md). Delivered by [U42](units/U42-fit-scoring.md) (E1-S2): `scale: response` (the default) applies the inverse link, and a compose `fits` entry's own filter picks the training rows while a slot scores every row
 - [ ] **#346** `GROUP_QUANTILE` and `GROUP_RANGE` keys sort in bucket order (D01…D10, numeric ranges), not lexicographically · [U49](units/U49-model-workbench.md)
 - [ ] **#347** Acceptance: the credit example demonstrates leakage with the binary `collections_flag`, reports AUC, uses train-only target encoding, and scores the holdout with no transcribed coefficient · [U49](units/U49-model-workbench.md)
 
