@@ -95,6 +95,9 @@ type Matrix struct {
 	On string
 	// Components is MAT_PCA's retention rule (params.components).
 	Components PCAComponents
+	// Rotation is MAT_PCA's params.rotation: "" (none, the default) or
+	// RotationVarimax.
+	Rotation string
 	// Center is MAT_COLLINEARITY's params.center: false (the default)
 	// runs Belsley's diagnostics on the scaled, UNCENTERED predictors
 	// with an intercept column; true on the scaled, centered ones (the
@@ -110,6 +113,19 @@ const (
 
 // PCAOnValues returns the params.on values, default first.
 func PCAOnValues() []string { return []string{PCAOnCorrelation, PCAOnCovariance} }
+
+// Rotation criteria of the shared rotation engine
+// (internal/processing/matrix_rotate.go). RotationNone is the explicit
+// "no rotation" spelling of a params.rotation knob.
+const (
+	RotationNone    = "none"
+	RotationVarimax = "varimax"
+	RotationPromax  = "promax"
+	RotationOblimin = "oblimin"
+)
+
+// PCARotations returns MAT_PCA's params.rotation values, default first.
+func PCARotations() []string { return []string{RotationNone, RotationVarimax} }
 
 // MAT_PCA retention rules (PCAComponents.Rule).
 const (
@@ -299,11 +315,13 @@ type reliabilityParams struct {
 
 // pcaParams is MAT_PCA's params object: the input matrix, the
 // retention rule (an integer, "kaiser" or {"variance": share}, decoded
-// by decodeComponents), the repair choice and the missing-data knobs;
+// by decodeComponents), the rotation, the repair choice and the
+// missing-data knobs;
 // any other key is refused.
 type pcaParams struct {
 	On         *string         `json:"on"`
 	Components json.RawMessage `json:"components"`
+	Rotation   *string         `json:"rotation"`
 	Repair     *string         `json:"repair"`
 	missingParams
 }
@@ -546,7 +564,8 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 	return decodeMissing(at, miss, m)
 }
 
-// decodePCA applies MAT_PCA's params.on and params.components: on
+// decodePCA applies MAT_PCA's params.rotation ("none", the default, or
+// "varimax"), params.on and params.components: on
 // "correlation" (default) or "covariance"; components an integer k ≥ 1
 // (checked against p in resolvePCA), "kaiser" (the correlation
 // default) or {"variance": share} with 0 < share ≤ 1. On a covariance
@@ -554,6 +573,16 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 // meaning in the members' units. Every refusal is bad_params.
 func decodePCA(at string, p pcaParams, m *Matrix) *errors.CodedError {
 	m.On = PCAOnCorrelation
+	if p.Rotation != nil {
+		switch *p.Rotation {
+		case RotationNone:
+		case RotationVarimax:
+			m.Rotation = RotationVarimax
+		default:
+			return matrixInvalid(at, "bad_params", at+" params.rotation must be \"none\" or \"varimax\"",
+				map[string]any{"param": "rotation", "value": *p.Rotation, "valid": PCARotations()})
+		}
+	}
 	if p.On != nil {
 		switch *p.On {
 		case PCAOnCorrelation, PCAOnCovariance:

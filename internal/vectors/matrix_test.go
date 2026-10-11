@@ -506,3 +506,42 @@ func TestResolveMatrices_Collinearity(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveMatrices_PCARotation: params.rotation decodes "varimax" to
+// Matrix.Rotation, "none" (and absent) to "" — the unrotated operator —
+// and refuses every other value bad_params, the oblique criteria
+// included (the engine has them; MAT_PCA offers varimax only).
+func TestResolveMatrices_PCARotation(t *testing.T) {
+	items := []string{"q_1", "q_2", "q_3"}
+	resolve := func(params string) (Matrix, *errors.CodedError) {
+		spec := types.MatrixSpec{Type: types.MAT_PCA, Fields: items, Params: json.RawMessage(params)}
+		got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	for params, want := range map[string]string{
+		`{}`:                      "",
+		`{"rotation": "none"}`:    "",
+		`{"rotation": "varimax"}`: RotationVarimax,
+		`{"rotation": "varimax", "components": 2}`: RotationVarimax,
+	} {
+		m, err := resolve(params)
+		if err != nil {
+			t.Fatalf("%s: %v", params, err)
+		}
+		if m.Rotation != want {
+			t.Errorf("%s: rotation %q, want %q", params, m.Rotation, want)
+		}
+	}
+	for _, params := range []string{`{"rotation": "promax"}`, `{"rotation": "oblimin"}`, `{"rotation": "Varimax"}`, `{"rotation": 1}`} {
+		_, err := resolve(params)
+		if err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "bad_params" {
+			t.Errorf("%s: error %v, want bad_params", params, err)
+		}
+	}
+	if got := PCARotations(); len(got) != 2 || got[0] != RotationNone || got[1] != RotationVarimax {
+		t.Errorf("PCARotations() = %v", got)
+	}
+}

@@ -822,3 +822,7 @@ write_golden("mv_near_pd", npd_doc)
 # The multivariate TEST goldens (mv_hotelling.json, …) reuse the
 # fixtures and weight utilities above; their pins live in that script.
 source(file.path(script_dir, "gen_multivariate_tests.R"), local = FALSE)
+
+# The rotation golden (mv_rotation.json: varimax, promax, oblimin over
+# PCA loadings of the same fixtures); its GPArotation pin lives there.
+source(file.path(script_dir, "gen_rotation.R"), local = FALSE)

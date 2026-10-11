@@ -128,11 +128,11 @@ Each cell is a loading: how strongly the row's measure is tied to the column's c
 **Sign:**
 
 - `+`: the measure rises with the component
-- `-`: the measure falls as the component rises; a component's overall sign is a convention (its largest loading is made positive)
+- `-`: the measure falls as the component rises; a component's overall sign is a convention (its largest loading is made positive, or under a rotation its loadings sum positive)
 
 **Caveats:**
 
-- Components are not rotated; a measure loading on several components at once is common and does not mean it measures several things.
+- Unrotated, a measure loading on several components at once is common and does not mean it measures several things; params.rotation varimax redistributes the kept variance into a cleaner pattern without changing the communalities.
 - Components summarise shared spread; they do not show that an underlying cause exists.
 - On a covariance input the loadings are in the measures' own units, so they are not comparable across measures.
 

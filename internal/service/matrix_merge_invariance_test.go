@@ -105,10 +105,13 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 	// are compared whole) and repairs its pairwise input like the other
 	// decomposition operators; its eigensolver is gonum-backed, so the
 	// bits are same-machine stable — which is what this gate compares.
+	// The pairwise variant also varimax-rotates (U25 E2-S1): the
+	// rotation is a pure function of the merged loadings, so its primary
+	// and rotated_variance are as worker-invariant as they are.
 	if v.matrixType() == types.MAT_PCA {
 		spec.Params = json.RawMessage(`{"max_drop_share": 0, "components": 3}`)
 		if v.pairwise {
-			spec.Params = json.RawMessage(`{"missing": "pairwise", "components": 3, "repair": "nearest"}`)
+			spec.Params = json.RawMessage(`{"missing": "pairwise", "components": 3, "repair": "nearest", "rotation": "varimax"}`)
 		}
 	}
 	if v.weighted {
@@ -226,6 +229,15 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 		}
 		for _, row := range m.Auxiliary["eigenvectors"].Values {
 			for _, x := range row {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+		if pairwise {
+			vs, ok := m.Vectors["rotated_variance"].([]float64)
+			if !ok || len(vs) != 3 || m.Auxiliary["unrotated"] == nil {
+				t.Fatalf("Process(decode=%d, shard=%d): rotated pairwise PCA lacks rotated_variance / unrotated", decodeWorkers, shardWorkers)
+			}
+			for _, x := range vs {
 				out.relBits = append(out.relBits, math.Float64bits(x))
 			}
 		}

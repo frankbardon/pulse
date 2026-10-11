@@ -6927,7 +6927,7 @@
       },
       {
         "name": "MAT_PCA",
-        "description": "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights. No rotation.",
+        "description": "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". params.rotation \"varimax\" replaces the primary with the varimax-rotated loadings (Kaiser-normalized, stats::varimax), moves the unrotated loadings to auxiliary.unrotated and adds vectors.rotated_variance; eigenvalues, shares, communalities and eigenvectors stay unrotated. Weighted under frequency and probability weights.",
         "accepts_types": [
           "f32",
           "f64",
@@ -6956,6 +6956,17 @@
             "required": false,
             "default": "kaiser",
             "description": "How many components to keep: a positive integer k (at most the member count); \"kaiser\" (every component whose eigenvalue exceeds 1; the default on a correlation, refused on a covariance); or {\"variance\": share}, the fewest leading components whose cumulative explained share reaches share (0 \u003c share \u003c= 1). Required on a covariance. Every eigenvalue is reported either way."
+          },
+          {
+            "name": "rotation",
+            "type": "enum",
+            "required": false,
+            "default": "none",
+            "description": "none: the unrotated loadings. varimax: rotate the kept components (k \u003e= 2) orthogonally to simple structure (stats::varimax with Kaiser normalization); the rotated loadings become the primary, ordered by the variance each accounts for (vectors.rotated_variance), each column signed to sum positive, and the unrotated loadings move to auxiliary.unrotated.",
+            "enum_values": [
+              "none",
+              "varimax"
+            ]
           },
           {
             "name": "repair",
@@ -6988,14 +6999,16 @@
           "primary": "loadings",
           "auxiliary": [
             "eigenvectors",
-            "n"
+            "n",
+            "unrotated"
           ],
           "vectors": [
             "communalities",
             "cumulative",
             "eigenvalues",
             "explained_variance",
-            "kmo_msa"
+            "kmo_msa",
+            "rotated_variance"
           ],
           "scalars": [
             "bartlett_chisq",
@@ -14169,4 +14182,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 11780c139913e9b91ec0eefd4a199ef65203630ac16f406b22eb55b4b7cde9ed
+// golden-hash: 4f467536fa5027e91988afa64da4e14cc7ba826cdd45961bf6703dcf7936535d

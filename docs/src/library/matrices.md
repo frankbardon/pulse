@@ -165,8 +165,19 @@ probability weights, and under pairwise deletion the smallest pair's
 KMO and Bartlett with a `PULSE_MATRIX_SINGULAR` warning, the components
 still reported. Like the partial correlation, a non-PSD pairwise input
 is refused unless `params.repair` is `"nearest"`. KMO is read against
-Kaiser's (1974) bands. No rotation (factor analysis and rotation are a
-later operator).
+Kaiser's (1974) bands.
+
+`params.rotation: "varimax"` (default `"none"`) rotates the kept
+components orthogonally toward simple structure, exactly as R's
+`stats::varimax` with Kaiser normalization does. The rotated loadings
+become the `primary` — columns ordered by the variance each accounts
+for, each signed so its loadings sum positive, keys still `PC1` …
+`PCk` — the unrotated loadings move to `auxiliary.unrotated`, and
+`vectors.rotated_variance` lists each rotated column's sum of squared
+loadings. Eigenvalues, the explained and cumulative shares, the
+communalities (unchanged by an orthogonal rotation), the eigenvectors,
+KMO and Bartlett are never rotated. A single kept component is left as
+is. Without the knob the output is byte-identical to before.
 
 ## Collinearity
 

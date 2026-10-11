@@ -63,6 +63,13 @@ import (
 // An undefined input (a zero-spread member, a thin pair, no rows) nulls
 // every figure — the co-moment warnings say why — with k columns of
 // nulls for an integer k and none otherwise.
+//
+// params.rotation "varimax" rotates the k kept loadings with the shared
+// rotation engine (matrix_rotate.go, pcaRotate): the rotated loadings
+// are the primary, the unrotated ones auxiliary.unrotated, and
+// vectors.rotated_variance the variance each rotated component
+// accounts for. Nothing else moves; absent (or "none") the output is
+// byte-identical to the unrotated operator.
 func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 	m := in.slot
 	plan := in.Plan()
@@ -93,11 +100,17 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 				out.Auxiliary = map[string]*types.MatrixValues{}
 			}
 			out.Auxiliary["eigenvectors"] = in.Rect(pcaColumns(k), nan)
+			if plan.Rotation != "" {
+				out.Auxiliary["unrotated"] = in.Rect(pcaColumns(k), nan)
+			}
 		}
 		if in.WantVectors() {
 			out.Vectors = map[string]any{}
 			for _, key := range []string{"eigenvalues", "explained_variance", "cumulative", "communalities", "kmo_msa"} {
 				out.Vectors[key] = nanVector(p)
+			}
+			if plan.Rotation != "" {
+				out.Vectors["rotated_variance"] = nanVector(k)
 			}
 		}
 		if in.WantScalars() {
@@ -142,6 +155,21 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 		out.Auxiliary["eigenvectors"] = in.Rect(cols, eig.Vectors.At)
 	}
+	var rotated []float64
+	if plan.Rotation != "" {
+		rot, warn, err := pcaRotate(in, plan.Rotation, p, k, loading)
+		if err != nil {
+			return matrixOutput{}, err
+		}
+		if warn != nil {
+			out.Warnings = append(out.Warnings, warn)
+		}
+		if in.WantAuxiliary() {
+			out.Auxiliary["unrotated"] = out.Primary
+		}
+		out.Primary = in.Rect(cols, func(i, c int) float64 { return rot.Loadings[i][c] })
+		rotated = rot.Variance
+	}
 
 	stats, statWarns := pcaSphericity(in, kmoInput)
 	out.Warnings = append(out.Warnings, statWarns...)
@@ -175,6 +203,9 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 			"communalities":      communalities,
 			"kmo_msa":            stats.msa,
 		}
+		if rotated != nil {
+			out.Vectors["rotated_variance"] = rotated
+		}
 	}
 	if in.WantScalars() {
 		out.Scalars = map[string]float64{
@@ -186,6 +217,34 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 	}
 	return out, nil
+}
+
+// pcaRotate rotates the p × k unrotated loadings with the shared
+// rotation engine (params.rotation; varimax today). The rotated
+// loadings replace the primary, the unrotated ones move to
+// auxiliary.unrotated, and the variance each rotated component accounts
+// for is vectors.rotated_variance; eigenvalues, the explained and
+// cumulative shares and the eigenvectors stay unrotated, and the
+// communalities are unchanged by an orthogonal rotation. A fit stopped
+// at its sweep cap is kept with a PULSE_MATRIX_NOT_CONVERGED warning.
+func pcaRotate(in *matrixFinalizeInput, method string, p, k int, loading func(i, c int) float64) (rotationResult, *types.ResponseWarning, error) {
+	a := make([][]float64, p)
+	for i := range a {
+		a[i] = make([]float64, k)
+		for c := range a[i] {
+			a[i][c] = loading(i, c)
+		}
+	}
+	rot, err := rotateLoadings(a, rotationSpec{Method: method})
+	if err != nil {
+		return rotationResult{}, nil, err
+	}
+	if rot.Converged {
+		return rot, nil, nil
+	}
+	name := in.Plan().Name
+	return rot, notConvergedWarning(name, rot.Solver, rot.Iterations, rot.MaxIterations, rot.Tolerance,
+		"matrix "+name+": the "+method+" rotation stopped at its "+strconv.Itoa(rot.MaxIterations)+"-sweep cap before its criterion settled; the rotated loadings are the last iterate"), nil
 }
 
 // pcaRetained is the number of leading components rule keeps over the
