@@ -203,7 +203,11 @@ func TestExprBuiltinsDocumented(t *testing.T) {
 // TestExprDocExamples_HarvestsBuiltinCalls guards the harvest itself:
 // the inventory's inline built-in calls must reach the compile check.
 func TestExprDocExamples_HarvestsBuiltinCalls(t *testing.T) {
-	want := map[string]bool{"vmax(vzscore([q1, q2, q3]))": false, "pow(score, 2)": false}
+	want := map[string]bool{
+		"vmax(vzscore([q1, q2, q3]))": false, "pow(score, 2)": false,
+		// attribute-composition's named-vector worked example.
+		"vcount(battery) >= 6 ? vmean(battery) : nil": false, "vsd(battery) == 0": false,
+	}
 	for _, ex := range harvestDocExpressions(t) {
 		if _, ok := want[ex.src]; ok {
 			want[ex.src] = true

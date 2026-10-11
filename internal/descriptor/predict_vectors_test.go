@@ -164,3 +164,84 @@ func TestPayloadSchema_MatricesHidden(t *testing.T) {
 		})
 	}
 }
+
+// TestPredict_ExpressionVectorReferences: a vector read only by an
+// expression — a formula attribute, an expression filter, a total()
+// argument — raises no PULSE_VECTOR_UNREFERENCED; one nothing reads
+// still warns.
+func TestPredict_ExpressionVectorReferences(t *testing.T) {
+	req := &types.Request{
+		Vectors: []types.VectorSpec{
+			{Name: "bat", Fields: []string{"q_1", "q_2", "q_3"}},
+			{Name: "pair", Fields: []string{"q_1", "q_2"}},
+			{Name: "tot", Fields: []string{"q_2", "q_3"}},
+			{Name: "idle", Fields: []string{"q_3"}},
+		},
+		Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "vsd(pair) > 0"}},
+		Attributes: []*types.Attribute{
+			{Type: types.ATTR_FORMULA, Label: "m", Expression: "vcount(bat) >= 2 ? vmean(bat) : nil"},
+			{Type: types.ATTR_FORMULA, Label: "share", Expression: "q_1 / total(vsum(tot))"},
+		},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "m", Label: "s"}},
+	}
+	env := predictFromBytes(vectorPredictSchema(t), req, nil)
+	if len(env.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", env.Errors)
+	}
+	var names []string
+	for _, w := range env.Warnings {
+		if w.Code == string(errors.PULSE_VECTOR_UNREFERENCED) {
+			names = append(names, w.Details["name"].(string))
+		}
+	}
+	if !slices.Equal(names, []string{"idle"}) {
+		t.Errorf("unreferenced warnings = %v, want [idle]", names)
+	}
+}
+
+// TestPredict_VectorLabelCollision: a vector named like a feature
+// output, an attribute label or a window label of the same request is
+// PULSE_VECTOR_NAME_COLLISION, naming the claiming slot — an expression
+// would read the column, never the vector. A vector name no slot claims
+// passes.
+func TestPredict_VectorLabelCollision(t *testing.T) {
+	vec := func(name string) []types.VectorSpec {
+		return []types.VectorSpec{{Name: name, Fields: []string{"q_1", "q_2"}}}
+	}
+	agg := []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}
+	cases := []struct {
+		name    string
+		req     *types.Request
+		slotKey string
+	}{
+		{"attribute", &types.Request{Vectors: vec("m"), Aggregations: agg,
+			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "m", Expression: "vmean(m)"}}}, "attribute"},
+		{"default attribute label", &types.Request{Vectors: vec("ATTR_ZSCORE_q_1"), Aggregations: agg,
+			Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "q_1"}}}, "attribute"},
+		{"feature", &types.Request{Vectors: vec("LOG_q_1"), Aggregations: agg,
+			Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "q_1"}}}, "feature"},
+		{"window", &types.Request{Vectors: vec("lagged"), Aggregations: agg,
+			Groups:  []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Windows: []*types.Window{{Type: types.WIN_LAG, Field: "s", Label: "lagged"}}}, "window"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := predictFromBytes(vectorPredictSchema(t), c.req, nil)
+			if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.PULSE_VECTOR_NAME_COLLISION) {
+				t.Fatalf("errors = %+v, want %s", env.Errors, errors.PULSE_VECTOR_NAME_COLLISION)
+			}
+			d := env.Errors[0].Details
+			if d["name"] != c.req.Vectors[0].Name || d["label"] != c.req.Vectors[0].Name || d["vector"] != "vectors[0]" {
+				t.Errorf("details = %v", d)
+			}
+			if _, ok := d[c.slotKey]; !ok {
+				t.Errorf("details %v lack the claiming slot %q", d, c.slotKey)
+			}
+		})
+	}
+	ok := &types.Request{Vectors: vec("bat"), Aggregations: agg,
+		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "m", Expression: "vmean(bat)"}}}
+	if env := predictFromBytes(vectorPredictSchema(t), ok, nil); len(env.Errors) != 0 {
+		t.Errorf("an unclaimed vector name: errors = %+v", env.Errors)
+	}
+}

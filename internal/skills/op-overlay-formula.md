@@ -34,8 +34,8 @@ Shape matches host; each evaluation yields one `float64`. Layer `Baseline` unset
 - Compile-once / run-many via `expr.Compile`.
 - Predict-time AST walk validates identifiers; unknown → `PULSE_OVERLAY_FORMULA_INVALID_IDENT` + allowed set.
 - Parse error → `PULSE_OVERLAY_FORMULA_PARSE_ERROR`; non-coercible result → `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`.
-- Embedder `ExprFunctions` widen the function surface; variables are fixed per host shape (widen via a custom `OverlayKinds` entry). `lookup(...)` is NOT in the v1 env.
-- Built-ins: scalar `sqrt` / `log` / `exp` / `pow` only; the vector functions (`vmean`, `dot`, ...) are `PULSE_OVERLAY_FORMULA_INVALID_IDENT` on predict and runtime.
+- Embedder `ExprFunctions` widen the function surface; variables are fixed per host shape (widen via a custom `OverlayKinds` entry). `lookup(...)` needs a registered LookupTable.
+- Built-ins: scalar `sqrt` / `log` / `exp` / `pow` and the set helpers; the vector functions (`vmean`, `dot`, ...) are `PULSE_OVERLAY_FORMULA_INVALID_IDENT` on predict (request and Compose hosts) and runtime.
 - `total(expr)` is a formula-attribute-only function: calling it here (Compose host included) is `PULSE_FORMULA_TOTAL_SITE` on predict and runtime. Use the `total` variable (SERIES) instead.
 - Buffered at v1 (margins / totals / SDs need post-fold state).
 

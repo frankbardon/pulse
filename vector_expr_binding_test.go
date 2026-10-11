@@ -434,3 +434,126 @@ func TestVectorExpr_NameCollisionRefused(t *testing.T) {
 		t.Errorf("predict errors = %+v, want %s", env, perr.PULSE_VECTOR_NAME_COLLISION)
 	}
 }
+
+// TestVectorExpr_ExpressionReferenceCounts: a vector read only by a
+// formula, an expression filter or a total() argument is referenced —
+// no PULSE_VECTOR_UNREFERENCED from Process or predict — while a vector
+// nothing reads still warns on both.
+func TestVectorExpr_ExpressionReferenceCounts(t *testing.T) {
+	ctx := context.Background()
+	fsys := afero.NewMemMapFs()
+	writeVexprCohort(t, fsys, "v.pulse", 0, 40)
+	p, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "v.pulse"},
+		Vectors: []types.VectorSpec{
+			{Name: "bat", Fields: []string{"b1", "b2", "b3", "b4"}},
+			{Name: "pair", Fields: []string{"b1", "b2"}},
+			{Name: "tot", Fields: []string{"b3", "b4"}},
+			{Name: "idle", Fields: []string{"b4"}},
+		},
+		Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "vcount(pair) >= 0"}},
+		Attributes: []*types.Attribute{
+			{Type: types.ATTR_FORMULA, Label: "m", Expression: "vcount(bat) >= 2 ? vmean(bat) : nil"},
+			{Type: types.ATTR_FORMULA, Label: "share", Expression: "score / total(vsum(tot))"},
+		},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "m", Label: "avg"}},
+	}
+	unreferenced := func(codes []string, names []string) []string {
+		var out []string
+		for i, c := range codes {
+			if c == string(perr.PULSE_VECTOR_UNREFERENCED) {
+				out = append(out, names[i])
+			}
+		}
+		return out
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	var codes, names []string
+	for _, w := range resp.Warnings {
+		codes = append(codes, w.Code)
+		n, _ := w.Details["name"].(string)
+		names = append(names, n)
+	}
+	if got := unreferenced(codes, names); len(got) != 1 || got[0] != "idle" {
+		t.Errorf("Process unreferenced = %v, want [idle]", got)
+	}
+	data, err := afero.ReadFile(fsys, "v.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, err := p.PredictBytes(ctx, data, req)
+	if err != nil || env == nil {
+		t.Fatalf("PredictBytes: %v", err)
+	}
+	codes, names = nil, nil
+	for _, w := range env.Warnings {
+		codes = append(codes, w.Code)
+		n, _ := w.Details["name"].(string)
+		names = append(names, n)
+	}
+	if got := unreferenced(codes, names); len(got) != 1 || got[0] != "idle" {
+		t.Errorf("predict unreferenced = %v, want [idle]", got)
+	}
+}
+
+// TestVectorExpr_LabelCollisionRefused: a vector named like an attribute,
+// feature output or window label of the same request is refused by
+// Process and predict alike (PULSE_VECTOR_NAME_COLLISION) — without the
+// rule the formula silently read the column, not the vector.
+func TestVectorExpr_LabelCollisionRefused(t *testing.T) {
+	ctx := context.Background()
+	fsys := afero.NewMemMapFs()
+	writeVexprCohort(t, fsys, "v.pulse", 0, 20)
+	p, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := afero.ReadFile(fsys, "v.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vec := func(name string) []types.VectorSpec {
+		return []types.VectorSpec{{Name: name, Fields: []string{"b1", "b2"}}}
+	}
+	cases := []struct {
+		name string
+		req  *types.Request
+	}{
+		{"attribute", &types.Request{Vectors: vec("first"),
+			Attributes: []*types.Attribute{
+				{Type: types.ATTR_FORMULA, Label: "first", Expression: "score"},
+				{Type: types.ATTR_FORMULA, Label: "m", Expression: "vmean(first)"},
+			},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "m", Label: "s"}}}},
+		{"feature", &types.Request{Vectors: vec("LOG_score"),
+			Features:     []*types.Feature{{Type: types.FEAT_LOG, Field: "score"}},
+			Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "m", Expression: "vmean(LOG_score)"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "m", Label: "s"}}}},
+		{"window", &types.Request{Vectors: vec("lagged"),
+			Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "m", Expression: "vmean(lagged)"}},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "qty"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "m", Label: "s"}},
+			Windows:      []*types.Window{{Type: types.WIN_LAG, Field: "s", Label: "lagged"}}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			c.req.Cohort = &types.Cohort{Filename: "v.pulse"}
+			_, err := p.Process(ctx, c.req)
+			var ce *perr.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_VECTOR_NAME_COLLISION {
+				t.Fatalf("Process err = %v, want %s", err, perr.PULSE_VECTOR_NAME_COLLISION)
+			}
+			env, _ := p.PredictBytes(ctx, data, c.req)
+			if env == nil || len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_VECTOR_NAME_COLLISION) {
+				t.Errorf("predict errors = %+v, want %s", env, perr.PULSE_VECTOR_NAME_COLLISION)
+			}
+		})
+	}
+}

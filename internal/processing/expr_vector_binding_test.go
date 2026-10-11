@@ -240,3 +240,38 @@ func TestExprVectors_FilterNotPrecomputed(t *testing.T) {
 		t.Fatalf("a vector name resolved to precompute group %d", g)
 	}
 }
+
+// BenchmarkVectorFormula8 is informational (no gate): the per-row cost
+// of an 8-member battery formula — bind the named vector, count its
+// valid members and take their mean — beside the same mean written
+// out over the eight fields.
+func BenchmarkVectorFormula8(b *testing.B) {
+	names := []string{"q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8"}
+	s := mkSchema(names...)
+	vecs, verr := vectors.Resolve([]types.VectorSpec{{Name: "battery", Fields: names}}, s)
+	if verr != nil {
+		b.Fatal(verr)
+	}
+	vals := map[string]float64{}
+	for i, n := range names {
+		vals[n] = float64(i%5 + 1)
+	}
+	r := NewRecordWithNulls(s, vals, map[string]bool{"q3": true})
+	for _, bc := range []struct{ name, src string }{
+		{"vector", "vcount(battery) >= 6 ? vmean(battery) : nil"},
+		{"scalar", "(q1 + q2 + q4 + q5 + q6 + q7 + q8) / 7"},
+	} {
+		b.Run(bc.name, func(b *testing.B) {
+			prog, err := newExprProgram(bc.src, "formula", s, vecs, setExprOptions())
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, _, err := prog.runRecord(r); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
 
@@ -483,65 +484,11 @@ func exprValueType(f *encoding.Field) reflect.Type {
 }
 
 // exprFreeIdentifiers returns the names an expression reads from its
-// env: every identifier that is not a callee, a let binding or $env,
-// plus `$env.name` / `$env["name"]` members; usesEnv reports any use of
-// $env. parsed=false when the expression does not parse (the compile then
-// reports the syntax error).
+// env (internal/exprident.Free — the one walk the vector-reference count
+// and the predict layer also read): every identifier that is not a
+// callee, a let binding or $env, plus `$env.name` / `$env["name"]`
+// members; usesEnv reports any use of $env. parsed=false when the
+// expression does not parse (the compile then reports the syntax error).
 func exprFreeIdentifiers(src string) (names []string, usesEnv, parsed bool) {
-	tree, err := exprparser.Parse(src)
-	if err != nil {
-		return nil, false, false
-	}
-	v := &exprFreeIdentVisitor{skip: map[*exprast.IdentifierNode]bool{}, lets: map[string]bool{}, seen: map[string]bool{}}
-	// Walk is post-order: a node's children are visited before it, so
-	// mark callees / let names / $env members in a first pass.
-	exprast.Walk(&tree.Node, &exprFreeIdentMarker{v: v})
-	exprast.Walk(&tree.Node, v)
-	return v.names, v.usesEnv, true
-}
-
-type exprFreeIdentMarker struct{ v *exprFreeIdentVisitor }
-
-func (m *exprFreeIdentMarker) Visit(node *exprast.Node) {
-	switch n := (*node).(type) {
-	case *exprast.CallNode:
-		if id, ok := n.Callee.(*exprast.IdentifierNode); ok {
-			m.v.skip[id] = true
-		}
-	case *exprast.VariableDeclaratorNode:
-		m.v.lets[n.Name] = true
-	case *exprast.MemberNode:
-		if id, ok := n.Node.(*exprast.IdentifierNode); ok && id.Value == "$env" {
-			if s, ok := n.Property.(*exprast.StringNode); ok {
-				m.v.add(s.Value)
-			}
-		}
-	}
-}
-
-type exprFreeIdentVisitor struct {
-	usesEnv bool
-	skip    map[*exprast.IdentifierNode]bool
-	lets    map[string]bool
-	seen    map[string]bool
-	names   []string
-}
-
-func (v *exprFreeIdentVisitor) add(name string) {
-	if !v.seen[name] {
-		v.seen[name] = true
-		v.names = append(v.names, name)
-	}
-}
-
-func (v *exprFreeIdentVisitor) Visit(node *exprast.Node) {
-	id, ok := (*node).(*exprast.IdentifierNode)
-	if !ok || v.skip[id] || v.lets[id.Value] {
-		return
-	}
-	if id.Value == "$env" {
-		v.usesEnv = true
-		return
-	}
-	v.add(id.Value)
+	return exprident.Free(src)
 }

@@ -2901,11 +2901,14 @@ const (
 	PULSE_VECTOR_DUPLICATE Code = "PULSE_VECTOR_DUPLICATE"
 
 	// PULSE_VECTOR_NAME_COLLISION indicates a vector whose name is also
-	// a schema field's name. An expression (ATTR_FORMULA,
+	// a schema field's name, or a feature output, attribute or window
+	// label of the same request. An expression (ATTR_FORMULA,
 	// FILTER_EXPRESSION, a total() argument) binds a named vector as an
-	// identifier beside the fields, so the name must say which one it
+	// identifier beside those columns, so the name must say which one it
 	// means. Refused identically by predict and the runtime before any
-	// record is read. Details carry "vector", "name" and "field".
+	// record is read. Details carry "vector", "name" and "field" (a
+	// schema field) or "label" plus the claiming slot ("feature",
+	// "attribute", or "window" / "window_index").
 	PULSE_VECTOR_NAME_COLLISION Code = "PULSE_VECTOR_NAME_COLLISION"
 
 	// PULSE_VECTOR_LABELS_MISMATCH indicates a vector whose `labels`

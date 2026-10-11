@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/expr-lang/expr"
+
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
@@ -397,5 +399,24 @@ func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
 		if err := vectorStaticRefusal(ok, "formula"); err != nil {
 			t.Errorf("vectorStaticRefusal(%s) = %v, want nil", ok, err)
 		}
+	}
+}
+
+// TestSetHelpers_EveryNameImplemented: every exprbuiltins.SetHelperNames
+// entry (the list the overlay predict gate admits) has an
+// implementation setExprOptions registers, and no implementation hides
+// outside the list.
+func TestSetHelpers_EveryNameImplemented(t *testing.T) {
+	names := exprbuiltins.SetHelperNames()
+	for _, name := range names {
+		if setHelperImpls[name] == nil {
+			t.Errorf("set helper %q has no implementation", name)
+		}
+		if _, err := expr.Compile(name+`(["a"], ["a"])`, setExprOptions()...); err != nil {
+			t.Errorf("set helper %q does not compile: %v", name, err)
+		}
+	}
+	if len(setHelperImpls) != len(names) {
+		t.Errorf("setHelperImpls has %d entries, exprbuiltins lists %d", len(setHelperImpls), len(names))
 	}
 }

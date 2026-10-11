@@ -111,7 +111,10 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //  6. vectors — Request.Vectors resolved against the schema alone
 //     (internal/vectors.Resolve): the first PULSE_VECTOR_* refusal, or
 //     the SERVICE_VALIDATION unknown-field refusal for a literal member
-//     the schema lacks.
+//     the schema lacks; then a vector name equal to a feature output,
+//     attribute or window label of the request
+//     (PULSE_VECTOR_NAME_COLLISION — an expression would read the
+//     column, never the vector).
 //  7. matrices — Request.Matrices resolved by the same leaf
 //     (internal/vectors.ResolveMatrices): an unknown / hidden type, a
 //     spec setting both or neither of vector and fields, an unknown
@@ -236,6 +239,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 					map[string]any{"label": label, "feature": string(feat.Type)})
 			})
 			w.cols[label] = true
+			w.claim(label, map[string]any{"slot": "feature " + string(feat.Type), "feature": string(feat.Type)})
 		}
 	}
 
@@ -330,6 +334,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 				map[string]any{"label": label, "attribute": string(attr.Type)})
 		})
 		w.cols[label] = true
+		w.claim(label, map[string]any{"slot": "attribute " + string(attr.Type), "attribute": string(attr.Type)})
 	}
 
 	// 4. Record-level consumers.
@@ -529,6 +534,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 				map[string]any{"window_index": i, "label": label, "type": string(win.Type)})
 		})
 		w.cols[label] = true
+		w.claim(label, map[string]any{"slot": "window[" + idx + "] " + string(win.Type), "window_index": i, "window": string(win.Type)})
 	}
 	for i, k := range req.Sort {
 		if k.Field == "" {
@@ -561,6 +567,13 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	// vector rules). A type the instance hides is an unknown type.
 	if _, verr := resolveMatricesFor(req, schema, w.snap, inst); verr != nil {
 		w.out = append(w.out, verr)
+		return w.out
+	}
+	// 6b. A vector name equal to a feature, attribute or window output
+	// label (PULSE_VECTOR_NAME_COLLISION) — the schema-field collision's
+	// twin for the derived columns, judged once every vector resolved.
+	if cerr := w.vectorLabelCollision(req); cerr != nil {
+		w.out = append(w.out, cerr)
 		return w.out
 	}
 	// 8. Test vector inputs — each test's vector / fields (and vector2
@@ -646,6 +659,46 @@ type fieldRefWalk struct {
 	// nothing.
 	inst *InstanceSnapshot
 	out  []*errors.CodedError
+	// labels records each derived column a feature, attribute or window
+	// names (its first claimer's slot, for the details of a vector-name
+	// collision at step 6).
+	labels map[string]map[string]any
+}
+
+// claim records label as a derived column of the slot described by who
+// (first claimer wins).
+func (w *fieldRefWalk) claim(label string, who map[string]any) {
+	if label == "" {
+		return
+	}
+	if w.labels == nil {
+		w.labels = map[string]map[string]any{}
+	}
+	if _, ok := w.labels[label]; !ok {
+		w.labels[label] = who
+	}
+}
+
+// vectorLabelCollision is PULSE_VECTOR_NAME_COLLISION for the first
+// Request.Vectors name equal to a feature, attribute or window output
+// label of the same request: an expression binds a named vector beside
+// those columns, and the column would silently win.
+func (w *fieldRefWalk) vectorLabelCollision(req *types.Request) *errors.CodedError {
+	for i, v := range req.Vectors {
+		who, ok := w.labels[v.Name]
+		if !ok {
+			continue
+		}
+		at := "vectors[" + strconv.Itoa(i) + "]"
+		details := map[string]any{"vector": at, "name": v.Name, "label": v.Name}
+		for k, val := range who {
+			details[k] = val
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_NAME_COLLISION,
+			"vector name "+strconv.Quote(v.Name)+" ("+at+") is also the output label of "+who["slot"].(string)+"; an expression could not tell the two apart",
+			details)
+	}
+	return nil
 }
 
 // extensionNamed is the vector resolvers' extension predicate for one

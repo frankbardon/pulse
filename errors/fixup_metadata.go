@@ -3599,12 +3599,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_VECTOR_NAME_COLLISION: {
-		Message: "A vector's name is also a schema field's name. An expression (a formula attribute, an expression filter, a total() argument) reads a named vector as an identifier beside the fields, so a vector may not share a field's name. The vector is under `vector` / `name`, the field under `field`.",
+		Message: "A vector's name is also a schema field's name, or a feature output, attribute or window label of the same request. An expression (a formula attribute, an expression filter, a total() argument) reads a named vector as an identifier beside those columns, so a vector may not share one's name. The vector is under `vector` / `name`; a field under `field`, a derived column under `label` with its slot (`feature`, `attribute`, or `window` / `window_index`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"vectors", "*", "name"},
-				Hint:   "Rename the vector to a name no schema field uses (for example add a `_vec` suffix), and update every slot and expression that names it.",
+				Hint:   "Rename the vector to a name no schema field or output label uses (for example add a `_vec` suffix), and update every slot and expression that names it.",
 			},
 		},
 	},

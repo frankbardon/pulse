@@ -433,3 +433,48 @@ func TestValidateOverlay_FormulaBuiltinSubset(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateOverlay_FormulaSetHelpersAndLookup: the request-host gate
+// admits what the runtime overlay compile registers — the unreserved
+// set helpers always, lookup() only when the instance registers a
+// LookupTable (without one the runtime compile has no lookup and the
+// gate refuses it).
+func TestValidateOverlay_FormulaSetHelpersAndLookup(t *testing.T) {
+	withTable := &PredictOptions{Extensions: &ExtensionsSnapshot{
+		LookupTables: []descriptor.LookupTableMeta{{Name: "rates", HasRowsData: true}},
+	}}
+	cases := []struct {
+		name      string
+		formula   string
+		opts      *PredictOptions
+		wantIdent string // "" = accepted
+	}{
+		{"has_any", `has_any(["a"], ["a"]) ? cell : 0`, nil, ""},
+		{"popcount", `cell + popcount(["a", "b"])`, nil, ""},
+		{"set_xor", `len(set_xor(["a"], ["b"])) + cell`, nil, ""},
+		{"lookup_with_table", `cell * lookup("rates", "x")`, withTable, ""},
+		{"lookup_without_table", `cell * lookup("rates", "x")`, nil, "lookup"},
+		{"lookup_no_tables_registered", `cell * lookup("rates", "x")`, &PredictOptions{Extensions: &ExtensionsSnapshot{}}, "lookup"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			params, _ := json.Marshal(map[string]any{"formula": tc.formula})
+			req := &types.Request{
+				Crosstab: crosstabHostSpec(),
+				Overlays: []types.OverlaySpec{{Kind: types.OverlayKindFormula, Scope: types.OverlayScopeCell, Params: params}},
+			}
+			env := descriptor.NewEnvelope(nil)
+			ValidateOverlays(env, req, nil, tc.opts)
+			if tc.wantIdent == "" {
+				for _, e := range env.Errors {
+					t.Errorf("unexpected error %s: %s", e.Code, e.Message)
+				}
+				return
+			}
+			if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT) ||
+				env.Errors[0].Details["unknown_identifier"] != tc.wantIdent {
+				t.Fatalf("errors = %+v, want %s on %q", env.Errors, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT, tc.wantIdent)
+			}
+		})
+	}
+}

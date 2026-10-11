@@ -504,3 +504,61 @@ func TestFormulaTotal_ExtraPassAdvisory(t *testing.T) {
 		})
 	}
 }
+
+// TestComposeOverlayFormula_BuiltinParity: a Compose-host OVERLAY_FORMULA
+// calling a vector built-in is PULSE_OVERLAY_FORMULA_INVALID_IDENT on
+// predict-compose and on Compose alike (predict-compose ran no callee
+// check before); scalar maths, the set helpers and a registered
+// lookup() pass both.
+func TestComposeOverlayFormula_BuiltinParity(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
+	p, err := pulse.New(pulse.Options{FS: fsys, Extensions: pulse.Extensions{
+		LookupTables: map[string]pulse.LookupTable{"rates": {Rows: map[string]float64{"x": 2}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	slot := func(label string) *types.Request {
+		return &types.Request{Label: label, Cohort: &types.Cohort{Filename: "ft.pulse"},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "qty", Label: "s"}}}
+	}
+	batch := func(formula string) *pulse.ComposedRequest {
+		return &pulse.ComposedRequest{
+			Requests: []*types.Request{slot("a"), slot("b")},
+			Overlays: []types.ComposeOverlaySpec{{Kind: types.OverlayKindFormula, Reference: "a", Targets: []string{"b"},
+				Params: map[string]any{"formula": formula}}},
+		}
+	}
+	cases := []struct{ formula, refused string }{
+		{"vmean([value, 1.0])", "vmean"},
+		{"sqrt(value) + dot([value], [value])", "dot"},
+		{"sqrt(value)", ""},
+		{`has_any(["a"], ["a"]) ? value : 0`, ""},
+		{`value * lookup("rates", "x")`, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.formula, func(t *testing.T) {
+			env, err := p.PredictCompose(ctx, batch(c.formula))
+			if err != nil {
+				t.Fatalf("PredictCompose: %v", err)
+			}
+			_, cerr := p.Compose(ctx, batch(c.formula))
+			if c.refused == "" {
+				if len(env.Errors) != 0 || cerr != nil {
+					t.Errorf("predict-compose errors %+v, Compose %v; want none", env.Errors, cerr)
+				}
+				return
+			}
+			if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT) ||
+				env.Errors[0].Details["unknown_identifier"] != c.refused || env.Errors[0].Details["index"] != 0 {
+				t.Errorf("predict-compose errors %+v, want one INVALID_IDENT on %s at index 0", env.Errors, c.refused)
+			}
+			if !errors.HasCode(cerr, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT) {
+				t.Errorf("Compose: %v, want PULSE_OVERLAY_FORMULA_INVALID_IDENT", cerr)
+			}
+		})
+	}
+}

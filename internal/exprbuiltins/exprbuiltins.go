@@ -88,6 +88,27 @@ func OverlayNames() []string {
 // built-in name. It is false for every non-reserved name.
 func OverlayAllowed(name string) bool { return overlayAllowedSet[name] }
 
+// setHelpers are the multi-select set helpers the shared expression
+// environment registers beside the reserved built-ins. They predate the
+// reservation and stay UNRESERVED (an embedder ExprFunction of the same
+// name shadows one), so they are not in [reserved]; every expression
+// site — ATTR_FORMULA, FILTER_EXPRESSION, total() arguments and
+// OVERLAY_FORMULA — may call them. The overlay predict gate and the
+// filter-precompute purity table read this list; internal/processing
+// pins that it registers every name.
+var setHelpers = []string{
+	"has_any", "has_all", "has_none", "popcount",
+	"set_union", "set_intersect", "set_diff", "set_xor",
+}
+
+// SetHelperNames returns a copy of the unreserved set helper names, in
+// declaration order.
+func SetHelperNames() []string {
+	out := make([]string, len(setHelpers))
+	copy(out, setHelpers)
+	return out
+}
+
 // OverlayRefused reports whether name is a reserved built-in that
 // OVERLAY_FORMULA must refuse (reserved, but outside the overlay subset).
 func OverlayRefused(name string) bool { return reservedSet[name] && !overlayAllowedSet[name] }

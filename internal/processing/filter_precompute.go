@@ -406,10 +406,10 @@ func (v *exprPurityVisitor) Visit(node *exprast.Node) {
 // fast path).
 var exprPureSetBuiltins = func() map[string]bool {
 	m := map[string]bool{
-		"has_any": true, "has_all": true, "has_none": true,
-		"popcount": true, "set_union": true, "set_intersect": true,
-		"set_diff": true, "set_xor": true,
 		exprModFuncName: true, // the builtin `%` rewrites into (expr_mod.go)
+	}
+	for _, name := range exprbuiltins.SetHelperNames() {
+		m[name] = true
 	}
 	for _, name := range exprbuiltins.Names() {
 		m[name] = true

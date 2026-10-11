@@ -99,3 +99,21 @@ func TestOverlaySubset(t *testing.T) {
 		t.Error("OverlayNames() returned the backing slice")
 	}
 }
+
+// TestSetHelperNames: the unreserved set helpers are listed (a copy),
+// never reserved and never refused in an overlay formula.
+func TestSetHelperNames(t *testing.T) {
+	names := SetHelperNames()
+	if len(names) != 8 || names[0] != "has_any" || names[7] != "set_xor" {
+		t.Fatalf("SetHelperNames = %v", names)
+	}
+	names[0] = "mutated"
+	if SetHelperNames()[0] != "has_any" {
+		t.Error("SetHelperNames returned the backing slice")
+	}
+	for _, n := range SetHelperNames() {
+		if IsReserved(n) || OverlayRefused(n) {
+			t.Errorf("%s is reserved or overlay-refused", n)
+		}
+	}
+}

@@ -30,8 +30,11 @@ regexp in schema order. Members are integer and float fields;
 `packed_bool` needs `coerce: "binary"`; categorical, `set_*`, `date`,
 `datetime` and `decimal128` are refused with `PULSE_VECTOR_MEMBER_TYPE`.
 Other codes: `PULSE_VECTOR_EMPTY`, `_DUPLICATE`, `_LABELS_MISMATCH`,
-`_UNKNOWN`, `_INVALID`; a vector no matrix names warns
-`PULSE_VECTOR_UNREFERENCED`. `Pulse.Predict` echoes the resolved members
+`_UNKNOWN`, `_INVALID`, and `_NAME_COLLISION` for a name equal to a
+schema field or to a feature output, attribute or window label of the
+request (an expression reads a vector by name); a vector no operator
+slot or expression (formula, expression filter, `total()` argument)
+names warns `PULSE_VECTOR_UNREFERENCED`. `Pulse.Predict` echoes the resolved members
 as `resolved_vectors`.
 
 ## Matrices

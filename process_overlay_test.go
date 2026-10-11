@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -398,5 +400,67 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 			codes = append(codes, e.Code)
 		}
 		t.Errorf("Predict on bare instance: missing PULSE_OVERLAY_FORMULA_INVALID_IDENT; got %v", codes)
+	}
+}
+
+// TestOverlayFormula_PredictRuntimeCalleeParity: on a request host the
+// predict gate admits exactly the callees the runtime overlay compile
+// registers — set helpers always, lookup() only with a LookupTable, the
+// scalar maths — and refuses a vector built-in alongside the runtime
+// (PULSE_OVERLAY_FORMULA_INVALID_IDENT on both).
+func TestOverlayFormula_PredictRuntimeCalleeParity(t *testing.T) {
+	memFs, _ := crosstabOverlayPulseFile(t)
+	withTable, err := New(Options{FS: memFs, Extensions: Extensions{
+		LookupTables: map[string]LookupTable{"rates": {Rows: map[string]float64{"x": 2}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bare, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := afero.ReadFile(memFs, "overlay.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name    string
+		p       *Pulse
+		formula string
+		refused string // "" = both accept
+	}{
+		{"has_any", bare, `has_any(["a"], ["a"]) ? cell : 0`, ""},
+		{"set_union", bare, `cell + len(set_union(["a"], ["b"]))`, ""},
+		{"lookup_with_table", withTable, `cell * lookup("rates", "x")`, ""},
+		{"sqrt", bare, `sqrt(cell)`, ""},
+		{"vmean", bare, `vmean([cell, 1.0])`, "vmean"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := crosstabOverlayRequest()
+			params, _ := json.Marshal(map[string]any{"formula": c.formula})
+			req.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindFormula, Scope: types.OverlayScopeCell, Params: params}}
+			env, err := c.p.PredictBytes(context.Background(), data, req)
+			if err != nil {
+				t.Fatalf("PredictBytes: %v", err)
+			}
+			_, perr := c.p.Process(context.Background(), req)
+			if c.refused == "" {
+				if len(env.Errors) != 0 {
+					t.Errorf("predict errors = %+v, want none", env.Errors)
+				}
+				if perr != nil {
+					t.Errorf("Process: %v", perr)
+				}
+				return
+			}
+			if len(env.Errors) == 0 || env.Errors[0].Code != "PULSE_OVERLAY_FORMULA_INVALID_IDENT" || env.Errors[0].Details["unknown_identifier"] != c.refused {
+				t.Errorf("predict errors = %+v, want INVALID_IDENT on %s", env.Errors, c.refused)
+			}
+			if !perrors.HasCode(perr, perrors.PULSE_OVERLAY_FORMULA_INVALID_IDENT) || !strings.Contains(perr.Error(), c.refused) {
+				t.Errorf("Process err = %v, want PULSE_OVERLAY_FORMULA_INVALID_IDENT naming %s", perr, c.refused)
+			}
+		})
 	}
 }

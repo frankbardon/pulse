@@ -25,6 +25,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `12_mahalanobis.json` | `ATTR_MAHALANOBIS` | Multivariate outlier score (D² and its chi-square p) across age and income; `fit_on` fits on a subset while scoring every row |
 | `13_pc_score.json` | `ATTR_PC_SCORE` | Standardized principal component scores (unrotated PC1 and a varimax-rotated PC2 fitted on the control arm) averaged by treatment |
 | `14_factor_score.json` | `ATTR_FACTOR_SCORE` | Factor scores (regression on a minres fit, Bartlett on an ML fit) of one factor behind three measures, averaged by treatment; a Heywood case warns |
+| `15_vector_battery.json` | `ATTR_FORMULA` | A named vector read by formulas: the mean of the valid members when at least 2 of 3 answered (else null), and a flat-profile (straight-lining) flag `vsd(...) == 0` |
 
 See `pulse skills show attribute-composition` for the full operator
 contract, the `ATTR_FORMULA` allowlist, and composition rules.

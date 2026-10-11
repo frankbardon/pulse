@@ -333,9 +333,18 @@ func hasBaselinePosition(spec *types.OverlaySpec) bool {
 // the set. The vector families (vsum ... vnormalize) stay out, so they
 // fire the unknown-function arm exactly as the runtime compile refuses
 // them.
+//
+// The set admits exactly what the runtime overlay compile registers
+// (processing's setExprOptions plus the registry's own options): the
+// unreserved set helpers (`exprbuiltins.SetHelperNames` — has_any ...
+// set_xor) always, and `lookup` when the instance registers any
+// LookupTable.
 func buildFormulaAllowedFuncs(opts *PredictOptions) map[string]struct{} {
 	out := map[string]struct{}{}
 	for _, name := range exprbuiltins.OverlayNames() {
+		out[name] = struct{}{}
+	}
+	for _, name := range exprbuiltins.SetHelperNames() {
 		out[name] = struct{}{}
 	}
 	snap := extensionsFromOpts(opts)
@@ -347,6 +356,9 @@ func buildFormulaAllowedFuncs(opts *PredictOptions) map[string]struct{} {
 			continue
 		}
 		out[fn.Name] = struct{}{}
+	}
+	if len(snap.LookupTables) > 0 {
+		out["lookup"] = struct{}{}
 	}
 	return out
 }

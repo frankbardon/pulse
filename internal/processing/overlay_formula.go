@@ -13,6 +13,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -734,41 +735,32 @@ func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string
 // the predict gate raises for the same formula. A formula that fails
 // to parse returns nil so expr.Compile reports the parse error.
 func overlayBuiltinRefusal(spec *types.OverlaySpec, formula string) *errors.CodedError {
-	tree, err := exprparser.Parse(formula)
-	if err != nil {
-		return nil
-	}
-	v := &overlayBuiltinCallVisitor{}
-	exprast.Walk(&tree.Node, v)
-	if v.refused == "" {
+	refused := exprident.FirstCallee(formula, exprbuiltins.OverlayRefused)
+	if refused == "" {
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(
 		errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-		"overlay "+string(spec.Kind)+" formula calls "+v.refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
+		"overlay "+string(spec.Kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
 		map[string]any{
 			"kind":               string(spec.Kind),
-			"unknown_identifier": v.refused,
+			"unknown_identifier": refused,
 			"allowed_builtins":   exprbuiltins.OverlayNames(),
 			"formula":            formula,
 		})
 }
 
-// overlayBuiltinCallVisitor records the first refused reserved built-in
-// called by name.
-type overlayBuiltinCallVisitor struct{ refused string }
-
-func (v *overlayBuiltinCallVisitor) Visit(node *exprast.Node) {
-	if v.refused != "" || node == nil || *node == nil {
-		return
+// composeOverlayBuiltinRefusal is overlayBuiltinRefusal for a
+// Compose-host spec at index i: PULSE_OVERLAY_FORMULA_INVALID_IDENT for
+// the first vector built-in the formula calls (details also carry
+// "index"), nil when it calls none.
+func composeOverlayBuiltinRefusal(spec *types.ComposeOverlaySpec, formula string, i int) *errors.CodedError {
+	cerr := overlayBuiltinRefusal(&types.OverlaySpec{Kind: spec.Kind}, formula)
+	if cerr == nil {
+		return nil
 	}
-	c, ok := (*node).(*exprast.CallNode)
-	if !ok {
-		return
-	}
-	if id, ok := c.Callee.(*exprast.IdentifierNode); ok && exprbuiltins.OverlayRefused(id.Value) {
-		v.refused = id.Value
-	}
+	cerr.Details["index"] = i
+	return cerr
 }
 
 // buildFormulaPrototypeEnvMatrix returns the prototype env the
