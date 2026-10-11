@@ -7274,7 +7274,7 @@
             "name": "between",
             "type": "object",
             "required": true,
-            "description": "The grouper whose buckets are compared: a grouper spec {type, field | vector | fields, params, include, interval} as in groups (GROUP_KMEANS reads vector / fields). Any built-in grouper but the date family; it takes the matrix's weight and no weight or tz of its own."
+            "description": "The grouper whose buckets are compared: a grouper spec {type, field | vector | fields, params, include, interval} as in groups (GROUP_KMEANS reads vector / fields). Any built-in grouper or a registered extension grouper; it takes the matrix's weight and no weight of its own, and a tz only on a date-family grouper (GROUP_DATE, GROUP_DATE_RANGES), which reads its zone like a groups slot."
           },
           {
             "name": "metric",
@@ -10484,7 +10484,7 @@
       },
       {
         "name": "op-mat-distance",
-        "description": "Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between, any non-date built-in) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids."
+        "description": "Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids."
       },
       {
         "name": "op-mat-factor",
@@ -15245,4 +15245,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 446676cd6736625cff712309b7ec245d78a59ce2441bf4af7652acfcf7582a27
+// golden-hash: 5bb7037d92c51ec7bbe94136b91a9b6d9bc6a8059bf74feaf1fe6a4771984a86

@@ -154,17 +154,20 @@ func DistanceMetrics() []string {
 }
 
 // DistanceBetweenTypes returns the built-in groupers MAT_DISTANCE's
-// params.between accepts, in AllGroupTypes order: every built-in but
-// the date family (GROUP_DATE, GROUP_DATE_RANGES), whose zone the
-// request-level zone resolution never reaches inside params.
+// params.between accepts, in AllGroupTypes order: every built-in. The
+// date family (GROUP_DATE, GROUP_DATE_RANGES) reads its zone like a
+// top-level grouper — the zone pass walks the between as the slot
+// "matrices[i].params.between" (internal/descriptor.ResolveZones) and
+// ZonedRequest writes an inherited zone into its `tz`. A registered
+// extension grouper is accepted too (ResolveMatricesRouted's ext).
 func DistanceBetweenTypes() []types.GroupType {
-	var out []types.GroupType
-	for _, t := range types.AllGroupTypes() {
-		if t != types.GROUP_DATE && t != types.GROUP_DATE_RANGES {
-			out = append(out, t)
-		}
-	}
-	return out
+	return types.AllGroupTypes()
+}
+
+// IsDateBetween reports whether t is a date-family grouper, the only
+// between types that accept a `tz`.
+func IsDateBetween(t types.GroupType) bool {
+	return t == types.GROUP_DATE || t == types.GROUP_DATE_RANGES
 }
 
 // MAT_PCA params.on values.
@@ -514,14 +517,17 @@ type summaryParams struct {
 // The result is index-aligned with req.Matrices. Like Resolve it reads
 // only the schema.
 func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool) ([]Matrix, *errors.CodedError) {
-	return ResolveMatricesRouted(req, schema, known, nil)
+	return ResolveMatricesRouted(req, schema, known, nil, nil)
 }
 
 // ResolveMatricesRouted is ResolveMatrices with route mapping a
 // MAT_DISTANCE params.between grouper type to the built-in it executes
 // as — the instance's view, where a hidden type routes to an unknown
-// name (ResolveGroups' route); nil is the identity.
-func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool, route func(types.GroupType) types.GroupType) ([]Matrix, *errors.CodedError) {
+// name (ResolveGroups' route); nil is the identity. ext reports whether
+// a routed between type that is not a built-in is a registered
+// extension grouper (ResolveGroups' ext: it is then accepted, its
+// member set judged); nil means none is.
+func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool, route func(types.GroupType) types.GroupType, ext func(string) bool) ([]Matrix, *errors.CodedError) {
 	if route == nil {
 		route = func(t types.GroupType) types.GroupType { return t }
 	}
@@ -610,7 +616,7 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 		if err := resolveFactor(at, &m); err != nil {
 			return nil, err
 		}
-		if err := resolveDistance(at, req.Vectors, resolved, schema, route, &m); err != nil {
+		if err := resolveDistance(at, req.Vectors, resolved, schema, route, ext, &m); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -999,17 +1005,24 @@ func betweenRequired(at string) *errors.CodedError {
 
 // resolveDistance resolves MAT_DISTANCE's params.between against the
 // request's vectors and the schema (route: the instance's view of the
-// grouper type). The grouper decodes strictly as a types.Group; its
-// type must be one of DistanceBetweenTypes (an unknown or hidden type
-// is unknown_between_type, the date family between_unsupported); it
-// may not carry its own weight (the matrix's weight applies) or tz. A
-// GROUP_KMEANS between resolves its vector / fields and params by the
-// grouper rule (ResolveGroups' leaf, slot "<at>.params.between") and
-// is rewritten for the factory (members into Fields); any other
-// grouper refuses a vector input and must name a schema field. The
+// grouper type; ext: whether a non-built-in routed type is a registered
+// extension grouper). The grouper decodes strictly as a types.Group;
+// its type must be a built-in (DistanceBetweenTypes) or a registered
+// extension (an unknown or hidden type is unknown_between_type); it may
+// not carry its own weight (the matrix's weight applies), and only a
+// date-family between (IsDateBetween) may carry a `tz` — the zone pass
+// (internal/descriptor.ResolveZones, slot "<at>.params.between")
+// resolves and refuses it like a top-level grouper's, and writes an
+// inherited zone into it (ZonedRequest). A GROUP_KMEANS between
+// resolves its vector / fields and params by the grouper rule
+// (ResolveGroups' leaf, slot "<at>.params.between") and is rewritten
+// for the factory (members into Fields); an extension between's
+// vector / fields are judged by the member rules and rewritten the
+// same way (its params its own business); every other between, and an
+// extension one without a vector input, must name a schema field. The
 // missing mode is listwise only (pairwise_unsupported): a centroid
 // compares one row set.
-func resolveDistance(at string, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema, route func(types.GroupType) types.GroupType, m *Matrix) *errors.CodedError {
+func resolveDistance(at string, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema, route func(types.GroupType) types.GroupType, ext func(string) bool, m *Matrix) *errors.CodedError {
 	if m.Type != types.MAT_DISTANCE {
 		return nil
 	}
@@ -1025,30 +1038,42 @@ func resolveDistance(at string, specs []types.VectorSpec, resolved []Resolved, s
 		return matrixInvalid(at, "bad_params", bt+" does not decode as a grouper: "+err.Error(), map[string]any{"param": "between"})
 	}
 	typ := route(g.Type)
+	builtin := slices.Contains(DistanceBetweenTypes(), typ)
+	extension := isExtension(ext, string(typ), builtin)
 	switch {
 	case g.Type == "":
 		return matrixInvalid(at, "bad_params", bt+" needs a grouper type", map[string]any{"param": "between"})
-	case typ == types.GROUP_DATE || typ == types.GROUP_DATE_RANGES:
-		return matrixInvalid(at, "between_unsupported", bt+" ("+string(g.Type)+") is not supported: a date-family grouper's zone is not resolved inside params; bucket the date with a feature or attribute and group by that",
-			map[string]any{"param": "between", "type": string(g.Type), "valid": groupTypeNames(DistanceBetweenTypes())})
-	case !slices.Contains(DistanceBetweenTypes(), typ):
+	case !builtin && !extension:
 		return matrixInvalid(at, "unknown_between_type", bt+" references unknown grouper type "+strconv.Quote(string(g.Type)),
 			map[string]any{"param": "between", "type": string(g.Type), "valid": groupTypeNames(DistanceBetweenTypes())})
 	case !g.Weight.IsZero():
 		return matrixInvalid(at, "bad_params", bt+".weight is not accepted: the between grouper reads the matrix's own weight",
 			map[string]any{"param": "between.weight"})
-	case g.TimeZone != "":
-		return matrixInvalid(at, "bad_params", bt+".tz is not accepted", map[string]any{"param": "between.tz"})
+	case g.TimeZone != "" && !IsDateBetween(typ):
+		return matrixInvalid(at, "bad_params", bt+".tz is accepted only on a date-family between (GROUP_DATE, GROUP_DATE_RANGES)",
+			map[string]any{"param": "between.tz"})
 	}
-	in, err := resolveGroup(bt, &g, typ, specs, resolved, schema)
-	if err != nil {
-		return err
+	var in GroupInput
+	if extension {
+		mem, err := resolveExtensionMembers(bt, g.Vector, g.Fields, specs, resolved, schema, func(_, reason, msg string, extra map[string]any) *errors.CodedError {
+			return matrixInvalid(at, reason, msg, extra)
+		})
+		if err != nil {
+			return err
+		}
+		in = GroupInput{Slot: bt, Members: mem, Extension: true}
+	} else {
+		var err *errors.CodedError
+		if in, err = resolveGroup(bt, &g, typ, specs, resolved, schema); err != nil {
+			return err
+		}
 	}
 	cp := g
 	if in.Has() {
 		cp.Fields = append([]string(nil), in.Members.Members...)
 		cp.Vector = ""
-	} else {
+	}
+	if !in.Has() || (extension && g.Field != "") {
 		if g.Field == "" {
 			return matrixInvalid(at, "bad_params", bt+" ("+string(g.Type)+") needs a field", map[string]any{"param": "between.field"})
 		}
@@ -1375,9 +1400,10 @@ func appendControlFields(members []string, ok bool, at string, spec types.Matrix
 }
 
 // appendBetweenFields appends the columns a MAT_DISTANCE spec's
-// params.between reads — its field, or a GROUP_KMEANS between's inline
-// fields (a named vector's members ride Members(req.Vectors)); an
-// undecodable between, or a column the schema lacks, clears ok.
+// params.between reads — its field, and a vector-input between's inline
+// fields (GROUP_KMEANS, or an extension grouper, which may set both; a
+// named vector's members ride Members(req.Vectors)); an undecodable
+// between, or a column the schema lacks, clears ok.
 func appendBetweenFields(members []string, ok bool, at string, spec types.MatrixSpec, schema *encoding.Schema) ([]string, bool) {
 	g, has := SpecBetween(spec)
 	if !has {
@@ -1388,10 +1414,10 @@ func appendBetweenFields(members []string, ok bool, at string, spec types.Matrix
 		if err != nil {
 			return members, false
 		}
-		return append(members, r.Members...), ok
+		members = append(members, r.Members...)
 	}
 	if g.Field == "" {
-		return members, ok && g.Vector != ""
+		return members, ok && (g.Vector != "" || len(g.Fields) > 0)
 	}
 	if schema == nil || schema.Field(g.Field) == nil {
 		return members, false

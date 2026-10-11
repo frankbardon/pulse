@@ -58,11 +58,10 @@ func TestResolveMatrices_Distance(t *testing.T) {
 		{"pairwise", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "missing": "pairwise"}`, "pairwise_unsupported", errors.SERVICE_VALIDATION},
 		{"unknown key", `{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "ddof": 1}`, "bad_params", errors.SERVICE_VALIDATION},
 		{"between unknown key", `{"between": {"type": "GROUP_CATEGORY", "field": "region", "nope": 1}}`, "bad_params", errors.SERVICE_VALIDATION},
-		{"date between", `{"between": {"type": "GROUP_DATE", "field": "day"}}`, "between_unsupported", errors.SERVICE_VALIDATION},
-		{"date ranges between", `{"between": {"type": "GROUP_DATE_RANGES", "field": "day"}}`, "between_unsupported", errors.SERVICE_VALIDATION},
 		{"unknown between", `{"between": {"type": "GROUP_NOPE", "field": "region"}}`, "unknown_between_type", errors.SERVICE_VALIDATION},
 		{"between weight", `{"between": {"type": "GROUP_CATEGORY", "field": "region", "weight": null}}`, "bad_params", errors.SERVICE_VALIDATION},
 		{"between tz", `{"between": {"type": "GROUP_CATEGORY", "field": "region", "tz": "UTC"}}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"extension type unregistered", `{"between": {"type": "GROUP_ACME_PARITY", "field": "region"}}`, "unknown_between_type", errors.SERVICE_VALIDATION},
 		{"no field", `{"between": {"type": "GROUP_CATEGORY"}}`, "bad_params", errors.SERVICE_VALIDATION},
 		{"unknown field", `{"between": {"type": "GROUP_CATEGORY", "field": "nope"}}`, "unknown_field", errors.SERVICE_VALIDATION},
 		{"vector on a field grouper", `{"between": {"type": "GROUP_CATEGORY", "fields": ["q_1"]}}`, "vector_not_accepted", errors.SERVICE_VALIDATION},
@@ -78,6 +77,68 @@ func TestResolveMatrices_Distance(t *testing.T) {
 			}
 		})
 	}
+	// TODO #411: the date family resolves as a between (its zone is the
+	// zone pass's, at slot matrices[i].params.between) and may carry a
+	// tz; no other between may.
+	t.Run("date family", func(t *testing.T) {
+		for _, params := range []string{
+			`{"between": {"type": "GROUP_DATE", "field": "ts", "params": {"component": "day"}}}`,
+			`{"between": {"type": "GROUP_DATE", "field": "ts", "tz": "Europe/Berlin"}}`,
+			`{"between": {"type": "GROUP_DATE_RANGES", "field": "day", "params": {"ranges": [{"label": "a", "start": "2026-01-01", "end": "2026-01-31"}]}}}`,
+		} {
+			got, err := ResolveMatrices(&types.Request{Matrices: []types.MatrixSpec{distanceMatrixSpec(params)}}, testSchema(), nil)
+			if err != nil {
+				t.Fatalf("%s refused: %v", params, err)
+			}
+			b := got[0].Between
+			var want types.Group
+			if jerr := json.Unmarshal([]byte(params), &struct {
+				Between *types.Group `json:"between"`
+			}{&want}); jerr != nil {
+				t.Fatal(jerr)
+			}
+			if b == nil || b.Type != want.Type || b.Field != want.Field || b.TimeZone != want.TimeZone || string(b.Params) != string(want.Params) {
+				t.Errorf("%s: between %+v, want %+v", params, b, want)
+			}
+		}
+	})
+	// TODO #411: a registered extension grouper is a between; its
+	// vector / fields are judged by the member rules and rewritten into
+	// Fields, its field (when set) must exist, and it takes no tz.
+	t.Run("extension between", func(t *testing.T) {
+		ext := func(name string) bool { return name == "GROUP_ACME_PARITY" }
+		resolve := func(params string) ([]Matrix, *errors.CodedError) {
+			return ResolveMatricesRouted(&types.Request{Vectors: vec, Matrices: []types.MatrixSpec{distanceMatrixSpec(params)}}, testSchema(), nil, nil, ext)
+		}
+		got, err := resolve(`{"between": {"type": "GROUP_ACME_PARITY", "field": "region", "params": {"own": 1}}}`)
+		if err != nil {
+			t.Fatalf("field extension between refused: %v", err)
+		}
+		if b := got[0].Between; b.Field != "region" || string(b.Params) != `{"own": 1}` || got[0].Streamable || got[0].Mergeable {
+			t.Errorf("field extension between = %+v (streamable %v)", b, got[0].Streamable)
+		}
+		got, err = resolve(`{"between": {"type": "GROUP_ACME_PARITY", "vector": "seg"}}`)
+		if err != nil {
+			t.Fatalf("vector extension between refused: %v", err)
+		}
+		if b := got[0].Between; b.Vector != "" || !slices.Equal(b.Fields, []string{"score", "mid"}) {
+			t.Errorf("vector extension between = %+v", b)
+		}
+		for _, c := range []struct{ params, reason string }{
+			{`{"between": {"type": "GROUP_ACME_PARITY"}}`, "bad_params"},
+			{`{"between": {"type": "GROUP_ACME_PARITY", "field": "nope"}}`, "unknown_field"},
+			{`{"between": {"type": "GROUP_ACME_PARITY", "vector": "seg", "field": "nope"}}`, "unknown_field"},
+			{`{"between": {"type": "GROUP_ACME_PARITY", "vector": "seg", "fields": ["q_1"]}}`, "vector_and_fields"},
+			{`{"between": {"type": "GROUP_ACME_PARITY", "field": "region", "tz": "UTC"}}`, "bad_params"},
+		} {
+			if _, err := resolve(c.params); err == nil || err.Details["reason"] != c.reason {
+				t.Errorf("%s: %v, want %s", c.params, err, c.reason)
+			}
+		}
+		if _, err := resolve(`{"between": {"type": "GROUP_ACME_PARITY", "vector": "nope"}}`); err == nil || err.Code != errors.PULSE_VECTOR_UNKNOWN {
+			t.Errorf("unknown vector: %v", err)
+		}
+	})
 	t.Run("hidden between", func(t *testing.T) {
 		route := func(g types.GroupType) types.GroupType {
 			if g == types.GROUP_KMEANS {
@@ -86,7 +147,7 @@ func TestResolveMatrices_Distance(t *testing.T) {
 			return g
 		}
 		req := &types.Request{Matrices: []types.MatrixSpec{distanceMatrixSpec(`{"between": {"type": "GROUP_KMEANS", "fields": ["q_1"], "params": {"k": 2}}}`)}}
-		_, err := ResolveMatricesRouted(req, testSchema(), nil, route)
+		_, err := ResolveMatricesRouted(req, testSchema(), nil, route, nil)
 		if err == nil || err.Details["reason"] != "unknown_between_type" {
 			t.Fatalf("hidden between: %v", err)
 		}
@@ -114,6 +175,9 @@ func TestMatrixSpec_DistanceStreamability(t *testing.T) {
 		{"GROUP_ROUNDED", true, false},
 		{"GROUP_QUANTILE", false, false},
 		{"GROUP_KMEANS", false, false},
+		{"GROUP_DATE", false, false},
+		{"GROUP_DATE_RANGES", true, true},
+		{"GROUP_ACME_PARITY", false, false}, // an extension: buffered, serial
 	} {
 		s := distanceMatrixSpec(`{"between": {"type": "` + c.between + `", "field": "x"}}`)
 		if s.Streamable() != c.stream || s.Mergeable() != c.mergeable {

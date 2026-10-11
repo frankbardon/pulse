@@ -38,7 +38,7 @@ branch: matrix-extensions-hardening
 - [ ] **#403** (10. Vector & matrix — operators › Follow-ups from U25) Named populations: save a fitted vector population (mean, covariance, loadings) under a name and score other cohorts against it, instead of re-fitting with `fit_on` per request
 - [ ] **#406** (10. Vector & matrix — operators › Follow-ups from U25) More GPA rotations for `MAT_FACTOR` / `MAT_PCA`: quartimax, geomin, oblimax, and the `GPArotation` criteria beyond varimax, promax and oblimin, on the shared rotation engine
 - [x] **#408** (10. Vector & matrix — operators › Follow-ups from U25) One singularity rule across the multivariate stack: the tests decide singular by `gonum` `SymEigen` against `RankTolerance`, while `MAT_PCA` is singular only when `InverseSPD` fails; align them and add the borderline case to the oracle
-- [ ] **#411** (10. Vector & matrix — operators › Follow-ups from U25) `MAT_DISTANCE` `between` refuses date-family groupers (the time-zone pass does not reach `params`) and extension groupers; resolve the zone for the date family and give extension groupers a centroid hook, or document the refusal as final
+- [x] **#411** (10. Vector & matrix — operators › Follow-ups from U25) `MAT_DISTANCE` `between` refuses date-family groupers (the time-zone pass does not reach `params`) and extension groupers; resolve the zone for the date family and give extension groupers a centroid hook, or document the refusal as final
 - [x] **#415** (10. Vector & matrix — operators › Follow-ups from U25) `ATTR_FACTOR_SCORE`: a refusal (`PULSE_MATRIX_NOT_IDENTIFIED` / `_HEYWOOD`) drops the fit's not-converged note; carry it on the refusal warning
 
 ## Scope
@@ -92,7 +92,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-extensions
 | Named populations | [U25](U25-multivariate-tests-segmentation.md) #403 |
 | More GPA rotations | [U25](U25-multivariate-tests-segmentation.md) #406 |
 | ~~Singularity rule~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #408 |
-| `MAT_DISTANCE` over date and extension groupers | [U25](U25-multivariate-tests-segmentation.md) #411 |
+| ~~`MAT_DISTANCE` over date and extension groupers~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #411 |
 | ~~Factor-score refusal drops the not-converged note~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #415 |
 
 ## Human inputs & decisions

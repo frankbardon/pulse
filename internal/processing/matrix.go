@@ -121,6 +121,11 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 			return ""
 		}
 		return t
+	}, func(name string) bool {
+		// A registered extension grouper is a MAT_DISTANCE between like
+		// a built-in (ResolveGroups' ext).
+		_, ok := exts.LookupGrouper(types.GroupType(name))
+		return ok
 	})
 	if verr != nil {
 		return nil, verr

@@ -184,11 +184,16 @@ is. Without the knob the output is byte-identical to before.
 
 `MAT_DISTANCE` answers "how far apart are the segments?": a grouper in
 `params.between` cuts the rows into buckets — `GROUP_CATEGORY`,
-`GROUP_KMEANS` or any other built-in but the date family — each bucket's
+`GROUP_KMEANS`, any other built-in or a registered extension grouper —
+each bucket's
 centroid is its (weighted) mean of every member, and the `primary` is the
 k × k distance matrix between centroids, keyed by the bucket labels in the
 grouper's own order (`cluster_1` … by size for k-means), zero on the
-diagonal.
+diagonal. A date-family between (`GROUP_DATE`, `GROUP_DATE_RANGES`) reads
+local calendar days in its own `tz`, else the request `time_zone`, exactly
+like a `groups` slot; predict echoes the zone at slot
+`matrices[i].params.between`. An extension between buckets with its
+buffered `Group`, so the spec runs buffered and serial.
 
 ```json
 {"type": "MAT_DISTANCE", "fields": ["age", "income"],

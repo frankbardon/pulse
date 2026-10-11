@@ -330,3 +330,72 @@ func TestZonedRequest(t *testing.T) {
 		t.Fatalf("ZonedFacetRequest: %+v", fgot.Filterers[0])
 	}
 }
+
+// TestZonedRequest_DistanceBetween (TODO #411): a MAT_DISTANCE
+// params.between is the zone slot "matrices[i].params.between" — it
+// inherits, refuses and is written like a top-level grouper. The write
+// re-encodes a COPY of the params with the between's tz and every other
+// key kept; a slot-sourced or date-field between, and every other
+// matrix, is left as is.
+func TestZonedRequest_DistanceBetween(t *testing.T) {
+	spec := func(between string) types.MatrixSpec {
+		return types.MatrixSpec{Type: types.MAT_DISTANCE, Fields: []string{"n"}, Params: json.RawMessage(`{"between": ` + between + `, "metric": "cosine"}`)}
+	}
+	req := &types.Request{TimeZone: "Europe/Berlin", Matrices: []types.MatrixSpec{
+		spec(`{"type": "GROUP_DATE", "field": "ts", "params": {"component": "day"}}`),
+		spec(`{"type": "GROUP_DATE", "field": "ts", "tz": "Asia/Tokyo"}`),
+		spec(`{"type": "GROUP_DATE", "field": "d"}`),
+		spec(`{"type": "GROUP_CATEGORY", "field": "n"}`),
+		{Type: types.MAT_COVARIANCE, Fields: []string{"n"}},
+	}}
+	zs, err := ResolveZones(req, zoneSchema(), "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slots := map[string]descriptor.ResolvedZone{}
+	for _, z := range zs {
+		slots[z.Slot] = z
+	}
+	if z := slots["matrices[0].params.between"]; z.TZ == nil || *z.TZ != "Europe/Berlin" || z.Source != descriptor.ZoneSourceRequest {
+		t.Errorf("inherited between zone %+v", z)
+	}
+	if z := slots["matrices[1].params.between"]; z.TZ == nil || *z.TZ != "Asia/Tokyo" || z.Source != descriptor.ZoneSourceSlot {
+		t.Errorf("slot between zone %+v", z)
+	}
+	if z, ok := slots["matrices[2].params.between"]; !ok || z.TZ != nil {
+		t.Errorf("date-field between zone %+v (listed %v)", z, ok)
+	}
+	if len(zs) != 3 {
+		t.Errorf("zones %+v: only the date-family betweens are slots", zs)
+	}
+	before := string(req.Matrices[0].Params)
+	got := ZonedRequest(req, zs, nil)
+	var p struct {
+		Between types.Group `json:"between"`
+		Metric  string      `json:"metric"`
+	}
+	if err := json.Unmarshal(got.Matrices[0].Params, &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Between.TimeZone != "Europe/Berlin" || p.Between.Field != "ts" || string(p.Between.Params) != `{"component":"day"}` || p.Metric != "cosine" {
+		t.Errorf("zoned between params %s", got.Matrices[0].Params)
+	}
+	for i := 1; i < len(req.Matrices); i++ {
+		if string(got.Matrices[i].Params) != string(req.Matrices[i].Params) {
+			t.Errorf("matrices[%d] rewritten: %s", i, got.Matrices[i].Params)
+		}
+	}
+	if string(req.Matrices[0].Params) != before {
+		t.Error("the input request was mutated")
+	}
+
+	// Refusals: tz on a between that is not zone-capable; tz on a
+	// date-field between.
+	for _, between := range []string{`{"type": "GROUP_CATEGORY", "field": "n", "tz": "UTC"}`, `{"type": "GROUP_DATE", "field": "d", "tz": "UTC"}`} {
+		_, err := ResolveZones(&types.Request{Matrices: []types.MatrixSpec{spec(between)}}, zoneSchema(), "", nil, nil)
+		ce, ok := err.(*errors.CodedError)
+		if !ok || ce.Code != errors.PROCESSING_CONFIG || ce.Details["slot"] != "matrices[0].params.between" {
+			t.Errorf("%s: %v", between, err)
+		}
+	}
+}

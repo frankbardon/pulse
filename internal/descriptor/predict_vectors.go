@@ -47,11 +47,11 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // records is the cohort's record count (-1 when unknown): a buffered
 // spec's RowBufferBytes is records × vectors.Matrix.RowBytes, added to
 // EstimatedBytes.
-func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, blocks, records int64) {
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, records int64) {
 	if req == nil || len(req.Matrices) == 0 {
 		return
 	}
-	plans, err := resolveMatricesFor(req, schema, inst)
+	plans, err := resolveMatricesFor(req, schema, snap, inst)
 	if err != nil {
 		return
 	}

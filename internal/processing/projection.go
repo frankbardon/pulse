@@ -427,6 +427,22 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				addAllKnown(inputs)
 			}
 		}
+		// A MAT_DISTANCE params.between extension grouper reads what
+		// its FieldInputs hook declares, exactly as in Request.Groups.
+		for _, m := range req.Matrices {
+			g, has := vectors.SpecBetween(m)
+			if !has {
+				continue
+			}
+			if _, custom := ext.Groupers[g.Type]; custom {
+				inputs, ok := ext.FieldInputsFor("grouper", string(g.Type), g.Params)
+				if !ok {
+					out.Widen()
+					return out
+				}
+				addAllKnown(inputs)
+			}
+		}
 		for _, w := range req.Windows {
 			if w == nil {
 				continue

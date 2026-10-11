@@ -377,6 +377,15 @@ probe verifies the claim in BOTH directions
 to `false` — so a multi-key factory is refused rather than silently
 admitted as single-key.
 
+A registered grouper is also a `MAT_DISTANCE` `params.between`, judged
+like a built-in (its `vector` / `fields` by the member rules and handed
+to the factory as literal `Fields`; a `field` must name a schema column;
+no own `weight` or `tz`). No extra hook is needed: the engine buckets
+the rows with your buffered `Group` in one whole-set pass at finalize,
+so the spec is buffered and serial whatever `Streamable` declares, its
+bucket keys alphabetical (or the `include` order). Projection reads the
+`FieldInputs` hook exactly as for a `groups` slot.
+
 Groupers and filterers are authored against `extend` too. A grouper's
 buffered `Group(rows extend.Rows, field)` returns
 `map[string][]int` — row INDICES into `rows`, which the adapter maps

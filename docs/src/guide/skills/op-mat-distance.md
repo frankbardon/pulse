@@ -1,6 +1,6 @@
 ```yaml
 name: op-mat-distance
-description: Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between, any non-date built-in) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids.
+description: Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids.
 kind: operator
 category: MAT
 operator: MAT_DISTANCE
@@ -28,7 +28,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `between` | grouper spec | required | `{type, field \| vector \| fields, params, include, interval}` as in `groups`; no date-family grouper; no own `weight` / `tz`. |
+| `between` | grouper spec | required | `{type, field \| vector \| fields, params, include, interval}` as in `groups`, extension groupers too; no own `weight`; `tz` only on a date-family grouper. |
 | `metric` | `euclidean` \| `sqeuclidean` \| `manhattan` \| `chebyshev` \| `cosine` \| `mahalanobis` | `euclidean` | `stats::dist` forms; cosine = 1 − cos; mahalanobis over the pooled within-bucket covariance, on raw centroids. |
 | `standardize` | bool | `false` | z-score members over the bucketed rows first (R `scale()`). |
 | `missing`, `max_drop_share`, `weight`, `encoding` | | | `listwise` only; rest as [`op-mat-correlation`](op-mat-correlation.md). |
@@ -49,7 +49,8 @@ Integer / float members.
 
 ## Gotchas
 
-- Streams and merges when `between` does; a whole-set grouper buffers and runs serially.
+- Streams and merges when `between` does; a whole-set or extension grouper buffers and runs serially.
+- A date-family between reads its zone like a top-level grouper: its `tz`, else the request `time_zone`; predict echoes it at slot `matrices[i].params.between`.
 - A `GROUP_KMEANS` between buffers and takes frequency weights only.
 - Massless bucket: null centroid, `PULSE_MATRIX_INSUFFICIENT_N` scope `buckets`; mahalanobis with N* ≤ k: scope `pooled`; collinear members: `PULSE_MATRIX_SINGULAR`, distances null.
 - Distances describe centres, not overlap; no p-values.

@@ -91,7 +91,7 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		}
 	}
 	if len(req.Matrices) > 0 {
-		plans, err := resolveMatricesFor(req, schema, inst)
+		plans, err := resolveMatricesFor(req, schema, nil, inst)
 		if err == nil {
 			for _, m := range plans {
 				if f, ok := limits.Evaluate(l, limits.MaxMatrixDim, int64(len(m.Columns())), limits.Certain); ok {
@@ -297,7 +297,7 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	if len(req.Matrices) == 0 {
 		return 0
 	}
-	plans, err := resolveMatricesFor(req, schema, inst)
+	plans, err := resolveMatricesFor(req, schema, nil, inst)
 	if err != nil {
 		return 0
 	}

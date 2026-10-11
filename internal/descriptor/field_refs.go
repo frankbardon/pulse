@@ -559,7 +559,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	// vector-XOR-fields shape, encoding, result-name uniqueness, params,
 	// the named vector (PULSE_VECTOR_UNKNOWN) or the inline fields (the
 	// vector rules). A type the instance hides is an unknown type.
-	if _, verr := resolveMatricesFor(req, schema, inst); verr != nil {
+	if _, verr := resolveMatricesFor(req, schema, w.snap, inst); verr != nil {
 		w.out = append(w.out, verr)
 		return w.out
 	}
@@ -600,13 +600,22 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 // resolution every descriptor site reads (the field-reference walk,
 // predict, the limits): a hidden matrix type is unknown, and a
 // MAT_DISTANCE params.between grouper type routes through the instance
-// (a hidden grouper is unknown).
-func resolveMatricesFor(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) ([]vectors.Matrix, *errors.CodedError) {
+// (a hidden grouper is unknown); a registered extension grouper (snap,
+// else the instance's own projection) is accepted as a between, as the
+// runtime accepts it.
+func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) ([]vectors.Matrix, *errors.CodedError) {
+	if snap == nil {
+		snap = inst.Extensions()
+	}
+	var ext func(string) bool
+	if snap != nil {
+		ext = func(name string) bool { return snapshotHasName(snap.Groupers, name) }
+	}
 	return vectors.ResolveMatricesRouted(req, schema, func(t types.MatrixType) bool {
 		return isBuiltinMatrixType(opRoute(inst, t))
 	}, func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
-	})
+	}, ext)
 }
 
 // checkFitOn judges one params.fit_on filterer of a fitted vector

@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -421,5 +422,72 @@ func TestMatrixDistance_ProjectionReadsBetween(t *testing.T) {
 				t.Errorf("%s: projection lacks %s", c.params, f)
 			}
 		}
+	}
+}
+
+// TestMatrixDistance_DateBetweenSlotZone (TODO #411): a GROUP_DATE
+// between built from its resolved plan reads its slot `tz` — every row
+// sits at 23:30 UTC, so its Europe/Berlin local day is the NEXT UTC
+// day — and its centroids and distances equal the GROUP_CATEGORY
+// answer over the precomputed bucket column g (a null instant is a
+// null key, like a null g).
+func TestMatrixDistance_DateBetweenSlotZone(t *testing.T) {
+	schema, _ := distanceSchema(2)
+	schema.Fields = append(schema.Fields, encoding.Field{Name: "ts", Type: encoding.FieldTypeDateTime, Nullable: true})
+	rows, nulls := distanceRows()
+	// g 1 / 2 / 3 → 2026-03-26 / 27 / 28 at 23:30 UTC (the 29th is the
+	// Berlin spring change).
+	for i, r := range rows {
+		r["ts"] = float64(time.Date(2026, 3, 25+int(r["g"]), 23, 30, 0, 0, time.UTC).Unix())
+		if nulls[i]["g"] {
+			if nulls[i] == nil {
+				nulls[i] = map[string]bool{}
+			}
+			nulls[i]["ts"] = true
+		}
+	}
+	want, _ := runDistance(t, schema, distanceSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "g"}, "metric": "mahalanobis", "standardize": true}`), rows, nulls)
+	for _, c := range []struct {
+		tz   string
+		keys []string
+	}{
+		{`"Europe/Berlin"`, []string{"2026-03-27", "2026-03-28", "2026-03-29"}},
+		{`"UTC"`, []string{"2026-03-26", "2026-03-27", "2026-03-28"}},
+	} {
+		got, comp := runDistance(t, schema, distanceSpec(`{"between": {"type": "GROUP_DATE", "field": "ts", "tz": `+c.tz+`, "params": {"component": "day"}}, "metric": "mahalanobis", "standardize": true}`), rows, nulls)
+		if fmt.Sprint(got.Primary.RowKeys) != fmt.Sprint(c.keys) || comp.Operator["n_null_key"] != 1 {
+			t.Errorf("tz %s: keys %v (n_null_key %v), want %v", c.tz, got.Primary.RowKeys, comp.Operator["n_null_key"], c.keys)
+		}
+		distNearRows(t, "primary", got.Primary, want.Primary.Values)
+		distNearRows(t, "centroids", got.Auxiliary["centroids"], want.Auxiliary["centroids"].Values)
+	}
+}
+
+// TestMatrixDistance_ProjectionReadsExtensionBetween (TODO #411): an
+// extension grouper as params.between is projected like one in
+// Request.Groups — its field plus what its FieldInputs hook declares,
+// and the whole row when it registers no hook.
+func TestMatrixDistance_ProjectionReadsExtensionBetween(t *testing.T) {
+	schema, _ := distanceSchema(3)
+	spec := distanceSpec(`{"between": {"type": "GROUP_ACME_LABEL", "field": "g", "params": {"also": "x3"}}}`)
+	req := &types.Request{Matrices: []types.MatrixSpec{spec}}
+	ext := &ExtensionRegistry{Groupers: map[types.GroupType]GrouperFactory{"GROUP_ACME_LABEL": nil}}
+	if got := NeededFields(req, schema, ext); !got.IsWide() {
+		t.Errorf("an extension between without FieldInputs projected narrow: %v", got)
+	}
+	ext.FieldInputs = map[string]FieldInputsFunc{
+		StreamabilityKey("grouper", "GROUP_ACME_LABEL"): func(json.RawMessage) []string { return []string{"x3"} },
+	}
+	got := NeededFields(req, schema, ext)
+	if got.IsWide() {
+		t.Fatal("an extension between with FieldInputs decoded wide")
+	}
+	for _, f := range []string{"x1", "x2", "g", "x3"} {
+		if !got.Has(f) {
+			t.Errorf("projection lacks %s", f)
+		}
+	}
+	if got.Has("w") {
+		t.Error("projection kept an unread column")
 	}
 }
