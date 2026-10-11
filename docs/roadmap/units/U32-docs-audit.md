@@ -44,7 +44,7 @@ A deliberate final pass over every surface a human or agent reads (mdBook, READM
 - [ ] **#268** (10. Vector & matrix — operators › Follow-ups from U24) Trim the soft-budget overruns in the `op-mat-*` atomic skills (`op-mat-correlation` body 1970 B against 1200) with the other over-budget atomic bodies
 - [ ] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent (the retail example measured no gain on 15 fields of 53 bytes); the showcase READMEs are re-verified after the units that simplify them land
 - [x] **#412** (10. Vector & matrix — operators › Follow-ups from U25) `skills/statistical-testing.md` sits within 15 B of its 6000 B hard budget, so no multivariate or other test can add a line; split the multivariate tests into their own topical skill or compress it
-- [ ] **#413** (10. Vector & matrix — operators › Follow-ups from U25) Trim the soft-budget overruns in the `op-test-*` multivariate atomic skills (`op-test-hotelling-t2` 1633 B, `op-test-manova` 1435 B against 1200) with the other over-budget atomic bodies
+- [x] **#413** (10. Vector & matrix — operators › Follow-ups from U25) Trim the soft-budget overruns in the `op-test-*` multivariate atomic skills (`op-test-hotelling-t2` 1633 B, `op-test-manova` 1435 B against 1200) with the other over-budget atomic bodies
 
 ## Scope
 
@@ -130,7 +130,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 | Item | Source |
 |---|---|
 | ~~`statistical-testing.md` budget~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #412 |
-| `op-test-*` soft budgets | [U25](U25-multivariate-tests-segmentation.md) #413 |
+| ~~`op-test-*` soft budgets~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #413 |
 
 ## Human inputs & decisions
 

@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [matrix, correlation-analysis]
 ```
 
-Slot and members as for [`op-mat-covariance`](op-mat-covariance.md); always the correlation.
+As [`op-mat-covariance`](op-mat-covariance.md); always correlation.
 
 ## Use when
 
@@ -22,15 +22,9 @@ Questions it answers:
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `factors` | int \| `kaiser` | `kaiser` | k ≤ p, or eigenvalues of R above 1. |
-| `extraction` | `minres` \| `principal_axis` \| `ml` | `minres` | psych `fm` `minres` / `pa` / `ml` (`factanal`; ψ in [0.005, 1]). |
-| `rotation` | `none` \| `varimax` \| `promax` \| `oblimin` | `none` | Shared rotation engine. |
-| `kappa` / `gamma` | float | 4 / 0 | Promax power / oblimin γ; refused with any other rotation. |
-| `conf_level` | float | 0.9 | `ml` only: coverage of `rmsea_lower` / `rmsea_upper` (psych's 90%). |
-| `repair` | `nearest` | none | Factor the nearest correlation matrix. |
-| `missing`, `max_drop_share`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md). |
+- `factors` — int k ≤ p or `kaiser` (default). `extraction` — `minres` (default), `principal_axis`, `ml`.
+- `rotation` — `none` (default), `varimax`, `promax`, `oblimin`; `kappa` (4) / `gamma` (0) for promax / oblimin. `repair` — `nearest`.
+- `conf_level` — `ml`, default 0.9: RMSEA interval coverage. `missing`, `max_drop_share`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
 
 ## Inputs
 
@@ -38,7 +32,7 @@ Integer / float members.
 
 ## Output
 
-`primary`: loadings, `rectangular`, `F1`…`Fk` (rotated when set). `auxiliary.unrotated` (rotated runs), `factor_correlation` (promax / oblimin, k × k), pairwise `n`. `vectors`: `communalities`, `uniquenesses`, `variance_accounted`. `scalars`: `rmsr`, `empirical_chisq`, `df`, `empirical_p`, `kmo`, `bartlett_*`, `iterations`, `converged` (1/0), `factors_retained`. `ml` only: `likelihood_chisq` (Bartlett-corrected, on `df`), `likelihood_p`, `tli`, `rmsea`, `rmsea_lower` / `rmsea_upper` (psych `RMSEA` lower / upper), `bic` (null at `df` ≤ 0).
+`primary`: loadings `F1`…`Fk`. `auxiliary`: `unrotated`, `factor_correlation`; `vectors`: `communalities`, `uniquenesses`. `scalars`: fit figures (`rmsr`, `kmo`, …); `ml` adds `likelihood_chisq`, `tli`, `rmsea`, `bic`.
 
 ## Reading the output
 
@@ -51,12 +45,11 @@ Integer / float members.
 
 ## Gotchas
 
-- (p − k)² < p + k: null fit, `PULSE_MATRIX_NOT_IDENTIFIED` (1 factor needs 3 members, 2 need 5).
-- Uniqueness ≤ 0 (`ml`: held at 0.005): kept, `PULSE_MATRIX_HEYWOOD`. Cap hit: `PULSE_MATRIX_NOT_CONVERGED`.
-- `ml` needs a positive-definite R (singular: null fit, `PULSE_MATRIX_SINGULAR`) and N* > 1 + (2p + 5)/6 + 2k/3 for its fit figures (`PULSE_MATRIX_INSUFFICIENT_N`).
-- `empirical_chisq` is a residual size, not a likelihood test.
+- (p − k)² < p + k: null fit, `PULSE_MATRIX_NOT_IDENTIFIED`.
+- Uniqueness ≤ 0: `PULSE_MATRIX_HEYWOOD`; cap hit: `PULSE_MATRIX_NOT_CONVERGED`.
+- `ml` needs positive-definite R and enough rows.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, correlation-analysis]`
-- Skills: [`multivariate-design`](multivariate-design.md), [`op-mat-pca`](op-mat-pca.md), [`op-mat-reliability`](op-mat-reliability.md), [`matrix-results`](matrix-results.md)
+- Skills: [`multivariate-outputs`](multivariate-outputs.md), [`op-mat-pca`](op-mat-pca.md)

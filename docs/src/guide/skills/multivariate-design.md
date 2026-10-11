@@ -59,6 +59,7 @@ Per-test correction on other operators: [`multiplicity-correction`](multiplicity
 ## See
 
 - [`matrix-results`](matrix-results.md) — slot, encodings, refusals.
+- [`multivariate-outputs`](multivariate-outputs.md) — how the PCA, factor, distance, score and vector-test figures are laid out.
 - [`op-mat-pca`](op-mat-pca.md)
 - [`op-mat-factor`](op-mat-factor.md)
 - [`op-mat-distance`](op-mat-distance.md)

@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, tier-1-test, parametric, multivariate, streaming-friendly]
 ```
 
-Tests emit statistic / p-value; no `Response.Components`.
+No `Response.Components`.
 
 ## Use when
 
@@ -29,7 +29,7 @@ Use something else:
 - `alpha` — float, default `0.05`. `missing` — `listwise` only.
 
 Slot: exactly one of `vector` (a `vectors` entry) / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical, ≥ 2 levels.
-- `weight` — both kinds; per-level moments on w*, N*_g = Σw or n_eff. `Details` add per-level `sum_weights` (+ `n_eff`).
+- `weight` — both kinds (`Details` add `sum_weights`).
 - `multiplicity` — one site, Pillai's p ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
@@ -38,7 +38,7 @@ Members: `u4`…`u64`, `f32`/`f64`.
 
 ## Output
 
-`Statistic` = Pillai's V, `DF` = its df1, `PValue` its p. `Details`: `f`, `df1`, `df2` (Pillai), `members`, `groups` (sorted), `n`, `n_dropped`, `means`, `df_hypothesis` (k − 1), `df_residual` (N* − k), `eigenvalues` (of E⁻¹H), and `pillai` / `wilks` / `hotelling_lawley` / `roy`, each `{statistic, f, df1, df2, p_value}`; `roy.upper_bound` is true. `Variant`: `one_way`.
+`Statistic` = Pillai's V, `DF` = its df1, `PValue` its p. `Details`: Pillai's `f`, `df1`, `df2`, `members`, `groups`, `n`, `means`, `eigenvalues`, and `pillai` / `wilks` / `hotelling_lawley` / `roy`, each `{statistic, f, df1, df2, p_value}` ([`multivariate-outputs`](multivariate-outputs.md)). `Variant`: `one_way`.
 
 ## Reading the output
 
@@ -47,12 +47,12 @@ Members: `u4`…`u64`, `f32`/`f64`.
 
 ## Gotchas
 
-- Streamable (one co-moment per level). Needs n ≥ p + k complete rows; 1 level is `PULSE_TEST_SPLIT_GROUPS_LT_2`.
-- Singular within SSCP: null figures + `PULSE_MATRIX_SINGULAR` warning.
-- Roy's p is a lower bound. A null `p_value` means R would print NA.
-- 2 levels: all four share one exact F (= pooled `TEST_HOTELLING_T2`).
+- Streamable. Needs n ≥ p + k rows; 1 level is `PULSE_TEST_SPLIT_GROUPS_LT_2`.
+- Singular within SSCP: null figures + `PULSE_MATRIX_SINGULAR`.
+- Roy's p is a lower bound; a null `p_value` means R prints NA.
+- 2 levels: all four share one F (= pooled `TEST_HOTELLING_T2`).
 
 ## See
 
 - `pulse_examples_search tags=[multivariate]`
-- Skills: [`statistical-testing`](statistical-testing.md), [`multivariate-design`](multivariate-design.md), [`op-test-hotelling-t2`](op-test-hotelling-t2.md), [`op-test-anova-f`](op-test-anova-f.md)
+- Skills: [`statistical-testing`](statistical-testing.md), [`multivariate-outputs`](multivariate-outputs.md), [`op-test-hotelling-t2`](op-test-hotelling-t2.md), [`op-test-anova-f`](op-test-anova-f.md)

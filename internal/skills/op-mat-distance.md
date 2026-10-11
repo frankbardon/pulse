@@ -9,20 +9,15 @@ applies_to: process, compose, predict
 examples_tags: [matrix, multivariate]
 ---
 
-Slot and members as for `op-mat-covariance`; the members are the centroid coordinates.
+As `op-mat-covariance`; members are centroid coordinates.
 
 <!-- generated: use-when -->
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `between` | grouper spec | required | `{type, field \| vector \| fields, params, include, interval}` as in `groups`, extension groupers too; no own `weight`; `tz` only on a date-family grouper. |
-| `metric` | `euclidean` \| `sqeuclidean` \| `manhattan` \| `chebyshev` \| `cosine` \| `mahalanobis` | `euclidean` | `stats::dist` forms; cosine = 1 − cos; mahalanobis over the pooled within-bucket covariance, on raw centroids. |
-| `standardize` | bool | `false` | z-score members over the bucketed rows first (R `scale()`). |
-| `missing`, `max_drop_share`, `weight`, `encoding` | | | `listwise` only; rest as `op-mat-correlation`. |
-
-The metric list is local; U27's shared metric registry folds it in later.
+- `between` — required grouper spec as in `groups`, extension groupers too; no own `weight`.
+- `metric` — `euclidean` (default), `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis`. `standardize` — z-score first.
+- `missing` (`listwise`), `max_drop_share`, `weight`, `encoding`: `op-mat-correlation`.
 
 ## Inputs
 
@@ -30,28 +25,27 @@ Integer / float members.
 
 ## Output
 
-`primary`: k × k, `square_symmetric`, keyed by bucket label in the grouper's order<!-- feature: GROUP_KMEANS --> (`GROUP_KMEANS`: `cluster_1`… by size)<!-- /feature -->, zero diagonal. `auxiliary.centroids` (k × p, `rectangular`, rows buckets), `centroids_standardized` (standardize), `pooled_covariance` (mahalanobis). `vectors.sizes` (Σw per bucket), `counts` (rows).
+`primary`: k × k, bucket-label keys, zero diagonal. `auxiliary.centroids` (k × p); `vectors.sizes`, `counts`.
 
 ## Components
 
-`n`, `n_null`, `n_listwise_dropped` (`min_pair_n` / `max_pair_n` never: listwise only)<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->; `metric`, `standardize`, `buckets`, `n_null_key` (rows in no bucket, excluded).
+`n`, `n_null`, `n_listwise_dropped`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->; `metric`, `standardize`, `buckets`, `n_null_key`; `min_pair_n` / `max_pair_n` never (listwise).
 
 ## Gotchas
 
-- Streams and merges when `between` does; a whole-set or extension grouper buffers and runs serially.
+- Streams when `between` does; a whole-set or extension grouper buffers.
 <!-- feature: GROUP_DATE, GROUP_DATE_RANGES -->
-- A date-family between reads its zone like a top-level grouper: its `tz`, else the request `time_zone`; predict echoes it at slot `matrices[i].params.between`.
+- Date-family between: its `tz`, else `time_zone`.
 <!-- /feature -->
 <!-- feature: GROUP_KMEANS -->
-- A `GROUP_KMEANS` between buffers and takes frequency weights only.
+- `GROUP_KMEANS`: buffered, frequency weights only.
 <!-- /feature -->
-- Massless bucket: null centroid, `PULSE_MATRIX_INSUFFICIENT_N` scope `buckets`; mahalanobis with N* ≤ k: scope `pooled`; collinear members: `PULSE_MATRIX_SINGULAR`, distances null.
-- Distances describe centres, not overlap; no p-values.
+- Massless bucket: null centroid (`PULSE_MATRIX_INSUFFICIENT_N`); collinear: `PULSE_MATRIX_SINGULAR`. Centres only; no p-values.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, multivariate]`
-- Skills: `multivariate-design`, `matrix-results`
+- Skills: `multivariate-outputs`
 <!-- feature: GROUP_KMEANS -->
 - `op-group-kmeans`
 <!-- /feature -->

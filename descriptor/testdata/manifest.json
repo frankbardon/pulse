@@ -10155,6 +10155,10 @@
         "description": "Choosing a multivariate operator on a battery of numeric fields — which matrix answers which question, what to do with missing data and weights, when a decomposition needs a repaired matrix, and where p-values stand. Topical design; per-operator params in the atomic op-mat-* skills."
       },
       {
+        "name": "multivariate-outputs",
+        "description": "Long-form output and parameter detail for the multivariate operators — how rotated PCA and factor loadings, the maximum-likelihood fit indices, centroid distances, row scores and the vector tests lay out their figures. Topical design; the atomic op-mat-*, op-attr-* and op-test-* skills keep the short form."
+      },
+      {
         "name": "op-agg-average",
         "description": "Arithmetic mean of a numeric field across the input set."
       },
@@ -15245,4 +15249,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5bb7037d92c51ec7bbe94136b91a9b6d9bc6a8059bf74feaf1fe6a4771984a86
+// golden-hash: f1807235609e30ec151a74c0dab6cc1836e425360f39b0142d5ed8effab9b797

@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [multivariate, feature-engineering, streaming-friendly]
 ```
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
+Row-level scalars; no `Response.Components`.
 
 ## Use when
 
@@ -22,20 +22,20 @@ Questions it answers:
 
 ## Params
 
-- `factor` — required, 1-based. `method` — `regression` (Thurstone, default) or `bartlett`. `missing` — `listwise` only.
-- `factors` (int or `"kaiser"`, default), `extraction`, `rotation`, `kappa`, `gamma` — the factor fit's knobs and rules (`MAT_FACTOR`'s); no `repair`.
+- `factor` — required, 1-based. `method` — `regression` (default) or `bartlett`. `missing` — `listwise` only.
+- `factors`, `extraction`, `rotation`, `kappa`, `gamma` — the factor fit's knobs (`MAT_FACTOR`'s); no `repair`.
 - `fit_on` — `"filtered"` (default) or a filterer array picking the FIT rows; every filtered row is scored.
-- `weight` — both kinds; fit only. A zero-weight row is scored, not fitted.
+- `weight` — fit only; weight-0 rows are scored, not fitted.
 
-Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`. Default label `ATTR_FACTOR_SCORE_<vector or first field>_F<factor>`.
+Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`.
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`; source columns only.
+Members: `u4`…`u64`, `f32`/`f64` source columns.
 
 ## Output
 
-One `f64` per record: zᵀw on members standardized by the fit; regression w = R⁻¹LΦ, Bartlett w = U⁻²L(LᵀU⁻²L)⁻¹ (psych `factor.scores`). Mean 0 over the fit rows. Null member → null.
+One `f64` per record: zᵀw on fit-standardized members (psych `factor.scores`); mean 0 over the fit rows; null member → null.
 
 ## Reading the output
 
@@ -45,12 +45,10 @@ One `f64` per record: zᵀw on members standardized by the fit; regression w = R
 
 ## Gotchas
 
-- Fit is cohort-wide, never per group; groupers or features force buffered.
-- All null + warning: singular fit (`PULSE_MATRIX_SINGULAR`), N* ≤ p (`PULSE_MATRIX_INSUFFICIENT_N`), k not identified or `"kaiser"` keeping fewer than `factor` (`PULSE_MATRIX_NOT_IDENTIFIED`), Bartlett over a uniqueness ≤ 0 (`PULSE_MATRIX_HEYWOOD`).
-- Scored + warning: a Heywood case (regression; ML floor), an iteration cap (`PULSE_MATRIX_NOT_CONVERGED`; kept beside a refusal too).
-- Two-pass, never merged.
+- Fit is cohort-wide, never per group; groupers or features force buffered. Two-pass, never merged.
+- All null + warning: `PULSE_MATRIX_SINGULAR`, `_INSUFFICIENT_N`, `_NOT_IDENTIFIED`, `_HEYWOOD` (Bartlett). Scored + warning: a regression Heywood case, `PULSE_MATRIX_NOT_CONVERGED`.
 
 ## See
 
 - `pulse_examples_search tags=[multivariate, feature-engineering]`
-- Skills: [`multivariate-design`](multivariate-design.md), [`op-mat-factor`](op-mat-factor.md), [`op-attr-pc-score`](op-attr-pc-score.md)
+- Skills: [`multivariate-outputs`](multivariate-outputs.md) (causes), [`op-mat-factor`](op-mat-factor.md), [`op-attr-pc-score`](op-attr-pc-score.md)

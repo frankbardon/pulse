@@ -61,6 +61,7 @@
     - [matrix-results](guide/skills/matrix-results.md)
     - [multiplicity-correction](guide/skills/multiplicity-correction.md)
     - [multivariate-design](guide/skills/multivariate-design.md)
+    - [multivariate-outputs](guide/skills/multivariate-outputs.md)
     - [op-agg-average](guide/skills/op-agg-average.md)
     - [op-agg-ci-lower](guide/skills/op-agg-ci-lower.md)
     - [op-agg-ci-upper](guide/skills/op-agg-ci-upper.md)
