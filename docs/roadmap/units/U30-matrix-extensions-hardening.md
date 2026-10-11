@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U25, U28, U29]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [156, 157, 158, 270]
+todo_items: [156, 157, 158, 270, 402, 403, 406, 408, 411, 415]
 branch: matrix-extensions-hardening
 ---
 
@@ -34,6 +34,12 @@ branch: matrix-extensions-hardening
 - [ ] **#157** (10. Vector & matrix — operators › E10 — Extensions & hardening (committed part)) Benchmarks: p = 50 / 256 at 1M and 10M rows; peak heap; shard scaling
 - [ ] **#158** (10. Vector & matrix — operators › E10 — Extensions & hardening (committed part)) Examples-library entries for every new operator
 - [ ] **#270** (10. Vector & matrix — operators › Follow-ups from U24) Matrix hardening: a per-pair Σw² for probability-weighted pairwise `item_sd` in the co-moment state
+- [ ] **#402** (10. Vector & matrix — operators › Follow-ups from U25) Compose co-moment fits: fit a vector battery's co-moment state once in a compose `fits` entry and let several slots (`MAT_*`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`) reuse it, as regressions already do
+- [ ] **#403** (10. Vector & matrix — operators › Follow-ups from U25) Named populations: save a fitted vector population (mean, covariance, loadings) under a name and score other cohorts against it, instead of re-fitting with `fit_on` per request
+- [ ] **#406** (10. Vector & matrix — operators › Follow-ups from U25) More GPA rotations for `MAT_FACTOR` / `MAT_PCA`: quartimax, geomin, oblimax, and the `GPArotation` criteria beyond varimax, promax and oblimin, on the shared rotation engine
+- [ ] **#408** (10. Vector & matrix — operators › Follow-ups from U25) One singularity rule across the multivariate stack: the tests decide singular by `gonum` `SymEigen` against `RankTolerance`, while `MAT_PCA` is singular only when `InverseSPD` fails; align them and add the borderline case to the oracle
+- [ ] **#411** (10. Vector & matrix — operators › Follow-ups from U25) `MAT_DISTANCE` `between` refuses date-family groupers (the time-zone pass does not reach `params`) and extension groupers; resolve the zone for the date family and give extension groupers a centroid hook, or document the refusal as final
+- [ ] **#415** (10. Vector & matrix — operators › Follow-ups from U25) `ATTR_FACTOR_SCORE`: a refusal (`PULSE_MATRIX_NOT_IDENTIFIED` / `_HEYWOOD`) drops the fit's not-converged note; carry it on the refusal warning
 
 ## Scope
 
@@ -77,6 +83,17 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-extensions
 - **`BlockMerger` through `extend`.** The blocked merge opt-in (`internal/processing/block_merge.go`) is internal; `MatrixOpRegistration` (#156) must expose it, or an embedder `MAT_*`-style operator is bit-unstable across worker counts. Today `MAT_` is NOT in the extension naming regex and `matrixFinalizers` has no extension registry (`.claude/reference/matrix-and-vectors.md`, Engine).
 - **Benchmarks** (#157) start from the grouped cost figures predict reports (`estimated_bytes` per bucket count) and `TestMatrixGrouped_WorkerInvariant`.
 
+
+## Handed on from U25
+
+| Item | Source |
+|---|---|
+| Compose co-moment fits | [U25](U25-multivariate-tests-segmentation.md) #402 |
+| Named populations | [U25](U25-multivariate-tests-segmentation.md) #403 |
+| More GPA rotations | [U25](U25-multivariate-tests-segmentation.md) #406 |
+| Singularity rule | [U25](U25-multivariate-tests-segmentation.md) #408 |
+| `MAT_DISTANCE` over date and extension groupers | [U25](U25-multivariate-tests-segmentation.md) #411 |
+| Factor-score refusal drops the not-converged note | [U25](U25-multivariate-tests-segmentation.md) #415 |
 
 ## Human inputs & decisions
 

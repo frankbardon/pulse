@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U08]
 soft_depends_on: []
 blocks: []
-todo_items: [202, 203, 204, 205, 266, 271, 293, 294]
+todo_items: [202, 203, 204, 205, 266, 271, 293, 294, 401, 405, 410, 414]
 branch: reference-oracles
 ---
 
@@ -42,6 +42,10 @@ Numbering note: appended as U36 after U35 rather than renumbered.
 - [ ] **#271** (10. Vector & matrix — operators › Follow-ups from U24) `REG_GLM` gamma: Pulse fixes dispersion at 1 for standard errors and `vcov`; R estimates it. Decide, align, and add a gamma oracle case
 - [ ] **#293** (Follow-ups from U40) `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list, so ridge can leave a predictor subset (for example categorical dummies) unshrunk; add an oracle case
 - [ ] **#294** (Follow-ups from U40) Window lag default `null` and post-tests that honour null: a `WIN_LAG` `default: 0` fills the first rows and biases lag-1 autocorrelation (the reported figure includes the zero-filled rows)
+- [ ] **#401** (10. Vector & matrix — operators › Follow-ups from U25) Panel-robust `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` covariance: HAC across a panel (per-entity Newey–West or Driscoll–Kraay) and two-way clustering. `covariance.type: hac` reads one series and refuses a repeated `order_by` (`order_by_ties`), so the MMM example clusters on the week
+- [ ] **#405** (10. Vector & matrix — operators › Follow-ups from U25) `MAT_FACTOR` `ml`: RMSEA confidence interval (`psych::fa` `RMSEA` lower / upper) and its oracle; E2 ships the point RMSEA, TLI, BIC and the likelihood χ²
+- [ ] **#410** (10. Vector & matrix — operators › Follow-ups from U25) A non-Heywood weighted fixture for the `ATTR_FACTOR_SCORE` Bartlett path: most weighted oracle fixtures are Heywood cases, which null every Bartlett score, so weighted Bartlett scoring is thinly pinned to `psych`
+- [ ] **#414** (10. Vector & matrix — operators › Follow-ups from U25) Weight-reference regeneration: rerunning `gen_weight_reference.py` shifts the `REG_*` rows by ulps (only the Hotelling rows were committed), and the R oracle needs Hotelling 1.0.8 plus Hmisc with FLIBS in `Makevars` (ICSNP and MVTests fail to build on R 4.6.1); pin and document the regeneration, or commit the shifted rows
 
 ## Scope
 
@@ -92,6 +96,15 @@ Each epic is a vertical slice. Commit with `feat|fix|test(reference-oracles/E<n>
 - `.claude/reference/guided-analysis.md` ("Statistical primitives and the R oracle", "Not yet covered") and `update-demand.md` (Other load-bearing contract gates) for the new gates
 - `errors/fixup_metadata.go` + `internal/descriptor/error_owners.go` for any new refusal code
 - Guidance `Interpretation` caveats that mention a fixed bug (e.g. the Shapiro n < 5 warning, the GLM gamma dispersion caveat) updated in the same change
+
+## Handed on from U25
+
+| Item | Source |
+|---|---|
+| Panel HAC and two-way clustering | [U25](U25-multivariate-tests-segmentation.md) #401 |
+| RMSEA confidence interval | [U25](U25-multivariate-tests-segmentation.md) #405 |
+| Weighted Bartlett factor-score oracle | [U25](U25-multivariate-tests-segmentation.md) #410 |
+| Oracle regeneration | [U25](U25-multivariate-tests-segmentation.md) #414 |
 
 ## Human inputs & decisions
 

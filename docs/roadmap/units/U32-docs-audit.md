@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413]
 branch: docs-audit
 ---
 
@@ -43,6 +43,8 @@ A deliberate final pass over every surface a human or agent reads (mdBook, READM
 - [ ] **#257** (7. Guided analysis › Follow-ups from U23) `pulse_predict` description keeps the generic "send exactly one alternative root alone" sentence on profiles hiding compose, facet and process_chain (the per-root sentences are scrubbed)
 - [ ] **#268** (10. Vector & matrix — operators › Follow-ups from U24) Trim the soft-budget overruns in the `op-mat-*` atomic skills (`op-mat-correlation` body 1970 B against 1200) with the other over-budget atomic bodies
 - [ ] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent (the retail example measured no gain on 15 fields of 53 bytes); the showcase READMEs are re-verified after the units that simplify them land
+- [ ] **#412** (10. Vector & matrix — operators › Follow-ups from U25) `skills/statistical-testing.md` sits within 15 B of its 6000 B hard budget, so no multivariate or other test can add a line; split the multivariate tests into their own topical skill or compress it
+- [ ] **#413** (10. Vector & matrix — operators › Follow-ups from U25) Trim the soft-budget overruns in the `op-test-*` multivariate atomic skills (`op-test-hotelling-t2` 1633 B, `op-test-manova` 1435 B against 1200) with the other over-budget atomic bodies
 
 ## Scope
 
@@ -122,6 +124,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 ## Inherited from U22
 
 - **Two design skills now sit exactly at the 6,000-byte `kind: design` budget** (#161): `skills/weighting.md` (U22 E1-S3 trimmed its SPSS sentence to fit) and `skills/session-bootstrap.md` (U22 E3-S4 shortened step 1's version sentence to fit the `pulse explain` line). The next addition to either must displace text first; U23's `intent` routing left `session-bootstrap.md` at 5,999 bytes. Found in U22 (PR #331), extended in U23.
+
+## Handed on from U25
+
+| Item | Source |
+|---|---|
+| `statistical-testing.md` budget | [U25](U25-multivariate-tests-segmentation.md) #412 |
+| `op-test-*` soft budgets | [U25](U25-multivariate-tests-segmentation.md) #413 |
 
 ## Human inputs & decisions
 
