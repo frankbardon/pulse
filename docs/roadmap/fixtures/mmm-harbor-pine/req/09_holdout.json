@@ -35,7 +35,11 @@
               "rg_Pacific_NW",
               "rg_South_Central",
               "rg_Southeast"
-            ]
+            ],
+            "covariance": {
+              "type": "cluster",
+              "cluster": "week_index"
+            }
           }
         ]
       }

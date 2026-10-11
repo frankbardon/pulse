@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "name": "clustered_covariance",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "experiment-analysis",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_OLS"
+    ],
+    "description": "Cluster-robust standard errors: REG_OLS of revenue on revenue_before and session_minutes with covariance type cluster on region (CR1, df = clusters - 1) replaces the independent-rows standard errors, p-values and intervals; the coefficients do not move. Use type hac with order_by on a single time series, or hc0-hc3 when only the variance is unequal. A robust covariance forces the buffered path.",
+    "intents": [
+      "drivers"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "revenue_clustered_by_region",
+      "target": "revenue",
+      "predictors": ["revenue_before", "session_minutes"],
+      "covariance": {
+        "type": "cluster",
+        "cluster": "region"
+      }
+    }
+  ]
+}
