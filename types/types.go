@@ -1406,8 +1406,11 @@ type AggregationComponents struct {
 	// join the components entry back to its request slot.
 	Label string `json:"label,omitempty"`
 
-	// N is the number of input records observed by the aggregator
-	// (post-filter, pre-null-skip). Universal floor — emitted by every
+	// N is the number of NON-NULL input values the aggregator observed
+	// (post-filter, after the null skip): the records counted in NNull
+	// are not in N, so N + NNull is the post-filter record count. On a
+	// paired-input slot (AGG_MAPE / AGG_RMSE / AGG_MAE) presence is
+	// judged on Field alone. Universal floor — emitted by every
 	// aggregator.
 	N int `json:"n"`
 
