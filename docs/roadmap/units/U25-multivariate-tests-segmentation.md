@@ -102,7 +102,7 @@ Filed as TODO items (ids are TODO ids, not GitHub issues).
 | ~~Extension-test vector validation~~ — resolved in U25 | [U34](U34-extension-validation.md) #409 |
 | ~~Weighted Bartlett factor-score oracle~~ — resolved in U25 | [U36](U36-reference-oracles.md) #410 |
 | ~~`MAT_DISTANCE` over date and extension groupers~~ — resolved in U25 | [U30](U30-matrix-extensions-hardening.md) #411 |
-| `statistical-testing.md` hard budget | [U32](U32-docs-audit.md) #412 |
+| ~~`statistical-testing.md` hard budget~~ — resolved in U25 | [U32](U32-docs-audit.md) #412 |
 | `op-test-*` soft budgets | [U32](U32-docs-audit.md) #413 |
 | ~~Oracle regeneration notes~~ — resolved in U25 | [U36](U36-reference-oracles.md) #414 |
 | ~~Factor-score refusal drops the not-converged note~~ — resolved in U25 | [U30](U30-matrix-extensions-hardening.md) #415 |
