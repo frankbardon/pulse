@@ -550,7 +550,7 @@ func TestResolveMatrices_PCARotation(t *testing.T) {
 // up to p, or "kaiser", the default), extraction (minres default,
 // principal_axis, ml),
 // rotation with promax-only kappa (default 4) and oblimin-only gamma,
-// repair and the missing-data knobs — and its refusals, every one
+// ml-only conf_level (default 0.9, strictly inside (0, 1)), repair and the missing-data knobs — and its refusals, every one
 // bad_params. A decomposition operator: pairwise PSD risk from 3
 // members.
 func TestResolveMatrices_Factor(t *testing.T) {
@@ -587,12 +587,22 @@ func TestResolveMatrices_Factor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", c.params, err)
 		}
+		wantConf := 0.0
+		if c.extraction == FactorExtractionML {
+			wantConf = FactorDefaultConfLevel
+		}
+		if m.ConfLevel != wantConf {
+			t.Errorf("%s: conf_level %v, want %v", c.params, m.ConfLevel, wantConf)
+		}
 		if m.Factors.K != c.k || m.Factors.Kaiser() != (c.k == 0) || m.Extraction != c.extraction || m.Rotation != c.rotate || m.Kappa != c.kappa || m.Gamma != c.gamma {
 			t.Errorf("%s: factors %+v extraction %q rotation %q kappa %v gamma %v", c.params, m.Factors, m.Extraction, m.Rotation, m.Kappa, m.Gamma)
 		}
 		if !m.Decomposition() || !m.Streamable || !m.Mergeable {
 			t.Errorf("%s: decomposition %v streamable %v mergeable %v", c.params, m.Decomposition(), m.Streamable, m.Mergeable)
 		}
+	}
+	if m, err := resolve(items, `{"factors": 2, "extraction": "ml", "conf_level": 0.95}`); err != nil || m.ConfLevel != 0.95 {
+		t.Errorf("conf_level 0.95: %v %v", m.ConfLevel, err)
 	}
 	if m, _ := resolve(items[:3], `{"missing": "pairwise"}`); !m.PSDRisk() {
 		t.Error("3-member pairwise factor analysis carries no PSD risk")
@@ -619,6 +629,12 @@ func TestResolveMatrices_Factor(t *testing.T) {
 		`{"gamma": 0}`,
 		`{"rotation": "oblimin", "kappa": 4}`,
 		`{"repair": "clip"}`,
+		`{"conf_level": 0.95}`,
+		`{"extraction": "minres", "conf_level": 0.95}`,
+		`{"extraction": "ml", "conf_level": 0}`,
+		`{"extraction": "ml", "conf_level": 1}`,
+		`{"extraction": "ml", "conf_level": 95}`,
+		`{"extraction": "ml", "conf_level": -0.1}`,
 		`{"components": 2}`,
 		`{"on": "covariance"}`,
 	} {

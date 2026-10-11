@@ -450,7 +450,9 @@ factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
 `converged`, `factors_retained` (`df`, `iterations`, `converged` and
 `factors_retained` are never rounded by `return.precision`), plus, under
 `extraction` `ml` only, `likelihood_chisq`, `likelihood_p`, `tli`,
-`rmsea` and `bic` (the last four null at `df` ≤ 0); `MAT_DISTANCE` adds
+`rmsea`, `rmsea_lower`, `rmsea_upper` (the interval at
+`params.conf_level`, default 0.9) and `bic` (all but `likelihood_chisq`
+null at `df` ≤ 0); `MAT_DISTANCE` adds
 `auxiliary.centroids` (always), `centroids_standardized` (standardize)
 and `pooled_covariance` (mahalanobis), and `vectors.sizes` (each bucket's
 weight mass) / `counts` (its rows, integers), one per bucket.

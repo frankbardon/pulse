@@ -27,6 +27,13 @@ const (
 	faMLExactTol = 1e-9
 	faMLPsychTol = 1e-4
 	faMLStatsTol = 1e-9
+	// faRMSEAIntervalTol: the RMSEA interval against R's bounds (psych's
+	// rule at uniroot tol 1e-300). Both sides solve the noncentral χ²
+	// root to the last bit of their own CDF, which agree to ~1e-13
+	// (TestReferenceOracle_NoncentralChiSquareCDF; R's is 1e-12 absolute
+	// above ncp 80), so the bounds agree well inside 1e-9 once the
+	// statistic does.
+	faRMSEAIntervalTol = 1e-9
 )
 
 func faNearNull(t *testing.T, tol float64, where string, got float64, want *float64) {
@@ -44,7 +51,7 @@ func faNearNull(t *testing.T, tol float64, where string, got float64, want *floa
 // one oracle ML entry.
 func faCheckLikelihood(t *testing.T, c factorCase, l [][]float64, want faOut, tol float64) {
 	t.Helper()
-	st := faMLFitIndices(c.sym(t), l, c.NStar)
+	st := faMLFitIndices(c.sym(t), l, c.NStar, 0.9)
 	if st.Insufficient {
 		t.Fatalf("insufficient at N* %v", c.NStar)
 	}
@@ -53,6 +60,8 @@ func faCheckLikelihood(t *testing.T, c factorCase, l [][]float64, want faOut, to
 	faNearNull(t, tol, "tli", st.TLI, want.TLI)
 	faNearNull(t, tol, "rmsea", st.RMSEA, want.RMSEA)
 	faNearNull(t, tol, "bic", st.BIC, want.BIC)
+	faNearNull(t, faRMSEAIntervalTol, "rmsea_lower", st.RMSEALower, want.RMSEALower)
+	faNearNull(t, faRMSEAIntervalTol, "rmsea_upper", st.RMSEAUpper, want.RMSEAUpper)
 }
 
 // TestFactorML_MatchesExactOptimum: the projected Newton solve converges
@@ -158,27 +167,27 @@ func TestFactorMLFitIndices_Guards(t *testing.T) {
 	p := len(c.Fields)
 	l := c.MLExact.Unrotated
 	minN := float64(2*p+4*c.K+11) / 6
-	st := faMLFitIndices(r, l, minN)
+	st := faMLFitIndices(r, l, minN, 0.9)
 	if !st.Insufficient || !math.IsNaN(st.ChiSq) || !math.IsNaN(st.TLI) || st.MinNStar != minN {
 		t.Errorf("at the minimum N*: %+v", st)
 	}
-	if st := faMLFitIndices(r, l, minN+0.5); st.Insufficient || math.IsNaN(st.ChiSq) {
+	if st := faMLFitIndices(r, l, minN+0.5, 0.9); st.Insufficient || math.IsNaN(st.ChiSq) {
 		t.Errorf("above the minimum N*: %+v", st)
 	}
-	if st := faMLFitIndices(r, l, math.Inf(1)); st.Insufficient || !math.IsNaN(st.ChiSq) {
+	if st := faMLFitIndices(r, l, math.Inf(1), 0.9); st.Insufficient || !math.IsNaN(st.ChiSq) {
 		t.Errorf("infinite N*: %+v", st)
 	}
 	zero := make([][]float64, p)
 	for i := range zero {
 		zero[i] = []float64{}
 	}
-	st = faMLFitIndices(r, zero, c.NStar)
+	st = faMLFitIndices(r, zero, c.NStar, 0.9)
 	b := bartlettSphericity(r, c.NStar)
 	faNear(t, 1e-10, "zero-factor chisq", st.ChiSq, b.ChiSq)
 	faNear(t, 1e-10, "zero-factor p", st.P, b.PValue)
 	faNear(t, 1e-12, "zero-factor tli", st.TLI, 0)
 	// A perfect fit's rounding-level negative objective clamps to 0.
-	perfect := faMLFitIndices(r, faPerfectLoadings(c, t), c.NStar)
+	perfect := faMLFitIndices(r, faPerfectLoadings(c, t), c.NStar, 0.9)
 	if perfect.ChiSq < 0 {
 		t.Errorf("chisq %v below 0", perfect.ChiSq)
 	}
@@ -250,5 +259,60 @@ func TestFactorMLHessian_MatchesFiniteDifference(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestFaRMSEAInterval_Rule: psych::fa.stats' interval rule on hand-built
+// statistics — each bound sits where the noncentral χ² CDF at the
+// statistic equals its tail, a wider coverage widens both sides, a
+// statistic below the central (1 − tail) quantile has lower bound 0 (and
+// below the tail quantile upper 0 too), a root beyond psych's bracket
+// [0, max(N*, χ²) + 2N*] is null, a bound on the wrong side of the point
+// estimate is null, and df ≤ 0, N* ≤ 1 or a coverage outside (0, 1)
+// nulls both.
+func TestFaRMSEAInterval_Rule(t *testing.T) {
+	const chi, df, n = 40.0, 12.0, 150.0
+	rmsea := math.Sqrt(math.Max(chi/(df*n)-1/(n-1), 0))
+	lo, hi := faRMSEAInterval(chi, df, n, rmsea, 0.9)
+	if !(lo > 0 && lo < rmsea && hi > rmsea) {
+		t.Fatalf("interval [%v, %v] around %v", lo, hi, rmsea)
+	}
+	for _, b := range []struct {
+		bound, tail float64
+	}{{lo, 0.95}, {hi, 0.05}} {
+		lambda := b.bound * b.bound * (n - 1) * df
+		if got := noncentralChiSquareCDF(chi, df, lambda); math.Abs(got-b.tail) > 1e-12 {
+			t.Errorf("CDF at the bound λ %v = %.17g, want %v", lambda, got, b.tail)
+		}
+	}
+	lo95, hi95 := faRMSEAInterval(chi, df, n, rmsea, 0.95)
+	if !(lo95 < lo && hi95 > hi) {
+		t.Errorf("95%% [%v, %v] does not contain 90%% [%v, %v]", lo95, hi95, lo, hi)
+	}
+	// χ² = 12 on 12 df: below the central 95th percentile, above the 5th.
+	if lo, hi := faRMSEAInterval(12, df, n, 0, 0.9); lo != 0 || !(hi > 0) {
+		t.Errorf("χ² at df: [%v, %v], want [0, >0]", lo, hi)
+	}
+	// χ² = 3 on 12 df: below the central 5th percentile, so both 0.
+	if lo, hi := faRMSEAInterval(3, df, n, 0, 0.9); lo != 0 || hi != 0 {
+		t.Errorf("tiny χ²: [%v, %v], want [0, 0]", lo, hi)
+	}
+	// N* = 2, χ² = 100 on 1 df: psych's bracket stops at 104, short of
+	// the upper root (null), while the lower root's √(λ/((N* − 1)·df))
+	// exceeds the point estimate √(χ²/(df·N*) − 1/(N* − 1)) (null).
+	pt := math.Sqrt(100.0/2 - 1)
+	if lo, hi := faRMSEAInterval(100, 1, 2, pt, 0.9); !math.IsNaN(lo) || !math.IsNaN(hi) {
+		t.Errorf("out-of-bracket / wrong-side: [%v, %v], want [NaN, NaN]", lo, hi)
+	}
+	// The same out-of-bracket upper root with a zero point estimate is 0.
+	if _, hi := faRMSEAInterval(100, 1, 2, 0, 0.9); hi != 0 {
+		t.Errorf("out-of-bracket upper at rmsea 0 = %v, want 0", hi)
+	}
+	for _, c := range []struct{ chi, df, n, conf float64 }{
+		{chi, 0, n, 0.9}, {chi, -1, n, 0.9}, {chi, df, 1, 0.9}, {chi, df, n, 0}, {chi, df, n, 1}, {math.NaN(), df, n, 0.9},
+	} {
+		if lo, hi := faRMSEAInterval(c.chi, c.df, c.n, rmsea, c.conf); !math.IsNaN(lo) || !math.IsNaN(hi) {
+			t.Errorf("faRMSEAInterval(%v, %v, %v, conf %v) = [%v, %v], want null", c.chi, c.df, c.n, c.conf, lo, hi)
+		}
 	}
 }

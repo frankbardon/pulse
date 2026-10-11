@@ -255,7 +255,12 @@ and Bartlett's test as on `MAT_PCA`, the fit's `iterations` and
 the likelihood test and fit indices psych reports: `likelihood_chisq`
 (the Bartlett-corrected likelihood-ratio chi-square on `df`) and its
 `likelihood_p`, the Tucker-Lewis index `tli`, the RMSEA point estimate
-`rmsea` (no interval) and `bic` — the last four null when `df` ≤ 0. They
+`rmsea` with its confidence interval `rmsea_lower` / `rmsea_upper`
+(psych's `RMSEA` lower / upper: the noncentral chi-square inverted at
+coverage `params.conf_level`, 0.9 by default as in `psych::fa`, and
+rescaled by (N* − 1)·df; a bound psych's search range cannot reach, or
+one on the wrong side of the point estimate, is null) and `bic` — all
+but the chi-square null when `df` ≤ 0. They
 need a positive-definite correlation (a singular one nulls the ML fit
 with `PULSE_MATRIX_SINGULAR`) and an inference size above 1 + (2p +
 5)/6 + 2k/3 (below it they are null with `PULSE_MATRIX_INSUFFICIENT_N`).

@@ -336,23 +336,25 @@ func faMLFinish(pt faMLPoint, k int, fit faFit) faFit {
 // (M_0 − M_m)/(M_0 − 1/n_m) with M_0 = F_0·2/(p(p − 1)), F_0 = tr(R) −
 // log det R − p the null model's objective and M_m = F_m/df; the RMSEA
 // point estimate √max(χ²/(df·N*) − 1/(N* − 1), 0); and BIC χ² −
-// df·log N*. p, tli, rmsea and bic are null at df ≤ 0; every figure is
-// null when n_m ≤ 0 (insufficient), N* is not finite, or R or M is not
-// positive definite (defined false).
+// df·log N*; the RMSEA interval at coverage conf (faRMSEAInterval).
+// p, tli, rmsea, its interval and bic are null at df ≤ 0; every figure
+// is null when n_m ≤ 0 (insufficient), N* is not finite, or R or M is
+// not positive definite (defined false).
 type faMLFitStats struct {
 	ChiSq, P, TLI, RMSEA, BIC float64
+	RMSEALower, RMSEAUpper    float64
 	Insufficient              bool
 	MinNStar                  float64
 }
 
-func faMLFitIndices(r *linalg.Sym, l [][]float64, nStar float64) faMLFitStats {
+func faMLFitIndices(r *linalg.Sym, l [][]float64, nStar, conf float64) faMLFitStats {
 	p := r.N()
 	k := 0
 	if p > 0 {
 		k = len(l[0])
 	}
 	nan := math.NaN()
-	st := faMLFitStats{ChiSq: nan, P: nan, TLI: nan, RMSEA: nan, BIC: nan,
+	st := faMLFitStats{ChiSq: nan, P: nan, TLI: nan, RMSEA: nan, BIC: nan, RMSEALower: nan, RMSEAUpper: nan,
 		MinNStar: float64(2*p+4*k+11) / 6} // 1 + (2p + 5)/6 + 2k/3
 	nm := nStar - st.MinNStar
 	if math.IsNaN(nStar) || math.IsInf(nStar, 0) {
@@ -398,8 +400,94 @@ func faMLFitIndices(r *linalg.Sym, l [][]float64, nStar float64) faMLFitStats {
 		st.TLI = (m0 - fm/df) / (m0 - 1/nm)
 		st.RMSEA = math.Sqrt(math.Max(st.ChiSq/float64(df*nStar)-1/(nStar-1), 0))
 		st.BIC = st.ChiSq - float64(df*math.Log(nStar))
+		st.RMSEALower, st.RMSEAUpper = faRMSEAInterval(st.ChiSq, df, nStar, st.RMSEA, conf)
 	}
 	return st
+}
+
+// faRMSEAInterval is the RMSEA confidence interval at coverage conf
+// (psych::fa's RMSEA lower / upper, psych::fa.stats; psych::fa's alpha
+// = 0.1 is conf 0.9): with tail = (1 − conf)/2 and F(λ) the noncentral
+// χ²(df, λ) CDF at the statistic chi (decreasing in λ), the bounds
+// invert F for the noncentrality and rescale it by (N* − 1)·df —
+// psych's denominator, where the point estimate rmsea reads df·N*:
+//
+//   - upper = √(λ_U/((N* − 1)·df)), F(λ_U) = tail, when F(0) > tail;
+//     else 0;
+//   - lower = √(λ_L/((N* − 1)·df)), F(λ_L) = 1 − tail, when F(0) >
+//     1 − tail; else 0.
+//
+// psych searches λ on [0, max(N*, chi) + 2·N*] (stats::uniroot); a root
+// beyond it is null (an upper bound whose point estimate is 0 is 0
+// instead), and a bound on the wrong side of the point estimate is
+// null. Pulse solves each root by bisection to the last bit, where
+// psych's uniroot stops at its default tolerance (about 1.2e-4 on λ, so
+// psych's bounds sit up to ~1e-7 from the exact ones).
+func faRMSEAInterval(chi, df, nStar, rmsea, conf float64) (lower, upper float64) {
+	nan := math.NaN()
+	if !(df > 0) || !(nStar > 1) || math.IsNaN(chi) || math.IsNaN(rmsea) || !(conf > 0 && conf < 1) {
+		return nan, nan
+	}
+	tail := (1 - conf) / 2
+	hi := math.Max(nStar, chi) + 2*nStar
+	f0 := noncentralChiSquareCDF(chi, df, 0)
+	scale := func(lambda float64) float64 {
+		return math.Sqrt(lambda / (nStar - 1) / df)
+	}
+	upper = 0
+	if f0 > tail {
+		if lambda, ok := ncChiSquareRoot(chi, df, tail, hi); ok {
+			upper = scale(lambda)
+		} else if rmsea > 0 {
+			upper = nan
+		}
+	}
+	lower = 0
+	if f0 > 1-tail {
+		if lambda, ok := ncChiSquareRoot(chi, df, 1-tail, hi); ok {
+			lower = scale(lambda)
+		} else {
+			lower = nan
+		}
+	}
+	if upper < rmsea {
+		upper = nan
+	}
+	if lower > rmsea {
+		lower = nan
+	}
+	return lower, upper
+}
+
+// ncChiSquareRoot is the noncentrality λ ∈ [0, hi] at which the
+// noncentral χ²(df, λ) CDF at chi equals target, by bisection to
+// adjacent doubles; ok is false when the CDF at hi is still above
+// target (no root in the bracket, psych's uniroot error). The caller
+// guarantees the CDF at 0 is above target.
+func ncChiSquareRoot(chi, df, target, hi float64) (float64, bool) {
+	f := func(lambda float64) float64 { return noncentralChiSquareCDF(chi, df, lambda) - target }
+	fhi := f(hi)
+	if fhi > 0 {
+		return 0, false
+	}
+	if fhi == 0 {
+		return hi, true
+	}
+	lo := 0.0
+	for range 2000 {
+		mid := lo + (hi-lo)/2
+		if mid <= lo || mid >= hi {
+			break
+		}
+		if v := f(mid); v > 0 {
+			lo = mid
+		} else if v < 0 {
+			hi = mid
+		} else {
+			return mid, true
+		}
+	}
+	return lo + (hi-lo)/2, true
 }
 
 // faLogDet is log det s from the reference Cholesky (2·Σ log L_ii);

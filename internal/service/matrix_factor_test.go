@@ -57,6 +57,8 @@ type factorFit struct {
 	LikelihoodP     *float64  `json:"likelihood_p"`
 	TLI             *float64  `json:"tli"`
 	RMSEA           *float64  `json:"rmsea"`
+	RMSEALower      *float64  `json:"rmsea_lower"`
+	RMSEAUpper      *float64  `json:"rmsea_upper"`
 	BIC             *float64  `json:"bic"`
 }
 
@@ -134,7 +136,8 @@ func factorKeys(k int) []string {
 // count). Principal axis is compared with psych within factorPATol;
 // minres with psych's exact optimum within factorExactTol; ml with the
 // exact ML optimum within factorMLTol, plus its likelihood chi-square,
-// p, TLI, RMSEA and BIC (absent on the other extractions); oblimin over
+// p, TLI, RMSEA with its 90% interval and BIC (absent on the other
+// extractions); oblimin over
 // minres or ml within GPA's stopping band, factorGPATol. The Heywood
 // fixture's minres run is the subject of TestMatrixFactor_Guards.
 func TestMatrixFactor_MatchesROracle(t *testing.T) {
@@ -238,14 +241,14 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 					} else if s["converged"] != 1 {
 						t.Errorf("%s converged %v", ext, s["converged"])
 					}
-					for _, key := range []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic"} {
+					for _, key := range []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "rmsea_lower", "rmsea_upper", "bic"} {
 						if _, ok := s[key]; ok != (ext == vectors.FactorExtractionML) {
 							t.Errorf("%s: scalar %s present %v", ext, key, ok)
 						}
 					}
 					if ext == vectors.FactorExtractionML {
 						factorNear(t, tol, "likelihood_chisq", s["likelihood_chisq"], want.LikelihoodChisq)
-						for key, w := range map[string]*float64{"likelihood_p": want.LikelihoodP, "tli": want.TLI, "rmsea": want.RMSEA, "bic": want.BIC} {
+						for key, w := range map[string]*float64{"likelihood_p": want.LikelihoodP, "tli": want.TLI, "rmsea": want.RMSEA, "rmsea_lower": want.RMSEALower, "rmsea_upper": want.RMSEAUpper, "bic": want.BIC} {
 							if w == nil {
 								if !math.IsNaN(s[key]) {
 									t.Errorf("%s %v, want null (df %v)", key, s[key], want.DF)
@@ -281,8 +284,8 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 //     with solver fa_pa, converged 0.
 //   - ML Heywood: the heywood fixture's one-factor ML fit pins a
 //     uniqueness at the 0.005 floor — PULSE_MATRIX_HEYWOOD with the
-//     floor message; df 0 nulls likelihood_p, tli, rmsea and bic while
-//     the likelihood chi-square stays.
+//     floor message; df 0 nulls likelihood_p, tli, rmsea (and its
+//     interval) and bic while the likelihood chi-square stays.
 //   - Kaiser: the default count equals the eigenvalues above 1.
 func TestMatrixFactor_Guards(t *testing.T) {
 	cases, dir := loadFactorOracle(t)
@@ -327,7 +330,7 @@ func TestMatrixFactor_Guards(t *testing.T) {
 	if w == nil || len(w.Details["members"].([]string)) == 0 || !strings.Contains(w.Message, "0.005 floor") {
 		t.Fatalf("ml heywood: warnings %v (%+v)", matWarningCodes(mlhw), w)
 	}
-	if s := mlhw.Scalars; math.IsNaN(s["likelihood_chisq"]) || !math.IsNaN(s["likelihood_p"]) || !math.IsNaN(s["tli"]) || !math.IsNaN(s["rmsea"]) || !math.IsNaN(s["bic"]) || s["df"] != 0 {
+	if s := mlhw.Scalars; math.IsNaN(s["likelihood_chisq"]) || !math.IsNaN(s["likelihood_p"]) || !math.IsNaN(s["tli"]) || !math.IsNaN(s["rmsea"]) || !math.IsNaN(s["rmsea_lower"]) || !math.IsNaN(s["rmsea_upper"]) || !math.IsNaN(s["bic"]) || s["df"] != 0 {
 		t.Errorf("ml heywood (df 0): scalars %v", s)
 	}
 
@@ -432,7 +435,7 @@ func TestMatrixFactor_MLGuards(t *testing.T) {
 	}
 	sing := fit("ml")
 	w := findWarning(sing, errors.PULSE_MATRIX_SINGULAR)
-	if w == nil || !reflect.DeepEqual(w.Details["outputs"], []string{"kmo", "bartlett_chisq", "bartlett_p", "loadings", "communalities", "uniquenesses", "variance_accounted", "likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic"}) {
+	if w == nil || !reflect.DeepEqual(w.Details["outputs"], []string{"kmo", "bartlett_chisq", "bartlett_p", "loadings", "communalities", "uniquenesses", "variance_accounted", "likelihood_chisq", "likelihood_p", "tli", "rmsea", "rmsea_lower", "rmsea_upper", "bic"}) {
 		t.Fatalf("singular ml: warnings %v (%+v)", matWarningCodes(sing), w)
 	}
 	if !math.IsNaN(sing.Primary.Values[0][0]) || !math.IsNaN(sing.Scalars["likelihood_chisq"]) || !math.IsNaN(sing.Scalars["tli"]) || !math.IsNaN(relFloats(t, sing.Vectors["communalities"])[0]) {
@@ -451,12 +454,56 @@ func TestMatrixFactor_MLGuards(t *testing.T) {
 	if w == nil || w.Details["scope"] != "likelihood" || w.Details["min_n_star"] != 3.5 {
 		t.Fatalf("insufficient: warnings %v (%+v)", matWarningCodes(ins), w)
 	}
-	for _, key := range []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic"} {
+	for _, key := range []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "rmsea_lower", "rmsea_upper", "bic"} {
 		if !math.IsNaN(ins.Scalars[key]) {
 			t.Errorf("insufficient: %s %v, want null", key, ins.Scalars[key])
 		}
 	}
 	if math.IsNaN(ins.Scalars["bartlett_chisq"]) || math.IsNaN(ins.Primary.Values[0][0]) {
 		t.Errorf("insufficient: bartlett %v loadings %v, want computed", ins.Scalars["bartlett_chisq"], ins.Primary.Values)
+	}
+}
+
+// TestMatrixFactor_ConfLevelWidensRMSEAInterval: params.conf_level
+// reaches the ml RMSEA interval — on every oracle case whose 90%
+// interval has an interior lower bound, 0.95 contains it on both sides
+// and 0.5 sits inside it, while rmsea and the other fit figures do not
+// move.
+func TestMatrixFactor_ConfLevelWidensRMSEAInterval(t *testing.T) {
+	cases, dir := loadFactorOracle(t)
+	cfg := fixtureFS(t, dir)
+	seen := 0
+	for _, c := range cases {
+		if c.MLExact.RMSEALower == nil || *c.MLExact.RMSEALower <= 0 || c.MLExact.RMSEAUpper == nil {
+			continue
+		}
+		seen++
+		run := func(conf any) map[string]float64 {
+			params := map[string]any{"factors": c.K, "extraction": "ml"}
+			if conf != nil {
+				params["conf_level"] = conf
+			}
+			return processMatrices(t, cfg, &types.Request{
+				Cohort:   &types.Cohort{Filename: filepath.Join(dir, c.Fixture+".pulse")},
+				Matrices: []types.MatrixSpec{factorSpec("fa", c.Fields, params, c.Weight)},
+			}).Matrices[0].Scalars
+		}
+		def, wide, narrow := run(nil), run(0.95), run(0.5)
+		factorNear(t, factorMLTol, "default rmsea_lower", def["rmsea_lower"], *c.MLExact.RMSEALower)
+		factorNear(t, factorMLTol, "default rmsea_upper", def["rmsea_upper"], *c.MLExact.RMSEAUpper)
+		if !(wide["rmsea_lower"] < def["rmsea_lower"] && wide["rmsea_upper"] > def["rmsea_upper"]) {
+			t.Errorf("%s k%d: 95%% [%v, %v] does not contain 90%% [%v, %v]", c.Fixture, c.K, wide["rmsea_lower"], wide["rmsea_upper"], def["rmsea_lower"], def["rmsea_upper"])
+		}
+		if !(narrow["rmsea_lower"] > def["rmsea_lower"] && narrow["rmsea_upper"] < def["rmsea_upper"]) {
+			t.Errorf("%s k%d: 50%% [%v, %v] not inside 90%% [%v, %v]", c.Fixture, c.K, narrow["rmsea_lower"], narrow["rmsea_upper"], def["rmsea_lower"], def["rmsea_upper"])
+		}
+		for _, key := range []string{"rmsea", "tli", "bic", "likelihood_chisq"} {
+			if wide[key] != def[key] || narrow[key] != def[key] {
+				t.Errorf("%s moved with conf_level: %v / %v / %v", key, def[key], wide[key], narrow[key])
+			}
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no oracle case has an interior RMSEA lower bound")
 	}
 }

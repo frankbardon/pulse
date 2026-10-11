@@ -184,8 +184,26 @@ Maximum likelihood only: the root-mean-square error of approximation, the misfit
 
 **Caveats:**
 
-- No convention bands it here; cut-offs such as .05 or .08 are rules of thumb, and no interval is given.
+- No convention bands it here; cut-offs such as .05 or .08 are rules of thumb; read rmsea_lower and rmsea_upper for its uncertainty.
 - Null when df is 0 or below; with few rows or few df it is unstable.
+
+#### `scalars.rmsea_lower`
+
+Maximum likelihood only: the lower bound of the RMSEA confidence interval at conf_level (90% by default, as psych reports it). 0 when even a perfectly fitting model would often give a chi-square this large.
+
+**Caveats:**
+
+- It inverts the noncentral chi-square and assumes multivariate normal measures; with few rows the interval is wide.
+- Null when df is 0 or below, or when no bound exists on the searched range.
+
+#### `scalars.rmsea_upper`
+
+Maximum likelihood only: the upper bound of the RMSEA confidence interval at conf_level (90% by default). A small upper bound says the misfit per degree of freedom is plausibly small.
+
+**Caveats:**
+
+- The bounds divide by the inference size minus one where the point estimate divides by the inference size itself (psych's rule), so with very few rows the point can sit outside the interval; such a bound is null.
+- Null when df is 0 or below.
 
 #### `scalars.bic`
 

@@ -73,8 +73,10 @@ import (
 //     sphericityStats core over the guarded R), iterations, converged
 //     (1 or 0), factors_retained. res = R − LLᵀ, N* the weighting.md
 //     inference size (pcaNStar). ml adds likelihood_chisq /
-//     likelihood_p, tli, rmsea and bic (faMLFitIndices, psych's
-//     fa.stats; null at df ≤ 0, all null with
+//     likelihood_p, tli, rmsea, its interval rmsea_lower / rmsea_upper
+//     at params.conf_level (default 0.9, psych::fa's 90%;
+//     faRMSEAInterval) and bic (faMLFitIndices, psych's fa.stats; null
+//     at df ≤ 0, all null with
 //     PULSE_MATRIX_INSUFFICIENT_N scope "likelihood" when N* ≤ 1 +
 //     (2p + 5)/6 + 2k/3).
 //
@@ -692,18 +694,20 @@ func faWriteFit(in *matrixFinalizeInput, out *matrixOutput, fit faFit, rot *rota
 		out.Scalars["converged"] = converged
 	}
 	if plan.Extraction == vectors.FactorExtractionML {
-		st := faMLFitIndices(r, fit.Loadings, nStar)
+		st := faMLFitIndices(r, fit.Loadings, nStar, plan.ConfLevel)
 		if in.WantScalars() {
 			out.Scalars["likelihood_chisq"] = st.ChiSq
 			out.Scalars["likelihood_p"] = st.P
 			out.Scalars["tli"] = st.TLI
 			out.Scalars["rmsea"] = st.RMSEA
+			out.Scalars["rmsea_lower"] = st.RMSEALower
+			out.Scalars["rmsea_upper"] = st.RMSEAUpper
 			out.Scalars["bic"] = st.BIC
 		}
 		if st.Insufficient {
 			out.Warnings = append(out.Warnings, matrixWarning(errors.PULSE_MATRIX_INSUFFICIENT_N,
 				"matrix "+plan.Name+": the likelihood chi-square needs an inference size N* above 1 + (2p + 5)/6 + 2k/3 = "+strconv.FormatFloat(st.MinNStar, 'g', 6, 64)+
-					" for "+strconv.Itoa(p)+" members and "+strconv.Itoa(k)+" factors; N* is "+strconv.FormatFloat(nStar, 'g', 6, 64)+", so likelihood_chisq, likelihood_p, tli, rmsea and bic are null",
+					" for "+strconv.Itoa(p)+" members and "+strconv.Itoa(k)+" factors; N* is "+strconv.FormatFloat(nStar, 'g', 6, 64)+", so likelihood_chisq, likelihood_p, tli, rmsea, rmsea_lower, rmsea_upper and bic are null",
 				map[string]any{"matrix": plan.Name, "scope": "likelihood", "n_star": nStar, "min_n_star": st.MinNStar}))
 		}
 	}
@@ -711,7 +715,7 @@ func faWriteFit(in *matrixFinalizeInput, out *matrixOutput, fit faFit, rot *rota
 
 // faMLScalars are the scalars only the maximum-likelihood extraction
 // writes.
-var faMLScalars = []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic"}
+var faMLScalars = []string{"likelihood_chisq", "likelihood_p", "tli", "rmsea", "rmsea_lower", "rmsea_upper", "bic"}
 
 // faNullFit fills out with a withheld fit: k null columns (k may be 0),
 // null vectors and fit scalars, beside the sphericity figures stats.

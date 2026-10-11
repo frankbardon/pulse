@@ -109,6 +109,10 @@ type Matrix struct {
 	// FactorDefaultKappa; promax only) and Gamma its oblimin γ
 	// (params.gamma, default 0; oblimin only).
 	Kappa, Gamma float64
+	// ConfLevel is MAT_FACTOR's params.conf_level: the coverage of the
+	// ml RMSEA interval (rmsea_lower / rmsea_upper), FactorDefaultConfLevel
+	// unless set; extraction ml only, 0 on every other type.
+	ConfLevel float64
 	// Center is MAT_COLLINEARITY's params.center: false (the default)
 	// runs Belsley's diagnostics on the scaled, UNCENTERED predictors
 	// with an intercept column; true on the scaled, centered ones (the
@@ -220,6 +224,11 @@ const FactorsKaiser = "kaiser"
 // FactorDefaultKappa is MAT_FACTOR's default promax power (stats::promax
 // m = 4).
 const FactorDefaultKappa = 4
+
+// FactorDefaultConfLevel is MAT_FACTOR's default params.conf_level, the
+// coverage of the ml RMSEA interval: psych::fa's alpha = 0.1, a 90%
+// interval.
+const FactorDefaultConfLevel = 0.9
 
 // FactorCount is MAT_FACTOR's resolved params.factors: K > 0 is a fixed
 // count; K == 0 is the Kaiser rule, decided on the data.
@@ -455,6 +464,7 @@ type factorParams struct {
 	Rotation   *string         `json:"rotation"`
 	Kappa      *float64        `json:"kappa"`
 	Gamma      *float64        `json:"gamma"`
+	ConfLevel  *float64        `json:"conf_level"`
 	Repair     *string         `json:"repair"`
 	missingParams
 }
@@ -844,8 +854,10 @@ func resolvePCA(at string, m *Matrix) *errors.CodedError {
 // extraction ("minres", the default, or "principal_axis"), rotation
 // ("none", the default, "varimax", "promax" or "oblimin"), kappa (promax
 // only, finite and > 1, default 4) and gamma (oblimin only, finite,
-// default 0). A kappa without promax or a gamma without oblimin is
-// refused rather than ignored. Every refusal is bad_params.
+// default 0) and conf_level (extraction ml only, 0 < c < 1, default
+// 0.9). A kappa without promax, a gamma without oblimin or a conf_level
+// without ml is refused rather than ignored. Every refusal is
+// bad_params.
 func decodeFactor(at string, p factorParams, m *Matrix) *errors.CodedError {
 	return decodeFactorWith(at, p, m, matrixInvalid)
 }
@@ -901,6 +913,20 @@ func decodeFactorWith(at string, p factorParams, m *Matrix, matrixInvalid invali
 				map[string]any{"param": "gamma", "value": g})
 		}
 		m.Gamma = *p.Gamma
+	}
+	if m.Extraction == FactorExtractionML {
+		m.ConfLevel = FactorDefaultConfLevel
+	}
+	if p.ConfLevel != nil {
+		if m.Extraction != FactorExtractionML {
+			return matrixInvalid(at, "bad_params", at+" params.conf_level applies to extraction \"ml\" only",
+				map[string]any{"param": "conf_level", "extraction": m.Extraction})
+		}
+		if c := *p.ConfLevel; !(c > 0 && c < 1) {
+			return matrixInvalid(at, "bad_params", at+" params.conf_level must be a number strictly between 0 and 1",
+				map[string]any{"param": "conf_level", "value": c})
+		}
+		m.ConfLevel = *p.ConfLevel
 	}
 	raw := bytes.TrimSpace(p.Factors)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {

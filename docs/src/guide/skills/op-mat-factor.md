@@ -1,6 +1,6 @@
 ```yaml
 name: op-mat-factor
-description: Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA and BIC; listwise or pairwise, weighted.
+description: Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted.
 kind: operator
 category: MAT
 operator: MAT_FACTOR
@@ -28,6 +28,7 @@ Questions it answers:
 | `extraction` | `minres` \| `principal_axis` \| `ml` | `minres` | psych `fm` `minres` / `pa` / `ml` (`factanal`; ψ in [0.005, 1]). |
 | `rotation` | `none` \| `varimax` \| `promax` \| `oblimin` | `none` | Shared rotation engine. |
 | `kappa` / `gamma` | float | 4 / 0 | Promax power / oblimin γ; refused with any other rotation. |
+| `conf_level` | float | 0.9 | `ml` only: coverage of `rmsea_lower` / `rmsea_upper` (psych's 90%). |
 | `repair` | `nearest` | none | Factor the nearest correlation matrix. |
 | `missing`, `max_drop_share`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md). |
 
@@ -37,7 +38,7 @@ Integer / float members.
 
 ## Output
 
-`primary`: loadings, `rectangular`, `F1`…`Fk` (rotated when set). `auxiliary.unrotated` (rotated runs), `factor_correlation` (promax / oblimin, k × k), pairwise `n`. `vectors`: `communalities`, `uniquenesses`, `variance_accounted`. `scalars`: `rmsr`, `empirical_chisq`, `df`, `empirical_p`, `kmo`, `bartlett_*`, `iterations`, `converged` (1/0), `factors_retained`. `ml` only: `likelihood_chisq` (Bartlett-corrected, on `df`), `likelihood_p`, `tli`, `rmsea` (point estimate), `bic` (null at `df` ≤ 0).
+`primary`: loadings, `rectangular`, `F1`…`Fk` (rotated when set). `auxiliary.unrotated` (rotated runs), `factor_correlation` (promax / oblimin, k × k), pairwise `n`. `vectors`: `communalities`, `uniquenesses`, `variance_accounted`. `scalars`: `rmsr`, `empirical_chisq`, `df`, `empirical_p`, `kmo`, `bartlett_*`, `iterations`, `converged` (1/0), `factors_retained`. `ml` only: `likelihood_chisq` (Bartlett-corrected, on `df`), `likelihood_p`, `tli`, `rmsea`, `rmsea_lower` / `rmsea_upper` (psych `RMSEA` lower / upper), `bic` (null at `df` ≤ 0).
 
 ## Reading the output
 

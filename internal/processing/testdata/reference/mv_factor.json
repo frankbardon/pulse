@@ -14,7 +14,7 @@
   },
   "primitive": "exploratory factor analysis (minres, principal axis, maximum likelihood) with rotation",
   "r_function": "psych::fa(r = R, nfactors = k, fm = 'minres' | 'pa' | 'ml', rotate = 'none', n.obs = n_star); psych::fa.stats(r = R, f = L, n.obs = n_star); stats::varimax, stats::promax(m = 4), GPArotation::oblimin(gam = 0) on the unrotated loadings",
-  "note": "R = the fixture's listwise (weighted) correlation; n_star = N / sum(w) / Kish n_eff. minres = psych's L-BFGS-B fit (stops early); minres_exact = its exact optimum, the principal-axis fixed point (fm = 'pa', min.err = 1e-14). principal_axis = psych's default iteration (SMC start, min.err 0.001, max.iter 50; converged = fewer than 50 iterations). unrotated = psych's loadings, columns flipped to sum positive; communalities = rowSums(L^2), uniquenesses = 1 - communalities, variance = colSums(L^2). rotations = Pulse's engine definitions put through rot_canon (descending variance diag(Phi L'L), then each column summing positive); psych::fa's own varimax / oblimin asserted equal; psych's 'promax' (kaiser + GPArotation::Varimax) is not stats::promax and is not used. rmsr / empirical_chisq / df / empirical_p = psych fa.stats rms / chi / dof / EPVAL (asserted); objective = sum_{i != j} res^2. kmo = psych::KMO; bartlett = psych::cortest.bartlett(R, n = n_star). The heywood case has no exact optimum (its minres optimum is improper) and is compared on detection only. ml = psych::fa(fm = 'ml') (L-BFGS-B over psi in [0.005, 1] from 1 - SMC, default factr: stops early); psi = 1 - its communalities (psych's optimiser output); its loadings asserted equal to psych's FAout + sign + descending-variance order rule. ml_exact = the optimum itself: L-BFGS-B at factr = pgtol = 0, then Newton on the free psi with optimHess until the free gradient is below 1e-13; stats::factanal at factr 1e-3 asserted within 1e-6 where it starts. Each ML entry's likelihood figures are psych::fa.stats on its loadings: objective = tr(M^-1 R) - log det(M^-1 R) - p (M = LL' with unit diagonal), likelihood_chisq = STATISTIC (objective * ((N - 1) - (2p + 5)/6 - 2k/3), 0 when negative), likelihood_p = PVAL, tli = TLI, rmsea = RMSEA[1] (point estimate), bic = BIC; the last four null at df <= 0.",
+  "note": "R = the fixture's listwise (weighted) correlation; n_star = N / sum(w) / Kish n_eff. minres = psych's L-BFGS-B fit (stops early); minres_exact = its exact optimum, the principal-axis fixed point (fm = 'pa', min.err = 1e-14). principal_axis = psych's default iteration (SMC start, min.err 0.001, max.iter 50; converged = fewer than 50 iterations). unrotated = psych's loadings, columns flipped to sum positive; communalities = rowSums(L^2), uniquenesses = 1 - communalities, variance = colSums(L^2). rotations = Pulse's engine definitions put through rot_canon (descending variance diag(Phi L'L), then each column summing positive); psych::fa's own varimax / oblimin asserted equal; psych's 'promax' (kaiser + GPArotation::Varimax) is not stats::promax and is not used. rmsr / empirical_chisq / df / empirical_p = psych fa.stats rms / chi / dof / EPVAL (asserted); objective = sum_{i != j} res^2. kmo = psych::KMO; bartlett = psych::cortest.bartlett(R, n = n_star). The heywood case has no exact optimum (its minres optimum is improper) and is compared on detection only. ml = psych::fa(fm = 'ml') (L-BFGS-B over psi in [0.005, 1] from 1 - SMC, default factr: stops early); psi = 1 - its communalities (psych's optimiser output); its loadings asserted equal to psych's FAout + sign + descending-variance order rule. ml_exact = the optimum itself: L-BFGS-B at factr = pgtol = 0, then Newton on the free psi with optimHess until the free gradient is below 1e-13; stats::factanal at factr 1e-3 asserted within 1e-6 where it starts. Each ML entry's likelihood figures are psych::fa.stats on its loadings: objective = tr(M^-1 R) - log det(M^-1 R) - p (M = LL' with unit diagonal), likelihood_chisq = STATISTIC (objective * ((N - 1) - (2p + 5)/6 - 2k/3), 0 when negative), likelihood_p = PVAL, tli = TLI, rmsea = RMSEA[1] (point estimate), bic = BIC; the last four null at df <= 0. rmsea_lower / rmsea_upper = the 90% RMSEA interval (fa.stats alpha = 0.1, psych::fa's default): psych's rule (tail 0.05; upper solves pchisq(chi, df, ncp) = 0.05 when pchisq(chi, df) > 0.05, else 0; lower = 0.95 likewise; root on [0, max(N, chi) + 2N], sqrt(ncp / (N - 1) / df); out of bracket or on the wrong side of the point estimate = null) solved by uniroot at tol 1e-300 (psych's default tol leaves its own bounds ~1e-7 away; asserted within 1e-5); null at df <= 0.",
   "cases": [
     {
       "fixture": "attitude",
@@ -319,7 +319,9 @@
         "likelihood_p": 0.037736576239515394,
         "tli": 0.78674835466033977,
         "rmsea": 0.15590649932659928,
-        "bic": -22.925133379025066
+        "bic": -22.925133379025066,
+        "rmsea_lower": 0.03847743148110435,
+        "rmsea_upper": 0.26539365099562501
       },
       "ml_exact": {
         "unrotated": [
@@ -384,7 +386,9 @@
         "likelihood_p": 0.037736576269261315,
         "tli": 0.78674835471583293,
         "rmsea": 0.15590649930535475,
-        "bic": -22.925133381807282
+        "bic": -22.925133381807282,
+        "rmsea_lower": 0.038477431427426878,
+        "rmsea_upper": 0.26539365097784307
       }
     },
     {
@@ -1143,6 +1147,8 @@
         "tli": 1.0912551550419984,
         "rmsea": 0,
         "bic": -21.735377859078337,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.16565321364555238,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -1356,6 +1362,8 @@
         "tli": 1.0912551550494931,
         "rmsea": 0,
         "bic": -21.735377859285776,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.16565321364022903,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -2421,6 +2429,8 @@
         "tli": 1.0936644337437582,
         "rmsea": 0,
         "bic": -8.1416735925517543,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.27162243816386528,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -2687,6 +2697,8 @@
         "tli": 1.0936644337879109,
         "rmsea": 0,
         "bic": -8.1416735929939588,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.27162243814114267,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -3630,6 +3642,8 @@
         "tli": 1.0730867087627189,
         "rmsea": 0,
         "bic": -18.986715304711147,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.21209420705759591,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -3843,6 +3857,8 @@
         "tli": 1.0730867087532345,
         "rmsea": 0,
         "bic": -18.986715304520768,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.21209420706203111,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -5069,6 +5085,8 @@
         "tli": 0.83181316383654635,
         "rmsea": 0.17539732141776407,
         "bic": -49.266774749389555,
+        "rmsea_lower": 0.11824740161388851,
+        "rmsea_upper": 0.24287260883964579,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -5358,6 +5376,8 @@
         "tli": 0.83181316383994863,
         "rmsea": 0.17539732141593192,
         "bic": -49.266774750088828,
+        "rmsea_lower": 0.118247401611734,
+        "rmsea_upper": 0.2428726088379726,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -6851,6 +6871,8 @@
         "tli": 0.96226943438589596,
         "rmsea": 0.076808814109380216,
         "bic": -56.117270817178479,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.17485170885279533,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -7209,6 +7231,8 @@
         "tli": 0.96226943447437208,
         "rmsea": 0.076808814003935993,
         "bic": -56.11727083013696,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.17485170878740836,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -8759,6 +8783,8 @@
         "tli": 0.843824206723231,
         "rmsea": 0.19466992200062172,
         "bic": -3.9323819854372601,
+        "rmsea_lower": 0.1589411086529024,
+        "rmsea_upper": 0.23493790801882222,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -9117,6 +9143,8 @@
         "tli": 0.84382420672864167,
         "rmsea": 0.1946699219972377,
         "bic": -3.9323819883029074,
+        "rmsea_lower": 0.15894110864941802,
+        "rmsea_upper": 0.23493790801551057,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -10043,6 +10071,8 @@
         "tli": 1.2260167352735041,
         "rmsea": 0,
         "bic": -15.246167604482411,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.090408447506854978,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -10237,6 +10267,8 @@
         "tli": 1.2260167352758906,
         "rmsea": 0,
         "bic": -15.246167604512703,
+        "rmsea_lower": 0,
+        "rmsea_upper": 0.090408447504126244,
         "rotations": {
           "varimax": {
             "loadings": [
@@ -10565,7 +10597,9 @@
         "likelihood_p": 0.037068507181900016,
         "tli": 0.83349212667576744,
         "rmsea": 0.16293895372037523,
-        "bic": -2.3187195267499288
+        "bic": -2.3187195267499288,
+        "rmsea_lower": 0.034735343642029869,
+        "rmsea_upper": 0.31105017077431552
       },
       "ml_exact": {
         "unrotated": [
@@ -10612,7 +10646,9 @@
         "likelihood_p": 0.037068507182948289,
         "tli": 0.83349212667781925,
         "rmsea": 0.16293895371936618,
-        "bic": -2.3187195268064871
+        "bic": -2.3187195268064871,
+        "rmsea_lower": 0.034735343640343662,
+        "rmsea_upper": 0.31105017077342678
       }
     },
     {
@@ -10750,7 +10786,9 @@
         "likelihood_p": null,
         "tli": null,
         "rmsea": null,
-        "bic": null
+        "bic": null,
+        "rmsea_lower": null,
+        "rmsea_upper": null
       },
       "ml_exact": {
         "unrotated": [
@@ -10791,9 +10829,11 @@
         "likelihood_p": null,
         "tli": null,
         "rmsea": null,
-        "bic": null
+        "bic": null,
+        "rmsea_lower": null,
+        "rmsea_upper": null
       }
     }
   ]
 }
-// golden-hash: b387c868a7c506fbee8af91672dce1c7460fb5dff6ffe6e2a530907db0ed686d
+// golden-hash: 915c7b06661bdd45e66aabba8342834a0fc32335b809ca4c9de7b78959ae38fa

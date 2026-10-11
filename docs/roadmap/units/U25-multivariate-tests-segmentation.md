@@ -95,7 +95,7 @@ Filed as TODO items (ids are TODO ids, not GitHub issues).
 | Compose co-moment fits | [U30](U30-matrix-extensions-hardening.md) #402 |
 | Named populations | [U30](U30-matrix-extensions-hardening.md) #403 |
 | Per-`Groups` statistical tests | [U35](U35-predict-runtime-parity.md) #404 |
-| RMSEA confidence interval | [U36](U36-reference-oracles.md) #405 |
+| ~~RMSEA confidence interval~~ — resolved in U25 | [U36](U36-reference-oracles.md) #405 |
 | More GPA rotations | [U30](U30-matrix-extensions-hardening.md) #406 |
 | `MAT_DISTANCE` metrics into the shared registry | [U27](U27-vector-metrics-aggregates.md) #407 |
 | ~~One singularity rule across tests and `MAT_PCA`~~ — resolved in U25 | [U30](U30-matrix-extensions-hardening.md) #408 |

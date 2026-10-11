@@ -111,6 +111,7 @@ func TestResolveAttributes_Rules(t *testing.T) {
 		{name: "factor score factors beyond p", attr: fsa(`{"factor": 1, "factors": 4}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "factor_out_of_range"},
 		{name: "factor score bad method", attr: fsa(`{"factor": 1, "method": "tenberge"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "factor score kappa without promax", attr: fsa(`{"factor": 1, "kappa": 3}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "factor score conf_level (MAT_FACTOR only)", attr: fsa(`{"factor": 1, "extraction": "ml", "conf_level": 0.9}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "factor score repair key", attr: fsa(`{"factor": 1, "repair": "nearest"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 	}
 	for _, c := range cases {

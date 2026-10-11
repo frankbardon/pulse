@@ -296,7 +296,7 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 	} else if req.Matrices[0].Type == types.MAT_FACTOR {
 		keys := []string{"rmsr", "empirical_chisq", "df", "empirical_p", "kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "iterations", "converged", "factors_retained"}
 		if _, ml := m.Scalars["likelihood_chisq"]; ml {
-			keys = append(keys, "likelihood_chisq", "likelihood_p", "tli", "rmsea", "bic")
+			keys = append(keys, "likelihood_chisq", "likelihood_p", "tli", "rmsea", "rmsea_lower", "rmsea_upper", "bic")
 		}
 		for _, k := range keys {
 			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))

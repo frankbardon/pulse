@@ -90,7 +90,8 @@ const (
 	// minimum-residual fit, psych fm = "minres"), "principal_axis"
 	// (iterated principal axes, psych fm = "pa") or "ml" (maximum
 	// likelihood, stats::factanal; adds the likelihood chi-square, TLI,
-	// RMSEA and BIC scalars), each from the squared multiple
+	// RMSEA with its interval at params.conf_level and BIC scalars),
+	// each from the squared multiple
 	// correlations, then rotated by params.rotation "none"
 	// (the default), "varimax", "promax" (params.kappa, default 4) or
 	// "oblimin" (params.gamma, default 0). The primary is the p × k
@@ -252,8 +253,9 @@ type MatrixSpec struct {
 	// "nearest"; MAT_COLLINEARITY: "center": bool, "repair": "nearest";
 	// MAT_FACTOR: "factors": k | "kaiser", "extraction": "minres" |
 	// "principal_axis" | "ml", "rotation": "none" | "varimax" | "promax" |
-	// "oblimin", "kappa" (promax), "gamma" (oblimin), "repair":
-	// "nearest"; MAT_DISTANCE: "between": a grouper spec, "metric":
+	// "oblimin", "kappa" (promax), "gamma" (oblimin), "conf_level" (ml:
+	// the RMSEA interval's coverage, default 0.9), "repair": "nearest";
+	// MAT_DISTANCE: "between": a grouper spec, "metric":
 	// "euclidean" | "sqeuclidean" | "manhattan" | "chebyshev" | "cosine" |
 	// "mahalanobis", "standardize": bool).
 	Params json.RawMessage `json:"params,omitempty"`

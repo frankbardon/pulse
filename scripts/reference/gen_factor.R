@@ -46,8 +46,11 @@
 #     the free psi with stats::optimHess to a free gradient < 1e-13),
 #     stats::factanal asserted within 1e-6 where it can start. Each
 #     entry's likelihood figures are psych::fa.stats(r = R, f = L,
-#     n.obs = n_star) on its loadings: STATISTIC, PVAL, TLI, RMSEA[1],
-#     BIC (null at dof <= 0).
+#     n.obs = n_star, alpha = 0.1) on its loadings: STATISTIC, PVAL,
+#     TLI, RMSEA[1], BIC (null at dof <= 0), and the 90% RMSEA interval
+#     (TODO #405, psych::fa's default alpha = 0.1): fa_rmsea_ci below,
+#     psych's own rule solved to machine precision, asserted within
+#     psych's uniroot tolerance of fa.stats' RMSEA lower / upper.
 
 fa_quiet <- function(...) {
   suppressWarnings(suppressMessages(psych::fa(...)))
@@ -136,22 +139,66 @@ fa_ml_exact <- function(R, k) {
   if (max(abs(g[free])) >= 1e-10) stop("exact ML did not converge: ", max(abs(g[free])))
   psi
 }
+# fa_rmsea_ci is psych::fa.stats' RMSEA interval transcribed: tail =
+# (1 - conf)/2; the upper bound solves pchisq(chi, df, ncp = x) = tail
+# when pchisq(chi, df) > tail (else 0), the lower one = 1 - tail when
+# pchisq(chi, df) > 1 - tail (else 0), each on [0, max(N, chi) + 2N] and
+# rescaled sqrt(x / (N - 1) / df); no root in the bracket is NA (an
+# upper bound whose point RMSEA is 0 is 0), and a bound on the wrong side
+# of the point estimate is NA. psych runs uniroot at its default tol
+# (~1.2e-4 on x); this solves to the last bit (tol 1e-300), so its
+# bounds are the exact ones psych's approximate.
+fa_rmsea_ci <- function(chi, df, N, conf = 0.9) {
+  tail <- (1 - conf) / 2
+  rmsea <- sqrt(max(chi / (df * N) - 1 / (N - 1), 0))
+  mx <- max(N, chi) + 2 * N
+  f0 <- pchisq(chi, df)
+  root <- function(target) {
+    f <- function(x) pchisq(chi, df, ncp = x) - target
+    if (f(mx) > 0) return(NULL)
+    uniroot(f, c(0, mx), tol = 1e-300, maxiter = 10000)$root
+  }
+  up <- 0
+  if (f0 > tail) {
+    r <- root(tail)
+    up <- if (is.null(r)) (if (rmsea <= 0) 0 else NA_real_) else sqrt(r / (N - 1) / df)
+  }
+  lo <- 0
+  if (f0 > 1 - tail) {
+    r <- root(1 - tail)
+    lo <- if (is.null(r)) NA_real_ else sqrt(r / (N - 1) / df)
+  }
+  if (!is.na(up) && up < rmsea) up <- NA_real_
+  if (!is.na(lo) && lo > rmsea) lo <- NA_real_
+  c(lower = lo, upper = up)
+}
+
 # fa_ml_entry records an ML solution: the loadings / communalities /
 # uniquenesses / variance, psi, the empirical residual figures (fa_stats)
 # and the likelihood figures of psych::fa.stats on these loadings
-# (STATISTIC, dof, PVAL, TLI, RMSEA[1], BIC; null at dof <= 0).
+# (STATISTIC, dof, PVAL, TLI, RMSEA[1], BIC; null at dof <= 0) plus the
+# 90% RMSEA interval (fa_rmsea_ci, checked against fa.stats' own).
 fa_ml_entry <- function(R, L, psi, ns, k) {
   st <- fa_stats(R, L, ns)
-  fs <- suppressWarnings(suppressMessages(psych::fa.stats(r = R, f = L, n.obs = ns)))
+  fs <- suppressWarnings(suppressMessages(psych::fa.stats(r = R, f = L, n.obs = ns, alpha = 0.1)))
   near(fs$dof, st$df, 0, "ml dof")
   pos <- st$df > 0
+  ci <- c(lower = NA_real_, upper = NA_real_)
+  if (pos) {
+    ci <- fa_rmsea_ci(fs$STATISTIC, fs$dof, ns)
+    near(fs$RMSEA[["confidence"]], 0.9, 0, "ml RMSEA confidence")
+    # psych's uniroot default tol (.Machine$double.eps^0.25 on the
+    # noncentrality) bounds its distance from the exact root.
+    near(ci, fs$RMSEA[c("lower", "upper")], 1e-5, "ml RMSEA interval vs psych")
+  }
   h <- rowSums(L^2)
   e <- list(unrotated = numm(L), communalities = numv(h), uniquenesses = numv(1 - h), variance = numv(colSums(L^2)),
             psi = numv(psi),
             rmsr = num(st$rmsr), empirical_chisq = num(st$chisq), df = num(st$df), empirical_p = numx(st$p),
             objective = num(fs$objective), likelihood_chisq = num(fs$STATISTIC),
             likelihood_p = numx(if (pos) fs$PVAL else NA_real_), tli = numx(if (pos) fs$TLI else NA_real_),
-            rmsea = numx(if (pos) fs$RMSEA[[1]] else NA_real_), bic = numx(if (pos) fs$BIC else NA_real_))
+            rmsea = numx(if (pos) fs$RMSEA[[1]] else NA_real_), bic = numx(if (pos) fs$BIC else NA_real_),
+            rmsea_lower = numx(ci[["lower"]]), rmsea_upper = numx(ci[["upper"]]))
   rot <- fa_rotations(L, k)
   if (!is.null(rot)) e$rotations <- fa_enc_rot(rot)
   e
@@ -247,6 +294,6 @@ add_factor("heywood", hw, c("h1", "h2", "h3"), "none", 1, exact = FALSE)
 
 factor_meta <- mv_meta("exploratory factor analysis (minres, principal axis, maximum likelihood) with rotation",
   "psych::fa(r = R, nfactors = k, fm = 'minres' | 'pa' | 'ml', rotate = 'none', n.obs = n_star); psych::fa.stats(r = R, f = L, n.obs = n_star); stats::varimax, stats::promax(m = 4), GPArotation::oblimin(gam = 0) on the unrotated loadings",
-  "R = the fixture's listwise (weighted) correlation; n_star = N / sum(w) / Kish n_eff. minres = psych's L-BFGS-B fit (stops early); minres_exact = its exact optimum, the principal-axis fixed point (fm = 'pa', min.err = 1e-14). principal_axis = psych's default iteration (SMC start, min.err 0.001, max.iter 50; converged = fewer than 50 iterations). unrotated = psych's loadings, columns flipped to sum positive; communalities = rowSums(L^2), uniquenesses = 1 - communalities, variance = colSums(L^2). rotations = Pulse's engine definitions put through rot_canon (descending variance diag(Phi L'L), then each column summing positive); psych::fa's own varimax / oblimin asserted equal; psych's 'promax' (kaiser + GPArotation::Varimax) is not stats::promax and is not used. rmsr / empirical_chisq / df / empirical_p = psych fa.stats rms / chi / dof / EPVAL (asserted); objective = sum_{i != j} res^2. kmo = psych::KMO; bartlett = psych::cortest.bartlett(R, n = n_star). The heywood case has no exact optimum (its minres optimum is improper) and is compared on detection only. ml = psych::fa(fm = 'ml') (L-BFGS-B over psi in [0.005, 1] from 1 - SMC, default factr: stops early); psi = 1 - its communalities (psych's optimiser output); its loadings asserted equal to psych's FAout + sign + descending-variance order rule. ml_exact = the optimum itself: L-BFGS-B at factr = pgtol = 0, then Newton on the free psi with optimHess until the free gradient is below 1e-13; stats::factanal at factr 1e-3 asserted within 1e-6 where it starts. Each ML entry's likelihood figures are psych::fa.stats on its loadings: objective = tr(M^-1 R) - log det(M^-1 R) - p (M = LL' with unit diagonal), likelihood_chisq = STATISTIC (objective * ((N - 1) - (2p + 5)/6 - 2k/3), 0 when negative), likelihood_p = PVAL, tli = TLI, rmsea = RMSEA[1] (point estimate), bic = BIC; the last four null at df <= 0.")
+  "R = the fixture's listwise (weighted) correlation; n_star = N / sum(w) / Kish n_eff. minres = psych's L-BFGS-B fit (stops early); minres_exact = its exact optimum, the principal-axis fixed point (fm = 'pa', min.err = 1e-14). principal_axis = psych's default iteration (SMC start, min.err 0.001, max.iter 50; converged = fewer than 50 iterations). unrotated = psych's loadings, columns flipped to sum positive; communalities = rowSums(L^2), uniquenesses = 1 - communalities, variance = colSums(L^2). rotations = Pulse's engine definitions put through rot_canon (descending variance diag(Phi L'L), then each column summing positive); psych::fa's own varimax / oblimin asserted equal; psych's 'promax' (kaiser + GPArotation::Varimax) is not stats::promax and is not used. rmsr / empirical_chisq / df / empirical_p = psych fa.stats rms / chi / dof / EPVAL (asserted); objective = sum_{i != j} res^2. kmo = psych::KMO; bartlett = psych::cortest.bartlett(R, n = n_star). The heywood case has no exact optimum (its minres optimum is improper) and is compared on detection only. ml = psych::fa(fm = 'ml') (L-BFGS-B over psi in [0.005, 1] from 1 - SMC, default factr: stops early); psi = 1 - its communalities (psych's optimiser output); its loadings asserted equal to psych's FAout + sign + descending-variance order rule. ml_exact = the optimum itself: L-BFGS-B at factr = pgtol = 0, then Newton on the free psi with optimHess until the free gradient is below 1e-13; stats::factanal at factr 1e-3 asserted within 1e-6 where it starts. Each ML entry's likelihood figures are psych::fa.stats on its loadings: objective = tr(M^-1 R) - log det(M^-1 R) - p (M = LL' with unit diagonal), likelihood_chisq = STATISTIC (objective * ((N - 1) - (2p + 5)/6 - 2k/3), 0 when negative), likelihood_p = PVAL, tli = TLI, rmsea = RMSEA[1] (point estimate), bic = BIC; the last four null at df <= 0. rmsea_lower / rmsea_upper = the 90% RMSEA interval (fa.stats alpha = 0.1, psych::fa's default): psych's rule (tail 0.05; upper solves pchisq(chi, df, ncp) = 0.05 when pchisq(chi, df) > 0.05, else 0; lower = 0.95 likewise; root on [0, max(N, chi) + 2N], sqrt(ncp / (N - 1) / df); out of bracket or on the wrong side of the point estimate = null) solved by uniroot at tol 1e-300 (psych's default tol leaves its own bounds ~1e-7 away; asserted within 1e-5); null at df <= 0.")
 factor_meta$packages <- c(factor_meta$packages, lapply(as.list(pinned_rot), function(v) v))
 write_golden("mv_factor", c(factor_meta, list(cases = factor_cases)))

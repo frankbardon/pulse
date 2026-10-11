@@ -66,6 +66,10 @@ type faOut struct {
 	TLI             *float64  `json:"tli"`
 	RMSEA           *float64  `json:"rmsea"`
 	BIC             *float64  `json:"bic"`
+	// The 90% RMSEA interval (psych::fa's default alpha = 0.1), psych's
+	// rule solved to machine precision; null at df ≤ 0.
+	RMSEALower *float64 `json:"rmsea_lower"`
+	RMSEAUpper *float64 `json:"rmsea_upper"`
 }
 
 type factorCase struct {

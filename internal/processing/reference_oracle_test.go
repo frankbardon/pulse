@@ -131,6 +131,81 @@ func TestReferenceOracle_ChiSquareSurvival(t *testing.T) {
 	c.done(len(doc.Cases))
 }
 
+// TestReferenceOracle_NoncentralChiSquareCDF: the noncentral χ² lower
+// tail behind MAT_FACTOR's RMSEA interval against R's pchisq(x, df,
+// ncp). Below ncp 80 R sums the same Poisson mixture to full precision
+// and the shared relative 1e-10 holds; at ncp ≥ 80 (r_approx) R
+// switches to an approximation it bounds at 1e-12 absolute, so those
+// rows (kept to CDFs in [1e-3, 1 − 1e-3]) are held to 1e-11 absolute.
+func TestReferenceOracle_NoncentralChiSquareCDF(t *testing.T) {
+	doc := loadReference[struct {
+		X       float64 `json:"x"`
+		DF      float64 `json:"df"`
+		NCP     float64 `json:"ncp"`
+		CDF     float64 `json:"cdf"`
+		RApprox bool    `json:"r_approx"`
+	}](t, "noncentral_chi_square_cdf")
+	exact := newOracleCheck(t, "noncentralChiSquareCDF", oracleRelTol, oracleProbAbsFloor)
+	approx := newOracleCheck(t, "noncentralChiSquareCDF (ncp >= 80)", 0, 1e-11)
+	nExact, nApprox := 0, 0
+	for _, k := range doc.Cases {
+		c := exact
+		if k.RApprox {
+			c, nApprox = approx, nApprox+1
+		} else {
+			nExact++
+		}
+		c.check(noncentralChiSquareCDF(k.X, k.DF, k.NCP), k.CDF, "x=%g, df=%g, ncp=%g", k.X, k.DF, k.NCP)
+	}
+	exact.done(nExact)
+	approx.done(nApprox)
+	if nExact == 0 || nApprox == 0 {
+		t.Fatalf("grid has %d exact and %d approximate rows; want both", nExact, nApprox)
+	}
+}
+
+// TestNoncentralChiSquareCDF_Edges: the domain guards, the central
+// special case, the bounds and monotonicity in x and ncp.
+func TestNoncentralChiSquareCDF_Edges(t *testing.T) {
+	for _, c := range []struct{ x, df, ncp float64 }{
+		{1, 0, 1}, {1, -1, 1}, {1, 2, -0.5}, {math.NaN(), 2, 1}, {1, math.NaN(), 1}, {1, 2, math.NaN()},
+	} {
+		if got := noncentralChiSquareCDF(c.x, c.df, c.ncp); !math.IsNaN(got) {
+			t.Errorf("noncentralChiSquareCDF(%v, %v, %v) = %v, want NaN", c.x, c.df, c.ncp, got)
+		}
+	}
+	if got := noncentralChiSquareCDF(0, 3, 2); got != 0 {
+		t.Errorf("CDF at 0 = %v", got)
+	}
+	if got := noncentralChiSquareCDF(-1, 3, 2); got != 0 {
+		t.Errorf("CDF below 0 = %v", got)
+	}
+	if got := noncentralChiSquareCDF(math.Inf(1), 3, 2); got != 1 {
+		t.Errorf("CDF at +Inf = %v", got)
+	}
+	for _, x := range []float64{0.5, 3, 12} {
+		if got, want := noncentralChiSquareCDF(x, 4, 0), 1-chiSquareSurvival(x, 4); math.Abs(got-want) > 1e-15 {
+			t.Errorf("central CDF(%v) = %v, want %v", x, got, want)
+		}
+	}
+	prev := 2.0
+	for ncp := 0.0; ncp <= 200; ncp += 7.5 {
+		got := noncentralChiSquareCDF(30, 10, ncp)
+		if got > prev || got < 0 || got > 1 {
+			t.Fatalf("CDF(30; 10, %v) = %v after %v: not decreasing in ncp", ncp, got, prev)
+		}
+		prev = got
+	}
+	prev = -1
+	for x := 0.5; x <= 200; x += 6.5 {
+		got := noncentralChiSquareCDF(x, 10, 40)
+		if got < prev {
+			t.Fatalf("CDF(%v; 10, 40) = %v after %v: not increasing in x", x, got, prev)
+		}
+		prev = got
+	}
+}
+
 func TestReferenceOracle_FSurvival(t *testing.T) {
 	doc := loadReference[struct {
 		F   float64 `json:"f"`

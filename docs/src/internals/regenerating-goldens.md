@@ -145,7 +145,8 @@ to live CLI output by `TestShardingSnapshots_MatchCLIOutput`
 ## R reference goldens are an external oracle, not a snapshot
 
 `internal/processing/testdata/reference/*.json` hold R's values for the
-shared distribution primitives (Student t, chi-square, F, normal CDF and
+shared distribution primitives (Student t, chi-square, the noncentral
+chi-square CDF, F, normal CDF and
 quantile, the limiting Kolmogorov survival, the studentized range). They
 are written by `scripts/reference/gen_reference.R` and carry the R and
 package versions that produced them; `make reference` runs the script
