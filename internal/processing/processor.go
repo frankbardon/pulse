@@ -321,12 +321,13 @@ func requiresTwoPass(t types.AttributeType) bool {
 	return false
 }
 
-// hasTwoPassAttribute reports whether req has any attribute whose type
-// requires the two-pass streaming path — a built-in two-pass type or an
-// extension attribute that declared the two-pass mode on exts.
+// hasTwoPassAttribute reports whether req has any attribute that
+// requires the two-pass streaming path — a built-in two-pass type, an
+// extension attribute that declared the two-pass mode on exts, or an
+// ATTR_FORMULA calling total(expr) (ExtensionRegistry.attrRequiresTwoPass).
 func hasTwoPassAttribute(req *types.Request, exts *ExtensionRegistry) bool {
 	for _, attr := range req.Attributes {
-		if exts.attributeRequiresTwoPass(attr.Type) {
+		if exts.attrRequiresTwoPass(attr) {
 			return true
 		}
 	}
@@ -445,7 +446,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 		if !p.exts.IsStreamable("attribute", string(attr.Type)) {
 			return false
 		}
-		if p.exts.attributeRequiresTwoPass(attr.Type) {
+		if p.exts.attrRequiresTwoPass(attr) {
 			hasTwoPassAttr = true
 		}
 	}

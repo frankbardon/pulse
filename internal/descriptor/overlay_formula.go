@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -96,6 +97,15 @@ func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *
 				"formula":     formula,
 				"parse_error": err.Error(),
 			})
+		return
+	}
+
+	if cerr := totalcall.Refusal(formula, string(types.OverlayKindFormula)); cerr != nil {
+		details := map[string]any{"index": index, "kind": string(spec.Kind)}
+		for k, v := range cerr.Details {
+			details[k] = v
+		}
+		env.AddError(string(cerr.Code), cerr.Message, details)
 		return
 	}
 

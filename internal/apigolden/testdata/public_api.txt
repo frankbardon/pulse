@@ -2200,6 +2200,9 @@ pulse/errors: const PULSE_FEATURE_PROFILE_UNKNOWN pulse/errors.Code = "PULSE_FEA
 pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 pulse/errors: const PULSE_FIT_INVALID pulse/errors.Code = "PULSE_FIT_INVALID"
+pulse/errors: const PULSE_FORMULA_TOTAL_ARITY pulse/errors.Code = "PULSE_FORMULA_TOTAL_ARITY"
+pulse/errors: const PULSE_FORMULA_TOTAL_NESTED pulse/errors.Code = "PULSE_FORMULA_TOTAL_NESTED"
+pulse/errors: const PULSE_FORMULA_TOTAL_SITE pulse/errors.Code = "PULSE_FORMULA_TOTAL_SITE"
 pulse/errors: const PULSE_FOR_EACH_INVALID pulse/errors.Code = "PULSE_FOR_EACH_INVALID"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
 pulse/errors: const PULSE_GROUP_ENTRIES_EXHAUSTED pulse/errors.Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
@@ -4702,4 +4705,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 81a63d55ba4f97eada11dab73a9da960a8059124cdab44b2804f8d43b7ca143b
+// golden-hash: e16d4dbb9702c0ca3cb39021b0823823f44c19fdf5a6bc78ddb1e2078162c5ea

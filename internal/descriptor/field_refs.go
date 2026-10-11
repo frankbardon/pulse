@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -220,6 +221,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		}
 		w.checkInputs("filterer", string(fil.Type), nil, "filter")
 		if opRoute(inst, fil.Type) == types.FILTER_EXPRESSION {
+			w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
 			w.checkCoef(fil.Expression, models)
 		}
 		if fil.Field == "" && !filterFieldRequired(opRoute(inst, fil.Type)) {
@@ -269,6 +271,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			}
 		default:
 			if attrRoute == types.ATTR_FORMULA {
+				w.checkTotal(attr.Expression, totalcall.FormulaSite)
 				w.checkCoef(attr.Expression, models)
 			}
 			if attrRoute != types.ATTR_FORMULA || attr.Field != "" {
@@ -731,6 +734,15 @@ func isBuiltinMatrixType(t types.MatrixType) bool {
 		}
 	}
 	return false
+}
+
+// checkTotal records expr's total(expr) refusal at site
+// (internal/totalcall.Refusal — the rule the engine's build runs too):
+// any call outside ATTR_FORMULA, a nested call or a wrong arity.
+func (w *fieldRefWalk) checkTotal(expr, site string) {
+	if cerr := totalcall.Refusal(expr, site); cerr != nil {
+		w.out = append(w.out, cerr)
+	}
 }
 
 // checkCoef records the first refusal of expr's all-literal coef()

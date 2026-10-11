@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/datepart"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -241,20 +242,34 @@ type formulaAttribute struct {
 	// models are the request's bound models coef() reads (nil: none),
 	// set by bindModels before prepare compiles.
 	models *model.Set
+	// totals is the cohort-total state of a formula that calls
+	// total(expr) (formula_total.go); nil for a row-local formula.
+	totals *formulaTotals
 
 	once    sync.Once
 	prog    *exprProgram
 	progErr error
 }
 
+// newFormulaAttribute builds ATTR_FORMULA. A formula that calls
+// total(expr) is built as a formulaTotalAttribute — a TwoPassAttribute
+// whose PrePass folds each total over the post-filter rows — so every
+// interface-asserting arm (buffered Compute, the two-pass streaming
+// drive, materialize) schedules the pre-pass; any other formula stays
+// the row-local formulaAttribute, byte-identical to before.
 func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
 	if attr.Expression == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "formula attribute requires an expression")
 	}
-	return &formulaAttribute{
+	a := &formulaAttribute{
 		expression: attr.Expression,
 		schema:     schema,
-	}, nil
+	}
+	if totalcall.Contains(attr.Expression) {
+		a.totals = &formulaTotals{}
+		return &formulaTotalAttribute{formulaAttribute: a}, nil
+	}
+	return a, nil
 }
 
 // SetExtensions implements ExtensionAware so the Processor can inject
@@ -275,6 +290,10 @@ func (a *formulaAttribute) SetExtensions(r *ExtensionRegistry) {
 func (a *formulaAttribute) prepare() error {
 	a.once.Do(func() {
 		if a.progErr = a.exts.coefStaticRefusal(a.expression, a.models); a.progErr != nil {
+			return
+		}
+		if a.totals != nil {
+			a.prog, a.progErr = a.prepareTotals()
 			return
 		}
 		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.exts.exprOptionsWithModels(a.models))
@@ -321,6 +340,12 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	return formulaNumber(output)
+}
+
+// formulaNumber is a formula's numeric reading of an expression value:
+// a number as float64, a bool as 1 / 0; any other type is refused.
+func formulaNumber(output any) (float64, error) {
 	switch v := output.(type) {
 	case float64:
 		return v, nil

@@ -11,6 +11,7 @@ import (
 	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -691,6 +692,9 @@ func compileFormulaProgram(spec *types.OverlaySpec, formula string, protoEnv map
 // existing `PULSE_OVERLAY_FORMULA_PARSE_ERROR` carries the offending
 // identifier in the parser's error message).
 func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string, protoEnv map[string]any, exts *ExtensionRegistry) (*formulaProgram, error) {
+	if cerr := totalcall.Refusal(formula, string(types.OverlayKindFormula)); cerr != nil {
+		return nil, cerr
+	}
 	opts := []expr.Option{expr.Env(protoEnv)}
 	if exts != nil {
 		opts = append(opts, exts.ExprOptions()...)

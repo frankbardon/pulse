@@ -592,6 +592,22 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 	return r != nil && r.TwoPassAttributes[t]
 }
 
+// attrRequiresTwoPass is the PER-ATTRIBUTE two-pass predicate: the
+// type rule (attributeRequiresTwoPass) or an ATTR_FORMULA whose
+// expression calls total(expr) (formula_total.go), which is row-local
+// by type but needs a pre-pass over the post-filter rows. Every
+// routing decision that schedules attributes asks this, never the type
+// alone. Nil-receiver-safe.
+func (r *ExtensionRegistry) attrRequiresTwoPass(attr *types.Attribute) bool {
+	if attr == nil {
+		return false
+	}
+	if r.attributeRequiresTwoPass(attr.Type) {
+		return true
+	}
+	return !r.isHidden(string(attr.Type)) && formulaCallsTotal(attr)
+}
+
 // isExtensionAggregator reports whether t is an embedder-registered
 // (overlay) aggregator rather than a built-in. Extension names cannot
 // collide with built-ins (rejected at pulse.New), so overlay membership

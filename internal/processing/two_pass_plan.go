@@ -52,7 +52,7 @@ func (p twoPassPlan) layerCount() int { return p.layers }
 func planTwoPassLayers(attrs []*types.Attribute, exts *ExtensionRegistry) twoPassPlan {
 	tp := make([]bool, len(attrs))
 	for i, a := range attrs {
-		tp[i] = exts.attributeRequiresTwoPass(a.Type)
+		tp[i] = exts.attrRequiresTwoPass(a)
 	}
 	return planTwoPassStages(attrs, tp, exts)
 }
