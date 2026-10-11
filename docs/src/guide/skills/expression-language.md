@@ -46,6 +46,7 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
 | `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level → `PROCESSING_CONFIG` |
 | `sqrt` `log` (natural) `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
+| `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 
 A non-finite result is `null` on the wire. These names are reserved: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
 

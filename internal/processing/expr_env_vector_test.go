@@ -44,6 +44,10 @@ var vectorBuiltinCases = map[string]struct {
 	"log":        {`log(exp(y))`, 2},
 	"exp":        {`exp(0)`, 1},
 	"pow":        {`pow(y, 3)`, 8},
+	"jaccard":    {`jaccard(["a", "b", "c"], ["c", "b", "d"])`, 0.5},
+	"dice":       {`dice(["a", "b", "c"], ["b", "c", "d", "e"]) * 7`, 4},
+	"hamming":    {`hamming(["a", "b"], ["b", "c", "d"]) + x`, 4},
+	"overlap":    {`overlap(["a", "b"], ["b", "c", "d"])`, 0.5},
 }
 
 func vectorTestSchema() *encoding.Schema {

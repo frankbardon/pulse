@@ -36,6 +36,8 @@ var reserved = []string{
 	"vcenter", "vzscore", "vnormalize",
 	// Scalar maths.
 	"sqrt", "log", "exp", "pow",
+	// Set similarity over two label sets.
+	"jaccard", "dice", "hamming", "overlap",
 }
 
 // reservedSet indexes reserved for IsReserved.

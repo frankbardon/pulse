@@ -53,6 +53,10 @@ var exprBuiltinImpls = map[string]exprBuiltinFunc{
 	"log":        scalarUnary("log", vecmath.Log),
 	"exp":        scalarUnary("exp", vecmath.Exp),
 	"pow":        scalarPowBuiltin,
+	"jaccard":    setSimilarity("jaccard", vecmath.Jaccard),
+	"dice":       setSimilarity("dice", vecmath.Dice),
+	"hamming":    setHammingBuiltin,
+	"overlap":    setSimilarity("overlap", vecmath.Overlap),
 }
 
 // exprBuiltinArity is each reserved built-in's [min, max] argument
@@ -60,6 +64,7 @@ var exprBuiltinImpls = map[string]exprBuiltinFunc{
 var exprBuiltinArity = map[string][2]int{
 	"dot": {2, 2}, "dist": {2, 2}, "cosine": {2, 2},
 	"vnormalize": {2, 2}, "pow": {2, 2},
+	"jaccard": {2, 2}, "dice": {2, 2}, "hamming": {2, 2}, "overlap": {2, 2},
 }
 
 // exprBuiltinVectorResult names the built-ins that return a vector.
