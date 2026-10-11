@@ -1692,6 +1692,59 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MODEL_SAVE_INVALID: {
+		Message: "A `save` path (on a regression or a `fits` entry) cannot name a model file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` with a name before the suffix, and never climbs above the root with `..`. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`), the offending regression's index under `regression` or the fit's under `fit`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"regressions", "*", "save"},
+				Hint:   "Name the model file under the data root with the `.pulse-model.json` suffix, e.g. `models/mmm.pulse-model.json`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "save"},
+				Hint:   "Give the fit's `save` a `.pulse-model.json` path under the data root.",
+			},
+		},
+	},
+	PULSE_MODEL_WRITE_FAILED: {
+		Message: "Writing a model file failed on the filesystem: creating its directory, the temp file, writing, syncing or renaming it over the target (the stage is under `stage`, the file under `path`, the model under `name`). The write is atomic, so the target keeps its previous content or stays absent; the fit itself succeeded.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"regressions", "*", "save"},
+				Hint:   "Save to a writable location under the data root (check permissions and free space), or drop `save` to run the fit without persisting it.",
+			},
+		},
+	},
+	PULSE_MODEL_OVERWRITTEN: {
+		Message: "A model file save replaced an existing file at its path (under `path`; the model under `name`, a fit's index under `fit`). The save succeeded and the new file is complete; the warning exists so a replaced model is never silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"regressions", "*", "save"},
+				Hint:   "No action needed if replacing the model was intended. To keep both, save under a new path (e.g. a dated file name).",
+			},
+		},
+	},
+	PULSE_MODEL_FILE_INVALID: {
+		Message: "A model file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` (`version_missing`), or its version-1 document has an unknown key, a mistyped value or a structural fault such as a predictor without a coefficient (`schema`). The file is under `path`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-save the model from its fit with `save`; a model file is written by Pulse and should not be hand-edited.",
+			},
+		},
+	},
+	PULSE_MODEL_VERSION_UNSUPPORTED: {
+		Message: "A model file's `model_format_version` is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-save the model with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
+			},
+		},
+	},
 	PULSE_FOR_EACH_INVALID: {
 		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{

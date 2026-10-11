@@ -642,6 +642,11 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := mergegate.MatrixRefusal(req); err != nil {
 		return nil, markLocated(err)
 	}
+	// Every regression `save` path, shared with predict
+	// (model.CheckRegressionSaves): refused before any record is read.
+	if cerr := model.CheckRegressionSaves(req.Regressions); cerr != nil {
+		return nil, markLocated(cerr)
+	}
 
 	// The multiplicity blocks resolve before any dispatch (every arm —
 	// crosstab, join, shard, parallel decode, serial — shares it); a
@@ -678,6 +683,11 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 		return nil, err
 	}
 	appendVectorWarnings(req, resp)
+	// Model files: every regression `save`, from the full-precision
+	// results (a `return` shapes the response later, in the facade).
+	if err := s.saveRegressionModels(ctx, req, resp); err != nil {
+		return nil, err
+	}
 	return resp, nil
 }
 
@@ -1173,7 +1183,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	}
 	// The fit pre-pass: every fit runs once, as a standalone request,
 	// before any slot; every slot then carries the bound models.
-	models, fitResults, err := s.runComposeFits(fitCtx, composed.Fits, 1)
+	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -1222,7 +1232,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// no Compose-only overlays. The `Responses` slot is the SAME slice
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}

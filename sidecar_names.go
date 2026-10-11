@@ -5,11 +5,12 @@ import (
 
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/imports"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/spsssidecar"
 )
 
 // pulseSidecarSuffixes lists the filename suffixes Pulse itself writes
-// beside a cohort. Every entry ends in ".json", so every entry is a
+// beside a cohort (and, for a model file, wherever a `save` puts it). Every entry ends in ".json", so every entry is a
 // file a *.json directory walk would otherwise pick up and try to
 // parse as its own document.
 //
@@ -19,6 +20,7 @@ var pulseSidecarSuffixes = []string{
 	imports.SidecarSuffix,    // ".meta.json"    — managed-import handle metadata
 	spsssidecar.Suffix,       // ".spss.json"    — SPSS dictionary metadata
 	encx.IndexManifestSuffix, // ".indexes.json" — sidecar point-lookup index catalog
+	model.FileSuffix,         // ".pulse-model.json" — a saved regression model file
 }
 
 // isPulseSidecarName reports whether name is one of Pulse's own

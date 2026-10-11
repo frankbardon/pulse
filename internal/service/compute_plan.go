@@ -252,6 +252,11 @@ func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, re
 			plan = plan.WithPostTestEntries(multiplicityVetoes(claimed.PostTests, len(req.PostTests)))
 		}
 	}
+	if !plan.Regressions && savesModel(req) {
+		// A regression that saves a model file is fitted whatever the
+		// `return` keeps: the save reads its result.
+		plan.Regressions = true
+	}
 	if s.requestOverlaysReadComponents(req, plan) {
 		plan.Crosstab = true
 	}
@@ -278,4 +283,17 @@ func (s *Service) computePlanFor(ctx context.Context, req *types.Request) proces
 		return plan
 	}
 	return s.resolveComputePlan(ctx, req, nil, nil)
+}
+
+// savesModel reports whether any regression of req sets Save.
+func savesModel(req *types.Request) bool {
+	if req == nil {
+		return false
+	}
+	for _, r := range req.Regressions {
+		if r != nil && r.Save != "" {
+			return true
+		}
+	}
+	return false
 }

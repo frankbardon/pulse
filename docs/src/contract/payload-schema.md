@@ -606,6 +606,25 @@ Both slots are gated by `capability:compose_fits`. `pulse_predict` with
 `composed` lists them as `fits [{name, type, target, predictors,
 cohort}]` on the predict result (not payload-reachable).
 
+### Model files (`save`)
+
+`RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,
+relative to the instance filesystem root, where the finished fit is
+written as a model file (`model_format_version` 1, `.pulse-model.json`;
+the format is in `.claude/reference/byte-layout.md`, "Model file"). The
+path must end `.pulse-model.json` and stay under the root
+(`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`
+or `details.fit`, refused by predict and the runtime alike before any
+record is read); a failed write is `PULSE_MODEL_WRITE_FAILED`. Replacing a
+file succeeds with the warning `PULSE_MODEL_OVERWRITTEN`: on the
+`Response.warnings` of the request whose regression saved, or on
+`ComposedResponse.warnings` — an `omitempty` array of `ResponseWarning`
+for batch-level diagnostics, always emitted (a `warnings` keep path the
+Compose-level `return` cannot exclude) — for a `fits` save
+(`details.fit`). Both `save` keys are
+gated by `capability:model_save`; the file itself is not payload-reachable,
+so `format_version` stays `"1.1"`.
+
 ### Item fan-out (`for_each`)
 
 `Window`, `Feature` and `Attribute` each carry an optional `for_each`

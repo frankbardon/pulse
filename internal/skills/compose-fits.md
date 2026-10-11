@@ -50,6 +50,12 @@ A **fit** is a named regression that a Compose batch runs ONCE, before any slot,
 
 `fits` on the compose response is an object keyed by fit name, each value the fit's full regression result (coefficients, standard errors, p-values, fit statistics; covariance when the spec asks for it). It is omitted without fits. It sits outside the compose-level `return` — always emitted, never rounded — because slots score from those exact figures. Slot responses are unchanged: a fit adds no row to any slot.
 
+<!-- feature: capability:model_save -->
+## Saving
+
+`save: "models/mmm.pulse-model.json"` on an entry (or on any regression spec) writes the fitted model as a versioned model file under the data root once it has run: atomic, full precision, named after the fit. The path must end `.pulse-model.json` and stay under the root (`PULSE_MODEL_SAVE_INVALID`, checked before any fit runs); a failed write is `PULSE_MODEL_WRITE_FAILED`; replacing a file succeeds with `PULSE_MODEL_OVERWRITTEN` in the compose response's `warnings` (`details.fit`).
+<!-- /feature -->
+
 ## Refusals
 
 - `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (with `count`), `grouped`. Checked before any fit or slot runs.

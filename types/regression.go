@@ -172,6 +172,17 @@ type RegressionSpec struct {
 	// intervals are Wald normal on the resampled standard errors.
 	ConfLevel float64 `json:"conf_level,omitempty"`
 
+	// Save writes the finished fit as a model file (model_format_version
+	// 1, `.pulse-model.json`) at this path on the instance filesystem,
+	// relative to its root, atomically (temp + fsync + rename; parent
+	// directories are created). Overwriting an existing file succeeds
+	// with the PULSE_MODEL_OVERWRITTEN warning. The path must end in
+	// `.pulse-model.json` and stay under the root
+	// (PULSE_MODEL_SAVE_INVALID); a failed write is
+	// PULSE_MODEL_WRITE_FAILED. A `return` never skips a regression
+	// that saves. Gated by capability:model_save. Empty writes nothing.
+	Save string `json:"save,omitempty"`
+
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
 	// slot out (it runs unweighted); a field-name string or a

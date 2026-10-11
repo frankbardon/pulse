@@ -102,6 +102,7 @@ var (
 	featCompose      = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep = FeatureName(FeatureKindCapability, "compose_sweep")
 	featComposeFits  = FeatureName(FeatureKindCapability, "compose_fits")
+	featModelSave    = FeatureModelSave
 	featForEach      = FeatureForEach
 	featProcessChain = FeatureName(FeatureKindCapability, "process_chain")
 	featFacet        = FeatureName(FeatureKindCapability, "facet")
@@ -141,6 +142,11 @@ const FeatureMultiplicity = "capability:multiplicity"
 // MCP binder (nested for_each properties) reads it.
 const FeatureForEach = "capability:for_each"
 
+// FeatureModelSave is capability:model_save — the `save` key on a
+// RegressionSpec and a ComposedRequest `fits` entry, which writes the
+// fit as a model file. Exported for the MCP bound schema.
+const FeatureModelSave = "capability:model_save"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -162,6 +168,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
 	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
 	capability("compose_fits"),   // ComposedRequest.Fits + ComposedResponse.Fits
+	capability("model_save"),     // RegressionSpec.Save + FitSpec.Save (model files)
 	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
 	capability("process_chain"),  // ProcessChain
 	capability("facet"),          // Facet, FacetSchema
@@ -412,6 +419,7 @@ var requestSlotCapabilities = map[string]bool{
 	featWeighting: true,
 	featMatrices:  true,
 	featForEach:   true,
+	featModelSave: true,
 }
 
 // slotTokenSet is the prose vocabulary one slot-owning capability owns:
@@ -474,6 +482,8 @@ var slotTokens = map[string]slotTokenSet{
 	featComposeSweep: {},
 	// `fits` is everyday English; no guidance sentence names the slot.
 	featComposeFits: {},
+	// `save` is everyday English; no guidance sentence names the slot.
+	featModelSave: {},
 	// `for_each` names the item key only; no guidance sentence names it.
 	featForEach: {},
 	// pulse_explain's `sample` root slot: "sample" is everyday English
@@ -599,6 +609,8 @@ var overlayHostKinds = map[string][]string{
 //     FILTER_EXPRESSION would break FilterToFile for any request.
 //   - every MAT_* operator rides the Request.Matrices slot, which
 //     capability:matrices gates.
+//   - capability:model_save writes a fitted regression, so it needs
+//     any-of the REG_* operators.
 //
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
@@ -627,6 +639,9 @@ var hardEdges = map[string][]string{
 	// A sweep expands into Compose slots: without Compose there is
 	// nothing to expand into.
 	featComposeSweep: {featCompose},
+	// A save writes a fitted regression: without a regression there is
+	// nothing to save.
+	featModelSave: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
 }
 
 // groupEdges are the dependencies needing MORE than one any-of group

@@ -23,4 +23,10 @@ type FitSpec struct {
 	// Request is the request the fit runs: exactly one regression, no
 	// groups, no crosstab.
 	Request *Request `json:"request"`
+
+	// Save writes the bound model as a model file at this path once the
+	// fit has run, under the fit's Name — the RegressionSpec.Save
+	// contract (suffix, root, atomic write, overwrite warning). Gated by
+	// capability:model_save. Empty writes nothing.
+	Save string `json:"save,omitempty"`
 }

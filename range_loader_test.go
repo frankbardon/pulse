@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/io/spss"
+	"github.com/frankbardon/pulse/internal/model"
 )
 
 func TestLoadRangeTables_FlatArray(t *testing.T) {
@@ -114,6 +115,11 @@ func TestLoadRangeTables_SkipsPulseSidecars(t *testing.T) {
 			name:     "managed import sidecar",
 			filename: "cohort.pulse" + imports.SidecarSuffix,
 			body:     `{"handle": "h1", "created_at": "2026-01-01T00:00:00Z", "ttl": "7d"}`,
+		},
+		{
+			name:     "saved model file",
+			filename: "mmm" + model.FileSuffix,
+			body:     modelFileFixture,
 		},
 	}
 	for _, tc := range cases {

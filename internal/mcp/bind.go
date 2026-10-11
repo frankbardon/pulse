@@ -868,7 +868,7 @@ func joinsSchema(c fieldClassification) map[string]any {
 func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[string]any {
 	num := func(d string) map[string]any { return map[string]any{"type": "number", "description": d} }
 	integer := func(d string) map[string]any { return map[string]any{"type": "integer", "description": d} }
-	return map[string]any{
+	out := map[string]any{
 		"type":        "array",
 		"description": "Regression fits (REG_*), each a result in Response.regressions.",
 		"items": map[string]any{
@@ -904,6 +904,18 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 			"additionalProperties": true,
 		},
 	}
+	addModelSave(out, inst, "Write the finished fit as a model file at this path (relative to the data root, ending .pulse-model.json), atomically; overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	return out
+}
+
+// addModelSave adds the `save` property to an array schema's items when
+// inst enables capability:model_save.
+func addModelSave(arr map[string]any, inst *descx.InstanceSnapshot, desc string) {
+	if !inst.Enabled(descx.FeatureModelSave) {
+		return
+	}
+	props := arr["items"].(map[string]any)["properties"].(map[string]any)
+	props["save"] = map[string]any{"type": "string", "description": desc}
 }
 
 // vectorsSchema is Request.vectors (types.VectorSpec). Members may be
@@ -1448,7 +1460,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				types.AllMultiplicityFamilies(), true),
 			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
 			"sweep":  sweepSchema(),
-			"fits":   fitsSchema(reqSchema),
+			"fits":   fitsSchema(reqSchema, inst),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1461,8 +1473,8 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 // fitsSchema describes the ComposedRequest `fits` list (types.FitSpec):
 // named regression fits run once before any slot. Dropped with the slot
 // when capability:compose_fits is hidden (dropHiddenSlots).
-func fitsSchema(reqSchema map[string]any) map[string]any {
-	return map[string]any{
+func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[string]any {
+	out := map[string]any{
 		"type":        "array",
 		"description": "Named regression fits, each run ONCE before any slot (sweep slots included); slots read the fitted model by name. Each fit's result is returned under the response `fits`, keyed by name.",
 		"items": map[string]any{
@@ -1474,6 +1486,8 @@ func fitsSchema(reqSchema map[string]any) map[string]any {
 			"required": []string{"name", "request"},
 		},
 	}
+	addModelSave(out, inst, "Write the bound model as a model file at this path (relative to the data root, ending .pulse-model.json) once the fit has run; overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	return out
 }
 
 // forEachSchema describes an item `for_each` (types.ForEach): the item

@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/io/spss"
+	"github.com/frankbardon/pulse/internal/model"
 )
 
 func TestLoadLabelTables_FlatMap(t *testing.T) {
@@ -107,6 +108,29 @@ const spssSidecarFixture = `{
   "payload": {"variables": [{"short_name": "Q1"}], "derived": []}
 }`
 
+// modelFileFixture is a saved regression model file (model_format_version
+// 1). Neither a label table nor a range table in any shape — which is
+// why both table-directory loaders must skip it by suffix.
+const modelFileFixture = `{
+  "model_format_version": 1,
+  "name": "mmm",
+  "type": "REG_OLS",
+  "target": "y",
+  "predictors": ["x"],
+  "terms": ["x"],
+  "coefficients": {"(intercept)": 1.5, "x": -0.25},
+  "std_errors": {"(intercept)": 0.5, "x": 0.125},
+  "n_obs": 10,
+  "provenance": {"cohort": "c.pulse"}
+}`
+
+// The fixture is a real model file, not a stand-in.
+func TestModelFileFixture_Decodes(t *testing.T) {
+	if _, err := model.DecodeFile("fixture", []byte(modelFileFixture)); err != nil {
+		t.Fatalf("fixture is not a valid model file: %v", err)
+	}
+}
+
 func TestLoadLabelTables_SkipsPulseSidecars(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -122,6 +146,11 @@ func TestLoadLabelTables_SkipsPulseSidecars(t *testing.T) {
 			name:     "managed import sidecar",
 			filename: "cohort.pulse" + imports.SidecarSuffix,
 			body:     `{"handle": "h1", "created_at": "2026-01-01T00:00:00Z", "ttl": "7d"}`,
+		},
+		{
+			name:     "saved model file",
+			filename: "mmm" + model.FileSuffix,
+			body:     modelFileFixture,
 		},
 	}
 	for _, tc := range cases {
@@ -197,6 +226,10 @@ func TestIsPulseSidecarName(t *testing.T) {
 		{name: "cohort.pulse.spss.json", want: true},
 		{name: "cohort.pulse.meta.json", want: true},
 		{name: "cohort.pulse.indexes.json", want: true},
+		{name: "mmm.pulse-model.json", want: true},
+		{name: "models/a.b.pulse-model.json", want: true},
+		{name: "pulse-model.json", want: false},
+		{name: "mmm.pulse-model.json.123.tmp", want: false},
 		{name: "a.b.c.pulse.spss.json", want: true},
 		{name: "regions.json", want: false},
 		{name: "spss.json", want: false},

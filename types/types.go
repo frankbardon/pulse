@@ -1708,6 +1708,14 @@ type ComposedResponse struct {
 	// by capability:compose_fits with the `fits` request slot.
 	Fits map[string]*RegressionResult `json:"fits,omitempty"`
 
+	// Warnings carries the batch-level diagnostics no slot owns: today
+	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the
+	// fit request's regression — replaced an existing model file), with
+	// details.fit locating the entry. A `warnings` keep path: the
+	// Compose-level `return` (overlays only) never drops it. Omitted when
+	// empty, so a warning-free batch is byte-identical on the wire.
+	Warnings []*ResponseWarning `json:"warnings,omitempty"`
+
 	// NormalizedRequest is the effective request the batch ran: a
 	// sweep's expanded `requests` (explicit slots, then one labelled
 	// slot per combination) with the sweep overlays appended and no

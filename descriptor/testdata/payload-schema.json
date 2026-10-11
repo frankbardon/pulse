@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:47e5421481318503f008fcf5da91f7511662b5bb7556689eea7cad05b563909e",
+  "$comment": "feature_set_digest: fs1:dfe42ce41bd34d4289a03b7e82066cc458496b737dac7b390e9237be732e8720",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -583,6 +583,15 @@
         },
         "returned": {
           "$ref": "#/$defs/ReturnedMarker"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ResponseWarning"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1585,6 +1594,9 @@
         },
         "request": {
           "$ref": "#/$defs/Request"
+        },
+        "save": {
+          "type": "string"
         }
       },
       "required": [
@@ -3163,6 +3175,9 @@
         "rng_seed": {
           "type": "integer"
         },
+        "save": {
+          "type": "string"
+        },
         "selection": {
           "type": "string"
         },
@@ -4199,4 +4214,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 95da883446760e269ac02700f42a081c88034fa0abfd12b5975b9ad6db90f2a2
+// golden-hash: e258d73a6193d0756bd7e17dff4361afaef333df0fd76d53734fb1d092526feb

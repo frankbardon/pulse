@@ -1104,6 +1104,41 @@ const (
 	// Details carry "attribute", "fit", "field" and "field_type".
 	PULSE_MODEL_PREDICTOR_NOT_NUMERIC Code = "PULSE_MODEL_PREDICTOR_NOT_NUMERIC"
 
+	// PULSE_MODEL_SAVE_INVALID indicates a RegressionSpec or `fits`
+	// entry `save` path that cannot name a model file: blank (reason
+	// "path_empty"), not ending in ".pulse-model.json" ("suffix"), the
+	// bare suffix with no file name ("name_missing"), or climbing above
+	// the filesystem root ("escapes_root"). Refused identically by
+	// predict and the runtime before any record is read. Details carry
+	// "path", "reason" and "regression" (the spec index) or "fit".
+	PULSE_MODEL_SAVE_INVALID Code = "PULSE_MODEL_SAVE_INVALID"
+
+	// PULSE_MODEL_WRITE_FAILED indicates a model file save that failed
+	// on the filesystem (creating the parent directory, the temp file,
+	// writing, syncing, closing or renaming it over the target). The
+	// write is atomic: the target keeps its previous content (or stays
+	// absent). Details carry "path", "name" and "stage".
+	PULSE_MODEL_WRITE_FAILED Code = "PULSE_MODEL_WRITE_FAILED"
+
+	// PULSE_MODEL_OVERWRITTEN is emitted as a WARNING (not an error) when
+	// a model file save replaced an existing file at its path. The save
+	// succeeded; the warning exists so a replaced model is never silent.
+	// Details carry "path", "name" and, for a fit, "fit".
+	PULSE_MODEL_OVERWRITTEN Code = "PULSE_MODEL_OVERWRITTEN"
+
+	// PULSE_MODEL_FILE_INVALID indicates a model file that cannot be
+	// parsed: not JSON (reason "json"), no model_format_version
+	// ("version_missing"), or a version-1 document with an unknown key,
+	// a mistyped value or a structural fault — no type or target, a
+	// predictor without a coefficient or outside terms, a malformed vcov
+	// ("schema"). Details carry "path" and "reason".
+	PULSE_MODEL_FILE_INVALID Code = "PULSE_MODEL_FILE_INVALID"
+
+	// PULSE_MODEL_VERSION_UNSUPPORTED indicates a model file whose
+	// model_format_version this build does not read. Details carry
+	// "path", "version" and "supported".
+	PULSE_MODEL_VERSION_UNSUPPORTED Code = "PULSE_MODEL_VERSION_UNSUPPORTED"
+
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
 	// window, feature or attribute item: no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
@@ -3355,6 +3390,11 @@ var allCodes = []Code{
 	PULSE_MODEL_INTERVALS_UNAVAILABLE,
 	PULSE_MODEL_PREDICTOR_MISSING,
 	PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
+	PULSE_MODEL_SAVE_INVALID,
+	PULSE_MODEL_WRITE_FAILED,
+	PULSE_MODEL_OVERWRITTEN,
+	PULSE_MODEL_FILE_INVALID,
+	PULSE_MODEL_VERSION_UNSUPPORTED,
 	PULSE_FOR_EACH_INVALID,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,

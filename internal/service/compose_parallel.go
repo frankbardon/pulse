@@ -137,7 +137,7 @@ func (s *Service) composeParallel(
 
 	// The fit pre-pass, exactly as on the serial path but with the fits
 	// themselves running concurrently on the same worker cap.
-	models, fitResults, err := s.runComposeFits(fitCtx, composed.Fits, o.MaxWorkers)
+	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, o.MaxWorkers)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +274,7 @@ func (s *Service) composeParallel(
 	// `distributeComposeWarnings` (internal/service/compose_overlay.go) so the
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}

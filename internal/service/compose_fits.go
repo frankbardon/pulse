@@ -31,14 +31,20 @@ var slotModelsObserver func(label string, set *model.Set)
 // A fit's own refusal keeps its code and gains details.fit — the
 // 0-based entry index — the way a slot's gains details.request. With
 // several failing fits the lowest-index one is reported, serial and
-// parallel alike. No fits returns (nil, nil, nil): nothing is bound and
+// parallel alike. No fits returns all nils: nothing is bound and
 // ComposedResponse.Fits stays absent.
-func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, workers int) (*model.Set, map[string]*types.RegressionResult, error) {
+//
+// A fit's `save` (FitSpec.Save) is written once the fit has run, under
+// the fit's name; a save on the fit request's own regression is written
+// by its Process. Each overwrite comes back as a PULSE_MODEL_OVERWRITTEN
+// warning with details.fit, in entry order — ComposedResponse.Warnings.
+func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, workers int) (*model.Set, map[string]*types.RegressionResult, []*types.ResponseWarning, error) {
 	n := len(fits)
 	if n == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	results := make([]*types.RegressionResult, n)
+	saveWarnings := make([][]*types.ResponseWarning, n)
 	errs := make([]error, n)
 	run := func(ctx context.Context, i int) {
 		if fitRunObserver != nil {
@@ -55,15 +61,31 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, work
 			return
 		}
 		results[i] = resp.Regressions[0]
+		// The fit's own response is not returned, so a model-file
+		// overwrite its regression's `save` reported is lifted to the
+		// batch (details.fit), then the fit's own `save` runs.
+		for _, w := range resp.Warnings {
+			if w != nil && w.Code == string(errors.PULSE_MODEL_OVERWRITTEN) {
+				saveWarnings[i] = append(saveWarnings[i], fitWarning(w, i))
+			}
+		}
+		w, err := s.saveFitModel(ctx, i, fits[i], results[i])
+		if err != nil {
+			errs[i] = err
+			return
+		}
+		if w != nil {
+			saveWarnings[i] = append(saveWarnings[i], w)
+		}
 	}
 
 	if workers <= 1 {
 		for i := range fits {
 			if err := ctx.Err(); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			if run(ctx, i); errs[i] != nil {
-				return nil, nil, fitFailure(fits, i, errs[i])
+				return nil, nil, nil, fitFailure(fits, i, errs[i])
 			}
 		}
 	} else {
@@ -95,28 +117,41 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, work
 		}
 		if len(failed) > 0 {
 			w := failFastWinner(ctx, errs, failed)
-			return nil, nil, fitFailure(fits, w, errs[w])
+			return nil, nil, nil, fitFailure(fits, w, errs[w])
 		}
 		if err := ctx.Err(); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
 	set := &model.Set{}
 	out := make(map[string]*types.RegressionResult, n)
+	var warnings []*types.ResponseWarning
 	for i, f := range fits {
 		b, err := model.Bind(f.Name, f.Request.Regressions[0], results[i])
 		if err != nil {
-			return nil, nil, fitFailure(fits, i, err)
+			return nil, nil, nil, fitFailure(fits, i, err)
 		}
 		if err := set.Add(b); err != nil {
 			// CheckFits already refused a duplicate name; reaching
 			// here is an invariant violation, still reported coded.
-			return nil, nil, fitFailure(fits, i, err)
+			return nil, nil, nil, fitFailure(fits, i, err)
 		}
 		out[f.Name] = results[i]
+		// Entry order, serial and parallel alike.
+		warnings = append(warnings, saveWarnings[i]...)
 	}
-	return set, out, nil
+	return set, out, warnings, nil
+}
+
+// fitWarning copies w with details.fit = i.
+func fitWarning(w *types.ResponseWarning, i int) *types.ResponseWarning {
+	details := make(map[string]any, len(w.Details)+1)
+	for k, v := range w.Details {
+		details[k] = v
+	}
+	details["fit"] = i
+	return &types.ResponseWarning{Code: w.Code, Message: w.Message, Details: details}
 }
 
 // fitFailure locates fit i's error: a coded error keeps its code and

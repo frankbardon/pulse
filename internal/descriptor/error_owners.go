@@ -291,6 +291,14 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT"),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT"),
+	// The model file: a `save` writes it (capability:model_save). The
+	// parse codes are the codec's; they own here until a load surface
+	// exists.
+	errors.PULSE_MODEL_SAVE_INVALID:        own(featModelSave),
+	errors.PULSE_MODEL_WRITE_FAILED:        own(featModelSave),
+	errors.PULSE_MODEL_OVERWRITTEN:         own(featModelSave),
+	errors.PULSE_MODEL_FILE_INVALID:        own(featModelSave),
+	errors.PULSE_MODEL_VERSION_UNSUPPORTED: own(featModelSave),
 	// nested_in_sweep is raised by a sweep body, so either surface lists it.
 	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
 

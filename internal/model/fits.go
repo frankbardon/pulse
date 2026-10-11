@@ -25,10 +25,14 @@ const (
 //   - no request                               — PULSE_FIT_INVALID request_missing
 //   - zero or more than one regression         — PULSE_FIT_INVALID regression_count
 //   - groups or a crosstab                     — PULSE_FIT_INVALID grouped
+//   - an invalid `save` path, the entry's own or its regression's
+//     (CheckSavePath)                          — PULSE_MODEL_SAVE_INVALID
 //   - a name an earlier entry already binds    — PULSE_MODEL_NAME_COLLISION
 //
 // Every refusal carries details.fit (the 0-based entry index) and
-// details.name. Nil for an empty list.
+// details.name. Nil for an empty list. Every save path is judged here,
+// before any fit runs, so no fit writes a model file in a batch a later
+// entry's path would refuse.
 func CheckFits(fits []types.FitSpec) error {
 	seen := make(map[string]bool, len(fits))
 	for i, f := range fits {
@@ -51,6 +55,18 @@ func CheckFits(fits []types.FitSpec) error {
 		if len(f.Request.Groups) > 0 || f.Request.Crosstab != nil {
 			return fitInvalid(i, f.Name, ReasonGrouped,
 				"is grouped; a fit is one ungrouped model (drop groups / crosstab)", nil)
+		}
+		cerr := (*errors.CodedError)(nil)
+		if f.Save != "" {
+			cerr = CheckSavePath(f.Save)
+		}
+		if cerr == nil {
+			cerr = CheckRegressionSaves(f.Request.Regressions)
+		}
+		if cerr != nil {
+			cerr.Details["fit"] = i
+			cerr.Details["name"] = f.Name
+			return cerr
 		}
 		if seen[f.Name] {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_NAME_COLLISION,

@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -32,6 +33,11 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 // checked against types.AllRegressionTypes() instead. A type inst hides
 // is refused exactly as a type outside that set.
 func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, inst *InstanceSnapshot) {
+	// Every `save` path — the runtime's model.CheckRegressionSaves, the
+	// one rule (first fault, details.regression).
+	if cerr := model.CheckRegressionSaves(req.Regressions); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+	}
 	for _, reg := range req.Regressions {
 		if reg == nil {
 			continue
