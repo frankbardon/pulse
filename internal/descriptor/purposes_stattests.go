@@ -20,6 +20,7 @@ var statTestPurposes = map[string]descriptor.Purpose{
 	"TEST_BROWN_FORSYTHE": purposeTestBrownForsythe,
 	"TEST_CHISQ":          purposeTestChiSq,
 	"TEST_FISHER_EXACT":   purposeTestFisherExact,
+	"TEST_HOTELLING_T2":   purposeTestHotellingT2,
 	"TEST_KENDALL_TAU":    purposeTestKendallTau,
 	"TEST_KRUSKAL_WALLIS": purposeTestKruskalWallis,
 	"TEST_KS":             purposeTestKS,
@@ -135,6 +136,38 @@ var (
 		Glossary: []string{
 			"independence", "normal-distribution", "p-value", "sample-size",
 			"standard-error", "two-tailed", "variance", "z-score",
+		},
+	}
+
+	purposeTestHotellingT2 = descriptor.Purpose{
+		Plain:   "Checks whether a set of numeric fields, taken together as one profile, differs from a target profile or between two groups.",
+		KnownAs: []string{"hotelling t2", "hotelling's t-squared", "multivariate t test"},
+		Intents: []string{IntentCompareGroups, IntentBenchmark},
+		Questions: []string{
+			"Do the two app versions differ on the whole set of engagement metrics at once?",
+			"Is our average satisfaction profile across five attributes different from the benchmark profile?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Compare two segments on a battery of rating items in one test.",
+			descriptor.DomainOps:     "Compare two sites on throughput, wait time and error rate together.",
+			descriptor.DomainScience: "Compare treatment and control on several outcomes without one test per outcome.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "there is only one numeric field", Use: "TEST_T"},
+			{When: "you want each field compared on its own", Use: "TEST_WELCH"},
+		},
+		Assumptions: []string{
+			"Rows are independent of each other, within and across the groups.",
+			"The fields are roughly jointly normal; with many rows the test tolerates departures.",
+			"The two-sample form assumes both groups share one covariance across the fields.",
+			"A row with any field missing is dropped from the test (listwise).",
+			"There are more complete rows than fields.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"covariance", "degrees-of-freedom", "f-statistic", "independence",
+			"listwise-deletion", "mean", "normal-distribution", "p-value",
+			"sample-size", "test-statistic",
 		},
 	}
 

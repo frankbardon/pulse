@@ -330,6 +330,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("TEST_BROWN_FORSYTHE"),
 	op("TEST_CHISQ"),
 	op("TEST_FISHER_EXACT"),
+	op("TEST_HOTELLING_T2"),
 	op("TEST_KENDALL_TAU"),
 	op("TEST_KRUSKAL_WALLIS"),
 	op("TEST_KS"),

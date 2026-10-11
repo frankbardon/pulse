@@ -234,6 +234,7 @@ var acceptanceTemplates = map[string]string{
 	"TEST_BROWN_FORSYTHE": `{"tests":[{"type":"TEST_BROWN_FORSYTHE","field":"$F","split_by":"g"}]}`,
 	"TEST_CHISQ":          `{"tests":[{"type":"TEST_CHISQ","rows":"$F","cols":"g"}]}`,
 	"TEST_FISHER_EXACT":   `{"tests":[{"type":"TEST_FISHER_EXACT","rows":"$F","cols":"g"}]}`,
+	"TEST_HOTELLING_T2":   `{"tests":[{"type":"TEST_HOTELLING_T2","fields":["$F","x"],"split_by":"g"}]}`,
 	"TEST_KENDALL_TAU":    `{"tests":[{"type":"TEST_KENDALL_TAU","field":"$F","field2":"x"}]}`,
 	"TEST_KRUSKAL_WALLIS": `{"tests":[{"type":"TEST_KRUSKAL_WALLIS","field":"$F","split_by":"g"}]}`,
 	"TEST_KS":             `{"tests":[{"type":"TEST_KS","field":"$F","split_by":"g"}]}`,

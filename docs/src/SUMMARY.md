@@ -212,6 +212,7 @@
     - [op-test-brown-forsythe](guide/skills/op-test-brown-forsythe.md)
     - [op-test-chisq](guide/skills/op-test-chisq.md)
     - [op-test-fisher-exact](guide/skills/op-test-fisher-exact.md)
+    - [op-test-hotelling-t2](guide/skills/op-test-hotelling-t2.md)
     - [op-test-kendall-tau](guide/skills/op-test-kendall-tau.md)
     - [op-test-kruskal-wallis](guide/skills/op-test-kruskal-wallis.md)
     - [op-test-ks](guide/skills/op-test-ks.md)

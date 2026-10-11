@@ -200,6 +200,18 @@ func testCapabilities() []descriptor.TestMeta {
 			Params:      []descriptor.Param{alphaParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
+		{
+			Name:        string(types.TEST_HOTELLING_T2),
+			Family:      string(types.TEST_HOTELLING_T2),
+			Tier:        1,
+			Description: "Hotelling's T² on a mean vector (exactly one of Vector / Fields, listwise): one-sample against params.mu, or two-sample with a 2-level SplitBy and pooled covariance; exact F.",
+			Streamable:  types.TEST_HOTELLING_T2.Streamable(),
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "mu", Type: "list", Required: false, Description: "Hypothesized mean vector for the one-sample form, one entry per member (default zeros; ignored when SplitBy is set)."},
+				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
+			},
+		},
 		// Tier-2 natives: TREND and TUKEY_HSD are exclusively post-tests.
 		{
 			Name:        string(types.TEST_TREND),

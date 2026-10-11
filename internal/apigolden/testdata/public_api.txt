@@ -4614,6 +4614,7 @@ pulse/types: const TEST_ANOVA_WELCH pulse/types.TestType = "TEST_ANOVA_WELCH"
 pulse/types: const TEST_BROWN_FORSYTHE pulse/types.TestType = "TEST_BROWN_FORSYTHE"
 pulse/types: const TEST_CHISQ pulse/types.TestType = "TEST_CHISQ"
 pulse/types: const TEST_FISHER_EXACT pulse/types.TestType = "TEST_FISHER_EXACT"
+pulse/types: const TEST_HOTELLING_T2 pulse/types.TestType = "TEST_HOTELLING_T2"
 pulse/types: const TEST_KENDALL_TAU pulse/types.TestType = "TEST_KENDALL_TAU"
 pulse/types: const TEST_KRUSKAL_WALLIS pulse/types.TestType = "TEST_KRUSKAL_WALLIS"
 pulse/types: const TEST_KS pulse/types.TestType = "TEST_KS"
@@ -4634,6 +4635,8 @@ pulse/types: type Test field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Test field Cols string "json:\"cols,omitempty\""
 pulse/types: type Test field Field string "json:\"field,omitempty\""
 pulse/types: type Test field Field2 string "json:\"field2,omitempty\""
+pulse/types: type Test field Fields []string "json:\"fields,omitempty\""
+pulse/types: type Test field Fields2 []string "json:\"fields2,omitempty\""
 pulse/types: type Test field Label string "json:\"label,omitempty\""
 pulse/types: type Test field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Test field OrderBy []pulse/types.OrderKey "json:\"order_by,omitempty\""
@@ -4642,6 +4645,8 @@ pulse/types: type Test field Rows string "json:\"rows,omitempty\""
 pulse/types: type Test field SplitBy string "json:\"split_by,omitempty\""
 pulse/types: type Test field SubjectField string "json:\"subject_field,omitempty\""
 pulse/types: type Test field Type pulse/types.TestType "json:\"type\""
+pulse/types: type Test field Vector string "json:\"vector,omitempty\""
+pulse/types: type Test field Vector2 string "json:\"vector2,omitempty\""
 pulse/types: type Test field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type TestResult struct
 pulse/types: type TestResult field Alpha float64 "json:\"alpha\""
@@ -4706,4 +4711,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 231b2737845b16caa21611a0c914902291461f68f3384c985d1ffa7fe2f1072b
+// golden-hash: 308c385a155ce9f940cd58d428dfb097e44735716197305aa6b00d7ae9f8690e

@@ -1891,6 +1891,24 @@
         "field2": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "fields2": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -1917,6 +1935,12 @@
         },
         "type": {
           "$ref": "#/$defs/TestType"
+        },
+        "vector": {
+          "type": "string"
+        },
+        "vector2": {
+          "type": "string"
         }
       },
       "required": [
@@ -2057,4 +2081,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 44660161c050c63ea45c4d58a15f02651a7b07fc5d1a08ef551149bebcf7ebba
+// golden-hash: e0b10d27fc591d6ca4f33c8e1fc66352b7794380a2ac583c08c5a2199670c985

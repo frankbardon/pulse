@@ -117,7 +117,13 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     encoding, a duplicate result name or bad params
 //     (SERVICE_VALIDATION, details.reason), an undefined vector
 //     (PULSE_VECTOR_UNKNOWN), or an inline-fields vector refusal.
-//     Steps 6 and 7 contribute one refusal at most between them.
+//  8. test vector inputs — every test's vector / fields and vector2 /
+//     fields2 resolved by the same leaf (internal/vectors.ResolveTests):
+//     the exactly-one shape, a vector input on a test that reads none,
+//     an undefined vector (PULSE_VECTOR_UNKNOWN), the inline-fields
+//     vector rules, a second set of another length, and params.missing
+//     other than "listwise" (SERVICE_VALIDATION, details.reason).
+//     Steps 6 to 8 contribute one refusal at most between them.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -506,6 +512,18 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		return isBuiltinMatrixType(opRoute(inst, t))
 	}); verr != nil {
 		w.out = append(w.out, verr)
+		return w.out
+	}
+	// 8. Test vector inputs — each test's vector / fields (and vector2
+	// / fields2) resolved by the same leaf (vectors.ResolveTests): the
+	// shape rules, the named vector (PULSE_VECTOR_UNKNOWN), the inline
+	// fields (the vector rules), the equal-length pairing and the
+	// listwise-only missing mode. Steps 6-8 contribute one refusal at
+	// most between them.
+	if _, terr := vectors.ResolveTests(req, schema, func(t types.TestType) types.TestType {
+		return opRoute(inst, t)
+	}); terr != nil {
+		w.out = append(w.out, terr)
 	}
 	return w.out
 }

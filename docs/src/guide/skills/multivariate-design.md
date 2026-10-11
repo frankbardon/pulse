@@ -41,7 +41,7 @@ Frequency weights work everywhere. Probability weights work on the co-moment ope
 
 ## Significance
 
-Matrices carry figures, not p-values. Rank and partial correlation have no raw p or interval yet, and nothing corrects for the many comparisons across the cells of a matrix: a grid of p = 0.05 cells hides false positives. Treat the values as descriptive until matrix p-values and their correction arrive.
+Matrices carry figures, not p-values. Rank and partial correlation have no raw p or interval yet, and nothing corrects for the many comparisons across the cells of a matrix: a grid of p = 0.05 cells hides false positives. Treat the values as descriptive until matrix p-values and their correction arrive. To test whether whole mean profiles differ (one sample against a target, or two groups), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value.
 Per-test correction on other operators: [`multiplicity-correction`](multiplicity-correction.md).
 
 ## Sanity checks

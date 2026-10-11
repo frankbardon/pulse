@@ -33,6 +33,7 @@ its cohort from the shared `.data` directory and assumes
 | `25_tukey_hsd_after_anova.json` | 1+2 | `TEST_ANOVA_F` + `TEST_TUKEY_HSD` | one-way ANOVA on regions followed by pairwise Tukey HSD in a single request |
 | `26_fisher_exact_small_sample.json` | 1 | `TEST_CHISQ` + `TEST_FISHER_EXACT` | filtered cohort with small marginals; chi-square and Fisher exact side by side |
 | `27_shapiro_wilk_normality.json` | 1 | `TEST_SHAPIRO_WILK` | per-treatment normality check on the log-normal revenue field |
+| `29_hotelling_t2_profile.json` | 1 | `TEST_HOTELLING_T2` | revenue and session_minutes as one profile: two-sample by treatment on a named vector, one-sample against a benchmark `mu` |
 
 ## Cohort
 

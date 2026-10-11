@@ -180,6 +180,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-test-brown-forsythe`](skills/op-test-brown-forsythe.md): Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians.
 - [`op-test-chisq`](skills/op-test-chisq.md): Chi-square independence test on a 2D Rows × Cols contingency table.
 - [`op-test-fisher-exact`](skills/op-test-fisher-exact.md): Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative.
+- [`op-test-hotelling-t2`](skills/op-test-hotelling-t2.md): Hotelling's T² on a mean vector of p numeric members; one-sample against params.mu, or two-sample over a 2-level SplitBy with pooled covariance; exact F.
 - [`op-test-kendall-tau`](skills/op-test-kendall-tau.md): Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction.
 - [`op-test-kruskal-wallis`](skills/op-test-kruskal-wallis.md): Nonparametric k-group location test; ANOVA-like rank sums under tie correction.
 - [`op-test-ks`](skills/op-test-ks.md): Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy.

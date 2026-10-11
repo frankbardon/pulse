@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -87,6 +88,13 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 	// validator and bail.
 	if t.Type == types.TEST_PROP_Z {
 		validateProportionZ(env, t, schema, projected, tier1)
+		return
+	}
+	// A vector-input test reads vector / fields — its shape, member
+	// types and member-count params are the field-reference rule's
+	// (FieldRefRefusals step 8) — plus an optional categorical split_by.
+	if vectors.IsVectorTest(opRoute(opts.instance(), t.Type)) {
+		validateVectorTest(env, t, schema, tier1)
 		return
 	}
 	// Field requirement.
@@ -253,4 +261,18 @@ func streamableTestReasons(req *types.Request, opts *PredictOptions) []string {
 		}
 	}
 	return reasons
+}
+
+// validateVectorTest is a vector-input test's predict arm: a
+// categorical split_by. A post-test slot is not judged here: no vector
+// test runs as one.
+func validateVectorTest(env *descriptor.Envelope, t *types.Test, schema *encoding.Schema, tier1 bool) {
+	if !tier1 || schema == nil || t.SplitBy == "" {
+		return
+	}
+	if sf := schema.Field(t.SplitBy); sf != nil && !sf.Type.IsCategorical() {
+		env.AddError(string(errors.SERVICE_VALIDATION),
+			string(t.Type)+" split_by "+t.SplitBy+" must be categorical, got "+sf.Type.String(),
+			map[string]any{"type": string(t.Type), "split_by": t.SplitBy, "field_type": sf.Type.String()})
+	}
 }

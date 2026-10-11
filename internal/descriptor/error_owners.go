@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 )
 
 // errorOwnerShared is the sentinel owner of a code no feature owns: it
@@ -48,6 +49,10 @@ var (
 	// ownAllMats: every matrix operator (and capability:matrices, which
 	// each depends on) — a code only a `matrices` slot can raise.
 	ownAllMats = plus(own(featMatrices), opsWithPrefix("MAT_"))
+	// ownVectorInputs: capability:matrices (the `vectors` slot) and
+	// every vector-input test, whose inline fields resolve by the
+	// vector rules.
+	ownVectorInputs = plus(own(featMatrices), vectorTestOwners())
 	// ownImportExport: the tabular import core (inference, row decode,
 	// width promotion, overrides) runs under the managed import pool
 	// AND under Convert / ImportTransfer, which capability:export gates.
@@ -490,13 +495,15 @@ var errorOwners = map[errors.Code][]string{
 
 	// Virtual vectors are capability:matrices: with it hidden the
 	// `vectors` slot is refused as an unknown field before any vector is
-	// resolved, so no PULSE_VECTOR_* code can fire.
-	errors.PULSE_VECTOR_INVALID:         own(featMatrices),
-	errors.PULSE_VECTOR_EMPTY:           own(featMatrices),
-	errors.PULSE_VECTOR_MEMBER_TYPE:     own(featMatrices),
-	errors.PULSE_VECTOR_DUPLICATE:       own(featMatrices),
+	// resolved. A vector-input test (TEST_HOTELLING_T2) resolves its
+	// inline `fields` by the same rules and may name an undefined
+	// vector without the slot, so it owns those codes too.
+	errors.PULSE_VECTOR_INVALID:         ownVectorInputs,
+	errors.PULSE_VECTOR_EMPTY:           ownVectorInputs,
+	errors.PULSE_VECTOR_MEMBER_TYPE:     ownVectorInputs,
+	errors.PULSE_VECTOR_DUPLICATE:       ownVectorInputs,
 	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
-	errors.PULSE_VECTOR_UNKNOWN:         own(featMatrices),
+	errors.PULSE_VECTOR_UNKNOWN:         ownVectorInputs,
 	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
 
 	// The matrix-source refusals fire only on a request carrying the
@@ -544,4 +551,13 @@ func errorCodeVisible(c errors.Code, on func(string) bool) bool {
 		}
 	}
 	return false
+}
+
+// vectorTestOwners returns the vector-input test types as owner names.
+func vectorTestOwners() []string {
+	var out []string
+	for _, t := range vectors.VectorTestTypes() {
+		out = append(out, string(t))
+	}
+	return out
 }

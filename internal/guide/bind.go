@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -78,7 +79,8 @@ var fieldNameParams = map[string]map[string]bool{
 // one-sample TEST_T compares against mu, whose default of 0 is rarely
 // the reference the question means.
 var oneSampleNeeds = map[[2]string][]string{
-	{"TEST_T", descx.IntentBenchmark}: {"mu"},
+	{"TEST_T", descx.IntentBenchmark}:            {"mu"},
+	{"TEST_HOTELLING_T2", descx.IntentBenchmark}: {"mu"},
 }
 
 // needWhy says what to supply for a param only the caller can choose.
@@ -218,8 +220,14 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 			}
 			slots = append(slots, testSlot(op, k))
 		}
+		// A vector-input test reads its p members from an inline fields
+		// list (vectors.IsVectorTest), the matrix slot's shape.
+		vector := vectors.IsVectorTest(types.TestType(op.name))
+		if vector {
+			slots = append([]bslot{{key: "fields", list: true, min: 2, accept: kindIs(descriptor.FieldKindNumeric)}}, slots...)
+		}
 		for _, n := range oneSampleNeeds[[2]string{op.name, in.ID}] {
-			needs = append(needs, bneed{key: n, loc: locParams})
+			needs = append(needs, bneed{key: n, loc: locParams, list: vector})
 		}
 	case catRegression:
 		// target / predictors are declared params (below).

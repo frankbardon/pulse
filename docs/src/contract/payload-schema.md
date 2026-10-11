@@ -315,6 +315,20 @@ Predict echoes the resolved members as `data.resolved_vectors`
 `Request.Hash()` hashes a vector as written (see
 [Request hashing](../library/request-hashing.md)).
 
+## Test vector inputs
+
+`Test` carries four additive slots, the `MatrixSpec` mirror:
+`vector` / `fields` (the member set) and `vector2` / `fields2` (a
+paired second set). A vector-input test (`TEST_HOTELLING_T2`) sets
+exactly one of `vector` (a `vectors` entry) and `fields` (inline
+names and globs, the `VectorSpec.fields` rules) and no `field`; a
+second set must resolve to the same member count and is accepted only
+by a test that reads one; every other test refuses all four. Missing
+data is listwise only (`params.missing` other than `"listwise"` is
+refused). Shape refusals are `SERVICE_VALIDATION` with
+`details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`.
+`format_version` stays `"1.1"`; a test without them is byte-identical.
+
 ## Matrix slots
 
 `matrices` on `Request` is an additive array of `MatrixSpec`

@@ -76,6 +76,11 @@ var testParityOps = []testParityOp{
 		filters: []*types.Filterer{{Type: types.FILTER_EXCLUDE, Field: "o", Values: []string{"maybe"}}}},
 	{name: "ks", spec: types.Test{Type: types.TEST_KS, Field: "x", SplitBy: "h"}},
 	{name: "brown_forsythe", spec: types.Test{Type: types.TEST_BROWN_FORSYTHE, Field: "x", SplitBy: "k"}},
+	// Hotelling's T² (U25 E1-S1): one co-moment per level on w*.
+	{name: "hotelling_one_sample", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}, Params: json.RawMessage(`{"mu":[0.5,0.5]}`)},
+		raw: []string{"n_dropped"}},
+	{name: "hotelling_split", spec: types.Test{Type: types.TEST_HOTELLING_T2, Fields: []string{"x", "y"}, SplitBy: "h"},
+		raw: []string{"n_dropped"}},
 }
 
 // build returns the row's request builder over path.

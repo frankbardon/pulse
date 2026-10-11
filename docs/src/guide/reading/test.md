@@ -244,6 +244,29 @@ The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also 
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+<a id="op-test_hotelling_t2"></a>
+
+### `TEST_HOTELLING_T2`
+
+Checks whether a set of numeric fields, taken together as one profile, differs from a target profile or between two groups. See its [catalog entry](../catalog/test.md#op-test_hotelling_t2).
+
+#### `statistic`
+
+T² is the squared distance between the observed average profile and the target profile (one sample) or between the two groups' average profiles, measured in units of the fields' own spread and correlation; larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.
+
+**Caveats:**
+
+- T² says whether the profiles differ as a whole, not on which fields: compare the per-field averages in details.mean or details.means to see where the gap lies.
+- It is null, with a warning, when the fields' covariance is singular, for example when one field is constant or is the sum of others.
+
+#### `p_value`
+
+Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.f`
+
+T² rescaled to an F statistic on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.
+
 <a id="op-test_kendall_tau"></a>
 
 ### `TEST_KENDALL_TAU`

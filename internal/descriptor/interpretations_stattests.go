@@ -22,6 +22,7 @@ var statTestInterpretations = map[string][]descriptor.Interpretation{
 	"TEST_BROWN_FORSYTHE": interpTestBrownForsythe,
 	"TEST_CHISQ":          interpTestChiSq,
 	"TEST_FISHER_EXACT":   interpTestFisherExact,
+	"TEST_HOTELLING_T2":   interpTestHotellingT2,
 	"TEST_KENDALL_TAU":    interpTestKendallTau,
 	"TEST_KRUSKAL_WALLIS": interpTestKruskalWallis,
 	"TEST_KS":             interpTestKS,
@@ -239,6 +240,23 @@ var (
 				"The raw estimate goes below zero when F is under 1; Pulse reports 0 instead: the sample shows no measurable share of variation, which does not show that the true effect is zero, especially with small groups.",
 			},
 		}),
+	}
+
+	interpTestHotellingT2 = []descriptor.Interpretation{
+		{
+			Field: "statistic",
+			Means: "T² is the squared distance between the observed average profile and the target profile (one sample) or between the two groups' average profiles, " +
+				"measured in units of the fields' own spread and correlation; larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.",
+			Caveats: []string{
+				"T² says whether the profiles differ as a whole, not on which fields: compare the per-field averages in details.mean or details.means to see where the gap lies.",
+				"It is null, with a warning, when the fields' covariance is singular, for example when one field is constant or is the sum of others.",
+			},
+		},
+		interpPValue,
+		{
+			Field: "details.f",
+			Means: "T² rescaled to an F statistic on details.df1 and details.df2 degrees of freedom; the p-value is read from this F.",
+		},
 	}
 
 	interpTestAnovaWelch = []descriptor.Interpretation{

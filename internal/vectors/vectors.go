@@ -188,9 +188,9 @@ func Find(resolved []Resolved, name string) (Resolved, bool) {
 }
 
 // Referenced returns the vector names req's operator slots reference:
-// every Request.Matrices spec's `vector`. It is the one reference set,
-// so the unreferenced-vector warning and every consumer read one
-// answer.
+// every Request.Matrices spec's `vector` and every tier-1 test's
+// `vector` / `vector2`. It is the one reference set, so the
+// unreferenced-vector warning and every consumer read one answer.
 func Referenced(req *types.Request) map[string]bool {
 	refs := map[string]bool{}
 	if req == nil {
@@ -199,6 +199,16 @@ func Referenced(req *types.Request) map[string]bool {
 	for _, m := range req.Matrices {
 		if m.Vector != "" {
 			refs[m.Vector] = true
+		}
+	}
+	for _, t := range req.Tests {
+		if t == nil {
+			continue
+		}
+		for _, v := range []string{t.Vector, t.Vector2} {
+			if v != "" {
+				refs[v] = true
+			}
 		}
 	}
 	return refs

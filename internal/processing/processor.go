@@ -601,7 +601,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 
 	// Build tier-1 row tests; they fold each filter-passing record
 	// alongside the online aggregators.
-	rowTests, err := p.buildRowTests(req.Tests)
+	rowTests, err := p.buildRowTests(req)
 	if err != nil {
 		return nil, err
 	}
@@ -1591,7 +1591,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 
 	// Tier-1 row tests fold over the filtered record set. Buffered path
 	// hits the same per-record UpdateRow contract as streaming.
-	rowTests, err := p.buildRowTests(req.Tests)
+	rowTests, err := p.buildRowTests(req)
 	if err != nil {
 		return nil, err
 	}

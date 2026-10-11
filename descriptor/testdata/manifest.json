@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:d5e7bac111ec01c2d685b6ff2a1d3e0abf2c7730947606476b5fd0c8fe0e8fd5",
+    "feature_set_digest": "fs1:893d5eeca87f5bf51130db1560f0bfe661a48a7a24ec95c6880a2a570bfb3ba1",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -5167,6 +5167,46 @@
         ]
       },
       {
+        "name": "TEST_HOTELLING_T2",
+        "family": "TEST_HOTELLING_T2",
+        "tier": 1,
+        "description": "Hotelling's T² on a mean vector (exactly one of Vector / Fields, listwise): one-sample against params.mu, or two-sample with a 2-level SplitBy and pooled covariance; exact F.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "mu",
+            "type": "list",
+            "required": false,
+            "description": "Hypothesized mean vector for the one-sample form, one entry per member (default zeros; ignored when SplitBy is set)."
+          },
+          {
+            "name": "missing",
+            "type": "enum",
+            "required": false,
+            "default": "listwise",
+            "description": "Missing-data mode; only listwise (a row with any null member is dropped).",
+            "enum_values": [
+              "listwise"
+            ]
+          }
+        ],
+        "intents": [
+          "benchmark",
+          "compare_groups"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "name": "TEST_KENDALL_TAU",
         "family": "TEST_KENDALL_TAU",
         "tier": 1,
@@ -9727,6 +9767,10 @@
         "description": "Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative."
       },
       {
+        "name": "op-test-hotelling-t2",
+        "description": "Hotelling's T² on a mean vector of p numeric members; one-sample against params.mu, or two-sample over a 2-level SplitBy with pooled covariance; exact F."
+      },
+      {
         "name": "op-test-kendall-tau",
         "description": "Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction."
       },
@@ -10207,7 +10251,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 192,
+    "examples_count": 193,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -10257,6 +10301,7 @@
       "leakage-risk",
       "logistic",
       "matrix",
+      "multivariate",
       "nonparametric",
       "normality-test",
       "ols",
@@ -13946,4 +13991,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 746b1b09076755b804c80e5b181a78ebd32e6475d1243161ae76300b8d5f603e
+// golden-hash: eebcd720e1f1fd08c29b252249c37aabf2da4ab1e22200a08fc8fb0e77109d97

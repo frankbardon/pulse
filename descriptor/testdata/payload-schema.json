@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:d5e7bac111ec01c2d685b6ff2a1d3e0abf2c7730947606476b5fd0c8fe0e8fd5",
+  "$comment": "feature_set_digest: fs1:893d5eeca87f5bf51130db1560f0bfe661a48a7a24ec95c6880a2a570bfb3ba1",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -3918,6 +3918,24 @@
         "field2": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "fields2": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -3947,6 +3965,12 @@
         },
         "type": {
           "$ref": "#/$defs/TestType"
+        },
+        "vector": {
+          "type": "string"
+        },
+        "vector2": {
+          "type": "string"
         },
         "weight": {
           "$ref": "#/$defs/SlotWeight"
@@ -4039,6 +4063,7 @@
         "TEST_BROWN_FORSYTHE",
         "TEST_CHISQ",
         "TEST_FISHER_EXACT",
+        "TEST_HOTELLING_T2",
         "TEST_KENDALL_TAU",
         "TEST_KRUSKAL_WALLIS",
         "TEST_KS",
@@ -4248,4 +4273,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: c6ece83e59095ffec7bb3473b87ec430fc21c5b1cb3e672501776dd5bc9f23ec
+// golden-hash: bbdc5de1e2d774e8acdd54789aa93bcba824af19bb83749c80c4d309c2964a25

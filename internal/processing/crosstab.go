@@ -907,7 +907,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// TEST_FISHER_EXACT, etc.) collect rows internally during UpdateRow
 	// and decide at Finalize. Same semantics as a hand-written grouped
 	// request — see skills/crosstab-guide.md "Statistical testing".
-	rowTests, err := p.buildRowTests(req.Tests)
+	rowTests, err := p.buildRowTests(req)
 	if err != nil {
 		return nil, err
 	}

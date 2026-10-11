@@ -299,6 +299,14 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		return out
 	}
 	addAllKnown(matMembers)
+	// A vector-input test's inline fields / fields2 resolve by the same
+	// rules (its named vectors ride vectors.Members above).
+	testMembers, ok := vectors.TestInputMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(testMembers)
 
 	for _, k := range req.Sort {
 		// Sort keys may name output labels rather than schema fields;

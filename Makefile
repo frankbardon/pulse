@@ -110,13 +110,14 @@ tzdata:
 
 # reference regenerates the R oracle goldens for the shared statistical
 # primitives (Student t, chi-square, F, normal, Kolmogorov, studentized
-# range) and the multivariate matrix outputs (mv_*.json, written by
-# scripts/reference/gen_multivariate.R) into $(REFERENCE_DIR), writes
+# range) and the multivariate matrix and test outputs (mv_*.json, written
+# by scripts/reference/gen_multivariate.R and the gen_multivariate_tests.R
+# it sources) into $(REFERENCE_DIR), writes
 # the fixture CSVs under $(REFERENCE_DIR)/fixtures and their .pulse
 # twins (internal/tools/refcohorts), then appends the `// golden-hash:`
 # footer TestGoldensNotHandEdited checks. Needs Rscript + jsonlite and
-# the pinned psych / car / ppcor / perturb / corpcor / Matrix (versions
-# and install line in gen_multivariate.R's header). Manual target: CI
+# the pinned psych / car / ppcor / perturb / corpcor / Matrix / Hotelling
+# (versions and install lines in the two scripts' headers). Manual target: CI
 # never runs R, the goldens are committed. Consumed by
 # internal/processing/reference_oracle_test.go,
 # internal/statdist/reference_oracle_test.go and the matrix-operator

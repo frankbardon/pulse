@@ -17,7 +17,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 
 - A literal `fields` entry keeps the caller's position; a glob (`q*`) expands in place in schema order; `pattern` is an unanchored regexp in schema order.
 - Members: integer and float types. `packed_bool` only with `coerce: "binary"`. Categorical, `set_*`, `date`, `datetime`, `decimal128` are refused (`PULSE_VECTOR_MEMBER_TYPE`).
-- `labels`: one per member, else `PULSE_VECTOR_LABELS_MISMATCH`. A vector no matrix uses warns `PULSE_VECTOR_UNREFERENCED`.
+- `labels`: one per member, else `PULSE_VECTOR_LABELS_MISMATCH`. A vector no matrix or test uses warns `PULSE_VECTOR_UNREFERENCED`.
 - `pulse predict` echoes `resolved_vectors` — check the members before running.
 
 ## 2. Ask for the matrix

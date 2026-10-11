@@ -194,6 +194,24 @@ out("brown_forsythe", "ss_within", bf[["Sum Sq"]][2])
 gmd <- tapply(xs$x, xs$k, median)
 for (g in names(gmd)) out("brown_forsythe", paste0("median_", g), gmd[[g]])
 
+# TEST_HOTELLING_T2 on the (x, y) mean vector (U25 E1-S1), stats::anova.mlm
+# Hotelling-Lawley — exact for an intercept-only model (one-sample, on
+# x - mu) and for a two-level factor (two-sample, pooled covariance):
+# T2 = HL * (n - 1) one-sample, HL * (n - 2) two-sample; F and p as R
+# reports them.
+Y1 <- cbind(xs$x - mu, xs$y - mu)
+a1 <- anova(lm(Y1 ~ 1), test = "Hotelling-Lawley")
+out("hotelling_one", "t2", a1[["Hotelling-Lawley"]][1] * (nrow(Y1) - 1))
+out("hotelling_one", "f", a1[["approx F"]][1])
+out("hotelling_one", "df2", a1[["den Df"]][1])
+out("hotelling_one", "p_value", a1[["Pr(>F)"]][1])
+Y2 <- cbind(xs$x, xs$y)
+a2 <- anova(lm(Y2 ~ h, data = xs), test = "Hotelling-Lawley")
+out("hotelling_split", "t2", a2[["Hotelling-Lawley"]][2] * (nrow(Y2) - 2))
+out("hotelling_split", "f", a2[["approx F"]][2])
+out("hotelling_split", "df2", a2[["den Df"]][2])
+out("hotelling_split", "p_value", a2[["Pr(>F)"]][2])
+
 # Inferential overlays (weighting-inferential E3-S3), each on the
 # expanded rows; figure names ARE the Go figure keys
 # ("<layer>/<wire path>", see weight_reference_overlays_test.go). The

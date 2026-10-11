@@ -336,6 +336,9 @@ var weightRefTestPointEstimates = map[string][]string{
 	"chisq":       {"tests[0].details.effect_size.cramers_v"},
 	"prop_z": {"tests[0].details.proportion[a]", "tests[0].details.proportion[b]", "tests[0].details.diff",
 		"tests[0].details.effect_size.cohens_h"},
+	// Hotelling's T²: the (weighted) mean vectors read Σw ratios only.
+	"hotelling_one":   {"tests[0].details.mean[0]", "tests[0].details.mean[1]"},
+	"hotelling_split": {"tests[0].details.mean_diff[0]", "tests[0].details.mean_diff[1]"},
 }
 
 // testWeightRefTestsKindsAgree is TestWeightReferenceKindsAgree's

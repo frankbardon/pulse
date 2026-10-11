@@ -546,6 +546,11 @@ TEST_SPECS = [
     ("fisher", {"type": "TEST_FISHER_EXACT", "rows": "h", "cols": "o"}),
     ("ks", {"type": "TEST_KS", "field": "x", "split_by": "h"}),
     ("brown_forsythe", {"type": "TEST_BROWN_FORSYTHE", "field": "x", "split_by": "k"}),
+    # Hotelling's T² (U25 E1-S1) on the (x, y) mean vector: one-sample
+    # against (mu, mu) and two-sample over h, pooled covariance.
+    ("hotelling_one", {"type": "TEST_HOTELLING_T2", "fields": ["x", "y"],
+                       "params": {"mu": [TEST_MU, TEST_MU]}}),
+    ("hotelling_split", {"type": "TEST_HOTELLING_T2", "fields": ["x", "y"], "split_by": "h"}),
 ]
 
 # Request-level slots a case adds beside its tests[0] slot.
@@ -644,6 +649,47 @@ def test_closed_form(case, rows, prob):
                     "n[a]": sa.n, "n[b]": sb.n})
         if prob:
             out.update({"n_eff[a]": sa.nstar, "n_eff[b]": sb.nstar})
+        return out
+    if case in ("hotelling_one", "hotelling_split"):
+        def vec_sample(sub):
+            X = np.array([[r[0], r[1]] for r in sub], dtype=float)
+            w = np.array([r[5] for r in sub], dtype=float)
+            sw = float(w.sum())
+            nstar = kish(w) if prob else sw
+            m = (w[:, None] * X).sum(axis=0) / sw
+            dev = X - m
+            m2 = (w[:, None] * dev).T @ dev  # Σw (x − m)(x − m)ᵀ
+            # Cross-check the per-sample covariance on w* with statsmodels.
+            d = DescrStatsW(X, weights=w * (nstar / sw), ddof=1)
+            assert np.allclose(d.cov, (nstar / sw) * m2 / (nstar - 1), rtol=1e-10, atol=0), case
+            return dict(n=len(sub), sw=sw, nstar=nstar, m=m, m2s=(nstar / sw) * m2)
+        p = 2
+        if case == "hotelling_one":
+            v = vec_sample(xr)
+            dv = v["m"] - TEST_MU
+            S = v["m2s"] / (v["nstar"] - 1)
+            t2 = float(v["nstar"] * dv @ np.linalg.solve(S, dv))
+            df2 = v["nstar"] - p
+            f = df2 / (p * (v["nstar"] - 1)) * t2
+            out.update(statistic=t2, df=p, p_value=float(scipy.stats.f.sf(f, p, df2)), f=f, df2=df2,
+                       sum_weights=v["sw"], n=v["n"])
+            if prob:
+                out["n_eff"] = v["nstar"]
+            return out
+        va = vec_sample([r for r in xr if r[2] == "a"])
+        vb = vec_sample([r for r in xr if r[2] == "b"])
+        ntot = va["nstar"] + vb["nstar"]
+        S = (va["m2s"] + vb["m2s"]) / (ntot - 2)
+        dv = va["m"] - vb["m"]
+        t2 = float(va["nstar"] * vb["nstar"] / ntot * dv @ np.linalg.solve(S, dv))
+        df2 = ntot - p - 1
+        f = df2 / (p * (ntot - 2)) * t2
+        out.update({"statistic": t2, "df": p, "p_value": float(scipy.stats.f.sf(f, p, df2)),
+                    "f": f, "df2": df2,
+                    "sum_weights[a]": va["sw"], "sum_weights[b]": vb["sw"],
+                    "n[a]": va["n"], "n[b]": vb["n"]})
+        if prob:
+            out.update({"n_eff[a]": va["nstar"], "n_eff[b]": vb["nstar"]})
         return out
     if case == "paired":
         s = Sample([r[0] - r[1] for r in xr], [r[5] for r in xr], prob)
@@ -964,6 +1010,12 @@ R_FIGURES.update({
                                           "ss_between": "ss_between", "ss_within": "ss_within",
                                           "median_p": "group_medians[p]", "median_q": "group_medians[q]",
                                           "median_r": "group_medians[r]"}),
+})
+R_FIGURES.update({
+    # Hotelling's T² from stats::anova.mlm (Hotelling-Lawley: exact for
+    # an intercept test and for a two-level factor).
+    "hotelling_one": ("hotelling_one", {"t2": "statistic", "f": "f", "df2": "df2", "p_value": "p_value"}),
+    "hotelling_split": ("hotelling_split", {"t2": "statistic", "f": "f", "df2": "df2", "p_value": "p_value"}),
 })
 R_FIGURES["welch"] = R_FIGURES["t_split"]
 

@@ -372,8 +372,8 @@ var CanonicalTags = []string{
 	"tier-1-test", "tier-2-test", "composed", "pre-filter", "feature-pipeline",
 	"window-operator", "streaming-friendly", "buffered-pipeline",
 
-	// Matrices (2)
-	"matrix", "covariance",
+	// Matrices and multivariate tests (3)
+	"matrix", "covariance", "multivariate",
 
 	// Risk / edge (2)
 	"leakage-risk", "small-sample",

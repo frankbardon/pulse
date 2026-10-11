@@ -571,6 +571,16 @@ const (
 	// requires the full contingency table.
 	TEST_FISHER_EXACT TestType = "TEST_FISHER_EXACT"
 
+	// TEST_HOTELLING_T2 is Hotelling's T² test on a mean VECTOR: the
+	// members of Vector / Fields (p numeric columns, listwise). With no
+	// SplitBy it is the one-sample test of the mean vector against
+	// params.mu (length p, default zeros), F = (n−p)/(p(n−1))·T² on
+	// (p, n−p); with a SplitBy of exactly two levels it is the
+	// two-sample test of equal mean vectors under a pooled covariance,
+	// exact F on (p, n₁+n₂−p−1). Streams via one co-moment accumulator
+	// per level.
+	TEST_HOTELLING_T2 TestType = "TEST_HOTELLING_T2"
+
 	// TEST_SHAPIRO_WILK is the normality test on Field, computed in the
 	// Shapiro-Francia (W′) form. When SplitBy is set the test runs
 	// per-group; otherwise it runs over the full filtered set. Buffered:
@@ -603,6 +613,7 @@ func AllTestTypes() []TestType {
 		TEST_BROWN_FORSYTHE,
 		TEST_CHISQ,
 		TEST_FISHER_EXACT,
+		TEST_HOTELLING_T2,
 		TEST_KENDALL_TAU,
 		TEST_KRUSKAL_WALLIS,
 		TEST_KS,
@@ -642,6 +653,30 @@ type Test struct {
 	// every other test.
 	Field2 string `json:"field2,omitempty"`
 
+	// Vector names the Request.Vectors entry whose members a
+	// vector-input test (TEST_HOTELLING_T2) reads as its p numeric
+	// columns. Exactly one of Vector and Fields is set on a vector-input
+	// test and neither on any other test (SERVICE_VALIDATION); a Vector
+	// no Request.Vectors entry defines is PULSE_VECTOR_UNKNOWN. Members
+	// resolve by the VectorSpec rules, the MatrixSpec.Vector / Fields
+	// mirror, and missing data is listwise only (params.missing
+	// "pairwise" is refused).
+	Vector string `json:"vector,omitempty"`
+
+	// Fields lists a vector-input test's inline members (literal names
+	// and / or glob entries, the VectorSpec.Fields rules). See Vector.
+	Fields []string `json:"fields,omitempty"`
+
+	// Vector2 names the Request.Vectors entry of a vector-input test's
+	// SECOND member set (the paired form); exactly one of Vector2 and
+	// Fields2 at most, only beside Vector / Fields, and resolving to
+	// the same member count p. A test type that reads no second set
+	// refuses it (SERVICE_VALIDATION).
+	Vector2 string `json:"vector2,omitempty"`
+
+	// Fields2 lists the second member set inline. See Vector2.
+	Fields2 []string `json:"fields2,omitempty"`
+
 	// SplitBy is a categorical field whose distinct values partition Field
 	// into groups. Required for two-sample TEST_T / TEST_WELCH and for
 	// TEST_ANOVA_F. Two-sample tests expect exactly 2 groups; ANOVA expects
@@ -679,6 +714,8 @@ type Test struct {
 	//   TEST_T / TEST_WELCH (two-sample): {"variant": "welch"} (default)
 	//   TEST_TUKEY_HSD: {"ms_within": <f64>, "df_within": <f64>}
 	//   TEST_TREND: {"variant": "mann_kendall"} (default)
+	//   TEST_HOTELLING_T2 (one-sample): {"mu": [<p numbers>]} (default zeros)
+	//   vector-input tests: {"missing": "listwise"} (the only mode)
 	Params json.RawMessage `json:"params,omitempty"`
 
 	// Weight is the per-slot weight override: absent inherits

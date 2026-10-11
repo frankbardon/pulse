@@ -200,6 +200,7 @@
     - [op-test-brown-forsythe](skills/op-test-brown-forsythe.md)
     - [op-test-chisq](skills/op-test-chisq.md)
     - [op-test-fisher-exact](skills/op-test-fisher-exact.md)
+    - [op-test-hotelling-t2](skills/op-test-hotelling-t2.md)
     - [op-test-kendall-tau](skills/op-test-kendall-tau.md)
     - [op-test-kruskal-wallis](skills/op-test-kruskal-wallis.md)
     - [op-test-ks](skills/op-test-ks.md)

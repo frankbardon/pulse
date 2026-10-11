@@ -152,6 +152,9 @@ var testClasses = map[types.TestType]Class{
 	types.TEST_PEARSON_R:    ClassAware,
 	types.TEST_PROP_Z:       ClassAware,
 	types.TEST_CHISQ:        ClassAware,
+	// TEST_HOTELLING_T2 folds one weighted co-moment per level and
+	// reads N* and M2* = c·M2 on w* (the frequency formula on w*).
+	types.TEST_HOTELLING_T2: ClassAware,
 
 	types.TEST_MANN_WHITNEY_U: ClassFrequencyOnly,
 	types.TEST_WILCOXON_SR:    ClassFrequencyOnly,
