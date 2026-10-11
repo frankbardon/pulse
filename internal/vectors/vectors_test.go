@@ -89,6 +89,8 @@ func TestResolve_Refusals(t *testing.T) {
 		{"bad regex", []types.VectorSpec{{Name: "v", Pattern: "q_("}}, errors.PULSE_VECTOR_INVALID, "reason", "bad_pattern"},
 		{"unknown literal", []types.VectorSpec{{Name: "v", Fields: []string{"q_9"}}}, errors.SERVICE_VALIDATION, "field", "q_9"},
 		{"duplicate name", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}}, {Name: "v", Fields: []string{"q_2"}}}, errors.PULSE_VECTOR_DUPLICATE, "name", "v"},
+		{"name collides with a field", []types.VectorSpec{{Name: "score", Fields: []string{"q_1"}}}, errors.PULSE_VECTOR_NAME_COLLISION, "field", "score"},
+		{"collision judged before shape", []types.VectorSpec{{Name: "q_2"}}, errors.PULSE_VECTOR_NAME_COLLISION, "vector", "vectors[0]"},
 		{"duplicate literal", []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "q_1"}}}, errors.PULSE_VECTOR_DUPLICATE, "field", "q_1"},
 		{"literal repeated by a glob", []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "q_*"}}}, errors.PULSE_VECTOR_DUPLICATE, "field", "q_1"},
 		{"empty pattern resolution", []types.VectorSpec{{Name: "v", Pattern: "^nope"}}, errors.PULSE_VECTOR_EMPTY, "pattern", "^nope"},

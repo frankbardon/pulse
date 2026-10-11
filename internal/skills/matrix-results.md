@@ -13,7 +13,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 
 ## 1. Name the vector
 
-`vectors: [{name, fields | pattern, labels?, coerce?}]` — exactly one of `fields` / `pattern`.
+`vectors: [{name, fields | pattern, labels?, coerce?}]` — exactly one of `fields` / `pattern`. A `name` may not be a field's name (`PULSE_VECTOR_NAME_COLLISION`): expressions read it by name.
 
 - A literal `fields` entry keeps the caller's position; a glob (`q*`) expands in place in schema order; `pattern` is an unanchored regexp in schema order.
 - Members: integer and float types. `packed_bool` only with `coerce: "binary"`. Categorical, `set_*`, `date`, `datetime`, `decimal128` are refused (`PULSE_VECTOR_MEMBER_TYPE`).

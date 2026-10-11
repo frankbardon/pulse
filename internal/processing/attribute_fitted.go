@@ -52,7 +52,7 @@ import (
 // filterers compile against the request's registry and bound models
 // before any record is read.
 type fitOnBinder interface {
-	bindFitOn(exts *ExtensionRegistry, models *model.Set) error
+	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error
 }
 
 // attributeWarner is implemented by an attribute whose Finalize can
@@ -192,8 +192,8 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, fi
 }
 
 // bindFitOn compiles params.fit_on (fitOnBinder).
-func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set) error {
-	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models)
+func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error {
+	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models, vecs)
 	if err != nil {
 		return err
 	}
@@ -409,7 +409,9 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 
 // prepare is the per-run request rewrite every engine entry applies:
 // the stamped weights (StampWeightsWith), then the resolved attribute
-// and grouper vector inputs.
+// and grouper vector inputs. It also resolves the run's named vectors
+// for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
+	p.exprVectors = ExprVectors(req, p.schema)
 	return p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req)))
 }

@@ -8386,7 +8386,7 @@
         ]
       }
     ],
-    "error_codes_count": 335,
+    "error_codes_count": 336,
     "error_domains": [
       "CLI",
       "DATA",
@@ -8721,6 +8721,7 @@
       "PULSE_VECTOR_INVALID",
       "PULSE_VECTOR_LABELS_MISMATCH",
       "PULSE_VECTOR_MEMBER_TYPE",
+      "PULSE_VECTOR_NAME_COLLISION",
       "PULSE_VECTOR_UNKNOWN",
       "PULSE_VECTOR_UNREFERENCED",
       "PULSE_WEIGHT_INVALID_ROWS",
@@ -15250,4 +15251,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7de781d44a1c14fdce11919a9b9682901c83bf4922c74521ffd90dc7e0d5f88d
+// golden-hash: 58d0742137888158f58988d5e1352ed268b73d4d90d97c5804e048efb0352b0b

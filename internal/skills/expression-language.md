@@ -35,7 +35,7 @@ Arithmetic on a categorical errors — branch on the label and emit a number.
 
 ## Vector and maths built-ins
 
-A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is NaN. Reductions skip NaN; none valid (or empty) → NaN, `vsum` too.
+A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is NaN.<!-- feature: capability:matrices --> A request's named vector binds by name, `vmean(battery)` (null member → NaN).<!-- /feature --> Reductions skip NaN; none valid (or empty) → NaN, `vsum` too.
 
 | Function | Result |
 |---|---|
@@ -53,7 +53,7 @@ A non-finite result is `null` on the wire. These names are reserved: an embedder
 
 A null field binds `nil`. Guard with `x ?? 0` or `x == nil ? a : b`. What an unguarded `nil` does depends on the host:
 
-- **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; no number is invented.
+- **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is a null value.
 - **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make the predicate UNKNOWN and the row is dropped.
 
 The program compiles once per request: bad syntax or a type error is `PROCESSING_RUNTIME` at build, before any row is read.

@@ -504,6 +504,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_VECTOR_MEMBER_TYPE:     ownVectorInputs,
 	errors.PULSE_VECTOR_DUPLICATE:       ownVectorInputs,
 	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
+	errors.PULSE_VECTOR_NAME_COLLISION:  own(featMatrices),
 	errors.PULSE_VECTOR_UNKNOWN:         ownVectorInputs,
 	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
 

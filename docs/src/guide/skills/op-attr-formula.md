@@ -40,11 +40,11 @@ Use something else:
 
 ## Output
 
-One `float64` per record (bools → `1.0` / `0.0`). Null binds `nil`: guard `x ?? 0` / `x == nil ? a : b`; unguarded arithmetic on nil → `PROCESSING_RUNTIME` (no invented number).
+One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_null`). Null binds `nil`: guard `x ?? 0` / `x == nil ? a : b`; unguarded arithmetic on nil → `PROCESSING_RUNTIME`.
 
 ## Gotchas
 
-- Expression may read source fields and EARLIER attribute labels (declared order); stage across requests via Compose / ProcessChain.
+- Reads source fields and EARLIER attribute labels (declared order); stage across requests via Compose / ProcessChain.
 - **`total(expr)`** (this operator only; lowercase, one argument, no nesting): cohort-wide sum of a row-level `expr` over post-filter rows — the same figure on every row, also when grouped. Unweighted regardless of `Request.Weight`; null-argument rows skipped. Empty total → `null`; zero total as divisor → `null`. Pro-rata: `x * 1000 / total(x)`. Subset total: `x * (1 - 1000 / total(week_index >= 52 ? x : 0))`.
 - A `total` formula is **two-pass** (like the z-score attribute): streams alone, buffers beside groups / features; shard archive, parallel decode and `ShardWorkers` run sequentially (whole-cohort total); `ProcessChain` refuses it (`PULSE_CHAIN_NOT_MERGEABLE`). Predict adds `PULSE_ADVISORY_EXTRA_PASS` per formula (`added_scans`).
 - Misuse: `total()` in an expression filter or overlay formula (Compose host too) → `PULSE_FORMULA_TOTAL_SITE`; nested → `_TOTAL_NESTED`; arity ≠ 1 → `_TOTAL_ARITY`. An embedder `ExprFunction` named `total` → `PULSE_EXTENSION_NAME_RESERVED`.

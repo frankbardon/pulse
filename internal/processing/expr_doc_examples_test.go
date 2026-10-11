@@ -13,6 +13,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // TestExprDocExamples_Compile compiles every FILTER_EXPRESSION /
@@ -43,8 +45,13 @@ func TestExprDocExamples_Compile(t *testing.T) {
 	reg := &ExtensionRegistry{LookupTables: map[string]LookupTable{
 		"adjustments": {Rows: map[string]float64{"x": 1}},
 	}}
+	// A documented named vector (Request.Vectors) binds by name.
+	vecs, verr := vectors.Resolve([]types.VectorSpec{{Name: "battery", Fields: []string{"q1", "q2", "q3"}}}, schema)
+	if verr != nil {
+		t.Fatal(verr)
+	}
 	for _, ex := range exprs {
-		p, err := newExprProgram(ex.src, "filter", schema, reg.ExprOptions())
+		p, err := newExprProgram(ex.src, "filter", schema, vecs, reg.ExprOptions())
 		if err != nil {
 			t.Errorf("%s: documented expression %q does not compile: %v", ex.where, ex.src, err)
 			continue

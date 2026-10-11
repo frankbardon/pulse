@@ -388,7 +388,7 @@ func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
 		{`pow(x)`, perr.PROCESSING_CONFIG},
 		{`vsum([x], [y])`, perr.PROCESSING_CONFIG},
 	} {
-		_, err := newExprProgram(tc.src, "formula", vectorTestSchema(), setExprOptions())
+		_, err := newExprProgram(tc.src, "formula", vectorTestSchema(), nil, setExprOptions())
 		if got := topCode(err); got != tc.want {
 			t.Errorf("newExprProgram(%s): %v, want %s", tc.src, err, tc.want)
 		}

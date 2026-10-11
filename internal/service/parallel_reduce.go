@@ -151,9 +151,10 @@ func (s *Service) reduceParallelBuffered(
 			ungroupedAggs []processing.OnlineAggregator
 		)
 
-		filterFns, buildErr = processing.BuildFiltersWithModels(req.Filterers, schema, s.extensions, model.SetFrom(ctx))
+		vecs := processing.ExprVectors(req, schema)
+		filterFns, buildErr = processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 		if buildErr == nil {
-			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx))
+			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx), vecs)
 		}
 		if buildErr == nil && grouperFactory != nil {
 			grp, err := grouperFactory(grouperSpec, schema)

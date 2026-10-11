@@ -12,7 +12,9 @@
 //
 // Resolution rules (the contract):
 //
-//   - Vector names are non-empty and unique per request.
+//   - Vector names are non-empty, unique per request and never a
+//     schema field's name (an expression binds a named vector as an
+//     identifier beside the fields: PULSE_VECTOR_NAME_COLLISION).
 //   - Exactly one of Fields and Pattern is set.
 //   - A Fields entry without a glob metacharacter (`*`, `?`, `[`) is a
 //     literal member and keeps its position (caller order is axis order);
@@ -28,9 +30,9 @@
 //   - Labels, when set, carry one entry per resolved member.
 //
 // Checks run spec by spec in request order; within one spec in the
-// order: name, duplicate name, fields/pattern shape, coerce, expansion
-// (unknown literal, bad glob / regex, duplicate member), empty, member
-// types, labels. The first failure is returned.
+// order: name, duplicate name, field-name collision, fields/pattern
+// shape, coerce, expansion (unknown literal, bad glob / regex, duplicate
+// member), empty, member types, labels. The first failure is returned.
 package vectors
 
 import (
@@ -78,6 +80,11 @@ func Resolve(specs []types.VectorSpec, schema *encoding.Schema) ([]Resolved, *er
 				map[string]any{"name": spec.Name, "indices": []int{first, i}})
 		}
 		seen[spec.Name] = i
+		if schema != nil && schema.Field(spec.Name) != nil {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_NAME_COLLISION,
+				"vector name "+strconv.Quote(spec.Name)+" ("+at+") is also a schema field's name; an expression could not tell the two apart",
+				map[string]any{"vector": at, "name": spec.Name, "field": spec.Name})
+		}
 		r, err := ResolveSpec(at, spec, schema)
 		if err != nil {
 			return nil, err
