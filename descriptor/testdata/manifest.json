@@ -6474,9 +6474,9 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level.",
+        "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level; a robust covariance swaps in the sandwich posterior (normal intervals, no df) and adds its covariance echo.",
         "streamable": true,
-        "streamable_hint": "Streamable; Resample and Selection are refused (PROCESSING_CONFIG), so nothing forces the buffered path.",
+        "streamable_hint": "Streamable; Resample and Selection are refused (PROCESSING_CONFIG). A robust covariance (any type but classical) forces the buffered path.",
         "params": [
           {
             "name": "target",
@@ -6544,7 +6544,13 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales)."
+            "description": "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales). Under a robust covariance it is the sandwich posterior's instead, √diag = std_errors."
+          },
+          {
+            "name": "covariance",
+            "type": "object",
+            "required": false,
+            "description": "{type, cluster, order_by, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Forces the buffered path; echoes as covariance."
           }
         ],
         "intents": [
@@ -6570,7 +6576,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R².",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a robust covariance adds its covariance echo.",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -6683,6 +6689,12 @@
             "required": false,
             "default": false,
             "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's."
+          },
+          {
+            "name": "covariance",
+            "type": "object",
+            "required": false,
+            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Inference stays Wald z, cluster included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
           }
         ],
         "modifiers": [
@@ -15224,4 +15236,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 004543c1b37cb359b8532a225a7bca8c881095a88f47f16e98c35bb7354b2cc8
+// golden-hash: dd4dd24c7c5a740dc8fcd205eae3416931718481cb84fd7e10e38a982f8d6e93

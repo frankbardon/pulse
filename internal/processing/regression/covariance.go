@@ -217,3 +217,27 @@ func sandwichProduct(b, m [][]float64, adj float64) [][]float64 {
 	}
 	return v
 }
+
+// robustStdErrors clamps v's diagonal at 0 in place and returns its
+// square roots: the diagonal IS the variance the standard errors read,
+// so √diag(Vcov) == StdErrors bit for bit (sqrt passes NaN through).
+// REG_GLM and REG_BAYES_LINEAR use it on their raw-coordinate sandwich;
+// REG_OLS clamps after its back-transform (olsSandwich).
+func robustStdErrors(v [][]float64) []float64 {
+	se := make([]float64, len(v))
+	for j := range v {
+		if v[j][j] < 0 {
+			v[j][j] = 0
+		}
+		se[j] = sqrt(v[j][j])
+	}
+	return se
+}
+
+// robustRowKey is one fitted row's covariance keys, collected beside the
+// design by the buffered engines (REG_GLM's buildWeightedDesign,
+// REG_BAYES_LINEAR's second pass).
+type robustRowKey struct {
+	cluster string
+	order   float64
+}

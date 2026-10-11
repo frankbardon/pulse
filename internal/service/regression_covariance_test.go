@@ -182,6 +182,11 @@ func processOne(t *testing.T, svc *Service, specs ...*types.RegressionSpec) []*t
 // count and the resolved lag; a cluster keyed by an integer id is the
 // same fit to the bit as the categorical one.
 func TestRegressionCovariance_MatchesROracle(t *testing.T) {
+	t.Run("REG_OLS", testRobustOLSOracle)
+	t.Run("REG_GLM+REG_BAYES_LINEAR", testRobustGLMBayesOracle)
+}
+
+func testRobustOLSOracle(t *testing.T) {
 	g := loadRobust(t)
 	svc, _ := robustCohort(t, g.Rows)
 	for _, c := range g.Cases {
@@ -302,9 +307,17 @@ func TestRegressionCovariance_Refusals(t *testing.T) {
 			hc1(s)
 			s.Selection, s.Criterion = "forward", "aic"
 		}},
-		{"glm", errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, "type", true, true, func(s *types.RegressionSpec) {
+		{"glm resample", errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, "resample", true, true, func(s *types.RegressionSpec) {
 			hc1(s)
-			s.Type, s.Family, s.Target = types.REG_GLM, "binomial", "label"
+			s.Type, s.Family, s.Target, s.Resample = types.REG_GLM, "binomial", "label", "jackknife"
+		}},
+		{"glm one cluster", errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, "clusters", false, true, func(s *types.RegressionSpec) {
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "region"}
+			s.Type, s.Family, s.Target, s.Predictors = types.REG_GLM, "binomial", "label", []string{"x1"}
+		}},
+		{"bayes order ties", errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, "order_by_ties", false, true, func(s *types.RegressionSpec) {
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "region_id"}
+			s.Type = types.REG_BAYES_LINEAR
 		}},
 		{"one cluster", errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, "clusters", false, true, func(s *types.RegressionSpec) {
 			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "region"}
@@ -341,7 +354,7 @@ func TestRegressionCovariance_Refusals(t *testing.T) {
 			spec := &types.RegressionSpec{Name: "fit", Type: types.REG_OLS, Target: "y", Predictors: robustPredictors, Vcov: true}
 			c.mut(spec)
 			req := &types.Request{Cohort: &types.Cohort{Filename: "robust.pulse"}, Regressions: []*types.RegressionSpec{spec}}
-			if c.name == "one cluster" {
+			if c.name == "one cluster" || c.name == "glm one cluster" {
 				req.Filterers = []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{g.Rows[0].Region}}}
 			}
 			if c.runtime {
@@ -380,36 +393,40 @@ func TestRegressionCovariance_PredictBuffered(t *testing.T) {
 	g := loadRobust(t)
 	_, data := robustCohort(t, g.Rows)
 	agg := []*types.Aggregation{{Type: types.AGG_COUNT, Field: "y"}}
-	for _, typ := range types.AllCovarianceTypes() {
-		cov := &types.RegressionCovariance{Type: typ}
-		switch typ {
-		case types.CovarianceCluster:
-			cov.Cluster = "region"
-		case types.CovarianceHAC:
-			cov.OrderBy = "week"
-		}
-		spec := &types.RegressionSpec{Name: "fit", Type: types.REG_OLS, Target: "y", Predictors: robustPredictors, Covariance: cov}
-		req := &types.Request{Cohort: &types.Cohort{Filename: "robust.pulse"}, Aggregations: agg, Regressions: []*types.RegressionSpec{spec}}
-		pred := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{})
-		if len(pred.Errors) != 0 {
-			t.Fatalf("%s: predict errors %+v", typ, pred.Errors)
-		}
-		res := pred.Data.(*descriptor.PredictResult)
-		robust := typ != types.CovarianceClassical
-		if res.Streamable == robust {
-			t.Errorf("%s: streamable = %v, want %v", typ, res.Streamable, !robust)
-		}
-		if spec.Streamable() == robust {
-			t.Errorf("%s: RegressionSpec.Streamable = %v", typ, spec.Streamable())
-		}
-		mentions := false
-		for _, r := range res.StreamableReasons {
-			if strings.Contains(r, "covariance "+string(typ)) {
-				mentions = true
+	// REG_BAYES_LINEAR streams classically like REG_OLS, so a robust
+	// covariance downgrades it the same way (E5-S2).
+	for _, regType := range []types.RegressionType{types.REG_OLS, types.REG_BAYES_LINEAR} {
+		for _, typ := range types.AllCovarianceTypes() {
+			cov := &types.RegressionCovariance{Type: typ}
+			switch typ {
+			case types.CovarianceCluster:
+				cov.Cluster = "region"
+			case types.CovarianceHAC:
+				cov.OrderBy = "week"
 			}
-		}
-		if mentions != robust {
-			t.Errorf("%s: reasons %v, want a covariance reason = %v", typ, res.StreamableReasons, robust)
+			spec := &types.RegressionSpec{Name: "fit", Type: regType, Target: "y", Predictors: robustPredictors, Covariance: cov}
+			req := &types.Request{Cohort: &types.Cohort{Filename: "robust.pulse"}, Aggregations: agg, Regressions: []*types.RegressionSpec{spec}}
+			pred := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{})
+			if len(pred.Errors) != 0 {
+				t.Fatalf("%s %s: predict errors %+v", regType, typ, pred.Errors)
+			}
+			res := pred.Data.(*descriptor.PredictResult)
+			robust := typ != types.CovarianceClassical
+			if res.Streamable == robust {
+				t.Errorf("%s %s: streamable = %v, want %v", regType, typ, res.Streamable, !robust)
+			}
+			if spec.Streamable() == robust {
+				t.Errorf("%s %s: RegressionSpec.Streamable = %v", regType, typ, spec.Streamable())
+			}
+			mentions := false
+			for _, r := range res.StreamableReasons {
+				if strings.Contains(r, "covariance "+string(typ)) {
+					mentions = true
+				}
+			}
+			if mentions != robust {
+				t.Errorf("%s %s: reasons %v, want a covariance reason = %v", regType, typ, res.StreamableReasons, robust)
+			}
 		}
 	}
 }

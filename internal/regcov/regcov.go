@@ -36,8 +36,10 @@ const (
 	ReasonOrderTies = "order_by_ties"
 )
 
-// robustTypes are the regression types that take a robust covariance.
-var robustTypes = []types.RegressionType{types.REG_OLS}
+// robustTypes are the regression types that take a robust covariance:
+// REG_OLS (residual sandwich), REG_GLM (IRLS score sandwich) and
+// REG_BAYES_LINEAR (Müller's sandwich posterior).
+var robustTypes = []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR}
 
 // Check returns the first fault of spec's covariance block, or nil when
 // it is absent or well formed and supported:

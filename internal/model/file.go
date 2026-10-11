@@ -32,9 +32,20 @@ import (
 // a table is not a table).
 const FileSuffix = ".pulse-model.json"
 
-// FileFormatVersion is the model_format_version this build writes and
-// the only one it reads.
-const FileFormatVersion = 1
+// FileFormatVersion is the newest model_format_version this build
+// writes. The version is a function of the content, never a flag (the
+// .pulse header's rule): a fit whose standard errors came from a robust
+// RegressionSpec.Covariance writes 2 — version 1 plus the `covariance`
+// echo — and every other fit writes 1, byte-identical to the files
+// earlier builds wrote. Both stay readable (FileFormatVersions).
+const FileFormatVersion = 2
+
+// fileFormatV1 is the version a fit without a robust covariance writes.
+const fileFormatV1 = 1
+
+// FileFormatVersions are the model_format_version values this build
+// reads, oldest first.
+func FileFormatVersions() []int { return []int{fileFormatV1, FileFormatVersion} }
 
 // The PULSE_MODEL_SAVE_INVALID reasons.
 const (
@@ -51,12 +62,12 @@ const (
 	ReasonFileSchema         = "schema"
 )
 
-// File is one model file document (model_format_version 1): the fitted
-// regression's scoring figures at full float64 precision plus
+// File is one model file document (model_format_version 1 or 2): the
+// fitted regression's scoring figures at full float64 precision plus
 // informational provenance. Maps are keyed like RegressionResult's
 // (InterceptKey included); a term absent from a map has no figure.
 type File struct {
-	// ModelFormatVersion is FileFormatVersion.
+	// ModelFormatVersion is 2 when Covariance is set, else 1.
 	ModelFormatVersion int `json:"model_format_version"`
 	// Name is the name the model was saved under (informational: a load
 	// binds the name the loading request gives it).
@@ -91,6 +102,12 @@ type File struct {
 	ConfLevel Float `json:"conf_level,omitempty"`
 	// Vcov is the coefficient covariance when the fit computed one.
 	Vcov *FileMatrix `json:"vcov,omitempty"`
+	// Covariance (version 2 only, and required there) names the robust
+	// estimator the standard errors, intervals, df and vcov came from —
+	// RegressionResult.Covariance: type, and the cluster field and its
+	// level count or the order_by field and resolved lag. Absent: the
+	// fit's classical covariance.
+	Covariance *types.RegressionCovarianceResult `json:"covariance,omitempty"`
 	// NObs, SumWeights and NEff are the fit's sample sizes (the last
 	// two present on a weighted fit only).
 	NObs       int   `json:"n_obs"`
@@ -190,7 +207,7 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 		return nil, err
 	}
 	f := &File{
-		ModelFormatVersion: FileFormatVersion,
+		ModelFormatVersion: fileFormatV1,
 		Name:               name,
 		Type:               res.Type,
 		Family:             res.Family,
@@ -218,6 +235,15 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 	if res.Vcov != nil {
 		f.Vcov = toFileMatrix(res.Vcov)
 	}
+	if res.Covariance != nil {
+		c := *res.Covariance
+		if c.Lags != nil {
+			lags := *c.Lags
+			c.Lags = &lags
+		}
+		f.Covariance = &c
+		f.ModelFormatVersion = FileFormatVersion
+	}
 	return f, nil
 }
 
@@ -233,10 +259,12 @@ func (f *File) Encode() ([]byte, error) {
 
 // DecodeFile parses a model file. The version is read first: absent or
 // not an integer is PULSE_MODEL_FILE_INVALID (reason version_missing /
-// schema), any value but FileFormatVersion PULSE_MODEL_VERSION_UNSUPPORTED.
-// The v1 document is then decoded strictly — an unknown key, a wrong
-// type or a structural fault (no type or target, a predictor without a
-// coefficient, a predictor outside terms, a malformed vcov) is
+// schema), any value outside FileFormatVersions
+// PULSE_MODEL_VERSION_UNSUPPORTED. The document is then decoded strictly
+// — an unknown key, a wrong type or a structural fault (no type or
+// target, a predictor without a coefficient, a predictor outside terms,
+// a malformed vcov, a covariance on a version 1 file or none on a
+// version 2 one, a covariance type outside the robust estimators) is
 // PULSE_MODEL_FILE_INVALID reason schema; malformed JSON reason json.
 // source names the file in messages and details.path.
 func DecodeFile(source string, data []byte) (*File, error) {
@@ -252,10 +280,10 @@ func DecodeFile(source string, data []byte) (*File, error) {
 	if err := json.Unmarshal(raw, &version); err != nil {
 		return nil, fileInvalid(source, ReasonFileSchema, "model_format_version is not an integer")
 	}
-	if version != FileFormatVersion {
+	if !slices.Contains(FileFormatVersions(), version) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_VERSION_UNSUPPORTED,
-			fmt.Sprintf("model file %s has model_format_version %d; this build reads version %d", source, version, FileFormatVersion),
-			map[string]any{"path": source, "version": version, "supported": []int{FileFormatVersion}})
+			fmt.Sprintf("model file %s has model_format_version %d; this build reads versions %d to %d", source, version, fileFormatV1, FileFormatVersion),
+			map[string]any{"path": source, "version": version, "supported": FileFormatVersions()})
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
@@ -269,7 +297,7 @@ func DecodeFile(source string, data []byte) (*File, error) {
 	return &f, nil
 }
 
-// check is the v1 structural rule; "" when the document is whole.
+// check is the structural rule; "" when the document is whole.
 func (f *File) check() string {
 	switch {
 	case f.Type == "":
@@ -278,6 +306,16 @@ func (f *File) check() string {
 		return "has no target"
 	case f.Coefficients == nil:
 		return "has no coefficients"
+	case f.ModelFormatVersion == fileFormatV1 && f.Covariance != nil:
+		return "carries a covariance, which model_format_version 1 does not have"
+	case f.ModelFormatVersion == FileFormatVersion && f.Covariance == nil:
+		return "is model_format_version 2 without a covariance"
+	}
+	if c := f.Covariance; c != nil {
+		robust := &types.RegressionCovariance{Type: c.Type}
+		if !slices.Contains(types.AllCovarianceTypes(), c.Type) || !robust.Robust() {
+			return fmt.Sprintf("covariance type %q is not a robust estimator", c.Type)
+		}
 	}
 	if _, ok := f.Coefficients[InterceptKey]; !ok {
 		return fmt.Sprintf("has no %q coefficient", InterceptKey)
@@ -351,6 +389,14 @@ func (f *File) Result() *types.RegressionResult {
 	}
 	if f.Vcov != nil {
 		res.Vcov = fromFileMatrix(f.Vcov)
+	}
+	if f.Covariance != nil {
+		c := *f.Covariance
+		if c.Lags != nil {
+			lags := *c.Lags
+			c.Lags = &lags
+		}
+		res.Covariance = &c
 	}
 	return res
 }

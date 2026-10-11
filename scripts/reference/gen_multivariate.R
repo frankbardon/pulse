@@ -854,3 +854,9 @@ source(file.path(script_dir, "gen_distance.R"), local = FALSE)
 # seeded rows written into the golden); its sandwich / lmtest pins live
 # there.
 source(file.path(script_dir, "gen_robust_vcov.R"), local = FALSE)
+
+# The robust GLM / Bayes linear covariance golden (mv_robust_vcov_glm.json:
+# REG_GLM binomial / poisson against sandwich on glm, REG_BAYES_LINEAR's
+# Muller sandwich posterior in closed form); reuses gen_robust_vcov.R's
+# helpers and pins, so it is sourced after it.
+source(file.path(script_dir, "gen_robust_vcov_glm.R"), local = FALSE)

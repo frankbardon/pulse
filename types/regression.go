@@ -163,8 +163,10 @@ type RegressionSpec struct {
 	Vcov bool `json:"vcov,omitempty"`
 
 	// Covariance selects the coefficient covariance estimator behind
-	// StdErrors, PValues, CILower / CIUpper / DF and Vcov (REG_OLS):
-	// classical, hc0–hc3, cluster (CR1 on G − 1 df) or hac (Newey–West).
+	// StdErrors, PValues, CILower / CIUpper / DF and Vcov (REG_OLS,
+	// REG_GLM; REG_BAYES_LINEAR's sandwich posterior replaces its
+	// posterior covariance): classical, hc0–hc3, cluster (CR1; G − 1 df on
+	// REG_OLS) or hac (Newey–West).
 	// Absent means classical, byte-identical on the wire. A robust type
 	// forces the buffered path and is refused with
 	// PROCESSING_REGRESSION_VCOV_UNSUPPORTED alongside a Penalty, a
@@ -182,7 +184,8 @@ type RegressionSpec struct {
 	ConfLevel float64 `json:"conf_level,omitempty"`
 
 	// Save writes the finished fit as a model file (model_format_version
-	// 1, `.pulse-model.json`) at this path on the instance filesystem,
+	// 1, or 2 when a robust Covariance produced its standard errors;
+	// `.pulse-model.json`) at this path on the instance filesystem,
 	// relative to its root, atomically (temp + fsync + rename; parent
 	// directories are created). Overwriting an existing file succeeds
 	// with the PULSE_MODEL_OVERWRITTEN warning. The path must end in

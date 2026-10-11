@@ -166,7 +166,9 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	// unweighted, so every product below reproduces the unweighted fit
 	// bit for bit). n is the raw count of rows that entered the fit.
 	rw := newRowWeights(e.spec)
-	xRows, yVec, prior, sumW, sumWSq := buildWeightedDesign(records, e.spec.Predictors, e.spec.Target, rw)
+	// A robust covariance (RegressionSpec.Covariance) also reads each
+	// row's cluster / order_by key: a null one drops the row listwise.
+	xRows, yVec, prior, keys, sumW, sumWSq := buildWeightedDesign(records, e.spec.Predictors, e.spec.Target, rw, robustKeyReader(e.spec))
 	n := len(yVec)
 	if n < p+1 {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -385,6 +387,18 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	for i := 0; i < n; i++ {
 		mu[i] = e.family.InverseLink(eta[i])
 	}
+
+	// A robust covariance replaces (XᵀWX)⁻¹ behind the standard errors,
+	// the Wald p-values, the intervals and Vcov (glm_covariance.go).
+	var robust *glmRobust
+	if e.spec.Covariance.Robust() {
+		var err error
+		robust, err = e.glmSandwich(xRows, yVec, eta, mu, prior, keys, lastInvXtWX, rw.basis.NStar(sumW, sumWSq))
+		if err != nil {
+			return nil, err
+		}
+		stdErrors = robust.stdErrors
+	}
 	if e.fitted != nil {
 		e.fitted(eta, mu)
 	}
@@ -445,7 +459,12 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	rw.note(res, sumW, sumWSq)
 	// Wald normal intervals, on the same basis as the Wald-z p-values.
 	attachIntervals(res, resolvedConfLevel(e.spec), 0, false)
-	if e.spec.Vcov {
+	if robust != nil {
+		res.Covariance = robust.fit.info
+		if e.spec.Vcov {
+			attachVcov(res, predictors, robust.fit.v)
+		}
+	} else if e.spec.Vcov {
 		// Cov(β) = (XᵀWX)⁻¹ at the converged weights (dispersion 1), its
 		// diagonal the clamped variances the standard errors read.
 		diag := make([]float64, p+1)
@@ -467,7 +486,13 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 // probability), so the working weights, the covariance (XᵀW*X)⁻¹ and
 // the deviances are R glm(weights = w*). Unweighted, every prior weight
 // is exactly 1. sumW / sumWSq are Σw and Σw² of the raw weights.
-func buildWeightedDesign(records []Record, predictors []string, target string, rw rowWeights) (xRows, yVec, prior []float64, sumW, sumWSq float64) {
+//
+// keyOf, set under a robust covariance (robustKeyReader), reads each
+// otherwise complete row's cluster / order_by key before its weight is
+// judged — a null key drops the row like a null predictor — and keys
+// returns them in row order; nil (a classical fit) leaves the design
+// exactly as before and keys nil.
+func buildWeightedDesign(records []Record, predictors []string, target string, rw rowWeights, keyOf func(Record) (robustRowKey, bool)) (xRows, yVec, prior []float64, keys []robustRowKey, sumW, sumWSq float64) {
 	p := len(predictors)
 	xRows = make([]float64, 0, len(records)*(p+1))
 	yVec = make([]float64, 0, len(records))
@@ -490,9 +515,18 @@ func buildWeightedDesign(records []Record, predictors []string, target string, r
 		if anyNull {
 			continue
 		}
+		var key robustRowKey
+		if keyOf != nil {
+			if key, ok = keyOf(rec); !ok {
+				continue
+			}
+		}
 		w, ok := rw.of(rec)
 		if !ok {
 			continue
+		}
+		if keyOf != nil {
+			keys = append(keys, key)
 		}
 		xRows = append(xRows, 1)
 		xRows = append(xRows, xBuf...)
@@ -506,7 +540,7 @@ func buildWeightedDesign(records []Record, predictors []string, target string, r
 			prior[i] *= c
 		}
 	}
-	return xRows, yVec, prior, sumW, sumWSq
+	return xRows, yVec, prior, keys, sumW, sumWSq
 }
 
 // weightedMean is Σw·x / Σw — exactly mean(x) when every w is 1.

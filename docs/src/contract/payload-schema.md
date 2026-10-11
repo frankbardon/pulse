@@ -514,11 +514,16 @@ order_by, lags}` and `RegressionResult` an additive `omitempty`
 (`classical`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `hac`); `lags` is a
 non-negative integer or `"auto"`. Absent or `classical` is
 byte-identical to a request without the block and echoes nothing. Any
-other type on `REG_OLS` replaces the estimator behind `std_errors`,
-`p_values`, `ci_lower` / `ci_upper` and `vcov` (so √diag(`vcov`) is
-still exactly `std_errors`); under `cluster`, `df` is the cluster count
-minus 1. Shape faults are `PROCESSING_CONFIG`; a robust type beside a
-penalty, `resample` or `selection`, or on another regression type, is
+other type on `REG_OLS` or `REG_GLM` replaces the estimator behind
+`std_errors`, `p_values`, `ci_lower` / `ci_upper` and `vcov` (so
+√diag(`vcov`) is still exactly `std_errors`); under `cluster`, an OLS
+`df` is the cluster count minus 1 (GLM stays Wald z). On
+`REG_BAYES_LINEAR` it keeps the posterior-mean `coefficients` and
+REPLACES the posterior covariance with Müller's sandwich posterior:
+`std_errors`, `credible_intervals`, `ci_lower` / `ci_upper` (normal, no
+`df`) and `vcov` follow it. Shape faults are `PROCESSING_CONFIG`; a
+robust type beside a penalty, `resample` or `selection`, or on another
+regression type, is
 `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`details.reason`), in predict
 and at runtime alike. The echo is in the `standard` preset.
 
@@ -718,7 +723,9 @@ cohort}]` on the predict result (not payload-reachable).
 
 `RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,
 relative to the instance filesystem root, where the finished fit is
-written as a model file (`model_format_version` 1, `.pulse-model.json`;
+written as a model file (`model_format_version` 1, or 2 — adding the
+`covariance` echo — when a robust covariance produced the fit's standard
+errors; `.pulse-model.json`;
 the format is in `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`

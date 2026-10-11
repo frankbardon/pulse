@@ -38,6 +38,7 @@ Use something else:
 | `conf_level` | float | `credible_level` | `CILower` / `CIUpper` mass, `0<c<1`. |
 | `weight` | slot weight | inherited | `null` opts out; frequency only (= the expanded rows: X'WX, X'Wy, Σw in the posterior). Adds `SumWeights`; `NObs` raw rows. |
 | `vcov` | bool | `false` | Adds the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ (null if a_n ≤ 1) + `Correlation`; diag = `StdErrors`²·a_n/(a_n−1). |
+| `covariance` | object | absent | `{type, cluster, order_by, lags}` as [`op-reg-ols`](op-reg-ols.md). Keeps the posterior-mean βs but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹): `StdErrors`, `CredibleIntervals`, CIs (normal, no `DF`) and `Vcov` (√diag = `StdErrors`) follow it. |
 
 ## Inputs
 
@@ -45,7 +46,7 @@ Use something else:
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `CILower` / `CIUpper` the same t interval at `conf_level` (equal when unset), `DF` = 2a_n, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as OLS; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `CILower` / `CIUpper` the same t interval at `conf_level` (equal when unset), `DF` = 2a_n, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`; a robust `covariance` adds the `Covariance` echo. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as OLS; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
 
 ## Reading the output
 
@@ -59,6 +60,7 @@ Use something else:
 - `penalty` / `alpha` / `l1_ratio` / `family` / `link` rejected — other engines' knobs.
 - `resample` / `selection` → `PROCESSING_CONFIG` (not advertised) — credible intervals already convey uncertainty.
 - `prior_mu` length ≠ predictors + 1 → `PROCESSING_CONFIG`.
+- Robust `covariance` is a substitution, not a posterior: honest under heteroskedastic or dependent rows, but no longer the conjugate model's probability statement. It forces the buffered path; < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
 - Vague-prior limit reproduces the OLS point estimate; intervals and `ResidualStdErr` run below OLS with few rows per predictor (σ² ≈ RSS/n, not RSS/(n−p−1)).
 - `R2` is on the posterior-mean fit, not averaged over posterior draws.
 

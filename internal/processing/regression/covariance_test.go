@@ -163,3 +163,104 @@ func TestCovariance_HCOmega(t *testing.T) {
 		}
 	}
 }
+
+// glmBayesCovFit fits typ (REG_GLM poisson or REG_BAYES_LINEAR) over
+// recs through the buffered path.
+func glmBayesCovFit(t *testing.T, typ types.RegressionType, cov *types.RegressionCovariance, recs []Record) *types.RegressionResult {
+	t.Helper()
+	spec := &types.RegressionSpec{Type: typ, Target: "y", Predictors: []string{"x"}, Vcov: true, Covariance: cov}
+	var (
+		eng Engine
+		err error
+	)
+	if typ == types.REG_GLM {
+		spec.Family = "poisson"
+		eng, err = newGLMEngine(spec, nil)
+	} else {
+		eng, err = newBayesLinearEngine(spec, nil)
+	}
+	if err != nil {
+		t.Fatalf("new %s engine: %v", typ, err)
+	}
+	res, err := eng.(BufferedEngine).FitBuffered(recs)
+	if err != nil {
+		t.Fatalf("%s FitBuffered: %v", typ, err)
+	}
+	return res
+}
+
+// TestCovariance_GLMBayesNullKeyDropsRow: on REG_GLM and
+// REG_BAYES_LINEAR too, a null cluster or order_by value drops the row
+// from the fit itself (n_obs) and so moves the coefficients, like a
+// null predictor; the classical fit keeps it.
+func TestCovariance_GLMBayesNullKeyDropsRow(t *testing.T) {
+	for _, typ := range []types.RegressionType{types.REG_GLM, types.REG_BAYES_LINEAR} {
+		for _, cov := range []*types.RegressionCovariance{
+			{Type: types.CovarianceCluster, Cluster: "g"},
+			{Type: types.CovarianceHAC, OrderBy: "t"},
+		} {
+			key := cov.Cluster + cov.OrderBy
+			recs := covRecords()
+			lr := recs[4].(labeledRecord)
+			recs[4] = labeledRecord{mockRecord: mockRecord{values: lr.values, nulls: map[string]bool{key: true}}, labels: lr.labels}
+			res := glmBayesCovFit(t, typ, cov, recs)
+			if res.NObs != 11 {
+				t.Errorf("%s %s: n_obs = %d, want 11 (the null-%s row dropped)", typ, cov.Type, res.NObs, key)
+			}
+			dropped := glmBayesCovFit(t, typ, nil, append(append([]Record(nil), recs[:4]...), recs[5:]...))
+			if res.Coefficients["x"] != dropped.Coefficients["x"] {
+				t.Errorf("%s %s: β = %v, the fit without the row %v", typ, cov.Type, res.Coefficients["x"], dropped.Coefficients["x"])
+			}
+			if classic := glmBayesCovFit(t, typ, nil, recs); classic.NObs != 12 {
+				t.Errorf("%s classical n_obs = %d, want 12", typ, classic.NObs)
+			}
+		}
+	}
+}
+
+// TestCovariance_GLMBayesHACLagZeroIsHC1: the GLM and Bayes engines
+// feed the one sandwich too — Newey–West at lag 0 over rows already in
+// order is HC1 to the bit, and hc3 ≥ hc2 ≥ hc0 on the diagonal (the
+// leverage the engines hand it is in [0, 1)).
+func TestCovariance_GLMBayesHACLagZeroIsHC1(t *testing.T) {
+	recs := covRecords()
+	for _, typ := range []types.RegressionType{types.REG_GLM, types.REG_BAYES_LINEAR} {
+		hc1 := glmBayesCovFit(t, typ, &types.RegressionCovariance{Type: types.CovarianceHC1}, recs)
+		hac := glmBayesCovFit(t, typ, &types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t", Lags: types.LagsOf(0)}, recs)
+		for _, k := range []string{InterceptKey, "x"} {
+			if hc1.StdErrors[k] != hac.StdErrors[k] {
+				t.Errorf("%s %s: hc1 %v, hac(0) %v", typ, k, hc1.StdErrors[k], hac.StdErrors[k])
+			}
+		}
+		hc0 := glmBayesCovFit(t, typ, &types.RegressionCovariance{Type: types.CovarianceHC0}, recs)
+		hc2 := glmBayesCovFit(t, typ, &types.RegressionCovariance{Type: types.CovarianceHC2}, recs)
+		hc3 := glmBayesCovFit(t, typ, &types.RegressionCovariance{Type: types.CovarianceHC3}, recs)
+		for _, k := range []string{InterceptKey, "x"} {
+			if !(hc0.StdErrors[k] < hc2.StdErrors[k] && hc2.StdErrors[k] < hc3.StdErrors[k]) {
+				t.Errorf("%s %s: want hc0 < hc2 < hc3, got %v %v %v", typ, k, hc0.StdErrors[k], hc2.StdErrors[k], hc3.StdErrors[k])
+			}
+		}
+	}
+}
+
+// TestCovariance_BayesStreamingRefusesRobust: REG_BAYES_LINEAR streams
+// classically, but a robust spec driven through UpdateRow / Finalize is
+// refused rather than reporting the posterior marginals.
+func TestCovariance_BayesStreamingRefusesRobust(t *testing.T) {
+	spec := &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Covariance: &types.RegressionCovariance{Type: types.CovarianceHC0}}
+	eng, err := newBayesLinearEngine(spec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	se := eng.(StreamingEngine)
+	for _, r := range covRecords() {
+		if err := se.UpdateRow(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err = se.Finalize()
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_INTERNAL {
+		t.Fatalf("Finalize err = %v, want PROCESSING_INTERNAL", err)
+	}
+}

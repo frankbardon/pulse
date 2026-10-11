@@ -22,3 +22,14 @@ func credibleInterval(mean, se, df, level float64) [2]float64 {
 	half := q * se
 	return [2]float64{mean - half, mean + half}
 }
+
+// normalCredibleInterval is credibleInterval under a normal posterior
+// (REG_BAYES_LINEAR's robust covariance, Müller's sandwich posterior):
+// mean ± z_q · se, z_q the (1−α/2) standard normal quantile.
+func normalCredibleInterval(mean, se, level float64) [2]float64 {
+	if se == 0 {
+		return [2]float64{mean, mean}
+	}
+	half := statdist.NormalQuantile(0.5+level/2) * se
+	return [2]float64{mean - half, mean + half}
+}

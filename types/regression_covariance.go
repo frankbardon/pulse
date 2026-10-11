@@ -13,7 +13,8 @@ type CovarianceType string
 
 const (
 	// CovarianceClassical is the model-based covariance every fit
-	// reports without a Covariance block: σ̂²(XᵀX)⁻¹ on REG_OLS.
+	// reports without a Covariance block: σ̂²(XᵀX)⁻¹ on REG_OLS,
+	// (XᵀWX)⁻¹ on REG_GLM, the NIG posterior on REG_BAYES_LINEAR.
 	CovarianceClassical CovarianceType = "classical"
 	// CovarianceHC0 is White's heteroskedasticity-consistent sandwich,
 	// meat Σ e²·x·xᵀ.
@@ -25,7 +26,8 @@ const (
 	// CovarianceHC3 weights each squared residual by 1/(1 − h)².
 	CovarianceHC3 CovarianceType = "hc3"
 	// CovarianceCluster is the cluster-robust CR1 sandwich over the
-	// Cluster field's levels, G/(G − 1)·(N* − 1)/(N* − k), on G − 1 df.
+	// Cluster field's levels, G/(G − 1)·(N* − 1)/(N* − k); REG_OLS reads
+	// it on G − 1 df, REG_GLM and REG_BAYES_LINEAR stay normal.
 	CovarianceCluster CovarianceType = "cluster"
 	// CovarianceHAC is Newey–West: a Bartlett-kernel sandwich over the
 	// rows ordered by OrderBy, truncated at Lags, scaled N*/(N* − k).
@@ -47,10 +49,13 @@ func AllCovarianceTypes() []CovarianceType {
 }
 
 // RegressionCovariance selects the coefficient covariance estimator of a
-// regression (RegressionSpec.Covariance). The estimator drives the
-// standard errors, the p-values, the confidence intervals and, when
+// regression (RegressionSpec.Covariance) on REG_OLS, REG_GLM (the
+// sandwich over the IRLS scores) or REG_BAYES_LINEAR (Müller's sandwich
+// posterior, which REPLACES the posterior covariance and keeps the
+// posterior mean). The estimator drives the standard errors, the
+// p-values, the confidence (and credible) intervals and, when
 // RegressionSpec.Vcov is set, the emitted Vcov — so √diag(Vcov) equals
-// StdErrors under every type. Absent, or Type "classical", is the
+// StdErrors under every robust type. Absent, or Type "classical", is the
 // model-based covariance, byte-identical to a request without the block.
 //
 // Any other type needs per-row residuals (and, for hc2 / hc3, leverage),
@@ -181,7 +186,7 @@ type RegressionCovarianceResult struct {
 	Type CovarianceType `json:"type"`
 
 	// Cluster and Clusters are the cluster field and its level count G
-	// (type cluster); DF is then G − 1.
+	// (type cluster); a REG_OLS DF is then G − 1.
 	Cluster  string `json:"cluster,omitempty"`
 	Clusters int    `json:"clusters,omitempty"`
 

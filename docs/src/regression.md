@@ -47,7 +47,7 @@ The Indeed regression taxonomy double-counts (Simple ≡ Linear univariate, Mult
 | `REG_GLM` (binomial / poisson / gamma)            | no         | O(n·p)  | IRLS / Newton requires multiple passes                          |
 | Any regression with `Resample != ""`              | no         | O(n·p)  | LOO / bootstrap refit                                           |
 | Any regression with `Selection != ""`             | no         | O(n·p)  | refit per candidate subset                                      |
-| `REG_OLS` with a robust `covariance` (not `classical`) | no    | O(n·p)  | second pass for residuals / leverage                            |
+| `REG_OLS` / `REG_BAYES_LINEAR` with a robust `covariance` (not `classical`) | no | O(n·p) | second pass for residuals / leverage                |
 
 `pulse_predict` reports per-request streamability on `PredictResult.Streamable`, mirroring the runtime gate.
 
@@ -90,6 +90,7 @@ Generalized linear model via iteratively-reweighted least squares.
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`.                                                        |
 | `selection`   | no       | Subset-selection wrapper; requires `criterion`.                                        |
 | `conf_level`  | no       | Coverage of the Wald `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95.               |
+| `covariance`  | no       | As `REG_OLS`: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `std_errors`, `p_values`, the intervals and `vcov`. Inference stays Wald z, `cluster` included. |
 
 Always buffered. Setting `penalty` / `alpha` / `l1_ratio` on a `REG_GLM` spec is rejected with `PROCESSING_CONFIG`; regularized GLM is reserved for a later phase.
 
@@ -110,6 +111,7 @@ Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior.
 | `prior_rate`      | no       | Inverse-gamma rate `b₀`. Default `1e-3`.                                           |
 | `credible_level`  | no       | Posterior interval mass. Default 0.95.                                             |
 | `conf_level`      | no       | Mass of `ci_lower` / `ci_upper` (the same posterior t interval). Defaults to `credible_level`. |
+| `covariance`      | no       | As `REG_OLS`. Keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹): `std_errors`, `credible_intervals`, `ci_lower` / `ci_upper` (normal, no `df`) and `vcov` follow it. A substitution, not the conjugate posterior. Downgrades streaming. |
 
 Every fit with standard errors reports `ci_lower` / `ci_upper` (keyed like `coefficients`), `conf_level` and, for a t interval, `df`: OLS t on the residual df (N* − p − 1 on a weighted fit), GLM Wald normal (R's `confint.default`), Bayes the posterior t on 2·a_n, and any fit under `resample` normal on the resampled standard errors. An interval exists exactly where a standard error does; an undefined bound is `null`.
 

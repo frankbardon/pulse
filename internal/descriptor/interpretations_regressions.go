@@ -175,6 +175,8 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 		Caveats: []string{
 			"With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.",
 			"Gamma data rarely have dispersion 1, so gamma standard errors are unreliable.",
+			"Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), " +
+				"cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.",
 		},
 	},
 	{
@@ -242,6 +244,8 @@ var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 			"With many rows it is close to the posterior standard deviation.",
 		Caveats: []string{
 			"It is a posterior spread, not a frequentist standard error, and no p-value is built from it.",
+			"Under a robust covariance (hc0-hc3, cluster, hac) it is instead the scale of Muller's sandwich posterior, a normal centred on the same " +
+				"posterior mean whose spread is the sandwich, not the model's: the posterior covariance is REPLACED, so the model's own uncertainty no longer enters.",
 		},
 	},
 	{
@@ -255,6 +259,8 @@ var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 				"because the default variance prior divides by about n rather than n - p - 1 (about 19% narrower at 20 rows and 5 predictors). " +
 				"With an informative prior it also reflects that prior.",
 			"An interval that excludes 0 is not a significance test; report the interval itself.",
+			"Under a robust covariance it is the sandwich posterior's normal interval (no df), a substitute for the posterior: honest about " +
+				"heteroskedastic or dependent rows, but no longer the conjugate model's probability statement.",
 		},
 	},
 }, append(regCI("the equal-tailed posterior interval on the coefficient's Student-t posterior with df degrees of freedom, as in credible_intervals.",

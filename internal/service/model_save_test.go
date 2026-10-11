@@ -131,6 +131,14 @@ func TestModelSave_ProcessRoundTripsBitExact(t *testing.T) {
 		{"resample", &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"}, Resample: "jackknife"}, nil},
 		{"weighted", &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"},
 			Weight: types.SlotWeightOf(types.WeightSpec{Field: "x", Kind: types.WeightKindProbability})}, nil},
+		// A robust covariance's estimator is saved beside the figures it
+		// produced (model_format_version 2).
+		{"ols hac", &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"}, Vcov: true,
+			Covariance: &types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "week"}}, nil},
+		{"glm hc3", &types.RegressionSpec{Type: types.REG_GLM, Name: "m", Target: "week", Family: "poisson", Predictors: []string{"x"},
+			Covariance: &types.RegressionCovariance{Type: types.CovarianceHC3}}, nil},
+		{"bayes hac", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Name: "m", Target: "y", Predictors: []string{"x"},
+			Covariance: &types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "week", Lags: types.LagsOf(2)}}, nil},
 		{"grouped request", &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"}}, func(r *types.Request) {
 			r.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "week", Interval: 52}}
 			r.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "y", Label: "n"}}
@@ -167,6 +175,15 @@ func TestModelSave_ProcessRoundTripsBitExact(t *testing.T) {
 			res := resp.Regressions[0]
 			if f.NObs != res.NObs || !bitsEqual(float64(f.SumWeights), res.SumWeights) || !bitsEqual(float64(f.NEff), res.NEff) || !bitsEqual(float64(f.DF), res.DF) {
 				t.Errorf("sample sizes: file %+v, result n=%d Σw=%v neff=%v df=%v", f, res.NObs, res.SumWeights, res.NEff, res.DF)
+			}
+			if !reflect.DeepEqual(f.Covariance, res.Covariance) || (res.Covariance != nil) != (f.ModelFormatVersion == 2) {
+				t.Errorf("covariance: file v%d %+v, result %+v", f.ModelFormatVersion, f.Covariance, res.Covariance)
+			}
+			if (tc.spec.Covariance != nil) != (res.Covariance != nil) {
+				t.Errorf("vacuous: covariance echo %+v for spec %+v", res.Covariance, tc.spec.Covariance)
+			}
+			if !reflect.DeepEqual(got.Result.Covariance, res.Covariance) {
+				t.Errorf("bound covariance %+v, result %+v", got.Result.Covariance, res.Covariance)
 			}
 			if f.Provenance.Cohort != req.Cohort.Filename || !strings.HasPrefix(f.Provenance.Fingerprint, "sha256:") || f.Provenance.RequestDigest != req.Hash() {
 				t.Errorf("provenance = %+v", f.Provenance)

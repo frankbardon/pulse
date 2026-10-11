@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // ols_covariance.go is REG_OLS's robust covariance: the buffered second
@@ -52,7 +53,14 @@ func clusterKey(rec Record, field string) (string, bool) {
 // type cluster, the order_by value under hac); ok=false drops the row
 // listwise, like a null predictor.
 func (e *olsEngine) robustKeys(rec Record) (cluster string, order float64, ok bool) {
-	c := e.spec.Covariance
+	return robustRowKeys(e.spec, rec)
+}
+
+// robustRowKeys is the covariance-key read every engine's robust path
+// shares (REG_OLS, REG_GLM, REG_BAYES_LINEAR): spec's cluster key and
+// order_by value of rec, ok=false when either is null.
+func robustRowKeys(spec *types.RegressionSpec, rec Record) (cluster string, order float64, ok bool) {
+	c := spec.Covariance
 	if c.Cluster != "" {
 		if cluster, ok = clusterKey(rec, c.Cluster); !ok {
 			return "", 0, false
