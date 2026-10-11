@@ -133,7 +133,7 @@ func (a *formulaTotalAttribute) PrePass(r *Record, _ string) error {
 	for i, prog := range t.args {
 		out, nullInput, err := prog.runRecord(r)
 		if err != nil {
-			if nullInput && modelRefusal(err) == nil {
+			if nullInput && exprRefusal(err) == nil {
 				continue // a null referenced field: the row is skipped
 			}
 			return err
@@ -143,6 +143,9 @@ func (a *formulaTotalAttribute) PrePass(r *Record, _ string) error {
 		}
 		v, err := formulaNumber(out)
 		if err != nil {
+			if _, vec := out.([]float64); vec {
+				return vectorResultError("formula total() argument")
+			}
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
 				"formula total() argument must be numeric: total("+t.keys[i]+")",
 				map[string]any{"argument": t.keys[i]})

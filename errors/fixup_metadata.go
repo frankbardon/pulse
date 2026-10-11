@@ -180,6 +180,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_VECTOR_LENGTH_MISMATCH: {
+		Message: "A pairwise vector expression function (dot, dist or cosine) received two vectors of different lengths; the run fails instead of returning NaN. details.function names the call, details.left and details.right the two lengths.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Attributes", "*", "Expression"},
+				Hint:   "Make both vector arguments list the same number of elements in the same order, e.g. dot([a, b, c], [1, 0, 0]); pad a missing position with nil (read as NaN and skipped pairwise) rather than dropping it.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Filterers", "*", "Expression"},
+				Hint:   "The same rule applies in a FILTER_EXPRESSION or a total() argument: compare vectors of equal length only.",
+			},
+		},
+	},
 
 	// ---------- SERVICE ----------
 	SERVICE_VALIDATION: {

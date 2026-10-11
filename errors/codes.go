@@ -81,6 +81,13 @@ const (
 	// details.penalty names the penalty. The modifiers themselves report
 	// a covariance (the replicate one, or the final refit's).
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
+
+	// PROCESSING_VECTOR_LENGTH_MISMATCH indicates a pairwise vector
+	// expression function (dot, dist, cosine) was handed two vectors of
+	// unequal length. The run fails rather than reading the pair as NaN;
+	// two literal arrays of unequal length are refused when the
+	// expression compiles. details carry function, left and right.
+	PROCESSING_VECTOR_LENGTH_MISMATCH Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 )
 
 // SERVICE domain - HTTP/API layer and service operations
@@ -3306,6 +3313,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
+	PROCESSING_VECTOR_LENGTH_MISMATCH,
 	// SERVICE
 	SERVICE_VALIDATION,
 	SERVICE_RESOURCE,

@@ -360,6 +360,8 @@ func formulaNumber(output any) (float64, error) {
 			return 1.0, nil
 		}
 		return 0.0, nil
+	case []float64:
+		return 0, vectorResultError("formula")
 	default:
 		return 0, errors.NewCodedError(errors.PROCESSING_RUNTIME,
 			fmt.Sprintf("formula expression returned unsupported type %T", output))

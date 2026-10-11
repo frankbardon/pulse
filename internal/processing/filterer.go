@@ -308,7 +308,7 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	return func(record *Record) (bool, error) {
 		output, nullInput, err := prog.runRecord(record)
 		if err != nil {
-			if nullInput && modelRefusal(err) == nil {
+			if nullInput && exprRefusal(err) == nil {
 				// A null operand made the predicate UNKNOWN: drop the
 				// row, as SQL WHERE does.
 				return false, nil
@@ -319,6 +319,9 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 		if !ok {
 			if nullInput && output == nil {
 				return false, nil
+			}
+			if _, vec := output.([]float64); vec {
+				return false, vectorResultError("filter")
 			}
 			return false, errors.NewCodedError(errors.PROCESSING_RUNTIME,
 				fmt.Sprintf("filter expression must return bool, got %T", output))

@@ -112,6 +112,9 @@ type exprProgram struct {
 // expression does not parse), it compiles now and returns any compile
 // error; otherwise the compile is deferred to the first record.
 func newExprProgram(src, what string, schema *encoding.Schema, opts []expr.Option) (*exprProgram, error) {
+	if err := vectorStaticRefusal(src, what); err != nil {
+		return nil, err
+	}
 	p := &exprProgram{src: src, what: what, opts: opts, decl: exprPrototype(schema)}
 	refs, wholeEnv, parsed := exprFreeIdentifiers(src)
 	p.refs, p.wholeEnv = refs, wholeEnv
@@ -151,9 +154,10 @@ func (p *exprProgram) compileError(err error) error {
 }
 
 func (p *exprProgram) evalError(err error) error {
-	if mr := modelRefusal(err); mr != nil {
-		// A coef() refusal is the request's, under its own code.
-		return mr
+	if r := exprRefusal(err); r != nil {
+		// A coef() refusal, an unequal-length vector pair or an
+		// invalid vnormalize mode is the request's, under its own code.
+		return r
 	}
 	return errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
 		fmt.Sprintf("evaluating %s expression: %s", p.what, p.src))

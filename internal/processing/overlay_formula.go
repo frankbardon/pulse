@@ -699,9 +699,10 @@ func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string
 	if exts != nil {
 		opts = append(opts, exts.ExprOptions()...)
 	} else {
-		// Cells are float64: `%` needs the float-modulo patcher even
-		// without a registry (expr_mod.go).
-		opts = append(opts, exprModOptions()...)
+		// The shared built-ins (set helpers, vector / scalar maths) and
+		// the `%` patcher — cells are float64 — even without a registry
+		// (expr_mod.go).
+		opts = append(opts, setExprOptions()...)
 	}
 	program, err := expr.Compile(formula, opts...)
 	if err != nil {

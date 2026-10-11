@@ -2139,6 +2139,7 @@ pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PRO
 pulse/errors: const PROCESSING_REGRESSION_VCOV_UNSUPPORTED pulse/errors.Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
 pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
+pulse/errors: const PROCESSING_VECTOR_LENGTH_MISMATCH pulse/errors.Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
@@ -4759,4 +4760,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5f35bed1cad81bd9e470e46107826e5145acb9a49de7f167669ff432c970ea03
+// golden-hash: 8a05dc219f2b5f9a40f43fe09bdc3063ffdbf13b1ebf027b6b9aaa4fe33582de

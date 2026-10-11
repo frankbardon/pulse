@@ -8386,7 +8386,7 @@
         ]
       }
     ],
-    "error_codes_count": 334,
+    "error_codes_count": 335,
     "error_domains": [
       "CLI",
       "DATA",
@@ -8422,6 +8422,7 @@
       "PROCESSING_REGRESSION_VCOV_UNSUPPORTED",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
+      "PROCESSING_VECTOR_LENGTH_MISMATCH",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
       "PULSE_ADVISORY_EXTRA_PASS",
       "PULSE_ADVISORY_MANY_TESTS",
@@ -15249,4 +15250,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f1807235609e30ec151a74c0dab6cc1836e425360f39b0142d5ed8effab9b797
+// golden-hash: bdf9a636f2ffce3db3214a7f0a2587982811e99b1833450bb02e3b8b7d40ef84
