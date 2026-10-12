@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 200, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419]
+todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419]
 branch: predict-runtime-parity
 ---
 
@@ -36,7 +36,6 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 
 - [ ] **#198** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied
 - [ ] **#199** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) The runtime refuses, rather than silently computes on, a field it cannot read: the "predict stricter, runtime wrong" half of the ledger (`FEAT_POLY`, `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` and the `WIN_*` value windows on categorical, set, decimal, `packed_bool` or `datetime` columns), plus tier-1 tests on `set_*` fields
-- [ ] **#200** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A request with more than one `Groups` entry executes every group or is refused; today only `Groups[0]` runs
 - [ ] **#201** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection
 - [ ] **#213** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) `Response.overlays` joins the feature gate (`gatedSlots`)
 - [ ] **#214** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A joined slot or stage derives its `return` precision-exact set from the defaults-resolved request
@@ -71,7 +70,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 
 ### E1 — The runtime never computes on a field it cannot read
 - S1: refuse unreadable types in `FEAT_POLY`, `REG_*`, `WIN_*` value windows and tier-1 tests on `set_*` (#199); delete the ledger's "predict stricter, runtime wrong" entries
-- S2: multi-entry `Groups` executes every group or is refused (#200)
+- S2: moved to [U54](U54-multi-grouper.md) (#200, owner decision 2026-10-11)
 - S3: shard cohesion compares `Nullable` in `AddShard`, `shard verify`, the builder's anchored-append pre-check and the archive reader; a parity row for nullability joins `TestCohortBuilder_AppendPrecheckParity` (#207)
 
 ### E2 — Predict refuses what the runtime refuses
@@ -115,7 +114,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 
 ## Human inputs & decisions
 
-- **Open:** multi-entry `Groups` — execute them (and how: nested, independent) or refuse. Decide in E1-S2.
+- **Decided (owner, 2026-10-11):** multi-entry `Groups` executes as composite keys; #200 moved to [U54](U54-multi-grouper.md), which runs right after U27.
 
 ## Inherited from U03 / U05
 
@@ -123,7 +122,7 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 
 - **Field-type acceptance ledger (#198, #199).** `knownTypeDivergence` in `field_type_acceptance_test.go` (gate `TestFieldTypeAcceptance_PredictMatchesRuntime`) is exact: an entry that stops diverging fails the gate, so each fix deletes its entry. "Predict looser" covers about 600 pairs, for example `set_*` on value operators, `decimal128` on non-decimal aggregators (predict only warns `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`), and the date-range operators on non-temporal fields. "Predict stricter, runtime wrong" is the dangerous half: the engine regresses on a categorical's dictionary index, expands a set's bitmask in `FEAT_POLY`, and windows whatever bytes the row carries. Fix those in the runtime; never widen predict to match.
 - **Tier-1 tests on `set_*` fields read `n = 0`** rather than being refused (#199).
-- **Only `Groups[0]` executes** (#200). `internal/processing/processor.go` reads `req.Groups[0]`, and later entries are silently ignored. `parallel_reduce.go` and `shard_reduce.go` assume a single grouper too.
+- **Only `Groups[0]` executes** (#200, now owned by [U54](U54-multi-grouper.md)). `internal/processing/processor.go` reads `req.Groups[0]`, and later entries are silently ignored. `parallel_reduce.go` and `shard_reduce.go` assume a single grouper too.
 - **Predict accepts a bad crosstab cell aggregator** (#201). A never-registered, or decimal128-unsupported, `Crosstab.Cell` aggregator passes predict, but the runtime refuses it. The fusion rules [U02c](U02c-cohort-facade.md) moves to a no-execute home sit beside this check.
 - **Label-binding collision check** (#201). Predict and the runtime pass it different label sets.
 - **ProcessChain stage ≥ 1 ignores label bindings** (#201). They are silently dropped, where they should be applied or refused.
