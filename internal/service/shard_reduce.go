@@ -869,14 +869,16 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		// merged buckets and the merged floors (cohort-wide aggFloor,
 		// per-bucket groupFloors), as do the per-bucket matrices,
 		// rendered over the same ordered keys as the rows.
+		//
+		// The partial carries one grouper: Groups[0]'s.
 		tail := processing.GroupedTail{
-			Group:          req.Groups[0],
-			Grouper:        merged.grouper,
+			Groups:         req.Groups[:1],
+			Groupers:       []processing.Grouper{merged.grouper},
 			Buckets:        merged.groups,
 			TotalRows:      merged.totalRows,
 			FilteredRows:   merged.filteredRows,
 			NullRecords:    merged.nullRecords,
-			Assignments:    merged.assignments,
+			Assignments:    []int64{merged.assignments},
 			FilterCounters: merged.filterCounters,
 			ShardCount:     shardCount,
 			Matrices:       merged.groupedMats,

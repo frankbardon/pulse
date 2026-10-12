@@ -54,13 +54,23 @@ func (k *GroupKeyer) Keys(r *Record, field string) ([]string, bool, error) {
 	return k.buf[:], true, nil
 }
 
-// GroupedTail is everything a single-grouper streaming run has once the
-// records are consumed: the grouper instance KeyForRow/KeysForRow drove
-// (its live state backs Components.Groupers), the per-key aggregator
-// buckets, and the run counters.
+// GroupedTail is everything a streaming grouped run has once the
+// records are consumed: the grouper instances KeyForRow/KeysForRow
+// drove (their live state backs Components.Groupers), the per-key
+// aggregator buckets, and the run counters.
 type GroupedTail struct {
-	Group   *types.Group
-	Grouper Grouper
+	// Groups and Groupers are the run's grouper slots in declared
+	// order, one grouper instance per Request.Groups entry (len(Groups)
+	// == len(Groupers)); each grouper was driven exactly once per
+	// filter-passing record, so its live state is its own
+	// Components.Groupers entry.
+	Groups   []*types.Group
+	Groupers []Grouper
+	// KeySet is the observed composite keys of a run with two or more
+	// groupers, with their per-grouper tuples: Buckets is then keyed by
+	// composite key, and every key column is written from the tuple.
+	// Nil for one grouper (Buckets keyed by the plain key).
+	KeySet  *CompositeKeySet
 	Buckets map[string][]OnlineAggregator
 
 	// SlotTotals is each aggregation slot's COHORT-WIDE floor tally over
@@ -78,15 +88,17 @@ type GroupedTail struct {
 	TotalRows, FilteredRows, NullRecords int64
 	FilterCounters                       []FilterPassCounters
 
-	// Assignments counts (record, bucket) routings — one per key a
-	// record was keyed into, so a fan-out record counts once per
-	// bucket. It is Components.Groupers' TotalN for a grouper whose
-	// MetaGrouper payload carries no "buckets" list (an extension
-	// grouper); built-ins derive TotalN from their buckets payload.
-	// Every caller sets it — the serial path counts it per record, the
-	// parallel reducers sum the per-partition counts — so a bucket-less
-	// grouper's floor is identical whatever the worker count.
-	Assignments int64
+	// Assignments[i] counts grouper i's (record, key) routings — one
+	// per key the grouper gave a record, so a fan-out record counts once
+	// per key, and a record dropped at another position (null key)
+	// still counts here. It is Components.Groupers' TotalN for a
+	// grouper whose MetaGrouper payload carries no "buckets" list (an
+	// extension grouper); built-ins derive TotalN from their buckets
+	// payload. Every caller sets it — the serial path counts it per
+	// record, the parallel reducers sum the per-partition counts — so a
+	// bucket-less grouper's floor is identical whatever the worker
+	// count. One entry per grouper.
+	Assignments []int64
 
 	// ShardCount is the archive's shard count (0 for a single file); it
 	// lands on Components.Run.ShardCount.
@@ -111,8 +123,9 @@ type GroupedTail struct {
 	Extensions *ExtensionRegistry
 }
 
-// FinalizeGroupedStream is the ONE emission tail of a single-grouper
-// streaming run: row order (include order, else sorted keys), the
+// FinalizeGroupedStream is the ONE emission tail of a streaming
+// grouped run: row order (include order, else sorted keys — for two or
+// more groupers each grouper's native order, outer → inner), the
 // Rich-or-scalar lift per cell, an explicit Request.Sort, post-tests,
 // Components (per-group aggregations, groupers, filterers, run) and the
 // SERIES overlay fold.
@@ -132,17 +145,28 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		}
 	}
 
+	if len(t.Groups) != len(t.Groupers) || len(t.Assignments) != len(t.Groupers) || len(t.Groupers) == 0 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"grouped stream tail: groups, groupers and assignments disagree",
+			map[string]any{"groups": len(t.Groups), "groupers": len(t.Groupers), "assignments": len(t.Assignments)})
+	}
+	composite := t.KeySet != nil
+
 	keys := make([]string, 0, len(t.Buckets))
 	for k := range t.Buckets {
 		keys = append(keys, k)
 	}
-	keys = orderKeysByInclude(includeFilterOf(t.Grouper), keys)
+	if composite {
+		keys = OrderCompositeGroupKeys(keys, t.KeySet, t.Groupers)
+	} else {
+		keys = orderKeysByInclude(includeFilterOf(t.Groupers[0]), keys)
+	}
 
 	data := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
 		bucket := t.Buckets[key]
-		// +1 reserved for the group key written below.
-		row := make(map[string]any, len(bucket)+1)
+		// Room reserved for the group key column(s) written below.
+		row := make(map[string]any, len(bucket)+len(t.Groups))
 		for i, oa := range bucket {
 			val, err := oa.Finalize()
 			if err != nil {
@@ -152,7 +176,11 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 				return nil, err
 			}
 		}
-		row[t.Group.Field] = key
+		if composite {
+			WriteGroupKeyColumns(row, t.Groups, t.KeySet.Tuple(key))
+		} else {
+			row[t.Groups[0].Field] = key
+		}
 		data = append(data, row)
 	}
 
@@ -160,7 +188,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	if err != nil {
 		return nil, err
 	}
-	matrices, matrixComps, err := t.Matrices.finalize(keys)
+	matrices, matrixComps, err := t.Matrices.finalize(keys, t.Groups, t.KeySet)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +220,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		// them.
 		var grouped []types.AggregationComponents
 		if t.Compute.Groups {
-			grouped, err = streamedGroupedAggregationComponents(req.Aggregations, t.SlotTotals, t.Buckets, t.BucketFloors, keys)
+			grouped, err = streamedGroupedAggregationComponents(req.Aggregations, t.SlotTotals, t.Buckets, t.BucketFloors, keys, t.KeySet)
 			if err != nil {
 				return nil, err
 			}
@@ -204,15 +232,18 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		}
 	}
 	if t.Compute.Groupers {
-		// One GrouperComponents entry off the grouper's live state;
-		// TotalN sums the bucket counts and NNull is every post-filter
-		// record that landed in no bucket (null key, include rejection,
-		// empty set mask).
-		entry, err := buildStreamingGrouperComponents(t.Grouper, t.Group, int(t.FilteredRows), t.Assignments)
-		if err != nil {
-			return nil, err
+		// One GrouperComponents entry per grouper slot, each off that
+		// grouper's own live state; TotalN sums its bucket counts and
+		// NNull is every post-filter record it keyed into no bucket (null
+		// key, include rejection, empty set mask) — whatever the other
+		// groupers gave the record.
+		for i, g := range t.Groupers {
+			entry, err := buildStreamingGrouperComponents(g, t.Groups[i], int(t.FilteredRows), t.Assignments[i])
+			if err != nil {
+				return nil, err
+			}
+			attachGrouperComponents(resp, entry)
 		}
-		attachGrouperComponents(resp, entry)
 	}
 	if t.Compute.Filterers {
 		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, t.FilterCounters))

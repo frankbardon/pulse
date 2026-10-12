@@ -125,8 +125,10 @@ func slotTotalComponents(aggs []*types.Aggregation, records []*Record) []types.A
 // aggregators (already Finalized) and floor tallies, over the FINAL Data
 // order. Each bucket entry comes off the same builder the ungrouped
 // streaming exit uses (buildAggregationComponents + the weighted floor),
-// so it equals the buffered arm's entry for that bucket.
-func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, buckets map[string][]OnlineAggregator, floors map[string][]SlotFloor, keys []string) ([]types.AggregationComponents, error) {
+// so it equals the buffered arm's entry for that bucket. set is the
+// multi-grouper run's observed composite keys (each groups[] GroupKey
+// then carries the full tuple); nil for one grouper.
+func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, buckets map[string][]OnlineAggregator, floors map[string][]SlotFloor, keys []string, set *CompositeKeySet) ([]types.AggregationComponents, error) {
 	if len(totals) != len(aggs) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"grouped components: cohort-wide slot floors missing",
@@ -151,7 +153,7 @@ func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []Sl
 		}
 		entries[key] = row
 	}
-	return GroupedAggregationComponents(slotFloorTotals(aggs, totals), entries, keys, nil)
+	return GroupedAggregationComponents(slotFloorTotals(aggs, totals), entries, keys, set)
 }
 
 // AggregationGroupEntry converts one bucket's slot entry — built by the

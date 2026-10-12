@@ -59,7 +59,7 @@ func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
 		t.Errorf("merged bucket thin holds %d blocks, want 1", n)
 	}
 
-	res, comps, err := a.finalize([]string{"wide", "thin"})
+	res, comps, err := a.finalize([]string{"wide", "thin"}, req.Groups, nil)
 	if err != nil {
 		t.Fatalf("finalize: %v", err)
 	}

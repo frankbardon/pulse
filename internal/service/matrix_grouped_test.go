@@ -146,10 +146,25 @@ func dataKeys(t *testing.T, resp *types.Response, field string) []string {
 
 // assertBucketLayout: len(Matrices) == specs × buckets, spec-major then
 // bucket, each result and Components entry keyed by its Data row's key
-// and headed by the executed grouper.
+// tuple (one element per header field — every executed grouper) and
+// headed by the executed groupers. The returned keys join each row's
+// tuple with "|".
 func assertBucketLayout(t *testing.T, resp *types.Response, specs []types.MatrixSpec, header types.AxisHeader) []string {
 	t.Helper()
-	keys := dataKeys(t, resp, header.Fields[0])
+	cols := make([][]string, len(header.Fields))
+	for i, f := range header.Fields {
+		cols[i] = dataKeys(t, resp, f)
+	}
+	keys := make([]string, len(resp.Data))
+	tuples := make([]types.AxisKey, len(resp.Data))
+	for r := range resp.Data {
+		parts := make([]string, len(cols))
+		for i := range cols {
+			parts[i] = cols[i][r]
+			tuples[r] = append(tuples[r], cols[i][r])
+		}
+		keys[r] = strings.Join(parts, "|")
+	}
 	if len(keys) == 0 {
 		t.Fatal("no grouped data rows")
 	}
@@ -160,14 +175,14 @@ func assertBucketLayout(t *testing.T, resp *types.Response, specs []types.Matrix
 		t.Fatalf("Components.Matrices does not carry one entry per result")
 	}
 	for i, spec := range specs {
-		for k, key := range keys {
+		for k := range keys {
 			at := i*len(keys) + k
 			m, c := resp.Matrices[at], resp.Components.Matrices[at]
 			if m.Name != spec.Name || c.Name != spec.Name {
 				t.Errorf("result %d: name %q / components %q, want %q (spec-major)", at, m.Name, c.Name, spec.Name)
 			}
-			if !reflect.DeepEqual(m.GroupKey, types.AxisKey{key}) || !reflect.DeepEqual(c.GroupKey, types.AxisKey{key}) {
-				t.Errorf("result %d (%s): group_key %v / components %v, want [%s] (Data order)", at, spec.Name, m.GroupKey, c.GroupKey, key)
+			if !reflect.DeepEqual(m.GroupKey, tuples[k]) || !reflect.DeepEqual(c.GroupKey, tuples[k]) {
+				t.Errorf("result %d (%s): group_key %q / components %q, want %q (Data order)", at, spec.Name, m.GroupKey, c.GroupKey, tuples[k])
 			}
 			if m.GroupHeader == nil || !reflect.DeepEqual(*m.GroupHeader, header) {
 				t.Errorf("result %d: group_header %+v, want %+v", at, m.GroupHeader, header)
@@ -277,9 +292,10 @@ func processMatrices2(t *testing.T, cfg *fs.Config, req *types.Request) *types.R
 
 // TestMatrixGrouped_BucketOrderFollowsData: Group.Include ordering, a
 // fan-out grouper (GROUP_SET_PER_ELEMENT — one row in several buckets)
-// and a multi-entry Groups request (the engine executes Groups[0]; the
-// matrices key off exactly what the Data rows do) all emit the matrix
-// buckets in the Data rows' order with their keys.
+// and a multi-entry Groups request (one bucket per observed composite
+// key; the matrices key off exactly what the Data rows do, the key
+// tuple and every grouper in the header) all emit the matrix buckets in
+// the Data rows' order with their keys.
 func TestMatrixGrouped_BucketOrderFollowsData(t *testing.T) {
 	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
 	specs := groupedMatrixSpecs()
@@ -293,7 +309,9 @@ func TestMatrixGrouped_BucketOrderFollowsData(t *testing.T) {
 		{"include order", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"c", "a", "d"}}}, region, []string{"c", "a", "d"}},
 		{"fan-out", []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}},
 			types.AxisHeader{Fields: []string{"tags"}, Types: []string{"GROUP_SET_PER_ELEMENT"}}, []string{"T0", "T1", "T2", "T3"}},
-		{"multi-entry groups", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"b", "a"}}, {Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}}, region, []string{"b", "a"}},
+		{"multi-entry groups", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"b", "a"}}, {Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}},
+			types.AxisHeader{Fields: []string{"region", "tags"}, Types: []string{"GROUP_CATEGORY", "GROUP_SET_PER_ELEMENT"}},
+			[]string{"b|T0", "b|T1", "b|T2", "b|T3", "a|T0", "a|T1", "a|T2", "a|T3"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

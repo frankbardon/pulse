@@ -170,12 +170,61 @@ type mgMode struct {
 }
 
 // mgModes: buffered Process (a non-streamable AGG_MEDIAN slot forces
-// the buffered arm). E1-S2 / E2-S1 / E2-S2 append their modes.
+// the buffered arm), streaming Process and ProcessStream (every slot
+// streamable; a request whose groupers all stream must ride the
+// streaming arm — a non-streamable grouper, GROUP_DATE / GROUP_QUANTILE
+// / GROUP_KMEANS, routes buffered by design). E2-S1 / E2-S2 append
+// their modes.
 var mgModes = []mgMode{
 	{"Buffered", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
 		req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_MEDIAN, Field: "score", Label: "med"})
 		return f.p.Process(context.Background(), req)
 	}},
+	{"Streaming", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		mgRequireStreamable(t, f, req)
+		return f.p.Process(context.Background(), req)
+	}},
+	{"ProcessStream", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		mgRequireStreamable(t, f, req)
+		iter, err := f.p.ProcessStream(context.Background(), req)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = iter.Close() }()
+		resp := &types.Response{}
+		for {
+			row, ok, err := iter.Next(context.Background())
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				break
+			}
+			resp.Data = append(resp.Data, row)
+		}
+		resp.Components = iter.Components()
+		return resp, nil
+	}},
+}
+
+// mgRequireStreamable fails unless predict routes req to the streaming
+// arm whenever every grouper is streamable (predict's Streamable
+// mirrors the runtime route: TestPredict_Streamable_MatchesRuntime), so
+// a streaming mode cannot silently pass on the buffered arm.
+func mgRequireStreamable(t *testing.T, f *mgFixture, req *types.Request) {
+	t.Helper()
+	for _, g := range req.Groups {
+		if !g.Type.Streamable() {
+			return
+		}
+	}
+	pr, err := f.p.Predict(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Predict: %v", err)
+	}
+	if !pr.Streamable {
+		t.Fatalf("streaming mode: request routes buffered (%v)", pr.StreamableReasons)
+	}
 }
 
 func mgGroup(typ types.GroupType, field string) *types.Group {
@@ -295,6 +344,17 @@ func mgCases() []mgCase {
 				"F|cluster_1|11", "F|cluster_2|3",
 				"M|cluster_1|7", "M|cluster_2|9",
 			},
+		},
+		{
+			// Native order is each grouper's include order, not the
+			// alphabetical order of the composite key; south (not
+			// included) lands in no row.
+			name: "IncludeOrderBothPositions", groups: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"west", "north"}},
+				{Type: types.GROUP_CATEGORY, Field: "sex", Include: []string{"M", "F"}},
+			},
+			cols: []string{"region", "sex"},
+			want: []string{"west|M|5", "west|F|3", "north|M|5", "north|F|7"},
 		},
 		{
 			name: "ThreeCategories", groups: []*types.Group{mgRegion(), mgSex(), mgTier()},
@@ -477,6 +537,182 @@ func TestMultiGrouper_MaxGroupsCountsCompositeKeys(t *testing.T) {
 			resp, err := mode.run(t, at, mgRequest(at, []*types.Group{mgRegion(), mgSex()}))
 			if err != nil || len(resp.Data) != 6 {
 				t.Fatalf("at the limit: %v, %v", resp, err)
+			}
+		})
+	}
+}
+
+// TestMultiGrouper_GrouperComponentsPerSlot: Components.Groupers has
+// one entry per grouper slot, each equal to that grouper's own
+// single-grouper run in the same mode — every grouper is driven once per
+// record, even after an earlier position's null key (tier is null for 7
+// records; sex still sees all 30) — and the entries agree across modes.
+func TestMultiGrouper_GrouperComponentsPerSlot(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	groups := func() []*types.Group { return []*types.Group{mgTier(), mgTags(), mgSex()} }
+	floors := []struct {
+		field         string
+		totalN, nNull int
+	}{{"tier", 23, 7}, {"tags", 19, 11}, {"sex", 30, 0}}
+	var first []types.GrouperComponents
+	for _, mode := range mgModes {
+		t.Run(mode.name, func(t *testing.T) {
+			resp, err := mode.run(t, f, mgRequest(f, groups()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.Components == nil || len(resp.Components.Groupers) != len(floors) {
+				t.Fatalf("grouper entries: %+v, want %d", resp.Components, len(floors))
+			}
+			got := resp.Components.Groupers
+			for i, g := range groups() {
+				w := floors[i]
+				if got[i].Field != w.field || got[i].TotalN != w.totalN || got[i].NNull != w.nNull {
+					t.Errorf("groupers[%d] = {%s %d %d}, want {%s %d %d}", i, got[i].Field, got[i].TotalN, got[i].NNull, w.field, w.totalN, w.nNull)
+				}
+				single, err := mode.run(t, f, mgRequest(f, []*types.Group{g}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if single.Components == nil || len(single.Components.Groupers) != 1 {
+					t.Fatalf("single-grouper run %s: %+v", w.field, single.Components)
+				}
+				if want := single.Components.Groupers[0]; !reflect.DeepEqual(got[i], want) {
+					t.Errorf("groupers[%d] differs from its single-grouper run:\n got  %+v\n want %+v", i, got[i], want)
+				}
+			}
+			if first == nil {
+				first = got
+			} else if !reflect.DeepEqual(got, first) {
+				t.Errorf("groupers differ from mode %s:\n got  %+v\n want %+v", mgModes[0].name, got, first)
+			}
+		})
+	}
+}
+
+// TestMultiGrouper_ExtensionGrouperFloorPerSlot: a bucket-less
+// extension grouper (no components payload, so TotalN is the engine's
+// own per-grouper assignment count) behind a null-bearing grouper still
+// counts every record it keyed — its own count, not the composite
+// rows' and not another grouper's.
+func TestMultiGrouper_ExtensionGrouperFloorPerSlot(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{Extensions: pulse.Extensions{Groupers: floorGrouperRegistrations(&parityProbe{})}})
+	for _, mode := range mgModes {
+		t.Run(mode.name, func(t *testing.T) {
+			req := mgRequest(f, []*types.Group{mgTier(), mgGroup(grpMrgFloor, "sex")})
+			resp, err := mode.run(t, f, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := mgRender(t, resp.Data, []string{"tier", "sex"}, "n"); !reflect.DeepEqual(got, []string{"gold|F|4", "gold|M|5", "silver|F|7", "silver|M|7"}) {
+				t.Fatalf("rows %q", got)
+			}
+			if resp.Components == nil || len(resp.Components.Groupers) != 2 {
+				t.Fatalf("grouper entries: %+v", resp.Components)
+			}
+			if g := resp.Components.Groupers[1]; g.Field != "sex" || g.TotalN != 30 || g.NNull != 0 {
+				t.Fatalf("extension grouper floor = {%s %d %d}, want {sex 30 0}", g.Field, g.TotalN, g.NNull)
+			}
+		})
+	}
+}
+
+// TestMultiGrouper_StreamChunkComponents: ProcessStreamResult's chunk
+// components over composite rows — every chunk carries one grouper
+// entry per slot; a mid-stream chunk drops the per-group figures and
+// only the None grouper's operator map (GROUP_QUANTILE, slot 1), and the
+// terminal chunk carries each Data row's full key tuple.
+func TestMultiGrouper_StreamChunkComponents(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	for _, c := range []struct {
+		name      string
+		groups    []*types.Group
+		cols      []string
+		noneSlots map[int]bool
+	}{
+		{"Streaming", []*types.Group{mgRegion(), mgTier()}, []string{"region", "tier"}, nil},
+		{"QuantileInner", []*types.Group{mgRegion(), mgQuartile()}, []string{"region", "score"}, map[int]bool{1: true}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			res, err := f.p.ProcessStreamResult(context.Background(), mgRequest(f, c.groups))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var chunks []pulse.StreamChunk[pulse.Row]
+			for ch := range res.Chunks {
+				chunks = append(chunks, ch)
+			}
+			if term := <-res.Done; term.Status != pulse.StreamCompleted {
+				t.Fatalf("terminator %+v", term)
+			}
+			if len(chunks) < 2 {
+				t.Fatalf("%d chunks; the fixture needs a mid-stream chunk", len(chunks))
+			}
+			for i, ch := range chunks {
+				comp := ch.Components
+				if comp == nil || len(comp.Groupers) != len(c.groups) {
+					t.Fatalf("chunk %d: grouper entries %+v, want %d", i, comp, len(c.groups))
+				}
+				terminal := i == len(chunks)-1
+				for s, g := range comp.Groupers {
+					if wantNil := !terminal && c.noneSlots[s]; (g.Operator == nil) != wantNil {
+						t.Errorf("chunk %d groupers[%d] operator nil = %v, want %v", i, s, g.Operator == nil, wantNil)
+					}
+				}
+				groups := comp.Aggregations[0].Groups
+				if !terminal {
+					if groups != nil {
+						t.Errorf("chunk %d: mid-stream per-group figures %v", i, groups)
+					}
+					continue
+				}
+				if len(groups) != len(chunks) {
+					t.Fatalf("terminal: %d groups for %d rows", len(groups), len(chunks))
+				}
+				for r, ch := range chunks {
+					want := make(types.AxisKey, len(c.cols))
+					for k, col := range c.cols {
+						want[k] = ch.Data[col]
+					}
+					if !reflect.DeepEqual(groups[r].GroupKey, want) {
+						t.Errorf("groups[%d].group_key = %v, want %v", r, groups[r].GroupKey, want)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestMultiGrouper_MatricesCarryTuple: a grouped matrix over composite
+// rows is keyed by its Data row's full key tuple (never the composite
+// string) under a header naming every grouper, in Data order, on the
+// buffered and streaming arms alike. (ProcessStream's row iterator
+// carries no matrices.)
+func TestMultiGrouper_MatricesCarryTuple(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	header := types.AxisHeader{Fields: []string{"region", "sex"}, Types: []string{"GROUP_CATEGORY", "GROUP_CATEGORY"}}
+	for _, mode := range mgModes {
+		if mode.name == "ProcessStream" {
+			continue
+		}
+		t.Run(mode.name, func(t *testing.T) {
+			req := mgRequest(f, []*types.Group{mgRegion(), mgSex()})
+			req.Matrices = []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"score", "y"}}}
+			resp, err := mode.run(t, f, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(resp.Data) != 6 || len(resp.Matrices) != len(resp.Data) {
+				t.Fatalf("%d matrices for %d rows", len(resp.Matrices), len(resp.Data))
+			}
+			for i, m := range resp.Matrices {
+				want := types.AxisKey{resp.Data[i]["region"], resp.Data[i]["sex"]}
+				if !reflect.DeepEqual(m.GroupKey, want) {
+					t.Errorf("matrices[%d].group_key = %q, want %q", i, m.GroupKey, want)
+				}
+				if m.GroupHeader == nil || !reflect.DeepEqual(*m.GroupHeader, header) {
+					t.Errorf("matrices[%d].group_header = %+v, want %+v", i, m.GroupHeader, header)
+				}
 			}
 		})
 	}
