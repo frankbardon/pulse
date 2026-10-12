@@ -2,10 +2,12 @@ package pulse_test
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -123,79 +125,112 @@ func TestComposeSeriesOverlay_UngroupedPairStillRuns(t *testing.T) {
 	}
 }
 
-// TestChainSeriesOverlay_GroupedVsUngroupedShapeParity: a grouped
-// stage against an ungrouped one is PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
-// on both sides — predict's envelope error, the runtime's layer warning
-// over an empty payload — with the same shapes and stage indices, in
-// either direction, and with deep-equal Details (the runtime adds
-// overlay_index only). Before, the runtime saw two non-empty Data slices,
-// folded them as SERIES and answered PULSE_OVERLAY_REF_ZERO.
+// TestChainSeriesOverlay_GroupedVsUngroupedShapeParity: a stage shape
+// mismatch is PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT, WARNING-class on
+// both sides (U46 E4-S9): predict-chain warns and stays valid, the
+// runtime runs the chain and answers an empty layer plus one warning.
+// Same code, same class, deep-equal Details (overlay_index included),
+// for grouped-vs-ungrouped in either direction and crosstab-vs-grouped
+// in either direction, on a default and a Strict engine — the runtime
+// never promotes an overlay layer warning under Strict, and predict-chain
+// mirrors that. Before E4-S7 the runtime folded a grouped-vs-ungrouped
+// pair as SERIES (PULSE_OVERLAY_REF_ZERO); before E4-S9 predict-chain
+// refused every mismatch as an envelope error.
 func TestChainSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
-	f := newMGFixture(t, pulse.Options{})
-	for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsStage, types.OverlayKindDeltaVsStage} {
-		for _, c := range []struct {
-			name              string
-			refIdx, targetIdx int
-			refShape, tShape  string
-		}{
-			// Stage 1 (ungrouped) is the target; stage 0 (grouped) the ref.
-			{"ungrouped target", 0, 1, "series", "scalar"},
-			// The same stages with the roles swapped.
-			{"ungrouped ref", 1, 0, "scalar", "series"},
-		} {
-			t.Run(string(kind)+"/"+c.name, func(t *testing.T) {
-				build := func() *types.ChainRequest {
-					req := chChain(f, kind, "", "zz_n")
-					req.Stages[1].Request.Groups = nil
-					ref, target := c.refIdx, c.targetIdx
-					req.Overlays[0].Ref = types.StageRef{Index: &ref}
-					req.Overlays[0].Target = types.StageRef{Index: &target}
-					return req
-				}
-				// Every key predict raises the divergence with — index,
-				// stage_index and stage_name (the target stage) included —
-				// rides the runtime warning too (E4-S8).
-				want := map[string]any{
-					"index":        0,
-					"kind":         string(kind),
-					"ref_index":    c.refIdx,
-					"ref_shape":    c.refShape,
-					"target_index": c.targetIdx,
-					"target_shape": c.tShape,
-					"stage_index":  c.targetIdx,
-					"stage_name":   []string{"base", "regroup"}[c.targetIdx],
-				}
-				env := chPredict(t, f.p, build())
-				if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
-					t.Fatalf("predict-chain: want PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT first, got %+v", env.Errors)
-				}
-				if !reflect.DeepEqual(env.Errors[0].Details, want) {
-					t.Errorf("predict details = %#v, want %#v", env.Errors[0].Details, want)
-				}
-				resp, err := f.p.ProcessChain(context.Background(), build())
-				if err != nil {
-					t.Fatalf("process chain: %v", err)
-				}
-				l := resp.Overlays[0]
-				if len(l.Warnings) != 1 || l.Warnings[0].Code != string(perr.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
-					t.Fatalf("runtime: want one PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning, got %+v", l.Warnings)
-				}
-				// The runtime adds only overlay_index (its layer router).
-				got := map[string]any{}
-				for k, v := range l.Warnings[0].Details {
-					got[k] = v
-				}
-				if got["overlay_index"] != 0 {
-					t.Errorf("runtime details[overlay_index] = %#v, want 0", got["overlay_index"])
-				}
-				delete(got, "overlay_index")
-				if !reflect.DeepEqual(got, want) {
-					t.Errorf("runtime details = %#v, want %#v", got, want)
-				}
-				if string(l.Payload.Shape) != c.tShape || l.Payload.Series != nil {
-					t.Errorf("runtime payload: want an empty %s payload, got %+v", c.tShape, l.Payload)
-				}
-			})
+	for _, strict := range []bool{false, true} {
+		f := newMGFixture(t, pulse.Options{Strict: strict})
+		for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsStage, types.OverlayKindDeltaVsStage} {
+			for _, c := range []struct {
+				name              string
+				refIdx, targetIdx int
+				refShape, tShape  string
+				// reshape rewrites stage 1 (and stage 0's groups) so the
+				// stages differ in host shape.
+				reshape func(req *types.ChainRequest)
+			}{
+				// Stage 1 (ungrouped) is the target; stage 0 (grouped) the ref.
+				{"ungrouped target", 0, 1, "series", "scalar", chUngroupStage1},
+				// The same stages with the roles swapped.
+				{"ungrouped ref", 1, 0, "scalar", "series", chUngroupStage1},
+				// Stage 1 a crosstab (MATRIX) over stage 0's grouped rows.
+				{"crosstab target", 0, 1, "series", "matrix", chCrosstabStage1},
+				{"crosstab ref", 1, 0, "matrix", "series", chCrosstabStage1},
+			} {
+				t.Run(fmt.Sprintf("strict=%v/%s/%s", strict, kind, c.name), func(t *testing.T) {
+					build := func() *types.ChainRequest {
+						req := chChain(f, kind, "", "zz_n")
+						c.reshape(req)
+						ref, target := c.refIdx, c.targetIdx
+						req.Overlays[0].Ref = types.StageRef{Index: &ref}
+						req.Overlays[0].Target = types.StageRef{Index: &target}
+						return req
+					}
+					want := map[string]any{
+						"index":         0,
+						"overlay_index": 0,
+						"kind":          string(kind),
+						"ref_index":     c.refIdx,
+						"ref_shape":     c.refShape,
+						"target_index":  c.targetIdx,
+						"target_shape":  c.tShape,
+						"stage_index":   c.targetIdx,
+						"stage_name":    []string{"base", "regroup"}[c.targetIdx],
+					}
+					// Predict first, on a fresh request.
+					env := chPredict(t, f.p, build())
+					if len(env.Errors) != 0 {
+						t.Fatalf("predict-chain: want no errors, got %+v", env.Errors)
+					}
+					if res, ok := env.Data.(*pulse.ChainPredictResult); !ok || !res.Valid {
+						t.Fatalf("predict-chain: want a valid verdict, got %#v", env.Data)
+					}
+					var pw []*descriptor.EnvelopeEntry
+					for _, w := range env.Warnings {
+						if w.Code == string(perr.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+							pw = append(pw, w)
+						}
+					}
+					if len(pw) != 1 {
+						t.Fatalf("predict-chain: want one PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning, got %+v", env.Warnings)
+					}
+					if !reflect.DeepEqual(pw[0].Details, want) {
+						t.Errorf("predict details = %#v, want %#v", pw[0].Details, want)
+					}
+					resp, err := f.p.ProcessChain(context.Background(), build())
+					if err != nil {
+						t.Fatalf("process chain: %v", err)
+					}
+					l := resp.Overlays[0]
+					if len(l.Warnings) != 1 || l.Warnings[0].Code != string(perr.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+						t.Fatalf("runtime: want one PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning, got %+v", l.Warnings)
+					}
+					if !reflect.DeepEqual(l.Warnings[0].Details, want) {
+						t.Errorf("runtime details = %#v, want %#v", l.Warnings[0].Details, want)
+					}
+					if string(l.Payload.Shape) != c.tShape || l.Payload.Series != nil || l.Payload.Matrix != nil || l.Payload.Scalar != nil {
+						t.Errorf("runtime payload: want an empty %s payload, got %+v", c.tShape, l.Payload)
+					}
+				})
+			}
 		}
+	}
+}
+
+// chUngroupStage1 drops stage 1's groups: a SCALAR stage.
+func chUngroupStage1(req *types.ChainRequest) {
+	req.Stages[1].Request.Groups = nil
+}
+
+// chCrosstabStage1 groups stage 0 by region and sex and makes stage 1 a
+// region x sex crosstab over its rows: a MATRIX stage.
+func chCrosstabStage1(req *types.ChainRequest) {
+	req.Stages[0].Request.Groups = []*types.Group{mgRegion(), mgSex()}
+	req.Stages[1].Request = &types.Request{
+		Aggregations: []*types.Aggregation{chStage1("zz_n")},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{mgRegion()},
+			Columns: []*types.Group{mgSex()},
+			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "zz_n", Label: "cell"},
+		},
 	}
 }

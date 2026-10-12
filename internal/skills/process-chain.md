@@ -76,7 +76,7 @@ An empty `target` defaults to the LAST stage. `ref` has no default — every spe
 
 ## Shape divergence
 
-A whole-chain overlay fires only when ref and target produce the same host shape: `crosstab` ⇒ MATRIX, aggregations + groups ⇒ SERIES, aggregations alone ⇒ SCALAR. On a mismatch the runtime emits ONE `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` warning per spec (`details {target_shape, ref_shape, target_index, ref_index}`) and an empty layer in the target's shape — not fatal. Keep compared stages shape-identical: same groups, same aggregation count. Other whole-chain refusals: `PULSE_OVERLAY_KIND_UNKNOWN` (a kind outside `overlay_kinds`), `PULSE_OVERLAY_REFERENCE_UNKNOWN` / `PULSE_OVERLAY_TARGET_UNKNOWN` (index out of range, unmatched name, both or neither set).
+A whole-chain overlay fires only when ref and target produce the same host shape: `crosstab` ⇒ MATRIX, aggregations + groups ⇒ SERIES, aggregations alone ⇒ SCALAR. On a mismatch predict-chain and the runtime each emit ONE `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING per spec (same `details`, naming both shapes); predict stays valid, the runtime returns an empty layer in the target's shape. Never fatal, even under strict. Keep compared stages shape-identical: same groups, same aggregation count. Other whole-chain refusals: `PULSE_OVERLAY_KIND_UNKNOWN` (a kind outside `overlay_kinds`), `PULSE_OVERLAY_REFERENCE_UNKNOWN` / `PULSE_OVERLAY_TARGET_UNKNOWN` (index out of range, unmatched name, both or neither set).
 
 ## Hashing & echo
 

@@ -508,8 +508,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"arm) — both canonical chain-overlay missing-stage codes. " +
 				"Shape-divergence rule (PRD §6 FR-F2): when " +
 				"the target stage's host shape differs from the reference stage's host shape the " +
-				"handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and " +
-				"surfaces NaN across every coordinate. Unlike OVERLAY_INDEX_VS_STAGE (divides by the " +
+				"divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain " +
+				"and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Unlike OVERLAY_INDEX_VS_STAGE (divides by the " +
 				"reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined " +
 				"for every finite reference value including zero — the handler does NOT emit " +
 				"PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN " +
@@ -967,9 +967,9 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay " +
 				"missing-stage codes. " +
 				"Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from " +
-				"the reference stage's host shape the handler emits " +
-				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and surfaces NaN " +
-				"across every coordinate. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN " +
+				"the reference stage's host shape the divergence is a " +
+				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the " +
+				"chain runs; the layer is an empty payload in the target stage's shape). Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN " +
 				"on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST " +
 				"populate Ref.Stage (StageRef); any other ref-family pointer fires " +
 				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. " +

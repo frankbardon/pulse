@@ -1028,11 +1028,11 @@ const (
 	//
 	// Shape-divergence rule (PRD §6 FR-F2): when the target stage's host
 	// shape (matrix vs series vs scalar) differs from the reference
-	// stage's host shape the handler emits
-	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` and surfaces
-	// NaN values across every coordinate. The shape-divergence check
-	// runs at the whole-chain barrier — predict cannot catch it because
-	// the stage shapes are not known until the chain has executed.
+	// stage's host shape the divergence is a
+	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain
+	// and at runtime alike (shapes read off the authored stage
+	// requests): the chain runs and the layer is an empty payload in the
+	// target stage's shape.
 	//
 	// Unknown stage path: when `Target` or `Ref` names a stage that does
 	// not exist (Index out of range OR Name does not match any
@@ -1084,9 +1084,9 @@ const (
 	//
 	// Shape-divergence rule (PRD §6 FR-F2): same as
 	// `OVERLAY_INDEX_VS_STAGE` — when the target stage's host shape
-	// differs from the reference stage's host shape the handler emits
-	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` and surfaces
-	// NaN values across every coordinate.
+	// differs from the reference stage's host shape the divergence is a
+	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain
+	// and at runtime alike, over an empty layer.
 	//
 	// Default Target / Unknown-stage / Scope / Level / Within / Buffered
 	// rules: identical to `OVERLAY_INDEX_VS_STAGE`.

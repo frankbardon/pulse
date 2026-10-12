@@ -1703,10 +1703,15 @@ const (
 	// mismatch caught at predict time, but for CHAIN-host kinds the
 	// divergence is between two stages, not between a single Ref and
 	// the host). Surfaced at both predict (internal/descriptor.ValidateChain
-	// shape-divergence gate) and runtime (processing.applyIndexVsStage /
-	// processing.applyDeltaVsStage shape-divergence defence).
-	// Warning-class — surfaced as a Response.Warning, never as an
-	// envelope error.
+	// shape-divergence gate) and runtime (the dispatcher's authored-shape
+	// pre-check, then processing.applyIndexVsStage /
+	// processing.applyDeltaVsStage shape-divergence defence), with
+	// deep-equal Details {index, overlay_index, kind, ref_index,
+	// ref_shape, target_index, target_shape, stage_index, stage_name}.
+	// Warning-class on BOTH sides — predict-chain's envelope warning (the
+	// chain stays valid), the runtime's OverlayLayer.Warnings entry (the
+	// chain runs); never an envelope error, and Strict escalates it on
+	// neither side.
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
 
 	// PULSE_OVERLAY_TARGET_UNKNOWN indicates a whole-chain

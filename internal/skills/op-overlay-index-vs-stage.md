@@ -29,7 +29,7 @@ Shape inherited from target stage. Per-coordinate `index = target / ref × 100`.
 
 - Zero `ref_val_k` → NaN at that coordinate + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - `Target` defaults to the latest stage when `Index` is nil and `Name` empty; `Ref` has no default.
-- Stage shape divergence → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` (runtime only; predict cannot catch it).
+- Stage shape divergence → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain and at runtime (chain stays valid and runs; empty layer).
 - Unknown stage → `PULSE_OVERLAY_REF_UNKNOWN` (`PULSE_OVERLAY_TARGET_UNKNOWN` when it lands).
 - Buffered (whole-chain barrier post stage loop).
 

@@ -102,9 +102,11 @@ gate and emits:
 - `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` — Ref and Target
   stages produce different host shapes per `inferChainStageShape`:
   `req.Crosstab != nil ⇒ MATRIX`, `req.Aggregations + req.Groups ⇒ SERIES`,
-  `req.Aggregations only ⇒ SCALAR`.
+  `req.Aggregations only ⇒ SCALAR`. A WARNING, not an error: the
+  runtime answers the pair with an empty layer plus the same warning
+  and runs the chain, so predict-chain stays valid.
 
-Every rejected `(Ref, Target)` pair also lands in
+Every shape-divergent `(Ref, Target)` pair also lands in
 `ChainValidationResult.OverlaysSchemaDivergence` so LLM planners can
 budget reshapes without re-parsing envelope details.
 

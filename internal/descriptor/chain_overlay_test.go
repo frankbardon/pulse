@@ -3,6 +3,7 @@ package descriptor
 import (
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -229,6 +230,24 @@ func TestValidateChain_OverlayStageRefXORViolated(t *testing.T) {
 	}
 }
 
+// assertShapeDivergentWarning requires PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
+// as an envelope WARNING and never an error: the runtime answers the
+// divergence with an empty layer plus one warning, so predict-chain
+// warns too (U46 E4-S9).
+func assertShapeDivergentWarning(t *testing.T, env *descriptor.Envelope) {
+	t.Helper()
+	code := string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT)
+	if hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+		t.Fatalf("PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT raised as an error: %+v", env.Errors)
+	}
+	for _, w := range env.Warnings {
+		if w.Code == code {
+			return
+		}
+	}
+	t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning; got %+v", env.Warnings)
+}
+
 // TestValidateChain_OverlayShapeDivergent exercises the MATRIX vs SERIES
 // divergence path: stage 0 carries Crosstab (MATRIX), stage 1 carries a
 // grouper + aggregator (SERIES). The spec's Ref points to stage 0 and
@@ -244,9 +263,7 @@ func TestValidateChain_OverlayShapeDivergent(t *testing.T) {
 		},
 	})
 	env := ValidateChainFromBytes(data, req)
-	if !hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
-		t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT; got %+v", env.Errors)
-	}
+	assertShapeDivergentWarning(t, env)
 }
 
 // TestValidateChain_OverlayShapeDivergent_SeriesVsScalar exercises the
@@ -263,9 +280,7 @@ func TestValidateChain_OverlayShapeDivergent_SeriesVsScalar(t *testing.T) {
 		},
 	})
 	env := ValidateChainFromBytes(data, req)
-	if !hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
-		t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT; got %+v", env.Errors)
-	}
+	assertShapeDivergentWarning(t, env)
 }
 
 // TestValidateChain_OverlayShapeMatch_HappyPath confirms that when both
@@ -392,9 +407,7 @@ func TestValidateOverlay_ChainStageShapeDivergent(t *testing.T) {
 		},
 	})
 	env := ValidateChainFromBytes(data, req)
-	if !hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
-		t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT; got %+v", env.Errors)
-	}
+	assertShapeDivergentWarning(t, env)
 	// FR-I3 echo: divergence pair must also surface on the structured
 	// result so LLM planners can budget reshapes without re-parsing
 	// envelope details.

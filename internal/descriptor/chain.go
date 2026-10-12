@@ -34,19 +34,20 @@ type ChainValidationResult struct {
 	// when stage N+1 cannot find a field stage N was expected to emit.
 	StageSchemas [][]string `json:"stage_schemas,omitempty"`
 
-	// OverlaysSchemaDivergence lists every rejected (Ref, Target)
+	// OverlaysSchemaDivergence lists every shape-divergent (Ref, Target)
 	// chain-overlay pair from the ValidateChain overlay walk per
 	// kind-catalog-v1 PRD §I-FR-I3. Populated alongside the matching
-	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT envelope error so LLM
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT envelope WARNING (the
+	// runtime answers that pair with an empty layer) so LLM
 	// planners can budget reshapes without re-parsing envelope details.
 	// Empty (and omitted on the wire) when every chain-overlay spec
 	// passes the shape-match gate.
 	OverlaysSchemaDivergence []ChainOverlaySchemaDivergence `json:"overlays_schema_divergence,omitempty"`
 }
 
-// ChainOverlaySchemaDivergence carries one rejected (Ref, Target)
-// chain-overlay pair from ValidateChain's overlay walk. Mirrors the
-// per-spec envelope-error Details shape so wire consumers can read the
+// ChainOverlaySchemaDivergence carries one shape-divergent (Ref,
+// Target) chain-overlay pair from ValidateChain's overlay walk. Mirrors
+// the per-spec envelope-warning Details shape so wire consumers can read the
 // list directly instead of stitching envelope entries together.
 type ChainOverlaySchemaDivergence struct {
 	// Index is the position of the offending spec in

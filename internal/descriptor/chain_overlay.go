@@ -26,10 +26,11 @@ import (
 //     PULSE_OVERLAY_REFERENCE_UNKNOWN / PULSE_OVERLAY_TARGET_UNKNOWN per arm.
 //
 //   - Shape divergence: when inferChainStageShape(stages[ref]) differs
-//     from inferChainStageShape(stages[target]) the validator fires
-//     PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and appends the rejected
-//     (ref, target) pair to ChainValidationResult.OverlaysSchemaDivergence
-//     per PRD §I-FR-I3.
+//     from inferChainStageShape(stages[target]) the validator WARNS
+//     PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (warning-class, as the
+//     runtime's empty layer + warning; the chain stays valid) and
+//     appends the (ref, target) pair to
+//     ChainValidationResult.OverlaysSchemaDivergence per PRD §I-FR-I3.
 //
 // Pure function of *types.ChainRequest — no record decode, no
 // service / processing imports. Descriptor's no-execute contract holds.
@@ -83,7 +84,8 @@ func chainOverlayKindAllowed(kind types.OverlayKind) bool {
 }
 
 // validateChainOverlays walks req.Overlays and appends per-spec
-// validation errors / divergence pairs onto env / result. Called from
+// validation errors, shape-divergence warnings and divergence pairs
+// onto env / result. Called from
 // ValidateChain in internal/descriptor/chain.go after the per-stage gate loop
 // finishes; no-op when req.Overlays is empty.
 //
@@ -172,10 +174,19 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		if refShape == targetShape {
 			continue
 		}
-		env.AddError(string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
-			"chain overlay reference and target stages produce different host shapes",
+		// Warning-class, as at runtime (U46 E4-S9): the runtime answers
+		// an empty layer plus one warning and the chain still runs, so
+		// predict reports the divergence as an envelope WARNING and the
+		// chain stays valid. Neither side escalates it under Strict —
+		// the runtime never promotes an overlay layer warning, and the
+		// chain validator reads no Strict flag. Details carry every key
+		// the runtime warning does (overlay_index included), so the two
+		// deep-equal.
+		env.AddWarning(string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
+			"chain overlay reference and target stages produce different host shapes; the runtime surfaces an empty layer",
 			map[string]any{
-				"index":        i,
+				"index":         i,
+				"overlay_index": i,
 				"kind":         string(spec.Kind),
 				"ref_index":    refIdx,
 				"ref_shape":    string(refShape),
