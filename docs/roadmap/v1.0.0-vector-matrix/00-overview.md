@@ -81,7 +81,7 @@ Tier key: **C** = committed for v1.0.0 · **S** = stretch (v1.0.0 if capacity al
 | Row-level | `ATTR_MAHALANOBIS` | C | survey QA, ops anomaly |
 | Row-level | `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` | C / S | survey, scientific |
 | Row-level | `ATTR_SCALE_SCORE` (battery mean/sum with min-valid rule) | C | survey |
-| Row-level | `ATTR_VEC_DISTANCE` / `ATTR_PROFILE_SIMILARITY` to a reference profile | S | survey, ops |
+| Row-level | `ATTR_VEC_DISTANCE` / `ATTR_PROFILE_SIMILARITY` to a reference profile | C | survey, ops |
 | Aggregation | `AGG_VEC_MEAN` (centroid), `AGG_VEC_SUM` | C | all |
 | Grouping | `GROUP_KMEANS` (seeded segmentation, Euclidean-only) | C | survey, ops |
 | Windows | `WIN_ROLLING_CORR`, `WIN_ROLLING_BETA` | S | ops, finance |

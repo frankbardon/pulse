@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419]
+todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427]
 branch: predict-runtime-parity
 ---
 
@@ -187,3 +187,9 @@ Filed from [U26 handed on](U26-vector-expr-functions.md#handed-on); tick in [`TO
 
 - [ ] **#418** (10. Vector & matrix — operators › Follow-ups from U26) Overlay-formula callee parity: request-host `OVERLAY_FORMULA` predict reports an unknown callee (neither built-in nor embedder) as `PULSE_OVERLAY_FORMULA_INVALID_IDENT` while the runtime gives a parse error; compose-host predict checks no unknown callee beyond the vector built-ins. Found in U26 (E2-S2).
 - [ ] **#419** (10. Vector & matrix — operators › Follow-ups from U26) Static `PROCESSING_VECTOR_LENGTH_MISMATCH` at predict for `dot` / `dist` / `cosine` over named vectors of known, differing lengths (runtime already refuses). Found in U26 (E2-S2).
+
+## Inherited from U27
+
+Filed from [U27 handed on](U27-vector-metrics-aggregates.md#handed-on-from-u27); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#427** (10. Vector & matrix — operators › Follow-ups from U27) A `u64` `key_field` value above 2^53 is matched via its float64 value (records carry numbers as float64; the same limit as `ATTR_CODE_IN`), so two distinct large keys can collide. No unit owns exact `u64` record access, so it is filed here: give record access an exact `u64` path, or refuse such a key. Found in U27 (E3-S4).

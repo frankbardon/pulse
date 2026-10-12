@@ -455,7 +455,7 @@ In progress for U42. Contract: `.claude/reference/execution-modes.md` (Scoring a
 
 ## Changes from U27 (vector metrics and aggregates)
 
-In progress for U27. Contract: `.claude/reference/matrix-and-vectors.md` (Metric registry, `MAT_DISTANCE`); skills `op-mat-distance`, `op-group-kmeans`, `expression-language`. `format_version` stays `"1.1"`. Every metric now resolves through the public `linalg/metric` registry (manifest `matrix.metrics`); no consumer keeps a local list or kernel.
+Complete for U27 (no release tag cut by the unit). Contract: `.claude/reference/matrix-and-vectors.md` (Metric registry, `MAT_DISTANCE`); skills `op-mat-distance`, `op-group-kmeans`, `expression-language`. `format_version` stays `"1.1"`. Every metric now resolves through the public `linalg/metric` registry (manifest `matrix.metrics`); no consumer keeps a local list or kernel.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
@@ -466,6 +466,15 @@ In progress for U27. Contract: `.claude/reference/matrix-and-vectors.md` (Metric
 | (none) | `errors.PULSE_MATRIX_METRIC_DOMAIN` (per-matrix warning: a negative centroid coordinate under `hellinger` / `aitchison`, or an aitchison zero part; the cells touching it are null) | added | `pulse errors lookup CODE`; the manifest error list changed | U27 |
 | the manifest `matrix.metrics` listed `expr` as a consumer of every row-local metric (E1-S1 interim) | `expr` lists exactly the metrics an expression function exposes — `euclidean` (`dist`), `cosine` (similarity only), `jaccard`, `dice`, `hamming`, `overlap` | behaviour (manifest) | none; the manifest golden changed | U27 |
 | the expression `dist(a, b)` summed the complete pairs without rescaling (unreleased U26 behaviour) | `dist` is the registry's `euclidean`: a partial pair is rescaled by p / p_observed, as `MAT_DISTANCE` | behaviour change (values, partial vectors only) | none for complete vectors (bits unchanged) | U27 |
+| (none) | New reserved names: the expression built-in `ref`, and the operators `ATTR_PROFILE_SIMILARITY` and `ATTR_VEC_DISTANCE` (the built-ins `ATTR_SCALE_SCORE`, `AGG_VEC_MEAN`, `AGG_VEC_SUM` are ordinary built-in collisions) | added (reserved names) | an embedder `ExprFunction` named `ref`, or an extension operator of those names, is refused `PULSE_EXTENSION_NAME_RESERVED`; rename it | U27 |
+| (none) | `Extensions.ReferenceVectors` (`types.ReferenceVectorTable{Description, Labels, Profiles}`), validated at `pulse.New`; `extensions.reference_vectors` in the manifest lists labels and keys, never values; `errors.PULSE_VECTOR_REFERENCE_UNKNOWN` / `_MISMATCH` | added | register a profile and read it with `ref("table", "key")`; `pulse errors lookup CODE` | U27 |
+| `MAT_RELIABILITY` used only its own `scale_min` / `scale_max` | a vector `kind: scale` with `scale_min` / `scale_max` feeds `MAT_RELIABILITY` when the spec has none, and out-of-range values are range-checked against them | behaviour change | declare bounds on the spec, or on the vector, to match the data | U27 |
+| multi-shard `AGG_VEC_*` and `MAT_*` figures agreed with the single-file twin only to rounding | a shard archive matches its single file bit for bit (merge blocks are keyed by global ordinal), across `ShardWorkers` / `DecodeWorkers` | behaviour change (last bit) | none; a stored multi-shard figure may differ in its last bit. An extension's own `Merge` stays outside the blocked merge, so it is ULP-equal across workers | U27 |
+| extension aggregators refused vector input | an extension aggregator may declare `VectorInput` and `ArrayValued`; the built-in array-valued refusals (crosstab, sort, windows, post-tests, overlays) apply to it | added | opt in on the registration | U27 |
+| aggregation, grouper and attribute items required `field` in the payload schema / MCP | `field` is no longer required (a vector aggregator takes `fields`); the payload-schema golden changed | behaviour (schema) | regenerate any stored payload-schema snapshot | U27 |
+| attributes had no components entry | `Response.Components.Attributes` (one `AttributeComponents` per attribute slot declaring a `ComponentSchema`, keyed by `label` + `type`) | added | none; additive `omitempty` | U27 |
+| (none) | `errors.PULSE_VECTOR_METRIC_DOMAIN` and `errors.PULSE_VECTOR_REFERENCE_MISSING` (runtime warnings: rows a reference comparison nulls because of a metric-domain violation, or a missing / null `key_field` key; the keys named are the 10 smallest unmatched) | added | `pulse errors lookup CODE`; the manifest error list changed. Both are absent on a clean run | U27 |
+| `key_field` on a reference lookup (new) | a categorical or unsigned-integer (`u4`–`u64`) column; a float, date or set `key_field` is refused (`key_field_type`). A `u64` key above 2^53 is matched via its float64 value | added | none | U27 |
 
 ## Third-party dependency
 

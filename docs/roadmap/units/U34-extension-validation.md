@@ -96,7 +96,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 ## Human inputs & decisions
 
 - **Open:** whether synth distributions become an extension category (#197) or the slot is retired. Decide in E2-S1.
-- **Open:** whether a feature profile can hide `LookupTables` (inherited from U05, below).
+- **Open:** whether a feature profile can hide `LookupTables` (inherited from U05, below) and `ReferenceVectors` (the named-table kind U27 added; like `LookupTables` it always resolves today, even with `capability:matrices` hidden, and is not part of `feature_set_digest`).
 
 ## Inherited from U05
 
