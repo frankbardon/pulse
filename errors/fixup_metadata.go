@@ -1144,21 +1144,31 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_SPLIT_GROUPS_LT_2: {
-		Message: "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field.",
+		Message: "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field. On a grouped request it is also raised at predict and runtime when SplitBy names a grouper field (details.reason split_is_grouper: every group holds one level), and it rides a warning naming details.group_key when one group is too sparse (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Tests", "*", "SplitBy"},
 				Hint:   "Pick a SplitBy field that resolves to >= 2 distinct categories after filtering, or relax upstream filters.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*", "Field"},
+				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the SplitBy field from groups, or run the across-groups test as its own ungrouped request.",
+			},
 		},
 	},
 	PULSE_TEST_CONTINGENCY_DEGENERATE: {
-		Message: "A chi-square contingency table is empty or has a single row/column.",
+		Message: "A chi-square contingency table is empty or has a single row/column. On a grouped request it is also raised at predict and runtime when Rows or Cols names a grouper field (details.reason split_is_grouper), and it rides a warning naming details.group_key when one group's table is degenerate (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Verify both Rows and Cols resolve to fields with more than one observed level; aggregate rare levels into an \"other\" bucket if needed.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*", "Field"},
+				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the Rows / Cols field from groups.",
 			},
 		},
 	},

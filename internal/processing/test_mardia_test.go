@@ -51,14 +51,19 @@ func runMardia(t *testing.T, schema *encoding.Schema, recs []*Record, build func
 		req := build()
 		gf := groupField(schema)
 		req.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: gf, Label: "n", Weight: types.NullSlotWeight()}}
-		if grouped {
-			req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: gf}}
-		}
 		if CanStreamRequest(req, schema) {
 			t.Fatalf("grouped=%v: CanStreamRequest = true with TEST_MARDIA", grouped)
 		}
+		// The second arm drives the buffered entry directly (a grouped
+		// request now runs the test once per group).
 		p := NewProcessor(schema)
-		resp, err := p.Process(context.Background(), req, NewSliceIterator(recs))
+		var resp *types.Response
+		var err error
+		if grouped {
+			resp, err = processBuffered(p, req, recs)
+		} else {
+			resp, err = p.Process(context.Background(), req, NewSliceIterator(recs))
+		}
 		if err != nil {
 			t.Fatalf("grouped=%v: %v", grouped, err)
 		}

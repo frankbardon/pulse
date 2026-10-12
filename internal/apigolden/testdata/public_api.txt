@@ -4872,6 +4872,7 @@ pulse/types: type TestResult struct
 pulse/types: type TestResult field Alpha float64 "json:\"alpha\""
 pulse/types: type TestResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type TestResult field Details map[string]any "json:\"details,omitempty\""
+pulse/types: type TestResult field GroupKey pulse/types.AxisKey "json:\"group_key,omitempty\""
 pulse/types: type TestResult field Label string "json:\"label,omitempty\""
 pulse/types: type TestResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type TestResult field PAdjusted *float64 "json:\"p_adjusted,omitempty\""
@@ -4939,4 +4940,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 58dc730eaafc833b9303291deb294b6ef05828ac2a56f440bb69a82ef64d02ec
+// golden-hash: 9934f0c54de37550ae872b3e9d1568228376086f2aa1ba2596629f713c667b82

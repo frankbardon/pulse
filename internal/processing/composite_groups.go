@@ -305,7 +305,7 @@ func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Re
 // one Components.Groupers entry per grouper slot, each from that
 // grouper's own whole-set partition. The returned set carries the
 // tuples behind each groups[] GroupKey.
-func (p *Processor) processGroupedComposite(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, *CompositeKeySet, []*types.ResponseWarning, error) {
+func (p *Processor) processGroupedComposite(req *types.Request, records []*Record, folds bucketFolds) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, *CompositeKeySet, []*types.ResponseWarning, error) {
 	groupers, err := p.newRequestGroupers(req.Groups)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
@@ -319,6 +319,9 @@ func (p *Processor) processGroupedComposite(req *types.Request, records []*Recor
 		warns = append(warns, GrouperWarnings(g)...)
 	}
 	keys := OrderCompositeGroupKeys(part.Set.Keys(), part.Set, groupers)
+	if err := folds.tests.admit(len(keys)); err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
 
 	collect := p.compute.Groups && len(req.Aggregations) > 0
 	var bucketComps map[string][]types.AggregationComponents
@@ -340,7 +343,7 @@ func (p *Processor) processGroupedComposite(req *types.Request, records []*Recor
 		}
 		WriteGroupKeyColumns(row, req.Groups, part.Set.Tuple(key))
 		data = append(data, row)
-		if err := matrices.foldRecords(key, recs); err != nil {
+		if err := folds.foldRecords(p, key, part.Set.Tuple(key), recs); err != nil {
 			return nil, nil, nil, nil, nil, nil, err
 		}
 	}

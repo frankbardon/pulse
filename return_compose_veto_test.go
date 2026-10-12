@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -108,7 +109,10 @@ func TestReturnComposeFamilyTestVeto(t *testing.T) {
 			return r
 		}
 		return &types.ComposedRequest{
-			Requests:     []*types.Request{slot("a", ""), slot("b", "x >= 8"), slot("c", "x < 40")},
+			// Slot b starts on a group boundary (x >= 10): every one of its
+			// groups is large enough for Pearson r, so it raises no
+			// sparse-group warning — which a skipped test would not raise.
+			Requests:     []*types.Request{slot("a", ""), slot("b", "x >= 10"), slot("c", "x < 40")},
 			Multiplicity: mult,
 		}
 	}
@@ -122,13 +126,24 @@ func TestReturnComposeFamilyTestVeto(t *testing.T) {
 	for _, parallel := range []bool{false, true} {
 		t.Run(map[bool]string{false: "serial", true: "parallel"}[parallel], func(t *testing.T) {
 			full, d := run(parallel, fixture(family, nil))
-			if d.RowTestFolds != slots*testsPer || d.PostTestRuns != slots*postsPer {
-				t.Fatalf("full run: folds=%d posts=%d; want %d / %d", d.RowTestFolds, d.PostTestRuns, slots*testsPer, slots*postsPer)
+			// The slots are grouped, so every test runs once per group
+			// (U46 E3-S1): a slot's tier-1 folds are tests x its groups.
+			allFolds, wantM := 0, 0
+			for _, r := range full.Responses {
+				allFolds += len(r.Tests)
+				for _, tr := range append(append([]*types.TestResult{}, r.Tests...), r.PostTests...) {
+					if !math.IsNaN(tr.PValue) {
+						wantM++
+					}
+				}
 			}
-			wantM := slots * (testsPer + postsPer)
+			bFolds := len(full.Responses[1].Tests)
+			if d.RowTestFolds != int64(allFolds) || d.PostTestRuns != slots*postsPer {
+				t.Fatalf("full run: folds=%d posts=%d; want %d / %d", d.RowTestFolds, d.PostTestRuns, allFolds, slots*postsPer)
+			}
 			for i, r := range full.Responses {
-				if len(r.Tests) != testsPer || len(r.PostTests) != postsPer {
-					t.Fatalf("full slot %d: %d tests, %d post-tests", i, len(r.Tests), len(r.PostTests))
+				if len(r.Data) < 2 || len(r.Tests) != testsPer*len(r.Data) || len(r.PostTests) != postsPer {
+					t.Fatalf("full slot %d: %d tests over %d groups, %d post-tests", i, len(r.Tests), len(r.Data), len(r.PostTests))
 				}
 				for _, tr := range append(append([]*types.TestResult{}, r.Tests...), r.PostTests...) {
 					if tr.PAdjusted == nil || tr.Multiplicity == nil || tr.Multiplicity.M != wantM {
@@ -140,9 +155,9 @@ func TestReturnComposeFamilyTestVeto(t *testing.T) {
 			// The compose family vetoes slot b's skip: its members fold,
 			// the kept slots are byte-identical, b's tests are absent.
 			shaped, d := run(parallel, fixture(family, excluded))
-			if d.RowTestFolds != slots*testsPer || d.PostTestRuns != slots*postsPer {
+			if d.RowTestFolds != int64(allFolds) || d.PostTestRuns != slots*postsPer {
 				t.Errorf("compose family: folds=%d posts=%d; want every member (%d / %d)",
-					d.RowTestFolds, d.PostTestRuns, slots*testsPer, slots*postsPer)
+					d.RowTestFolds, d.PostTestRuns, allFolds, slots*postsPer)
 			}
 			for _, i := range []int{0, 2} {
 				assertKeptPathsIdentical(t, full.Responses[i], shaped.Responses[i])
@@ -151,13 +166,13 @@ func TestReturnComposeFamilyTestVeto(t *testing.T) {
 
 			// Contrast: no family — the same exclusion skips slot b's tests.
 			bare, d := run(parallel, fixture(nil, nil))
-			if d.RowTestFolds != slots*testsPer || d.PostTestRuns != slots*postsPer {
+			if d.RowTestFolds != int64(allFolds) || d.PostTestRuns != slots*postsPer {
 				t.Fatalf("bare full run: folds=%d posts=%d", d.RowTestFolds, d.PostTestRuns)
 			}
 			skipped, d := run(parallel, fixture(nil, excluded))
-			if d.RowTestFolds != (slots-1)*testsPer || d.PostTestRuns != (slots-1)*postsPer {
+			if d.RowTestFolds != int64(allFolds-bFolds) || d.PostTestRuns != (slots-1)*postsPer {
 				t.Errorf("no family: folds=%d posts=%d; want slot b's contribution 0 (%d / %d)",
-					d.RowTestFolds, d.PostTestRuns, (slots-1)*testsPer, (slots-1)*postsPer)
+					d.RowTestFolds, d.PostTestRuns, allFolds-bFolds, (slots-1)*postsPer)
 			}
 			for _, i := range []int{0, 2} {
 				assertKeptPathsIdentical(t, bare.Responses[i], skipped.Responses[i])

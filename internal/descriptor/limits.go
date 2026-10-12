@@ -53,8 +53,9 @@ type LimitInputs struct {
 //
 //   - MaxGroups (Possible): the group-bucket upper bound EstimateGroups
 //     derives — the product of every grouper's bound, clamped by
-//     in.Records when known (unless a grouper fans out). Any
-//     unknown-cardinality grouper yields no finding.
+//     in.Records when known (unless a grouper fans out) — times the
+//     tier-1 test count when the request carries tests (each runs once
+//     per group). Any unknown-cardinality grouper yields no finding.
 //   - MaxCrosstabCells (Possible): the crosstab grid upper bound
 //     EstimateCrosstabCells derives (rows x cols, each axis clamped by
 //     records). An axis with an unknown-cardinality grouper yields no
@@ -73,6 +74,11 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 	records := in.Records
 	var out []limits.Finding
 	if n, ok := EstimateGroups(req.Groups, schema, inst, records); ok {
+		// Every tier-1 test runs once per group, so tests x groups
+		// counts toward MaxGroups (the runtime's admit check).
+		if len(req.Tests) > 0 {
+			n = mulSaturating(n, int64(len(req.Tests)))
+		}
 		if f, ok := limits.Evaluate(l, limits.MaxGroups, n, limits.Possible); ok {
 			out = append(out, f)
 		}

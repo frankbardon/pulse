@@ -53,6 +53,7 @@ Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Fi
 - Any expected cell `< 5` emits `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`.
 - Streamable — builds the contingency table during the row scan.
 - Sparse high-cardinality axes blow memory; filter them first.
+- With `groups`: one result per group, each with `group_key`; `rows` / `cols` a grouper → `PULSE_TEST_CONTINGENCY_DEGENERATE`; a single-level group → `null` figures + a warning ([`statistical-testing`](statistical-testing.md)).
 - Pairs with `Response.Crosstab`; `OVERLAY_CHISQ_VS_POP` is the FACET-host equivalent.
 
 ## See

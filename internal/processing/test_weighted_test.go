@@ -492,7 +492,7 @@ func TestWeightedTests_ExcludeInvalidAndZero(t *testing.T) {
 
 // TestWeightedTests_ProcessorStampsAndTallies: through the processor, a
 // request weight reaches a built-in row test on both the streaming
-// (tests only) and the buffered (grouped) path with identical results;
+// (tests only) and the buffered (forced) path with identical results;
 // an invalid-weight row is excluded and tallied in
 // PULSE_WEIGHT_INVALID_ROWS; a post-test of the same family is never
 // stamped.
@@ -504,18 +504,22 @@ func TestWeightedTests_ProcessorStampsAndTallies(t *testing.T) {
 	}
 	recs = append(recs, NewRecord(schema, map[string]float64{"x": 50, "y": 1, "w": -1, "g": 0}))
 	w := &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
-	req := func(grouped bool) *types.Request {
-		r := &types.Request{Weight: w, Tests: []*types.Test{{Type: types.TEST_ANOVA_F, Field: "x", SplitBy: "g"}},
+	req := func() *types.Request {
+		return &types.Request{Weight: w, Tests: []*types.Test{{Type: types.TEST_ANOVA_F, Field: "x", SplitBy: "g"}},
 			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Weight: types.NullSlotWeight()}}}
-		if grouped {
-			r.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
-		}
-		return r
 	}
 	var results [2][]byte
 	for i, grouped := range []bool{false, true} {
+		// grouped names the forced-buffered arm (a grouped request now
+		// runs every test once per group).
 		p := NewProcessor(schema)
-		resp, err := p.Process(context.Background(), req(grouped), NewSliceIterator(recs))
+		var resp *types.Response
+		var err error
+		if grouped {
+			resp, err = processBuffered(p, req(), recs)
+		} else {
+			resp, err = p.Process(context.Background(), req(), NewSliceIterator(recs))
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -561,7 +565,7 @@ func TestWeightedTests_LowNEff(t *testing.T) {
 		add(x, 1, "a")
 		add(x*1.5+0.2*float64(i), []float64{1000, 1, 1, 1, 1}[i], "b")
 	}
-	// mode: the three finalize sites — streaming, buffered (grouped) and
+	// mode: the three finalize sites — streaming, buffered (forced) and
 	// the buffered crosstab arm.
 	mode := "streaming"
 	run := func(kind types.WeightKind, strict bool) (*types.Response, error) {
@@ -574,7 +578,7 @@ func TestWeightedTests_LowNEff(t *testing.T) {
 		}
 		switch mode {
 		case "buffered":
-			req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
+			return processBuffered(p, req, recs)
 		case "crosstab":
 			req.Aggregations = nil
 			req.Crosstab = &types.CrosstabSpec{

@@ -396,6 +396,17 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"median on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}}}, numericSchema},
 		{"sum on decimal", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount"}}}, decimalSchema},
 		{"empty request", &types.Request{}, numericSchema},
+		// U46 E3-S1: a grouped request runs every tier-1 test once per
+		// group on the buffered path; the same tests ungrouped stream.
+		{"ungrouped one-sample TEST_T streams", &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+			Tests:        []*types.Test{{Type: types.TEST_T, Field: "score"}},
+		}, numericSchema},
+		{"grouped TEST_T buffers", &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+			Groups:       []*types.Group{{Type: types.GROUP_RANGE, Field: "score", Interval: 10}},
+			Tests:        []*types.Test{{Type: types.TEST_T, Field: "score"}},
+		}, numericSchema},
 		{
 			"unpenalized REG_OLS streams",
 			&types.Request{

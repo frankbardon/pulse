@@ -1,6 +1,7 @@
 package guide
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"sort"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -119,14 +121,19 @@ func (e *explainer) explainResponse(resp *types.Response, req *types.Request) {
 func (e *explainer) readResponse(rr *responseReader, resp *types.Response, req *types.Request) []string {
 	var parts []string
 	n := 0
-	for i, t := range resp.Tests {
+	for k, t := range resp.Tests {
 		if t == nil {
 			continue
 		}
 		n++
+		// A grouped request holds one result per (test x group),
+		// test-major: the slot is groupedtests.SpecIndex's.
+		i := k
 		var spec *types.Test
-		if req != nil && i < len(req.Tests) {
-			spec = req.Tests[i]
+		if req != nil {
+			if si := groupedtests.SpecIndex(k, len(req.Tests), len(resp.Tests)); si >= 0 {
+				i, spec = si, req.Tests[si]
+			}
 		}
 		e.testFinding(rr, roleTest, i+1, t, spec)
 	}
@@ -230,6 +237,12 @@ func (e *explainer) testFinding(rr *responseReader, r *role, n int, t *types.Tes
 	}
 	if f.Subject == "" {
 		f.Subject = f.Slot
+	}
+	// A grouped request's result names its group bucket.
+	if len(t.GroupKey) > 0 {
+		in := " in group " + tick(groupKeyText(t.GroupKey))
+		f.Subject += in
+		subjectWords += in
 	}
 	setNum(f.Numbers, "statistic", t.Statistic)
 	setNum(f.Numbers, "p_value", t.PValue)
@@ -1195,4 +1208,14 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// groupKeyText renders a grouped result's GroupKey tuple as its values
+// joined by ", ".
+func groupKeyText(key types.AxisKey) string {
+	parts := make([]string, len(key))
+	for i, v := range key {
+		parts[i] = fmt.Sprint(v)
+	}
+	return strings.Join(parts, ", ")
 }

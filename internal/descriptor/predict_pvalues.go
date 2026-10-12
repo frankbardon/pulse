@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"math"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -25,7 +26,8 @@ var pvalueBasisRank = map[string]int{
 // countPValues builds PredictResult.PValues for req (defaults resolved)
 // over schema, under plan (ResolveMultiplicity's; nil when nothing names
 // a block, so nothing is corrected). Tests and post-tests contribute one
-// p-value each, the Tukey HSD post-test none (already corrected). An
+// p-value each — a grouped request's tier-1 tests one per group (see
+// below) — the Tukey HSD post-test none (already corrected). An
 // inferential overlay kind contributes the p-values its payload carries,
 // derived from the crosstab axes' dictionaries where an axis is one
 // GROUP_CATEGORY over a categorical or packed_bool field, else counted
@@ -46,10 +48,23 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 	if plan != nil {
 		tests, postTests, overlays = plan.Tests, plan.PostTests, plan.Overlays
 	}
+	// A grouped request runs every tier-1 test once per group: each
+	// contributes the EstimateGroups bound (an upper bound read off the
+	// dictionaries) or, when a grouper's keys depend on the data, one
+	// p-value as a lower bound.
+	perTest, perTestBasis := 1, descriptor.PValueBasisExact
+	if len(req.Groups) > 0 {
+		perTest, perTestBasis = 1, descriptor.PValueBasisLowerBound
+		if g, ok := EstimateGroups(req.Groups, schema, inst, -1); ok && g > 0 && g <= math.MaxInt32 {
+			perTest, perTestBasis = int(g), descriptor.PValueBasisDictionary
+		}
+	}
 	for _, tier := range []struct {
-		list []*types.Test
-		plan []ResolvedMultiplicity
-	}{{req.Tests, tests}, {req.PostTests, postTests}} {
+		list  []*types.Test
+		plan  []ResolvedMultiplicity
+		n     int
+		basis string
+	}{{req.Tests, tests, perTest, perTestBasis}, {req.PostTests, postTests, 1, descriptor.PValueBasisExact}} {
 		for i, t := range tier.list {
 			if t == nil {
 				continue
@@ -58,7 +73,7 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 			if routed == types.TEST_TUKEY_HSD || (!isKnownTestType(routed) && !isExtensionTestType(opts, t.Type)) {
 				continue
 			}
-			add(1, descriptor.PValueBasisExact, member(tier.plan, i))
+			add(tier.n, tier.basis, member(tier.plan, i))
 		}
 	}
 	rows, cols := 0, 0

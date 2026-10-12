@@ -209,6 +209,18 @@ own block, and no explicit correction on the Tukey HSD post-test. Members
 of one `request` or `compose` family that resolve to different methods
 are refused `PULSE_MULTIPLICITY_CONFLICT`.
 
+On a grouped request (`groups` set) every `tests[]` entry runs once per
+composite group key, and `tests[]` in the response is flat: one
+`TestResult` per (test x group), test-major, the groups in the final
+`data` row order. Each carries the additive `omitempty` `group_key` (an
+array — the bucket's per-grouper key tuple, one element for one grouper;
+the `MatrixResult.group_key` shape), so entry k belongs to request
+`tests[k / groups]`. A group whose data the test refuses has `null`
+`statistic` and `p_value` (`reject_null` false) and a response warning
+under the refusal's code naming its `group_key`. An ungrouped response
+carries no `group_key` and is byte-identical; `format_version` stays
+`"1.1"`.
+
 When a correction runs, each corrected `TestResult` (in `tests[]` and
 `post_tests[]`) gains three additive `omitempty` keys BESIDE its raw
 `p_value` / `reject_null`, which never change: `p_adjusted` (number, or
@@ -725,7 +737,7 @@ emitted. Every listed path must resolve against this schema
 | `metadata` | no | yes |
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
-| `tests[*]` / `post_tests[*]` | `label`, `type`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
+| `tests[*]` / `post_tests[*]` | `label`, `type`, `group_key`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
 | `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |

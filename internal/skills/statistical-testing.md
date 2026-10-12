@@ -4,7 +4,7 @@ description: Tier-1 (`tests`) vs tier-2 (`post_tests`) pairing, assumption gates
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [TEST, tier-1, tier-2, tests, post_tests, ANOVA, Tukey, assumption-gates, p-value]
+covers: [TEST, tier-1, tier-2, tests, post_tests, ANOVA, Tukey, assumption-gates, p-value, grouped-tests, group_key]
 ---
 
 # Statistical testing
@@ -79,13 +79,17 @@ After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tes
 - Many tests: `multiplicity` adds `p_adjusted` beside raw p (`multiplicity-correction`).
 <!-- /feature -->
 
+## Grouped requests
+
+With `groups` set, every `tests[]` entry runs once per group (the composite key of every grouper): `Response.Tests` holds tests × groups results, test-major, groups in `data` row order, each carrying `group_key` — the result an ungrouped run filtered to that group gives. Grouped tests run buffered.
+
+- A `split_by`, `rows` or `cols` naming a grouper is refused (`PULSE_TEST_SPLIT_GROUPS_LT_2` / `PULSE_TEST_CONTINGENCY_DEGENERATE`): each group holds one level.
+- A group too sparse for the test (one level, tiny n, zero variance) gets `null` `statistic` / `p_value` plus a warning under that code naming its `group_key`; the rest proceed.
+- A test ACROSS the groups (ANOVA by region) is its own ungrouped request.
+
 ## Streamability
 
 A tier-1 test streams when it can run on online state (mean / variance / n, or contingency counts); rank-, sort- and permutation-based tests are forced buffered<!-- feature: TEST_MARDIA -->, as is `TEST_MARDIA` (needs the fitted covariance first)<!-- /feature -->. Read the answer from the manifest `tests[].streamable` or `pulse_predict`, never from memory. Tier 2 is always buffered; some families exist on tier 2 only (one manifest entry per tier).
-
-## Composition with aggregators
-
-Declare the Welford aggregator on the same `(field, split_by)`; a mean-based tier-1 test reads its running `(mean, variance, n)` free, byte-equal to the standalone Welch numerators. See `aggregation-design`.
 
 ## Gotchas
 
@@ -97,7 +101,7 @@ Declare the Welford aggregator on the same `(field, split_by)`; a mean-based tie
 ## See
 
 - Recipes: `pulse_examples_search tags=["ab-test"]`, `tags=["anova"]`, `tags=["correlation"]`, `tags=["nonparametric"]` plus atomic `op-test-<name>`.
-- `aggregation-design` — Welford-triple reuse + `MetaAggregator` contract.
+- `aggregation-design` — a mean-based tier-1 test reads the Welford aggregator's `(mean, variance, n)` on the same `(field, split_by)` free; `MetaAggregator` contract.
 - `regression-modeling` — Wald-z vs Student-t inference inside regressions.
 - `overlay-system` — crosstab cell stat overlays.
 - `request-envelope` — slot keys.

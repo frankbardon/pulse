@@ -445,10 +445,10 @@ func (p *Processor) canStream(req *types.Request) bool {
 				return false
 			}
 		}
-		// Tier-1 tests do not yet compose with groups, features, or
-		// two-pass attributes inside the streaming paths. Route those
-		// combinations through the buffered path so the row tests
-		// still execute correctly over the filtered record set.
+		// Tier-1 tests do not compose with features or two-pass
+		// attributes inside the streaming paths, and a grouped request
+		// runs every test once per group on the buffered path
+		// (test_grouped.go). Route those combinations buffered.
 		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.exts) {
 			return false
 		}
@@ -1695,13 +1695,20 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// grouper): the tuple each groups[] entry's GroupKey carries.
 	var groupKeySet *CompositeKeySet
 
+	// A grouped run's tier-1 tests run once per bucket (test_grouped.go):
+	// processGrouped folds each bucket's records into its own instances.
+	var groupedTests *groupedRowTests
+
 	recordRows := false
 	if len(req.Groups) > 0 {
 		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits); err != nil {
 			return nil, err
 		}
+		if groupedTests, err = p.buildGroupedRowTests(req); err != nil {
+			return nil, err
+		}
 		var grpWarnings []*types.ResponseWarning
-		data, grpComponents, bucketAggComponents, groupKeys, groupKeySet, grpWarnings, err = p.processGrouped(req, filtered, groupedMatrices)
+		data, grpComponents, bucketAggComponents, groupKeys, groupKeySet, grpWarnings, err = p.processGrouped(req, filtered, bucketFolds{matrices: groupedMatrices, tests: groupedTests})
 		if err != nil {
 			return nil, err
 		}
@@ -1740,21 +1747,31 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	p.lap(observe.PhaseScan)
 
 	// Tier-1 row tests fold over the filtered record set. Buffered path
-	// hits the same per-record UpdateRow contract as streaming.
-	rowTests, err := p.buildRowTests(req)
-	if err != nil {
-		return nil, err
-	}
-	for _, rt := range rowTests {
-		for _, rec := range filtered {
-			if err := rt.test.UpdateRow(rec); err != nil {
-				return nil, err
+	// hits the same per-record UpdateRow contract as streaming. Grouped,
+	// processGrouped already folded each bucket's records; the results
+	// render over its keys in the final (sorted) Data order.
+	var rowTests []rowTestEntry
+	var testResults []*types.TestResult
+	if len(req.Groups) > 0 {
+		var sparse []*types.ResponseWarning
+		if testResults, rowTests, sparse, err = groupedTests.finalize(groupKeys); err != nil {
+			return nil, err
+		}
+		attrWarnings = append(attrWarnings, sparse...)
+	} else {
+		if rowTests, err = p.buildRowTests(req); err != nil {
+			return nil, err
+		}
+		for _, rt := range rowTests {
+			for _, rec := range filtered {
+				if err := rt.test.UpdateRow(rec); err != nil {
+					return nil, err
+				}
 			}
 		}
-	}
-	testResults, err := finalizeRowTests(rowTests, len(req.Tests))
-	if err != nil {
-		return nil, err
+		if testResults, err = finalizeRowTests(rowTests, len(req.Tests)); err != nil {
+			return nil, err
+		}
 	}
 	postResults, err := p.runPostTests(req.PostTests, data)
 	if err != nil {
@@ -2121,16 +2138,16 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 // Two or more groupers take processGroupedComposite (one row per
 // observed key combination); the single-grouper body below is the
 // unchanged fast path.
-func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, *CompositeKeySet, []*types.ResponseWarning, error) {
+func (p *Processor) processGrouped(req *types.Request, records []*Record, folds bucketFolds) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, *CompositeKeySet, []*types.ResponseWarning, error) {
 	if len(req.Groups) > 1 {
-		return p.processGroupedComposite(req, records, matrices)
+		return p.processGroupedComposite(req, records, folds)
 	}
-	data, grpComps, bucketComps, keys, warns, err := p.processGroupedSingle(req, records, matrices)
+	data, grpComps, bucketComps, keys, warns, err := p.processGroupedSingle(req, records, folds)
 	return data, grpComps, bucketComps, keys, nil, warns, err
 }
 
 // processGroupedSingle is the single-grouper buffered exit.
-func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, []*types.ResponseWarning, error) {
+func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, folds bucketFolds) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, []*types.ResponseWarning, error) {
 	grp := req.Groups[0]
 	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
@@ -2168,6 +2185,9 @@ func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, 
 		keys = append(keys, k)
 	}
 	keys = orderKeysByInclude(includeFilterOf(grouper), keys)
+	if err := folds.tests.admit(len(keys)); err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
 
 	// Per-bucket aggregation Components ride the same builder the
 	// ungrouped exit uses, so a bucket's figures are the ones an
@@ -2194,7 +2214,7 @@ func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, 
 		}
 		row[grp.Field] = key
 		data = append(data, row)
-		if err := matrices.foldRecords(key, groupRecords); err != nil {
+		if err := folds.foldRecords(p, key, types.AxisKey{key}, groupRecords); err != nil {
 			return nil, nil, nil, nil, nil, err
 		}
 	}

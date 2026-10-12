@@ -100,6 +100,46 @@ type rowTestEntry struct {
 	// idx is the entry's position in Request.Tests (the ComputePlan
 	// may skip others; finalizeRowTests realigns by it).
 	idx int
+	// groupKey is the bucket a grouped run's entry folds (nil
+	// ungrouped): its TestResult's GroupKey, and the group_key its
+	// low-n_eff warnings name.
+	groupKey types.AxisKey
+}
+
+// rowTestPlan is one tier-1 test the ComputePlan computes, ready to
+// mint: the caller's spec (its label and result identity), the spec
+// the factory reads (vector members resolved) and the factory. A
+// grouped run mints one instance per plan per group bucket.
+type rowTestPlan struct {
+	spec     *types.Test
+	resolved *types.Test
+	factory  RowTestFactory
+	label    string
+	idx      int
+	// probe is the instance planRowTests built to surface the factory's
+	// refusals in request order (even when a grouped run mints no
+	// bucket); the first mint takes it instead of building another.
+	probe RowTest
+}
+
+// mintRowTests constructs one fresh instance of every plan, in plan
+// order (the first mint hands out each plan's probe).
+func (p *Processor) mintRowTests(plans []rowTestPlan, groupKey types.AxisKey) ([]rowTestEntry, error) {
+	out := make([]rowTestEntry, 0, len(plans))
+	for i := range plans {
+		pl := &plans[i]
+		inst := pl.probe
+		pl.probe = nil
+		if inst == nil {
+			var err error
+			if inst, err = pl.factory(pl.resolved, p.schema); err != nil {
+				return nil, err
+			}
+		}
+		workRowTestFolds.Add(1)
+		out = append(out, rowTestEntry{spec: pl.spec, test: inst, label: pl.label, idx: pl.idx, groupKey: groupKey})
+	}
+	return out, nil
 }
 
 // postTestEntry pairs a Test spec with its constructed PostTest instance
@@ -116,6 +156,16 @@ type postTestEntry struct {
 // a skipped one is never constructed, so it folds nothing and raises
 // nothing. Returns PULSE_TEST_UNKNOWN_TYPE if any built TestType is not
 // registered as a row test.
+func (p *Processor) buildRowTests(req *types.Request) ([]rowTestEntry, error) {
+	plans, err := p.planRowTests(req)
+	if err != nil || len(plans) == 0 {
+		return nil, err
+	}
+	return p.mintRowTests(plans, nil)
+}
+
+// planRowTests resolves the tier-1 tests the ComputePlan computes into
+// mintable plans (see buildRowTests for the refusals).
 //
 // A vector-input test's members resolve here (vectors.ResolveTests,
 // the leaf the field-reference pass already ran) and are stashed on a
@@ -124,7 +174,7 @@ type postTestEntry struct {
 // signature — shared with extension tests — needs no request. A
 // registered extension test's member sets resolve and rewrite the same
 // way. The result label is the caller's spec's.
-func (p *Processor) buildRowTests(req *types.Request) ([]rowTestEntry, error) {
+func (p *Processor) planRowTests(req *types.Request) ([]rowTestPlan, error) {
 	tests := req.Tests
 	if len(tests) == 0 {
 		return nil, nil
@@ -141,7 +191,7 @@ func (p *Processor) buildRowTests(req *types.Request) ([]rowTestEntry, error) {
 	if verr != nil {
 		return nil, verr
 	}
-	out := make([]rowTestEntry, 0, len(tests))
+	out := make([]rowTestPlan, 0, len(tests))
 	for i, t := range tests {
 		if !p.compute.ComputesTest(i) {
 			continue
@@ -156,12 +206,11 @@ func (p *Processor) buildRowTests(req *types.Request) ([]rowTestEntry, error) {
 		if i < len(inputs) && inputs[i].Has() {
 			spec = withResolvedMembers(t, inputs[i])
 		}
-		inst, err := factory(spec, p.schema)
+		probe, err := factory(spec, p.schema)
 		if err != nil {
 			return nil, err
 		}
-		workRowTestFolds.Add(1)
-		out = append(out, rowTestEntry{spec: t, test: inst, label: testLabel(t), idx: i})
+		out = append(out, rowTestPlan{spec: t, resolved: spec, factory: factory, label: testLabel(t), idx: i, probe: probe})
 	}
 	return out, nil
 }

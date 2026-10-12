@@ -282,7 +282,7 @@ func (f *mgFixture) lastArm() observe.Arm {
 // groupers (the built-in mergeable set plus the gate's mergeable
 // extension grouper), i.e. whether a parallel mode must fan out.
 func mgMergeable(req *types.Request) bool {
-	if len(req.Windows) > 0 || len(req.PostTests) > 0 {
+	if len(req.Windows) > 0 || len(req.PostTests) > 0 || len(req.Tests) > 0 {
 		return false // the merge gate excludes them, with one grouper as with several
 	}
 	for _, g := range req.Groups {

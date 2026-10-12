@@ -11,10 +11,10 @@
         "slot": "groups[0]",
         "operator": "GROUP_CATEGORY",
         "fields": [
-          "region"
+          "plan"
         ],
         "defaulted": true,
-        "text": "Grouping 1 runs GROUP_CATEGORY on `region`. GROUP_CATEGORY is inferred for `region` from its type. Splits the rows into one group per distinct value of a field, such as one group per region or per answer option."
+        "text": "Grouping 1 runs GROUP_CATEGORY on `plan`. GROUP_CATEGORY is inferred for `plan` from its type. Splits the rows into one group per distinct value of a field, such as one group per region or per answer option."
       },
       {
         "slot": "aggregations[0]",
@@ -62,7 +62,7 @@
           "0",
           "Type"
         ],
-        "field": "region",
+        "field": "plan",
         "type": "GROUP_CATEGORY",
         "category": "grouper",
         "reason": "categorical_u8 → GROUP_CATEGORY (rule: categorical default)"
@@ -86,4 +86,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 171bc558cc582a55c82777e70171fa7153f2ad1aa1a5c99113f9b066a43e2af5
+// golden-hash: 173af66fffc68cb36b9b8be9608dff349cfce87001b575256e394b852b767548

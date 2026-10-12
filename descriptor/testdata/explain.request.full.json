@@ -11,10 +11,10 @@
         "slot": "groups[0]",
         "operator": "GROUP_CATEGORY",
         "fields": [
-          "region"
+          "plan"
         ],
         "defaulted": true,
-        "text": "Grouping 1 runs GROUP_CATEGORY on `region`. GROUP_CATEGORY is inferred for `region` from its type. Splits the rows into one group per distinct value of a field, such as one group per region or per answer option."
+        "text": "Grouping 1 runs GROUP_CATEGORY on `plan`. GROUP_CATEGORY is inferred for `plan` from its type. Splits the rows into one group per distinct value of a field, such as one group per region or per answer option."
       },
       {
         "slot": "aggregations[0]",
@@ -62,7 +62,7 @@
           "0",
           "Type"
         ],
-        "field": "region",
+        "field": "plan",
         "type": "GROUP_CATEGORY",
         "category": "grouper",
         "reason": "categorical_u8 → GROUP_CATEGORY (rule: categorical default)"
@@ -84,7 +84,7 @@
     ],
     "sentences": [
       "This request reads `recommend.pulse` and runs 1 grouping, 2 aggregations and 1 test.",
-      "Grouping 1 runs GROUP_CATEGORY on `region`. GROUP_CATEGORY is inferred for `region` from its type. Splits the rows into one group per distinct value of a field, such as one group per region or per answer option.",
+      "Grouping 1 runs GROUP_CATEGORY on `plan`. GROUP_CATEGORY is inferred for `plan` from its type. Splits the rows into one group per distinct value of a field, such as one group per region or per answer option.",
       "Aggregation 1 runs AGG_SUM on `revenue`. AGG_SUM is inferred for `revenue` from its type. Total of a numeric field, over all rows or per group.",
       "Aggregation 2 runs AGG_AVERAGE on `score`. Average of a numeric field, over all rows or per group.",
       "Test 1 runs TEST_T on `score` split by `region`. Checks whether a numeric field's average differs from a target value, or between two groups (Welch's version).",
@@ -116,4 +116,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 36816ed802687fe9b7d9479408d03333b6cc3da039be9b67765569df9ff7f646
+// golden-hash: a728a859ef3ab73dea37910a2d3d46230111624aeedb6611de76dc903bbf69cf

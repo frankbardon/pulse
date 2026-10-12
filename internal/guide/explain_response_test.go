@@ -477,3 +477,35 @@ func TestExplainResponse_ClassTablesComplete(t *testing.T) {
 		}
 	}
 }
+
+// A grouped request's flat tests[] (one per test x group, test-major)
+// pairs each result with its request slot and names the group.
+func TestExplainResponse_GroupedTests(t *testing.T) {
+	req := &types.Request{
+		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+		Tests: []*types.Test{
+			{Type: types.TEST_T, Field: "score", SplitBy: "arm"},
+			{Type: types.TEST_T, Field: "spend", SplitBy: "arm"},
+		},
+	}
+	var results []*types.TestResult
+	for _, region := range []string{"north", "south", "north", "south"} {
+		r := tTest(0.01, 0.05, 0.5)
+		r.Label, r.GroupKey = "", types.AxisKey{region}
+		results = append(results, r)
+	}
+	res := readResponse(t, nil, &types.Response{Tests: results}, req, descriptor.ExplainFull)
+	if len(res.Findings) != 4 {
+		t.Fatalf("%d findings, want 4", len(res.Findings))
+	}
+	want := []struct{ slot, field, group string }{
+		{"tests[0]", "score", "north"}, {"tests[0]", "score", "south"},
+		{"tests[1]", "spend", "north"}, {"tests[1]", "spend", "south"},
+	}
+	for i, w := range want {
+		f := res.Findings[i]
+		if !strings.Contains(f.Slot, w.slot) || !strings.Contains(f.Subject, w.field) || !strings.Contains(f.Subject, "in group `"+w.group+"`") {
+			t.Errorf("finding %d: slot %q subject %q; want %s on %s in group %s", i, f.Slot, f.Subject, w.slot, w.field, w.group)
+		}
+	}
+}

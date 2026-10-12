@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/processing/multiplicity"
 	"github.com/frankbardon/pulse/types"
 )
@@ -120,14 +121,20 @@ func collectRequestSites(fams *multFamilies, scope string, plan *descx.Multiplic
 	collectOverlaySites(fams, scope, plan.Overlays, resp.Overlays)
 }
 
-// collectTestSites files each member test result (index-aligned with
-// its resolved slot) under its family.
+// collectTestSites files each member test result under its slot's
+// family. Results pair with slots by groupedtests.SpecIndex: one per
+// slot ungrouped; on a grouped request one per (slot x group),
+// test-major, every group's result joining its slot's family.
 func collectTestSites(fams *multFamilies, scope string, slots []descx.ResolvedMultiplicity, results []*types.TestResult) {
-	for i, rm := range slots {
-		if !rm.Member || i >= len(results) || results[i] == nil {
+	for k, r := range results {
+		i := groupedtests.SpecIndex(k, len(slots), len(results))
+		if i < 0 || r == nil {
 			continue
 		}
-		r := results[i]
+		rm := slots[i]
+		if !rm.Member {
+			continue
+		}
 		method, family := rm.Method, rm.Family
 		fams.add(multFamilyKey(scope, family), family, method, multSite{
 			p: r.PValue,

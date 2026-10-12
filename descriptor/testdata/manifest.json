@@ -16176,6 +16176,7 @@
           "matrices[*].scalars",
           "tests[*].label",
           "tests[*].type",
+          "tests[*].group_key",
           "tests[*].variant",
           "tests[*].statistic",
           "tests[*].df",
@@ -16188,6 +16189,7 @@
           "tests[*].details.effect_size",
           "post_tests[*].label",
           "post_tests[*].type",
+          "post_tests[*].group_key",
           "post_tests[*].variant",
           "post_tests[*].statistic",
           "post_tests[*].df",
@@ -16245,6 +16247,7 @@
           "matrices[*].primary",
           "tests[*].label",
           "tests[*].type",
+          "tests[*].group_key",
           "tests[*].statistic",
           "tests[*].p_value",
           "tests[*].reject_null",
@@ -16252,6 +16255,7 @@
           "tests[*].significant_adjusted",
           "post_tests[*].label",
           "post_tests[*].type",
+          "post_tests[*].group_key",
           "post_tests[*].statistic",
           "post_tests[*].p_value",
           "post_tests[*].reject_null",
@@ -16328,4 +16332,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4983d6352909702e879a6456263b3084e1cd167a6b7b35ee18124c60ea3f9fc9
+// golden-hash: e59c9bf130c3b21f2d7e5d6547410c0693c0882de0b4e63628e098e2dd6d2a16

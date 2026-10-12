@@ -194,18 +194,26 @@ func returnSections(in returnSizeInputs) []returnSection {
 	add(key("metadata", leaf("total_rows", sizeNumber), leaf("filtered_rows", sizeNumber),
 		leaf("cohort_file", sizeMetaFile)), returnSizeHeuristic)
 
-	testNode := func(name string, n int) *sizeNode {
-		return key(name, elems(int64(n),
-			leaf("label", sizeLabel), leaf("type", sizeLabel), leaf("variant", sizeLabel),
+	testNode := func(name string, n int64, grouped bool) *sizeNode {
+		kids := []*sizeNode{leaf("label", sizeLabel), leaf("type", sizeLabel), leaf("variant", sizeLabel),
 			leaf("statistic", sizeNumber), leaf("df", sizeNumber), leaf("p_value", sizeNumber),
 			leaf("alpha", sizeNumber), leaf("reject_null", 5),
-			leaf("details", sizeDetails)))
+			leaf("details", sizeDetails)}
+		if grouped {
+			kids = append(kids, leaf("group_key", sizeLabel))
+		}
+		return key(name, elems(n, kids...))
 	}
 	if len(req.Tests) > 0 {
-		add(testNode("tests", len(req.Tests)), returnSizeHeuristic)
+		// Grouped, every test runs once per group (the Data row bound).
+		n := int64(len(req.Tests))
+		if rows, _, known := in.dataRows(); known && len(req.Groups) > 0 {
+			n = mulSaturating(n, rows)
+		}
+		add(testNode("tests", n, len(req.Groups) > 0), returnSizeHeuristic)
 	}
 	if len(req.PostTests) > 0 {
-		add(testNode("post_tests", len(req.PostTests)), returnSizeHeuristic)
+		add(testNode("post_tests", int64(len(req.PostTests)), false), returnSizeHeuristic)
 	}
 
 	if len(req.Regressions) > 0 {

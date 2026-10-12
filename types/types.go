@@ -889,6 +889,14 @@ type TestResult struct {
 	// Type is the test that produced this result.
 	Type TestType `json:"type"`
 
+	// GroupKey identifies the group bucket a tier-1 test ran over when
+	// the request is grouped: one result per (test x composite group
+	// key), test-major, groups in the final Response.Data row order —
+	// the per-grouper tuple of the bucket's Data row (one element for a
+	// single grouper), the MatrixResult.GroupKey shape. Omitted on an
+	// ungrouped request, which stays byte-identical.
+	GroupKey AxisKey `json:"group_key,omitempty"`
+
 	// Variant names the specific algorithm when a test supports more than
 	// one (e.g. "welch_two_sample", "mann_kendall", "independence").
 	Variant string `json:"variant,omitempty"`
@@ -1346,6 +1354,9 @@ type Request struct {
 	// (TEST_T, TEST_WELCH, TEST_CHISQ, TEST_ANOVA_F) execute in the
 	// streaming Process path; sort-required tests (TEST_KS) force the
 	// buffered path. Results land in Response.Tests in the same order.
+	// On a grouped request every test runs once per composite group key
+	// (buffered), so Response.Tests holds len(Tests) x groups entries,
+	// test-major, each carrying its TestResult.GroupKey.
 	Tests []*Test `json:"tests,omitempty"`
 
 	// PostTests is the list of tier-2 statistical tests evaluated after
@@ -1498,7 +1509,11 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 
 	// Tests holds tier-1 statistical test results, one per entry in
-	// Request.Tests and in the same order.
+	// Request.Tests and in the same order. A grouped request holds one
+	// per (test x group): test-major, the groups in the final Data row
+	// order, each carrying GroupKey — entry k belongs to
+	// Request.Tests[k / groups]. A slot a `return` plan skips is nil at
+	// each of its positions.
 	Tests []*TestResult `json:"tests,omitempty"`
 
 	// PostTests holds tier-2 statistical test results, one per entry in
