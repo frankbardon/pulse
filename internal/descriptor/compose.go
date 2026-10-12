@@ -546,12 +546,15 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance(), composeSlotInputSchema(req.Requests, opts)); aerr != nil {
 		addCodedError(env, aerr)
 	}
-	// Gate 2e: a kind that reads a slot's AGG_WELFORD moments from its
-	// per-group components (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF) over a
-	// slot built with components disabled
-	// (PULSE_OVERLAY_COMPONENTS_REQUIRED) — the runtime's check in
-	// Service.applyComposeOverlays.
-	if werr := composeOverlayWelfordComponentsRefusal(specIdx, spec, req.Requests, labels, opts.instance(), opts.componentsDisabled); werr != nil {
+	// Gate 2e: a two-sample kind (OVERLAY_T_VS_REF / _Z_VS_REF /
+	// _T_CELL / _Z_CELL) on a route that yields no mean, variance or n
+	// for a side — AGG_WELFORD moments with components disabled
+	// (PULSE_OVERLAY_COMPONENTS_REQUIRED), a scalar mean without the
+	// side's variance / sample-size params (PULSE_OVERLAY_PARAM_MISSING),
+	// a vs-ref kind over a crosstab slot
+	// (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) — the runtime's check
+	// in Service.applyComposeOverlays.
+	if werr := composeOverlayTwoSampleInputsRefusal(specIdx, spec, req.Requests, labels, opts.instance(), opts.componentsDisabled); werr != nil {
 		addCodedError(env, werr)
 	}
 
@@ -925,6 +928,7 @@ func kindRequiresMatrixCompose(kind types.OverlayKind) bool {
 	case types.OverlayKindPropZCell,
 		types.OverlayKindPropZPanel,
 		types.OverlayKindTCell,
+		types.OverlayKindZCell,
 		types.OverlayKindChiSqVsRef,
 		types.OverlayKindRank:
 		return true

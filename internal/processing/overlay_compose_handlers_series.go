@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/twosample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -252,17 +253,18 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 
 // applyTVsRef is the COMPOSE-host runtime handler for OVERLAY_T_VS_REF.
 // Per-group Welch t-test against the reference slot's matching group.
-// Series-shape sibling of OVERLAY_T_CELL — reuses the same default-
-// variance / default-sample-size policy and the same statdist.StudentTTwoSidedP
-// helper.
+// Series-shape sibling of OVERLAY_T_CELL — reuses the same explicit
+// per-side params rule (twoSampleLegs: no default variance or sample
+// size) and the same statdist.StudentTTwoSidedP helper.
 //
 // Components-source: when both target and reference value
 // columns carry a `{mean, variance, n}` triple map — emitted by
 // AGG_WELFORD via the MetaAggregator path — the handler consumes the
-// triple directly and bypasses the Params defaults. The overlay
+// triple directly and needs no params. The overlay
 // p-value matches TEST_WELCH / TEST_T against the same (mean,
 // variance, n) inputs byte-equal. When both value columns are scalar
-// numeric the handler falls back to the Params-default path.
+// numeric each side's variance and n come from params — required,
+// PULSE_OVERLAY_PARAM_MISSING when absent.
 //
 // Mixed value-column shapes (one triple, one scalar) are blocked
 // upstream by the compose schema-match gate. The handler
@@ -273,10 +275,10 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 //
 //	target_val = target.Data[i].value
 //	ref_val    = ref.Data[i].value
-//	var_target = triple.Variance OR Params["variance_target"]    (default 1.0)
-//	var_ref    = triple.Variance OR Params["variance_ref"]       (default 1.0)
-//	n_target   = triple.N        OR Params["sample_size_target"] (default 2)
-//	n_ref      = triple.N        OR Params["sample_size_ref"]    (default 2)
+//	var_target = triple.Variance OR Params["variance_target"]    (required)
+//	var_ref    = triple.Variance OR Params["variance_ref"]       (required)
+//	n_target   = triple.N        OR Params["sample_size_target"] (required)
+//	n_ref      = triple.N        OR Params["sample_size_ref"]    (required)
 //	se         = sqrt(var_target/n_target + var_ref/n_ref)
 //	t          = (target_val - ref_val) / se
 //	df         = Welch-Satterthwaite recurrence (same as TEST_T)
@@ -301,10 +303,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			})
 	}
 
-	varTargetDefault := varianceFromParams(spec.Params, "variance_target", 1.0)
-	varRefDefault := varianceFromParams(spec.Params, "variance_ref", 1.0)
-	nTargetDefault := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
-	nRefDefault := sampleSizeFromParams(spec.Params, "sample_size_ref", 2.0)
+	legs := newTwoSampleLegs(spec, refIdx, targetIdx)
 
 	refIndex := buildSeriesRowLookupAnyMap(reference.Data)
 
@@ -334,9 +333,11 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			targetN = leg.nStar
 			tally.add(leg)
 		} else {
+			var err error
+			if targetVar, targetN, err = legs.scalar(twosample.Target); err != nil {
+				return types.OverlayLayer{}, nil, err
+			}
 			targetMean = scalar
-			targetVar = varTargetDefault
-			targetN = nTargetDefault
 		}
 
 		entry := types.SeriesEntry{Key: types.AxisKey{keyStr}}
@@ -389,9 +390,11 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			refN = refEntry.Leg.nStar
 			tally.add(refEntry.Leg)
 		} else {
+			var err error
+			if refVar, refN, err = legs.scalar(twosample.Reference); err != nil {
+				return types.OverlayLayer{}, nil, err
+			}
 			refMean = refEntry.Scalar
-			refVar = varRefDefault
-			refN = nRefDefault
 		}
 
 		p, ok := welchTTest(targetMean, targetVar, targetN, refMean, refVar, refN)

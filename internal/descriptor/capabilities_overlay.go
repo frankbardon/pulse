@@ -1329,18 +1329,12 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			RefKinds: []string{},
 			Description: "COMPOSE-host per-cell Welch t-test against the reference slot's matching cell. CELL scope " +
 				"over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the two-sided p-value as a float64. " +
-				"Each cell is treated as a sample mean; the variance defaults to 1.0 and the sample size defaults to 2 " +
-				"(`Params[\"sample_size\"]` accepts an integer override; `Params[\"variance_target\"]` / " +
-				"`Params[\"variance_ref\"]` / `Params[\"sample_size_target\"]` / `Params[\"sample_size_ref\"]` give finer " +
-				"per-side control). Math reuses the same Welch-Satterthwaite degrees-of-freedom recurrence that backs " +
+				twoSampleCellInputs + " Math reuses the same Welch-Satterthwaite degrees-of-freedom recurrence that backs " +
 				"TEST_T two-sample: se = sqrt(var_target/n_target + var_ref/n_ref); t = (target_cell - ref_cell) / se; " +
 				"df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + " +
 				"(var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses the studentTTwoSidedP helper backing " +
 				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
-				"triple. Default-variance and default-sample-size policy: v1 ships well-defined defaults so the per-cell " +
-				"handler stays usable against a minimal Compose authoring surface; future work may lift the per-cell " +
-				"(mean, variance, n) triple into a richer Compose authoring surface (the crosstab cell carrier could grow " +
-				"to carry sample statistics alongside the scalar mean). Inherently buffered — inferential overlays as a " +
+				"triple. Inherently buffered — inferential overlays as a " +
 				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
 		}
 	case types.OverlayKindTVsRef:
@@ -1362,8 +1356,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling " +
 				"of OVERLAY_T_CELL (the per-cell MATRIX-host Welch t-test) and twin to the SERIES arm of OVERLAY_INDEX_VS_REF " +
 				"/ OVERLAY_DELTA_VS_REF (descriptive series-shape Compose-only kinds). Each per-group target / reference value " +
-				"is treated as a sample mean; variance defaults to 1.0 and sample size defaults to 2 (Params[\"variance_target\"] " +
-				"/ Params[\"variance_ref\"] / Params[\"sample_size_target\"] / Params[\"sample_size_ref\"] override). Math " +
+				"is treated as a sample mean. " + twoSampleSeriesInputs + " Math " +
 				"reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = " +
 				"sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + " +
 				"var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = " +
@@ -1604,19 +1597,12 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			RefKinds: []string{},
 			Description: "COMPOSE-host per-cell two-sample z-test on the means against the reference slot's matching cell. " +
 				"CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the " +
-				"two-sided p-value as a float64. Each cell is treated as a sample mean; the variance defaults to 1.0 " +
-				"and the sample size defaults to 2 (`Params[\"sample_size\"]` accepts an integer override; " +
-				"`Params[\"variance_target\"]` / `Params[\"variance_ref\"]` / `Params[\"sample_size_target\"]` / " +
-				"`Params[\"sample_size_ref\"]` give finer per-side control). Math reuses the same Welch-style " +
+				"two-sided p-value as a float64. " + twoSampleCellInputs + " Math reuses the same Welch-style " +
 				"standard-error recurrence that backs OVERLAY_T_CELL and finalises against the standard normal " +
 				"survival helper that backs TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
 				"z = (target_cell - ref_cell) / se; p_value = 2 * (1 - Φ(|z|)). Reuses the standardNormalCDF helper " +
 				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
-				"the same (mean, variance, n) triple. Default-variance and default-sample-size policy: v1 ships " +
-				"well-defined defaults so the per-cell handler stays usable against a minimal Compose authoring " +
-				"surface; future work may lift the per-cell (mean, variance, n) triple into a richer Compose " +
-				"authoring surface (the crosstab cell carrier could grow to carry sample statistics alongside the " +
-				"scalar mean). Inherently buffered — inferential overlays as a family stay buffered until a " +
+				"the same (mean, variance, n) triple. Inherently buffered — inferential overlays as a family stay buffered until a " +
 				"streamable-test path is plumbed (PRD §2 Non-Goals).",
 		}
 	case types.OverlayKindZVsRef:
@@ -1639,8 +1625,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of " +
 				"OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — " +
 				"standard normal instead of Student's t). Each per-group target / reference value is treated as a sample " +
-				"mean; variance defaults to 1.0 and sample size defaults to 2 (Params[\"variance_target\"] / " +
-				"Params[\"variance_ref\"] / Params[\"sample_size_target\"] / Params[\"sample_size_ref\"] override). Math " +
+				"mean. " + twoSampleSeriesInputs + " Math " +
 				"reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the " +
 				"standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
 				"z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the " +
@@ -1654,3 +1639,22 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 	}
 	return descriptor.OverlayCapability{Kind: kind}
 }
+
+// twoSampleParamsRule is the explicit-inputs sentence the four Compose
+// two-sample kinds share (twosample.Inputs; U46 E4-S16).
+const twoSampleParamsRule = "A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref " +
+	"and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite " +
+	"number > 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and " +
+	"details.params naming what is missing)."
+
+// twoSampleCellInputs is OVERLAY_T_CELL / OVERLAY_Z_CELL's inputs rule.
+const twoSampleCellInputs = "A cell whose components carry mean and variance (AGG_WELFORD, AGG_VARIANCE, AGG_STDDEV, or an " +
+	"extension declaring both keys) reads its mean, variance and n from Response.Components.Crosstab with no params; " +
+	"any other cell — or any cell of a slot built with components disabled — is a scalar mean. " + twoSampleParamsRule
+
+// twoSampleSeriesInputs is OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF's inputs
+// rule.
+const twoSampleSeriesInputs = "A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group " +
+	"components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other " +
+	"scored aggregation is a scalar mean. " + twoSampleParamsRule + " Over crosstab slots the kind is " +
+	"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin."

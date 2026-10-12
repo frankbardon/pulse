@@ -151,11 +151,12 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	}); err != nil {
 		return nil, nil, err
 	}
-	// A T / Z vs-ref kind scoring a slot's AGG_WELFORD reads that
-	// slot's per-group components: with them disabled the layer would
-	// be empty (U46 E4-S13). Same rule, same slots as
+	// A two-sample T / Z kind needs each side's mean, variance and n:
+	// from a slot's components (AGG_WELFORD rows, moment-carrying
+	// crosstab cells) or the side's params — never a default (U46
+	// E4-S13 / E4-S16). Same rule, same slots as
 	// ValidateComposeWithOptions.
-	if err := descx.ComposeOverlayWelfordComponentsRefusal(req.Overlays, requests, labels, s.instance, s.componentsGateClosed); err != nil {
+	if err := descx.ComposeOverlayTwoSampleInputsRefusal(req.Overlays, requests, labels, s.instance, s.componentsGateClosed); err != nil {
 		return nil, nil, err
 	}
 	// Same rule against what the slots actually returned. The refusal
@@ -167,7 +168,7 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	if err := s.composeOverlayFloorsPresent(req, requests, labels, responses); err != nil {
 		return nil, nil, err
 	}
-	if err := s.composeOverlayWelfordLegsPresent(req, requests, labels, responses); err != nil {
+	if err := s.composeOverlayTwoSampleLegsPresent(req, requests, labels, responses); err != nil {
 		return nil, nil, err
 	}
 	// The requests-aware entry point, not the bare one: the panel's
@@ -216,13 +217,15 @@ func (s *Service) composeOverlayFloorsPresent(req *types.ComposedRequest, reques
 		details)
 }
 
-// composeOverlayWelfordLegsPresent re-runs
-// descx.ComposeOverlayWelfordComponentsRefusal with "this slot came
-// back without aggregation Components" in place of the
+// composeOverlayTwoSampleLegsPresent re-runs
+// descx.ComposeOverlayTwoSampleInputsRefusal with "this slot came
+// back without its Components" (aggregation Components on a grouped
+// slot, crosstab Components on a crosstab one) in place of the
 // DisableComponents gate. A hit is PROCESSING_INTERNAL: the gate
 // refusal and the Compose veto (composeSlotVetoes) exist so a T / Z
-// vs-ref layer over AGG_WELFORD never folds empty on a correct engine.
-func (s *Service) composeOverlayWelfordLegsPresent(req *types.ComposedRequest, requests []*types.Request, labels []string, responses []*types.Response) error {
+// layer never folds empty (or without a side's moments) on a correct
+// engine.
+func (s *Service) composeOverlayTwoSampleLegsPresent(req *types.ComposedRequest, requests []*types.Request, labels []string, responses []*types.Response) error {
 	missing := func(r *types.Request) bool {
 		for j, rr := range requests {
 			if rr != r {
@@ -232,15 +235,18 @@ func (s *Service) composeOverlayWelfordLegsPresent(req *types.ComposedRequest, r
 				return false // failed slot: the dispatcher's slot rules own it
 			}
 			c := responses[j].Components
+			if r.Crosstab != nil {
+				return c == nil || c.Crosstab == nil
+			}
 			return c == nil || len(c.Aggregations) == 0
 		}
 		return false
 	}
-	err := descx.ComposeOverlayWelfordComponentsRefusal(req.Overlays, requests, labels, s.instance, missing)
+	err := descx.ComposeOverlayTwoSampleInputsRefusal(req.Overlays, requests, labels, s.instance, missing)
 	if err == nil {
 		return nil
 	}
-	details := map[string]any{"invariant": "compose overlay welford components missing at fold"}
+	details := map[string]any{"invariant": "compose overlay two-sample components missing at fold"}
 	var ce *perr.CodedError
 	if stderrors.As(err, &ce) {
 		for k, v := range ce.Details {
@@ -248,6 +254,6 @@ func (s *Service) composeOverlayWelfordLegsPresent(req *types.ComposedRequest, r
 		}
 	}
 	return perr.NewCodedErrorWithDetails(perr.PROCESSING_INTERNAL,
-		"engine invariant violated: a Compose overlay would read a slot's AGG_WELFORD moments from aggregation Components that were not computed; refusing rather than folding an empty layer",
+		"engine invariant violated: a Compose two-sample overlay would read a slot's moments (mean, variance, n) from Components that were not computed; refusing rather than folding an empty layer",
 		details)
 }

@@ -310,7 +310,7 @@ func cellShapesEqual(a, b string) bool {
 //
 // Matrix-required today:
 //   - OVERLAY_PROP_Z_CELL, OVERLAY_PROP_Z_PANEL, OVERLAY_T_CELL,
-//     OVERLAY_CHISQ_VS_REF, OVERLAY_RANK — per-cell / whole-matrix
+//     OVERLAY_Z_CELL, OVERLAY_CHISQ_VS_REF, OVERLAY_RANK — per-cell / whole-matrix
 //     arithmetic is undefined against SERIES or SCALAR slots.
 //
 // When this returns true the PULSE_OVERLAY_SLOT_NOT_CROSSTAB gate
@@ -343,6 +343,7 @@ func KindRequiresMatrix(kind types.OverlayKind) bool {
 	case types.OverlayKindPropZCell,
 		types.OverlayKindPropZPanel,
 		types.OverlayKindTCell,
+		types.OverlayKindZCell,
 		types.OverlayKindChiSqVsRef,
 		types.OverlayKindRank:
 		return true

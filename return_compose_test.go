@@ -31,7 +31,8 @@ func composeReturnFixture(cohort string) *types.ComposedRequest {
 	}
 	return &types.ComposedRequest{
 		Requests: []*types.Request{slot("a"), slot("b")},
-		Overlays: []types.ComposeOverlaySpec{{Name: "t", Kind: types.OverlayKindTCell, Scope: types.OverlayScopeCell, Reference: "a", Targets: []string{"b"}}},
+		Overlays: []types.ComposeOverlaySpec{{Name: "t", Kind: types.OverlayKindTCell, Scope: types.OverlayScopeCell, Reference: "a", Targets: []string{"b"},
+			Params: map[string]any{"variance": 1.0, "sample_size": 2.0}}},
 	}
 }
 

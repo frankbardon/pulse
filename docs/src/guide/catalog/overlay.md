@@ -1297,7 +1297,7 @@ Welch t-test for every crosstab cell in a Compose request: does the target's mea
 
 **Assumptions:**
 
-- Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.
+- Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.
 - Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.
 - The null hypothesis is equal means in the cell; the p-value is two-sided.
 - Every cell is a separate test, so with many cells some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
@@ -1334,7 +1334,7 @@ Welch t-test for every group of a grouped result in a Compose request: does the 
 
 **Assumptions:**
 
-- Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.
+- Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.
 - Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.
 - The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.
 - Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
@@ -1543,7 +1543,7 @@ Large-sample z-test for every crosstab cell in a Compose request: does the targe
 
 **Assumptions:**
 
-- Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.
+- Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.
 - Target and reference are separate, independent samples. It reads p from the normal curve, so with small cells the p-values come out too small.
 - The null hypothesis is equal means in the cell; the p-value is two-sided.
 - Every cell is a separate test, so with many cells some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
@@ -1579,7 +1579,7 @@ Large-sample z-test for every group of a grouped result in a Compose request: do
 
 **Assumptions:**
 
-- Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.
+- Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.
 - Target and reference are separate, independent samples. It reads p from the normal curve, so with small groups the p-values come out too small.
 - The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.
 - Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.

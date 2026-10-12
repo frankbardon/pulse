@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/twosample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -11,9 +12,10 @@ import (
 // OVERLAY_Z_CELL. Per-cell two-sample z-test on the means against the
 // reference slot's matching cell. Cells are treated as sample means;
 // per-side variance and sample size are read from the spec's `Params`
-// map with the same defaults applied by `applyTCell`
-// (`variance_target` / `variance_ref` default 1.0, `sample_size_target`
-// / `sample_size_ref` default 2).
+// map under the same rule as `applyTCell` (`variance_target` /
+// `variance_ref`, `sample_size_target` / `sample_size_ref`, or the
+// symmetric `variance` / `sample_size`) — required on a scalar side,
+// no default (twoSampleLegs).
 //
 // Components-source: when both the target cell and the matching
 // reference cell carry a `{mean, variance, n}` triple at
@@ -60,10 +62,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 
 	refLookup := buildMatrixCellRawLookup(refMx)
 	refCoordLookup := buildMatrixCellCoordLookup(refMx)
-	varTargetDefault := varianceFromParams(spec.Params, "variance_target", 1.0)
-	varRefDefault := varianceFromParams(spec.Params, "variance_ref", 1.0)
-	nTargetDefault := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
-	nRefDefault := sampleSizeFromParams(spec.Params, "sample_size_ref", 2.0)
+	legs := newTwoSampleLegs(spec, refIdx, targetIdx)
 
 	rowCount := len(targetMx.RowKeys)
 	colCount := len(targetMx.ColumnKeys)
@@ -108,15 +107,21 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				continue
 			}
 			refCoord, refCoordOK := refCoordLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
-			tLeg, okT := extractCellWelchInputsFromComponents(target, cell, i, j, varTargetDefault, nTargetDefault)
+			tLeg, okT, err := extractCellWelchInputsFromComponents(target, cell, i, j, legs, twosample.Target)
+			if err != nil {
+				return types.OverlayLayer{}, nil, err
+			}
 			var (
 				rLeg meanLeg
 				okR  bool
 			)
 			if refCoordOK {
-				rLeg, okR = extractCellWelchInputsFromComponents(reference, refCell, refCoord.Row, refCoord.Col, varRefDefault, nRefDefault)
+				rLeg, okR, err = extractCellWelchInputsFromComponents(reference, refCell, refCoord.Row, refCoord.Col, legs, twosample.Reference)
 			} else {
-				rLeg, okR = extractCellWelchInputsScalar(refCell, varRefDefault, nRefDefault)
+				rLeg, okR, err = extractCellWelchInputsScalar(refCell, legs, twosample.Reference)
+			}
+			if err != nil {
+				return types.OverlayLayer{}, nil, err
 			}
 			if !okT || !okR {
 				continue
@@ -211,35 +216,38 @@ func welchZTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // Crosstab.CellComponents[r][c] when the operator emitted a `{mean,
 // variance, n}` triple — through the weighted-host rule
 // (extractCellComponentsTriple → readMeanLeg), so a weighted cell
-// answers (mean, variance on w*, N*). Falls back to the supplied
-// `varDefault` + `nDefault` when the components map is absent / missing
-// keys but the cell carries a scalar value (the additive scalar-cell
-// contract).
+// answers (mean, variance on w*, N*). A cell without the triple but
+// with a scalar value is the scalar route: side's explicit params
+// (extractCellWelchInputsScalar).
 //
 // Absent / non-numeric cells with no components triple return ok=false
 // so the caller can skip the cell. The universal Components surface is
 // the only triple source.
-func extractCellWelchInputsFromComponents(resp *types.Response, cell types.MatrixCell, r, c int, varDefault, nDefault float64) (meanLeg, bool) {
+func extractCellWelchInputsFromComponents(resp *types.Response, cell types.MatrixCell, r, c int, legs *twoSampleLegs, side twosample.Side) (meanLeg, bool, error) {
 	if !cell.Present {
-		return meanLeg{}, false
+		return meanLeg{}, false, nil
 	}
 	if leg, tripleOK := extractCellComponentsTriple(resp, r, c); tripleOK {
-		return leg, true
+		return leg, true, nil
 	}
-	return extractCellWelchInputsScalar(cell, varDefault, nDefault)
+	return extractCellWelchInputsScalar(cell, legs, side)
 }
 
-// extractCellWelchInputsScalar is the scalar-fallback arm. Treats a
-// scalar MatrixCell.Value as the cell mean and supplies the Params
-// defaults for `(variance, n)`, keeping the additive contract for
-// non-triple cells intact.
-func extractCellWelchInputsScalar(cell types.MatrixCell, varDefault, nDefault float64) (meanLeg, bool) {
+// extractCellWelchInputsScalar is the scalar route. Treats a scalar
+// MatrixCell.Value as the cell mean with side's explicit (variance, n)
+// from params — no default: PULSE_OVERLAY_PARAM_MISSING when absent
+// (twoSampleLegs.scalar).
+func extractCellWelchInputsScalar(cell types.MatrixCell, legs *twoSampleLegs, side twosample.Side) (meanLeg, bool, error) {
 	if !cell.Present {
-		return meanLeg{}, false
+		return meanLeg{}, false, nil
 	}
 	scalar, scalarOK := scalarFromCell(cell)
 	if !scalarOK {
-		return meanLeg{}, false
+		return meanLeg{}, false, nil
 	}
-	return meanLeg{mean: scalar, variance: varDefault, nStar: nDefault}, true
+	v, n, err := legs.scalar(side)
+	if err != nil {
+		return meanLeg{}, false, err
+	}
+	return meanLeg{mean: scalar, variance: v, nStar: n}, true, nil
 }

@@ -1517,7 +1517,9 @@ const (
 	// OverlaySpec's Ref does not match the host shape required by the
 	// chosen Kind. For OVERLAY_INDEX_VS_MARGIN this fires in three
 	// cases: missing Ref.Margin pointer, unknown Ref.Margin.Axis, or
-	// non-MATRIX host (Request.Crosstab is nil).
+	// non-MATRIX host (Request.Crosstab is nil). A Compose
+	// OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF over a crosstab slot raises it
+	// too (details.slot, shape matrix, shapes [series]).
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
 
 	// PULSE_OVERLAY_COMPONENTS_REQUIRED indicates an overlay kind that
@@ -1578,7 +1580,12 @@ const (
 	// (descriptor.validateOverlayIndexVsRollingMean) and runtime
 	// (processing.applyIndexVsRollingMean) with Details carrying the
 	// kind and the missing param name. Reused by other windowed kinds
-	// (e.g. OVERLAY_ZSCORE_VS_ROLLING) for the missing-window case.
+	// (e.g. OVERLAY_ZSCORE_VS_ROLLING) for the missing-window case. A
+	// Compose two-sample overlay (OVERLAY_T_VS_REF / _Z_VS_REF /
+	// _T_CELL / _Z_CELL) scoring a scalar mean on a side raises it, on
+	// predict and runtime alike, when params carry no usable variance /
+	// sample size for that side (reason params_missing): there is no
+	// default.
 	PULSE_OVERLAY_PARAM_MISSING Code = "PULSE_OVERLAY_PARAM_MISSING"
 
 	// PULSE_OVERLAY_FORMULA_PARSE_ERROR indicates an OVERLAY_FORMULA spec's

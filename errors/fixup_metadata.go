@@ -2358,7 +2358,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Kind"},
-				Hint:     "When details.shapes is present the kind runs on Request.Overlays but not over this Process host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs on ComposedRequest.Overlays.",
+				Hint:     "When details.shapes is present the kind runs on Request.Overlays but not over this Process host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs on ComposedRequest.Overlays. On ComposedRequest.Overlays a two-sample t / z vs-ref kind over a crosstab slot (details.slot) carries the same keys: compare grouped slots, or use its per-cell twin over the crosstab slots.",
 				Examples: []any{"matrix", "series"},
 			},
 		},
@@ -2427,13 +2427,19 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARAM_MISSING: {
-		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name.",
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params"},
 				Hint:     "Set Params on the OverlaySpec to a JSON object containing the required keys for the chosen Kind. For OVERLAY_INDEX_VS_ROLLING_MEAN populate `{\"window\": N}` where N is a positive integer naming the rolling-window width (e.g. {\"window\": 3} for a 3-point rolling mean). Per the WIN_* operator convention, the window width is the only required param today.",
 				Examples: []any{map[string]any{"window": 3}, map[string]any{"window": 7}, map[string]any{"window": 12}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Two-sample overlay (details.reason params_missing): supply the keys details.params names — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides — each a finite number > 0. Or let the slot carry the moments: score the moment aggregator (Welford mean, variance and n — on a crosstab cell, any aggregator whose components carry mean and variance) with components enabled, and no params are read.",
+				Examples: []any{map[string]any{"variance": 4.0, "sample_size": 30}, map[string]any{"variance_target": 2.5, "variance_ref": 3.1, "sample_size_target": 40, "sample_size_ref": 38}},
 			},
 		},
 	},

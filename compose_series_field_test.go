@@ -43,6 +43,13 @@ func csOverlay(kind types.OverlayKind, field string) types.ComposeOverlaySpec {
 	if field != "" {
 		spec.Params = map[string]any{"field": field}
 	}
+	if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
+		// A scalar side needs explicit variance / sample size (U46 E4-S16).
+		if spec.Params == nil {
+			spec.Params = map[string]any{}
+		}
+		spec.Params["variance"], spec.Params["sample_size"] = 1.0, 2.0
+	}
 	return spec
 }
 

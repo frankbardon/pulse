@@ -453,6 +453,7 @@ func TestKindRequiresMatrix_E7S10Registry(t *testing.T) {
 		types.OverlayKindPropZCell:  true,
 		types.OverlayKindPropZPanel: true,
 		types.OverlayKindTCell:      true,
+		types.OverlayKindZCell:      true,
 		types.OverlayKindChiSqVsRef: true,
 		types.OverlayKindRank:       true,
 	}
