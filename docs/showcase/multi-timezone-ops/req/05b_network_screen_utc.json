@@ -1,0 +1,19 @@
+{
+  "cohort": {"filename": "deliveries.pulse", "data_dir": "."},
+  "time_zone": "UTC",
+  "groups": [
+    {"type": "GROUP_CATEGORY", "field": "warehouse"},
+    {"type": "GROUP_DATE", "field": "delivered_at", "params": {"component": "day"}}
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "on_time", "label": "on_time_rate"},
+    {"type": "AGG_COUNT", "field": "delivery_id", "label": "deliveries"}
+  ],
+  "overlays": [
+    {"name": "on_time_rolling_z", "kind": "OVERLAY_ZSCORE_VS_ROLLING", "scope": "group",
+     "ref": {"rolling_mean": {}}, "params": {"window": 28, "field": "on_time_rate"}},
+    {"name": "on_time_rolling_index", "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN", "scope": "group",
+     "ref": {"rolling_mean": {}}, "params": {"window": 28, "field": "on_time_rate"}}
+  ],
+  "sort": [{"field": "warehouse"}, {"field": "delivered_at"}]
+}

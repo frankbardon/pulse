@@ -183,7 +183,7 @@ Three operational decisions depend on the answer:
 
 ### Step 3: Flag the incident automatically
 
-**Request: daily screen.** [`req/05_daily_anomaly_screen.json`](req/05_daily_anomaly_screen.json) has one slot per warehouse in its own zone. Each slot groups by local day and decorates the series with two rolling overlays. Both overlays score each day against the **28 preceding operating days**, and both read the request's first aggregation, the on-time rate:
+**Request: daily screen.** [`req/05_daily_anomaly_screen.json`](req/05_daily_anomaly_screen.json) has one slot per warehouse in its own zone. Each slot groups by local day and decorates the series with two rolling overlays. Both overlays score each day against the **28 preceding operating days**, and both score the on-time rate (with several aggregations, an overlay's `params.field` names the one it scores by output label; absent means the first, and the slots below leave it off because the on-time rate is listed first):
 
 ```json
 {"label": "SYD_daily_screen", "cohort": {"filename": "deliveries.pulse", "data_dir": "."},
@@ -277,6 +277,24 @@ The moving average spans 6 rows, which is one operating week (Mon–Sat).
 | Thu 05-14 | 13 | **−1.23** (missed) | 19 | −3.67 |
 
 Over the full period, the UTC screen also flags two "days" holding **2 deliveries each**: 2026-03-07 (z −7.24) and 2026-08-01 (z −8.09). Each is the slice of a Sydney Monday morning or Saturday that falls on a different UTC date. Read on UTC days, the alert fires on the wrong weekday, misses the worst day and adds two false alarms.
+
+**One request for the whole network.** The six slots exist because each warehouse reads its own local day, and a request has one `time_zone`. Per-row zones are roadmap unit [U50](../../roadmap/units/U50-local-time.md), so the local-day screen stays slot-per-zone until then. When one shared calendar is acceptable, the partition is a single request: [`req/05b_network_screen_utc.json`](req/05b_network_screen_utc.json) groups by `[warehouse, day]` on UTC days and names the scored aggregation with `params.field`:
+
+```json
+{"cohort": {"filename": "deliveries.pulse", "data_dir": "."}, "time_zone": "UTC",
+ "groups": [{"type": "GROUP_CATEGORY", "field": "warehouse"},
+            {"type": "GROUP_DATE", "field": "delivered_at", "params": {"component": "day"}}],
+ "aggregations": [{"type": "AGG_AVERAGE", "field": "on_time", "label": "on_time_rate"},
+                  {"type": "AGG_COUNT", "field": "delivery_id", "label": "deliveries"}],
+ "overlays": [
+   {"name": "on_time_rolling_z", "kind": "OVERLAY_ZSCORE_VS_ROLLING", "scope": "group",
+    "ref": {"rolling_mean": {}}, "params": {"window": 28, "field": "on_time_rate"}},
+   {"name": "on_time_rolling_index", "kind": "OVERLAY_INDEX_VS_ROLLING_MEAN", "scope": "group",
+    "ref": {"rolling_mean": {}}, "params": {"window": 28, "field": "on_time_rate"}}],
+ "sort": [{"field": "warehouse"}, {"field": "delivered_at"}]}
+```
+
+With two groupers the series overlays partition by every key except the last (here `warehouse`), and the series runs down the last key (the day), so list the date grouper last. Predict raises `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` when it is not. The result has 999 rows (the six warehouses' UTC days) and each warehouse's rolling window starts fresh. Checked against the old slot-per-warehouse request with `time_zone` set to `UTC` on every slot: all 1,998 overlay values (999 rows x 2 overlays) are identical. SYD on UTC days gives z = −4.19, −4.70 and −1.23 for 05-12 to 05-14, the same figures as the UTC column in step 3's UTC-days comparison below.
 
 ### Step 4: Real trend or noise?
 
@@ -494,9 +512,10 @@ Nightly totals (New York days, Mar 5–11) are 24 batches every night, including
 | `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES` with local-day bounds | 03, 04, 12–14 |
 | `ATTR_DATE_PART` `hour` on the local clock | 10–12 |
 | Crosstab with margins, `include` ordering and `normalize: row` | 01, 02, 10–12 |
-| Compose: one slot per warehouse and zone | 02–05, 07–09, 11–14 |
+| Compose: one slot per warehouse and zone (until per-row zones, U50) | 02–05, 07–09, 11–14 |
+| One partitioned request: `groups: [warehouse, day]`, overlay `params.field` | 05b |
 | `WIN_MOVING_AVG`, `WIN_LAG`, `WIN_PCT_CHANGE` | 06, 09 |
-| `OVERLAY_ZSCORE_VS_ROLLING`, `OVERLAY_INDEX_VS_ROLLING_MEAN` | 05–07 |
+| `OVERLAY_ZSCORE_VS_ROLLING`, `OVERLAY_INDEX_VS_ROLLING_MEAN` | 05, 05b, 06, 07 |
 | `TEST_TREND` (Mann-Kendall) as a post-test, with Holm `multiplicity` across Compose slots | 08, 09 |
 | `AGG_COUNT`, `AGG_AVERAGE` (rate of a boolean), `AGG_SUM`, `AGG_PERCENTILE` | throughout |
 | `import csv --source-tz` / `--dst-policy` with `PULSE_IMPORT_DST_*` codes | step 6 |

@@ -60,6 +60,7 @@ To run a single step by hand, from the copy:
 ```bash
 /tmp/pulse api process -r req/01_weekday_volume_utc.json --json
 /tmp/pulse api compose -r req/05_daily_anomaly_screen.json --json
+/tmp/pulse api process -r req/05b_network_screen_utc.json --json
 ```
 
 ## 5. Check the key figures
@@ -80,6 +81,7 @@ To run a single step by hand, from the copy:
 | SYD incident-period on-time, UTC / Sydney days | `04` row `2_incident` | 0.4909 / 0.4167 |
 | SYD 2026-05-12 rolling z (on-time, W=28, Sydney days) | `05` slot 6 | −7.6522 |
 | SYD 2026-05-12 rolling index (on-time) | `05` slot 6 | 44.2765 |
+| SYD 2026-05-12 rolling z / index on UTC days, one partitioned request | `05b` row SYD 2026-05-12 | −4.1943 / 57.1089 |
 | SYD 2026-05-12 rolling z (duration) | `06` | 9.3417 |
 | SYD 2026-05-14 rolling z on UTC days (missed) | `07` slot 1 | −1.2264 |
 | BLR weekly Mann-Kendall Z / Holm-adjusted p | `08` slot 1 | 4.9814 / 3.79e−6 |
