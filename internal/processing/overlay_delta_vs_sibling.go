@@ -97,6 +97,9 @@ import (
 // branch is unreachable in practice but the defense is cheap and
 // matches the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES safety pattern.
 func applyDeltaVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+	if err := refuseCompositeSeriesHost(spec, host); err != nil {
+		return types.OverlayLayer{}, nil, err
+	}
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

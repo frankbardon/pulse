@@ -19,7 +19,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — ordered grouped Process host. Family: windowed prior (`Ref.Prior`).
+SERIES — ordered grouped Process host with ONE grouper; two or more `groups` (composite rows) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`), predict and runtime. Family: windowed prior (`Ref.Prior`).
 
 ## Output
 
@@ -38,7 +38,6 @@ Pick this one for "how much did it change"; pick the index for "what proportion 
 - Absent host point → NaN + carrier does NOT advance (next present point still subtracts the last present value).
 - **NEVER emits `PULSE_OVERLAY_REF_ZERO`** — unlike the index twin. A prior of exactly zero is a valid subtrahend (`value − 0 = value`); there is no degenerate-denominator branch to hit. Its absence is deliberate, not an omission.
 - `Ref.Prior.Lag` reserved for future window-N priors; v1 ships lag-1 only.
-- Empty `Ref` and populated `Ref.Prior` both spell lag-1.
 - Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## See

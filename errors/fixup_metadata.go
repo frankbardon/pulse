@@ -2301,6 +2301,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Groups"},
 				Hint:   "OVERLAY_YOY needs a host whose ONLY grouper is GROUP_DATE (details.groupers counts the groups sent): two or more groups give composite rows, not one date axis. Keep the GROUP_DATE grouper alone, and split the other key into a FILTER_INCLUDE per value or a Compose slot per value.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups"},
+				Hint:   "The series overlays that read the host as one ordered series (DELTA / INDEX_VS_PRIOR, INDEX_VS_ROLLING_MEAN, ZSCORE_VS_ROLLING, DELTA / INDEX_VS_BASELINE, DELTA / INDEX_VS_SIBLING) need exactly one grouper (details.groupers counts the groups sent): over two or more, a lag, window, baseline or sibling would cross outer buckets of the composite rows. Keep the ordered grouper alone, and split the other key into a FILTER_INCLUDE per value or a Compose slot per value.",
+			},
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {

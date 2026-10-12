@@ -19,7 +19,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — ordered grouped Process host (e.g. a date grouper). Subtractive twin of the baseline index.
+SERIES — ordered grouped Process host (e.g. a date grouper) with ONE grouper; two or more `groups` (composite rows) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`), predict and runtime. Subtractive twin of the baseline index.
 
 ## Output
 
