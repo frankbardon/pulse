@@ -2529,7 +2529,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT: {
-		Message: "A whole-chain overlay spec (the index-vs-stage or delta-vs-stage overlay) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
+		Message: "A whole-chain overlay spec (the index-vs-stage or delta-vs-stage overlay) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). A stage's shape is its authored request's — a crosstab is matrix, groups plus aggregations is series, an ungrouped stage is scalar — so a grouped stage against an ungrouped one lands here on predict-chain (an envelope error) and at runtime (a layer warning), never as per-row reference misses. The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -2593,7 +2593,7 @@ var codeMetadata = map[Code]Metadata{
 	PULSE_OVERLAY_KEY_SET_DIVERGENT: {
 		// Minimal entry — full polish (richer Message + per-shape Fixup
 		// hints) is deferred.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference). A SERIES slot keys on its group columns alone, so predict-compose refuses two SERIES slots whose group key columns differ by name, Details {index, reference, target, reference_fields, target_fields}.",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference). A SERIES slot keys on its group columns alone, so predict-compose refuses two SERIES slots whose group key columns differ by name, Details {index, reference, target, reference_fields, target_fields}. Only slots of the same shape are compared: a grouped slot against an ungrouped one is PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2622,12 +2622,12 @@ var codeMetadata = map[Code]Metadata{
 	},
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT: {
 		// Minimal entry — full polish is deferred.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). Compose overlays fold target values against the reference at byte-equal coordinates; without a shared shape there is no coordinate grid. Details carry the offending `target_label`, the `reference_shape`, and the `target_shape`.",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). A slot's shape is its authored request's: a crosstab is MATRIX, groups plus aggregations is SERIES, anything else (an ungrouped request) is SCALAR — so a grouped slot paired with an ungrouped one lands here on predict-compose and runtime alike, not under PULSE_OVERLAY_KEY_SET_DIVERGENT. Compose overlays fold target values against the reference at byte-equal coordinates; without a shared shape there is no coordinate grid. Details carry the spec `index` and `kind`, the `reference` slot label, the offending `target_label`, the `reference_shape`, and the `target_shape`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests"},
-				Hint:   "Re-issue the diverging slot Request so its host result shape matches the reference slot's — either both crosstabs (set Crosstab on both) or both grouped Process results (set Groups + Aggregations on both, no Crosstab on either).",
+				Hint:   "Re-issue the diverging slot Request so its host result shape matches the reference slot's — either both crosstabs (set Crosstab on both), both grouped Process results (set Groups + Aggregations on both, no Crosstab on either), or both ungrouped (drop Groups from both).",
 			},
 		},
 	},

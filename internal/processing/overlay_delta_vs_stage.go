@@ -70,26 +70,7 @@ func applyDeltaVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 	refShape := chainStageShape(ref)
 
 	if targetShape != refShape {
-		layer := types.OverlayLayer{
-			Name:  chainOverlayLayerName(spec),
-			Kind:  spec.Kind,
-			Scope: spec.Scope,
-			Payload: types.OverlayPayload{
-				Shape: targetShape,
-			},
-		}
-		warnings := []types.OverlayWarning{{
-			Code:    string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
-			Message: "overlay " + string(spec.Kind) + " target and reference stages disagree on host shape; surfacing empty payload",
-			Details: map[string]any{
-				"kind":         string(spec.Kind),
-				"target_index": targetIdx,
-				"ref_index":    refIdx,
-				"target_shape": string(targetShape),
-				"ref_shape":    string(refShape),
-			},
-		}}
-		return layer, warnings, nil
+		return chainShapeDivergentLayer(spec, targetShape, refShape, targetIdx, refIdx)
 	}
 
 	switch targetShape {

@@ -324,7 +324,15 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// is the cheapest signal to fail on so we surface it before any
 		// per-kind handler walks the matrix / series payload a second
 		// time. Schema-match and dict-drift gates fire AFTER this one.
-		if err := checkKeySetAlignment(refResp, targetResps, *spec, i); err != nil {
+		//
+		// Both this gate and the schema match below judge each slot's
+		// host SHAPE by its authored Request (authoredSlotShapes) — the
+		// shape predict-compose reads — so an ungrouped slot, whose one
+		// aggregate row still sits in Data, is SCALAR and a grouped
+		// slot paired with it is PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT, not
+		// a key-set divergence.
+		shapes := authoredSlotShapes(refResp, targetResps, refIdx, targetIdxs, requests)
+		if err := checkKeySetAlignmentShaped(refResp, targetResps, shapes, *spec, i); err != nil {
 			return nil, nil, err
 		}
 		// Strict structural schema match across slots. Runs AFTER
@@ -336,7 +344,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// by `kindRequiresMatrix`), and PULSE_OVERLAY_SCHEMA_DIVERGENT
 		// (per-axis grouper-kind tuples disagree across slots).
 		// Dict-drift fires AFTER this one.
-		if err := checkSlotShapeAndSchemaRouted(refResp, targetResps, *spec, route, i); err != nil {
+		if err := checkSlotShapeAndSchemaShaped(refResp, targetResps, shapes, *spec, route, i); err != nil {
 			return nil, nil, err
 		}
 		// Categorical dictionary-prefix drift probe. Runs ONLY when

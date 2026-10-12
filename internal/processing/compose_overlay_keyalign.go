@@ -218,21 +218,32 @@ func encodeComposeMatrixKey(rowStr, colStr string) string {
 // stops at the first to keep the failure mode mechanically simple
 // for fix-up authors.
 func checkKeySetAlignment(refResp *types.Response, targetResps []*types.Response, spec types.ComposeOverlaySpec, specIdx int) error {
-	refSet := extractKeySet(refResp)
-	if refSet.shape == types.OverlayShapeScalar {
+	return checkKeySetAlignmentShaped(refResp, targetResps, responseSlotShapes(refResp, targetResps), spec, specIdx)
+}
+
+// checkKeySetAlignmentShaped is checkKeySetAlignment judging each
+// slot's shape by `shapes` (the authored request's shape when the
+// dispatcher has it, authoredSlotShapes) rather than by its Response
+// alone. A pair whose shapes differ is never compared here — an
+// ungrouped slot's single Data row is not a coordinate grid, and the
+// mismatch is PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT, which the schema-
+// match gate raises next.
+func checkKeySetAlignmentShaped(refResp *types.Response, targetResps []*types.Response, shapes composeSlotShapes, spec types.ComposeOverlaySpec, specIdx int) error {
+	if shapes.ref == types.OverlayShapeScalar {
 		// Reference is scalar — no coordinate grid to align against.
 		// The check is a no-op regardless of the target shapes.
 		return nil
 	}
+	refSet := extractKeySet(refResp)
 	for i, tResp := range targetResps {
-		tSet := extractKeySet(tResp)
-		if tSet.shape == types.OverlayShapeScalar {
-			// Target is scalar against a non-scalar reference. Shape
-			// mismatch is owned by the schema-match gate; the key-set
-			// check stays orthogonal and returns nil here so the
-			// canonical-code dispatch does not double-trigger.
+		if i >= len(shapes.targets) || shapes.targets[i] != shapes.ref {
+			// Shape mismatch (scalar or other) is owned by the schema-
+			// match gate; the key-set check stays orthogonal and
+			// skips the pair so the canonical-code dispatch does not
+			// double-trigger.
 			continue
 		}
+		tSet := extractKeySet(tResp)
 		missing, extra := symmetricKeyDifference(refSet.keys, tSet.keys)
 		if len(missing) == 0 && len(extra) == 0 {
 			continue

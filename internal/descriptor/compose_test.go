@@ -1023,3 +1023,31 @@ func composeCostKeys(m map[string]float64) []string {
 	}
 	return out
 }
+
+// TestAuthoredHostShape_MatchesDescriptor pins the runtime's authored
+// host-shape rule (processing.AuthoredHostShape, which the Compose and
+// chain overlay gates judge slots / stages by) against predict's
+// inferComposeSlotShape and inferChainStageShape: a grouped-vs-
+// ungrouped pair must diverge identically on both sides.
+func TestAuthoredHostShape_MatchesDescriptor(t *testing.T) {
+	agg := []*types.Aggregation{{Type: types.AGG_COUNT, Field: "id"}}
+	grp := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
+	cases := map[string]*types.Request{
+		"nil":                nil,
+		"empty":              {},
+		"ungrouped":          {Aggregations: agg},
+		"grouped":            {Groups: grp, Aggregations: agg},
+		"groups without agg": {Groups: grp},
+		"crosstab":           {Crosstab: &types.CrosstabSpec{}},
+		"crosstab+groups":    {Crosstab: &types.CrosstabSpec{}, Groups: grp, Aggregations: agg},
+	}
+	for name, req := range cases {
+		want := processing.AuthoredHostShape(req)
+		if got := inferComposeSlotShape(req); got != want {
+			t.Errorf("%s: inferComposeSlotShape = %q, runtime %q", name, got, want)
+		}
+		if got := inferChainStageShape(req); got != want {
+			t.Errorf("%s: inferChainStageShape = %q, runtime %q", name, got, want)
+		}
+	}
+}

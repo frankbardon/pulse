@@ -83,26 +83,7 @@ func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 	// sees the divergence diagnostic + an empty layer instead of a
 	// malformed arithmetic crash.
 	if targetShape != refShape {
-		layer := types.OverlayLayer{
-			Name:  chainOverlayLayerName(spec),
-			Kind:  spec.Kind,
-			Scope: spec.Scope,
-			Payload: types.OverlayPayload{
-				Shape: targetShape,
-			},
-		}
-		warnings := []types.OverlayWarning{{
-			Code:    string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
-			Message: "overlay " + string(spec.Kind) + " target and reference stages disagree on host shape; surfacing empty payload",
-			Details: map[string]any{
-				"kind":         string(spec.Kind),
-				"target_index": targetIdx,
-				"ref_index":    refIdx,
-				"target_shape": string(targetShape),
-				"ref_shape":    string(refShape),
-			},
-		}}
-		return layer, warnings, nil
+		return chainShapeDivergentLayer(spec, targetShape, refShape, targetIdx, refIdx)
 	}
 
 	switch targetShape {
@@ -139,6 +120,37 @@ func chainStageShape(resp *types.Response) types.OverlayShape {
 		return types.OverlayShapeSeries
 	}
 	return types.OverlayShapeScalar
+}
+
+// chainShapeDivergentLayer is the whole-chain shape-divergence
+// answer: an empty layer that inherits the target stage's shape plus
+// ONE PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning naming both
+// shapes. The per-kind handlers raise it off the Response shapes; the
+// dispatcher (ApplyChainOverlaysWithRequests) raises it first off the
+// stages' AUTHORED shapes (AuthoredHostShape), the ones predict-chain
+// reads, so a grouped stage against an ungrouped one — whose single
+// aggregate row still sits in Data — diverges on both sides.
+func chainShapeDivergentLayer(spec *types.ChainOverlaySpec, targetShape, refShape types.OverlayShape, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
+	layer := types.OverlayLayer{
+		Name:  chainOverlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Payload: types.OverlayPayload{
+			Shape: targetShape,
+		},
+	}
+	warnings := []types.OverlayWarning{{
+		Code:    string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
+		Message: "overlay " + string(spec.Kind) + " target and reference stages disagree on host shape; surfacing empty payload",
+		Details: map[string]any{
+			"kind":         string(spec.Kind),
+			"target_index": targetIdx,
+			"ref_index":    refIdx,
+			"target_shape": string(targetShape),
+			"ref_shape":    string(refShape),
+		},
+	}}
+	return layer, warnings, nil
 }
 
 // chainOverlayLayerName resolves the layer's renderer-facing Name from

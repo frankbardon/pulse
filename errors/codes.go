@@ -1788,18 +1788,21 @@ const (
 	// SERIES, or one is SCALAR while the other is non-SCALAR). Compose
 	// overlays compare across slots cell-for-cell at byte-equal
 	// coordinates; without a shared shape there is no coordinate grid
-	// to fold. Details carry the offending `target_label`, the
-	// `reference_shape`, and the `target_shape`. Sibling of
+	// to fold. A slot's shape is its AUTHORED request's — crosstab =
+	// MATRIX, groups + aggregations = SERIES, else SCALAR — so a
+	// grouped slot paired with an ungrouped one is this code, never a
+	// key-set divergence. Details (identical on predict and runtime):
+	// `index`, `kind`, `reference`, `target_label`, `reference_shape`,
+	// `target_shape`. Sibling of
 	// PULSE_OVERLAY_SLOT_NOT_CROSSTAB — both surface shape-level
 	// rejections at the same gate, distinguished by whether the
 	// rejection is "shapes disagree" (this code) or "the chosen kind
 	// requires a specific shape and a target violates it" (the other
 	// code). The check runs once per overlay spec at the post-slot-
 	// barrier inside processing.ApplyComposeOverlays AFTER
-	// PULSE_OVERLAY_KEY_SET_DIVERGENT and BEFORE
-	// PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime; the
-	// internal/descriptor.ValidateCompose predict-time companion is
-	// deferred.
+	// PULSE_OVERLAY_KEY_SET_DIVERGENT (which skips mixed-shape pairs)
+	// and BEFORE PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime
+	// and by internal/descriptor.ValidateCompose.
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
 
 	// PULSE_OVERLAY_DICT_PREFIX_DRIFT indicates a Compose overlay spec

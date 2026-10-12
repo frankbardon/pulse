@@ -242,7 +242,22 @@ func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*t
 		if err != nil {
 			return nil, nil, err
 		}
-		layer, ws, err := handler(spec, target, ref, targetIdx, refIdx)
+		// Shape is judged off each stage's AUTHORED request when it is
+		// in reach (the shape predict-chain reads): an ungrouped stage
+		// keeps its one aggregate row in Data, so the handlers' Response
+		// probe would call it SERIES and fold it against a grouped
+		// stage. Equal authored shapes leave the handler to decide.
+		var (
+			layer types.OverlayLayer
+			ws    []types.OverlayWarning
+		)
+		tShape := hostShapeAt(stageReqs, targetIdx, chainStageShape(target))
+		rShape := hostShapeAt(stageReqs, refIdx, chainStageShape(ref))
+		if target != nil && ref != nil && tShape != rShape {
+			layer, ws, err = chainShapeDivergentLayer(spec, tShape, rShape, targetIdx, refIdx)
+		} else {
+			layer, ws, err = handler(spec, target, ref, targetIdx, refIdx)
+		}
 		if err != nil {
 			return nil, nil, err
 		}

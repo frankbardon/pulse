@@ -369,8 +369,9 @@ func KindRequiresMatrix(kind types.OverlayKind) bool {
 //
 // Details payload (encoding/json-friendly, no fmt.Sprintf):
 //
-//	SHAPE_DIVERGENT:
+//	SHAPE_DIVERGENT (the keys predict-compose raises it with):
 //	  - "index": spec index
+//	  - "kind": spec Kind
 //	  - "reference": reference slot label
 //	  - "target_label": target slot label
 //	  - "reference_shape": "matrix" / "series" / "scalar"
@@ -401,7 +402,17 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 // than the authored kind, so a kind the instance feature set hides is
 // gated like a never-registered one. Messages name spec.Kind.
 func checkSlotShapeAndSchemaRouted(refResp *types.Response, targetResps []*types.Response, spec types.ComposeOverlaySpec, route types.OverlayKind, specIdx int) error {
+	return checkSlotShapeAndSchemaShaped(refResp, targetResps, responseSlotShapes(refResp, targetResps), spec, route, specIdx)
+}
+
+// checkSlotShapeAndSchemaShaped is checkSlotShapeAndSchemaRouted
+// judging each slot's HOST SHAPE by `shapes` — the authored request's
+// shape when the dispatcher has it (authoredSlotShapes), which is what
+// predict-compose reads. The axis and cell-shape tuples still come off
+// the Responses.
+func checkSlotShapeAndSchemaShaped(refResp *types.Response, targetResps []*types.Response, shapes composeSlotShapes, spec types.ComposeOverlaySpec, route types.OverlayKind, specIdx int) error {
 	refSchema := extractSchemaShape(refResp)
+	refSchema.shape = shapes.ref
 
 	// SLOT_NOT_CROSSTAB applies to the reference slot too — when the
 	// spec.Kind requires MATRIX and the reference is non-MATRIX we
@@ -425,6 +436,9 @@ func checkSlotShapeAndSchemaRouted(refResp *types.Response, targetResps []*types
 
 	for i, tResp := range targetResps {
 		tSchema := extractSchemaShape(tResp)
+		if i < len(shapes.targets) {
+			tSchema.shape = shapes.targets[i]
+		}
 		targetLabel := ""
 		if i < len(spec.Targets) {
 			targetLabel = spec.Targets[i]
@@ -437,6 +451,7 @@ func checkSlotShapeAndSchemaRouted(refResp *types.Response, targetResps []*types
 				"compose overlay slot shape divergent: reference and target produce different host result shapes",
 				map[string]any{
 					"index":           specIdx,
+					"kind":            string(spec.Kind),
 					"reference":       spec.Reference,
 					"target_label":    targetLabel,
 					"reference_shape": string(refSchema.shape),
