@@ -2543,10 +2543,11 @@ func attachAggregationComponents(resp *types.Response, entry types.AggregationCo
 // Single-key groupers contribute one row to exactly one bucket so
 // TotalN ≤ totalFiltered; the difference equals NNull. Multi-key
 // streaming groupers (GROUP_SET_PER_ELEMENT) contribute one row to
-// every selected label, so TotalN here would over-count; the buffered
-// path does not currently invoke multi-key groupers (KeysForRow lives
-// on the streaming path), so the simple subtraction stays correct for
-// the single-key buffered grouped exit.
+// every selected label, so TotalN here would over-count. The buffered
+// single-grouper exit never drives a multi-key grouper, so the simple
+// subtraction holds there; requests with two or more groupers build
+// their per-slot entries in composite_groups.go from per-record
+// assignment counts instead.
 func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[string][]*Record, totalFiltered int) (types.GrouperComponents, error) {
 	workGrouperComponentBuilds.Add(1)
 	totalN := 0
