@@ -22,7 +22,7 @@ branch: experiment-readout
 
 The A/B readout ran every statistic in Pulse, but through detours. There is no goodness-of-fit test, so the sample-ratio-mismatch check used a two-row design cohort and a facet overlay. Two-group tests report `diff` as alphabetical first minus second, so control − variant, and every lift had to be sign-flipped by the reader. `REG_OLS` gives no coefficient interval and its p-values cannot join a `multiplicity` family. Covariate adjustment (CUPED) took two round trips, with the slope pasted into a formula. Predict reports a tests-only request as non-streamable with a 19 MB size estimate, and `predict-compose` shows no per-slot p-value count, so the cross-slot correction family is invisible before the run.
 
-**Source of inspiration:** the showcase examples under `docs/showcase/` ([A/B test readout](../../showcase/ab-test-readout/README.md)), each a worked analysis run end to end in Pulse with a `REPRODUCE.md` of expected numbers. The items below are the gaps those runs hit. Where a fix simplifies an example, this unit's PR converts that example and refreshes its expected numbers.
+**Source of inspiration:** the showcase examples under the `pulse-casebook` repository ([A/B test readout](https://github.com/frankbardon/pulse-casebook/blob/main/showcase/ab-test-readout/README.md)), each a worked analysis run end to end in Pulse with a `REPRODUCE.md` of expected numbers. The items below are the gaps those runs hit. Where a fix simplifies an example, this unit's PR converts that example and refreshes its expected numbers.
 
 Numbering note: appended after U43, not renumbered. This unit was not in the original plan. **Release intent:** v1.0.0 (owner decision 2026-10-10: Pulse should be as self-sufficient as possible at v1).
 

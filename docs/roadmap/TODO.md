@@ -328,7 +328,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#399** Merge `total()` partial sums across partitions so shard and parallel-decode runs stay parallel; today a two-pass `total()` request falls back to the sequential path there. Found in U43 (E1) · [U51](units/U51-archive-scale.md)
 - [ ] **#400** Predict-compose does not run per-slot `Request.Overlays` validation: a slot-level `OVERLAY_FORMULA` on a non-crosstab host is refused at runtime (`PULSE_OVERLAY_KIND_UNKNOWN`) but predict-compose is silent (pre-existing predict/runtime gap). Found in U43 (E2-S2) · [U35](units/U35-predict-runtime-parity.md)
 
-### Self-sufficiency for v1 — added after the plan, from the [showcase examples](../showcase/) (U44–U52)
+### Self-sufficiency for v1 — added after the plan, from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase) (U44–U52)
 #### Strict input ([U44](units/U44-strict-input.md))
 - [ ] **#301** Unknown keys are refused at every request root and nested spec (sort entries, slot `params`, grouper, overlay and test params, Compose / Chain / Facet roots) in predict and process, with a did-you-mean suggestion; the CLI path matches the MCP strict decode (`PULSE_REQUEST_UNKNOWN_FIELD`). Repros: `"filters"`, `sort[].direction`, `GROUP_DATE params.unit` · [U44](units/U44-strict-input.md)
 - [ ] **#302** Synth specs decode strictly: unknown spec keys and distribution params are refused (`exponential {rate}` today silently uses `lambda: 1`); `correlations[]` accepts `rho` as the skill documents (or the skill is corrected), never a silent zero · [U44](units/U44-strict-input.md)

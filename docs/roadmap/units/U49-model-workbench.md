@@ -22,7 +22,7 @@ branch: model-workbench
 
 The credit example found a fitting bug and several missing pieces. `REG_GLM` binomial fails on a strong but not separated binary predictor (2% vs 93% default) with `PROCESSING_REGRESSION_RANK_DEFICIENT`: IRLS starts from the global mean and takes full Newton steps with no step-halving, so the linear predictor diverges; R's `glm` converges on the same data. The error blames collinearity, and one failing regression slot fails the whole request. There is no penalised GLM, no AUC, and the leave-one-out jackknife is unusable at 42,000 rows. The documented leakage-safe alternative to `FEAT_TARGET_ENCODE` means transcribing 40 per-category means into a formula. Decile labels sort D1, D10, D2.
 
-**Source of inspiration:** the showcase examples under `docs/showcase/` ([credit risk model](../../showcase/credit-risk-model/README.md)), each a worked analysis run end to end in Pulse with a `REPRODUCE.md` of expected numbers. The items below are the gaps those runs hit. Where a fix simplifies an example, this unit's PR converts that example and refreshes its expected numbers.
+**Source of inspiration:** the showcase examples under the `pulse-casebook` repository ([credit risk model](https://github.com/frankbardon/pulse-casebook/blob/main/showcase/credit-risk-model/README.md)), each a worked analysis run end to end in Pulse with a `REPRODUCE.md` of expected numbers. The items below are the gaps those runs hit. Where a fix simplifies an example, this unit's PR converts that example and refreshes its expected numbers.
 
 Numbering note: appended after U43, not renumbered. This unit was not in the original plan. **Release intent:** v1.0.0 (owner decision 2026-10-10: Pulse should be as self-sufficient as possible at v1).
 

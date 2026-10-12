@@ -61,7 +61,7 @@ Numbering note: appended after U52, not renumbered. **Release intent:** v1.0.0 (
 **Out of scope** (see [api-and-release 04](../v1.0.0-api-and-release/04-model-extensions.md), "After v1.0.0")
 - Shipped model packs (MMM pack: Hill NLS, partial pooling, budget allocator)
 - An R bridge, in any form, in core
-- The `pulse-casebook` repository and the move of `docs/showcase/` and the MMM fixture
+- The `pulse-casebook` repository and the move of the showcase examples (already moved to it) and the MMM fixture
 - MCMC or any sampler in core
 
 ## Epics & stories
