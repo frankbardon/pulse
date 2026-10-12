@@ -84,6 +84,13 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(multi-grouper/E<n
 - `.claude/reference/execution-modes.md` (grouped paths), `.claude/reference/response-components.md` (composite-row Components)
 - Payload-schema golden only if the wire shape changes (it should not: every key column is a plain Data field)
 
+## Handed on
+
+| Item | To | Why |
+|---|---|---|
+| #428 crosstab refits a nested `GROUP_QUANTILE` per outer bucket (plain `groups` fit once) | [U46](U46-grouped-analysis.md) | Owner decision: crosstab behaviour is not changed in U54; the two rules must be reconciled deliberately |
+| #429 `OVERLAY_YOY` over two or more groupers (refused in U54) | [U46](U46-grouped-analysis.md) | U46 owns series-overlay partitioning (#320); YoY's per-partition semantics belong with it |
+
 ## Human inputs & decisions
 
 - **Decided (owner, 2026-10-11):** run next, after U27. Execute composite keys; a refusal alone is not enough.

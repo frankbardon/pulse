@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -280,6 +282,9 @@ func (f *mgFixture) lastArm() observe.Arm {
 // groupers (the built-in mergeable set plus the gate's mergeable
 // extension grouper), i.e. whether a parallel mode must fan out.
 func mgMergeable(req *types.Request) bool {
+	if len(req.Windows) > 0 || len(req.PostTests) > 0 {
+		return false // the merge gate excludes them, with one grouper as with several
+	}
 	for _, g := range req.Groups {
 		if !g.Type.Mergeable() && g.Type != grpMrgFloor && g.Type != grpMGNul {
 			return false
@@ -380,7 +385,14 @@ type mgMode struct {
 
 // admits reports whether the mode can run groups at all.
 func (m mgMode) admits(groups []*types.Group) bool {
-	return !m.mergeOnly || mgMergeable(&types.Request{Groups: groups})
+	return m.admitsRequest(&types.Request{Groups: groups})
+}
+
+// admitsRequest is admits over a whole request: a chain stage also
+// refuses windows and post-tests (PULSE_CHAIN_NOT_MERGEABLE), with one
+// grouper as with several.
+func (m mgMode) admitsRequest(req *types.Request) bool {
+	return !m.mergeOnly || mgMergeable(req)
 }
 
 // mgModes: buffered Process (a non-streamable AGG_MEDIAN slot forces
@@ -392,7 +404,13 @@ func (m mgMode) admits(groups []*types.Group) bool {
 // and parallel decode (DecodeWorkers 3), each required to take its
 // parallel arm whenever the groupers merge; Compose, serial and
 // parallel; and stage 0 of a ProcessChain whose stage 1 re-groups on
-// every key column. E2-S2 appends its modes.
+// every key column. Then the consumers over composite rows: an
+// explicit `sort` on every key column (descending) on the shard
+// archive, a `sort` on the aggregate (descending, key columns breaking
+// ties) on the plain engine, and a `return` include allowlist of the
+// key and aggregate columns (a dropped AGG_MEDIAN slot must be pruned
+// from every row). A sort mode's expected rows are the hand-computed
+// rows re-ordered by its sort (mgMode.want).
 var mgModes = []mgMode{
 	{"Buffered", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
 		req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_MEDIAN, Field: "score", Label: "med"})
@@ -466,6 +484,105 @@ var mgModes = []mgMode{
 	{"ProcessChain", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
 		return mgRunChain(t, f, req)
 	}, true},
+	{"SortKeys", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		for _, g := range req.Groups {
+			req.Sort = append(req.Sort, types.OrderKey{Field: mgKeyColumn(g), Desc: true})
+		}
+		req.Cohort = &types.Cohort{Filename: f.archive}
+		resp, err := f.shard.Process(context.Background(), req)
+		if err == nil {
+			mgRequireArm(t, f, req, observe.ArmShardParallel)
+		}
+		return resp, err
+	}, false},
+	{"SortAggregate", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		req.Sort = []types.OrderKey{{Field: req.Aggregations[0].Label, Desc: true}}
+		for _, g := range req.Groups {
+			req.Sort = append(req.Sort, types.OrderKey{Field: mgKeyColumn(g)})
+		}
+		return f.p.Process(context.Background(), req)
+	}, false},
+	{"Return", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		keep := map[string]bool{}
+		ret := &types.Return{Include: []string{"components", "matrices", "post_tests", "overlays"}}
+		col := func(c string) {
+			keep[c] = true
+			ret.Include = append(ret.Include, "data[*]."+c)
+		}
+		for _, g := range req.Groups {
+			col(mgKeyColumn(g))
+		}
+		for _, a := range req.Aggregations {
+			col(a.Label)
+		}
+		for _, w := range req.Windows {
+			col(w.Label)
+		}
+		req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_MEDIAN, Field: "score", Label: "med"})
+		req.Return = ret
+		resp, err := f.p.Process(context.Background(), req)
+		if err != nil {
+			return nil, err
+		}
+		for i, row := range resp.Data {
+			for c := range row {
+				if !keep[c] {
+					t.Fatalf("Data[%d] carries column %q outside the return allowlist: %v", i, c, row)
+				}
+			}
+		}
+		return resp, nil
+	}, false},
+}
+
+// mgReorder re-orders a mode's expected rows ("k1|...|kN|n") the way
+// its sort does; a mode absent here keeps the native order.
+var mgReorder = map[string]func(rows []string, nKeys int) []string{
+	"SortKeys": func(rows []string, nKeys int) []string {
+		return mgSorted(rows, func(a, b []string) int {
+			for k := 0; k < nKeys; k++ {
+				if c := strings.Compare(b[k], a[k]); c != 0 {
+					return c
+				}
+			}
+			return 0
+		})
+	},
+	"SortAggregate": func(rows []string, nKeys int) []string {
+		return mgSorted(rows, func(a, b []string) int {
+			na, _ := strconv.ParseFloat(a[nKeys], 64)
+			nb, _ := strconv.ParseFloat(b[nKeys], 64)
+			switch {
+			case na > nb:
+				return -1
+			case na < nb:
+				return 1
+			}
+			for k := 0; k < nKeys; k++ {
+				if c := strings.Compare(a[k], b[k]); c != 0 {
+					return c
+				}
+			}
+			return 0
+		})
+	},
+}
+
+// mgSorted stable-sorts "|"-joined rows by cmp over their parts.
+func mgSorted(rows []string, cmp func(a, b []string) int) []string {
+	out := append([]string(nil), rows...)
+	sort.SliceStable(out, func(i, j int) bool {
+		return cmp(strings.Split(out[i], "|"), strings.Split(out[j], "|")) < 0
+	})
+	return out
+}
+
+// want is the mode's expected rendering of the hand-computed rows.
+func (m mgMode) want(rows []string, nKeys int) []string {
+	if re := mgReorder[m.name]; re != nil {
+		return re(rows, nKeys)
+	}
+	return rows
 }
 
 // mgRequireStreamable fails unless predict routes req to the streaming
@@ -474,6 +591,9 @@ var mgModes = []mgMode{
 // a streaming mode cannot silently pass on the buffered arm.
 func mgRequireStreamable(t *testing.T, f *mgFixture, req *types.Request) {
 	t.Helper()
+	if len(req.Windows) > 0 || len(req.PostTests) > 0 {
+		return // windows and post-tests run over the post-aggregate rows: buffered by design
+	}
 	for _, g := range req.Groups {
 		if !g.Type.Streamable() {
 			return
@@ -681,8 +801,8 @@ func TestMultiGrouper_Gate(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Process: %v", err)
 				}
-				if got := mgRender(t, resp.Data, c.cols, "n"); !reflect.DeepEqual(got, c.want) {
-					t.Fatalf("rows\n got  %q\n want %q", got, c.want)
+				if got, want := mgRender(t, resp.Data, c.cols, "n"), mode.want(c.want, len(c.cols)); !reflect.DeepEqual(got, want) {
+					t.Fatalf("rows\n got  %q\n want %q", got, want)
 				}
 			})
 		}
@@ -871,8 +991,8 @@ func TestMultiGrouper_ExtensionGrouperFloorPerSlot(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := mgRender(t, resp.Data, []string{"tier", "sex"}, "n"); !reflect.DeepEqual(got, []string{"gold|F|4", "gold|M|5", "silver|F|7", "silver|M|7"}) {
-				t.Fatalf("rows %q", got)
+			if got, want := mgRender(t, resp.Data, []string{"tier", "sex"}, "n"), mode.want([]string{"gold|F|4", "gold|M|5", "silver|F|7", "silver|M|7"}, 2); !reflect.DeepEqual(got, want) {
+				t.Fatalf("rows %q, want %q", got, want)
 			}
 			if resp.Components == nil || len(resp.Components.Groupers) != 2 {
 				t.Fatalf("grouper entries: %+v", resp.Components)
@@ -1109,7 +1229,7 @@ func TestMultiGrouper_SeparatorInKeyRefused(t *testing.T) {
 			if err != nil {
 				t.Fatalf("single grouper refused: %v", err)
 			}
-			if len(resp.Data) != 2 || resp.Data[0]["sex"] != "F\x00x" {
+			if len(resp.Data) != 2 || (resp.Data[0]["sex"] != "F\x00x" && resp.Data[1]["sex"] != "F\x00x") {
 				t.Fatalf("single grouper rows %v", resp.Data)
 			}
 		})
@@ -1371,5 +1491,179 @@ func TestMultiGrouper_ChainFiltersOnInnerKeyColumn(t *testing.T) {
 	}
 	if got, want := mgRender(t, out.Final.Data, []string{"region"}, "n"), []string{"north|5", "south|6", "west|5"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("stage 1 rows %q, want %q", got, want)
+	}
+}
+
+// TestMultiGrouper_WindowsAndPostTestsOverCompositeRows: windows and
+// post-tests run over the composite rows in every mode. A WIN_LAG
+// partitioned by the OUTER key column and ordered by the inner one
+// lags within each region (F has no prior; M's prior is its region's F
+// count), and a TEST_PEARSON_R post-test over the six (region, sex)
+// rows correlates their counts with their id sums — both hand-computed
+// from mgRows. (ProcessStream's row iterator carries no post-tests.)
+func TestMultiGrouper_WindowsAndPostTestsOverCompositeRows(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	// (region, sex) → the count's lag within region, ordered by sex.
+	wantPrev := map[string]any{
+		"north|F": nil, "north|M": 7.0,
+		"south|F": nil, "south|M": 4.0,
+		"west|F": nil, "west|M": 3.0,
+	}
+	// n = 7 5 4 6 3 5, s = Σid = 28 50 58 117 72 140 (Data order).
+	const wantR, wantCov = -0.09622133710751231, -5.8
+	for _, mode := range mgModes {
+		t.Run(mode.name, func(t *testing.T) {
+			req := mgRequest(f, []*types.Group{mgRegion(), mgSex()},
+				&types.Aggregation{Type: types.AGG_COUNT, Field: "id", Label: "n"},
+				&types.Aggregation{Type: types.AGG_SUM, Field: "id", Label: "s"})
+			req.Windows = []*types.Window{{Type: types.WIN_LAG, Field: "n", Label: "prev",
+				PartitionBy: []string{"region"}, OrderBy: []types.OrderKey{{Field: "sex"}}}}
+			req.PostTests = []*types.Test{{Type: types.TEST_PEARSON_R, Field: "n", Field2: "s", Label: "r"}}
+			if !mode.admitsRequest(req) {
+				t.Skip("mode admits mergeable stages only")
+			}
+			resp, err := mode.run(t, f, req)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			if len(resp.Data) != len(wantPrev) {
+				t.Fatalf("%d rows, want %d: %v", len(resp.Data), len(wantPrev), resp.Data)
+			}
+			for _, row := range resp.Data {
+				key := fmt.Sprint(row["region"]) + "|" + fmt.Sprint(row["sex"])
+				want, ok := wantPrev[key]
+				if !ok {
+					t.Fatalf("unexpected row %v", row)
+				}
+				got, has := row["prev"]
+				if !has {
+					t.Fatalf("row %s carries no window column: %v", key, row)
+				}
+				if want == nil {
+					if got != nil {
+						t.Errorf("prev(%s) = %v, want null (first in its region)", key, got)
+					}
+				} else if fmt.Sprint(got) != fmt.Sprint(want) {
+					t.Errorf("prev(%s) = %v, want %v", key, got, want)
+				}
+			}
+			if mode.name == "ProcessStream" {
+				return
+			}
+			if len(resp.PostTests) != 1 || resp.PostTests[0] == nil {
+				t.Fatalf("post-tests %+v, want one result", resp.PostTests)
+			}
+			r := resp.PostTests[0]
+			if math.Abs(r.Statistic-wantR) > 1e-12 {
+				t.Errorf("pearson r = %v, want %v", r.Statistic, wantR)
+			}
+			if n := r.Details["n"]; fmt.Sprint(n) != "6" {
+				t.Errorf("post-test n = %v, want the 6 composite rows", n)
+			}
+			if cov, _ := r.Details["covariance"].(float64); math.Abs(cov-wantCov) > 1e-12 {
+				t.Errorf("covariance = %v, want %v", r.Details["covariance"], wantCov)
+			}
+		})
+	}
+}
+
+// TestMultiGrouper_ReturnKeyColumns: `return` include / exclude name
+// each grouper's key column. Excluding the inner key column prunes it
+// from every row and nothing else (the six combinations stay distinct
+// rows and Components keep the full tuple); naming a column no grouper
+// writes is refused PULSE_RETURN_PATH_UNKNOWN by runtime and predict
+// alike, while the inner key column is accepted.
+func TestMultiGrouper_ReturnKeyColumns(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	ctx := context.Background()
+
+	req := mgRequest(f, []*types.Group{mgRegion(), mgSex()})
+	req.Return = &types.Return{Exclude: []string{"data[*].sex"}}
+	resp, err := f.p.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if got, want := mgRender(t, resp.Data, []string{"region"}, "n"), []string{"north|7", "north|5", "south|4", "south|6", "west|3", "west|5"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("rows %q, want %q", got, want)
+	}
+	for i, row := range resp.Data {
+		if _, ok := row["sex"]; ok {
+			t.Errorf("Data[%d] still carries the excluded key column: %v", i, row)
+		}
+	}
+	groups := resp.Components.Aggregations[0].Groups
+	for i, sex := range []string{"F", "M", "F", "M", "F", "M"} {
+		if want := (types.AxisKey{resp.Data[i]["region"], sex}); !reflect.DeepEqual(groups[i].GroupKey, want) {
+			t.Errorf("groups[%d].group_key = %v, want %v", i, groups[i].GroupKey, want)
+		}
+	}
+
+	for _, c := range []struct {
+		col     string
+		refused bool
+	}{{"sex", false}, {"tier", true}} {
+		req := mgRequest(f, []*types.Group{mgRegion(), mgSex()})
+		req.Return = &types.Return{Include: []string{"data[*].region", "data[*]." + c.col, "data[*].n"}}
+		_, err := f.p.Process(ctx, req)
+		env := predictEnvelope(t, f.p, f.fs, f.cohort, req)
+		if !c.refused {
+			if err != nil || len(env.Errors) > 0 {
+				t.Errorf("include %s: runtime %v, predict %+v; want accepted", c.col, err, env.Errors)
+			}
+			continue
+		}
+		requireCodedError(t, err, perr.PULSE_RETURN_PATH_UNKNOWN)
+		if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_RETURN_PATH_UNKNOWN) {
+			t.Errorf("include %s: predict errors %+v, want PULSE_RETURN_PATH_UNKNOWN", c.col, env.Errors)
+		}
+	}
+}
+
+// TestMultiGrouper_YoYRefused: OVERLAY_YOY assumes its host series is
+// one date axis; over two or more groupers it is the composite rows, so
+// the request is refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE by
+// predict and by every runtime mode — wherever GROUP_DATE sits — rather
+// than folded over interleaved rows (U46 #429 owns the semantics). The
+// same overlay over the date grouper alone runs.
+func TestMultiGrouper_YoYRefused(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	yoy := func(groups ...*types.Group) *types.Request {
+		req := mgRequest(f, groups)
+		req.Overlays = []types.OverlaySpec{{
+			Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup,
+			Ref:    types.OverlayRef{YoY: &types.OverlayYoYRef{}},
+			Params: json.RawMessage(`{"frequency": "monthly"}`),
+		}}
+		return req
+	}
+	if env := predictEnvelope(t, f.p, f.fs, f.cohort, yoy(mgDay())); len(env.Errors) > 0 {
+		t.Fatalf("one GROUP_DATE grouper: predict %+v", env.Errors)
+	}
+	if _, err := f.p.Process(context.Background(), yoy(mgDay())); err != nil {
+		t.Fatalf("one GROUP_DATE grouper: %v", err)
+	}
+	for name, groups := range map[string]func() []*types.Group{
+		"date outer": func() []*types.Group { return []*types.Group{mgDay(), mgSex()} },
+		"date inner": func() []*types.Group { return []*types.Group{mgSex(), mgDay()} },
+	} {
+		env := predictEnvelope(t, f.p, f.fs, f.cohort, yoy(groups()...))
+		if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+			t.Errorf("%s: predict errors %+v, want PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", name, env.Errors)
+		}
+		for _, mode := range mgModes {
+			t.Run(mode.name+"/"+name, func(t *testing.T) {
+				if !mode.admits(groups()) {
+					t.Skip("mode admits mergeable groupers only")
+				}
+				resp, err := mode.run(t, f, yoy(groups()...))
+				if resp != nil && len(resp.Overlays) > 0 {
+					t.Fatalf("a YoY layer over composite rows: %+v", resp.Overlays)
+				}
+				ce := requireCodedError(t, err, perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
+				if ce.Details["groupers"] != 2 {
+					t.Errorf("details = %v, want groupers 2", ce.Details)
+				}
+			})
+		}
 	}
 }

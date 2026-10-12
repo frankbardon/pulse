@@ -2296,6 +2296,11 @@ var codeMetadata = map[Code]Metadata{
 				Hint:     "Set Ref.Margin = {Axis: \"row\" | \"column\" | \"grand\"} for OVERLAY_INDEX_VS_MARGIN; add Request.Crosstab to provide a MATRIX host so the margin slot has a denominator.",
 				Examples: []any{"row", "column", "grand"},
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups"},
+				Hint:   "OVERLAY_YOY needs a host whose ONLY grouper is GROUP_DATE (details.groupers counts the groups sent): two or more groups give composite rows, not one date axis. Keep the GROUP_DATE grouper alone, and split the other key into a FILTER_INCLUDE per value or a Compose slot per value.",
+			},
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {

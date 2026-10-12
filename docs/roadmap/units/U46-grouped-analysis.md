@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U54]
 soft_depends_on: [U35]
 blocks: [U32]
-todo_items: [319, 320, 321, 322, 323, 395]
+todo_items: [319, 320, 321, 322, 323, 395, 428, 429]
 branch: grouped-analysis
 ---
 
@@ -42,6 +42,8 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [ ] **#321** (Grouped analysis) Grouped tests: `tests[]` run once per group when `groups` is set (or via an explicit `within`), with every group's p-value in one multiplicity family; until then predict warns when tests and groups coexist
 - [ ] **#322** (Grouped analysis) The series overlay payload matches its skill (`entries[i].value` present, or the skill corrected)
 - [ ] **#323** (Grouped analysis) Acceptance: the multi-time-zone warehouse × local-day screen, the A/B segment readout (12 slots), the privacy real-vs-twin comparison (14 slots) and the brand tracker's per-KPI wave deltas each become one request
+- [ ] **#428** (Grouped analysis) Crosstab refits a nested data-dependent grouper per outer bucket: `Processor.PartitionByAxis` calls `GROUP_QUANTILE`'s `Group` on each outer bucket's records (only `GROUP_KMEANS` is fitted once over the whole set via `fitWholeSetAxes`), so a crosstab axis `[region, quartile]` bins quartiles within each region while plain `groups` (U54) fit them once over the filtered set. Decide one rule (or expose both, e.g. a `within` knob) and align crosstab, fused crosstab and plain groups. Found in U54 (E1-S1, confirmed E2-S2)
+- [ ] **#429** (Grouped analysis) `OVERLAY_YOY` over two or more `groups`: the series host is the composite rows, not one date axis, so YoY is refused (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `details.groupers`) on predict and runtime. Give it per-partition semantics (prior-year lookup on the `GROUP_DATE` position within each combination of the other keys, sharing #320's `partition_by`) and lift the refusal. Deferred from U54 (E2-S2)
 
 ## Scope
 

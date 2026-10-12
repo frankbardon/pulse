@@ -368,3 +368,50 @@ func TestValidateOverlay_YoYLevelWithinRejected(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateOverlay_YoYMultiGrouperRefused: with two or more groupers
+// the SERIES host is the composite rows (U54), not one date axis, so
+// OVERLAY_YOY is refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// whatever position GROUP_DATE holds — never folded over interleaved
+// rows. Details name the grouper count. One GROUP_DATE grouper stays
+// accepted (TestValidateOverlay_YoYHappyPathAccepted).
+func TestValidateOverlay_YoYMultiGrouperRefused(t *testing.T) {
+	schema := overlayPredictSchema(t)
+	data := buildTestPulseFile(t, schema)
+	date := func() *types.Group { return &types.Group{Type: types.GROUP_DATE, Field: "order_date"} }
+	region := func() *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: "region"} }
+	for _, c := range []struct {
+		name   string
+		groups []*types.Group
+	}{
+		{"date outer", []*types.Group{date(), region()}},
+		{"date inner", []*types.Group{region(), date()}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			req := yoyHostReq()
+			req.Groups = c.groups
+			req.Overlays = []types.OverlaySpec{{
+				Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup,
+				Ref:    types.OverlayRef{YoY: &types.OverlayYoYRef{}},
+				Params: json.RawMessage(`{"frequency": "monthly"}`),
+			}}
+			env := predictFromBytes(data, req, nil)
+			var found bool
+			for _, e := range env.Errors {
+				if e.Code != string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+					continue
+				}
+				found = true
+				if got := e.Details["groupers"]; got != 2 {
+					t.Errorf("details.groupers = %v, want 2", got)
+				}
+				if got := e.Details["required"]; got != string(types.GROUP_DATE) {
+					t.Errorf("details.required = %v, want GROUP_DATE", got)
+				}
+			}
+			if !found {
+				t.Fatalf("no PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for a %d-grouper YoY host: %+v", len(c.groups), env.Errors)
+			}
+		})
+	}
+}

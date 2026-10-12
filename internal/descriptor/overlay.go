@@ -2027,10 +2027,29 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 		return
 	}
 
-	// First grouper MUST be GROUP_DATE. The YoY kind cannot resolve
+	// Exactly one grouper. With two or more, the SERIES host is the
+	// composite rows (one per observed key combination, U54), not one
+	// date axis, so "the same period one year prior" has no single
+	// ordinal stride. Per-partition YoY semantics belong to U46 (#429);
+	// until then the request is refused, never folded over the
+	// interleaved rows. Mirrored at runtime by processing.applyYoY.
+	if len(req.Groups) > 1 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a SERIES host with exactly one grouper (GROUP_DATE); got "+strconv.Itoa(len(req.Groups))+" groupers",
+			map[string]any{
+				"index":    index,
+				"kind":     string(spec.Kind),
+				"groupers": len(req.Groups),
+				"required": string(types.GROUP_DATE),
+			})
+		return
+	}
+
+	// The only grouper MUST be GROUP_DATE. The YoY kind cannot resolve
 	// "same period one year prior" semantics against non-DATE groupers.
 	// A GROUP_DATE the instance hides is not GROUP_DATE here; the
-	// message keeps naming the authored type.
+	// message keeps naming the authored type. len(req.Groups) == 1
+	// here, so Groups[0] is the whole grouper list.
 	if g := req.Groups[0]; g == nil || opRoute(inst, g.Type) != types.GROUP_DATE {
 		actual := ""
 		if g != nil {
