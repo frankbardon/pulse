@@ -1069,7 +1069,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// cell-row view; for shape=long the cell rows are already
 	// addressable as the non-margin subset of resp.Data.
 	postRows := buildCellRowsForPostTest(spec, rowPart, colPart, cellValues, cellPresent, cellLabel)
-	postResults, err := p.runPostTests(req.PostTests, postRows)
+	postResults, _, err := p.runPostTests(req.PostTests, nil, postRows)
 	if err != nil {
 		return nil, err
 	}

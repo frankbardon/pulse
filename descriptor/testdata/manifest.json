@@ -6631,6 +6631,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6655,6 +6661,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6679,6 +6691,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6704,6 +6722,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6728,6 +6752,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6753,6 +6783,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6778,6 +6814,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6802,6 +6844,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6825,6 +6873,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6849,6 +6903,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6885,6 +6945,12 @@
             "type": "float",
             "required": true,
             "description": "Within-group degrees of freedom from a prior ANOVA aggregate."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -6909,6 +6975,12 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise."
           }
         ],
         "requires": [
@@ -8858,7 +8930,7 @@
         ]
       }
     ],
-    "error_codes_count": 349,
+    "error_codes_count": 350,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9184,6 +9256,7 @@
       "PULSE_TEST_INSUFFICIENT_N",
       "PULSE_TEST_INVALID_ALPHA",
       "PULSE_TEST_PAIRED_LENGTH_MISMATCH",
+      "PULSE_TEST_PARTITION_INVALID",
       "PULSE_TEST_SHAPIRO_N_BOUND",
       "PULSE_TEST_SPLIT_GROUPS_LT_2",
       "PULSE_TEST_SUBJECT_MISSING",
@@ -16332,4 +16405,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e59c9bf130c3b21f2d7e5d6547410c0693c0882de0b4e63628e098e2dd6d2a16
+// golden-hash: 63c7c6a31f5f356c789fa48b318895809f1b19fd7f4ad2b6e8f6134da61a8453

@@ -2467,6 +2467,7 @@ pulse/errors: const PULSE_TEST_FISHER_R_OR_C_GT_2 pulse/errors.Code = "PULSE_TES
 pulse/errors: const PULSE_TEST_INSUFFICIENT_N pulse/errors.Code = "PULSE_TEST_INSUFFICIENT_N"
 pulse/errors: const PULSE_TEST_INVALID_ALPHA pulse/errors.Code = "PULSE_TEST_INVALID_ALPHA"
 pulse/errors: const PULSE_TEST_PAIRED_LENGTH_MISMATCH pulse/errors.Code = "PULSE_TEST_PAIRED_LENGTH_MISMATCH"
+pulse/errors: const PULSE_TEST_PARTITION_INVALID pulse/errors.Code = "PULSE_TEST_PARTITION_INVALID"
 pulse/errors: const PULSE_TEST_SHAPIRO_N_BOUND pulse/errors.Code = "PULSE_TEST_SHAPIRO_N_BOUND"
 pulse/errors: const PULSE_TEST_SPLIT_GROUPS_LT_2 pulse/errors.Code = "PULSE_TEST_SPLIT_GROUPS_LT_2"
 pulse/errors: const PULSE_TEST_SUBJECT_MISSING pulse/errors.Code = "PULSE_TEST_SUBJECT_MISSING"
@@ -3932,6 +3933,7 @@ pulse/types: func AllVectorKinds() []pulse/types.VectorKind
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
 pulse/types: type AppliedMultiplicity struct
 pulse/types: type AppliedMultiplicity field Alpha float64 "json:\"alpha\""
+pulse/types: type AppliedMultiplicity field Excluded int "json:\"excluded,omitempty\""
 pulse/types: type AppliedMultiplicity field Family pulse/types.MultiplicityFamily "json:\"family\""
 pulse/types: type AppliedMultiplicity field M int "json:\"m\""
 pulse/types: type AppliedMultiplicity field MPer []int "json:\"m_per,omitempty\""
@@ -4940,4 +4942,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9934f0c54de37550ae872b3e9d1568228376086f2aa1ba2596629f713c667b82
+// golden-hash: 19d0dc67619cae44e1d16fcf3968d20395c347d821f66733dac139b34ca54837

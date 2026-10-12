@@ -221,14 +221,31 @@ under the refusal's code naming its `group_key`. An ungrouped response
 carries no `group_key` and is byte-identical; `format_version` stays
 `"1.1"`.
 
+With two or more groupers every `post_tests[]` entry likewise runs once
+per partition of the result rows — the rows sharing the leading group
+key columns, every key but the last by default, or the leading prefix
+its `params.partition_by` names (`[]` = one run over every row) — and
+`post_tests[]` is flat: post-tests x partitions, test-major, partitions
+in first-appearance `data` order, each result's `group_key` the
+partition key (one element per partition column). Every post-test of a
+request partitions alike (`PULSE_TEST_PARTITION_INVALID` otherwise), so
+entry k belongs to request `post_tests[k / partitions]`. One grouper,
+`partition_by: []` and a crosstab host never partition: one result per
+post-test, no `group_key`, byte-identical.
+
 When a correction runs, each corrected `TestResult` (in `tests[]` and
 `post_tests[]`) gains three additive `omitempty` keys BESIDE its raw
 `p_value` / `reject_null`, which never change: `p_adjusted` (number, or
 `null` when the raw p is undefined — such a p is left out of the family
 size), `significant_adjusted` (`p_adjusted` < the test's own `alpha`;
 absent when `p_adjusted` is null) and `multiplicity`
-(`#/$defs/AppliedMultiplicity` `{method, family, alpha, m}`, `m` the
-number of defined p-values corrected together). Each test contributes
+(`#/$defs/AppliedMultiplicity` `{method, family, alpha, m, excluded}`,
+`m` the number of defined p-values corrected together, `excluded`
+(integer, `omitempty`) the family's members left out of `m` because their
+p is undefined — a sparse group or partition; absent when 0, and summed
+over the families of a `row` / `column` echo like `m`). Every
+(test x group) and (post-test x partition) result joins its slot's
+family, so a `request` family pools them all. Each test contributes
 one headline p; the Tukey HSD post-test never joins a family. No block,
 or a method resolving to `none`, emits none of them — the response is
 byte-identical. On an instance that hides `capability:multiplicity` the

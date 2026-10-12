@@ -146,11 +146,16 @@ func (e *explainer) readResponse(rr *responseReader, resp *types.Response, req *
 			continue
 		}
 		n++
+		// A partitioned request holds one result per (post-test x
+		// partition), test-major: the slot is groupedtests.SpecIndex's.
+		slot := i
 		var spec *types.Test
-		if req != nil && i < len(req.PostTests) {
-			spec = req.PostTests[i]
+		if req != nil {
+			if si := groupedtests.SpecIndex(i, len(req.PostTests), len(resp.PostTests)); si >= 0 {
+				slot, spec = si, req.PostTests[si]
+			}
 		}
-		e.testFinding(rr, rolePostTest, i+1, t, spec)
+		e.testFinding(rr, rolePostTest, slot+1, t, spec)
 	}
 	if n > 0 {
 		parts = append(parts, count(n, "post-test", "post-tests"))

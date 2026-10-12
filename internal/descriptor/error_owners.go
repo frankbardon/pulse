@@ -233,6 +233,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEST_INSUFFICIENT_N:           ownAllTests,
 	errors.PULSE_TEST_VARIANCE_ZERO:            ownAllTests,
 	errors.PULSE_TEST_SPLIT_GROUPS_LT_2:        ownAllTests,
+	errors.PULSE_TEST_PARTITION_INVALID:        ownAllTests,
 	errors.PULSE_TEST_CONTINGENCY_DEGENERATE:   ownChiSq,
 	errors.PULSE_TEST_EXPECTED_COUNT_TOO_LOW:   ownChiSq,
 	errors.PULSE_TEST_FIELD2_NOT_NUMERIC:       own("TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU", "TEST_PAIRED_T", "TEST_WILCOXON_SR"),

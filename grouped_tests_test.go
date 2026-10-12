@@ -465,10 +465,10 @@ func TestGroupedTests_LimitsCountTestsTimesGroups(t *testing.T) {
 	}
 }
 
-// TestGroupedTests_MultiplicityPoolsEveryGroup: until E3-S2 widens the
-// plan, a grouped test's results pair with their slot by
-// groupedtests.SpecIndex, so a `request` family pools every (test x
-// group) p-value, the sparse group's undefined p left out of m.
+// TestGroupedTests_MultiplicityPoolsEveryGroup: a grouped test's results
+// pair with their slot by groupedtests.SpecIndex, so a `request` family
+// pools every (test x group) p-value, the sparse group's undefined p
+// left out of m and counted in `excluded`.
 func TestGroupedTests_MultiplicityPoolsEveryGroup(t *testing.T) {
 	f := newMGFixture(t, pulse.Options{})
 	req := mgRequest(f, []*types.Group{mgRegion(), mgTier()})
@@ -491,8 +491,8 @@ func TestGroupedTests_MultiplicityPoolsEveryGroup(t *testing.T) {
 		if r.Multiplicity == nil || r.PAdjusted == nil {
 			t.Fatalf("tests[%d] (%v) uncorrected", k, r.GroupKey)
 		}
-		if r.Multiplicity.M != defined {
-			t.Fatalf("tests[%d] m = %d, want every defined (test x group) p = %d", k, r.Multiplicity.M, defined)
+		if r.Multiplicity.M != defined || r.Multiplicity.Excluded != len(resp.Tests)-defined {
+			t.Fatalf("tests[%d] m = %d excluded = %d, want every defined (test x group) p = %d, %d excluded", k, r.Multiplicity.M, r.Multiplicity.Excluded, defined, len(resp.Tests)-defined)
 		}
 	}
 }

@@ -141,15 +141,49 @@ func KeyColumns(groups []*types.Group) []string {
 // Params that do not decode as a JSON object carry no partition_by;
 // the kind's own params gate owns that refusal.
 func Depth(groups []*types.Group, spec *types.OverlaySpec, index int) (int, error) {
+	var params json.RawMessage
+	var kind types.OverlayKind
+	if spec != nil {
+		params, kind = spec.Params, spec.Kind
+	}
+	depth, r := PrefixDepth(groups, params)
+	if r != nil {
+		return 0, refusal(kind, index, r.Given, r.Columns, r.Reason, r.Field, r.Why, prefixFix)
+	}
+	return depth, nil
+}
+
+// PrefixRefusal is why PrefixDepth refused a partition_by: the value
+// given (the decoded list, or the raw value when it is not a string
+// list), the group key columns in order, the reason ("not_string_list",
+// "unknown_field", "not_prefix"), the offending column (empty for
+// not_string_list) and a one-clause explanation. Each caller wraps it
+// in its own coded error (Depth: PULSE_OVERLAY_PARTITION_INVALID; the
+// post-test reading in internal/groupedtests: PULSE_TEST_PARTITION_INVALID).
+type PrefixRefusal struct {
+	Given   any
+	Columns []string
+	Reason  string
+	Field   string
+	Why     string
+}
+
+// PrefixDepth is the prefix rule over raw Params, shared by every slot
+// that partitions a grouped host by a leading key prefix (series
+// overlays, post-tests): the implicit default len(groups)-1 (0 for zero
+// or one grouper) when params carries no (or a null) partition_by or
+// does not decode as a JSON object, else the length of the explicit
+// list, which must be a leading prefix of KeyColumns(groups).
+func PrefixDepth(groups []*types.Group, params json.RawMessage) (int, *PrefixRefusal) {
 	implicit := 0
 	if len(groups) > 1 {
 		implicit = len(groups) - 1
 	}
-	if spec == nil || len(spec.Params) == 0 {
+	if len(params) == 0 {
 		return implicit, nil
 	}
 	var m map[string]json.RawMessage
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
+	if err := json.Unmarshal(params, &m); err != nil {
 		return implicit, nil
 	}
 	raw, present := m[Param]
@@ -161,8 +195,8 @@ func Depth(groups []*types.Group, spec *types.OverlaySpec, index int) (int, erro
 	if err := json.Unmarshal(raw, &names); err != nil {
 		var given any
 		_ = json.Unmarshal(raw, &given)
-		return 0, refusal(spec.Kind, index, given, cols, "not_string_list", "",
-			"params.partition_by must be a list of group key columns", prefixFix)
+		return 0, &PrefixRefusal{Given: given, Columns: cols, Reason: "not_string_list",
+			Why: "params.partition_by must be a list of group key columns"}
 	}
 	for i, name := range names {
 		known := false
@@ -173,15 +207,41 @@ func Depth(groups []*types.Group, spec *types.OverlaySpec, index int) (int, erro
 			}
 		}
 		if !known {
-			return 0, refusal(spec.Kind, index, names, cols, "unknown_field", name,
-				"params.partition_by names \""+name+"\", which is not a group key column", prefixFix)
+			return 0, &PrefixRefusal{Given: names, Columns: cols, Reason: "unknown_field", Field: name,
+				Why: "params.partition_by names \"" + name + "\", which is not a group key column"}
 		}
 		if i >= len(cols) || cols[i] != name {
-			return 0, refusal(spec.Kind, index, names, cols, "not_prefix", name,
-				"params.partition_by must be a leading prefix of the group key columns; \""+name+"\" is out of place", prefixFix)
+			return 0, &PrefixRefusal{Given: names, Columns: cols, Reason: "not_prefix", Field: name,
+				Why: "params.partition_by must be a leading prefix of the group key columns; \"" + name + "\" is out of place"}
 		}
 	}
 	return len(names), nil
+}
+
+// WithoutParam returns params with the partition_by key removed — what
+// a slot's own operator decodes once the partition is read off. Params
+// that carry no partition_by, or do not decode as a JSON object, come
+// back unchanged; an object left empty comes back nil.
+func WithoutParam(params json.RawMessage) json.RawMessage {
+	if len(params) == 0 {
+		return params
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(params, &m); err != nil {
+		return params
+	}
+	if _, ok := m[Param]; !ok {
+		return params
+	}
+	delete(m, Param)
+	if len(m) == 0 {
+		return nil
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return params
+	}
+	return out
 }
 
 // prefixFix / yoyFix close a PULSE_OVERLAY_PARTITION_INVALID message

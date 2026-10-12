@@ -67,6 +67,13 @@ func validateTests(env *descriptor.Envelope, req *types.Request, schema *encodin
 	for _, t := range req.PostTests {
 		validateOneTest(env, t, schema, projected, false /*tier1*/, opts)
 	}
+	// A grouped request runs every post-test once per partition (every
+	// key but the last by default): a partition_by off the prefix rule,
+	// post-tests at mixed depths, or a split on a partition key column is
+	// refused — the runtime's refusal (groupedtests.PostTestDepth).
+	if _, err := groupedtests.PostTestDepth(req.PostTests, req.Groups); err != nil {
+		env.AddError(string(err.Code), err.Message, err.Details)
+	}
 }
 
 func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool, opts *PredictOptions) {

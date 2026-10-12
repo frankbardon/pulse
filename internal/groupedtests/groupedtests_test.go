@@ -1,6 +1,7 @@
 package groupedtests
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -51,5 +52,60 @@ func TestSplitRefusal(t *testing.T) {
 				t.Fatalf("got %v (%v), want %s on %s", err, err, c.code, c.slot)
 			}
 		})
+	}
+}
+
+// PostTestDepth: the prefix rule per post-test, one depth per request,
+// and a split on a partition key column refused.
+func TestPostTestDepth(t *testing.T) {
+	g := func(field string) *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: field} }
+	two := []*types.Group{g("warehouse"), g("week")}
+	pt := func(params, split string) *types.Test {
+		return &types.Test{Type: types.TEST_TREND, Field: "n", SplitBy: split, Params: json.RawMessage(params)}
+	}
+	cases := []struct {
+		name   string
+		tests  []*types.Test
+		groups []*types.Group
+		depth  int
+		code   errors.Code
+		reason string
+	}{
+		{"ungrouped", []*types.Test{pt("", "")}, nil, 0, "", ""},
+		{"one grouper", []*types.Test{pt("", "")}, two[:1], 0, "", ""},
+		{"implicit", []*types.Test{pt("", ""), pt(`{"variant":"mann_kendall"}`, "")}, two, 1, "", ""},
+		{"explicit none", []*types.Test{pt(`{"partition_by":[]}`, "")}, two, 0, "", ""},
+		{"nil entry skipped", []*types.Test{nil, pt("", "")}, two, 1, "", ""},
+		{"not prefix", []*types.Test{pt(`{"partition_by":["week"]}`, "")}, two, 0, errors.PULSE_TEST_PARTITION_INVALID, "not_prefix"},
+		{"ungrouped names a column", []*types.Test{pt(`{"partition_by":["week"]}`, "")}, nil, 0, errors.PULSE_TEST_PARTITION_INVALID, "unknown_field"},
+		{"mixed", []*types.Test{pt("", ""), pt(`{"partition_by":[]}`, "")}, two, 0, errors.PULSE_TEST_PARTITION_INVALID, ReasonMixedDepth},
+		{"split on partition key", []*types.Test{pt("", "warehouse")}, two, 0, errors.PULSE_TEST_SPLIT_GROUPS_LT_2, ReasonSplitIsPartitionKey},
+		{"split on series key", []*types.Test{pt("", "week")}, two, 1, "", ""},
+		{"split with no partition", []*types.Test{pt(`{"partition_by":[]}`, "warehouse")}, two, 0, "", ""},
+	}
+	for _, c := range cases {
+		depth, err := PostTestDepth(c.tests, c.groups)
+		switch {
+		case c.code == "" && (err != nil || depth != c.depth):
+			t.Errorf("%s: (%d, %v), want depth %d", c.name, depth, err, c.depth)
+		case c.code != "" && (err == nil || err.Code != c.code || err.Details["reason"] != c.reason):
+			t.Errorf("%s: %v, want %s %s", c.name, err, c.code, c.reason)
+		}
+	}
+}
+
+// WithoutPartition strips only partition_by, never mutating the spec.
+func TestWithoutPartition(t *testing.T) {
+	in := &types.Test{Type: types.TEST_TREND, Params: json.RawMessage(`{"partition_by":[],"variant":"mann_kendall"}`)}
+	out := WithoutPartition(in)
+	if string(out.Params) != `{"variant":"mann_kendall"}` || string(in.Params) != `{"partition_by":[],"variant":"mann_kendall"}` {
+		t.Fatalf("stripped %s, original %s", out.Params, in.Params)
+	}
+	if got := WithoutPartition(&types.Test{Params: json.RawMessage(`{"partition_by":["a"]}`)}); got.Params != nil {
+		t.Fatalf("lone partition_by left %s", got.Params)
+	}
+	keep := &types.Test{Params: json.RawMessage(`{"variant":"x"}`)}
+	if WithoutPartition(keep) != keep {
+		t.Fatal("a spec without partition_by was copied")
 	}
 }

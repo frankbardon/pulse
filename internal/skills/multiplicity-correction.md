@@ -27,7 +27,7 @@ It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` 
 |---|---|---|
 | `layer` | one overlay layer | overlays (default) |
 | `row` / `column` | one row / column of one layer's matrix | overlays whose payload is a MATRIX |
-| `request` | the request's tests, post-tests and `request`-family overlays | request tests (default), request overlays |
+| `request` | the request's tests (one per test × group), post-tests (one per post-test × partition) and `request`-family overlays | request tests (default), request overlays |
 | `compose` | every `compose` member over all slots and Compose-host layers | inside Compose only |
 
 Refused `PULSE_MULTIPLICITY_INVALID`: `row` / `column` on a non-matrix kind, `compose` outside Compose, `request` on a Compose-host overlay, anything but `layer` / `row` / `column` on a facet overlay, `alpha` on a test. An INHERITED family a surface does not offer falls back to that surface's default; only an explicit one is refused. Members of one `request` / `compose` family resolving to different methods are `PULSE_MULTIPLICITY_CONFLICT`. An explicit block on a descriptive overlay is accepted and inert.
@@ -36,11 +36,11 @@ Refused `PULSE_MULTIPLICITY_INVALID`: `row` / `column` on a non-matrix kind, `co
 
 ## Outputs (all additive)
 
-- Test result: `p_adjusted`, `significant_adjusted` (against the test's own `alpha`) and `multiplicity {method, family, alpha, m}`; `m` is the number of defined p-values corrected together.
+- Test result: `p_adjusted`, `significant_adjusted` (against the test's own `alpha`) and `multiplicity {method, family, alpha, m, excluded}`; `m` is the number of defined p-values corrected together, `excluded` the members left out for an undefined p (a sparse group; absent when 0).
 - Overlay summary: `p_adjusted` / `significant_adjusted` beside `p_value` (or the `statistic` the t / z-versus-reference kinds carry their p in).
 - Overlay matrix payload: parallel `payload.p_adjusted` / `payload.significant_adjusted` grids on identical headers and coordinates; a panel cell's vector maps element for element.
 - Overlay layer: a `multiplicity` echo, present only when a correction ran.
-- An undefined p (NaN) gives `p_adjusted: null`, no `significant_adjusted`, and is left out of `m`.
+- An undefined p (NaN) gives `p_adjusted: null`, no `significant_adjusted`, and is left out of `m` (counted in `excluded`).
 
 ## Row and column geometry
 

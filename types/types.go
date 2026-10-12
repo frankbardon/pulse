@@ -893,8 +893,12 @@ type TestResult struct {
 	// the request is grouped: one result per (test x composite group
 	// key), test-major, groups in the final Response.Data row order —
 	// the per-grouper tuple of the bucket's Data row (one element for a
-	// single grouper), the MatrixResult.GroupKey shape. Omitted on an
-	// ungrouped request, which stays byte-identical.
+	// single grouper), the MatrixResult.GroupKey shape. On a post-test
+	// over two or more groupers it is the PARTITION key — the leading
+	// partition_by key columns' values (every key but the last by
+	// default) — one result per (post-test x partition), test-major,
+	// partitions in first-appearance Data order. Omitted on an ungrouped
+	// (or unpartitioned) request, which stays byte-identical.
 	GroupKey AxisKey `json:"group_key,omitempty"`
 
 	// Variant names the specific algorithm when a test supports more than

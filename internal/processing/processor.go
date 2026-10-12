@@ -763,7 +763,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	if err != nil {
 		return nil, err
 	}
-	postResults, err := p.runPostTests(req.PostTests, data)
+	postResults, _, err := p.runPostTests(req.PostTests, req.Groups, data)
 	if err != nil {
 		return nil, err
 	}
@@ -1154,8 +1154,8 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		FilterCounters: filterCounters,
 		Matrices:       matrices,
 		Compute:        p.compute,
-		PostTests: func(rows []map[string]any) ([]*types.TestResult, error) {
-			return p.runPostTests(req.PostTests, rows)
+		PostTests: func(rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
+			return p.runPostTests(req.PostTests, req.Groups, rows)
 		},
 		Extensions: p.exts,
 	})
@@ -1442,7 +1442,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		data = []map[string]any{row}
 	}
 
-	postResults, err := p.runPostTests(req.PostTests, data)
+	postResults, _, err := p.runPostTests(req.PostTests, req.Groups, data)
 	if err != nil {
 		return nil, err
 	}
@@ -1773,10 +1773,11 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			return nil, err
 		}
 	}
-	postResults, err := p.runPostTests(req.PostTests, data)
+	postResults, postWarnings, err := p.runPostTests(req.PostTests, req.Groups, data)
 	if err != nil {
 		return nil, err
 	}
+	attrWarnings = append(attrWarnings, postWarnings...)
 	if recordRows {
 		finalizeRowCells(data)
 	}

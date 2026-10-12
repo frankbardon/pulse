@@ -141,7 +141,7 @@ func (g *groupedRowTests) finalize(keys []string) ([]*types.TestResult, []rowTes
 				if !stderrors.As(err, &coded) || !sparseTestCodes[coded.Code] {
 					return nil, nil, nil, err
 				}
-				res, warn := sparseGroupResult(e, coded)
+				res, warn := sparseTestResult(e.spec, e.label, e.idx, e.groupKey, coded, "group")
 				out[pl.idx*len(keys)+k] = res
 				warns = append(warns, warn)
 				continue
@@ -158,30 +158,31 @@ func (g *groupedRowTests) finalize(keys []string) ([]*types.TestResult, []rowTes
 	return out, entries, warns, nil
 }
 
-// sparseGroupResult is the result and warning of one group whose data
-// the test refused with a sparse code: null statistic and p_value
-// (never reject_null), the test's alpha, the refusal's message as a
-// per-test warning; the Response warning carries the code, the
+// sparseTestResult is the result and warning of one group (a tier-1
+// bucket, unit "group") or partition (a post-test's, unit "partition")
+// whose data the test refused with a sparse code: null statistic and
+// p_value (never reject_null), the test's alpha, the refusal's message
+// as a per-test warning; the Response warning carries the code, the
 // refusal's own Details plus {test, type, index, group_key}.
-func sparseGroupResult(e rowTestEntry, coded *errors.CodedError) (*types.TestResult, *types.ResponseWarning) {
-	alpha := e.spec.Alpha
+func sparseTestResult(spec *types.Test, label string, idx int, groupKey types.AxisKey, coded *errors.CodedError, unit string) (*types.TestResult, *types.ResponseWarning) {
+	alpha := spec.Alpha
 	if alpha == 0 {
 		alpha = 0.05
 	}
-	msg := fmt.Sprintf("%s in group %v: %s; its statistic and p_value are null and the other groups proceed",
-		e.label, []any(e.groupKey), coded.Message)
+	msg := fmt.Sprintf("%s in %s %v: %s; its statistic and p_value are null and the other %ss proceed",
+		label, unit, []any(groupKey), coded.Message, unit)
 	details := make(map[string]any, len(coded.Details)+4)
 	for k, v := range coded.Details {
 		details[k] = v
 	}
-	details["test"] = e.label
-	details["type"] = string(e.spec.Type)
-	details["index"] = e.idx
-	details["group_key"] = e.groupKey
+	details["test"] = label
+	details["type"] = string(spec.Type)
+	details["index"] = idx
+	details["group_key"] = groupKey
 	res := &types.TestResult{
-		Label:     e.label,
-		Type:      e.spec.Type,
-		GroupKey:  e.groupKey,
+		Label:     label,
+		Type:      spec.Type,
+		GroupKey:  groupKey,
 		Statistic: math.NaN(),
 		PValue:    math.NaN(),
 		Alpha:     alpha,

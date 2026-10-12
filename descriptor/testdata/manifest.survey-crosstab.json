@@ -748,7 +748,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 170,
+    "error_codes_count": 171,
     "error_domains": [
       "CLI",
       "DATA",
@@ -919,6 +919,7 @@
       "PULSE_TEST_FIELD_NOT_NUMERIC",
       "PULSE_TEST_INSUFFICIENT_N",
       "PULSE_TEST_INVALID_ALPHA",
+      "PULSE_TEST_PARTITION_INVALID",
       "PULSE_TEST_SPLIT_GROUPS_LT_2",
       "PULSE_TEST_TIES_DOMINATE",
       "PULSE_TEST_UNKNOWN_TYPE",
@@ -2242,4 +2243,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ca66795e1e0b367f9fead715183c60616979ab252ed8228c64e12e9c31929ea8
+// golden-hash: d43dd0b0999a6923a53d0f19962bb2b02f5aca46bca0be1349744c5c689e71e6

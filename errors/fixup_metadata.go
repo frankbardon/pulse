@@ -1143,8 +1143,24 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEST_PARTITION_INVALID: {
+		Message: "A post-test's partition on a grouped request cannot be read. With two or more groupers every post_tests entry runs once per partition — the result rows sharing the leading group keys, every key but the last by default — so a trend runs down the last grouper within each segment. params.partition_by must be a leading prefix of the group key columns ([] means no partition: one run over every row), and every post-test of one request must partition alike, because Response.PostTests is one flat post-tests x partitions list. Raised at predict and at runtime with the same Details {index, type, partition_by, groups, reason, field, depths}: reason is not_string_list, unknown_field, not_prefix or mixed_depth.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"PostTests", "*", "Params", "partition_by"},
+				Hint:     "Name the first k entries of Details.groups, in order (groups [warehouse, week] admits [warehouse]); omit partition_by to partition by every key but the last, or pass [] for one run over every row.",
+				Examples: []any{map[string]any{"partition_by": []any{"warehouse"}}, map[string]any{"partition_by": []any{}}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"PostTests", "*", "Params", "partition_by"},
+				Hint:   "mixed_depth: give every post-test the same partition_by (Details.depths lists each one's depth), or put the post-tests that partition differently in their own request (a Compose slot each).",
+			},
+		},
+	},
 	PULSE_TEST_SPLIT_GROUPS_LT_2: {
-		Message: "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field. On a grouped request it is also raised at predict and runtime when SplitBy names a grouper field (details.reason split_is_grouper: every group holds one level), and it rides a warning naming details.group_key when one group is too sparse (that group's statistic and p_value are null; the others proceed).",
+		Message: "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field. On a grouped request it is also raised at predict and runtime when SplitBy names a grouper field (details.reason split_is_grouper: every group holds one level) or a post-test's SplitBy names one of its partition key columns (details.reason split_is_partition_key: every partition holds one level), and it rides a warning naming details.group_key when one group is too sparse (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1155,6 +1171,12 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Groups", "*", "Field"},
 				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the SplitBy field from groups, or run the across-groups test as its own ungrouped request.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"PostTests", "*", "Params", "partition_by"},
+				Hint:     "split_is_partition_key: a post-test runs once per partition (every key but the last by default); pass partition_by [] to compare across the partition keys in one run, or reorder Request.Groups so the split key comes last.",
+				Examples: []any{map[string]any{"partition_by": []any{}}},
 			},
 		},
 	},

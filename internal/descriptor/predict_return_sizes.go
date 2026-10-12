@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -213,7 +214,15 @@ func returnSections(in returnSizeInputs) []returnSection {
 		add(testNode("tests", n, len(req.Groups) > 0), returnSizeHeuristic)
 	}
 	if len(req.PostTests) > 0 {
-		add(testNode("post_tests", int64(len(req.PostTests)), false), returnSizeHeuristic)
+		// Partitioned, every post-test runs once per partition: at most
+		// one per Data row (the same bound).
+		n := int64(len(req.PostTests))
+		depth, err := groupedtests.PostTestDepth(req.PostTests, req.Groups)
+		partitioned := err == nil && depth > 0
+		if rows, _, known := in.dataRows(); known && partitioned {
+			n = mulSaturating(n, rows)
+		}
+		add(testNode("post_tests", n, partitioned), returnSizeHeuristic)
 	}
 
 	if len(req.Regressions) > 0 {

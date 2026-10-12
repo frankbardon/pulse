@@ -1,10 +1,13 @@
 package processing
 
 import (
+	stderrors "errors"
 	"fmt"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/groupedtests"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -246,7 +249,7 @@ func (p *Processor) buildPostTests(tests []*types.Test) ([]postTestEntry, error)
 				fmt.Sprintf("test type %s is not registered as a post test", t.Type),
 				map[string]any{"type": string(t.Type), "tier": "post_tests"})
 		}
-		inst, err := factory(t, p.schema)
+		inst, err := factory(groupedtests.WithoutPartition(t), p.schema)
 		if err != nil {
 			return nil, err
 		}
@@ -327,13 +330,27 @@ func realignTestResults(results []*types.TestResult, idx []int, n int) []*types.
 // Returns nil when none is built so the caller can leave
 // Response.PostTests as the zero value; a partially skipped slot holds
 // nil at the skipped positions.
-func (p *Processor) runPostTests(tests []*types.Test, rows []map[string]any) ([]*types.TestResult, error) {
+//
+// On a grouped request (groups: the request's) every post-test runs
+// once per PARTITION of rows (groupedtests.PostTestDepth: the rows
+// sharing the leading depth group keys, every key but the last by
+// default) — see runPartitionedPostTests. Depth 0 (ungrouped, one
+// grouper, or partition_by []) is the one run over every row, unchanged.
+// The warnings are the partitioned run's sparse-partition warnings.
+func (p *Processor) runPostTests(tests []*types.Test, groups []*types.Group, rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
+	depth, derr := groupedtests.PostTestDepth(tests, groups)
+	if derr != nil {
+		return nil, nil, derr
+	}
 	entries, err := p.buildPostTests(tests)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(entries) == 0 {
-		return nil, nil
+		return nil, nil, nil
+	}
+	if depth > 0 {
+		return p.runPartitionedPostTests(entries, len(tests), groups, depth, rows)
 	}
 	out := make([]*types.TestResult, 0, len(entries))
 	idx := make([]int, 0, len(entries))
@@ -341,7 +358,7 @@ func (p *Processor) runPostTests(tests []*types.Test, rows []map[string]any) ([]
 		workPostTestRuns.Add(1)
 		res, err := e.test.Run(rows)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if res != nil && res.Label == "" {
 			res.Label = e.label
@@ -349,5 +366,62 @@ func (p *Processor) runPostTests(tests []*types.Test, rows []map[string]any) ([]
 		out = append(out, res)
 		idx = append(idx, e.idx)
 	}
-	return realignTestResults(out, idx, len(tests)), nil
+	return realignTestResults(out, idx, len(tests)), nil, nil
+}
+
+// runPartitionedPostTests runs every built post-test once per partition
+// of rows — key equality on the leading depth group key columns
+// (seriespartition.Partition), first-appearance order of the final Data
+// rows, each partition's rows in Data order — so a partition's result
+// is the post-test's result over a request holding only that partition's
+// rows. The output is flat: n (len(Request.PostTests)) x partitions,
+// TEST-MAJOR, each result carrying the partition key as GroupKey; a
+// post-test the ComputePlan skips is nil at each of its positions, so
+// entry k belongs to Request.PostTests[k / partitions]
+// (groupedtests.SpecIndex). A partition whose rows the test refuses with
+// a data-dependent code (sparseTestCodes) gets a null-statistics result
+// plus one warning naming its group_key; the others proceed. No rows,
+// no results.
+func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, groups []*types.Group, depth int, rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
+	keys := seriespartition.RowKeys(rows, seriespartition.KeyColumns(groups))
+	parts := seriespartition.Partition(keys, depth)
+	if len(parts) == 0 {
+		return nil, nil, nil
+	}
+	out := make([]*types.TestResult, n*len(parts))
+	var warns []*types.ResponseWarning
+	for _, e := range entries {
+		factory, _ := p.exts.LookupPostTest(e.spec.Type) // buildPostTests resolved it
+		for k, part := range parts {
+			sub := make([]map[string]any, len(part))
+			for j, r := range part {
+				sub[j] = rows[r]
+			}
+			partKey := append(types.AxisKey(nil), keys[part[0]][:depth]...)
+			inst, err := factory(groupedtests.WithoutPartition(e.spec), p.schema)
+			if err != nil {
+				return nil, nil, err
+			}
+			workPostTestRuns.Add(1)
+			res, err := inst.Run(sub)
+			if err != nil {
+				var coded *errors.CodedError
+				if !stderrors.As(err, &coded) || !sparseTestCodes[coded.Code] {
+					return nil, nil, err
+				}
+				res, warn := sparseTestResult(e.spec, e.label, e.idx, partKey, coded, "partition")
+				out[e.idx*len(parts)+k] = res
+				warns = append(warns, warn)
+				continue
+			}
+			if res != nil {
+				if res.Label == "" {
+					res.Label = e.label
+				}
+				res.GroupKey = partKey
+			}
+			out[e.idx*len(parts)+k] = res
+		}
+	}
+	return out, warns, nil
 }

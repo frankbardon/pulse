@@ -1498,8 +1498,8 @@ func TestMultiGrouper_ChainFiltersOnInnerKeyColumn(t *testing.T) {
 // post-tests run over the composite rows in every mode. A WIN_LAG
 // partitioned by the OUTER key column and ordered by the inner one
 // lags within each region (F has no prior; M's prior is its region's F
-// count), and a TEST_PEARSON_R post-test over the six (region, sex)
-// rows correlates their counts with their id sums — both hand-computed
+// count), and a TEST_PEARSON_R post-test with partition_by [] over the
+// six (region, sex) rows correlates their counts with their id sums — both hand-computed
 // from mgRows. (ProcessStream's row iterator carries no post-tests.)
 func TestMultiGrouper_WindowsAndPostTestsOverCompositeRows(t *testing.T) {
 	f := newMGFixture(t, pulse.Options{})
@@ -1518,7 +1518,10 @@ func TestMultiGrouper_WindowsAndPostTestsOverCompositeRows(t *testing.T) {
 				&types.Aggregation{Type: types.AGG_SUM, Field: "id", Label: "s"})
 			req.Windows = []*types.Window{{Type: types.WIN_LAG, Field: "n", Label: "prev",
 				PartitionBy: []string{"region"}, OrderBy: []types.OrderKey{{Field: "sex"}}}}
-			req.PostTests = []*types.Test{{Type: types.TEST_PEARSON_R, Field: "n", Field2: "s", Label: "r"}}
+			// partition_by [] runs the post-test once over every composite
+			// row (absent, it would run once per region — U46 E3-S2).
+			req.PostTests = []*types.Test{{Type: types.TEST_PEARSON_R, Field: "n", Field2: "s", Label: "r",
+				Params: json.RawMessage(`{"partition_by": []}`)}}
 			if !mode.admitsRequest(req) {
 				t.Skip("mode admits mergeable stages only")
 			}

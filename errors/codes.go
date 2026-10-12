@@ -665,6 +665,18 @@ const (
 	// SplitBy field after filtering.
 	PULSE_TEST_SPLIT_GROUPS_LT_2 Code = "PULSE_TEST_SPLIT_GROUPS_LT_2"
 
+	// PULSE_TEST_PARTITION_INVALID indicates a post-test's partition on a
+	// grouped request cannot be read: Params["partition_by"] is not a
+	// leading prefix of the group key columns (reason not_string_list,
+	// unknown_field, not_prefix — the series-overlay prefix rule), or two
+	// post-tests resolve to different partition depths (reason
+	// mixed_depth: Response.PostTests is one flat post-tests x partitions
+	// list, so every post-test of a request partitions alike). Raised at
+	// predict and at runtime by the one shared reading
+	// (internal/groupedtests.PostTestDepth), Details {index, type,
+	// partition_by, groups, reason[, field][, depths]}.
+	PULSE_TEST_PARTITION_INVALID Code = "PULSE_TEST_PARTITION_INVALID"
+
 	// PULSE_TEST_CONTINGENCY_DEGENERATE indicates a chi-square contingency
 	// table is empty or has a single row/column, making the test
 	// statistic undefined.
@@ -3561,6 +3573,7 @@ var allCodes = []Code{
 	PULSE_TEST_INSUFFICIENT_N,
 	PULSE_TEST_VARIANCE_ZERO,
 	PULSE_TEST_SPLIT_GROUPS_LT_2,
+	PULSE_TEST_PARTITION_INVALID,
 	PULSE_TEST_CONTINGENCY_DEGENERATE,
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW,
 	PULSE_TEST_FIELD2_NOT_NUMERIC,

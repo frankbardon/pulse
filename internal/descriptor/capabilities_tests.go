@@ -18,6 +18,24 @@ var alphaParam = descriptor.Param{
 	Description: "Significance level in (0, 1); RejectNull is true when PValue < alpha.",
 }
 
+// partitionByParam is every post-test's partition key list (U46 E3-S2,
+// internal/groupedtests.PostTestDepth): over two or more groupers a
+// post-test runs once per partition of the result rows.
+var partitionByParam = descriptor.Param{
+	Name:        "partition_by",
+	Type:        "list",
+	Required:    false,
+	Description: "Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). Every post-test of a request partitions alike; PULSE_TEST_PARTITION_INVALID otherwise.",
+}
+
+// withPartitionBy appends partitionByParam to every tier-2 entry.
+func withPartitionBy(ms []descriptor.TestMeta) []descriptor.TestMeta {
+	for i := range ms {
+		ms[i].Params = append(ms[i].Params, partitionByParam)
+	}
+	return ms
+}
+
 // testCapabilities returns the metadata for every entry in
 // types.AllTestTypes(). Order is irrelevant; manifest assembly sorts by
 // Name.
@@ -268,7 +286,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Variant:     "mann_kendall",
 			Description: "Mann-Kendall trend test on an ordered numeric series; tier-2 over windowed result rows.",
 			Streamable:  false,
-			Params:      []descriptor.Param{alphaParam},
+			Params:      []descriptor.Param{alphaParam, partitionByParam},
 			Requires:    []string{"Field", "OrderBy"},
 		},
 		{
@@ -282,6 +300,7 @@ func testCapabilities() []descriptor.TestMeta {
 				alphaParam,
 				{Name: "ms_within", Type: "float", Required: true, Description: "Within-group mean square from a prior ANOVA aggregate."},
 				{Name: "df_within", Type: "float", Required: true, Description: "Within-group degrees of freedom from a prior ANOVA aggregate."},
+				partitionByParam,
 			},
 			Requires: []string{"Field", "SplitBy"},
 		},
@@ -293,7 +312,7 @@ func testCapabilities() []descriptor.TestMeta {
 // non-empty Variant; the natively-tier-2 TREND / TUKEY_HSD entries live in
 // testCapabilities() above with Tier=2.
 func postTestCapabilities() []descriptor.TestMeta {
-	return []descriptor.TestMeta{
+	return withPartitionBy([]descriptor.TestMeta{
 		{
 			Name:        string(types.TEST_ANOVA_F) + "/one_way_from_summary",
 			Family:      string(types.TEST_ANOVA_F),
@@ -394,5 +413,5 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Params:      []descriptor.Param{alphaParam},
 			Requires:    []string{"Field", "Field2"},
 		},
-	}
+	})
 }
