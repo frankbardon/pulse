@@ -146,6 +146,48 @@ func GrouperWarnings(grouper any) []*types.ResponseWarning {
 	return nil
 }
 
+// refitWarnings returns the warnings of a params.fit "within" grouper g
+// refitted over ONE outer-segment bucket (internal/groupfit), each
+// stamped with that segment: details.group_key = outer (the tuple of
+// the groupers before it — plain groups' prefix, a crosstab row tuple
+// plus column prefix) and the message suffixed with it. One warning per
+// refit and code, never collapsed: each bucket's fit stops at its own
+// iteration count, the per-group convention of grouped tests
+// (sparseTestResult). The outermost position never refits — its
+// "within" is the whole-set fit, whose warnings stay unstamped exactly
+// as under "global" — so outer is never empty. Plain groups and both
+// crosstab axes (hence every Compose slot) route their refits through
+// here, so they raise the same warning set.
+func refitWarnings(g Grouper, outer types.AxisKey) []*types.ResponseWarning {
+	ws := GrouperWarnings(g)
+	if len(ws) == 0 {
+		return nil
+	}
+	out := make([]*types.ResponseWarning, 0, len(ws))
+	for _, w := range ws {
+		details := make(map[string]any, len(w.Details)+1)
+		for k, v := range w.Details {
+			details[k] = v
+		}
+		details["group_key"] = append(types.AxisKey{}, outer...)
+		out = append(out, &types.ResponseWarning{
+			Code:    w.Code,
+			Message: fmt.Sprintf("%s (fit within group %v)", w.Message, []any(outer)),
+			Details: details,
+		})
+	}
+	return out
+}
+
+// stringsAxisKey is tuple as a types.AxisKey (the GroupKey shape).
+func stringsAxisKey(tuple []string) types.AxisKey {
+	out := make(types.AxisKey, len(tuple))
+	for i, k := range tuple {
+		out[i] = k
+	}
+	return out
+}
+
 // includeFilterOf extracts the ordered include filter from a grouper —
 // a grouper's intrinsic emission order (emissionOrderer) first —
 // returning nil for groupers that don't implement IncludeOrdered

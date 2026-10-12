@@ -314,3 +314,151 @@ func TestGroupFit_RefusedIdentically(t *testing.T) {
 		}
 	}
 }
+
+// gfWarnings renders resp's PULSE_MATRIX_NOT_CONVERGED warnings as
+// sorted "group_key|message" lines ("-" = unstamped).
+func gfWarnings(t *testing.T, resp *types.Response) []string {
+	t.Helper()
+	var out []string
+	for _, w := range resp.Warnings {
+		if w.Code != string(perr.PULSE_MATRIX_NOT_CONVERGED) {
+			continue
+		}
+		key := "-"
+		if gk, ok := w.Details["group_key"]; ok {
+			b, err := json.Marshal(gk)
+			if err != nil {
+				t.Fatal(err)
+			}
+			key = string(b)
+		}
+		out = append(out, key+"|"+w.Message)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// gfKeys strips the message: the sorted group_key column.
+func gfKeys(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = l[:strings.Index(l, "|")]
+	}
+	return out
+}
+
+// TestGroupFit_RefitWarnings (U46 E4-S5): every warning a "within"
+// refit raises reaches Response.Warnings, one per outer bucket and
+// code, details.group_key naming the outer segment — the same set on
+// plain groups, both crosstab axes and Compose; the whole-set fit's
+// own warning stays unstamped. "global", absent fit and an outermost
+// "within" raise only the unstamped whole-set warning.
+func TestGroupFit_RefitWarnings(t *testing.T) {
+	ctx := context.Background()
+	f := newMGFixture(t, pulse.Options{})
+	p := f.p
+	// max_iter 1 never converges (the first pass always reassigns), so
+	// every fit — whole-set and each refit — warns.
+	km := func(fit string) *types.Group {
+		g := &types.Group{Type: types.GROUP_KMEANS, Fields: []string{"y"}, Params: json.RawMessage(`{"k":2,"max_iter":1}`)}
+		if fit != "" {
+			g = gfFit(t, g, fit)
+		}
+		return g
+	}
+	process := func(t *testing.T, req *types.Request) *types.Response {
+		t.Helper()
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("Process: %v", err)
+		}
+		return resp
+	}
+	region, sex := mgRegion(), mgSex()
+
+	for _, fit := range []string{"", "global", "within"} {
+		t.Run("fit="+fit, func(t *testing.T) {
+			g := km(fit)
+			// Outer segment [region].
+			plain := gfWarnings(t, process(t, mgRequest(f, []*types.Group{region, g})))
+			wantKeys := []string{`-`}
+			if fit == "within" {
+				wantKeys = []string{`-`, `["north"]`, `["south"]`, `["west"]`}
+			}
+			if got := gfKeys(plain); !reflect.DeepEqual(got, wantKeys) {
+				t.Fatalf("plain [region, kmeans] warning keys = %v, want %v (%v)", got, wantKeys, plain)
+			}
+			for name, req := range map[string]*types.Request{
+				"crosstab rows [region, kmeans]":    gfCrosstab(f, []*types.Group{region, g}, []*types.Group{sex}),
+				"crosstab [region] x [kmeans]":      gfCrosstab(f, []*types.Group{region}, []*types.Group{g}),
+				"crosstab rows [region, kmeans] cn": withNormalize(gfCrosstab(f, []*types.Group{region, g}, []*types.Group{sex})),
+			} {
+				if got := gfWarnings(t, process(t, req)); !reflect.DeepEqual(got, plain) {
+					t.Fatalf("%s warnings = %v, plain = %v", name, got, plain)
+				}
+			}
+
+			// Outer segment [region, sex]: a column position's outer
+			// segment is the row tuple plus its column prefix.
+			plain2 := gfWarnings(t, process(t, mgRequest(f, []*types.Group{region, sex, g})))
+			if fit == "within" && len(plain2) != 7 {
+				t.Fatalf("plain [region, sex, kmeans] = %v, want the whole-set warning + 6 segments", plain2)
+			}
+			for name, req := range map[string]*types.Request{
+				"crosstab [region] x [sex, kmeans]": gfCrosstab(f, []*types.Group{region}, []*types.Group{sex, g}),
+				"crosstab [region, sex] x [kmeans]": gfCrosstab(f, []*types.Group{region, sex}, []*types.Group{g}),
+				"crosstab [region, sex, kmeans]":    gfCrosstab(f, []*types.Group{region, sex, g}, []*types.Group{mgTier()}),
+			} {
+				if got := gfWarnings(t, process(t, req)); !reflect.DeepEqual(got, plain2) {
+					t.Fatalf("%s warnings = %v, plain = %v", name, got, plain2)
+				}
+			}
+
+			// Compose slots raise their Process set.
+			cr, err := p.Compose(ctx, &pulse.ComposedRequest{Requests: []*types.Request{
+				mgRequest(f, []*types.Group{region, g}),
+				gfCrosstab(f, []*types.Group{region}, []*types.Group{g}),
+			}})
+			if err != nil {
+				t.Fatalf("Compose: %v", err)
+			}
+			for i, r := range cr.Responses {
+				if got := gfWarnings(t, r); !reflect.DeepEqual(got, plain) {
+					t.Fatalf("Compose slot %d warnings = %v, plain = %v", i, got, plain)
+				}
+			}
+
+			// Outermost "within" is the whole-set fit: one unstamped
+			// warning, as under "global".
+			outer := gfWarnings(t, process(t, mgRequest(f, []*types.Group{g, region})))
+			if got := gfKeys(outer); !reflect.DeepEqual(got, []string{`-`}) {
+				t.Fatalf("outermost %q warnings = %v", fit, outer)
+			}
+			if got := gfWarnings(t, process(t, gfCrosstab(f, []*types.Group{g}, []*types.Group{region}))); !reflect.DeepEqual(got, outer) {
+				t.Fatalf("crosstab rows[0] %q warnings = %v, plain = %v", fit, got, outer)
+			}
+		})
+	}
+
+	// global spelled out is byte-identical to absent, warnings and all.
+	for _, req := range []func(g *types.Group) *types.Request{
+		func(g *types.Group) *types.Request { return mgRequest(f, []*types.Group{region, g}) },
+		func(g *types.Group) *types.Request {
+			return gfCrosstab(f, []*types.Group{region}, []*types.Group{g})
+		},
+	} {
+		def, glob := process(t, req(km(""))), process(t, req(km("global")))
+		if !reflect.DeepEqual(def.Warnings, glob.Warnings) || !reflect.DeepEqual(def.Data, glob.Data) || !reflect.DeepEqual(def.Crosstab, glob.Crosstab) {
+			t.Fatalf("fit global != absent: %v vs %v", glob.Warnings, def.Warnings)
+		}
+	}
+}
+
+// withNormalize sets a row normalisation at the outermost level, so the
+// partial-margin pass refits too (and must stay silent).
+func withNormalize(req *types.Request) *types.Request {
+	lvl := 0
+	req.Crosstab.Normalize = types.CrosstabNormalizeRow
+	req.Crosstab.NormalizeLevel = &lvl
+	return req
+}

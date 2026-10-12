@@ -14,7 +14,7 @@ examples_tags: [multivariate, buffered-pipeline]
 ## Params
 
 - `k` (required, 2 ≤ k ≤ distinct tuples). `seed` int64 (0 = fixed). `max_iter` 100, `n_init` 10 (lowest within-SS wins). `standardize` true. `missing` `listwise`.
-- `fit` `global` (once over the filtered set) or `within` (per bucket of the groupers before it; no-op outermost).
+- `fit` `global` (once over the filtered set) or `within` (per bucket of the groupers before it; no-op outermost). A `within` refit that stops at `max_iter` warns once per bucket, `details.group_key` = the outer segment; the whole-set fit (Components) warns unstamped.
 - `weight`: frequency only (a row is w points).
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`; no `field`. Key column `GROUP_KMEANS_<vector>` or `_<first fields entry>`.

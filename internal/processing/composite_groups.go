@@ -214,6 +214,10 @@ type compositePartition struct {
 	// PerGrouper is grouper i's own partition of the whole set — the
 	// source of its Components floor.
 	PerGrouper []map[string][]*Record
+	// RefitWarnings are the per-outer-bucket refits' warnings of every
+	// params.fit "within" position (refitWarnings: one per refit, each
+	// naming its outer segment as details.group_key), in walk order.
+	RefitWarnings []*types.ResponseWarning
 }
 
 // partitionComposite drives every grouper exactly once over the WHOLE
@@ -228,8 +232,9 @@ type compositePartition struct {
 // "within" (internal/groupfit) is refitted inside each outer-prefix
 // bucket instead — a fresh instance from refit per bucket — through
 // partitionCompositeWithin; its whole-set fit still sources the slot's
-// Components, warnings and key order. "within" on groups[0] has no
-// outer segment and is the whole-set fit.
+// Components, its unstamped warnings and key order, and every refit's
+// warnings join RefitWarnings stamped with their outer segment.
+// "within" on groups[0] has no outer segment and is the whole-set fit.
 func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Record, lim limits.Limits, refit func(i int) (Grouper, error)) (*compositePartition, error) {
 	n := len(groups)
 	perGrouper := make([]map[string][]*Record, n)
@@ -349,6 +354,7 @@ func partitionCompositeWithin(groups []*types.Group, records []*Record, lim limi
 		recs  []*Record
 	}
 	level := []prefix{{recs: records}}
+	var refitWarns []*types.ResponseWarning
 	for i, grp := range groups {
 		var next []prefix
 		for _, b := range level {
@@ -362,6 +368,7 @@ func partitionCompositeWithin(groups []*types.Group, records []*Record, lim limi
 				if err != nil {
 					return nil, err
 				}
+				refitWarns = append(refitWarns, refitWarnings(g, stringsAxisKey(b.tuple))...)
 				local := make(map[*Record][]string, len(b.recs))
 				for k, recs := range m {
 					for _, r := range recs {
@@ -392,7 +399,7 @@ func partitionCompositeWithin(groups []*types.Group, records []*Record, lim limi
 	}
 
 	set := NewCompositeKeySet(len(groups))
-	out := &compositePartition{Set: set, Buckets: map[string][]*Record{}, PerGrouper: perGrouper}
+	out := &compositePartition{Set: set, Buckets: map[string][]*Record{}, PerGrouper: perGrouper, RefitWarnings: refitWarns}
 	keySets := make([][]string, len(groups))
 	for _, leaf := range level {
 		for i, k := range leaf.tuple {
@@ -439,6 +446,7 @@ func (p *Processor) processGroupedComposite(req *types.Request, records []*Recor
 	for _, g := range groupers {
 		warns = append(warns, GrouperWarnings(g)...)
 	}
+	warns = append(warns, part.RefitWarnings...)
 	keys := OrderCompositeGroupKeys(part.Set.Keys(), part.Set, groupers)
 	if err := folds.tests.admit(len(keys)); err != nil {
 		return nil, nil, nil, nil, nil, nil, err

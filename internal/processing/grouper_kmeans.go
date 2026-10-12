@@ -704,9 +704,16 @@ func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
 // order and its components, computed once per RunCrosstab so a nested
 // position or the per-row-bucket column partition routes records by it
 // instead of refitting a subset — the plain-groups rule
-// (partitionComposite). Under "within" the position is not whole-set
-// and PartitionByAxis refits it on each outer bucket's records.
+// (partitionComposite). Under "within" the position is still fitted
+// whole-set — its Components and unstamped warnings, as on plain
+// groups — but route is false and PartitionByAxis refits it on each
+// outer bucket's records; the outermost composite position (rows[0],
+// or columns[0] when there are no rows) has no outer segment, so its
+// "within" routes by the whole-set fit exactly as "global" does.
 type wholeSetAxis struct {
+	// route reports whether PartitionByAxis routes records by keyOf
+	// (false: a "within" position refitted per outer bucket).
+	route      bool
 	keyOf      map[*Record]string
 	order      *includeFilter
 	components map[string]any
@@ -730,9 +737,12 @@ func (ws *wholeSetAxis) partition(records []*Record) map[string][]*Record {
 func (p *Processor) fitWholeSetAxes(spec *types.CrosstabSpec, filtered []*Record) ([]*types.ResponseWarning, error) {
 	p.wholeSetAxes = nil
 	var warns []*types.ResponseWarning
+	outermost := true
 	for _, axis := range [][]*types.Group{spec.Rows, spec.Columns} {
 		for _, grp := range axis {
-			if grp == nil || !groupfit.Applies(grp.Type) || groupfit.IsWithin(grp) || p.exts.isHidden(string(grp.Type)) {
+			first := outermost
+			outermost = false
+			if grp == nil || !groupfit.Applies(grp.Type) || p.exts.isHidden(string(grp.Type)) {
 				continue
 			}
 			factory, ok := p.exts.LookupGrouper(grp.Type)
@@ -747,7 +757,7 @@ func (p *Processor) fitWholeSetAxes(spec *types.CrosstabSpec, filtered []*Record
 			if err != nil {
 				return nil, err
 			}
-			ws := &wholeSetAxis{keyOf: make(map[*Record]string, len(filtered))}
+			ws := &wholeSetAxis{route: first || !groupfit.IsWithin(grp), keyOf: make(map[*Record]string, len(filtered))}
 			for k, recs := range buckets {
 				for _, r := range recs {
 					ws.keyOf[r] = k
