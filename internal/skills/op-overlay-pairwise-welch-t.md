@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_PAIRWISE_WELCH_T
 description: Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise, welford-triple]
 ---
 

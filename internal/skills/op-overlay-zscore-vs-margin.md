@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_ZSCORE_VS_MARGIN
 description: Per-cell standardized-margin z-score — (cell − margin) / sd where sd is the population SD within the same margin slice.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, outlier-detection]
 ---
 

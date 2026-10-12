@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_CHISQ_MATRIX
 description: Whole-matrix χ² independence test across the host crosstab's row × column contingency table.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test]
 ```
 

@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_INDEX_VS_BASELINE
 description: Per-point ratio index against a fixed positional baseline of an ordered SERIES host (×100).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, time-series, comparison]
 ---
 

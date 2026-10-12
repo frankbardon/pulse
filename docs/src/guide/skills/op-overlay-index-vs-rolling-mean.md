@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_INDEX_VS_ROLLING_MEAN
 description: Per-point windowed index against the arithmetic mean of the W preceding points of an ordered SERIES host.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, time-series, window-operator]
 ```
 

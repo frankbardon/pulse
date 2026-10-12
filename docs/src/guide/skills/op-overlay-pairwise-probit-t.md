@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_PAIRWISE_PROBIT_T
 description: Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ```
 

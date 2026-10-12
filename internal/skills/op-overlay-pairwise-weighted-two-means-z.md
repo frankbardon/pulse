@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z
 description: Intra-matrix axis-pairwise two-means z-test on weighted-mean cells under a required n_basis (weights | kish).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 

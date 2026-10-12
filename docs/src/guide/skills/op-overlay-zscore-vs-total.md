@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_ZSCORE_VS_TOTAL
 description: Per-group streamable z-score against the SERIES host's grand-total distribution (population SD).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, outlier-detection, streaming-friendly]
 ```
 

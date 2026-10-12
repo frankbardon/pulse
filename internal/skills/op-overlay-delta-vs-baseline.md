@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_DELTA_VS_BASELINE
 description: Per-point additive delta against a fixed positional baseline of an ordered SERIES host.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, time-series, before-after]
 ---
 

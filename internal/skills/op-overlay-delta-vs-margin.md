@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_DELTA_VS_MARGIN
 description: Per-cell additive delta against the matching axis margin (cell − margin).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, before-after]
 ---
 

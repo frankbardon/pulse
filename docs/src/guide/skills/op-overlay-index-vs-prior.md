@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_INDEX_VS_PRIOR
 description: Per-point streamable windowed index against the immediately preceding point of an ordered SERIES host (×100).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, time-series, trend-detection, streaming-friendly]
 ```
 

@@ -65,7 +65,26 @@ Composite keys moved to [U54](U54-multi-grouper.md) (owner decision 2026-10-11).
 - **E1 — Overlays pick their measure:** `params.field` on process-host, Compose and whole-chain overlays (`PULSE_OVERLAY_FIELD_UNKNOWN`); Compose and chain keys on group columns only.
 - **E2 — Overlays partition:** `partition_by` on series overlays (the U54 refusal lifted), `_TOTAL` kinds partitioned, `OVERLAY_YOY` per non-date-key combination, `PULSE_OVERLAY_PARTITION_INVALID`, advisory `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` (ordered kinds only, owner decision 2026-10-12).
 - **E3 — Tests per group:** implicit grouped `tests[]` (`group_key`, test-major, one multiplicity family, `AppliedMultiplicity.excluded`), partitioned `post_tests`, `PULSE_TEST_PARTITION_INVALID`.
-- **E4 — One fit rule, chain key, bookkeeping:** `fit: global|within` (#428), the chain key column (#430), the showcase move, and owner-added fixes: chain-stage `field` (E1-S4), within-refit warnings (E4-S5), joined stage-0 defaults (E4-S6), `SLOT_SHAPE_DIVERGENT` runtime parity (E4-S7), array-valued refusal judged on the scored aggregation only (E4-S8, E4-S10), predict-chain shape mismatch as a warning (E4-S9).
+- **E4 — One fit rule, chain key, bookkeeping:** `fit: global|within` (#428), the chain key column (#430), the showcase move, and the owner-added fixes below.
+
+Owner-added stories (each fixes a known limit in-effort; migration rows in the embedder doc):
+
+- **E1-S4** chain-stage `params.field` on whole-chain overlays.
+- **E4-S4** showcases moved out to `pulse-casebook`.
+- **E4-S5** within-refit warnings.
+- **E4-S6** joined stage-0 defaults and gate against the joined schema.
+- **E4-S7** `PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT` runtime parity.
+- **E4-S8** array-valued refusal judged on the scored aggregation (Compose, whole-chain).
+- **E4-S9** predict-chain stage-shape mismatch is a warning, as at runtime.
+- **E4-S10** array-valued refusal judged on the scored aggregation (grouped Process).
+- **E4-S11** non-scalar scored aggregation refused, plus `AggregatorRegistration.NonScalar`.
+- **E4-S12** `internal/overlayhost`: one wrong-slot refusal for every overlay slot.
+- **E4-S13** Compose `OVERLAY_T_VS_REF` / `_Z_VS_REF` over `AGG_WELFORD` with components disabled refused.
+- **E4-S14** categorical-code scored aggregation refused, plus `AggregatorRegistration.EmitsInputValue`.
+- **E4-S15** wrong Process shape refused; Compose `OVERLAY_FORMULA` computes, identically on predict and runtime.
+- **E4-S16** no silent T/Z variance and sample-size defaults (`PULSE_OVERLAY_PARAM_MISSING`).
+- **E4-S17** code refusal covers crosstab cells and chain-forwarded mode columns.
+- **E4-S18** overlay skills' `applies_to` pinned to `overlayhost` (`TestOverlaySkillsAppliesToMatchesHosts`); close-out refreshed.
 
 Embedder-facing changes: [03-embedder-migration.md](../v1.0.0-api-and-release/03-embedder-migration.md#changes-from-u46-grouped-analysis).
 
@@ -105,6 +124,17 @@ Embedder-facing changes: [03-embedder-migration.md](../v1.0.0-api-and-release/03
 | #436 unknown overlay `field` on both stages: two predict errors, one runtime | [U35](U35-predict-runtime-parity.md) | parity |
 | #437 `MaxEstimatedMemory` ignores per-group test state | [U35](U35-predict-runtime-parity.md) | limits parity with `MaxGroups` |
 | per-row local-day boundary for the multi-time-zone screen (#348, #353) | [U50](U50-local-time.md) | already filed; a request has one `time_zone` |
+| #438 series FORMULA on a grouped Process host | unowned | needs an owner decision; no story requested |
+| #439 SCALAR Process host overlays: predict accepts, runtime returns no layer | [U35](U35-predict-runtime-parity.md) | parity |
+| #440 Request-host MATRIX FORMULA unknown identifier: INVALID_IDENT vs PARSE_ERROR | [U35](U35-predict-runtime-parity.md) | parity |
+| #441 Compose FORMULA on SERIES slots has no `params.field` | unowned | needs an owner decision; no story requested |
+| #442 Compose overlay with no targets: predict passes, runtime refuses | [U35](U35-predict-runtime-parity.md) | parity |
+| #443 Compose T/Z handlers silently ignore extra targets | unowned | needs an owner decision; no story requested |
+| #444 Compose T/Z series arm accepts a variance / stddev as the mean | unowned | needs an owner decision; no story requested |
+| #445 Compose and chain crosstab cells that are codes still score codes | unowned | needs an owner decision; no story requested |
+| #446 numeric aggregators over a code column compute over dictionary indexes | unowned | needs an owner decision; no story requested |
+| #447 extension MATRIX overlay kinds escape the code-cell rule | unowned | needs an owner decision; no story requested |
+| #448 moment pairwise kinds over an AGG_MODE cell: predict may be silent | [U35](U35-predict-runtime-parity.md) | parity |
 
 ## Inherited from U42 (moved to U49)
 

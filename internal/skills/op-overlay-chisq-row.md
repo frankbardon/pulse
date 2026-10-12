@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_CHISQ_ROW
 description: Per-row χ² goodness-of-fit test across the host crosstab's contingency table.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test]
 ---
 

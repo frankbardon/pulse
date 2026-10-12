@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_SHARE_OF_COL
 description: Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, proportion-analysis]
 ```
 

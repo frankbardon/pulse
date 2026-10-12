@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_DELTA_VS_SIBLING
 description: Per-group additive delta against a sibling group named by (Field, Value) on the SERIES host.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, comparison, before-after]
 ---
 

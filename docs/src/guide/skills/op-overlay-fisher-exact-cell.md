@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_FISHER_EXACT_CELL
 description: Per-cell Fisher's exact two-sided p-value over a 2×2 contingency formed from each host crosstab cell + its margins.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, exact-test, small-sample]
 ```
 

@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_INDEX_VS_MARGIN
 description: Per-cell index against the matching axis margin (100 × cell / margin).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, comparison]
 ```
 

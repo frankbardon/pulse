@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_YOY
 description: Per-point year-over-year ratio against the same period one year prior; requires one GROUP_DATE grouper, partitions by the other keys.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, time-series, comparison, trend-detection]
 ```
 

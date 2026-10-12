@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_ZSCORE_VS_ROLLING
 description: Per-point windowed z-score against the rolling-window mean + SAMPLE SD of the W preceding points.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, time-series, outlier-detection, window-operator]
 ---
 

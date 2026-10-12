@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_INDEX_VS_TOTAL
 description: Per-group streamable ratio index against the SERIES host's grand total (×100).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, comparison, streaming-friendly]
 ---
 

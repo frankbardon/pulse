@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_INDEX_VS_SIBLING
 description: Per-group ratio index against a sibling group named by (Field, Value) on the SERIES host (×100).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, comparison]
 ```
 

@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_SHARE_OF_TOTAL
 description: Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, proportion-analysis, streaming-friendly]
 ---
 
