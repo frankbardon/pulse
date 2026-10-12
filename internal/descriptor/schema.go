@@ -44,7 +44,8 @@ const (
 //     so registering a new operator changes the schema and trips the gate.
 //  3. Hand-tuned strict unions for the two shapes reflection cannot
 //     express faithfully: OverlayRef (at-most-one populated arm) and
-//     OverlayPayload (shape-discriminated scalar/series/matrix).
+//     OverlayPayload (shape-discriminated scalar/series/matrix, plus
+//     non-nesting named parts).
 //
 // v1 boundaries (documented in docs/src/contract/payload-schema.md):
 //   - Operator Params (json.RawMessage) stay an open object — there is no
@@ -572,10 +573,18 @@ func (b *schemaBuilder) overlayRefDef(t reflect.Type) any {
 
 // overlayPayloadDef builds the strict OverlayPayload union: shape-keyed
 // scalar/series/matrix, with the populated arm required for its shape.
+// `parts` maps a part name to the same union WITHOUT `parts` — parts
+// never nest, so the schema rejects a part carrying parts.
 func (b *schemaBuilder) overlayPayloadDef(t reflect.Type) any {
 	prevFloatNull := b.floatNull
 	b.floatNull = b.resultOnly[t]
 	defer func() { b.floatNull = prevFloatNull }()
+	return b.overlayPayloadUnion(t, true)
+}
+
+// overlayPayloadUnion is overlayPayloadDef's body; withParts false
+// drops the `parts` key (the per-part schema).
+func (b *schemaBuilder) overlayPayloadUnion(t reflect.Type, withParts bool) any {
 	props := map[string]any{}
 	armForShape := map[string]string{}
 	// The adjusted twins (p_adjusted / significant_adjusted) ride a
@@ -588,6 +597,16 @@ func (b *schemaBuilder) overlayPayloadDef(t reflect.Type) any {
 		}
 		name, _, skip := jsonFieldName(f)
 		if skip || slices.Contains(hidden, name) {
+			continue
+		}
+		if name == "parts" {
+			if withParts {
+				props[name] = map[string]any{
+					"type":                 "object",
+					"description":          "Named secondary payloads of a multi-output kind, beside the primary. Each part is a scalar | series | matrix payload; parts never nest.",
+					"additionalProperties": b.overlayPayloadUnion(t, false),
+				}
+			}
 			continue
 		}
 		props[name] = b.schemaFor(f.Type, false)

@@ -2023,6 +2023,19 @@ const (
 	// keeping CSV output.
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED Code = "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED"
 
+	// PULSE_OVERLAY_EXPORT_PARTS_DROPPED is a WARNING-class code emitted
+	// by an export adapter that embeds an overlay layer's PRIMARY payload
+	// but cannot carry its named parts (OverlayPayload.Parts) — today the
+	// Excel adapter, whose one-sheet-per-layer layout has no slot for a
+	// secondary payload. The primary rides its sheet unchanged; the parts
+	// are dropped. Details carry `layer_count` (layers with parts),
+	// `layer_names` and `parts` (layer name → sorted part names). Never an
+	// envelope error: the export succeeds. Formats that write the layer
+	// as JSON (Arrow, Parquet, NDJSON) carry parts whole; the warn-and-
+	// skip formats (CSV, TSV, SPSS) drop the whole layer under
+	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED instead.
+	PULSE_OVERLAY_EXPORT_PARTS_DROPPED Code = "PULSE_OVERLAY_EXPORT_PARTS_DROPPED"
+
 	// PULSE_TEMPLATE_NOT_FOUND indicates a render was asked for a
 	// template name that is not registered — neither declared
 	// programmatically nor loaded from a template directory. Details
@@ -3728,6 +3741,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
 	PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED,
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
+	PULSE_OVERLAY_EXPORT_PARTS_DROPPED,
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,

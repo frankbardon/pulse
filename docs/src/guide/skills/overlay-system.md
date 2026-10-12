@@ -1,6 +1,6 @@
 ```yaml
 name: overlay-system
-description: Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics.
+description: Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics.
 type: guide
 kind: design
 applies_to: process, compose, facet
@@ -48,6 +48,10 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 `payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, summary}`, aligned to host keys; the figure is `summary.statistic`. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z) and is absent for inferential kinds (manifest `inferential: true`).
 
+## Parts (multi-output kinds)
+
+A multi-output kind adds `payload.parts`: named secondary payloads beside the primary. Each is a plain scalar | series | matrix payload, never nested; the kind's skill names them. A points × dimensions part keys its columns `["dim_1"]`, `["dim_2"]`, …. Select one via `return`: `overlays[*].payload.parts.<part>`.
+
 ## Host-arm wiring
 
 The carrying request decides the host; the host decides the legal kinds:
@@ -69,15 +73,11 @@ Inferential layers take `multiplicity` (`layer` / `row` / `column` / `request` /
 
 ## Streamability
 
-Manifest `overlays[].buffered`. Descriptive SERIES kinds stream; inferential kinds buffer. MATRIX kinds fold after the matrix is finished, so an overlay never decides whether a crosstab fuses — the cell aggregator does ([`crosstab-guide`](crosstab-guide.md)). Mixing streamable and buffered kinds on one request prices it as buffered.
+Manifest `overlays[].buffered`. Descriptive SERIES kinds stream; inferential kinds buffer. MATRIX kinds fold after the matrix is finished, so an overlay never decides whether a crosstab fuses — the cell aggregator does ([`crosstab-guide`](crosstab-guide.md)). Mixing streamable and buffered kinds prices the request as buffered.
 
 ## Weighted hosts
 
-A weighted host yields a weighted payload, so every descriptive kind (shares, indices, deltas) reads weighted figures with no overlay setting. An inferential kind refuses a weight that reaches it (request, instance default, its own `weight`) with `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` on the spec opts out.
-
-## Parity overlays — Welford migration
-
-The Compose t / z kinds (cell, vs-ref) read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, so the cell aggregator must emit that triple; with no triple at the coordinate they fall back to `params` (`variance_*`, `sample_size_*`).
+Descriptive kinds (shares, indices, deltas) read the host's weighted figures as-is. An inferential kind refuses a weight that reaches it (request, instance default, its own `weight`) with `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` on the spec opts out.
 
 ## See
 

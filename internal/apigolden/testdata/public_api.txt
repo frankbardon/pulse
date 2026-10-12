@@ -2349,6 +2349,7 @@ pulse/errors: const PULSE_OVERLAY_DICT_PREFIX_DRIFT pulse/errors.Code = "PULSE_O
 pulse/errors: const PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED pulse/errors.Code = "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED"
 pulse/errors: const PULSE_OVERLAY_EXPECTED_LOW pulse/errors.Code = "PULSE_OVERLAY_EXPECTED_LOW"
 pulse/errors: const PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED pulse/errors.Code = "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED"
+pulse/errors: const PULSE_OVERLAY_EXPORT_PARTS_DROPPED pulse/errors.Code = "PULSE_OVERLAY_EXPORT_PARTS_DROPPED"
 pulse/errors: const PULSE_OVERLAY_FIELD_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_FIELD_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_FORMULA_INVALID_IDENT pulse/errors.Code = "PULSE_OVERLAY_FORMULA_INVALID_IDENT"
 pulse/errors: const PULSE_OVERLAY_FORMULA_PARSE_ERROR pulse/errors.Code = "PULSE_OVERLAY_FORMULA_PARSE_ERROR"
@@ -4500,6 +4501,7 @@ pulse/types: type OverlayOptions field MaxPanelTargets int "json:\"max_panel_tar
 pulse/types: type OverlayPayload struct
 pulse/types: type OverlayPayload field Matrix *pulse/types.MatrixPayload "json:\"matrix,omitempty\""
 pulse/types: type OverlayPayload field PAdjusted *pulse/types.MatrixPayload "json:\"p_adjusted,omitempty\""
+pulse/types: type OverlayPayload field Parts map[string]*pulse/types.OverlayPayload "json:\"parts,omitempty\""
 pulse/types: type OverlayPayload field Scalar *float64 "json:\"scalar,omitempty\""
 pulse/types: type OverlayPayload field Series *pulse/types.SeriesPayload "json:\"series,omitempty\""
 pulse/types: type OverlayPayload field Shape pulse/types.OverlayShape "json:\"shape\""
@@ -4946,4 +4948,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 1b2cc1d14f800db7c5c292065add409a6e875b946d83c69acb5b7aa7e324c65c
+// golden-hash: 0b74b5166872f3650746689b8ded4a3881b94e9220fbb50c45bf122bea002a20

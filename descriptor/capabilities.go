@@ -185,7 +185,10 @@ type CrosstabCapability struct {
 //   - "sheets"         — one workbook sheet per overlay layer named
 //     "__overlay_<layer_name>" (Excel). The host
 //     workbook sheet is unchanged from the overlay-
-//     free shape.
+//     free shape. A sheet carries the layer's
+//     primary payload only: named parts are
+//     dropped under one
+//     PULSE_OVERLAY_EXPORT_PARTS_DROPPED warning.
 //   - "trailing_block" — a single trailing line `{"_overlays": [...]}`
 //     after the last host record (NDJSON). The
 //     host stream is byte-identical to the overlay-

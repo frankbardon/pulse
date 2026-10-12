@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
+	"github.com/frankbardon/pulse/types"
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
@@ -35,10 +36,36 @@ var (
 // integers. A RawMessage field (operator `params`, a recommendation's
 // drafted `request`, an example body) carries any JSON value on the
 // wire, so it reflects as the empty — any-JSON — schema.
+//
+// OverlayPayload.Parts (map[string]*OverlayPayload) is the one recursive
+// payload type: the reflector refuses the cycle, and a part never nests
+// anyway. So the parts map gets a pre-built schema whose values are the
+// OverlayPayload schema WITHOUT its `parts` key — the same non-nesting
+// shape the payload JSON Schema declares.
 var reflectOptions = &jsonschema.ForOptions{
 	TypeSchemas: map[reflect.Type]*jsonschema.Schema{
-		reflect.TypeFor[json.RawMessage](): {},
+		reflect.TypeFor[json.RawMessage]():                  {},
+		reflect.TypeFor[map[string]*types.OverlayPayload](): overlayPartsSchema(),
 	},
+}
+
+// overlayPartsSchema reflects OverlayPayload with its parts map stubbed,
+// drops the `parts` property, and wraps the result as the parts map's
+// value schema.
+func overlayPartsSchema() *jsonschema.Schema {
+	partsType := reflect.TypeFor[map[string]*types.OverlayPayload]()
+	part, err := jsonschema.ForType(reflect.TypeFor[types.OverlayPayload](), &jsonschema.ForOptions{
+		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+			reflect.TypeFor[json.RawMessage](): {},
+			partsType:                          {Type: "object"},
+		},
+	})
+	if err != nil {
+		reflectErrors["overlay_parts"] = err
+		return &jsonschema.Schema{Type: "object"}
+	}
+	delete(part.Properties, "parts")
+	return &jsonschema.Schema{Type: "object", AdditionalProperties: part}
 }
 
 // reflectSchema reflects a JSON Schema for t and marshals it to json.RawMessage.

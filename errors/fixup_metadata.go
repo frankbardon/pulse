@@ -2727,7 +2727,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"ExportJob", "Target"},
-				Hint:     "To preserve overlays in cross-format export, target an overlay-aware writer instead of CSV / TSV. Arrow (--format arrow) carries overlays as a top-level LIST<STRUCT> column family; Parquet (--format parquet) rides the same Arrow schema through the pqarrow bridge; Excel (--format excel) emits one sheet per layer named `__overlay_<layer_name>`; NDJSON (--format ndjson) appends a single trailing line `{\"_overlays\": [...]}` after the last record. All four formats carry the full layer slate without dropping any payload.",
+				Hint:     "To preserve overlays in cross-format export, target an overlay-aware writer instead of CSV / TSV. Arrow (--format arrow) carries overlays as a top-level LIST<STRUCT> column family; Parquet (--format parquet) rides the same Arrow schema through the pqarrow bridge; Excel (--format excel) emits one sheet per layer named `__overlay_<layer_name>`; NDJSON (--format ndjson) appends a single trailing line `{\"_overlays\": [...]}` after the last record. All four formats carry every layer; Arrow, Parquet and NDJSON also carry a layer's named parts, while Excel writes the primary payload only (PULSE_OVERLAY_EXPORT_PARTS_DROPPED).",
 				Examples: []any{"arrow", "parquet", "excel", "ndjson"},
 			},
 			{
@@ -2740,6 +2740,22 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Request"},
 				Hint:   "To inspect overlay results without exporting, use `pulse api process` with --echo-request and read the JSON envelope's `data.overlays` slot. The envelope renders the full OverlayLayer slate inline so callers can audit the payload before deciding which export format preserves the layers they care about.",
+			},
+		},
+	},
+	PULSE_OVERLAY_EXPORT_PARTS_DROPPED: {
+		Message: "Export embeds the primary payload only; %d overlay layer(s) lost their named parts. Warning-class — each layer's primary payload is written as usual and its `parts` (the secondary payloads of a multi-output kind, OverlayPayload.Parts) are dropped because the target's per-layer layout has no slot for them (Excel: one sheet per layer). Details carry `layer_count`, `layer_names` and `parts` (layer name → part names) so callers can audit what fell off.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"ExportJob", "Target"},
+				Hint:     "To keep the parts, export to a format that writes each overlay layer as JSON: NDJSON (--format ndjson, a trailing `_overlays` line), Arrow (--format arrow) or Parquet (--format parquet). Each carries the layer's `payload.parts` byte-for-byte as the JSON envelope does.",
+				Examples: []any{"ndjson", "arrow", "parquet"},
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Request"},
+				Hint:   "To read the parts without exporting, take them from the JSON envelope: `data.overlays[i].payload.parts.<part>`. A `return` include of `overlays[*].payload.parts.<part>` selects one part.",
 			},
 		},
 	},

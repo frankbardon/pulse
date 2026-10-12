@@ -405,6 +405,9 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 			if err != nil {
 				return nil, nil, err
 			}
+			if cerr := overlayhost.PartsRefusal(&layer, i); cerr != nil {
+				return nil, nil, cerr
+			}
 			layers = append(layers, layer)
 			if len(ws) > 0 {
 				warnings = append(warnings, ws...)
@@ -441,6 +444,11 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		layer, ws, err := handler(spec, host)
 		if err != nil {
 			return nil, nil, err
+		}
+		// A multi-output kind's parts are flat: a handler that nests
+		// them is refused here, never shipped (OverlayPayload.Parts).
+		if cerr := overlayhost.PartsRefusal(&layer, i); cerr != nil {
+			return nil, nil, cerr
 		}
 		layers = append(layers, layer)
 		if len(ws) > 0 {

@@ -8952,7 +8952,7 @@
         ]
       }
     ],
-    "error_codes_count": 350,
+    "error_codes_count": 351,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9156,6 +9156,7 @@
       "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED",
       "PULSE_OVERLAY_EXPECTED_LOW",
       "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED",
+      "PULSE_OVERLAY_EXPORT_PARTS_DROPPED",
       "PULSE_OVERLAY_FIELD_UNKNOWN",
       "PULSE_OVERLAY_FORMULA_INVALID_IDENT",
       "PULSE_OVERLAY_FORMULA_PARSE_ERROR",
@@ -11554,7 +11555,7 @@
       },
       {
         "name": "overlay-system",
-        "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics."
+        "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
       {
         "name": "pairwise-n-sources",
@@ -16427,4 +16428,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 31b8a767dbf5dcdcbfbb63650e0e7e28463c94a46c6fd44ab61ff3781c17e3d6
+// golden-hash: 2aafac32212f069b346669dfd2179993b51bfe67ddeda0122e4b7fde488c4804

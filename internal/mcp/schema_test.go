@@ -123,3 +123,53 @@ func byteArrayPaths(node any, path string) []string {
 	}
 	return out
 }
+
+// TestSchemas_OverlayPartsNeverNest: every tool output that reaches an
+// overlay layer reflects `payload.parts` as a map whose values are the
+// OverlayPayload schema without `parts` — the recursive Go type is
+// reflected once, non-nesting, instead of failing on the cycle.
+func TestSchemas_OverlayPartsNeverNest(t *testing.T) {
+	for _, name := range []string{toolmeta.ToolProcess, toolmeta.ToolCompose, toolmeta.ToolProcessChain, toolmeta.ToolFacetSchema} {
+		ts, ok := SchemaFor(name)
+		if !ok {
+			t.Fatalf("%s: no schema", name)
+		}
+		var doc any
+		if err := json.Unmarshal(ts.OutputSchema, &doc); err != nil {
+			t.Fatal(err)
+		}
+		found := 0
+		var walk func(v any)
+		walk = func(v any) {
+			switch n := v.(type) {
+			case map[string]any:
+				if props, ok := n["properties"].(map[string]any); ok {
+					if parts, ok := props["parts"].(map[string]any); ok {
+						if _, isPayload := props["shape"]; isPayload {
+							found++
+							part, _ := parts["additionalProperties"].(map[string]any)
+							pprops, _ := part["properties"].(map[string]any)
+							if _, ok := pprops["shape"]; !ok {
+								t.Errorf("%s: a part is not an OverlayPayload: %v", name, part)
+							}
+							if _, nested := pprops["parts"]; nested {
+								t.Errorf("%s: a part may carry parts", name)
+							}
+						}
+					}
+				}
+				for _, c := range n {
+					walk(c)
+				}
+			case []any:
+				for _, c := range n {
+					walk(c)
+				}
+			}
+		}
+		walk(doc)
+		if found == 0 {
+			t.Errorf("%s: no overlay payload parts in the output schema", name)
+		}
+	}
+}

@@ -1085,6 +1085,84 @@
         "matrix": {
           "$ref": "#/$defs/MatrixPayload"
         },
+        "parts": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "shape": {
+                      "const": "matrix"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "matrix"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "shape": {
+                      "const": "scalar"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "scalar"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "shape": {
+                      "const": "series"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "series"
+                  ]
+                }
+              }
+            ],
+            "description": "Discriminated union keyed by shape; the matching arm (scalar/series/matrix) is required for the declared shape.",
+            "properties": {
+              "matrix": {
+                "$ref": "#/$defs/MatrixPayload"
+              },
+              "scalar": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "series": {
+                "$ref": "#/$defs/SeriesPayload"
+              },
+              "shape": {
+                "enum": [
+                  "matrix",
+                  "scalar",
+                  "series"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "shape"
+            ],
+            "type": "object"
+          },
+          "description": "Named secondary payloads of a multi-output kind, beside the primary. Each part is a scalar | series | matrix payload; parts never nest.",
+          "type": "object"
+        },
         "scalar": {
           "type": [
             "number",
@@ -2233,4 +2311,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: e5c1b65eb18e3e35bc72329c53cab9fe4d0b2d898693002ed354819ea898cc1a
+// golden-hash: d51881df666c0c84ad51220ab8b6cd130d932aec5e24a795387885b1ee10c2e5

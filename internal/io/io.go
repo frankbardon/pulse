@@ -74,9 +74,11 @@ type ImportReport struct {
 //
 // OverlayWarnings carries the warn-and-skip codes the target Writer
 // surfaced through the optional OverlayWarningEmitter contract (currently
-// the CSV / TSV adapters via PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED).
-// Empty / nil when the target adapter embedded the overlays natively
-// (Arrow / Parquet / Excel / NDJSON), when no overlays were supplied,
+// the CSV / TSV / SPSS adapters via PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
+// and Excel via PULSE_OVERLAY_EXPORT_PARTS_DROPPED when a layer carries
+// named parts). Empty / nil when the target adapter embedded the
+// overlays whole (Arrow / Parquet / NDJSON; Excel for parts-free
+// layers), when no overlays were supplied,
 // or when IncludeOverlays explicitly opted out.
 type ExportReport struct {
 	RowsExported    int

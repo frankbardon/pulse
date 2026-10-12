@@ -104,7 +104,8 @@ drift from the engine:
    changes the schema.
 3. **Hand-tuned strict unions** for the two shapes reflection cannot
    express: `OverlayRef` (at most one arm populated) and `OverlayPayload`
-   (shape-discriminated `scalar` / `series` / `matrix`).
+   (shape-discriminated `scalar` / `series` / `matrix`, plus named
+   `parts` that never nest).
 
 A golden test (`TestPayloadSchemaGolden`) pins the output and an
 enum-parity test (`TestPayloadSchema_EnumsMatchRegistry`) fails CI on
@@ -280,6 +281,39 @@ index with no defined p-value, and `m` is their sum. A facet overlay
 (`FacetResult.overlays[]`) is corrected per layer with the same slots
 and the engine's `DefaultMultiplicity` applying. These keys ride
 `capability:multiplicity` like the test outputs.
+
+## Overlay payload parts
+
+`OverlayPayload.parts` (additive, `omitempty`) carries a multi-output
+overlay kind's named secondary payloads BESIDE its primary: one spec
+still produces one layer, and the primary (`shape` + its arm) stays where
+every renderer already reads it.
+
+```json
+{"shape": "matrix", "matrix": {"…": "residuals"},
+ "parts": {"expected": {"shape": "matrix", "matrix": {"…": "…"}},
+           "p":        {"shape": "matrix", "matrix": {"…": "…"}}}}
+```
+
+- Each part is a plain `scalar` | `series` | `matrix` payload under the
+  same shape rule as the primary. Parts never nest: the schema's per-part
+  definition has no `parts` key, and the engine refuses a handler that
+  builds one (`PROCESSING_INTERNAL`).
+- Part names are fixed per kind and listed in the kind's skill.
+- A coordinate-style matrix part whose columns are dimensions rather than
+  host keys (points × dimensions) keys them `["dim_1"]`, `["dim_2"]`, …
+  in dimension order.
+- A layer without parts — every single-output kind — writes no `parts`
+  key, so its bytes are unchanged; `format_version` stays `"1.1"`.
+- `return` addresses one part as `overlays[*].payload.parts.<part>`. A
+  part name is a map key, so the path is Open: an excluded part is
+  ABSENT (never `null`), an include naming no existing part raises
+  `PULSE_RETURN_PATH_UNMATCHED`, and excluding every part drops the
+  `parts` key.
+- Export: NDJSON, Arrow and Parquet write each layer as JSON, parts
+  included; Excel writes the primary on the layer's sheet and drops the
+  parts under one `PULSE_OVERLAY_EXPORT_PARTS_DROPPED` warning; CSV, TSV
+  and SPSS drop whole layers under `PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED`.
 
 ## Weight slots
 

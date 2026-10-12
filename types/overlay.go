@@ -3052,6 +3052,28 @@ type OverlayPayload struct {
 	// adjusted p is undefined). A cell whose adjusted p is undefined is
 	// absent. Nil when no correction ran.
 	SignificantAdjusted *MatrixPayload `json:"significant_adjusted,omitempty"`
+
+	// Parts carries a multi-output kind's NAMED secondary payloads beside
+	// the primary (Shape + its arm): e.g. the expected-count and p-value
+	// matrices next to a residual matrix, or the row / column coordinate
+	// matrices next to an inertia series. One spec still produces one
+	// layer; the primary stays where every renderer already reads it.
+	//
+	// Each part is a plain scalar | series | matrix payload. Parts never
+	// nest: a part carrying Parts of its own is a handler fault the
+	// dispatcher refuses. Part names are lowercase snake_case, fixed per
+	// kind (the kind's atomic skill lists them).
+	//
+	// A coordinate-style matrix part whose columns are not host keys
+	// (points × dimensions) keys those columns with the synthetic
+	// single-element AxisKeys "dim_1", "dim_2", … in dimension order.
+	//
+	// Nil (and therefore absent on the wire) for every single-output
+	// kind, so a layer without parts serializes byte-identically to the
+	// pre-Parts shape. A `return` addresses one part as
+	// `overlays[*].payload.parts.<part>`; an excluded part is absent,
+	// never null.
+	Parts map[string]*OverlayPayload `json:"parts,omitempty"`
 }
 
 // OverlaySummary carries optional renderer-friendly metadata for one
